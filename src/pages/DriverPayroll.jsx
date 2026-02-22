@@ -773,35 +773,12 @@ export default function DriverPayroll() {
 
     const unsubscribers = [];
 
-    // Subscribe to Delivery changes
-    try {
-      const unsubDeliv = base44.entities.Delivery.subscribe((event) => {
-        console.log(`📡 [DriverPayroll] Delivery ${event.type}:`, event.id);
-        // Refetch payroll on delivery changes
-        fetchPayroll(true, false);
-        refreshPayrollRecords();
-      });
-      unsubscribers.push(unsubDeliv);
-    } catch (e) {
-      console.warn('Failed to subscribe to Delivery updates:', e);
-    }
-
-    // Subscribe to AppUser changes
-    try {
-      const unsubAppUser = base44.entities.AppUser.subscribe((event) => {
-        console.log(`📡 [DriverPayroll] AppUser ${event.type}:`, event.id);
-        fetchPayroll(true, false);
-      });
-      unsubscribers.push(unsubAppUser);
-    } catch (e) {
-      console.warn('Failed to subscribe to AppUser updates:', e);
-    }
-
-    // Subscribe to Payroll changes
+    // Subscribe to Payroll changes only - refetch entire year on change
     try {
       const unsubPayroll = base44.entities.Payroll.subscribe((event) => {
         console.log(`📡 [DriverPayroll] Payroll ${event.type}:`, event.id);
-        refreshPayrollRecords();
+        // Force fresh fetch on payroll changes to get latest records
+        fetchPayroll(true, true);
       });
       unsubscribers.push(unsubPayroll);
     } catch (e) {
@@ -818,7 +795,7 @@ export default function DriverPayroll() {
         }
       });
     };
-  }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
+  }, [hasInitialized, fetchPayroll]);
 
   // Filter payroll records when period changes (don't re-fetch since all year data is loaded)
   // CRITICAL: Uses refs to avoid redundant updates
