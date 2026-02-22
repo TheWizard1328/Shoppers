@@ -272,8 +272,15 @@ export default function DeliveryMetrics() {
       setStores(storesData || []);
 
       // Check if user is admin via platform role OR app_roles
-      const currentAppUser = (appUsersData || []).find((au) => au.user_id === currentUser.id);
-      const isAdmin = currentUser?.role === 'admin' || currentAppUser?.app_roles?.includes('admin');
+      const foundAppUser = (appUsersData || []).find((au) => au.user_id === currentUser.id);
+      setCurrentAppUser(foundAppUser || null);
+      const isAdmin = currentUser?.role === 'admin' || foundAppUser?.app_roles?.includes('admin');
+      const isDispatcher = foundAppUser?.app_roles?.includes('dispatcher') && !isAdmin;
+
+      // Auto-select first assigned store for dispatchers
+      if (isDispatcher && foundAppUser?.store_ids?.length > 0) {
+        setSelectedStore(prev => prev === 'all' ? foundAppUser.store_ids[0] : prev);
+      }
       console.log('👤 [DeliveryMetrics] Current user:', currentUser?.full_name, 'isAdmin:', isAdmin, 'platform role:', currentUser?.role, 'app_roles:', currentAppUser?.app_roles);
       
       let allDrivers = [];
