@@ -4150,7 +4150,7 @@ export default function DeliveriesPage() {
 
           <>
               {activeDriver &&
-            <Card className="mb-6 shadow-sm relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card className="flex-shrink-0 shadow-sm relative mb-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <button
                 onClick={() => setIsMobileMenuOpen((v) => !v)}
                 className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center lg:hidden"
@@ -4194,7 +4194,7 @@ export default function DeliveriesPage() {
                                   const displayName = duplicateNames.length > 1 
                                     ? `${getDriverDisplayName(driver)} (${driver.id.slice(-4)})`
                                     : getDriverDisplayName(driver);
-                                  
+
                                   return (
                                     <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
                                       {displayName}
@@ -4233,7 +4233,9 @@ export default function DeliveriesPage() {
                 </Card>
             }
 
-              {renderDeliveries(filteredAndSortedDeliveries)}
+              <div className="flex-1 overflow-y-auto min-h-0">
+                {renderDeliveries(filteredAndSortedDeliveries)}
+              </div>
             </>
           }
         </div>
