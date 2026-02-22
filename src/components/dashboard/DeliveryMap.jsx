@@ -835,7 +835,52 @@ export default function DeliveryMap({
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
-      const { appUsers, singleUpdate } = event.detail;
+      const { appUsers, singleUpdate, mergeMode } = event.detail;
+
+      // CRITICAL: Handle merge mode - merge single driver update with existing realtimeAppUsers
+      if (mergeMode === 'merge' && appUsers && appUsers.length > 0) {
+        console.log(`🔀 [DeliveryMap] Merge mode - combining ${appUsers.length} updated drivers with existing`);
+        
+        setRealtimeAppUsers(prev => {
+          if (!prev || prev.length === 0) {
+            console.warn(`⚠️ [DeliveryMap] Merge mode but realtimeAppUsers empty - using updated data as-is`);
+            return appUsers;
+          }
+          
+          // Create map of updated drivers
+          const updatedMap = new Map();
+          appUsers.forEach(au => {
+            if (au?.user_id || au?.id) {
+              updatedMap.set(au.user_id || au.id, au);
+            }
+          });
+          
+          // Merge: replace updated drivers, keep others
+          const merged = prev.map(u => {
+            const userId = u?.user_id || u?.id;
+            if (userId && updatedMap.has(userId)) {
+              return updatedMap.get(userId);
+            }
+            return u;
+          });
+          
+          // Add any new drivers not in existing list
+          appUsers.forEach(au => {
+            const userId = au?.user_id || au?.id;
+            if (userId && !prev.some(u => (u?.user_id || u?.id) === userId)) {
+              merged.push(au);
+            }
+          });
+          
+          console.log(`✅ [DeliveryMap] Merged: ${appUsers.length} updated + ${prev.length - appUsers.length} existing = ${merged.length} total`);
+          return merged;
+        });
+        
+        // CRITICAL: Force polyline re-render
+        setPolylineRenderKey(prev => prev + 1);
+        setRouteRenderKey(prev => prev + 1);
+        return;
+      }
 
       // CRITICAL: Handle single driver updates (from status toggle, locationTracker, etc.)
       // singleUpdate is a boolean flag; the actual updated user is in appUsers[0]
