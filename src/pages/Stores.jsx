@@ -197,15 +197,18 @@ export default function StoresPage() {
   }
 
   return (
-    <div className="min-h-screen p-6" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+      {/* Static header */}
+      <div className="flex-shrink-0 px-6 pt-6 pb-4 max-w-7xl w-full mx-auto">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <SmartRefreshIndicator inline={true} />
-            <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Stores</h1>
-            <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>
-              Manage your pharmacy store locations and schedules
-            </p>
+            <div>
+              <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Stores</h1>
+              <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>
+                Manage your pharmacy store locations and schedules
+              </p>
+            </div>
           </div>
           {currentUser && userHasRole(currentUser, 'admin') && (
             <Button
@@ -220,49 +223,54 @@ export default function StoresPage() {
 
         {/* Online Status Banner */}
         <StoreOnlineStatusBanner stores={stores} appUsers={contextAppUsers} />
-
-        {stores.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-            {stores.map((store) => (
-              <StoreCard
-                key={store.id}
-                store={store}
-                onEdit={handleEditStore}
-                onDelete={handleDeleteStore}
-                onSave={handleSaveStore}
-                currentUser={currentUser}
-                drivers={drivers}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="mb-4" style={{ color: 'var(--text-slate-500)' }}>No stores found</p>
-            {currentUser && userHasRole(currentUser, 'admin') && (
-              <Button onClick={handleAddStore} variant="outline" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Your First Store
-              </Button>
-            )}
-          </div>
-        )}
-
-        <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <StoreForm
-              store={editingStore}
-              onSave={handleSaveStore}
-              onCancel={() => {
-                setShowForm(false);
-                setEditingStore(null);
-              }}
-              cities={cities}
-              drivers={drivers}
-              allUsers={allUsers}
-            />
-          </DialogContent>
-        </Dialog>
       </div>
+
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="max-w-7xl mx-auto">
+          {stores.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+              {stores.map((store) => (
+                <StoreCard
+                  key={store.id}
+                  store={store}
+                  onEdit={handleEditStore}
+                  onDelete={handleDeleteStore}
+                  onSave={handleSaveStore}
+                  currentUser={currentUser}
+                  drivers={drivers}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="mb-4" style={{ color: 'var(--text-slate-500)' }}>No stores found</p>
+              {currentUser && userHasRole(currentUser, 'admin') && (
+                <Button onClick={handleAddStore} variant="outline" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Your First Store
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <StoreForm
+            store={editingStore}
+            onSave={handleSaveStore}
+            onCancel={() => {
+              setShowForm(false);
+              setEditingStore(null);
+            }}
+            cities={cities}
+            drivers={drivers}
+            allUsers={allUsers}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
