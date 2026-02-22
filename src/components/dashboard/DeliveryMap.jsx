@@ -2423,16 +2423,7 @@ export default function DeliveryMap({
       };
     });
 
-    // CRITICAL: Only update ref if routes actually changed (deep comparison of driver IDs and stop counts)
-    const routesKey = sortedRoutes.map(r => `${r.driverId}:${r.totalStops}`).join('|');
-    const prevRoutesKey = prevDriverRoutesRef.current.map(r => `${r.driverId}:${r.totalStops}`).join('|');
-    
-    if (routesKey === prevRoutesKey) {
-      // Routes haven't changed - return cached version to prevent re-render
-      return prevDriverRoutesRef.current;
-    }
-    
-    // Routes changed - update cache and return new routes
+    // CRITICAL: Don't cache routes - always return fresh calculation to ensure Type 1 polylines update with driver locations
     prevDriverRoutesRef.current = sortedRoutes;
     return sortedRoutes;
   // CRITICAL: Use stable references for driverRoutes to prevent legend flickering
