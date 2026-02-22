@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const { 
       adminMetricsYear, adminMetricsCityId,
-      payrollYear, payrollCityId, payrollDriverId
+      payrollYear, payrollCityId, payrollDriverId, payrollStartDate, payrollEndDate
     } = body;
 
     const cacheDate = getCacheDateKey();
