@@ -518,6 +518,8 @@ export default function DriverPayroll() {
     toast.success('Payroll data refreshed');
   }, [selectedYear, selectedCityId, refreshPayrollRecords]);
 
+  const fullYearPayrollDataRef = useRef(null);
+
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser) return;
     if (!isAutoRefresh) setIsLoadingPayroll(true);
@@ -553,6 +555,38 @@ export default function DriverPayroll() {
       
       console.log(`✅ [DriverPayroll] Loaded ${freshCities?.length || 0} cities, ${freshAppUsers?.length || 0} appUsers`);
 
+      // CRITICAL: If we have cached full-year data, filter it instead of re-fetching
+      if (fullYearPayrollDataRef.current && !forceFresh) {
+        console.log(`📊 [DriverPayroll] Using cached full-year payroll data, filtering by city and year`);
+        let filtered = fullYearPayrollDataRef.current;
+        
+        if (selectedCityId !== 'all') {
+          const cityStoreIds = new Set(
+            (fullYearPayrollDataRef.current.stores || [])
+              .filter(s => s.city_id === selectedCityId)
+              .map(s => s.id)
+          );
+          filtered = {
+            ...filtered,
+            deliveries: (filtered.deliveries || []).filter(d => cityStoreIds.has(d.store_id))
+          };
+        }
+        
+        const mergedData = {
+          ...filtered,
+          cities: freshCities,
+          appUsers: freshAppUsers
+        };
+        
+        console.log(`✅ [DriverPayroll] Filtered payroll data:`, {
+          deliveries: mergedData?.deliveries?.length || 0,
+          drivers: mergedData?.drivers?.length || 0
+        });
+        
+        setPayrollData(mergedData);
+        return;
+      }
+
       // CRITICAL: Invalidate caches before fetching to ensure fresh data
       if (forceFresh) {
         console.log('🔄 [DriverPayroll] Invalidating caches before fetch');
@@ -561,42 +595,34 @@ export default function DriverPayroll() {
         invalidate('Payroll');
       }
 
-      console.log(`📥 [DriverPayroll] Fetching payroll data - Year: ${selectedYear}, City: ${selectedCityId}, Period: ${currentPeriod?.start?.toISOString().split('T')[0]} to ${currentPeriod?.end?.toISOString().split('T')[0]}, Force: ${forceFresh}`);
+      // CRITICAL: Fetch FULL YEAR on initial load or force refresh (not per-period)
+      const yearStart = new Date(selectedYear, 0, 1).toISOString().split('T')[0];
+      const yearEnd = new Date(selectedYear, 11, 31).toISOString().split('T')[0];
+      
+      console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}, Force: ${forceFresh}`);
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         payrollYear: selectedYear,
         payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
         payrollDriverId: null,
-        payrollStartDate: currentPeriod?.start?.toISOString().split('T')[0],
-        payrollEndDate: currentPeriod?.end?.toISOString().split('T')[0]
+        payrollStartDate: yearStart,
+        payrollEndDate: yearEnd
       });
       const data = response?.data?.payrollData || response?.payrollData;
       
-      // CRITICAL: Backend data is the source of truth for payroll page
-      // Use offline DB ONLY if backend data is missing, as a fallback
+      // CRITICAL: Cache full-year data to avoid re-fetching on period navigation
+      fullYearPayrollDataRef.current = data;
+      
       const mergedData = {
         ...data,
-        // Prefer backend data; only fallback to offline DB if backend has no data
-        cities: (data?.cities && data.cities.length > 0) ? data.cities : (freshCities && freshCities.length > 0 ? freshCities : []),
-        appUsers: (data?.appUsers && data.appUsers.length > 0) ? data.appUsers : (freshAppUsers && freshAppUsers.length > 0 ? freshAppUsers : []),
-        drivers: data?.drivers || []  // Backend provides filtered drivers; keep as-is
+        cities: freshCities,
+        appUsers: freshAppUsers
       };
       
-      console.log(`✅ [DriverPayroll] Merged payroll data:`, {
+      console.log(`✅ [DriverPayroll] Loaded full year payroll data:`, {
         deliveries: mergedData?.deliveries?.length || 0,
         drivers: mergedData?.drivers?.length || 0,
-        stores: mergedData?.stores?.length || 0,
-        appUsers: mergedData?.appUsers?.length || 0,
-        patients: mergedData?.patients?.length || 0,
-        cities: mergedData?.cities?.length || 0
+        stores: mergedData?.stores?.length || 0
       });
-      
-      // CRITICAL: Validate merged data has required fields before state update
-      if (!mergedData.drivers || mergedData.drivers.length === 0) {
-        console.error('❌ [DriverPayroll] CRITICAL: No drivers in merged data!');
-      }
-      if (!mergedData.cities || mergedData.cities.length === 0) {
-        console.error('❌ [DriverPayroll] CRITICAL: No cities in merged data!');
-      }
       
       setPayrollData(mergedData);
     } catch (error) {
@@ -609,7 +635,7 @@ export default function DriverPayroll() {
         setSmartRefreshActivity({ active: false, updatedEntities: [] });
       }
     }
-  }, [selectedYear, selectedCityId, currentPeriod, currentUser, setSmartRefreshActivity]);
+  }, [selectedYear, selectedCityId, currentUser, setSmartRefreshActivity]);
 
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
