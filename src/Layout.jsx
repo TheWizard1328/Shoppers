@@ -114,6 +114,7 @@ import SettingsMenu from './components/layout/SettingsMenu';
 import { getCompanyBranding, applyBrandingStyles } from './components/utils/brandingManager';
 import OptimizationSpinner from './components/common/OptimizationSpinner';
 import WebSocketDiagnosticsCard from './components/layout/WebSocketDiagnosticsCard';
+import MobileBottomNav from './components/layout/MobileBottomNav';
 
 
 
