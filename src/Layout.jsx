@@ -4112,6 +4112,14 @@ export default function Layout({ children, currentPageName }) {
           </UserProvider>
 
       }
+      {/* Mobile Bottom Nav - shown only when mobile header is visible and sidebar is closed */}
+      {!isLoadingLayout && hasAccess && currentUser && (isMobile || isTabletPortrait) && !sidebarOpen && !isSnapshotModeActive && (
+        <MobileBottomNav
+          currentUser={currentUser}
+          currentPageName={currentPageName}
+        />
+      )}
+
       <OptimizationSpinner />
     </ErrorBoundary>);
 
