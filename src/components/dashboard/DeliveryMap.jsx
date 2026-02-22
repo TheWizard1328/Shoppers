@@ -787,55 +787,6 @@ export default function DeliveryMap({
     }
   }, [users]);
 
-  // CRITICAL: Load AppUser data for ALL drivers with deliveries on selected date
-  // This ensures Type 1 polylines for other drivers can access fresh location data
-  useEffect(() => {
-    const loadAllDriverAppUsers = async () => {
-      if (!selectedDate || safeDeliveries.length === 0) return;
-
-      try {
-        // Get all unique driver IDs from deliveries (including other drivers)
-        const uniqueDriverIds = new Set(
-          [...safeDeliveries, ...otherDriverDeliveries]
-            .filter(d => d && d.driver_id)
-            .map(d => d.driver_id)
-        );
-
-        if (uniqueDriverIds.size === 0) return;
-
-        console.log(`📥 [DeliveryMap] Loading AppUser data for ${uniqueDriverIds.size} drivers with deliveries...`);
-
-        // Fetch AppUser for each driver ID
-        const { offlineDB } = await import('./../../components/utils/offlineDatabase');
-        const allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-
-        if (!allAppUsers || allAppUsers.length === 0) {
-          console.warn(`⚠️ [DeliveryMap] No AppUsers in offline DB - Type 1 polylines may use stale data`);
-          return;
-        }
-
-        // Merge with existing realtimeAppUsers - add any missing drivers
-        setRealtimeAppUsers(prev => {
-          const existingMap = new Map(prev.map(u => [u.id, u]));
-          
-          allAppUsers.forEach(appUser => {
-            if (uniqueDriverIds.has(appUser.id) && !existingMap.has(appUser.id)) {
-              existingMap.set(appUser.id, appUser);
-            }
-          });
-
-          const merged = Array.from(existingMap.values());
-          console.log(`✅ [DeliveryMap] Loaded AppUsers for all delivery drivers: ${merged.length} total`);
-          return merged;
-        });
-      } catch (error) {
-        console.error('❌ [DeliveryMap] Failed to load all driver AppUsers:', error);
-      }
-    };
-
-    loadAllDriverAppUsers();
-  }, [selectedDate, safeDeliveries.length, otherDriverDeliveries.length]);
-
   // State to force re-render of driverRoutes when deliveries update
   const [routeRenderKey, setRouteRenderKey] = useState(0);
 
