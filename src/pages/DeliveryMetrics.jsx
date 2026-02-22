@@ -196,7 +196,9 @@ export default function DeliveryMetrics() {
   const [stores, setStores] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [selectedDriver, setSelectedDriver] = useState('all');
+  const [selectedStore, setSelectedStore] = useState('all');
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentAppUser, setCurrentAppUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   
   const availableYears = useMemo(() => {
