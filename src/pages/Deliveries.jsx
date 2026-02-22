@@ -2829,7 +2829,7 @@ export default function DeliveriesPage() {
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const lastStatsParamsRef = useRef({ year: null, timestamp: 0 });
   
-  // CRITICAL: Load stats from offline DB ONLY (never fetch from backend on initial load)
+  // CRITICAL: Fetch full-year driver stats from backend function and cache in offline DB
   useEffect(() => {
     if (!isDriverOverviewMode || !currentUser) return;
     
@@ -2841,9 +2841,11 @@ export default function DeliveriesPage() {
       return;
     }
     
-    const loadStatsFromOfflineDB = async () => {
+    const loadDriverStats = async () => {
       setIsLoadingStats(true);
       try {
+        const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
+        
         // Build storeIds filter for dispatchers
         let storeIdsFilter = null;
         if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
@@ -2852,35 +2854,60 @@ export default function DeliveriesPage() {
         
         const storeIdsHash = storeIdsFilter && storeIdsFilter.length > 0 ? storeIdsFilter.sort().join(',') : 'all';
         
-        // CRITICAL: ONLY load from offline DB (backend sync happens in background via smart refresh)
-        const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
+        // CRITICAL: Check offline DB FIRST for cached stats
         const cachedStatsRecords = await offlineDBInstance.getAll(offlineDBInstance.STORES.DRIVER_OVERVIEW_STATS);
         const cachedStats = cachedStatsRecords?.find(s => s.year === (selectedOverviewYear || 'all') && s.store_ids_hash === storeIdsHash);
         
         if (cachedStats) {
           const cacheAge = Date.now() - new Date(cachedStats.calculated_at).getTime();
-          console.log(`✅ [Deliveries] Loaded driver stats from offline DB (age: ${Math.round(cacheAge / 60000)}min)`);
+          const cacheAgeMinutes = Math.round(cacheAge / 60000);
+          console.log(`✅ [Deliveries] Loaded driver stats from offline DB (age: ${cacheAgeMinutes}min)`);
           setBackendDriverStats(cachedStats.driver_stats || []);
-        } else {
-          console.log(`⚠️ [Deliveries] No cached stats in offline DB for year: ${selectedOverviewYear}, requesting backend sync...`);
-          // Trigger backend sync via smart refresh system
-          window.dispatchEvent(new CustomEvent('requestDriverOverviewStatsSync', {
-            detail: { year: selectedOverviewYear, storeIds: storeIdsFilter }
-          }));
-          setBackendDriverStats([]);
+          lastStatsParamsRef.current = { year: cacheKey, timestamp: now };
+          setIsLoadingStats(false);
+          return;
         }
         
+        // CRITICAL: Fetch from backend if not cached
+        console.log(`📥 [Deliveries] Fetching full-year driver stats from backend for year: ${selectedOverviewYear}`);
+        const yearStart = `${selectedOverviewYear || new Date().getFullYear()}-01-01`;
+        const yearEnd = `${selectedOverviewYear || new Date().getFullYear()}-12-31`;
+        
+        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+          payrollYear: selectedOverviewYear || new Date().getFullYear(),
+          payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
+          payrollDriverId: null,
+          payrollStartDate: yearStart,
+          payrollEndDate: yearEnd
+        });
+        
+        const statsData = response?.data?.driverOverviewStats || response?.driverOverviewStats || [];
+        console.log(`✅ [Deliveries] Fetched ${statsData.length} driver stats from backend`);
+        
+        // CRITICAL: Cache in offline DB for future use
+        if (statsData.length > 0) {
+          const cacheRecord = {
+            year: selectedOverviewYear || 'all',
+            store_ids_hash: storeIdsHash,
+            driver_stats: statsData,
+            calculated_at: new Date().toISOString()
+          };
+          await offlineDBInstance.save(offlineDBInstance.STORES.DRIVER_OVERVIEW_STATS, cacheRecord);
+          console.log(`💾 [Deliveries] Cached ${statsData.length} driver stats in offline DB`);
+        }
+        
+        setBackendDriverStats(statsData);
         lastStatsParamsRef.current = { year: cacheKey, timestamp: now };
       } catch (error) {
-        console.error('❌ [Deliveries] Failed to load driver stats from offline DB:', error);
-        setBackendDriverStats(null);
+        console.error('❌ [Deliveries] Failed to load driver stats:', error);
+        setBackendDriverStats([]);
       } finally {
         setIsLoadingStats(false);
       }
     };
     
-    loadStatsFromOfflineDB();
-  }, [isDriverOverviewMode, selectedOverviewYear, currentUser?.id]);
+    loadDriverStats();
+  }, [isDriverOverviewMode, selectedOverviewYear, selectedCityId, currentUser?.id]);
 
   const driverCards = useMemo(() => {
     if (!isDriverOverviewMode) {
