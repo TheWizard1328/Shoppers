@@ -365,14 +365,25 @@ export default function DriverPayroll() {
     setTimeout(() => { isManualChangeRef.current = false; }, 200);
   }, [selectedDriverId]);
 
-  const refreshPayrollRecords = useCallback(async () => {
-    if (!currentPeriod) return;
-    const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
-    const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
-    console.log(`📥 [DriverPayroll] Fetching payroll records from ${yearStart} to ${periodEndStr}`);
+  const refreshPayrollRecords = useCallback(async (dateRange = null) => {
+    let startDate, endDate;
+    
+    if (dateRange) {
+      // Use provided date range (for year-wide load on init)
+      startDate = dateRange.start;
+      endDate = dateRange.end;
+    } else if (currentPeriod) {
+      // Use current period (for specific period loads)
+      startDate = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+      endDate = currentPeriod.end.toISOString().split('T')[0];
+    } else {
+      return;
+    }
+    
+    console.log(`📥 [DriverPayroll] Fetching payroll records from ${startDate} to ${endDate}`);
     try {
       const records = await base44.entities.Payroll.filter({
-        pay_period_end: { $gte: yearStart, $lte: periodEndStr }
+        pay_period_end: { $gte: startDate, $lte: endDate }
       });
       console.log(`✅ [DriverPayroll] Found ${records?.length || 0} payroll records`);
       setPayrollRecords(records || []);
