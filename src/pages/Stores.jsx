@@ -47,11 +47,26 @@ export default function StoresPage() {
     return () => window.removeEventListener('storeUpdated', handleStoreUpdated);
   }, []);
 
+  // WebSocket real-time subscription for Store entity changes
+  useEffect(() => {
+    const unsubscribe = base44.entities.Store.subscribe((event) => {
+      console.log(`📡 [Stores] WebSocket: Store ${event.id} ${event.type}`);
+      if (event.type === 'create') {
+        setStores(prev => sortStores([...prev.filter(s => s.id !== event.id), event.data]));
+      } else if (event.type === 'update') {
+        setStores(prev => sortStores(prev.map(s => s.id === event.id ? { ...s, ...event.data } : s)));
+      } else if (event.type === 'delete') {
+        setStores(prev => prev.filter(s => s.id !== event.id));
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   // Sync context data for real-time updates - OPTIMIZED to prevent unnecessary re-renders
   useEffect(() => {
     if (contextDataLoaded) {
       // CRITICAL: Only update state if data actually changed (prevent re-renders)
-      if (contextStores.length > 0 && contextStores !== stores) {
+      if (contextStores.length > 0) {
         const sortedStores = sortStores(contextStores);
         // Deep compare to avoid re-renders when data is identical
         if (JSON.stringify(sortedStores) !== JSON.stringify(stores)) {
