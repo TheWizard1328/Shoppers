@@ -386,62 +386,32 @@ export default function DeliveryMetrics() {
       return deliveryDate >= startDateStr && deliveryDate <= endDateStr;
     });
 
-    console.log('📊 Deliveries in current date range:', relevantDeliveries.length);
-    
-    // Debug: Show breakdown by date
-    const dateBreakdown = {};
-    relevantDeliveries.forEach(d => {
-      const date = d.delivery_date;
-      dateBreakdown[date] = (dateBreakdown[date] || 0) + 1;
-    });
-    console.log('📅 Deliveries by date:', dateBreakdown);
-    
-    // Debug: Show breakdown by driver
-    const driverBreakdown = {};
-    relevantDeliveries.forEach(d => {
-      const key = `${d.driver_id} (${d.driver_name})`;
-      driverBreakdown[key] = (driverBreakdown[key] || 0) + 1;
-    });
-    console.log('👤 Deliveries by driver:', driverBreakdown);
-
     let prevRelevantDeliveries = [];
 
     if (selectedDriver !== 'all') {
       const driver = drivers.find((d) => d.id === selectedDriver);
       if (driver) {
         const driverName = getDriverDisplayName(driver);
-        console.log('🔍 DRIVER FILTER ACTIVE');
-        console.log('  Selected driver ID:', selectedDriver);
-        console.log('  Selected driver name:', driverName);
-        console.log('  Driver IDs in current period:', [...new Set(relevantDeliveries.map(d => d.driver_id))]);
-        console.log('  Driver names in current period:', [...new Set(relevantDeliveries.map(d => d.driver_name))]);
-        
-        const beforeCount = relevantDeliveries.length;
-        // CRITICAL: Match by driver_id OR driver_name (deliveries may have either)
         relevantDeliveries = relevantDeliveries.filter((d) => {
           const matchById = d.driver_id === selectedDriver;
           const matchByName = d.driver_name && driverName && 
             d.driver_name.toLowerCase() === driverName.toLowerCase();
           return matchById || matchByName;
         });
-        console.log('  📊 Deliveries before filter:', beforeCount);
-        console.log('  📊 Deliveries after filter:', relevantDeliveries.length);
-        
-        if (relevantDeliveries.length === 0) {
-          console.error('⚠️ NO DELIVERIES FOUND for driver:', selectedDriver, driverName);
-        }
-      } else {
-        console.error('⚠️ Driver not found in drivers list for ID:', selectedDriver);
       }
     }
-
-    console.log('📊 Relevant deliveries for current period (after driver filter):', relevantDeliveries.length);
 
     if (prevStartDate && prevEndDate) {
       prevRelevantDeliveries = deliveries.filter((d) => {
         if (!d.delivery_date) return false;
-        // Only include deliveries with patient OR after_hours_pickup
         if (!d.patient_id && !d.after_hours_pickup) return false;
+
+        // Store filter for previous period
+        if (selectedStore !== 'all') {
+          const matchesStore = d.store_id === selectedStore ||
+            (d.patient_id && storeFilteredPatientIds?.has(d.patient_id));
+          if (!matchesStore) return false;
+        }
         
         const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
         const start = new Date(prevStartDate.getFullYear(), prevStartDate.getMonth(), prevStartDate.getDate());
@@ -459,7 +429,6 @@ export default function DeliveryMetrics() {
           return matchById || matchByName;
         });
       }
-      console.log('📊 Relevant deliveries for previous period:', prevRelevantDeliveries.length);
     }
 
     const patientDeliveries = relevantDeliveries.filter((d) => {
