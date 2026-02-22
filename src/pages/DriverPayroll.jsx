@@ -843,17 +843,23 @@ export default function DriverPayroll() {
     };
   }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
 
-  // Load payroll records when period changes (initial load and period navigation)
+  // Filter payroll records when period changes (don't re-fetch since all year data is loaded)
+  // CRITICAL: Uses refs to avoid redundant updates
+  const lastFilteredPeriodRef = useRef(null);
+  
   useEffect(() => {
-    if (!currentPeriod || !hasInitialized) return;
-    console.log(`🔄 [DriverPayroll] Period changed, loading payroll records...`);
+    if (!currentPeriod || !hasInitialized || !payrollRecords.length) return;
+    
+    // CRITICAL: Skip if we've already filtered for this exact period
+    const periodKey = `${currentPeriod.start}-${currentPeriod.end}`;
+    if (lastFilteredPeriodRef.current === periodKey) return;
+    
+    lastFilteredPeriodRef.current = periodKey;
+    console.log(`🔄 [DriverPayroll] Filtering records for period: ${currentPeriod.label}`);
 
-    // Invalidate caches to force fresh fetch
-    invalidate('Payroll');
-    invalidate('Delivery');
-
+    // CRITICAL: Just filter, don't invalidate or re-fetch
     refreshPayrollRecords();
-  }, [currentPeriod, hasInitialized, refreshPayrollRecords]);
+  }, [currentPeriod?.label, hasInitialized, payrollRecords.length]);
 
   // Auto-select previous period if current has no data
   useEffect(() => {
