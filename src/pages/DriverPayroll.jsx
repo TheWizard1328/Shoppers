@@ -234,7 +234,10 @@ export default function DriverPayroll() {
   }, [payrollData?.appUsers]);
 
   const driversInPayCycle = useMemo(() => {
-    if (!payrollData?.appUsers || !payrollData?.drivers || !payrollData?.deliveries) return [];
+    if (!payrollData?.appUsers || !payrollData?.drivers) return [];
+    
+    // CRITICAL: Ensure deliveries is always an array
+    const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
 
     // Get driver IDs that have the selected pay cycle type AND have actual deliveries in that cycle
     const driverIdsInCycle = new Set();
@@ -242,7 +245,7 @@ export default function DriverPayroll() {
     payrollData.appUsers.forEach(au => {
       if (au.pay_cycle_type === payPeriod && au.status === 'active') {
         // Only add if this driver has deliveries
-        const hasDeliveries = payrollData.deliveries.some(d => d.driver_id === au.user_id);
+        const hasDeliveries = deliveries.some(d => d.driver_id === au.user_id);
         if (hasDeliveries) {
           driverIdsInCycle.add(au.user_id);
         }
@@ -264,8 +267,9 @@ export default function DriverPayroll() {
   }, [payrollData?.appUsers, payrollData?.drivers, payrollData?.deliveries, payPeriod, selectedDriverId]);
 
   const cityFilteredDeliveries = useMemo(() => {
-    if (!payrollData?.deliveries) return [];
-    let filtered = payrollData.deliveries;
+    // CRITICAL: Ensure deliveries is always an array
+    const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
+    let filtered = deliveries;
     if (selectedCityId !== 'all') {
       const cityStoreIds = new Set(filteredStores.map(s => s.id));
       filtered = filtered.filter(d => d && cityStoreIds.has(d.store_id));
