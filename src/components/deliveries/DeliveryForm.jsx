@@ -5582,11 +5582,11 @@ export default function DeliveryForm({
                                 className="h-9 text-sm" />
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                    }
-                    </div>
+                          </div>
+                          </div>
+                          </div>}
+                          }
+                          </div>
 
                   {/* Section 4: Patient Name/Phone/Address/Unit */}
                   {!isPickupMode &&
