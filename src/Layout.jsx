@@ -4112,7 +4112,6 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </div>
           </AppDataProvider>
-          </MobileNavProvider>
           </UserProvider>
       }
       <OptimizationSpinner />
