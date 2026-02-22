@@ -8647,6 +8647,9 @@ function Dashboard() {
                 // Force stats refresh
                 window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                 
+                // CRITICAL: Refresh payroll stats for selected driver
+                window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
+                
                 console.log('✅ [Dashboard] Pull to sync UI update complete - all markers refreshed');
               }}
             />
