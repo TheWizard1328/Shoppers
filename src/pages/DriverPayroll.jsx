@@ -274,19 +274,19 @@ export default function DriverPayroll() {
 
   // Calculate available pay cycles and their counts for the selected city/year
   const payCycleInfo = useMemo(() => {
-        if (!payrollData?.appUsers) return { cycles: [], mostCommon: null, disabled: true };
+        if (!payrollData?.appUsers) return { cycles: ['weekly', 'biweekly', 'semimonthly', 'monthly'], mostCommon: 'monthly', disabled: false };
 
         // Filter appUsers to drivers only
         let filteredAppUsers = payrollData.appUsers.filter(au => 
           au.status === 'active' && au.app_roles && au.app_roles.includes('driver')
         );
-    
-    if (selectedCityId !== 'all' && filteredStores.length > 0) {
-      const cityStoreIds = new Set(filteredStores.map(s => s.id));
-      // Note: AppUser doesn't have store_id directly, so we count all active users
-      // In a multi-store company this is fine - we're looking at all drivers in the selected city
+
+    // If no drivers found, allow all cycle types
+    if (filteredAppUsers.length === 0) {
+      console.log(`📊 [payCycleInfo] No active drivers found, allowing all cycles`);
+      return { cycles: ['weekly', 'biweekly', 'semimonthly', 'monthly'], mostCommon: 'monthly', disabled: false, cycleCounts: {} };
     }
-    
+
     // Count drivers by pay cycle type
     const cycleCounts = {};
     filteredAppUsers.forEach(au => {
@@ -294,11 +294,11 @@ export default function DriverPayroll() {
         cycleCounts[au.pay_cycle_type] = (cycleCounts[au.pay_cycle_type] || 0) + 1;
       }
     });
-    
+
     const cycles = Object.keys(cycleCounts);
     const order = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
     const sortedCycles = order.filter(c => cycles.includes(c));
-    
+
     // Find most common cycle
     let mostCommon = null;
     let maxCount = 0;
@@ -308,18 +308,19 @@ export default function DriverPayroll() {
         mostCommon = cycle;
       }
     });
-    
+
     const disabled = sortedCycles.length <= 1;
-    
+
     console.log(`📊 [payCycleInfo] Available cycles:`, {
       cycles: sortedCycles,
       counts: cycleCounts,
       mostCommon,
-      disabled
+      disabled,
+      filteredDriversCount: filteredAppUsers.length
     });
-    
+
     return { cycles: sortedCycles, mostCommon, disabled, cycleCounts };
-  }, [payrollData?.appUsers, selectedCityId, filteredStores]);
+  }, [payrollData?.appUsers]);
 
   const cityFilteredDeliveries = useMemo(() => {
     // CRITICAL: Ensure deliveries is always an array
