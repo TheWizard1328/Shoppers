@@ -3655,6 +3655,7 @@ export default function DeliveriesPage() {
               onYearChange={handleYearChange}
               patients={effectivePatients}
               selectedDriverId={driverFilter}
+              currentUser={currentUser}
               onDeleteRoute={async (dateStr, driverId) => {
                 try {
                   const deliveriesToDelete = driverFilteredDeliveries.filter(
@@ -3780,6 +3781,7 @@ export default function DeliveriesPage() {
                 onYearChange={handleYearChange}
                 patients={effectivePatients}
                 selectedDriverId={driverFilter}
+                currentUser={currentUser}
                 onDeleteRoute={async (dateStr, driverId) => {
                   try {
                     const deliveriesToDelete = driverFilteredDeliveries.filter(

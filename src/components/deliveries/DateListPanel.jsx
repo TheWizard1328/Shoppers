@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, Package, CheckCircle, XCircle, RotateCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isAppOwner } from '../utils/userRoles';
 
 export default function DateListPanel({
   deliveries = [],
@@ -18,7 +19,8 @@ export default function DateListPanel({
   selectedDriverId,
   onDeleteRoute,
   onDeleteMonth,
-  dateListWithStats = null
+  dateListWithStats = null,
+  currentUser
 }) {
   const months = [
   { value: 0, label: 'January' },
@@ -182,7 +184,7 @@ export default function DateListPanel({
           </Select>
         </div>
         
-        {onDeleteMonth && datesWithDeliveries.length > 0 && selectedDriverId && selectedDriverId !== 'all' &&
+        {onDeleteMonth && datesWithDeliveries.length > 0 && selectedDriverId && selectedDriverId !== 'all' && isAppOwner(currentUser) &&
         <Button
           variant="outline"
           size="sm"
@@ -262,8 +264,8 @@ export default function DateListPanel({
               }
                 </div>
                 
-                {/* Delete route button - show if a specific driver is selected */}
-                {selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute &&
+                {/* Delete route button - show if a specific driver is selected AND user is app owner */}
+                {selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute && isAppOwner(currentUser) &&
                   <Button
                     variant="ghost"
                     size="sm"
