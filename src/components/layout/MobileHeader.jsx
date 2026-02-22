@@ -71,15 +71,15 @@ export default function MobileHeader({
       animate={{ y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
       data-mobile-header
-      className="mobile-header border-b px-4 py-3 sticky top-0 z-50"
+      className="mobile-header border-b sticky top-0 z-50"
       style={{ 
         borderColor: 'var(--border-slate-200)', 
         background: 'var(--bg-white)',
-        paddingTop: 'calc(0.75rem + max(0, env(safe-area-inset-top, 0px)))',
-        paddingBottom: 'calc(0.75rem)'
       }}
     >
-      <div className="w-full flex items-center justify-between gap-2">
+      {/* Safe area spacer - pushes content down on notched devices without offsetting touch targets */}
+      <div style={{ height: 'env(safe-area-inset-top, 0px)' }} />
+      <div className="w-full flex items-center justify-between gap-2 px-4 py-3">
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={handleMenuButtonClick}
