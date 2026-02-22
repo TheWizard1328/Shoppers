@@ -681,13 +681,14 @@ export default function DriverPayroll() {
   }, [currentUser, isDriver, hasInitialized, fetchPayroll]);
 
   // Load payroll records for entire year on initial mount (before period selection)
+  // CRITICAL: Only run once, don't re-trigger on selectedYear changes (that's handled by fetchPayroll)
   useEffect(() => {
-    if (!hasInitialized) return;
+    if (!hasInitialized || payrollRecords.length > 0) return;
     
     const yearStart = new Date(selectedYear, 0, 1).toISOString().split('T')[0];
     const yearEnd = new Date(selectedYear, 11, 31).toISOString().split('T')[0];
     refreshPayrollRecords({ start: yearStart, end: yearEnd });
-  }, [selectedYear, hasInitialized, refreshPayrollRecords]);
+  }, [hasInitialized]);
 
   // Load driver's pay cycle ONCE when data first loads
   useEffect(() => {
