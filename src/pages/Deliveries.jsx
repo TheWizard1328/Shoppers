@@ -3761,7 +3761,7 @@ export default function DeliveriesPage() {
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed top-0 left-0 h-full w-64 shadow-xl z-50 flex flex-col"
+            className="fixed top-0 left-0 h-full w-64 shadow-xl z-[9999] flex flex-col"
             style={{ background: 'var(--bg-white)' }}
             onClick={(e) => e.stopPropagation()}>
 
