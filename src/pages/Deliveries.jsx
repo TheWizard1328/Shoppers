@@ -760,11 +760,9 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // Driver Overview: sync deliveries from context
-    if (contextDeliveries.length > 0) {
-      setAllDeliveries(contextDeliveries);
-      setRefreshKey((prev) => prev + 1);
-    }
+    // Driver Overview: DO NOT sync deliveries from context (contextDeliveries is date-filtered)
+    // Driver Overview loads its own data independently from offline DB
+    console.log('⏸️ [Deliveries] Skipping context delivery sync for Driver Overview - loads independently from offline DB');
 
     if (contextPatients.length > 0) {
       setAllPatients(contextPatients);
@@ -3051,6 +3049,11 @@ export default function DeliveriesPage() {
       driverNamesInDeliveries.includes(userFullNameLower) ||
       driverNamesInDeliveries.includes(userUserNameLower);
 
+      if (!hasDeliveries) {
+        console.log(`   ⏭️ Skipping driver (no deliveries): ${u.user_name || u.full_name}`);
+        return false;
+      }
+
       console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
       return true;
     });
@@ -3894,7 +3897,7 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ maxHeight: isMobile ? 'calc(100vh - 180px)' : 'calc(100vh - 120px)' }}>
 
            {isDriverOverviewMode ?
           <div className="flex flex-col h-full overflow-hidden">
