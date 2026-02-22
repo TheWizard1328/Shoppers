@@ -188,8 +188,7 @@ export default function DriverPayrollGrid({
       const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
       if (!validStatus) return false;
 
-      // CRITICAL: Filter by drivers with matching pay cycle
-      if (!driversWithMatchingPayCycle.includes(d.driver_id)) return false;
+
 
       // CRITICAL: Only filter by driver if selectedDriverId is set AND not 'all'
       if (selectedDriverId && selectedDriverId !== 'all') {
