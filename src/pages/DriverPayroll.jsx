@@ -274,10 +274,12 @@ export default function DriverPayroll() {
 
   // Calculate available pay cycles and their counts for the selected city/year
   const payCycleInfo = useMemo(() => {
-    if (!payrollData?.appUsers) return { cycles: [], mostCommon: null, disabled: true };
-    
-    // Filter appUsers by selected city if not 'all'
-    let filteredAppUsers = payrollData.appUsers.filter(au => au.status === 'active');
+        if (!payrollData?.appUsers) return { cycles: [], mostCommon: null, disabled: true };
+
+        // Filter appUsers to drivers only
+        let filteredAppUsers = payrollData.appUsers.filter(au => 
+          au.status === 'active' && au.app_roles && au.app_roles.includes('driver')
+        );
     
     if (selectedCityId !== 'all' && filteredStores.length > 0) {
       const cityStoreIds = new Set(filteredStores.map(s => s.id));
