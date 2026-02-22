@@ -2428,7 +2428,8 @@ export default function Layout({ children, currentPageName }) {
     return data;
   }, [patients, currentUser, selectedStoreId]);
 
-  // Route count - ALWAYS count driver-routes (each driver-date combination) for the SELECTED MONTH
+  // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
+  // for others: count driver-routes (each driver-date combination) for the selected month
   const totalRoutesCount = useMemo(() => {
     if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
 
@@ -2443,22 +2444,30 @@ export default function Layout({ children, currentPageName }) {
     let relevantDeliveries = deliveries;
 
     if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
-      // DISPATCHERS: Count driver-routes where driver has ANY stops in dispatcher's stores
+      // DISPATCHERS: Count unique dates with at least 1 delivery in their stores (YTD)
       const dispatcherStoreIds = new Set(currentUser.store_ids || []);
 
-      // Get all drivers who have ANY delivery in dispatcher's stores
-      const driversInStores = new Set(
-        deliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id)).map((d) => d.driver_id).filter(Boolean)
-      );
+      // Filter to deliveries from dispatcher's stores only
+      const storeDeliveries = deliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id));
 
-      // Filter to deliveries from those drivers only
-      relevantDeliveries = relevantDeliveries.filter((d) => d && driversInStores.has(d.driver_id));
+      // Get unique dates in the current year
+      const uniqueDates = new Set();
+      storeDeliveries.forEach((delivery) => {
+        if (!delivery || !delivery.delivery_date) return;
+
+        const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
+        if (deliveryDate.getFullYear() !== selectedYear) return;
+
+        uniqueDates.add(delivery.delivery_date);
+      });
+
+      return uniqueDates.size;
     } else if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
       // Drivers: only count their own routes
       relevantDeliveries = relevantDeliveries.filter((d) => d && d.driver_id === currentUser.id);
     }
 
-    // For each date in the selected month, count unique drivers
+    // For admins and drivers: For each date in the selected month, count unique drivers
     const dateDriverMap = new Map();
 
     relevantDeliveries.forEach((delivery) => {
