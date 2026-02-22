@@ -540,11 +540,13 @@ export default function DriverPayroll() {
         invalidate('Payroll');
       }
 
-      console.log(`📥 [DriverPayroll] Fetching payroll data - Year: ${selectedYear}, City: ${selectedCityId}, Force: ${forceFresh}`);
+      console.log(`📥 [DriverPayroll] Fetching payroll data - Year: ${selectedYear}, City: ${selectedCityId}, Period: ${currentPeriod?.start?.toISOString().split('T')[0]} to ${currentPeriod?.end?.toISOString().split('T')[0]}, Force: ${forceFresh}`);
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         payrollYear: selectedYear,
         payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
-        payrollDriverId: null // Always fetch all drivers, filter locally
+        payrollDriverId: null, // Always fetch all drivers, filter locally
+        payrollStartDate: currentPeriod?.start?.toISOString().split('T')[0],
+        payrollEndDate: currentPeriod?.end?.toISOString().split('T')[0]
       });
       const data = response?.data?.payrollData || response?.payrollData;
       
