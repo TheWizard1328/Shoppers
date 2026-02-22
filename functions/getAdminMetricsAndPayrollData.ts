@@ -124,16 +124,16 @@ Deno.serve(async (req) => {
       const payrollCities = await base44.asServiceRole.entities.City.list();
 
       const payrollData = {
-        deliveries: payrollDeliveries,
-        patients: payrollPatients,
-        appUsers: payrollAppUsers,
-        drivers: payrollDrivers,
-        stores: payrollStores,
-        cities: payrollCities
+        deliveries: Array.isArray(payrollDeliveries) ? payrollDeliveries : [],
+        patients: Array.isArray(payrollPatients) ? payrollPatients : [],
+        appUsers: Array.isArray(payrollAppUsers) ? payrollAppUsers : [],
+        drivers: Array.isArray(payrollDrivers) ? payrollDrivers : [],
+        stores: Array.isArray(payrollStores) ? payrollStores : [],
+        cities: Array.isArray(payrollCities) ? payrollCities : []
       };
 
       statsCache.set(payrollKey, { data: payrollData, timestamp: Date.now() });
-      console.log(`✅ Cached PayrollData for ${year} (${payrollDeliveries.length} deliveries)`);
+      console.log(`✅ Cached PayrollData for ${year} (${payrollData.deliveries.length} deliveries)`);
       return payrollData;
     };
 
