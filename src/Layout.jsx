@@ -4109,6 +4109,7 @@ export default function Layout({ children, currentPageName }) {
             </div>
           </AppDataProvider>
           </UserProvider>
+
       }
       <OptimizationSpinner />
     </ErrorBoundary>);
