@@ -403,6 +403,15 @@ function Dashboard() {
 
   // CRITICAL: Calculate isDriver and isAdmin early (before useEffects that need them)
   const isMobile = useMemo(() => isMobileDevice(), []);
+
+  // Read the bottom nav height from the CSS variable set by Layout (accounts for mobile + tablet portrait)
+  const bottomNavHeight = useMemo(() => {
+    const val = getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height').trim();
+    if (!val || val === '0px') return 0;
+    // Parse "calc(56px + ...)" → just use 56 as the base, or parse px value directly
+    const match = val.match(/(\d+)px/);
+    return match ? parseInt(match[1], 10) : 0;
+  }, []);
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
