@@ -358,31 +358,28 @@ export default function DeliveryMetrics() {
     }
   };
 
-  const metrics = useMemo(() => {
-    console.log('🔍 [DeliveryMetrics] Starting metrics calculation...');
-    console.log('📊 Total deliveries available (all time):', deliveries.length);
-    console.log('📅 Current period date range:', format(startDate, 'yyyy-MM-dd'), 'to', format(endDate, 'yyyy-MM-dd'));
-    console.log('👤 Selected driver:', selectedDriver);
-    console.log('👥 Available drivers:', drivers.length);
-    
-    // DEBUG: Show ALL unique dates in the entire delivery dataset
-    const allDatesInDataset = [...new Set(deliveries.filter(d => d.delivery_date).map(d => d.delivery_date))].sort();
-    console.log('📅 ALL dates in dataset:', allDatesInDataset.length, 'unique dates');
-    console.log('📅 Date range in dataset:', allDatesInDataset[0], 'to', allDatesInDataset[allDatesInDataset.length - 1]);
-    
-    // Show December 2025 dates specifically
-    const dec2025Dates = allDatesInDataset.filter(d => d.startsWith('2025-12'));
-    console.log('📅 December 2025 dates available:', dec2025Dates);
+  // Build set of patient IDs for the selected store filter
+  const storeFilteredPatientIds = useMemo(() => {
+    if (selectedStore === 'all') return null; // null means no filter
+    return new Set(patients.filter(p => p.store_id === selectedStore).map(p => p.id));
+  }, [selectedStore, patients]);
 
+  const metrics = useMemo(() => {
     // CRITICAL: Filter to only include deliveries (has patient_id) OR after_hours_pickup
     // Excludes regular pickups from all stats
     let relevantDeliveries = deliveries.filter((d) => {
       if (!d.delivery_date) return false;
-      // Only include deliveries with patient OR after_hours_pickup
       if (!d.patient_id && !d.after_hours_pickup) return false;
+
+      // Store filter: filter by store_id on delivery, or by patient's store
+      if (selectedStore !== 'all') {
+        const matchesStore = d.store_id === selectedStore ||
+          (d.patient_id && storeFilteredPatientIds?.has(d.patient_id));
+        if (!matchesStore) return false;
+      }
       
       // CRITICAL: Parse dates as YYYY-MM-DD strings for comparison to avoid timezone issues
-      const deliveryDate = d.delivery_date; // e.g., '2025-12-04'
+      const deliveryDate = d.delivery_date;
       const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(endDate, 'yyyy-MM-dd');
       
