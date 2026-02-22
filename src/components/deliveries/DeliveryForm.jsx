@@ -5558,8 +5558,8 @@ export default function DeliveryForm({
                         )}
                       </div>
 
-                      {/* Row 2: Time Window */}
-                      <div className="flex gap-3">
+                      {/* Row 2: Time Window - hidden for completed/failed/cancelled */}
+                      {!['completed', 'failed', 'cancelled', 'returned'].includes(formData.status) && <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Time Window</Label>
                           <div className="flex gap-1">
