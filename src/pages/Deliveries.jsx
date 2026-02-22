@@ -4085,13 +4085,13 @@ export default function DeliveriesPage() {
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
                   </div> :
 
-              <div key={refreshKey} className="overflow-y-auto grid gap-3 flex-1" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(275px, 1fr))' }}>
+              <div key={refreshKey} className="overflow-y-auto flex-1 w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start' }}>
                   {driverCards.map((card) => {
-                  const isInactive = card.driver.status === 'inactive';
-                  return (
-                    <Card
-                      key={card.driver.id} className="rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
+                   const isInactive = card.driver.status === 'inactive';
+                   return (
+                     <Card
+                       key={card.driver.id} className="rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg h-fit"
+                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
                       onClick={() => handleDriverCardClick(card.driver)}>
 
                         <CardHeader className="pb-2">
