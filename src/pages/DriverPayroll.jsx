@@ -631,14 +631,21 @@ export default function DriverPayroll() {
   // Load driver's pay cycle ONCE when data first loads
   useEffect(() => {
     if (!payrollData?.appUsers || hasLoadedInitialDataRef.current || isManualChangeRef.current) return;
-    if (selectedDriverId === 'all') return;
     
-    const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
-    if (driverAppUser?.pay_cycle_type) {
-      setPayPeriod(driverAppUser.pay_cycle_type);
+    // For drivers viewing their own payroll, select their pay cycle
+    if (isDriver && selectedDriverId !== 'all') {
+      const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
+      if (driverAppUser?.pay_cycle_type) {
+        setPayPeriod(driverAppUser.pay_cycle_type);
+      }
     }
+    // For admins, select the most common pay cycle type among available drivers
+    else if (!isDriver && selectedDriverId === 'all' && payCycleInfo.mostCommon) {
+      setPayPeriod(payCycleInfo.mostCommon);
+    }
+    
     hasLoadedInitialDataRef.current = true;
-  }, [payrollData?.appUsers, selectedDriverId]);
+  }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon]);
 
   // Reset period index when pay period or year changes - ONLY on initial load
   const initialPeriodSetRef = useRef(false);
