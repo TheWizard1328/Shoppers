@@ -1412,7 +1412,9 @@ function Dashboard() {
       return returnRegex.test(notes) || returnRegex.test(patientName) || returnRegex.test(patientFullName);
     };
 
-    const total = safeDeliveries.length;
+    // CRITICAL: Total includes patient deliveries AND after hours pickups (all statuses)
+    const afterHoursPickupsAll = allPickups.filter((d) => d && d.after_hours_pickup === true);
+    const total = safeDeliveries.length + afterHoursPickupsAll.length;
 
     // CRITICAL: In Transit = deliveries only, En Route = pickups only
     const inTransitDeliveries = safeDeliveries.filter((d) => d && d.status === 'in_transit');
