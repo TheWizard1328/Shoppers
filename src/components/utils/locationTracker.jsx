@@ -339,7 +339,8 @@ class LocationTracker {
           detail: { 
             appUsers: [updatedAppUser], 
             singleUpdate: true,
-            fromLocationTracker: true
+            fromLocationTracker: true,
+            mergeMode: 'merge' // Ensures this is treated as single targeted update, not full replacement
           }
         }));
       }
