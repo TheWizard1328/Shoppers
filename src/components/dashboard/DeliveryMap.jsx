@@ -2848,6 +2848,30 @@ export default function DeliveryMap({
            
            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
            const polylines = [];
+           
+           // Helper: Calculate time difference between two stops in minutes
+           const getTimeDifferenceMinutes = (stop1, stop2) => {
+             // For completed stops, use actual_delivery_time
+             const time1 = stop1.actual_delivery_time 
+               ? new Date(stop1.actual_delivery_time)
+               : stop1.delivery_time_eta 
+                 ? new Date(`2000-01-01T${stop1.delivery_time_eta}:00`)
+                 : stop1.delivery_time_start 
+                   ? new Date(`2000-01-01T${stop1.delivery_time_start}:00`)
+                   : null;
+             
+             const time2 = stop2.actual_delivery_time 
+               ? new Date(stop2.actual_delivery_time)
+               : stop2.delivery_time_eta 
+                 ? new Date(`2000-01-01T${stop2.delivery_time_eta}:00`)
+                 : stop2.delivery_time_start 
+                   ? new Date(`2000-01-01T${stop2.delivery_time_start}:00`)
+                   : null;
+             
+             if (!time1 || !time2) return 0;
+             
+             return Math.abs(time2 - time1) / (1000 * 60); // Convert to minutes
+           };
 
            driverRoutes.forEach(route => {
              if (!route.driverId) return;
@@ -2882,6 +2906,13 @@ export default function DeliveryMap({
                     isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
                     isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
                   console.warn('[DeliveryMap] Skipping TYPE 3 polyline with invalid coordinates');
+                  continue;
+                }
+                
+                // CRITICAL: Skip polyline if time gap > 90 minutes
+                const timeDiffMinutes = getTimeDifferenceMinutes(stop1, stop2);
+                if (timeDiffMinutes > 90) {
+                  console.log(`⏭️ [TYPE 3] Skipping polyline - ${timeDiffMinutes.toFixed(0)} min gap exceeds 90 min threshold`);
                   continue;
                 }
                 
@@ -2946,6 +2977,13 @@ export default function DeliveryMap({
                     isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
                     isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
                   console.warn('[DeliveryMap] Skipping TYPE 2 polyline with invalid coordinates');
+                  continue;
+                }
+                
+                // CRITICAL: Skip polyline if time gap > 90 minutes
+                const timeDiffMinutes = getTimeDifferenceMinutes(stop1, stop2);
+                if (timeDiffMinutes > 90) {
+                  console.log(`⏭️ [TYPE 2] Skipping polyline - ${timeDiffMinutes.toFixed(0)} min gap exceeds 90 min threshold`);
                   continue;
                 }
                 
