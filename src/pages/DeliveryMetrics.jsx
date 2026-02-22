@@ -953,6 +953,30 @@ export default function DeliveryMetrics() {
               </SelectContent>
             </Select>
 
+            {/* Store filter - for dispatchers scoped to assigned stores, for admins all stores */}
+            {(() => {
+              const isAdmin = currentUser?.role === 'admin' || currentAppUser?.app_roles?.includes('admin');
+              const isDispatcher = currentAppUser?.app_roles?.includes('dispatcher') && !isAdmin;
+              const dispatcherStoreIds = currentAppUser?.store_ids || [];
+              const visibleStores = isDispatcher
+                ? stores.filter(s => dispatcherStoreIds.includes(s.id))
+                : stores;
+              if (visibleStores.length <= 1 && !isAdmin) return null;
+              return (
+                <Select value={selectedStore} onValueChange={setSelectedStore}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="All Stores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Stores</SelectItem>
+                    {visibleStores.map(store => (
+                      <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              );
+            })()}
+
             <Select value={selectedDriver} onValueChange={setSelectedDriver}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="All Drivers" />
