@@ -79,11 +79,49 @@ Deno.serve(async (req) => {
     const allPatients = await base44.entities.Patient.list();
     const patientMap = new Map(allPatients.map(p => [p.id, p]));
 
+    // Sort completed deliveries by stop_order to process in sequence
+    completedDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+    // Helper: Calculate time difference between two stops in minutes
+    const getTimeDifferenceMinutes = (delivery1, delivery2) => {
+      const time1 = delivery1.actual_delivery_time 
+        ? new Date(delivery1.actual_delivery_time)
+        : delivery1.delivery_time_eta 
+          ? new Date(`2000-01-01T${delivery1.delivery_time_eta}:00`)
+          : delivery1.delivery_time_start 
+            ? new Date(`2000-01-01T${delivery1.delivery_time_start}:00`)
+            : null;
+      
+      const time2 = delivery2.actual_delivery_time 
+        ? new Date(delivery2.actual_delivery_time)
+        : delivery2.delivery_time_eta 
+          ? new Date(`2000-01-01T${delivery2.delivery_time_eta}:00`)
+          : delivery2.delivery_time_start 
+            ? new Date(`2000-01-01T${delivery2.delivery_time_start}:00`)
+            : null;
+      
+      if (!time1 || !time2) return 0;
+      
+      return Math.abs(time2 - time1) / (1000 * 60); // Convert to minutes
+    };
+
     // Calculate total kilometers and extra kilometers per delivery
+    // CRITICAL: Exclude segments with > 90 minute gaps
     let totalKm = 0;
     let totalExtraKm = 0;
 
-    completedDeliveries.forEach(d => {
+    completedDeliveries.forEach((d, index) => {
+      // Check if this segment should be excluded (gap > 90 min from previous stop)
+      if (index > 0) {
+        const prevDelivery = completedDeliveries[index - 1];
+        const timeDiffMinutes = getTimeDifferenceMinutes(prevDelivery, d);
+        
+        if (timeDiffMinutes > 90) {
+          console.log(`⏭️ Excluding segment from stats - ${timeDiffMinutes.toFixed(0)} min gap exceeds 90 min threshold`);
+          return; // Skip this delivery's distance from totals
+        }
+      }
+      
       // Total km = actual distance traveled (travel_dist)
       totalKm += (d.travel_dist || 0);
 
