@@ -9511,8 +9511,7 @@ function Dashboard() {
           hasVisibleCards={deliveriesWithStopOrder.length > 0}
           isAIVisible={showAIAssistant && isAIEnabled}
           isLocked={isMapViewLocked}
-          stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0}
-          mobileBottomNavHeight={isMobile ? 70 : 0} />
+          stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} />
 
         {/* Re-optimize Route FAB - Only for app owner (testing phase) */}
         {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
