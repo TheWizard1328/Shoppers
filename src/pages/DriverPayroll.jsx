@@ -910,20 +910,24 @@ export default function DriverPayroll() {
               {/* Driver Filter - filtered by pay cycle type */}
               <Select value={selectedDriverId} onValueChange={(v) => { 
                 isManualChangeRef.current = true;
-                
+
                 // Batch all state updates in a single transition
                 React.startTransition(() => {
                   setSelectedDriverId(v);
                   if (v === 'all') {
-                    setPayPeriod('semimonthly');
+                    // For admins viewing all drivers, select most common pay cycle
+                    if (payCycleInfo.mostCommon) {
+                      setPayPeriod(payCycleInfo.mostCommon);
+                    }
                   } else {
+                    // For individual driver selection, use their pay cycle
                     const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === v);
                     if (driverAppUser?.pay_cycle_type) {
                       setPayPeriod(driverAppUser.pay_cycle_type);
                     }
                   }
                 });
-                
+
                 setTimeout(() => { isManualChangeRef.current = false; }, 200); 
               }} disabled={isDriver}>
                 <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
@@ -938,7 +942,21 @@ export default function DriverPayroll() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+
+              {/* Pay Cycle Selector - 4th position dropdown */}
+              <Select value={payPeriod} onValueChange={handlePayPeriodChange} disabled={payCycleInfo.disabled || isDriver}>
+                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <SelectValue placeholder="Cycle" />
+                </SelectTrigger>
+                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  {payCycleInfo.cycles.map(cycle => (
+                    <SelectItem key={cycle} value={cycle} style={{ color: 'var(--text-slate-900)' }}>
+                      {cycle.charAt(0).toUpperCase() + cycle.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              </div>
 
             {/* Icon Buttons - Far Right (Desktop only) */}
             <div id="payroll-controls" className="hidden lg:flex items-center gap-1 ml-auto">
