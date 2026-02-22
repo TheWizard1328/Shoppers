@@ -373,24 +373,34 @@ export default function DriverPayroll() {
       startDate = dateRange.start;
       endDate = dateRange.end;
     } else if (currentPeriod) {
-      // Use current period (for specific period loads)
-      startDate = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
-      endDate = currentPeriod.end.toISOString().split('T')[0];
+      // CRITICAL: Just filter existing year data instead of re-fetching
+      // All year data is already loaded on mount in payrollRecords
+      const periodStart = currentPeriod.start.toISOString().split('T')[0];
+      const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+      
+      const filtered = payrollRecords.filter(r => 
+        r.pay_period_start === periodStart && r.pay_period_end === periodEnd
+      );
+      
+      console.log(`📊 [DriverPayroll] Filtered existing payroll records: ${filtered.length} for period ${currentPeriod.label}`);
+      setPayrollRecords(filtered);
+      return;
     } else {
       return;
     }
     
-    console.log(`📥 [DriverPayroll] Fetching payroll records from ${startDate} to ${endDate}`);
+    // Only fetch if we have a date range (initial year load)
+    console.log(`📥 [DriverPayroll] Fetching full year payroll records from ${startDate} to ${endDate}`);
     try {
       const records = await base44.entities.Payroll.filter({
         pay_period_end: { $gte: startDate, $lte: endDate }
       });
-      console.log(`✅ [DriverPayroll] Found ${records?.length || 0} payroll records`);
+      console.log(`✅ [DriverPayroll] Found ${records?.length || 0} payroll records for year`);
       setPayrollRecords(records || []);
     } catch (error) {
       console.error('Failed to refresh payroll records:', error);
     }
-  }, [currentPeriod]);
+  }, [currentPeriod, payrollRecords]);
 
   // All useCallback hooks must be declared here, before useEffect
   const handleCaptureScreenshot = useCallback(async () => {
