@@ -72,11 +72,22 @@ Deno.serve(async (req) => {
         storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
       }
 
-      const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
-        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
-        ...storeFilter
-      });
-      const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : [];
+      let deliveries = [];
+      let adminSkip = 0;
+      const adminBatchSize = 500;
+      while (true) {
+        const batch = await base44.asServiceRole.entities.Delivery.filter(
+          { delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }, ...storeFilter },
+          '-delivery_date',
+          adminBatchSize,
+          adminSkip
+        );
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        deliveries = deliveries.concat(batch);
+        if (batch.length < adminBatchSize) break;
+        adminSkip += adminBatchSize;
+      }
+      console.log(`📦 [AdminMetrics] Fetched ${deliveries.length} total deliveries for ${year}`);
 
       const stores = await base44.asServiceRole.entities.Store.list();
       const appUsers = await base44.asServiceRole.entities.AppUser.list();
