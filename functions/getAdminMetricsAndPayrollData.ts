@@ -58,49 +58,28 @@ Deno.serve(async (req) => {
 
     const fetchAdminMetrics = async (year, cityId) => {
       const metricsKey = `admin_${year}_${cityId}`;
-      statsCache.delete(metricsKey);
-      console.error(`🔍 [AdminMetrics] Starting fetch for year=${year}, cityId=${cityId}`);
-
-      const yearStr = String(year);
-      // Fetch page by page until we have all deliveries for the year
-      let deliveries = [];
-      let page = 0;
-      const PAGE_SIZE = 500;
-      while (true) {
-        const pageRaw = await base44.asServiceRole.entities.Delivery.list('-delivery_date', PAGE_SIZE, page * PAGE_SIZE);
-        let pageItems;
-        if (Array.isArray(pageRaw)) {
-          pageItems = pageRaw;
-        } else if (typeof pageRaw === 'string') {
-          try { pageItems = JSON.parse(pageRaw); } catch { pageItems = []; }
-        } else {
-          pageItems = pageRaw?.items ?? pageRaw?.data ?? [];
-        }
-        if (!Array.isArray(pageItems) || pageItems.length === 0) break;
-        const yearItems = pageItems.filter(d => d.delivery_date && d.delivery_date.startsWith(yearStr));
-        deliveries = deliveries.concat(yearItems);
-        // If the oldest item on this page is before the year, we can stop
-        const oldestDate = pageItems[pageItems.length - 1]?.delivery_date || '';
-        if (oldestDate < `${yearStr}-01-01` || pageItems.length < PAGE_SIZE) break;
-        page++;
-        if (page > 20) break; // Safety limit: 10,000 deliveries
+      const cached = statsCache.get(metricsKey);
+      
+      // Cache is valid for 1 hour
+      if (cached && (Date.now() - cached.timestamp < 3600000)) {
+        console.log(`📊 Using CACHED AdminMetrics for ${year}`);
+        return cached.data;
       }
-      console.error(`📦 [AdminMetrics] Fetched ${deliveries.length} deliveries for ${yearStr}`);
 
-      // Filter by city (client-side) if cityId is specified
+      let storeFilter = {};
       if (cityId && cityId !== 'all') {
-        const cityStoresRaw = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
-        const cityStores = Array.isArray(cityStoresRaw) ? cityStoresRaw : (cityStoresRaw?.items ?? cityStoresRaw?.data ?? []);
-        const cityStoreIds = new Set(cityStores.map(s => s.id));
-        deliveries = deliveries.filter(d => cityStoreIds.has(d.store_id));
+        const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
+        storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
       }
 
-      const storesRaw = await base44.asServiceRole.entities.Store.list();
-      const stores = Array.isArray(storesRaw) ? storesRaw : (storesRaw?.items ?? storesRaw?.data ?? []);
-      const appUsersRaw = await base44.asServiceRole.entities.AppUser.list();
-      const appUsers = Array.isArray(appUsersRaw) ? appUsersRaw : (appUsersRaw?.items ?? appUsersRaw?.data ?? []);
-      const patientsRaw = await base44.asServiceRole.entities.Patient.list();
-      const patients = Array.isArray(patientsRaw) ? patientsRaw : (patientsRaw?.items ?? patientsRaw?.data ?? []);
+      const deliveries = await base44.asServiceRole.entities.Delivery.filter({
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
+        ...storeFilter
+      });
+
+      const stores = await base44.asServiceRole.entities.Store.list();
+      const appUsers = await base44.asServiceRole.entities.AppUser.list();
+      const patients = await base44.asServiceRole.entities.Patient.list();
       const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       console.log('📊 [AdminMetrics] App Fee Rate:', appFeeRate);
@@ -171,7 +150,6 @@ Deno.serve(async (req) => {
       return payrollData;
     };
 
-    console.error(`🔑 [Request] adminMetricsYear=${adminMetricsYear}, payrollYear=${payrollYear}`);
     const [adminMetrics, payrollData] = await Promise.all([
       adminMetricsYear ? fetchAdminMetrics(adminMetricsYear, adminMetricsCityId) : Promise.resolve(null),
       payrollYear ? fetchPayrollData(payrollYear, payrollCityId, payrollDriverId, payrollStartDate, payrollEndDate) : Promise.resolve(null)
