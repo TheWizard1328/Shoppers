@@ -159,6 +159,7 @@ Deno.serve(async (req) => {
       return payrollData;
     };
 
+    console.log(`🔑 [Request] adminMetricsYear=${adminMetricsYear}, payrollYear=${payrollYear}`);
     const [adminMetrics, payrollData] = await Promise.all([
       adminMetricsYear ? fetchAdminMetrics(adminMetricsYear, adminMetricsCityId) : Promise.resolve(null),
       payrollYear ? fetchPayrollData(payrollYear, payrollCityId, payrollDriverId, payrollStartDate, payrollEndDate) : Promise.resolve(null)
