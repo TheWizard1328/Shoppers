@@ -1,8 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-// In-memory cache - keyed by version so every new deploy gets a fresh cache
-const CACHE_VERSION = `v${Date.now()}`;
+// In-memory cache for expensive stats
+// CRITICAL: Cache is PER-YEAR. CACHE_VERSION busts on every deploy.
+const CACHE_VERSION = Date.now();
 const statsCache = new Map();
+
+// Eagerly clear any entries from previous deploys on startup
+statsCache.clear();
 
 // Helper function to get today's date key for cache invalidation
 const getCacheDateKey = () => {
@@ -72,24 +76,11 @@ Deno.serve(async (req) => {
         storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
       }
 
-      let deliveries = [];
-      let adminSkip = 0;
-      const adminBatchSize = 5000;
-      while (true) {
-        const batch = await base44.asServiceRole.entities.Delivery.filter(
-          { delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }, ...storeFilter },
-          '-delivery_date',
-          adminBatchSize,
-          adminSkip
-        );
-        const batchArr = Array.isArray(batch) ? batch : [];
-        console.log(`📦 [AdminMetrics] Batch skip=${adminSkip}: got ${batchArr.length} deliveries`);
-        if (batchArr.length === 0) break;
-        deliveries = deliveries.concat(batchArr);
-        if (batchArr.length < adminBatchSize) break;
-        adminSkip += adminBatchSize;
-      }
-      console.log(`📦 [AdminMetrics] Total fetched: ${deliveries.length} deliveries for ${year}`);
+      const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
+        ...storeFilter
+      });
+      const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : [];
 
       const stores = await base44.asServiceRole.entities.Store.list();
       const appUsers = await base44.asServiceRole.entities.AppUser.list();
@@ -109,14 +100,14 @@ Deno.serve(async (req) => {
       return metrics;
     };
 
-    const fetchPayrollData = async (year, cityId, driverId) => {
-      // CRITICAL: Cache key is year + cityId only
+    const fetchPayrollData = async (year, cityId, driverId, startDate, endDate) => {
+      // CRITICAL: Cache key includes year only (startDate/endDate should always span the full year)
       const payrollKey = `payroll_${year}_${cityId}`;
       const cached = statsCache.get(payrollKey);
       
       // Cache is valid for 30 minutes, and must match current version
       if (cached && cached.version === CACHE_VERSION && (Date.now() - cached.timestamp < 1800000)) {
-        console.log(`📊 Using CACHED PayrollData for ${year}`);
+        console.log(`📊 Using CACHED PayrollData for ${year} (${startDate} to ${endDate})`);
         return cached.data;
       }
 
@@ -127,37 +118,21 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // CRITICAL: Fetch the FULL YEAR - use max limit of 5000 per call, paginate if needed
-      // Fetch ALL statuses - payroll/admin metrics filter by status on the frontend
-      const yearStart = `${year}-01-01`;
-      const yearEnd = `${year}-12-31`;
+      // CRITICAL: Always fetch the FULL YEAR regardless of what startDate/endDate are passed
+      // The frontend filters by period client-side from the full year dataset
+      const dateFilter = {
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
+      };
       
-      let allYearDeliveries = [];
-      let skip = 0;
-      const batchSize = 5000;
-      
-      while (true) {
-        const batch = await base44.asServiceRole.entities.Delivery.filter(
-          { delivery_date: { $gte: yearStart, $lte: yearEnd } },
-          '-delivery_date',
-          batchSize,
-          skip
-        );
-        const batchArr = Array.isArray(batch) ? batch : [];
-        console.log(`📦 [PayrollData] Batch skip=${skip}: got ${batchArr.length} deliveries`);
-        if (batchArr.length === 0) break;
-        allYearDeliveries = allYearDeliveries.concat(batchArr);
-        if (batchArr.length < batchSize) break;
-        skip += batchSize;
-      }
-      
-      console.log(`📦 [PayrollData] Total fetched: ${allYearDeliveries.length} deliveries for ${year}`);
+      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter(dateFilter);
 
-      // Filter by store (via city) and driver only - keep ALL statuses for frontend filtering
-      // Payroll needs: completed/failed patient deliveries + completed/cancelled after_hours_pickup
-      // Admin metrics needs the same - both filter by status on the frontend
+      // CRITICAL: Ensure response is always an array
+      const allYearDeliveries = Array.isArray(allYearDeliveriesResponse) ? allYearDeliveriesResponse : [];
+
+      // Filter by store (via city filter) and driver, include only completed/failed/cancelled deliveries
       let payrollDeliveries = allYearDeliveries.filter(d => 
-        d && d.delivery_date &&
+        d && d.delivery_date && 
+        (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') &&
         (!storeIds || storeIds.includes(d.store_id)) &&
         (!driverId || driverId === 'all' || d.driver_id === driverId)
       );
