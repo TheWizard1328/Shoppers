@@ -57,33 +57,34 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // Fetch all reference data in parallel
-      const [rawDeliveries, stores, appUsers, patients, cities, appSettings, rawPayrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.filter({
-          delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
-          ...(storeIds ? { store_id: { $in: storeIds } } : {})
-        }),
-        base44.asServiceRole.entities.Store.list(),
-        base44.asServiceRole.entities.AppUser.list(),
-        base44.asServiceRole.entities.Patient.list(),
-        base44.asServiceRole.entities.City.list(),
-        base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
-        base44.asServiceRole.entities.Payroll.filter({
-          pay_period_start: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
-        })
-      ]);
-
-      const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
+      // Fetch all deliveries (without date filter to test), then stores, etc in parallel
+      const stores = await base44.asServiceRole.entities.Store.list();
+      const appUsers = await base44.asServiceRole.entities.AppUser.list();
+      const patients = await base44.asServiceRole.entities.Patient.list();
+      const cities = await base44.asServiceRole.entities.City.list();
+      const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       
-      // Debug: Log raw response structure
-      console.log(`🔍 [fetchYearData] Raw Delivery response type:`, typeof rawDeliveries, `is array: ${Array.isArray(rawDeliveries)}`);
-      if (rawDeliveries && typeof rawDeliveries === 'object' && !Array.isArray(rawDeliveries)) {
-        console.log(`🔍 [fetchYearData] Delivery response is object with keys:`, Object.keys(rawDeliveries));
-        console.log(`🔍 [fetchYearData] Delivery response:`, rawDeliveries);
-      }
+      // Fetch ALL deliveries and filter client-side (SDK filter might not work correctly)
+      let allDeliveries = await base44.asServiceRole.entities.Delivery.list();
+      console.log(`🔍 [fetchYearData] ALL deliveries from SDK: ${(allDeliveries || []).length}`);
       
-      const deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
+      // Filter deliveries by year client-side
+      let deliveries = (Array.isArray(allDeliveries) ? allDeliveries : []).filter(d => {
+        if (!d || !d.delivery_date) return false;
+        const date = d.delivery_date;
+        if (date < `${year}-01-01` || date > `${year}-12-31`) return false;
+        if (storeIds && storeIds.length > 0 && !storeIds.includes(d.store_id)) return false;
+        return true;
+      });
+      console.log(`✅ [fetchYearData] Filtered to ${deliveries.length} deliveries for year ${year}`);
+      
+      // Fetch payroll records with proper filter
+      const rawPayrollRecords = await base44.asServiceRole.entities.Payroll.filter({
+        pay_period_start: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
+      });
       const payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
+      
+      const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
 
       const data = {
         deliveries,
