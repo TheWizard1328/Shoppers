@@ -62,8 +62,8 @@ Deno.serve(async (req) => {
       const metricsKey = `admin_${year}_${cityId}`;
       const cached = statsCache.get(metricsKey);
       
-      // Cache is valid for 1 hour
-      if (cached && (Date.now() - cached.timestamp < 3600000)) {
+      // Cache is valid for 30 minutes, and must match current version
+      if (cached && cached.version === CACHE_VERSION && (Date.now() - cached.timestamp < 1800000)) {
         console.log(`📊 Using CACHED AdminMetrics for ${year}`);
         return cached.data;
       }
