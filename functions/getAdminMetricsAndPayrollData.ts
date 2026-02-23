@@ -59,10 +59,7 @@ Deno.serve(async (req) => {
 
       // Fetch all reference data in parallel
       const [rawDeliveries, stores, appUsers, patients, cities, appSettings, rawPayrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.filter({
-          delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
-          ...(storeIds ? { store_id: { $in: storeIds } } : {})
-        }),
+        base44.asServiceRole.entities.Delivery.list(),
         base44.asServiceRole.entities.Store.list(),
         base44.asServiceRole.entities.AppUser.list(),
         base44.asServiceRole.entities.Patient.list(),
