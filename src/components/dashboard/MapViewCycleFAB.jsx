@@ -19,7 +19,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   }, [currentPhase]);
 
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
-  const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 15 + bottomNavHeight;
+  const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 15;
 
   // Get icon based on current phase (always white icon)
   const getIcon = () => {
