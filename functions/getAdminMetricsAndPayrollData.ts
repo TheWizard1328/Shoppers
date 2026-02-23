@@ -68,8 +68,9 @@ Deno.serve(async (req) => {
 
       const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
-      });
+      }, '-delivery_date', 5000);
       let deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : (deliveriesRaw?.items ?? deliveriesRaw?.data ?? []);
+      console.log(`📦 [AdminMetrics] Fetched ${deliveries.length} deliveries for ${year}`);
 
       // Filter by city (client-side) if cityId is specified
       if (cityId && cityId !== 'all') {
