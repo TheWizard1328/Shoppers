@@ -152,18 +152,15 @@ Deno.serve(async (req) => {
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
 
-      // Fetch deliveries for the year using filter with status
-      const completedPage = await base44.asServiceRole.entities.Delivery.filter({ status: 'completed' });
-      const failedPage = await base44.asServiceRole.entities.Delivery.filter({ status: 'failed' });
-      const cancelledPage = await base44.asServiceRole.entities.Delivery.filter({ status: 'cancelled' });
+      // Fetch ALL deliveries across all pages, by status
+      const [completedPage, failedPage, cancelledPage] = await Promise.all([
+        fetchAllByStatus(base44.asServiceRole.entities.Delivery, 'completed'),
+        fetchAllByStatus(base44.asServiceRole.entities.Delivery, 'failed'),
+        fetchAllByStatus(base44.asServiceRole.entities.Delivery, 'cancelled'),
+      ]);
 
-      const allDeliveries = [
-        ...(Array.isArray(completedPage) ? completedPage : []),
-        ...(Array.isArray(failedPage) ? failedPage : []),
-        ...(Array.isArray(cancelledPage) ? cancelledPage : [])
-      ];
-
-      console.log(`📦 [Payroll] Fetched by status: completed=${completedPage?.length}, failed=${failedPage?.length}, cancelled=${cancelledPage?.length}`);
+      const allDeliveries = [...completedPage, ...failedPage, ...cancelledPage];
+      console.log(`📦 [Payroll] Fetched by status (paginated): completed=${completedPage.length}, failed=${failedPage.length}, cancelled=${cancelledPage.length}, total=${allDeliveries.length}`);
 
       // Filter to current year and optional store/driver filters
       let payrollDeliveries = allDeliveries.filter(d =>
