@@ -376,18 +376,29 @@ export default function DriverPayroll() {
   }, [selectedDriverId]);
 
   const refreshPayrollRecords = useCallback(async () => {
-    if (!currentPeriod) return;
+    if (!currentPeriod || !payrollData?.payrollRecords) {
+      console.log(`⚠️ [DriverPayroll] Cannot filter records - currentPeriod: ${!!currentPeriod}, payrollRecords: ${!!payrollData?.payrollRecords}`);
+      return;
+    }
     
     // CRITICAL: Just filter existing year data - no API calls
     // All year data is already loaded in fetchPayroll from getAdminMetricsAndPayrollData
     const periodStart = currentPeriod.start.toISOString().split('T')[0];
     const periodEnd = currentPeriod.end.toISOString().split('T')[0];
     
-    const filtered = payrollData?.payrollRecords?.filter(r => 
-      r.pay_period_start === periodStart && r.pay_period_end === periodEnd
-    ) || [];
+    console.log(`🔍 [DriverPayroll] Filtering payroll records for period:`, { periodStart, periodEnd, totalRecords: payrollData.payrollRecords.length });
+    console.log(`🔍 [DriverPayroll] Available records:`, payrollData.payrollRecords.map(r => ({
+      driver_id: r.driver_id?.slice(-4),
+      pay_period_start: r.pay_period_start,
+      pay_period_end: r.pay_period_end,
+      net_pay: r.net_pay
+    })));
     
-    console.log(`📊 [DriverPayroll] Filtered payroll records: ${filtered.length} for period ${currentPeriod.label}`);
+    const filtered = payrollData.payrollRecords.filter(r => 
+      r.pay_period_start === periodStart && r.pay_period_end === periodEnd
+    );
+    
+    console.log(`📊 [DriverPayroll] Filtered payroll records: ${filtered.length} for period ${currentPeriod.label} (${periodStart} to ${periodEnd})`);
     setPayrollRecords(filtered);
   }, [currentPeriod, payrollData?.payrollRecords]);
 
