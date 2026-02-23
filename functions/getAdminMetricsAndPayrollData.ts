@@ -65,10 +65,10 @@ Deno.serve(async (req) => {
         base44.asServiceRole.entities.Patient.list(),
         base44.asServiceRole.entities.City.list(),
         base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
-        base44.asServiceRole.entities.Payroll.filter({
-          pay_period_start: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
-        })
+        base44.asServiceRole.entities.Payroll.list()
       ]);
+      
+      console.log(`📊 Raw Delivery.list() returned:`, typeof rawDeliveries, Array.isArray(rawDeliveries) ? `array length ${rawDeliveries.length}` : 'not an array');
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
