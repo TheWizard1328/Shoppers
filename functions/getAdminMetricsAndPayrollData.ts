@@ -72,15 +72,15 @@ Deno.serve(async (req) => {
       
       while (hasMore) {
         const result = await base44.asServiceRole.entities.Delivery.list((page - 1) * pageSize, pageSize);
-        console.log(`🔍 [fetchYearData] Page ${page}: ${Array.isArray(result) ? result.length : 0} deliveries`);
+        console.log(`🔍 [fetchYearData] Page ${page} result type: ${typeof result}, is array: ${Array.isArray(result)}`);
         
-        if (!Array.isArray(result) || result.length === 0) {
-          hasMore = false;
-        } else {
-          allDeliveries = allDeliveries.concat(result);
-          if (result.length < pageSize) hasMore = false;
-        }
+        let pageData = Array.isArray(result) ? result : [];
+        if (pageData.length === 0 || pageData.length < pageSize) hasMore = false;
+        
+        allDeliveries = allDeliveries.concat(pageData);
+        console.log(`🔍 [fetchYearData] Page ${page}: ${pageData.length} deliveries, total so far: ${allDeliveries.length}`);
         page++;
+        if (page > 100) break; // Safety limit
       }
       console.log(`🔍 [fetchYearData] Total deliveries from SDK: ${allDeliveries.length}`);
       
