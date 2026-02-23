@@ -85,17 +85,20 @@ Deno.serve(async (req) => {
       let skip = 0;
       const PAGE_SIZE = 5000;
       while (true) {
-        const page = await base44.asServiceRole.entities.Delivery.list('delivery_date', PAGE_SIZE, skip);
+        const page = await base44.asServiceRole.entities.Delivery.list('-delivery_date', PAGE_SIZE, skip);
         if (!Array.isArray(page) || page.length === 0) break;
         allDeliveries.push(...page);
+        console.log(`📦 [AdminMetrics] Fetched page at skip=${skip}: ${page.length} deliveries`);
         if (page.length < PAGE_SIZE) break;
         skip += PAGE_SIZE;
       }
+      console.log(`📦 [AdminMetrics] Total deliveries fetched: ${allDeliveries.length}`);
 
       const deliveries = allDeliveries.filter(d =>
         d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
         (!storeIdsForFilter || storeIdsForFilter.has(d.store_id))
       );
+      console.log(`📦 [AdminMetrics] Deliveries in ${year}: ${deliveries.length}`);
 
       const stores = await base44.asServiceRole.entities.Store.list();
       const appUsers = await base44.asServiceRole.entities.AppUser.list();
