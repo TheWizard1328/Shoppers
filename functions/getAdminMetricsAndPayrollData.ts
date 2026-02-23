@@ -1,18 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-// In-memory cache for expensive stats
-// CRITICAL: Cache is PER-YEAR. CACHE_VERSION busts on every deploy.
-const CACHE_VERSION = Date.now();
-const statsCache = new Map();
-
-// Eagerly clear any entries from previous deploys on startup
-statsCache.clear();
-
-// Helper function to get today's date key for cache invalidation
-const getCacheDateKey = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-};
+// No in-memory cache - fetches are direct and reliable
 
 Deno.serve(async (req) => {
   try {
