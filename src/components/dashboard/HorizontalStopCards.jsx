@@ -318,7 +318,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         scrollSnapType: isMobile ? 'x mandatory' : 'none',
         scrollSnapStop: isMobile ? 'always' : 'normal',
         paddingLeft: isMobile ? 'calc(50% - 140px)' : '16px',
-        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px'
+        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px',
+        paddingBottom: isMobile ? 'var(--bottom-nav-height, 0px)' : undefined
       }}
       onWheel={(e) => {
         e.currentTarget.scrollLeft += e.deltaY;
