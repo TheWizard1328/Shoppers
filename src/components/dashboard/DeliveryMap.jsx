@@ -2562,6 +2562,16 @@ export default function DeliveryMap({
       return;
     }
 
+    // CRITICAL: Verify map pane element exists (prevents _leaflet_pos error during unmount/zoom transitions)
+    try {
+      if (!map._mapPane || !map._mapPane._leaflet_pos) {
+        console.warn('[DeliveryMap] Map pane position not available yet, skipping bounds fit');
+        return;
+      }
+    } catch (e) {
+      return;
+    }
+
     try {
       const bounds = L.latLngBounds(shouldFitBounds.bounds);
       
