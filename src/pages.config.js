@@ -52,7 +52,6 @@ import AdminUtilities from './pages/AdminUtilities';
 import AppUsers from './pages/AppUsers';
 import Cities from './pages/Cities';
 import Dashboard from './pages/Dashboard';
-import Deliveries from './pages/Deliveries';
 import DeliveryMetrics from './pages/DeliveryMetrics';
 import DeviceSettings from './pages/DeviceSettings';
 import DiagnosticsPage from './pages/DiagnosticsPage';
@@ -67,6 +66,7 @@ import SquareManagement from './pages/SquareManagement';
 import StoreInvoices from './pages/StoreInvoices';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
+import Deliveries from './pages/Deliveries';
 import __Layout from './Layout.jsx';
 
 
@@ -76,7 +76,6 @@ export const PAGES = {
     "AppUsers": AppUsers,
     "Cities": Cities,
     "Dashboard": Dashboard,
-    "Deliveries": Deliveries,
     "DeliveryMetrics": DeliveryMetrics,
     "DeviceSettings": DeviceSettings,
     "DiagnosticsPage": DiagnosticsPage,
@@ -91,6 +90,7 @@ export const PAGES = {
     "StoreInvoices": StoreInvoices,
     "Stores": Stores,
     "Users": Users,
+    "Deliveries": Deliveries,
 }
 
 export const pagesConfig = {

@@ -3677,7 +3677,7 @@ export default function DeliveriesPage() {
         }
       </div>
 
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex overflow-hidden min-h-0" style={isBottomNavVisible ? { paddingBottom: '56px' } : undefined}>
 
         {!isDriverOverviewMode &&
         <div className="hidden lg:flex w-72 flex-col h-full" style={{ background: 'var(--bg-white)', borderRight: '1px solid var(--border-slate-200)' }}>
