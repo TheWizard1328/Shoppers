@@ -1,6 +1,18 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-// No in-memory cache - fetches are direct and reliable
+// In-memory cache for expensive stats
+// CRITICAL: Cache is PER-YEAR. CACHE_VERSION busts on every deploy.
+const CACHE_VERSION = Date.now();
+const statsCache = new Map();
+
+// Eagerly clear any entries from previous deploys on startup
+statsCache.clear();
+
+// Helper function to get today's date key for cache invalidation
+const getCacheDateKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
 
 Deno.serve(async (req) => {
   try {
@@ -46,7 +58,18 @@ Deno.serve(async (req) => {
       payrollYear, payrollCityId, payrollDriverId, payrollStartDate, payrollEndDate
     } = body;
 
+    const cacheDate = getCacheDateKey();
+
     const fetchAdminMetrics = async (year, cityId) => {
+      const metricsKey = `admin_${year}_${cityId}`;
+      const cached = statsCache.get(metricsKey);
+      
+      // Cache is valid for 30 minutes, and must match current version
+      if (cached && cached.version === CACHE_VERSION && (Date.now() - cached.timestamp < 1800000)) {
+        console.log(`📊 Using CACHED AdminMetrics for ${year}`);
+        return cached.data;
+      }
+
       let storeFilter = {};
       if (cityId && cityId !== 'all') {
         const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
@@ -56,7 +79,7 @@ Deno.serve(async (req) => {
       const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
         ...storeFilter
-      }, '-delivery_date', 5000);
+      });
       const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : [];
 
       const stores = await base44.asServiceRole.entities.Store.list();
@@ -72,11 +95,22 @@ Deno.serve(async (req) => {
       const envelopeMetrics = calculateEnvelopeMetrics(deliveries, stores);
       metrics.envelopeMetrics = envelopeMetrics;
 
-      console.log(`✅ [AdminMetrics] Processed ${deliveries.length} deliveries for ${year}`);
+      statsCache.set(metricsKey, { data: metrics, timestamp: Date.now(), version: CACHE_VERSION });
+      console.log(`✅ Cached AdminMetrics for ${year}`);
       return metrics;
     };
 
-    const fetchPayrollData = async (year, cityId, driverId) => {
+    const fetchPayrollData = async (year, cityId, driverId, startDate, endDate) => {
+      // CRITICAL: Cache key includes year only (startDate/endDate should always span the full year)
+      const payrollKey = `payroll_${year}_${cityId}`;
+      const cached = statsCache.get(payrollKey);
+      
+      // Cache is valid for 30 minutes, and must match current version
+      if (cached && cached.version === CACHE_VERSION && (Date.now() - cached.timestamp < 1800000)) {
+        console.log(`📊 Using CACHED PayrollData for ${year} (${startDate} to ${endDate})`);
+        return cached.data;
+      }
+
       // Build store filter from city (Deliveries don't have city_id, only store_id)
       let storeIds = null;
       if (cityId && cityId !== 'all') {
@@ -86,9 +120,11 @@ Deno.serve(async (req) => {
 
       // CRITICAL: Always fetch the FULL YEAR regardless of what startDate/endDate are passed
       // The frontend filters by period client-side from the full year dataset
-      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter({
+      const dateFilter = {
         delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
-      }, '-delivery_date', 5000);
+      };
+      
+      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter(dateFilter);
 
       // CRITICAL: Ensure response is always an array
       const allYearDeliveries = Array.isArray(allYearDeliveriesResponse) ? allYearDeliveriesResponse : [];
@@ -124,13 +160,14 @@ Deno.serve(async (req) => {
         payrollRecords
       };
 
-      console.log(`✅ [PayrollData] Fetched ${payrollDeliveries.length} deliveries for ${year}`);
+      statsCache.set(payrollKey, { data: payrollData, timestamp: Date.now(), version: CACHE_VERSION });
+      console.log(`✅ Cached PayrollData for ${year} (${payrollData.deliveries.length} deliveries)`);
       return payrollData;
     };
 
     const [adminMetrics, payrollData] = await Promise.all([
       adminMetricsYear ? fetchAdminMetrics(adminMetricsYear, adminMetricsCityId) : Promise.resolve(null),
-      payrollYear ? fetchPayrollData(payrollYear, payrollCityId, payrollDriverId) : Promise.resolve(null)
+      payrollYear ? fetchPayrollData(payrollYear, payrollCityId, payrollDriverId, payrollStartDate, payrollEndDate) : Promise.resolve(null)
     ]);
 
     console.log(`✅ [getAdminMetricsAndPayrollData] Response payload:`, {
