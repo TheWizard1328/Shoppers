@@ -77,6 +77,11 @@ Deno.serve(async (req) => {
       const deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
       const payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
 
+      console.log(`📦 Raw deliveries returned: ${(rawDeliveries || []).length}`);
+      if (deliveries.length > 0) {
+        console.log(`🔍 Sample delivery:`, JSON.stringify(deliveries[0], null, 2).substring(0, 500));
+      }
+
       const data = {
         deliveries,
         stores,
