@@ -61,19 +61,20 @@ Deno.serve(async (req) => {
       statsCache.delete(metricsKey);
       console.log(`🔍 [AdminMetrics] Starting fetch for year=${year}, cityId=${cityId}`);
 
-      const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
-        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
-      }, '-delivery_date', 5000);
-      let deliveries;
-      if (Array.isArray(deliveriesRaw)) {
-        deliveries = deliveriesRaw;
-      } else if (typeof deliveriesRaw === 'string') {
-        try { deliveries = JSON.parse(deliveriesRaw); } catch { deliveries = []; }
+      // Fetch all deliveries for the year using list + client-side filter
+      const allDeliveriesRaw = await base44.asServiceRole.entities.Delivery.list('-delivery_date', 10000);
+      let allDeliveries;
+      if (Array.isArray(allDeliveriesRaw)) {
+        allDeliveries = allDeliveriesRaw;
+      } else if (typeof allDeliveriesRaw === 'string') {
+        try { allDeliveries = JSON.parse(allDeliveriesRaw); } catch { allDeliveries = []; }
       } else {
-        deliveries = deliveriesRaw?.items ?? deliveriesRaw?.data ?? [];
+        allDeliveries = allDeliveriesRaw?.items ?? allDeliveriesRaw?.data ?? [];
       }
-      if (!Array.isArray(deliveries)) deliveries = [];
-      console.log(`📦 [AdminMetrics] Fetched ${deliveries.length} deliveries for ${year}`);
+      if (!Array.isArray(allDeliveries)) allDeliveries = [];
+      const yearStr = String(year);
+      let deliveries = allDeliveries.filter(d => d.delivery_date && d.delivery_date.startsWith(yearStr));
+      console.log(`📦 [AdminMetrics] Total deliveries: ${allDeliveries.length}, filtered to ${deliveries.length} for ${year}`);
 
       // Filter by city (client-side) if cityId is specified
       if (cityId && cityId !== 'all') {
