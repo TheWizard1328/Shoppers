@@ -4131,25 +4131,25 @@ export default function Layout({ children, currentPageName }) {
                 />
                 }
 
-                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (!isSnapshotModeActive && (isMobile || isTabletPortrait) && !sidebarOpen) ? 'calc(56px + max(0.5rem, env(safe-area-inset-bottom, 0px)))' : undefined }}>
+                    <main className="flex-1 overflow-hidden relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
                     <PageTransition>
                       {children}
                     </PageTransition>
-                    
                     </main>
+
+                    {/* Mobile Bottom Nav - inside main-content-area so flex column shrinks main naturally */}
+                    {!isSnapshotModeActive && (isMobile || isTabletPortrait) && !sidebarOpen && currentUser && (
+                      <MobileBottomNav
+                        currentUser={currentUser}
+                        currentPageName={currentPageName}
+                      />
+                    )}
               </div>
             </div>
           </AppDataProvider>
           </UserProvider>
 
       }
-      {/* Mobile Bottom Nav - shown only when mobile header is visible and sidebar is closed */}
-      {!isLoadingLayout && hasAccess && currentUser && (isMobile || isTabletPortrait) && !sidebarOpen && !isSnapshotModeActive && (
-        <MobileBottomNav
-          currentUser={currentUser}
-          currentPageName={currentPageName}
-        />
-      )}
 
       <OptimizationSpinner />
     </ErrorBoundary>);
