@@ -77,16 +77,24 @@ export default function PullToSync({
   }, [isPulling, pullDistance, isSyncing, statsCardRef]);
 
   // Listen for programmatic trigger events (e.g., from route import completion)
+  // CRITICAL: Use stable ref so we never re-register with stale selectedDate
+  const performSyncRef = useRef(null);
+  useEffect(() => {
+    performSyncRef.current = performSync;
+  });
+
   useEffect(() => {
     const handleTriggerSync = async (event) => {
       const silent = event.detail?.silent || false;
       console.log(`🔄 [PullToSync] Sync triggered programmatically (silent: ${silent})`);
-      await performSync(silent);
+      if (performSyncRef.current) {
+        await performSyncRef.current(silent);
+      }
     };
 
     window.addEventListener('triggerPullToSync', handleTriggerSync);
     return () => window.removeEventListener('triggerPullToSync', handleTriggerSync);
-  }, []);
+  }, []); // stable - uses ref
 
   const performSync = async (silent = false) => {
     setIsSyncing(true);
