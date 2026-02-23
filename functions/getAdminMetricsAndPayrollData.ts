@@ -133,15 +133,23 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // CRITICAL: Fetch ALL deliveries and filter in JS - SDK doesn't support $gte/$lte on date fields
-      const allDeliveriesRaw = await base44.asServiceRole.entities.Delivery.list();
-      const allYearDeliveries = Array.isArray(allDeliveriesRaw) ? allDeliveriesRaw : [];
-
+      // Fetch ALL deliveries with pagination and filter in JS
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
 
+      const allDeliveries = [];
+      let skip = 0;
+      const PAGE_SIZE = 5000;
+      while (true) {
+        const page = await base44.asServiceRole.entities.Delivery.list('delivery_date', PAGE_SIZE, skip);
+        if (!Array.isArray(page) || page.length === 0) break;
+        allDeliveries.push(...page);
+        if (page.length < PAGE_SIZE) break;
+        skip += PAGE_SIZE;
+      }
+
       // Filter to current year, relevant statuses, and optional store/driver filters
-      let payrollDeliveries = allYearDeliveries.filter(d =>
+      let payrollDeliveries = allDeliveries.filter(d =>
         d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
         (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') &&
         (!storeIds || storeIds.includes(d.store_id)) &&
