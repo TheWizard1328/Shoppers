@@ -541,6 +541,15 @@ export default function DriverPayroll() {
     }
   }, [selectedYear, currentUser, setSmartRefreshActivity]);
 
+  const handleManualRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    console.log('🔄 [DriverPayroll] Manual refresh triggered');
+    await fetchPayroll(false, true);
+    await refreshPayrollRecords();
+    setIsRefreshing(false);
+    toast.success('Payroll data refreshed');
+  }, [fetchPayroll, refreshPayrollRecords]);
+
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
     if (selectedPeriodIndex > 0) {
