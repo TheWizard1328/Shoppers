@@ -1,12 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-// In-memory cache for expensive stats
-// CRITICAL: Cache is PER-YEAR. CACHE_VERSION busts on every deploy.
-const CACHE_VERSION = Date.now();
+// In-memory cache - keyed by version so every new deploy gets a fresh cache
+const CACHE_VERSION = `v${Date.now()}`;
 const statsCache = new Map();
-
-// Eagerly clear any entries from previous deploys on startup
-statsCache.clear();
 
 // Helper function to get today's date key for cache invalidation
 const getCacheDateKey = () => {
