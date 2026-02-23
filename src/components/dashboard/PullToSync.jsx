@@ -21,19 +21,6 @@ export default function PullToSync({
   const touchStartY = useRef(0);
   const syncThreshold = 80; // Pull threshold to trigger sync
 
-  // CRITICAL: Keep refs up-to-date so async callbacks always use the latest values
-  const selectedDateRef = useRef(selectedDate);
-  const selectedCityIdRef = useRef(selectedCityId);
-  const selectedDriverIdRef = useRef(selectedDriverId);
-  const showAllDriverMarkersRef = useRef(showAllDriverMarkers);
-  const onSyncCompleteRef = useRef(onSyncComplete);
-
-  useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate]);
-  useEffect(() => { selectedCityIdRef.current = selectedCityId; }, [selectedCityId]);
-  useEffect(() => { selectedDriverIdRef.current = selectedDriverId; }, [selectedDriverId]);
-  useEffect(() => { showAllDriverMarkersRef.current = showAllDriverMarkers; }, [showAllDriverMarkers]);
-  useEffect(() => { onSyncCompleteRef.current = onSyncComplete; }, [onSyncComplete]);
-
   useEffect(() => {
     const statsCard = statsCardRef?.current;
     if (!statsCard) return;
@@ -77,24 +64,16 @@ export default function PullToSync({
   }, [isPulling, pullDistance, isSyncing, statsCardRef]);
 
   // Listen for programmatic trigger events (e.g., from route import completion)
-  // CRITICAL: Use stable ref so we never re-register with stale selectedDate
-  const performSyncRef = useRef(null);
-  useEffect(() => {
-    performSyncRef.current = performSync;
-  });
-
   useEffect(() => {
     const handleTriggerSync = async (event) => {
       const silent = event.detail?.silent || false;
       console.log(`🔄 [PullToSync] Sync triggered programmatically (silent: ${silent})`);
-      if (performSyncRef.current) {
-        await performSyncRef.current(silent);
-      }
+      await performSync(silent);
     };
 
     window.addEventListener('triggerPullToSync', handleTriggerSync);
     return () => window.removeEventListener('triggerPullToSync', handleTriggerSync);
-  }, []); // stable - uses ref
+  }, []);
 
   const performSync = async (silent = false) => {
     setIsSyncing(true);
@@ -120,9 +99,7 @@ export default function PullToSync({
         window.backgroundSyncManager.pause();
       }
 
-      // CRITICAL: Use ref to get current selectedDate at call time (not stale closure)
-      const syncDate = selectedDateRef.current;
-      const selectedDateStr = format(syncDate, 'yyyy-MM-dd');
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       
       console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL deliveries for ${selectedDateStr} from online database...`);
 
@@ -232,9 +209,8 @@ export default function PullToSync({
       console.log('✅ [Pull to Sync] UI update event dispatched with fresh data');
       
       // STEP 7: Callback to parent component
-      const currentOnSyncComplete = onSyncCompleteRef.current;
-      if (currentOnSyncComplete) {
-        await currentOnSyncComplete(offlineDeliveries, freshAppUsers, freshPatients);
+      if (onSyncComplete) {
+        await onSyncComplete(offlineDeliveries, freshAppUsers, freshPatients);
       }
       
       // CRITICAL: Dispatch completion event for SmartRefreshIndicator
@@ -293,18 +269,15 @@ export default function PullToSync({
   };
 
   // Listen for silent sync trigger (e.g., after AppUser updates)
-  // CRITICAL: Use ref so this is always stable and uses latest performSync
   useEffect(() => {
     const handleSilentSync = async () => {
       console.log('🔇 [PullToSync] Silent sync triggered after AppUser update');
-      if (performSyncRef.current) {
-        await performSyncRef.current(true);
-      }
+      await performSync(true);
     };
 
     window.addEventListener('triggerSilentSync', handleSilentSync);
     return () => window.removeEventListener('triggerSilentSync', handleSilentSync);
-  }, []); // stable - uses ref
+  }, []);
 
   const pullProgress = Math.min(pullDistance / syncThreshold, 1);
   const rotation = pullProgress * 360;
