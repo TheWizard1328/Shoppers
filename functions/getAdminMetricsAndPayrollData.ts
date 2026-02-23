@@ -81,18 +81,18 @@ Deno.serve(async (req) => {
         storeIdsForFilter = new Set(cityStores.map(s => s.id));
       }
 
-      const allDeliveries = [];
-      let skip = 0;
-      const PAGE_SIZE = 5000;
-      while (true) {
-        const page = await base44.asServiceRole.entities.Delivery.list('-delivery_date', PAGE_SIZE, skip);
-        if (!Array.isArray(page) || page.length === 0) break;
-        allDeliveries.push(...page);
-        console.log(`📦 [AdminMetrics] Fetched page at skip=${skip}: ${page.length} deliveries`);
-        if (page.length < PAGE_SIZE) break;
-        skip += PAGE_SIZE;
-      }
-      console.log(`📦 [AdminMetrics] Total deliveries fetched: ${allDeliveries.length}`);
+      // Fetch deliveries for the year using filter with status
+      const completedDeliveries = await base44.asServiceRole.entities.Delivery.filter({ status: 'completed' });
+      const failedDeliveries = await base44.asServiceRole.entities.Delivery.filter({ status: 'failed' });
+      const cancelledDeliveries = await base44.asServiceRole.entities.Delivery.filter({ status: 'cancelled' });
+
+      const allDeliveries = [
+        ...(Array.isArray(completedDeliveries) ? completedDeliveries : []),
+        ...(Array.isArray(failedDeliveries) ? failedDeliveries : []),
+        ...(Array.isArray(cancelledDeliveries) ? cancelledDeliveries : [])
+      ];
+
+      console.log(`📦 [AdminMetrics] Fetched by status: completed=${completedDeliveries?.length}, failed=${failedDeliveries?.length}, cancelled=${cancelledDeliveries?.length}`);
 
       const deliveries = allDeliveries.filter(d =>
         d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
