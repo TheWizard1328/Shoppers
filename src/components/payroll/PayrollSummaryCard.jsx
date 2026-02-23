@@ -57,7 +57,9 @@ export default function PayrollSummaryCard({
   onFinalizePayroll,
   onPayrollRecordsChange,
   payrollRecords: externalPayrollRecords,
-  refreshPayrollRecords
+  refreshPayrollRecords,
+  driverStats = {},
+  storeStats = {}
 }) {
   const { currentUser } = useUser();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -89,6 +91,8 @@ export default function PayrollSummaryCard({
   const payrollData = useMemo(() => {
     if (!deliveries || !drivers || !appUsers || !currentPeriod) return [];
 
+    console.log('🧮 [PayrollSummary] Calculating payroll with driverStats:', driverStats);
+
     // Get drivers to calculate for
     // Note: drivers come from payrollData.drivers which are AppUser records (user_id field)
     const driversToCalc = selectedDriverId === 'all' ?
@@ -105,32 +109,27 @@ export default function PayrollSummaryCard({
       const extraKmLimit = appUser?.extra_km_limit || 0;
       const oversizedRate = appUser?.oversized_item_rate || 0;
 
-      // Filter deliveries for this driver in the current period
-      // Include completed, failed, cancelled (after_hours OR store returns)
+      // Filter deliveries for this driver in the current period (ONLY for extra km, oversized, failed, returns)
       const periodDeliveries = deliveries.filter((d) => {
         if (!d || !d.delivery_date) return false;
         if (d.driver_id !== driverId) return false;
-        // Exclude pickups (no patient_id) unless it's an after_hours_pickup or store return
         if (!d.patient_id && !d.after_hours_pickup) return false;
 
-        // Valid statuses: completed, failed, or cancelled (for after_hours or store returns)
-        if (d.status === 'completed' || d.status === 'failed') {
-
-
-          // Valid - count these
-        } else if (d.status === 'cancelled') {// For cancelled: include after_hours_pickup OR store returns
-          const isStoreReturn = /\[[\w\s]+\]/.test(d.patient_name || '') && (d.patient_name || '').toLowerCase().includes('return');
-          if (!d.after_hours_pickup && !isStoreReturn) return false;
-        } else {
-          return false;
-        }
+        const validStatus = d.status === 'completed' || d.status === 'failed' || 
+          (d.status === 'cancelled' && d.after_hours_pickup);
+        if (!validStatus) return false;
 
         const date = new Date(d.delivery_date + 'T00:00:00');
         return date >= currentPeriod.start && date <= currentPeriod.end;
       });
 
-      const deliveryCount = periodDeliveries.length;
+      // CRITICAL: Use pre-calculated delivery count from backend driverStats
+      // This includes: (completed OR failed) patient deliveries + (completed OR cancelled) after_hours_pickups
+      const deliveryCount = (driverStats[driverId]?.total_deliveries || 0) + 
+                            (driverStats[driverId]?.total_after_hours_pickups || 0);
       const basePay = deliveryCount * payRate;
+
+      console.log(`💰 [PayrollSummary] Driver ${driver.user_name}: deliveryCount=${deliveryCount} (from driverStats: deliveries=${driverStats[driverId]?.total_deliveries}, after_hours=${driverStats[driverId]?.total_after_hours_pickups})`);
 
       // Calculate extra km pay
       // Use patient's distance_from_store (or paid_km_override if set on delivery)
@@ -160,16 +159,11 @@ export default function PayrollSummaryCard({
       const payrollRecord = payrollRecords.find((r) => r.driver_id === driverId);
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
 
-      // Count failed and returns (cancelled with after_hours_pickup excluded from returns)
+      // Count failed and store returns from period deliveries
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
-      const returnsCount = periodDeliveries.filter((d) => d.status === 'cancelled' && !d.after_hours_pickup).length;
-
-      // Count returns: any delivery with store name and 'return' in patient_name or delivery_notes
-      const storeReturnCount = deliveries.filter((d) => {
-        if (!d || d.driver_id !== driverId) return false;
-        const date = new Date(d.delivery_date + 'T00:00:00');
-        if (date < currentPeriod.start || date > currentPeriod.end) return false;
-
+      
+      // Count store returns: deliveries with store name and 'return' in patient_name or delivery_notes
+      const storeReturnCount = periodDeliveries.filter((d) => {
         const patientName = (d.patient_name || '').toLowerCase();
         const deliveryNotes = (d.delivery_notes || '').toLowerCase();
         const combined = patientName + ' ' + deliveryNotes;
@@ -240,8 +234,8 @@ export default function PayrollSummaryCard({
         oversizedCount: oversizedCount,
         totalOversizedPay: oversizedPay,
         failedCount: failedCount,
-        returnsCount: returnsCount,
         storeReturnCount: storeReturnCount,
+        afterHoursPickupCount: driverStats[driverId]?.total_after_hours_pickups || 0,
         grandTotal: totalPay,
         // New fields
         gstHstEnabled,
@@ -254,7 +248,7 @@ export default function PayrollSummaryCard({
         appFeePercentage
       };
     });
-  }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
+  }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod, driverStats, payrollRecords]);
 
   // Last fetch timestamp to detect real changes
   const lastFetchRef = React.useRef({ timestamp: 0 });
