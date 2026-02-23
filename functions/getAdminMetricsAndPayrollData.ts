@@ -72,10 +72,11 @@ Deno.serve(async (req) => {
         storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
       }
 
-      const deliveries = await base44.asServiceRole.entities.Delivery.filter({
+      const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
         ...storeFilter
       });
+      const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : [];
 
       const stores = await base44.asServiceRole.entities.Store.list();
       const appUsers = await base44.asServiceRole.entities.AppUser.list();
