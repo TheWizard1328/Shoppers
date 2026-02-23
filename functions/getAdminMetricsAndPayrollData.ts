@@ -58,8 +58,8 @@ Deno.serve(async (req) => {
 
     const fetchAdminMetrics = async (year, cityId) => {
       const metricsKey = `admin_${year}_${cityId}`;
-      // Clear cache to force fresh fetch (debug)
       statsCache.delete(metricsKey);
+      console.log(`🔍 [AdminMetrics] Starting fetch for year=${year}, cityId=${cityId}`);
 
       const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
