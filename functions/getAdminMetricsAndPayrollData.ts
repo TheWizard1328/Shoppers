@@ -99,15 +99,9 @@ Deno.serve(async (req) => {
         storeIdsForFilter = new Set(cityStores.map(s => s.id));
       }
 
-      // Fetch ALL deliveries across all pages, by status
-      const [completedDeliveries, failedDeliveries, cancelledDeliveries] = await Promise.all([
-        fetchAllByStatus(base44.asServiceRole.entities.Delivery, 'completed'),
-        fetchAllByStatus(base44.asServiceRole.entities.Delivery, 'failed'),
-        fetchAllByStatus(base44.asServiceRole.entities.Delivery, 'cancelled'),
-      ]);
-
-      const allDeliveries = [...completedDeliveries, ...failedDeliveries, ...cancelledDeliveries];
-      console.log(`📦 [AdminMetrics] Fetched by status (paginated): completed=${completedDeliveries.length}, failed=${failedDeliveries.length}, cancelled=${cancelledDeliveries.length}, total=${allDeliveries.length}`);
+      // Fetch ALL deliveries with pagination, filtering by status in JS
+      const allDeliveries = await fetchAllDeliveries(base44.asServiceRole.entities.Delivery, ['completed', 'failed', 'cancelled']);
+      console.log(`📦 [AdminMetrics] Total deliveries fetched (all pages): ${allDeliveries.length}`);
 
       const deliveries = allDeliveries.filter(d =>
         d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
