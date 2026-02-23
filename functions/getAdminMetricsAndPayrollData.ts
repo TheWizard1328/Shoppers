@@ -71,8 +71,7 @@ Deno.serve(async (req) => {
         return cached.data;
       }
 
-      // Fetch ALL deliveries and filter in JS (SDK doesn't support $gte/$lte on dates)
-      const allDeliveriesRaw = await base44.asServiceRole.entities.Delivery.list();
+      // Fetch ALL deliveries with pagination (max 5000 per call)
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
 
@@ -82,7 +81,18 @@ Deno.serve(async (req) => {
         storeIdsForFilter = new Set(cityStores.map(s => s.id));
       }
 
-      const deliveries = (Array.isArray(allDeliveriesRaw) ? allDeliveriesRaw : []).filter(d =>
+      const allDeliveries = [];
+      let skip = 0;
+      const PAGE_SIZE = 5000;
+      while (true) {
+        const page = await base44.asServiceRole.entities.Delivery.list('delivery_date', PAGE_SIZE, skip);
+        if (!Array.isArray(page) || page.length === 0) break;
+        allDeliveries.push(...page);
+        if (page.length < PAGE_SIZE) break;
+        skip += PAGE_SIZE;
+      }
+
+      const deliveries = allDeliveries.filter(d =>
         d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
         (!storeIdsForFilter || storeIdsForFilter.has(d.store_id))
       );
