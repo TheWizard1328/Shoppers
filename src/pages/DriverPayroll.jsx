@@ -326,12 +326,23 @@ export default function DriverPayroll() {
     // CRITICAL: Ensure deliveries is always an array
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
     let filtered = deliveries;
+    
+    // Filter by city (via store)
     if (selectedCityId !== 'all') {
       const cityStoreIds = new Set(filteredStores.map(s => s.id));
       filtered = filtered.filter(d => d && cityStoreIds.has(d.store_id));
     }
+    
+    // CRITICAL: Filter by selected pay period date range
+    // All year data is loaded; the grid/summary need only the current period's deliveries
+    if (currentPeriod) {
+      const periodStart = currentPeriod.start.toISOString().split('T')[0];
+      const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+      filtered = filtered.filter(d => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
+    }
+    
     return filtered;
-  }, [payrollData?.deliveries, selectedCityId, filteredStores]);
+  }, [payrollData?.deliveries, selectedCityId, filteredStores, currentPeriod]);
 
   const handlePayPeriodChange = useCallback((newPayPeriod) => {
     isManualChangeRef.current = true;
