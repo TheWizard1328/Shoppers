@@ -491,21 +491,11 @@ export default function DriverPayroll() {
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
     console.log('🔄 [DriverPayroll] Manual refresh triggered');
-    
-    // Invalidate caches
-    invalidate('Delivery');
-    invalidate('Patient');
-    invalidate('Payroll');
-    
-    // Force fresh fetch of all data
     await fetchPayroll(false, true);
-    
-    // Refresh payroll records to recalculate YTD totals
     await refreshPayrollRecords();
-    
     setIsRefreshing(false);
     toast.success('Payroll data refreshed');
-  }, [selectedYear, selectedCityId, refreshPayrollRecords]);
+  }, [fetchPayroll, refreshPayrollRecords]);
 
   const fullYearPayrollDataRef = useRef(null);
 
