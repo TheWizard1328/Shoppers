@@ -64,13 +64,28 @@ Deno.serve(async (req) => {
       const cities = await base44.asServiceRole.entities.City.list();
       const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       
-      // Fetch ALL deliveries and filter client-side (SDK filter might not work correctly)
-      let allDeliveries = await base44.asServiceRole.entities.Delivery.list();
-      console.log(`🔍 [fetchYearData] Raw delivery list result:`, typeof allDeliveries, Array.isArray(allDeliveries) ? `array of ${allDeliveries.length}` : Object.keys(allDeliveries || {}).join(', '));
-      console.log(`🔍 [fetchYearData] ALL deliveries from SDK: ${(allDeliveries || []).length}`);
+      // Fetch ALL deliveries with pagination (SDK returns paginated results)
+      let allDeliveries = [];
+      let page = 1;
+      let hasMore = true;
+      const pageSize = 5000;
+      
+      while (hasMore) {
+        const result = await base44.asServiceRole.entities.Delivery.list((page - 1) * pageSize, pageSize);
+        console.log(`🔍 [fetchYearData] Page ${page}: ${Array.isArray(result) ? result.length : 0} deliveries`);
+        
+        if (!Array.isArray(result) || result.length === 0) {
+          hasMore = false;
+        } else {
+          allDeliveries = allDeliveries.concat(result);
+          if (result.length < pageSize) hasMore = false;
+        }
+        page++;
+      }
+      console.log(`🔍 [fetchYearData] Total deliveries from SDK: ${allDeliveries.length}`);
       
       // Filter deliveries by year client-side
-      let deliveries = (Array.isArray(allDeliveries) ? allDeliveries : []).filter(d => {
+      let deliveries = allDeliveries.filter(d => {
         if (!d || !d.delivery_date) return false;
         const date = d.delivery_date;
         if (date < `${year}-01-01` || date > `${year}-12-31`) return false;
