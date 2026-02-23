@@ -58,13 +58,8 @@ Deno.serve(async (req) => {
 
     const fetchAdminMetrics = async (year, cityId) => {
       const metricsKey = `admin_${year}_${cityId}`;
-      const cached = statsCache.get(metricsKey);
-      
-      // Cache is valid for 1 hour
-      if (cached && (Date.now() - cached.timestamp < 3600000)) {
-        console.log(`📊 Using CACHED AdminMetrics for ${year}`);
-        return cached.data;
-      }
+      // Clear cache to force fresh fetch (debug)
+      statsCache.delete(metricsKey);
 
       const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
