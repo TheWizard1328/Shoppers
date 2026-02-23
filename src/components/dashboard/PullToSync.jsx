@@ -21,6 +21,19 @@ export default function PullToSync({
   const touchStartY = useRef(0);
   const syncThreshold = 80; // Pull threshold to trigger sync
 
+  // CRITICAL: Keep refs up-to-date so async callbacks always use the latest values
+  const selectedDateRef = useRef(selectedDate);
+  const selectedCityIdRef = useRef(selectedCityId);
+  const selectedDriverIdRef = useRef(selectedDriverId);
+  const showAllDriverMarkersRef = useRef(showAllDriverMarkers);
+  const onSyncCompleteRef = useRef(onSyncComplete);
+
+  useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate]);
+  useEffect(() => { selectedCityIdRef.current = selectedCityId; }, [selectedCityId]);
+  useEffect(() => { selectedDriverIdRef.current = selectedDriverId; }, [selectedDriverId]);
+  useEffect(() => { showAllDriverMarkersRef.current = showAllDriverMarkers; }, [showAllDriverMarkers]);
+  useEffect(() => { onSyncCompleteRef.current = onSyncComplete; }, [onSyncComplete]);
+
   useEffect(() => {
     const statsCard = statsCardRef?.current;
     if (!statsCard) return;
