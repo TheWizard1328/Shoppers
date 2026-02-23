@@ -76,17 +76,7 @@ Deno.serve(async (req) => {
       return metrics;
     };
 
-    const fetchPayrollData = async (year, cityId, driverId, startDate, endDate) => {
-      // CRITICAL: Cache key includes year only (startDate/endDate should always span the full year)
-      const payrollKey = `payroll_${year}_${cityId}`;
-      const cached = statsCache.get(payrollKey);
-      
-      // Cache is valid for 30 minutes, and must match current version
-      if (cached && cached.version === CACHE_VERSION && (Date.now() - cached.timestamp < 1800000)) {
-        console.log(`📊 Using CACHED PayrollData for ${year} (${startDate} to ${endDate})`);
-        return cached.data;
-      }
-
+    const fetchPayrollData = async (year, cityId, driverId) => {
       // Build store filter from city (Deliveries don't have city_id, only store_id)
       let storeIds = null;
       if (cityId && cityId !== 'all') {
