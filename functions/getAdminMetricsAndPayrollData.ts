@@ -74,6 +74,14 @@ Deno.serve(async (req) => {
       ]);
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
+      
+      // Debug: Log raw response structure
+      console.log(`🔍 [fetchYearData] Raw Delivery response type:`, typeof rawDeliveries, `is array: ${Array.isArray(rawDeliveries)}`);
+      if (rawDeliveries && typeof rawDeliveries === 'object' && !Array.isArray(rawDeliveries)) {
+        console.log(`🔍 [fetchYearData] Delivery response is object with keys:`, Object.keys(rawDeliveries));
+        console.log(`🔍 [fetchYearData] Delivery response:`, rawDeliveries);
+      }
+      
       const deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
       const payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
 
