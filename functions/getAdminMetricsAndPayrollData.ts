@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
       
       while (true) {
         const batch = await base44.asServiceRole.entities.Delivery.filter(
-          { delivery_date: { $gte: startDate, $lte: endDate } },
+          { delivery_date: { $gte: yearStart, $lte: yearEnd } },
           '-delivery_date',
           batchSize,
           skip
