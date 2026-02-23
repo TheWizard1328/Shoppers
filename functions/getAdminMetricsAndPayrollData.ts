@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
 
     const [adminMetrics, payrollData] = await Promise.all([
       adminMetricsYear ? fetchAdminMetrics(adminMetricsYear, adminMetricsCityId) : Promise.resolve(null),
-      payrollYear ? fetchPayrollData(payrollYear, payrollCityId, payrollDriverId, payrollStartDate, payrollEndDate) : Promise.resolve(null)
+      payrollYear ? fetchPayrollData(payrollYear, payrollCityId, payrollDriverId) : Promise.resolve(null)
     ]);
 
     console.log(`✅ [getAdminMetricsAndPayrollData] Response payload:`, {
