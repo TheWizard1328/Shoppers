@@ -983,6 +983,8 @@ export default function DriverPayroll() {
             }}
             payrollRecords={payrollRecords}
             refreshPayrollRecords={refreshPayrollRecords}
+            driverStats={payrollData?.driverStats || {}}
+            storeStats={payrollData?.storeStats || {}}
           />
         </div>
         
