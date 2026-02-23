@@ -4540,7 +4540,7 @@ export default function DeliveryForm({
 
   return (
     <div className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : 'bg-black/60 flex items-center justify-center p-4'}`} style={useMobileLayout && isMobileDevice ? { background: 'var(--bg-white)' } : {}}>
-      <motion.div ref={formRef} initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }} animate={{ opacity: 1, y: 0 }} className={`w-full ${useMobileLayout && isMobileDevice ? 'h-full' : !delivery ? 'max-w-4xl max-h-[90vh]' : 'max-w-lg max-h-[90vh]'} flex`}>
+      <motion.div ref={formRef} initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }} animate={{ opacity: 1, y: 0 }} className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? 'max-w-4xl max-h-[90vh]' : 'max-w-lg max-h-[90vh]'} flex`}>
         <Card className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl'}`} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
           <CardHeader className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between">
