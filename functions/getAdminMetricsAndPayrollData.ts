@@ -140,26 +140,26 @@ Deno.serve(async (req) => {
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
 
-      const allDeliveries = [];
-      let skip = 0;
-      const PAGE_SIZE = 5000;
-      while (true) {
-        const page = await base44.asServiceRole.entities.Delivery.list('-delivery_date', PAGE_SIZE, skip);
-        if (!Array.isArray(page) || page.length === 0) break;
-        allDeliveries.push(...page);
-        console.log(`📦 [Payroll] Fetched page at skip=${skip}: ${page.length} deliveries`);
-        if (page.length < PAGE_SIZE) break;
-        skip += PAGE_SIZE;
-      }
-      console.log(`📦 [Payroll] Total deliveries fetched: ${allDeliveries.length}`);
+      // Fetch deliveries for the year using filter with status
+      const completedPage = await base44.asServiceRole.entities.Delivery.filter({ status: 'completed' });
+      const failedPage = await base44.asServiceRole.entities.Delivery.filter({ status: 'failed' });
+      const cancelledPage = await base44.asServiceRole.entities.Delivery.filter({ status: 'cancelled' });
 
-      // Filter to current year, relevant statuses, and optional store/driver filters
+      const allDeliveries = [
+        ...(Array.isArray(completedPage) ? completedPage : []),
+        ...(Array.isArray(failedPage) ? failedPage : []),
+        ...(Array.isArray(cancelledPage) ? cancelledPage : [])
+      ];
+
+      console.log(`📦 [Payroll] Fetched by status: completed=${completedPage?.length}, failed=${failedPage?.length}, cancelled=${cancelledPage?.length}`);
+
+      // Filter to current year and optional store/driver filters
       let payrollDeliveries = allDeliveries.filter(d =>
         d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
-        (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') &&
         (!storeIds || storeIds.includes(d.store_id)) &&
         (!driverId || driverId === 'all' || d.driver_id === driverId)
       );
+      console.log(`📦 [Payroll] Deliveries in ${year}: ${payrollDeliveries.length}`);
 
       const payrollPatients = await base44.asServiceRole.entities.Patient.list();
       const payrollAppUsers = await base44.asServiceRole.entities.AppUser.list();
