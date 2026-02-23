@@ -96,18 +96,15 @@ Deno.serve(async (req) => {
         storeIdsForFilter = new Set(cityStores.map(s => s.id));
       }
 
-      // Fetch deliveries for the year using filter with status
-      const completedDeliveries = await base44.asServiceRole.entities.Delivery.filter({ status: 'completed' });
-      const failedDeliveries = await base44.asServiceRole.entities.Delivery.filter({ status: 'failed' });
-      const cancelledDeliveries = await base44.asServiceRole.entities.Delivery.filter({ status: 'cancelled' });
+      // Fetch ALL deliveries across all pages, by status
+      const [completedDeliveries, failedDeliveries, cancelledDeliveries] = await Promise.all([
+        fetchAllByStatus(base44.asServiceRole.entities.Delivery, 'completed'),
+        fetchAllByStatus(base44.asServiceRole.entities.Delivery, 'failed'),
+        fetchAllByStatus(base44.asServiceRole.entities.Delivery, 'cancelled'),
+      ]);
 
-      const allDeliveries = [
-        ...(Array.isArray(completedDeliveries) ? completedDeliveries : []),
-        ...(Array.isArray(failedDeliveries) ? failedDeliveries : []),
-        ...(Array.isArray(cancelledDeliveries) ? cancelledDeliveries : [])
-      ];
-
-      console.log(`📦 [AdminMetrics] Fetched by status: completed=${completedDeliveries?.length}, failed=${failedDeliveries?.length}, cancelled=${cancelledDeliveries?.length}`);
+      const allDeliveries = [...completedDeliveries, ...failedDeliveries, ...cancelledDeliveries];
+      console.log(`📦 [AdminMetrics] Fetched by status (paginated): completed=${completedDeliveries.length}, failed=${failedDeliveries.length}, cancelled=${cancelledDeliveries.length}, total=${allDeliveries.length}`);
 
       const deliveries = allDeliveries.filter(d =>
         d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
