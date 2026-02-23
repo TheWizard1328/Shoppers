@@ -138,9 +138,6 @@ Deno.serve(async (req) => {
       
       console.log(`📦 [PayrollData] Fetched ${allYearDeliveries.length} total deliveries for ${year}`);
 
-      // CRITICAL: Ensure response is always an array
-      const allYearDeliveries = Array.isArray(allYearDeliveriesResponse) ? allYearDeliveriesResponse : [];
-
       // Filter by store (via city) and driver only - keep ALL statuses for frontend filtering
       // Payroll needs: completed/failed patient deliveries + completed/cancelled after_hours_pickup
       // Admin metrics needs the same - both filter by status on the frontend
