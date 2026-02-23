@@ -122,8 +122,13 @@ Deno.serve(async (req) => {
       const envelopeMetrics = calculateEnvelopeMetrics(deliveries, stores);
       metrics.envelopeMetrics = envelopeMetrics;
 
-      statsCache.set(metricsKey, { data: metrics, timestamp: Date.now(), version: CACHE_VERSION });
-      console.log(`✅ Cached AdminMetrics for ${year}`);
+      // Only cache if we actually fetched deliveries (avoid caching empty results from cold starts)
+      if (allDeliveries.length > 0) {
+        statsCache.set(metricsKey, { data: metrics, timestamp: Date.now(), version: CACHE_VERSION });
+        console.log(`✅ Cached AdminMetrics for ${year} (${allDeliveries.length} deliveries)`);
+      } else {
+        console.warn(`⚠️ Skipping cache for AdminMetrics ${year} - 0 deliveries fetched`);
+      }
       return metrics;
     };
 
