@@ -15,14 +15,21 @@ const getCacheDateKey = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
-// Helper to fetch ALL deliveries using paginated filter() by each status, then combine
+// Minimal fields needed for metrics/payroll calculations (reduces response payload size)
+const DELIVERY_FIELDS = [
+  'delivery_date', 'status', 'driver_id', 'store_id', 'patient_id',
+  'after_hours_pickup', 'no_charge', 'delivery_notes', 'patient_name',
+  'paid_km_override', 'oversized', 'ampm_deliveries', 'driver_name'
+];
+
+// Helper to fetch ALL deliveries using paginated filter() by each status, requesting minimal fields
 const fetchAllDeliveries = async (entityRef, statuses) => {
   const PAGE_SIZE = 5000;
   const results = [];
   for (const status of statuses) {
     let skip = 0;
     while (true) {
-      const page = await entityRef.filter({ status }, '-delivery_date', PAGE_SIZE, skip);
+      const page = await entityRef.filter({ status }, '-delivery_date', PAGE_SIZE, skip, DELIVERY_FIELDS);
       if (!Array.isArray(page)) {
         console.warn(`⚠️ [fetchAllDeliveries] status=${status} skip=${skip} returned non-array:`, typeof page);
         break;
