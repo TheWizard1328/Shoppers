@@ -192,8 +192,13 @@ Deno.serve(async (req) => {
         payrollRecords
       };
 
-      statsCache.set(payrollKey, { data: payrollData, timestamp: Date.now(), version: CACHE_VERSION });
-      console.log(`✅ Cached PayrollData for ${year} (${payrollData.deliveries.length} deliveries)`);
+      // Only cache if we actually fetched deliveries (avoid caching empty results from cold starts)
+      if (allDeliveries.length > 0) {
+        statsCache.set(payrollKey, { data: payrollData, timestamp: Date.now(), version: CACHE_VERSION });
+        console.log(`✅ Cached PayrollData for ${year} (${payrollData.deliveries.length} deliveries)`);
+      } else {
+        console.warn(`⚠️ Skipping cache for PayrollData ${year} - 0 deliveries fetched`);
+      }
       return payrollData;
     };
 
