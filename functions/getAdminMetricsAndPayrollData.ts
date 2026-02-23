@@ -66,17 +66,18 @@ Deno.serve(async (req) => {
         return cached.data;
       }
 
-      let storeFilter = {};
-      if (cityId && cityId !== 'all') {
-        const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
-        storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
-      }
-
       const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
-        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
-        ...storeFilter
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
       });
-      const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : (deliveriesRaw?.items ?? deliveriesRaw?.data ?? []);
+      let deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : (deliveriesRaw?.items ?? deliveriesRaw?.data ?? []);
+
+      // Filter by city (client-side) if cityId is specified
+      if (cityId && cityId !== 'all') {
+        const cityStoresRaw = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
+        const cityStores = Array.isArray(cityStoresRaw) ? cityStoresRaw : (cityStoresRaw?.items ?? cityStoresRaw?.data ?? []);
+        const cityStoreIds = new Set(cityStores.map(s => s.id));
+        deliveries = deliveries.filter(d => cityStoreIds.has(d.store_id));
+      }
 
       const storesRaw = await base44.asServiceRole.entities.Store.list();
       const stores = Array.isArray(storesRaw) ? storesRaw : (storesRaw?.items ?? storesRaw?.data ?? []);
