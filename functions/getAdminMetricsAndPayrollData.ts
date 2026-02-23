@@ -70,17 +70,21 @@ Deno.serve(async (req) => {
         return cached.data;
       }
 
-      let storeFilter = {};
+      // Fetch ALL deliveries and filter in JS (SDK doesn't support $gte/$lte on dates)
+      const allDeliveriesRaw = await base44.asServiceRole.entities.Delivery.list();
+      const yearStart = `${year}-01-01`;
+      const yearEnd = `${year}-12-31`;
+
+      let storeIdsForFilter = null;
       if (cityId && cityId !== 'all') {
         const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
-        storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
+        storeIdsForFilter = new Set(cityStores.map(s => s.id));
       }
 
-      const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
-        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
-        ...storeFilter
-      });
-      const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : [];
+      const deliveries = (Array.isArray(allDeliveriesRaw) ? allDeliveriesRaw : []).filter(d =>
+        d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
+        (!storeIdsForFilter || storeIdsForFilter.has(d.store_id))
+      );
 
       const stores = await base44.asServiceRole.entities.Store.list();
       const appUsers = await base44.asServiceRole.entities.AppUser.list();
