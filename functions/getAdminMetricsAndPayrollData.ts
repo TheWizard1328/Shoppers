@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const fetchAdminMetrics = async (year, cityId) => {
       const metricsKey = `admin_${year}_${cityId}`;
       statsCache.delete(metricsKey);
-      console.log(`🔍 [AdminMetrics] Starting fetch for year=${year}, cityId=${cityId}`);
+      console.error(`🔍 [AdminMetrics] Starting fetch for year=${year}, cityId=${cityId}`);
 
       // Fetch all deliveries for the year using list + client-side filter
       const allDeliveriesRaw = await base44.asServiceRole.entities.Delivery.list('-delivery_date', 10000);
