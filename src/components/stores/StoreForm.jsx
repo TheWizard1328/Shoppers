@@ -90,10 +90,10 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
       dispatcher_name: "",
       dispatcher_id: null,
       square_location_config_id: null,
-      patient_scan_day: null,
       status: "active",
       pays_app_fees: false,
       app_fee_history: [],
+      patient_scan_day: null,
       // Weekday fields
       weekday_am_start: "09:00",
       weekday_am_end: "12:00",
@@ -466,27 +466,6 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                                             </SelectItem>
                                         )}
                                 </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div>
-                            <Label htmlFor="patient_scan_day" style={{ color: 'var(--text-slate-900)' }}>Patient Scan Day</Label>
-                            <Select
-                              value={formData.patient_scan_day !== null && formData.patient_scan_day !== undefined ? String(formData.patient_scan_day) : 'null'}
-                              onValueChange={(value) => setFormData({ ...formData, patient_scan_day: value === 'null' ? null : parseInt(value) })}>
-                              <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                                <SelectValue placeholder="No scan day" />
-                              </SelectTrigger>
-                              <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                                <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Scheduled Scan</SelectItem>
-                                <SelectItem value="0">Sunday</SelectItem>
-                                <SelectItem value="1">Monday</SelectItem>
-                                <SelectItem value="2">Tuesday</SelectItem>
-                                <SelectItem value="3">Wednesday</SelectItem>
-                                <SelectItem value="4">Thursday</SelectItem>
-                                <SelectItem value="5">Friday</SelectItem>
-                                <SelectItem value="6">Saturday</SelectItem>
-                              </SelectContent>
                             </Select>
                         </div>
 
