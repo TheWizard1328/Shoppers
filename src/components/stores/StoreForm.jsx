@@ -470,6 +470,27 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
+                          <Label htmlFor="patient_scan_day" style={{ color: 'var(--text-slate-900)' }}>Patient Scan Day</Label>
+                          <Select
+                            value={formData.patient_scan_day !== null && formData.patient_scan_day !== undefined ? String(formData.patient_scan_day) : 'null'}
+                            onValueChange={(v) => setFormData({ ...formData, patient_scan_day: v === 'null' ? null : Number(v) })}>
+                            <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                              <SelectValue placeholder="No scan day" />
+                            </SelectTrigger>
+                            <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)' }}>
+                              <SelectItem value="null">No Scan</SelectItem>
+                              <SelectItem value="0">Sunday</SelectItem>
+                              <SelectItem value="1">Monday</SelectItem>
+                              <SelectItem value="2">Tuesday</SelectItem>
+                              <SelectItem value="3">Wednesday</SelectItem>
+                              <SelectItem value="4">Thursday</SelectItem>
+                              <SelectItem value="5">Friday</SelectItem>
+                              <SelectItem value="6">Saturday</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
                           <Label htmlFor="square_location_config_id" style={{ color: 'var(--text-slate-900)' }}>
                             <span className="flex items-center gap-2">
                               <CreditCard className="w-4 h-4" />
