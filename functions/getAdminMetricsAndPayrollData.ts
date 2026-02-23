@@ -86,11 +86,9 @@ Deno.serve(async (req) => {
 
       // CRITICAL: Always fetch the FULL YEAR regardless of what startDate/endDate are passed
       // The frontend filters by period client-side from the full year dataset
-      const dateFilter = {
+      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
-      };
-      
-      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter(dateFilter);
+      }, '-delivery_date', 5000);
 
       // CRITICAL: Ensure response is always an array
       const allYearDeliveries = Array.isArray(allYearDeliveriesResponse) ? allYearDeliveriesResponse : [];
