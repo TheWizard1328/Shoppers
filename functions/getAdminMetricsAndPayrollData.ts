@@ -71,10 +71,22 @@ Deno.serve(async (req) => {
       ]);
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
-      const deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
-      const payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
+      
+      // Filter deliveries and payroll records by year and optional city filter
+      let deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
+      let payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
+      
+      // Filter by year
+      deliveries = deliveries.filter(d => d && d.delivery_date && d.delivery_date.startsWith(`${year}`));
+      
+      // Filter by stores if city is specified
+      if (storeIds && storeIds.length > 0) {
+        deliveries = deliveries.filter(d => d && storeIds.includes(d.store_id));
+      }
+      
+      payrollRecords = payrollRecords.filter(p => p && p.pay_period_start && p.pay_period_start.startsWith(`${year}`));
 
-      console.log(`📦 Raw deliveries returned: ${(rawDeliveries || []).length}`);
+      console.log(`📦 Raw deliveries returned: ${(rawDeliveries || []).length}, filtered to ${deliveries.length} for year ${year}`);
       if (deliveries.length > 0) {
         console.log(`🔍 Sample delivery:`, JSON.stringify(deliveries[0], null, 2).substring(0, 500));
       }
