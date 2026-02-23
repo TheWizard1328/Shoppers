@@ -293,15 +293,18 @@ export default function PullToSync({
   };
 
   // Listen for silent sync trigger (e.g., after AppUser updates)
+  // CRITICAL: Use ref so this is always stable and uses latest performSync
   useEffect(() => {
     const handleSilentSync = async () => {
       console.log('🔇 [PullToSync] Silent sync triggered after AppUser update');
-      await performSync(true);
+      if (performSyncRef.current) {
+        await performSyncRef.current(true);
+      }
     };
 
     window.addEventListener('triggerSilentSync', handleSilentSync);
     return () => window.removeEventListener('triggerSilentSync', handleSilentSync);
-  }, []);
+  }, []); // stable - uses ref
 
   const pullProgress = Math.min(pullDistance / syncThreshold, 1);
   const rotation = pullProgress * 360;
