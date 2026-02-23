@@ -87,8 +87,9 @@ Deno.serve(async (req) => {
       // Filter deliveries by year client-side
       let deliveries = allDeliveries.filter(d => {
         if (!d || !d.delivery_date) return false;
-        const date = d.delivery_date;
-        if (date < `${year}-01-01` || date > `${year}-12-31`) return false;
+        const dateStr = typeof d.delivery_date === 'string' ? d.delivery_date : d.delivery_date.split('T')[0];
+        const deliveryYear = dateStr.substring(0, 4);
+        if (deliveryYear !== String(year)) return false;
         if (storeIds && storeIds.length > 0 && !storeIds.includes(d.store_id)) return false;
         return true;
       });
