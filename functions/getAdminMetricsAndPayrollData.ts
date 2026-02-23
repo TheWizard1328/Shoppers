@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
       
       // Fetch ALL deliveries and filter client-side (SDK filter might not work correctly)
       let allDeliveries = await base44.asServiceRole.entities.Delivery.list();
+      console.log(`🔍 [fetchYearData] Raw delivery list result:`, typeof allDeliveries, Array.isArray(allDeliveries) ? `array of ${allDeliveries.length}` : Object.keys(allDeliveries || {}).join(', '));
       console.log(`🔍 [fetchYearData] ALL deliveries from SDK: ${(allDeliveries || []).length}`);
       
       // Filter deliveries by year client-side
