@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
 
       let deliveries = [];
       let adminSkip = 0;
-      const adminBatchSize = 500;
+      const adminBatchSize = 5000;
       while (true) {
         const batch = await base44.asServiceRole.entities.Delivery.filter(
           { delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }, ...storeFilter },
@@ -82,12 +82,14 @@ Deno.serve(async (req) => {
           adminBatchSize,
           adminSkip
         );
-        if (!Array.isArray(batch) || batch.length === 0) break;
-        deliveries = deliveries.concat(batch);
-        if (batch.length < adminBatchSize) break;
+        const batchArr = Array.isArray(batch) ? batch : [];
+        console.log(`📦 [AdminMetrics] Batch skip=${adminSkip}: got ${batchArr.length} deliveries`);
+        if (batchArr.length === 0) break;
+        deliveries = deliveries.concat(batchArr);
+        if (batchArr.length < adminBatchSize) break;
         adminSkip += adminBatchSize;
       }
-      console.log(`📦 [AdminMetrics] Fetched ${deliveries.length} total deliveries for ${year}`);
+      console.log(`📦 [AdminMetrics] Total fetched: ${deliveries.length} deliveries for ${year}`);
 
       const stores = await base44.asServiceRole.entities.Store.list();
       const appUsers = await base44.asServiceRole.entities.AppUser.list();
