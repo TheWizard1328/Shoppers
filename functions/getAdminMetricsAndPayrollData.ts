@@ -15,20 +15,24 @@ const getCacheDateKey = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
-// Helper to fetch ALL deliveries using paginated list() then filter by statuses in JS
+// Helper to fetch ALL deliveries using paginated filter() by each status, then combine
 const fetchAllDeliveries = async (entityRef, statuses) => {
   const PAGE_SIZE = 5000;
-  const statusSet = new Set(statuses);
   const results = [];
-  let skip = 0;
-  while (true) {
-    const page = await entityRef.list('-delivery_date', PAGE_SIZE, skip);
-    if (!Array.isArray(page) || page.length === 0) break;
-    const filtered = page.filter(d => d && statusSet.has(d.status));
-    results.push(...filtered);
-    console.log(`📄 [fetchAllDeliveries] skip=${skip} page=${page.length} matched=${filtered.length} total=${results.length}`);
-    if (page.length < PAGE_SIZE) break;
-    skip += PAGE_SIZE;
+  for (const status of statuses) {
+    let skip = 0;
+    while (true) {
+      const page = await entityRef.filter({ status }, '-delivery_date', PAGE_SIZE, skip);
+      if (!Array.isArray(page)) {
+        console.warn(`⚠️ [fetchAllDeliveries] status=${status} skip=${skip} returned non-array:`, typeof page);
+        break;
+      }
+      if (page.length === 0) break;
+      results.push(...page);
+      console.log(`📄 [fetchAllDeliveries] status=${status} skip=${skip} page=${page.length} running_total=${results.length}`);
+      if (page.length < PAGE_SIZE) break;
+      skip += PAGE_SIZE;
+    }
   }
   return results;
 };
