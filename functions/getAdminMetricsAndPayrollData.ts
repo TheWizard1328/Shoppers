@@ -46,18 +46,7 @@ Deno.serve(async (req) => {
       payrollYear, payrollCityId, payrollDriverId, payrollStartDate, payrollEndDate
     } = body;
 
-    const cacheDate = getCacheDateKey();
-
     const fetchAdminMetrics = async (year, cityId) => {
-      const metricsKey = `admin_${year}_${cityId}`;
-      const cached = statsCache.get(metricsKey);
-      
-      // Cache is valid for 30 minutes, and must match current version
-      if (cached && cached.version === CACHE_VERSION && (Date.now() - cached.timestamp < 1800000)) {
-        console.log(`📊 Using CACHED AdminMetrics for ${year}`);
-        return cached.data;
-      }
-
       let storeFilter = {};
       if (cityId && cityId !== 'all') {
         const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
