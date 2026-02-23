@@ -112,9 +112,9 @@ Deno.serve(async (req) => {
       );
       console.log(`📦 [AdminMetrics] Deliveries in ${year}: ${deliveries.length}`);
 
-      const stores = await base44.asServiceRole.entities.Store.list();
-      const appUsers = await base44.asServiceRole.entities.AppUser.list();
-      const patients = await base44.asServiceRole.entities.Patient.list();
+      const stores = await base44.asServiceRole.entities.Store.list('name', 5000);
+      const appUsers = await base44.asServiceRole.entities.AppUser.list('user_name', 5000);
+      const patients = await base44.asServiceRole.entities.Patient.list('full_name', 5000);
       const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       console.log('📊 [AdminMetrics] App Fee Rate:', appFeeRate);
