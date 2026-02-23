@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
         ...storeFilter
-      });
+      }, '-delivery_date', 5000);
       const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : [];
 
       const stores = await base44.asServiceRole.entities.Store.list();
