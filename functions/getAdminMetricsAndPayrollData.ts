@@ -78,9 +78,12 @@ Deno.serve(async (req) => {
       });
       const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : (deliveriesRaw?.items ?? deliveriesRaw?.data ?? []);
 
-      const stores = await base44.asServiceRole.entities.Store.list();
-      const appUsers = await base44.asServiceRole.entities.AppUser.list();
-      const patients = await base44.asServiceRole.entities.Patient.list();
+      const storesRaw = await base44.asServiceRole.entities.Store.list();
+      const stores = Array.isArray(storesRaw) ? storesRaw : (storesRaw?.items ?? storesRaw?.data ?? []);
+      const appUsersRaw = await base44.asServiceRole.entities.AppUser.list();
+      const appUsers = Array.isArray(appUsersRaw) ? appUsersRaw : (appUsersRaw?.items ?? appUsersRaw?.data ?? []);
+      const patientsRaw = await base44.asServiceRole.entities.Patient.list();
+      const patients = Array.isArray(patientsRaw) ? patientsRaw : (patientsRaw?.items ?? patientsRaw?.data ?? []);
       const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       console.log('📊 [AdminMetrics] App Fee Rate:', appFeeRate);
