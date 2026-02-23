@@ -15,6 +15,21 @@ const getCacheDateKey = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
+// Helper to fetch ALL records of a given status using pagination
+const fetchAllByStatus = async (entityRef, status) => {
+  const PAGE_SIZE = 5000;
+  const results = [];
+  let skip = 0;
+  while (true) {
+    const page = await entityRef.filter({ status }, '-delivery_date', PAGE_SIZE, skip);
+    if (!Array.isArray(page) || page.length === 0) break;
+    results.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    skip += PAGE_SIZE;
+  }
+  return results;
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
