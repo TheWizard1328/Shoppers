@@ -120,7 +120,9 @@ export default function PullToSync({
         window.backgroundSyncManager.pause();
       }
 
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      // CRITICAL: Use ref to get current selectedDate at call time (not stale closure)
+      const syncDate = selectedDateRef.current;
+      const selectedDateStr = format(syncDate, 'yyyy-MM-dd');
       
       console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL deliveries for ${selectedDateStr} from online database...`);
 
