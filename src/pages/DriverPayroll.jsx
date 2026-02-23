@@ -514,121 +514,52 @@ export default function DriverPayroll() {
     if (!currentUser) return;
     if (!isAutoRefresh) setIsLoadingPayroll(true);
 
-    // Show refresh spinner during fetch
     if (isAutoRefresh && setSmartRefreshActivity) {
       setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
     }
 
     try {
-      // CRITICAL: Load Cities and AppUsers from offline DB, fallback to API if empty
-      console.log('📥 [DriverPayroll] Loading Cities and AppUsers from offline DB...');
-      const { offlineDB } = await import('../components/utils/offlineDatabase');
-      let [freshCities, freshAppUsers] = await Promise.all([
-        offlineDB.getAll(offlineDB.STORES.CITIES),
-        offlineDB.getAll(offlineDB.STORES.APP_USERS)
-      ]);
-      
-      // CRITICAL: If offline DB is empty, fetch from API
-      if (!freshAppUsers || freshAppUsers.length === 0) {
-        console.log('📥 [DriverPayroll] Offline DB empty - fetching AppUsers from API...');
-        freshAppUsers = await base44.entities.AppUser.list();
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-        console.log(`✅ [DriverPayroll] Fetched and saved ${freshAppUsers.length} appUsers to offline DB`);
-      }
-      
-      if (!freshCities || freshCities.length === 0) {
-        console.log('📥 [DriverPayroll] Offline DB empty - fetching Cities from API...');
-        freshCities = await base44.entities.City.list();
-        await offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities);
-        console.log(`✅ [DriverPayroll] Fetched and saved ${freshCities.length} cities to offline DB`);
-      }
-      
-      console.log(`✅ [DriverPayroll] Loaded ${freshCities?.length || 0} cities, ${freshAppUsers?.length || 0} appUsers`);
-
-      // CRITICAL: If we have cached full-year data, filter it instead of re-fetching
+      // Use cached full-year data unless forced fresh
       if (fullYearPayrollDataRef.current && !forceFresh) {
-        console.log(`📊 [DriverPayroll] Using cached full-year payroll data, filtering by city and year`);
-        let filtered = fullYearPayrollDataRef.current;
-        
-        if (selectedCityId !== 'all') {
-          const cityStoreIds = new Set(
-            (fullYearPayrollDataRef.current.stores || [])
-              .filter(s => s.city_id === selectedCityId)
-              .map(s => s.id)
-          );
-          filtered = {
-            ...filtered,
-            deliveries: (filtered.deliveries || []).filter(d => cityStoreIds.has(d.store_id))
-          };
-        }
-        
-        const mergedData = {
-          ...filtered,
-          cities: freshCities,
-          appUsers: freshAppUsers
-        };
-        
-        console.log(`✅ [DriverPayroll] Filtered payroll data:`, {
-          deliveries: mergedData?.deliveries?.length || 0,
-          drivers: mergedData?.drivers?.length || 0
-        });
-        
-        setPayrollData(mergedData);
+        console.log(`📊 [DriverPayroll] Using cached full-year data`);
+        setPayrollData(fullYearPayrollDataRef.current);
         return;
       }
 
-      // CRITICAL: Invalidate caches before fetching to ensure fresh data
-      if (forceFresh) {
-        console.log('🔄 [DriverPayroll] Invalidating caches before fetch');
-        invalidate('Delivery');
-        invalidate('Patient');
-        invalidate('Payroll');
-      }
-
-      // CRITICAL: Always fetch the FULL YEAR - backend always returns all year data
-      console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}, Force: ${forceFresh}`);
+      console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         payrollYear: selectedYear,
-        payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
+        payrollCityId: null, // Backend returns all cities; frontend filters
         payrollDriverId: null,
         payrollStartDate: `${selectedYear}-01-01`,
         payrollEndDate: `${selectedYear}-12-31`
       });
       const data = response?.data?.payrollData || response?.payrollData;
-      
-      // CRITICAL: Cache full-year data to avoid re-fetching on period navigation
+
+      // Cache full-year data
       fullYearPayrollDataRef.current = data;
-      
-      const mergedData = {
-        ...data,
-        cities: freshCities,
-        appUsers: freshAppUsers
-      };
-      
-      console.log(`✅ [DriverPayroll] Loaded full year payroll data:`, {
-        deliveries: mergedData?.deliveries?.length || 0,
-        drivers: mergedData?.drivers?.length || 0,
-        stores: mergedData?.stores?.length || 0,
-        payrollRecords: mergedData?.payrollRecords?.length || 0
+
+      console.log(`✅ [DriverPayroll] Loaded:`, {
+        deliveries: data?.deliveries?.length || 0,
+        drivers: data?.drivers?.length || 0,
+        payrollRecords: data?.payrollRecords?.length || 0
       });
-      
-      setPayrollData(mergedData);
-      
-      // Initialize payroll records from the fetched data
-      if (mergedData?.payrollRecords && mergedData.payrollRecords.length > 0) {
-        setPayrollRecords(mergedData.payrollRecords);
+
+      setPayrollData(data);
+
+      if (data?.payrollRecords?.length > 0) {
+        setPayrollRecords(data.payrollRecords);
       }
     } catch (error) {
       console.error('Failed to fetch payroll data:', error);
       toast.error('Failed to refresh payroll data');
     } finally {
       if (!isAutoRefresh) setIsLoadingPayroll(false);
-      // Hide refresh spinner after fetch
       if (isAutoRefresh && setSmartRefreshActivity) {
         setSmartRefreshActivity({ active: false, updatedEntities: [] });
       }
     }
-  }, [selectedYear, selectedCityId, currentUser, setSmartRefreshActivity]);
+  }, [selectedYear, currentUser, setSmartRefreshActivity]);
 
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
