@@ -122,20 +122,16 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // CRITICAL: Always fetch the FULL YEAR regardless of what startDate/endDate are passed
-      // The frontend filters by period client-side from the full year dataset
-      const dateFilter = {
-        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
-      };
-      
-      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter(dateFilter);
+      // CRITICAL: Fetch ALL deliveries and filter in JS - SDK doesn't support $gte/$lte on date fields
+      const allDeliveriesRaw = await base44.asServiceRole.entities.Delivery.list();
+      const allYearDeliveries = Array.isArray(allDeliveriesRaw) ? allDeliveriesRaw : [];
 
-      // CRITICAL: Ensure response is always an array
-      const allYearDeliveries = Array.isArray(allYearDeliveriesResponse) ? allYearDeliveriesResponse : [];
+      const yearStart = `${year}-01-01`;
+      const yearEnd = `${year}-12-31`;
 
-      // Filter by store (via city filter) and driver, include only completed/failed/cancelled deliveries
-      let payrollDeliveries = allYearDeliveries.filter(d => 
-        d && d.delivery_date && 
+      // Filter to current year, relevant statuses, and optional store/driver filters
+      let payrollDeliveries = allYearDeliveries.filter(d =>
+        d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
         (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') &&
         (!storeIds || storeIds.includes(d.store_id)) &&
         (!driverId || driverId === 'all' || d.driver_id === driverId)
