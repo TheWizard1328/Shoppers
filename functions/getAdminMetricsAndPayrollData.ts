@@ -144,12 +144,14 @@ Deno.serve(async (req) => {
       let skip = 0;
       const PAGE_SIZE = 5000;
       while (true) {
-        const page = await base44.asServiceRole.entities.Delivery.list('delivery_date', PAGE_SIZE, skip);
+        const page = await base44.asServiceRole.entities.Delivery.list('-delivery_date', PAGE_SIZE, skip);
         if (!Array.isArray(page) || page.length === 0) break;
         allDeliveries.push(...page);
+        console.log(`📦 [Payroll] Fetched page at skip=${skip}: ${page.length} deliveries`);
         if (page.length < PAGE_SIZE) break;
         skip += PAGE_SIZE;
       }
+      console.log(`📦 [Payroll] Total deliveries fetched: ${allDeliveries.length}`);
 
       // Filter to current year, relevant statuses, and optional store/driver filters
       let payrollDeliveries = allDeliveries.filter(d =>
