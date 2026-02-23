@@ -59,16 +59,14 @@ Deno.serve(async (req) => {
 
       // Fetch all reference data in parallel
       const [rawDeliveries, stores, appUsers, patients, cities, appSettings, rawPayrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.list(),
+        base44.asServiceRole.entities.Delivery.filter({}),
         base44.asServiceRole.entities.Store.list(),
         base44.asServiceRole.entities.AppUser.list(),
         base44.asServiceRole.entities.Patient.list(),
         base44.asServiceRole.entities.City.list(),
         base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
-        base44.asServiceRole.entities.Payroll.list()
+        base44.asServiceRole.entities.Payroll.filter({})
       ]);
-      
-      console.log(`📊 Raw Delivery.list() returned:`, typeof rawDeliveries, Array.isArray(rawDeliveries) ? `array length ${rawDeliveries.length}` : 'not an array');
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
