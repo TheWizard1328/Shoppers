@@ -38,6 +38,7 @@ import PolylineViewer from '../components/admin/PolylineViewer';
 import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
+import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';
 
 // Wrapper to reload data when Routes tab is opened
 const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
@@ -4444,6 +4445,7 @@ export default function AdminUtilities() {
               <TabsTrigger value="message-rules" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Messages</TabsTrigger>
               <TabsTrigger value="polylines" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Routes</TabsTrigger>
               <TabsTrigger value="api-logs" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Logs</TabsTrigger>
+              <TabsTrigger value="patient-analysis" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Patient Analysis</TabsTrigger>
             </TabsList>
           </div>
 
@@ -4713,6 +4715,10 @@ export default function AdminUtilities() {
 
           <TabsContent value="api-logs">
             <GoogleAPILogViewer />
+          </TabsContent>
+
+          <TabsContent value="patient-analysis">
+            <PatientAnalysisReview stores={stores || []} />
           </TabsContent>
         </Tabs>
       </div>
