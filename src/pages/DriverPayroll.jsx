@@ -555,11 +555,19 @@ export default function DriverPayroll() {
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
     console.log('🔄 [DriverPayroll] Manual refresh triggered');
-    await fetchPayroll(false, true);
-    await refreshPayrollRecords();
-    setIsRefreshing(false);
-    toast.success('Payroll data refreshed');
-  }, [fetchPayroll, refreshPayrollRecords]);
+    try {
+      await fetchPayroll(false, true);
+      if (refreshPayrollRecords) {
+        await refreshPayrollRecords();
+      }
+      toast.success('Payroll data refreshed');
+    } catch (error) {
+      console.error('❌ [DriverPayroll] Refresh failed:', error);
+      toast.error('Failed to refresh payroll data');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchPayroll]);
 
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
