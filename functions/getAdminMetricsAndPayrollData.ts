@@ -57,14 +57,12 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      const deliveryFilter = {
-        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
-        ...(storeIds ? { store_id: { $in: storeIds } } : {})
-      };
-
       // Fetch all reference data in parallel
       const [deliveries, stores, appUsers, patients, cities, appSettings, payrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.filter(deliveryFilter),
+        base44.asServiceRole.entities.Delivery.filter({
+          delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
+          ...(storeIds ? { store_id: { $in: storeIds } } : {})
+        }),
         base44.asServiceRole.entities.Store.list(),
         base44.asServiceRole.entities.AppUser.list(),
         base44.asServiceRole.entities.Patient.list(),
@@ -74,8 +72,6 @@ Deno.serve(async (req) => {
           pay_period_start: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
         })
       ]);
-
-      console.log(`📊 Deliveries fetched: ${(deliveries || []).length}`);
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
 
