@@ -64,25 +64,34 @@ Deno.serve(async (req) => {
       const cities = await base44.asServiceRole.entities.City.list();
       const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       
-      // Fetch ALL deliveries with pagination (SDK returns paginated results)
+      // Fetch ALL deliveries in batches using limit (SDK pagination)
       let allDeliveries = [];
-      let page = 1;
+      let skip = 0;
       let hasMore = true;
-      const pageSize = 5000;
+      const limit = 1000;
+      let iterations = 0;
       
-      while (hasMore) {
-        const result = await base44.asServiceRole.entities.Delivery.list((page - 1) * pageSize, pageSize);
-        console.log(`🔍 [fetchYearData] Page ${page} result type: ${typeof result}, is array: ${Array.isArray(result)}`);
-        
-        let pageData = Array.isArray(result) ? result : [];
-        if (pageData.length === 0 || pageData.length < pageSize) hasMore = false;
-        
-        allDeliveries = allDeliveries.concat(pageData);
-        console.log(`🔍 [fetchYearData] Page ${page}: ${pageData.length} deliveries, total so far: ${allDeliveries.length}`);
-        page++;
-        if (page > 100) break; // Safety limit
+      while (hasMore && iterations < 50) {
+        try {
+          const result = await base44.asServiceRole.entities.Delivery.list(null, 1000, skip);
+          console.log(`📄 [fetchYearData] Batch ${iterations + 1}: skip=${skip}, result type: ${typeof result}, is array: ${Array.isArray(result)}`);
+          
+          let batchData = Array.isArray(result) ? result : [];
+          if (batchData.length === 0) {
+            hasMore = false;
+          } else {
+            allDeliveries = allDeliveries.concat(batchData);
+            console.log(`📄 [fetchYearData] Batch ${iterations + 1}: ${batchData.length} items, total: ${allDeliveries.length}`);
+            skip += limit;
+            if (batchData.length < limit) hasMore = false;
+          }
+        } catch (err) {
+          console.error(`❌ [fetchYearData] Error fetching batch ${iterations + 1}:`, err.message);
+          hasMore = false;
+        }
+        iterations++;
       }
-      console.log(`🔍 [fetchYearData] Total deliveries from SDK: ${allDeliveries.length}`);
+      console.log(`✅ [fetchYearData] Total deliveries: ${allDeliveries.length} in ${iterations} batches`);
       
       // Filter deliveries by year client-side
       let deliveries = allDeliveries.filter(d => {
