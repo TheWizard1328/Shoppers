@@ -59,6 +59,7 @@ import DiagnosticsPage from './pages/DiagnosticsPage';
 import DriverPayroll from './pages/DriverPayroll';
 import DriverSettings from './pages/DriverSettings';
 import Home from './pages/Home';
+import PatientActivityReview from './pages/PatientActivityReview';
 import Patients from './pages/Patients';
 import Register from './pages/Register';
 import Settings from './pages/Settings';
@@ -83,6 +84,7 @@ export const PAGES = {
     "DriverPayroll": DriverPayroll,
     "DriverSettings": DriverSettings,
     "Home": Home,
+    "PatientActivityReview": PatientActivityReview,
     "Patients": Patients,
     "Register": Register,
     "Settings": Settings,

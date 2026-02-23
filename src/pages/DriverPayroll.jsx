@@ -574,17 +574,14 @@ export default function DriverPayroll() {
         invalidate('Payroll');
       }
 
-      // CRITICAL: Fetch FULL YEAR on initial load or force refresh (not per-period)
-      const yearStart = new Date(selectedYear, 0, 1).toISOString().split('T')[0];
-      const yearEnd = new Date(selectedYear, 11, 31).toISOString().split('T')[0];
-      
+      // CRITICAL: Always fetch the FULL YEAR - backend always returns all year data
       console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}, Force: ${forceFresh}`);
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         payrollYear: selectedYear,
         payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
         payrollDriverId: null,
-        payrollStartDate: yearStart,
-        payrollEndDate: yearEnd
+        payrollStartDate: `${selectedYear}-01-01`,
+        payrollEndDate: `${selectedYear}-12-31`
       });
       const data = response?.data?.payrollData || response?.payrollData;
       
