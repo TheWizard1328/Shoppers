@@ -7,6 +7,7 @@ const statsCache = new Map();
 
 // Eagerly clear any entries from previous deploys on startup
 statsCache.clear();
+console.log('🚀 [getAdminMetricsAndPayrollData] Cold start - cache cleared, version:', CACHE_VERSION);
 
 // Helper function to get today's date key for cache invalidation
 const getCacheDateKey = () => {
