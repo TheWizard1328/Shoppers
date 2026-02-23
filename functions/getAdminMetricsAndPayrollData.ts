@@ -114,12 +114,29 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // CRITICAL: Always fetch the FULL YEAR regardless of what startDate/endDate are passed
-      // The frontend filters by period client-side from the full year dataset
-      // Fetch ALL statuses - frontend/admin metrics will filter by status as needed
-      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter({
-        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
-      });
+      // CRITICAL: Fetch the FULL YEAR - paginate to get all records since filter may be limited
+      // Fetch ALL statuses - payroll/admin metrics filter by status on the frontend
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      let allYearDeliveries = [];
+      let skip = 0;
+      const batchSize = 500;
+      
+      while (true) {
+        const batch = await base44.asServiceRole.entities.Delivery.filter(
+          { delivery_date: { $gte: startDate, $lte: endDate } },
+          '-delivery_date',
+          batchSize,
+          skip
+        );
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        allYearDeliveries = allYearDeliveries.concat(batch);
+        if (batch.length < batchSize) break;
+        skip += batchSize;
+      }
+      
+      console.log(`📦 [PayrollData] Fetched ${allYearDeliveries.length} total deliveries for ${year}`);
 
       // CRITICAL: Ensure response is always an array
       const allYearDeliveries = Array.isArray(allYearDeliveriesResponse) ? allYearDeliveriesResponse : [];
