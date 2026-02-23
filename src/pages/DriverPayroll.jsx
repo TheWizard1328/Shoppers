@@ -960,6 +960,8 @@ export default function DriverPayroll() {
             selectedPeriodIndex={selectedPeriodIndex}
             onPrevPeriod={goToPrevPeriod}
             onNextPeriod={goToNextPeriod}
+            driverStats={payrollData?.driverStats || {}}
+            storeStats={payrollData?.storeStats || {}}
           />
 
           {/* Payroll Summary */}
