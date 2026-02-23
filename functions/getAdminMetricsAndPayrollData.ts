@@ -170,11 +170,13 @@ Deno.serve(async (req) => {
       );
       console.log(`📦 [Payroll] Deliveries in ${year}: ${payrollDeliveries.length}`);
 
-      const payrollPatients = await base44.asServiceRole.entities.Patient.list();
-      const payrollAppUsers = await base44.asServiceRole.entities.AppUser.list();
+      const [payrollPatients, payrollAppUsers, payrollStores, payrollCities] = await Promise.all([
+        base44.asServiceRole.entities.Patient.list('full_name', 5000),
+        base44.asServiceRole.entities.AppUser.list('user_name', 5000),
+        base44.asServiceRole.entities.Store.list('name', 5000),
+        base44.asServiceRole.entities.City.list('name', 5000),
+      ]);
       const payrollDrivers = payrollAppUsers.filter(au => au.app_roles && au.app_roles.includes('driver'));
-      const payrollStores = await base44.asServiceRole.entities.Store.list();
-      const payrollCities = await base44.asServiceRole.entities.City.list();
 
       // CRITICAL: Fetch all payroll records and filter by year in JS
       const allPayrollRecordsRaw = await base44.asServiceRole.entities.Payroll.list('pay_period_start', 5000);
