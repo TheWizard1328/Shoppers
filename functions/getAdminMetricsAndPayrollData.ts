@@ -125,14 +125,14 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // CRITICAL: Fetch the FULL YEAR - paginate to get all records since filter may be limited
+      // CRITICAL: Fetch the FULL YEAR - use max limit of 5000 per call, paginate if needed
       // Fetch ALL statuses - payroll/admin metrics filter by status on the frontend
       const startDate = `${year}-01-01`;
       const endDate = `${year}-12-31`;
       
       let allYearDeliveries = [];
       let skip = 0;
-      const batchSize = 500;
+      const batchSize = 5000;
       
       while (true) {
         const batch = await base44.asServiceRole.entities.Delivery.filter(
@@ -141,13 +141,15 @@ Deno.serve(async (req) => {
           batchSize,
           skip
         );
-        if (!Array.isArray(batch) || batch.length === 0) break;
-        allYearDeliveries = allYearDeliveries.concat(batch);
-        if (batch.length < batchSize) break;
+        const batchArr = Array.isArray(batch) ? batch : [];
+        console.log(`📦 [PayrollData] Batch skip=${skip}: got ${batchArr.length} deliveries`);
+        if (batchArr.length === 0) break;
+        allYearDeliveries = allYearDeliveries.concat(batchArr);
+        if (batchArr.length < batchSize) break;
         skip += batchSize;
       }
       
-      console.log(`📦 [PayrollData] Fetched ${allYearDeliveries.length} total deliveries for ${year}`);
+      console.log(`📦 [PayrollData] Total fetched: ${allYearDeliveries.length} deliveries for ${year}`);
 
       // Filter by store (via city) and driver only - keep ALL statuses for frontend filtering
       // Payroll needs: completed/failed patient deliveries + completed/cancelled after_hours_pickup
