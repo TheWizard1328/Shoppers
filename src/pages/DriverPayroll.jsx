@@ -11,7 +11,6 @@ import { base44 } from '@/api/base44Client';
 import DriverPayrollGrid from '../components/payroll/DriverPayrollGrid';
 import PayrollSummaryCard from '@/components/payroll/PayrollSummaryCard';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
-import { invalidate } from '../components/utils/dataManager';
 import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
