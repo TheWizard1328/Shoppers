@@ -132,6 +132,13 @@ export const fabControlEvents = {
       }
     });
   },
+  
+  /**
+   * Check if FAB is currently paused
+   */
+  isPaused: () => {
+    return window.__fabIsPaused === true;
+  },
 
   /**
    * Notify when driver location changes - FAB phase 1 should flash for 500ms
