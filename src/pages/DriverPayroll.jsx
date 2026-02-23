@@ -627,11 +627,7 @@ export default function DriverPayroll() {
     if (initialPeriodSetRef.current && !isManualChangeRef.current) {
       return;
     }
-    
-    // Invalidate caches to force fresh calculations
-    invalidate('Payroll');
-    invalidate('Delivery');
-    
+
     const today = new Date();
     
     // PRIORITY 1: Find earliest PAST/CURRENT cycle with incomplete finalization (any driver missing driver_finalized_at OR admin_finalized_at)
