@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
       const payrollCities = await base44.asServiceRole.entities.City.list();
 
       // CRITICAL: Fetch all payroll records and filter by year in JS
-      const allPayrollRecordsRaw = await base44.asServiceRole.entities.Payroll.list();
+      const allPayrollRecordsRaw = await base44.asServiceRole.entities.Payroll.list('pay_period_start', 5000);
       const payrollRecordsRaw = (Array.isArray(allPayrollRecordsRaw) ? allPayrollRecordsRaw : []).filter(r =>
         r && r.pay_period_start >= `${year}-01-01` && r.pay_period_start <= `${year}-12-31`
       );
