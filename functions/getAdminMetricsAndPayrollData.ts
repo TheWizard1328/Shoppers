@@ -99,7 +99,8 @@ Deno.serve(async (req) => {
     };
 
     const fetchPayrollData = async (year, cityId, driverId, startDate, endDate) => {
-      const payrollKey = `payroll_${year}_${cityId}_${driverId}_${startDate}_${endDate}`;
+      // CRITICAL: Cache key includes year only (startDate/endDate should always span the full year)
+      const payrollKey = `payroll_${year}_${cityId}`;
       const cached = statsCache.get(payrollKey);
       
       // Cache is valid for 30 minutes, and must match current version
