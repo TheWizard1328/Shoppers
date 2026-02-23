@@ -102,8 +102,8 @@ Deno.serve(async (req) => {
       const payrollKey = `payroll_${year}_${cityId}_${driverId}_${startDate}_${endDate}`;
       const cached = statsCache.get(payrollKey);
       
-      // Cache is valid for 1 hour
-      if (cached && (Date.now() - cached.timestamp < 3600000)) {
+      // Cache is valid for 30 minutes, and must match current version
+      if (cached && cached.version === CACHE_VERSION && (Date.now() - cached.timestamp < 1800000)) {
         console.log(`📊 Using CACHED PayrollData for ${year} (${startDate} to ${endDate})`);
         return cached.data;
       }
