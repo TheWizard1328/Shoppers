@@ -126,8 +126,7 @@ Deno.serve(async (req) => {
         payrollRecords
       };
 
-      statsCache.set(payrollKey, { data: payrollData, timestamp: Date.now(), version: CACHE_VERSION });
-      console.log(`✅ Cached PayrollData for ${year} (${payrollData.deliveries.length} deliveries)`);
+      console.log(`✅ [PayrollData] Fetched ${payrollDeliveries.length} deliveries for ${year}`);
       return payrollData;
     };
 
