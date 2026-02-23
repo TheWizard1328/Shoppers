@@ -116,9 +116,10 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // CRITICAL: Fetch deliveries for the specific pay period date range
+      // CRITICAL: Always fetch the FULL YEAR regardless of what startDate/endDate are passed
+      // The frontend filters by period client-side from the full year dataset
       const dateFilter = {
-        delivery_date: { $gte: startDate, $lte: endDate }
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
       };
       
       const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter(dateFilter);
