@@ -21,12 +21,32 @@ const fetchAllDeliveries = async (entityRef, statuses) => {
   const results = [];
   for (const status of statuses) {
     let skip = 0;
+    let retries = 0;
     while (true) {
-      const page = await entityRef.filter({ status }, '-delivery_date', PAGE_SIZE, skip);
-      if (!Array.isArray(page)) {
-        console.warn(`⚠️ [fetchAllDeliveries] status=${status} skip=${skip} returned non-array:`, typeof page);
+      let page;
+      try {
+        page = await entityRef.filter({ status }, '-delivery_date', PAGE_SIZE, skip);
+      } catch (err) {
+        console.error(`❌ [fetchAllDeliveries] status=${status} skip=${skip} threw:`, err.message);
+        // Retry up to 3 times with a short delay
+        if (retries < 3) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * retries));
+          continue;
+        }
         break;
       }
+      if (!Array.isArray(page)) {
+        console.warn(`⚠️ [fetchAllDeliveries] status=${status} skip=${skip} returned non-array (${typeof page}): "${String(page).slice(0, 200)}"`);
+        // Retry up to 3 times
+        if (retries < 3) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * retries));
+          continue;
+        }
+        break;
+      }
+      retries = 0;
       if (page.length === 0) break;
       results.push(...page);
       console.log(`📄 [fetchAllDeliveries] status=${status} skip=${skip} page=${page.length} running_total=${results.length}`);
