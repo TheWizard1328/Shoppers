@@ -232,8 +232,9 @@ export default function PullToSync({
       console.log('✅ [Pull to Sync] UI update event dispatched with fresh data');
       
       // STEP 7: Callback to parent component
-      if (onSyncComplete) {
-        await onSyncComplete(offlineDeliveries, freshAppUsers, freshPatients);
+      const currentOnSyncComplete = onSyncCompleteRef.current;
+      if (currentOnSyncComplete) {
+        await currentOnSyncComplete(offlineDeliveries, freshAppUsers, freshPatients);
       }
       
       // CRITICAL: Dispatch completion event for SmartRefreshIndicator
