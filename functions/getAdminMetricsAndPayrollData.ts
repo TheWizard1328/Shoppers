@@ -109,12 +109,57 @@ Deno.serve(async (req) => {
     }
 
     // ─── Payroll Data ───────────────────────────────────────────────────────────
-    // Return raw deliveries + all reference data so the client can filter by
-    // pay period, driver, city, etc. entirely client-side.
+    // Calculate aggregated totals per driver and store
     let payrollData = null;
     if (payrollYear) {
       const yearData = await fetchYearData(payrollYear, payrollCityId);
       const drivers = yearData.appUsers.filter(au => au.app_roles && au.app_roles.includes('driver'));
+
+      // Pre-calculate driver stats
+      const driverStats = {};
+      drivers.forEach(driver => {
+        driverStats[driver.user_id] = {
+          total_deliveries: 0,
+          total_after_hours_pickups: 0
+        };
+      });
+
+      // Pre-calculate store stats
+      const storeStats = {};
+      yearData.stores.forEach(store => {
+        storeStats[store.id] = {
+          total_deliveries: 0,
+          total_after_hours_pickups: 0
+        };
+      });
+
+      // Aggregate from deliveries
+      yearData.deliveries.forEach(d => {
+        if (!d || !d.delivery_date || !d.store_id) return;
+
+        const isValidDelivery = (d.status === 'completed' || d.status === 'failed') && d.patient_id;
+        const isAfterHoursPickup = d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled');
+
+        // Count by driver
+        if (d.driver_id) {
+          if (isValidDelivery) {
+            driverStats[d.driver_id] = driverStats[d.driver_id] || { total_deliveries: 0, total_after_hours_pickups: 0 };
+            driverStats[d.driver_id].total_deliveries++;
+          }
+          if (isAfterHoursPickup) {
+            driverStats[d.driver_id] = driverStats[d.driver_id] || { total_deliveries: 0, total_after_hours_pickups: 0 };
+            driverStats[d.driver_id].total_after_hours_pickups++;
+          }
+        }
+
+        // Count by store
+        if (isValidDelivery) {
+          storeStats[d.store_id].total_deliveries++;
+        }
+        if (isAfterHoursPickup) {
+          storeStats[d.store_id].total_after_hours_pickups++;
+        }
+      });
 
       payrollData = {
         deliveries: yearData.deliveries,
@@ -123,9 +168,11 @@ Deno.serve(async (req) => {
         drivers,
         stores: yearData.stores,
         cities: yearData.cities,
-        payrollRecords: yearData.payrollRecords
+        payrollRecords: yearData.payrollRecords,
+        driverStats,
+        storeStats
       };
-      console.log(`✅ PayrollData for ${payrollYear}: ${payrollData.deliveries.length} deliveries, ${payrollData.payrollRecords.length} payroll records`);
+      console.log(`✅ PayrollData for ${payrollYear}: ${payrollData.deliveries.length} deliveries, ${payrollData.payrollRecords.length} payroll records, driver stats calculated`);
     }
 
     return Response.json({ adminMetrics, payrollData });
