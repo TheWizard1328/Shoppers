@@ -62,11 +62,9 @@ Deno.serve(async (req) => {
         ...(storeIds ? { store_id: { $in: storeIds } } : {})
       };
 
-      console.log(`🔍 Delivery filter:`, deliveryFilter);
-
       // Fetch all reference data in parallel
-      const [allDeliveries, stores, appUsers, patients, cities, appSettings, payrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.list(),
+      const [deliveries, stores, appUsers, patients, cities, appSettings, payrollRecords] = await Promise.all([
+        base44.asServiceRole.entities.Delivery.filter(deliveryFilter),
         base44.asServiceRole.entities.Store.list(),
         base44.asServiceRole.entities.AppUser.list(),
         base44.asServiceRole.entities.Patient.list(),
@@ -77,16 +75,7 @@ Deno.serve(async (req) => {
         })
       ]);
 
-      // Filter deliveries client-side
-      const deliveries = allDeliveries.filter(d => {
-        if (!d || !d.delivery_date) return false;
-        const date = d.delivery_date;
-        if (date < `${year}-01-01` || date > `${year}-12-31`) return false;
-        if (storeIds && !storeIds.includes(d.store_id)) return false;
-        return true;
-      });
-
-      console.log(`📊 Deliveries: ${deliveries.length} (from ${allDeliveries.length} total in db)`);
+      console.log(`📊 Deliveries fetched: ${(deliveries || []).length}`);
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
 
