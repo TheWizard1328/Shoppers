@@ -488,15 +488,6 @@ export default function DriverPayroll() {
     }
   }, []);
 
-  const handleManualRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    console.log('🔄 [DriverPayroll] Manual refresh triggered');
-    await fetchPayroll(false, true);
-    await refreshPayrollRecords();
-    setIsRefreshing(false);
-    toast.success('Payroll data refreshed');
-  }, [fetchPayroll, refreshPayrollRecords]);
-
   const fullYearPayrollDataRef = useRef(null);
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
