@@ -61,20 +61,31 @@ Deno.serve(async (req) => {
       statsCache.delete(metricsKey);
       console.error(`🔍 [AdminMetrics] Starting fetch for year=${year}, cityId=${cityId}`);
 
-      // Fetch all deliveries for the year using list + client-side filter
-      const allDeliveriesRaw = await base44.asServiceRole.entities.Delivery.list('-delivery_date', 10000);
-      let allDeliveries;
-      if (Array.isArray(allDeliveriesRaw)) {
-        allDeliveries = allDeliveriesRaw;
-      } else if (typeof allDeliveriesRaw === 'string') {
-        try { allDeliveries = JSON.parse(allDeliveriesRaw); } catch { allDeliveries = []; }
-      } else {
-        allDeliveries = allDeliveriesRaw?.items ?? allDeliveriesRaw?.data ?? [];
-      }
-      if (!Array.isArray(allDeliveries)) allDeliveries = [];
       const yearStr = String(year);
-      let deliveries = allDeliveries.filter(d => d.delivery_date && d.delivery_date.startsWith(yearStr));
-      console.log(`📦 [AdminMetrics] Total deliveries: ${allDeliveries.length}, filtered to ${deliveries.length} for ${year}`);
+      // Fetch page by page until we have all deliveries for the year
+      let deliveries = [];
+      let page = 0;
+      const PAGE_SIZE = 500;
+      while (true) {
+        const pageRaw = await base44.asServiceRole.entities.Delivery.list('-delivery_date', PAGE_SIZE, page * PAGE_SIZE);
+        let pageItems;
+        if (Array.isArray(pageRaw)) {
+          pageItems = pageRaw;
+        } else if (typeof pageRaw === 'string') {
+          try { pageItems = JSON.parse(pageRaw); } catch { pageItems = []; }
+        } else {
+          pageItems = pageRaw?.items ?? pageRaw?.data ?? [];
+        }
+        if (!Array.isArray(pageItems) || pageItems.length === 0) break;
+        const yearItems = pageItems.filter(d => d.delivery_date && d.delivery_date.startsWith(yearStr));
+        deliveries = deliveries.concat(yearItems);
+        // If the oldest item on this page is before the year, we can stop
+        const oldestDate = pageItems[pageItems.length - 1]?.delivery_date || '';
+        if (oldestDate < `${yearStr}-01-01` || pageItems.length < PAGE_SIZE) break;
+        page++;
+        if (page > 20) break; // Safety limit: 10,000 deliveries
+      }
+      console.error(`📦 [AdminMetrics] Fetched ${deliveries.length} deliveries for ${yearStr}`);
 
       // Filter by city (client-side) if cityId is specified
       if (cityId && cityId !== 'all') {
