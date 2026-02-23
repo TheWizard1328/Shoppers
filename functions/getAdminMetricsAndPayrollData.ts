@@ -7,54 +7,11 @@ const statsCache = new Map();
 
 // Eagerly clear any entries from previous deploys on startup
 statsCache.clear();
-console.log('🚀 [getAdminMetricsAndPayrollData] Cold start - cache cleared, version:', CACHE_VERSION);
 
 // Helper function to get today's date key for cache invalidation
 const getCacheDateKey = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-};
-
-// Helper to fetch ALL deliveries using paginated filter() by each status
-const fetchAllDeliveries = async (entityRef, statuses) => {
-  const PAGE_SIZE = 5000;
-  const results = [];
-  for (const status of statuses) {
-    let skip = 0;
-    let retries = 0;
-    while (true) {
-      let page;
-      try {
-        page = await entityRef.filter({ status }, '-delivery_date', PAGE_SIZE, skip);
-      } catch (err) {
-        console.error(`❌ [fetchAllDeliveries] status=${status} skip=${skip} threw:`, err.message);
-        // Retry up to 3 times with a short delay
-        if (retries < 3) {
-          retries++;
-          await new Promise(r => setTimeout(r, 1000 * retries));
-          continue;
-        }
-        break;
-      }
-      if (!Array.isArray(page)) {
-        console.warn(`⚠️ [fetchAllDeliveries] status=${status} skip=${skip} returned non-array (${typeof page}): "${String(page).slice(0, 200)}"`);
-        // Retry up to 3 times
-        if (retries < 3) {
-          retries++;
-          await new Promise(r => setTimeout(r, 1000 * retries));
-          continue;
-        }
-        break;
-      }
-      retries = 0;
-      if (page.length === 0) break;
-      results.push(...page);
-      console.log(`📄 [fetchAllDeliveries] status=${status} skip=${skip} page=${page.length} running_total=${results.length}`);
-      if (page.length < PAGE_SIZE) break;
-      skip += PAGE_SIZE;
-    }
-  }
-  return results;
 };
 
 Deno.serve(async (req) => {
@@ -113,29 +70,21 @@ Deno.serve(async (req) => {
         return cached.data;
       }
 
-      // Fetch ALL deliveries with pagination (max 5000 per call)
-      const yearStart = `${year}-01-01`;
-      const yearEnd = `${year}-12-31`;
-
-      let storeIdsForFilter = null;
+      let storeFilter = {};
       if (cityId && cityId !== 'all') {
         const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
-        storeIdsForFilter = new Set(cityStores.map(s => s.id));
+        storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
       }
 
-      // Fetch ALL deliveries with pagination, filtering by status in JS
-      const allDeliveries = await fetchAllDeliveries(base44.asServiceRole.entities.Delivery, ['completed', 'failed', 'cancelled']);
-      console.log(`📦 [AdminMetrics] Total deliveries fetched (all pages): ${allDeliveries.length}`);
+      const deliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
+        ...storeFilter
+      });
+      const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : [];
 
-      const deliveries = allDeliveries.filter(d =>
-        d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
-        (!storeIdsForFilter || storeIdsForFilter.has(d.store_id))
-      );
-      console.log(`📦 [AdminMetrics] Deliveries in ${year}: ${deliveries.length}`);
-
-      const stores = await base44.asServiceRole.entities.Store.list('name', 5000);
-      const appUsers = await base44.asServiceRole.entities.AppUser.list('user_name', 5000);
-      const patients = await base44.asServiceRole.entities.Patient.list('full_name', 5000);
+      const stores = await base44.asServiceRole.entities.Store.list();
+      const appUsers = await base44.asServiceRole.entities.AppUser.list();
+      const patients = await base44.asServiceRole.entities.Patient.list();
       const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       console.log('📊 [AdminMetrics] App Fee Rate:', appFeeRate);
@@ -146,13 +95,8 @@ Deno.serve(async (req) => {
       const envelopeMetrics = calculateEnvelopeMetrics(deliveries, stores);
       metrics.envelopeMetrics = envelopeMetrics;
 
-      // Only cache if we actually fetched deliveries (avoid caching empty results from cold starts)
-      if (allDeliveries.length > 0) {
-        statsCache.set(metricsKey, { data: metrics, timestamp: Date.now(), version: CACHE_VERSION });
-        console.log(`✅ Cached AdminMetrics for ${year} (${allDeliveries.length} deliveries)`);
-      } else {
-        console.warn(`⚠️ Skipping cache for AdminMetrics ${year} - 0 deliveries fetched`);
-      }
+      statsCache.set(metricsKey, { data: metrics, timestamp: Date.now(), version: CACHE_VERSION });
+      console.log(`✅ Cached AdminMetrics for ${year}`);
       return metrics;
     };
 
@@ -174,35 +118,35 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // Fetch ALL deliveries with pagination and filter in JS
-      const yearStart = `${year}-01-01`;
-      const yearEnd = `${year}-12-31`;
+      // CRITICAL: Always fetch the FULL YEAR regardless of what startDate/endDate are passed
+      // The frontend filters by period client-side from the full year dataset
+      const dateFilter = {
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
+      };
+      
+      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter(dateFilter);
 
-      // Fetch ALL deliveries with pagination, filtering by status in JS
-      const allDeliveries = await fetchAllDeliveries(base44.asServiceRole.entities.Delivery, ['completed', 'failed', 'cancelled']);
-      console.log(`📦 [Payroll] Total deliveries fetched (all pages): ${allDeliveries.length}`);
+      // CRITICAL: Ensure response is always an array
+      const allYearDeliveries = Array.isArray(allYearDeliveriesResponse) ? allYearDeliveriesResponse : [];
 
-      // Filter to current year and optional store/driver filters
-      let payrollDeliveries = allDeliveries.filter(d =>
-        d && d.delivery_date >= yearStart && d.delivery_date <= yearEnd &&
+      // Filter by store (via city filter) and driver, include only completed/failed/cancelled deliveries
+      let payrollDeliveries = allYearDeliveries.filter(d => 
+        d && d.delivery_date && 
+        (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') &&
         (!storeIds || storeIds.includes(d.store_id)) &&
         (!driverId || driverId === 'all' || d.driver_id === driverId)
       );
-      console.log(`📦 [Payroll] Deliveries in ${year}: ${payrollDeliveries.length}`);
 
-      const [payrollPatients, payrollAppUsers, payrollStores, payrollCities] = await Promise.all([
-        base44.asServiceRole.entities.Patient.list('full_name', 5000),
-        base44.asServiceRole.entities.AppUser.list('user_name', 5000),
-        base44.asServiceRole.entities.Store.list('name', 5000),
-        base44.asServiceRole.entities.City.list('name', 5000),
-      ]);
+      const payrollPatients = await base44.asServiceRole.entities.Patient.list();
+      const payrollAppUsers = await base44.asServiceRole.entities.AppUser.list();
       const payrollDrivers = payrollAppUsers.filter(au => au.app_roles && au.app_roles.includes('driver'));
+      const payrollStores = await base44.asServiceRole.entities.Store.list();
+      const payrollCities = await base44.asServiceRole.entities.City.list();
 
-      // CRITICAL: Fetch all payroll records and filter by year in JS
-      const allPayrollRecordsRaw = await base44.asServiceRole.entities.Payroll.list('pay_period_start', 5000);
-      const payrollRecordsRaw = (Array.isArray(allPayrollRecordsRaw) ? allPayrollRecordsRaw : []).filter(r =>
-        r && r.pay_period_start >= `${year}-01-01` && r.pay_period_start <= `${year}-12-31`
-      );
+      // CRITICAL: Fetch all payroll records for the year so the frontend can filter by period
+      const payrollRecordsRaw = await base44.asServiceRole.entities.Payroll.filter({
+        pay_period_start: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
+      });
       const payrollRecords = Array.isArray(payrollRecordsRaw) ? payrollRecordsRaw : [];
       console.log(`✅ [PayrollData] Fetched ${payrollRecords.length} payroll records for ${year}`);
 
@@ -216,17 +160,10 @@ Deno.serve(async (req) => {
         payrollRecords
       };
 
-      // Only cache if we actually fetched deliveries (avoid caching empty results from cold starts)
-      if (allDeliveries.length > 0) {
-        statsCache.set(payrollKey, { data: payrollData, timestamp: Date.now(), version: CACHE_VERSION });
-        console.log(`✅ Cached PayrollData for ${year} (${payrollData.deliveries.length} deliveries)`);
-      } else {
-        console.warn(`⚠️ Skipping cache for PayrollData ${year} - 0 deliveries fetched`);
-      }
+      statsCache.set(payrollKey, { data: payrollData, timestamp: Date.now(), version: CACHE_VERSION });
+      console.log(`✅ Cached PayrollData for ${year} (${payrollData.deliveries.length} deliveries)`);
       return payrollData;
     };
-
-    console.log(`🔎 [getAdminMetricsAndPayrollData] Request params:`, { adminMetricsYear, payrollYear, payrollCityId });
 
     const [adminMetrics, payrollData] = await Promise.all([
       adminMetricsYear ? fetchAdminMetrics(adminMetricsYear, adminMetricsCityId) : Promise.resolve(null),
