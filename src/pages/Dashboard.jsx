@@ -65,6 +65,7 @@ import {
   notifyDriverReturn,
   getDispatchersForStore } from
 "@/components/utils/deliveryMessaging";
+import { createStopCardsScrollHandler } from "@/components/dashboard/StopCardsScrollHandler";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
@@ -9348,41 +9349,21 @@ function Dashboard() {
               // Disable proximity snap when user starts scrolling cards
               lastUserInteractionRef.current = Date.now();
             }}
-            onScroll={(e) => {
-              if (!isMobile) return;
-
-              // Debounce the scroll snap
-              const container = e.currentTarget;
-              if (container._scrollTimeout) {
-                clearTimeout(container._scrollTimeout);
-              }
-
-              container._scrollTimeout = setTimeout(() => {
-                const containerRect = container.getBoundingClientRect();
-                const containerCenter = containerRect.left + containerRect.width / 2;
-
-                // Find the card closest to center
-                const cards = container.querySelectorAll('[id^="stop-card-"]');
-                let closestCard = null;
-                let closestDistance = Infinity;
-
-                cards.forEach((card) => {
-                  const cardRect = card.getBoundingClientRect();
-                  const cardCenter = cardRect.left + cardRect.width / 2;
-                  const distance = Math.abs(cardCenter - containerCenter);
-
-                  if (distance < closestDistance) {
-                    closestDistance = closestDistance;
-                    closestCard = card;
-                  }
-                });
-
-                // Only snap if card is more than 30px off center
-                if (closestCard && closestDistance > 30) {
-                  closestCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                }
-              }, 150);
-            }}>
+            onScroll={isMobile ? createStopCardsScrollHandler({
+              deliveriesWithStopOrder,
+              patients,
+              stores,
+              mapViewPhase,
+              isMapViewLocked,
+              setIsMapViewLocked,
+              setMapViewPhase,
+              setShouldFitBounds,
+              setMapCenter,
+              setMapZoom,
+              getMapPadding,
+              mapLockTimeoutRef,
+              mapLockExpiresAtRef
+            }) : undefined}>
 
               {/* CRITICAL: Hide stop cards when in "All Drivers" mode (except for dispatchers) */}
               {(!isAllDriversMode || isDispatcher) && (
