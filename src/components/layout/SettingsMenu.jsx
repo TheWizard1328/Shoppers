@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, RefreshCw, Database, Cloud, Trash2, LogOut } from 'lucide-react';
+import { FileText, RefreshCw, Database, Cloud } from 'lucide-react';
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -206,64 +206,23 @@ export default function SettingsMenu({
       )}
 
       {/* Force Full App Refresh */}
-      <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-      <DropdownMenuItem
-        onClick={async () => {
-          try {
-            clearUserCache();
-            clearSettingsCache();
-            window.location.reload(true);
-          } catch (error) {
-            // Silent fail
-          }
-        }}
-        className="cursor-pointer text-blue-600"
-        style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
-      >
-        <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-        Force Full App Refresh
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-      
-      <DropdownMenuItem
-        onClick={() => {
-          const confirmed = confirm('This will send an account deletion request to the administrator. Continue?');
-          if (!confirmed) return;
-          
-          base44.integrations.Core.SendEmail({
-            to: 'admin@rxdeliver.com',
-            subject: `Account Deletion Request - ${currentUser?.full_name || currentUser?.user_name}`,
-            body: `User ${currentUser?.full_name || currentUser?.user_name} (${currentUser?.email || currentUser?.id}) has requested account deletion.\n\nUser ID: ${currentUser?.id}\nRequested at: ${new Date().toISOString()}\n\nPlease review and process this request.`
-          }).then(() => {
-            toast.success('Deletion request sent. An administrator will contact you.');
-            setTimeout(() => base44.auth.logout(), 2000);
-          }).catch(() => {
-            toast.error('Failed to send request. Please try again.');
-          });
-        }}
-        className="text-red-600 cursor-pointer"
-        style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
-      >
-        <Trash2 className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-        Delete Account
-      </DropdownMenuItem>
-
-      <DropdownMenuItem
-        onClick={async () => {
-          try {
-            await base44.auth.logout();
-          } catch (error) {
-            console.error('Logout failed:', error);
-            window.location.href = '/';
-          }
-        }}
-        className="text-red-600 cursor-pointer"
-        style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
-      >
-        <LogOut className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-        Sign Out
-      </DropdownMenuItem>
+       <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+       <DropdownMenuItem
+         onClick={async () => {
+           try {
+             clearUserCache();
+             clearSettingsCache();
+             window.location.reload(true);
+           } catch (error) {
+             // Silent fail
+           }
+         }}
+         className="cursor-pointer text-blue-600"
+         style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+       >
+         <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+         Force Full App Refresh
+       </DropdownMenuSeparator>
     </DropdownMenuContent>
   );
 }

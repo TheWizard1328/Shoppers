@@ -67,7 +67,7 @@ export default function MobileHeader({
       animate={{ y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
       data-mobile-header
-      className="mobile-header border-b sticky top-0 z-50"
+      className="mobile-header border-b sticky top-0 z-50 overflow-hidden"
       style={{ 
         borderColor: 'var(--border-slate-200)', 
         background: 'var(--bg-white)',
