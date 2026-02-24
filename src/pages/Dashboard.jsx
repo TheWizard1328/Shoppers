@@ -5781,14 +5781,7 @@ function Dashboard() {
         return timeA.localeCompare(timeB);
       });
 
-      const routeStats = calculateRouteStats(optimizedRoute, stores, patients);
-      optimizedRoute.forEach((stop, index) => {
-        if (!stop) return; // Defensive check
-        const stopPatient = patients.find((p) => p.id === stop.patient_id);
-        const stopStore = stores.find((s) => s.id === stop.store_id);
-        const stopName = stop.patient_id ? stopPatient?.full_name : `${stopStore?.name} Pickup`;
-        const eta = stop.estimated_arrival || stop.delivery_time_start || 'N/A';
-      });
+      calculateRouteStats(optimizedRoute, stores, patients);
 
       for (const stop of optimizedRoute) {
         if (!stop) continue; // Defensive check
