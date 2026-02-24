@@ -229,23 +229,23 @@ export default function SettingsMenu({
       )}
 
       {/* Force Full App Refresh */}
-       <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-       <DropdownMenuItem
-         onClick={async () => {
-           try {
-             clearUserCache();
-             clearSettingsCache();
-             window.location.reload(true);
-           } catch (error) {
-             // Silent fail
-           }
-         }}
-         className="cursor-pointer text-blue-600"
-         style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
-       >
-         <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-         Force Full App Refresh
-       </DropdownMenuSeparator>
+      <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+      <DropdownMenuItem
+        onClick={async () => {
+          try {
+            clearUserCache();
+            clearSettingsCache();
+            window.location.reload(true);
+          } catch (error) {
+            // Silent fail
+          }
+        }}
+        className="cursor-pointer text-blue-600"
+        style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+      >
+        <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+        Force Full App Refresh
+      </DropdownMenuItem>
     </DropdownMenuContent>
   );
 }
