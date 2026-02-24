@@ -4803,10 +4803,6 @@ function Dashboard() {
           deliveriesByDriver[driverId].push(delivery);
         });
 
-        Object.entries(deliveriesByDriver).forEach(([dId, dels]) => {
-          const dr = drivers.find((d) => d && d.id === dId);
-        });
-
         for (const [driverId, driverDeliveries] of Object.entries(deliveriesByDriver)) {
           if (driverId === 'unassigned') {
             continue;
