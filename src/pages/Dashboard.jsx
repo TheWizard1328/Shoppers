@@ -5052,23 +5052,16 @@ function Dashboard() {
                 stop.stop_id = generateUniqueSID(allDeliveriesForDate);
               }
               stop.puid = stop.stop_id;
-              const stopStore = stores.find((s) => s.id === stop.store_id);
-            }
-          }
+              }
 
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew || !stop.patient_id) continue;
-
             const correspondingPickup = stopsToProcess.find((p) =>
-            p && !p.patient_id &&
-            p.store_id === stop.store_id &&
-            p.ampm_deliveries === stop.ampm_deliveries &&
-            p.stop_id
+              p && !p.patient_id && p.store_id === stop.store_id &&
+              p.ampm_deliveries === stop.ampm_deliveries && p.stop_id
             );
-
             if (correspondingPickup) {
               stop.puid = correspondingPickup.stop_id;
-              const patient = patients.find((p) => p.id === stop.patient_id);
             } else {
               console.warn(`[AddToRoute]   ⚠️ No matching pickup found for ${stop.patient_name}`);
             }
