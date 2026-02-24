@@ -5865,19 +5865,11 @@ function Dashboard() {
 
       for (let i = 0; i < optimizedRoute.length; i++) {
         const stop = optimizedRoute[i];
-        if (!stop) continue; // Defensive check
-
+        if (!stop) continue;
         const stopPatient = patients.find((p) => p && p.id === stop.patient_id);
         const stopStore = stores.find((s) => s && s.id === stop.store_id);
-        const stopName = stop.patient_id ? stopPatient?.full_name : `${stopStore?.name} Pickup`;
-
         stop.stop_order = i + 1;
-
-        if (!stop.stop_id) {
-          stop.stop_id = generateUniqueSID(allDeliveriesForDate);
-        }
-
-        // CRITICAL: Generate delivery_id for new stops
+        if (!stop.stop_id) stop.stop_id = generateUniqueSID(allDeliveriesForDate);
         const deliveryId = stop.delivery_id || `DID-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
         const payload = {
