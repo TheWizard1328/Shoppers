@@ -103,7 +103,8 @@ export default function ChatWindow({
         receiver_name: otherUserName,
         conversation_id: conversationId,
         content: newMessage.trim(),
-        read: false
+        read: false,
+        created_date: getLocalTimestamp()
       });
       setNewMessage('');
 
