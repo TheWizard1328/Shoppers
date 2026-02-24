@@ -5046,13 +5046,13 @@ function Dashboard() {
 
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew) continue;
+
             if (!stop.patient_id) {
               if (!stop.stop_id) {
                 stop.stop_id = generateUniqueSID(allDeliveriesForDate);
               }
               stop.puid = stop.stop_id;
-            }
-          }
+              }
 
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew || !stop.patient_id) continue;
@@ -5781,14 +5781,7 @@ function Dashboard() {
         return timeA.localeCompare(timeB);
       });
 
-      const routeStats = calculateRouteStats(optimizedRoute, stores, patients);
-      optimizedRoute.forEach((stop, index) => {
-        if (!stop) return; // Defensive check
-        const stopPatient = patients.find((p) => p.id === stop.patient_id);
-        const stopStore = stores.find((s) => s.id === stop.store_id);
-        const stopName = stop.patient_id ? stopPatient?.full_name : `${stopStore?.name} Pickup`;
-        const eta = stop.estimated_arrival || stop.delivery_time_start || 'N/A';
-      });
+      calculateRouteStats(optimizedRoute, stores, patients);
 
       for (const stop of optimizedRoute) {
         if (!stop) continue; // Defensive check
@@ -5837,67 +5830,33 @@ function Dashboard() {
 
       const storeAMPMMap = {};
       for (const stop of optimizedRoute) {
-        if (!stop) continue; // Defensive check
-
+        if (!stop) continue;
         if (stop.patient_id === null && stop.delivery_time_start) {
-          const ampm = determineAMPMFromTime(stop.delivery_time_start);
-          storeAMPMMap[stop.store_id] = ampm;
-
-          const stopStore = stores.find((s) => s.id === stop.store_id);
+          storeAMPMMap[stop.store_id] = determineAMPMFromTime(stop.delivery_time_start);
         }
       }
-
       for (const stop of optimizedRoute) {
-        if (!stop) continue; // Defensive check
-
-        if (stop.patient_id === null) {
-          stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
-        } else {
-          stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
-        }
-
-        const stopName = stop.patient_id ?
-        patients.find((p) => p.id === stop.patient_id)?.full_name :
-        stores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
+        if (!stop) continue;
+        stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
       }
 
       let pickupTRCounter = 0;
       const storePickupTRMap = {};
 
       for (const stop of optimizedRoute) {
-        if (!stop) continue; // Defensive check
-
-        if (stop.patient_id === null) {
-          const trNumber = String(pickupTRCounter).padStart(2, '0');
-          stop.tracking_number = trNumber;
-          storePickupTRMap[stop.store_id] = pickupTRCounter;
-
-          const stopStore = stores.find((s) => s.id === stop.store_id);
-          pickupTRCounter += 20;
-        }
+        if (!stop || stop.patient_id !== null) continue;
+        stop.tracking_number = String(pickupTRCounter).padStart(2, '0');
+        storePickupTRMap[stop.store_id] = pickupTRCounter;
+        pickupTRCounter += 20;
       }
-
       for (const stop of optimizedRoute) {
-        if (!stop) continue; // Defensive check
-
-        if (stop.patient_id !== null) {
-          const pickupBaseTR = storePickupTRMap[stop.store_id];
-          if (pickupBaseTR !== undefined) {
-            const deliveriesBeforeThis = optimizedRoute.filter((s) => {
-              if (!s) return false; // Defensive check
-              return s.patient_id !== null &&
-              s.store_id === stop.store_id &&
-              optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop);
-            }).length;
-
-            const trNumber = String(pickupBaseTR + deliveriesBeforeThis + 1).padStart(2, '0');
-            stop.tracking_number = trNumber;
-
-            const stopPatient = patients.find((p) => p.id === stop.patient_id);
-          } else {
-            stop.tracking_number = '99';
-            console.warn(`   ⚠️ No pickup found for delivery, keeping/using TR#${stop.tracking_number}`);
-          }
+        if (!stop || stop.patient_id === null) continue;
+        const pickupBaseTR = storePickupTRMap[stop.store_id];
+        if (pickupBaseTR !== undefined) {
+          const before = optimizedRoute.filter((s) => s && s.patient_id !== null && s.store_id === stop.store_id && optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop)).length;
+          stop.tracking_number = String(pickupBaseTR + before + 1).padStart(2, '0');
+        } else {
+          stop.tracking_number = '99';
         }
       }
 
