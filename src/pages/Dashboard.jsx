@@ -6152,9 +6152,6 @@ function Dashboard() {
 
         await updateDeliveryLocal(stop.id, updatePayload);
 
-        const stopName = stop.patient_id ?
-        patients.find((p) => p.id === stop.patient_id)?.full_name :
-        stores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
       }
 
     }
