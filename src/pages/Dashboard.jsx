@@ -8120,13 +8120,10 @@ function Dashboard() {
           </p>
         </div>
       </div>);
-
   }
 
-  // Handle snapshot selection
   const handleSnapshotSelect = (snapshot) => {
     if (!snapshot) return;
-    
     setSnapshotData({
       deliveries: snapshot.snapshot_data?.deliveries || [],
       driverLocations: snapshot.snapshot_data?.driverLocations || []
@@ -8134,22 +8131,7 @@ function Dashboard() {
   };
 
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
-
-      {/* Snapshot Timeline - Only visible when snapshot mode is active */}
-      {isSnapshotModeActive && isAppOwner(currentUser) &&
-        <div className="absolute left-0 top-0 bottom-0 z-[250]">
-          <SnapshotTimeline
-            selectedDate={selectedDate}
-            selectedDriverId={selectedDriverId}
-            onSnapshotSelect={handleSnapshotSelect}
-            onClose={() => {
-              setIsSnapshotModeActive(false);
-              setSnapshotData(null);
-            }}
-          />
-        </div>
-      }
+    <DashboardView_PLACEHOLDER />
 
 
       <div className={statsCardPositioning} style={{ zIndex: 600 }}>
