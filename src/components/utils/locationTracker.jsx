@@ -493,7 +493,7 @@ class LocationTracker {
     return { success: false, message: errorMessage, code: error.code };
   }
 
-  async startTracking(user) {
+  async startTracking(user, deliveryDate = null) {
     if (!user) {
       throw new Error('User is required to start tracking');
     }
@@ -505,6 +505,11 @@ class LocationTracker {
     if (this.isTracking) {
       console.log('📍 [LocationTracker] Already tracking - skipping start');
       return;
+    }
+
+    // Set delivery date for arrival tracking
+    if (deliveryDate) {
+      this.currentDeliveryDate = deliveryDate;
     }
 
     const userName = user.user_name || user.full_name || 'Unknown';
