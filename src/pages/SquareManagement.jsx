@@ -1106,11 +1106,11 @@ export default function SquareManagement() {
                             <div className="flex flex-wrap gap-1">
                               {codDetails.payments.map((payment, idx) => {
                                 const colorClass = {
-                                  'Cash': 'bg-green-100 text-green-800',
-                                  'Debit': 'bg-blue-100 text-blue-800',
-                                  'Credit': 'bg-purple-100 text-purple-800',
-                                  'Check': 'bg-amber-100 text-amber-800'
-                                }[payment.type] || 'bg-gray-100 text-gray-800';
+                                  'Cash': 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+                                  'Debit': 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+                                  'Credit': 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
+                                  'Check': 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                }[payment.type] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
 
                                 return (
                                   <Badge key={idx} className={`${colorClass} text-xs`}>
@@ -1122,13 +1122,13 @@ export default function SquareManagement() {
                           );
                         } else if (codDetails.status === 'cash') {
                           return (
-                            <Badge className="bg-green-100 text-green-800 text-xs">
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 text-xs">
                               Cash
                             </Badge>
                           );
                         } else {
                           return (
-                            <Badge className={`text-xs ${isCurrentDate ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
+                            <Badge className={`text-xs ${isCurrentDate ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'}`}>
                               {isCurrentDate ? 'Pending Collection' : 'No Collection'}
                             </Badge>
                           );
