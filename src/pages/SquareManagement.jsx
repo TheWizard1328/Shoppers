@@ -1091,7 +1091,7 @@ export default function SquareManagement() {
 
                         if (soldInSquare) {
                           return (
-                            <Badge className="bg-green-100 text-green-800 text-xs">
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 text-xs">
                               ✓ Collected
                             </Badge>
                           );
