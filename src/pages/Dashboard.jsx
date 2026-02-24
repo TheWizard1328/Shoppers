@@ -2292,29 +2292,11 @@ function Dashboard() {
     // CRITICAL: Set current user in smart refresh manager for location polling
     smartRefreshManager.setCurrentUser(currentUser);
     
-    console.log('🔄 [Dashboard] Smart refresh manager initialized - starting 15sec interval');
-
     const runPeriodicSmartRefresh = async () => {
-      // CRITICAL: Skip when paused
-      if (smartRefreshManager.isPaused()) {
-        console.log('⏭️ [Periodic Refresh] Smart refresh paused - skipping this cycle');
-        return;
-      }
-      
-      // CRITICAL: Skip when ANY form/overlay is open
+      if (smartRefreshManager.isPaused()) return;
       const isAnyFormOpen = showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant;
-      if (isAnyFormOpen) {
-        console.log('⏭️ [Periodic Refresh] Form/overlay open - skipping this cycle');
-        return;
-      }
-      
-      // CRITICAL: Skip if mount syncs just ran (prevent rate limits)
-      if (!hasTriggeredPrioritySyncRef.current) {
-        console.log('⏭️ [Periodic Refresh] Mount sync still running - skipping this cycle (will retry in 15s)');
-        return;
-      }
-      
-      console.log('🔄 [Periodic Refresh] Running smart refresh cycle...');
+      if (isAnyFormOpen) return;
+      if (!hasTriggeredPrioritySyncRef.current) return;
 
       // Build filters for smart refresh
       // CRITICAL: Always fetch ALL drivers for the selected date (don't filter by selectedDriverId)
