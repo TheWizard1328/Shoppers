@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Smartphone, Tablet, Monitor, CheckCircle, Trash2, Edit2, Plus } from 'lucide-react';
+import { Smartphone, Tablet, Monitor, CheckCircle, Trash2, Edit2, Plus, AlertCircle } from 'lucide-react';
 import { useUser } from '../components/utils/UserContext';
 import DeviceForm from '../components/devices/DeviceForm';
 import { toast } from 'sonner';
@@ -11,16 +11,17 @@ import { toast } from 'sonner';
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
 export default function DeviceSettings() {
-  const { currentUser } = useUser();
-  const [devices, setDevices] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingDevice, setEditingDevice] = useState(null);
-  const [currentDeviceId, setCurrentDeviceId] = useState(null);
-  const [editingSettings, setEditingSettings] = useState({}); // Track editing mode per device ID
-  const [deviceSettings, setDeviceSettings] = useState({}); // Temporary settings before apply
-  const [showChangeSettings, setShowChangeSettings] = useState(false);
-  const [selectedSourceDevice, setSelectedSourceDevice] = useState(null);
+   const { currentUser } = useUser();
+   const [devices, setDevices] = useState([]);
+   const [isLoading, setIsLoading] = useState(true);
+   const [showForm, setShowForm] = useState(false);
+   const [editingDevice, setEditingDevice] = useState(null);
+   const [currentDeviceId, setCurrentDeviceId] = useState(null);
+   const [editingSettings, setEditingSettings] = useState({}); // Track editing mode per device ID
+   const [deviceSettings, setDeviceSettings] = useState({}); // Temporary settings before apply
+   const [showChangeSettings, setShowChangeSettings] = useState(false);
+   const [selectedSourceDevice, setSelectedSourceDevice] = useState(null);
+   const [showDeleteAccountDialog, setShowDeleteAccountDialog] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -193,6 +194,20 @@ export default function DeviceSettings() {
       case 'Tablet': return <Tablet className="w-5 h-5" />;
       case 'Desktop': return <Monitor className="w-5 h-5" />;
       default: return <Smartphone className="w-5 h-5" />;
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      await base44.integrations.Core.SendEmail({
+        to: 'admin@rxdeliver.com',
+        subject: `Account Deletion Request - ${currentUser?.full_name || currentUser?.user_name}`,
+        body: `User ${currentUser?.full_name || currentUser?.user_name} (${currentUser?.email || currentUser?.id}) has requested account deletion.\n\nUser ID: ${currentUser?.id}\nRequested at: ${new Date().toISOString()}\n\nPlease review and process this request.`
+      });
+      toast.success('Deletion request sent. An administrator will contact you.');
+      setTimeout(() => base44.auth.logout(), 2000);
+    } catch (error) {
+      toast.error('Failed to send request. Please try again.');
     }
   };
 
@@ -441,7 +456,80 @@ export default function DeviceSettings() {
             </Button>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
+        </div>
+
+        {/* Delete Account Section */}
+        <div className="mt-12 pt-8 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <Card className="border-red-200" style={{ background: 'var(--bg-red-50)', borderColor: 'var(--border-red-200)' }}>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <div>
+                <CardTitle style={{ color: 'var(--text-red-900)' }}>Delete Account</CardTitle>
+                <p className="text-sm mt-1" style={{ color: 'var(--text-red-700)' }}>
+                  Permanently delete your account and all associated data
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-red-800)' }}>
+              This action is irreversible. An administrator will review your request and permanently delete your account.
+            </p>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => setShowDeleteAccountDialog(true)}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Request Account Deletion
+            </Button>
+          </CardContent>
+        </Card>
+        </div>
+
+        {/* Delete Account Confirmation Dialog */}
+        {showDeleteAccountDialog && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
+          onClick={() => setShowDeleteAccountDialog(false)}
+        >
+          <Card
+            className="w-full max-w-md border-red-300"
+            style={{ background: 'var(--bg-white)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader>
+              <CardTitle style={{ color: 'var(--text-red-900)' }} className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                Confirm Account Deletion
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p style={{ color: 'var(--text-slate-700)' }}>
+                Are you sure you want to request account deletion? This action cannot be undone. An administrator will review and process your request.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowDeleteAccountDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                  onClick={() => {
+                    handleDeleteAccount();
+                    setShowDeleteAccountDialog(false);
+                  }}
+                >
+                  Delete Account
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        )}
+        </div>
+        );
+        }
