@@ -3,6 +3,7 @@ import { isMobileDevice as checkIsMobileDevice } from './deviceUtils';
 import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
 import { liveDistanceTracker } from './liveDistanceTracker';
 import { getCurrentDevice, updateDeviceLastActive } from './deviceManager';
+import { arrivalTimeDetector } from './arrivalTimeDetector';
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
