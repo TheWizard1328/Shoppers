@@ -5830,28 +5830,14 @@ function Dashboard() {
 
       const storeAMPMMap = {};
       for (const stop of optimizedRoute) {
-        if (!stop) continue; // Defensive check
-
+        if (!stop) continue;
         if (stop.patient_id === null && stop.delivery_time_start) {
-          const ampm = determineAMPMFromTime(stop.delivery_time_start);
-          storeAMPMMap[stop.store_id] = ampm;
-
-          const stopStore = stores.find((s) => s.id === stop.store_id);
+          storeAMPMMap[stop.store_id] = determineAMPMFromTime(stop.delivery_time_start);
         }
       }
-
       for (const stop of optimizedRoute) {
-        if (!stop) continue; // Defensive check
-
-        if (stop.patient_id === null) {
-          stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
-        } else {
-          stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
-        }
-
-        const stopName = stop.patient_id ?
-        patients.find((p) => p.id === stop.patient_id)?.full_name :
-        stores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
+        if (!stop) continue;
+        stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
       }
 
       let pickupTRCounter = 0;
