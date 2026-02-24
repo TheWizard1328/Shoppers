@@ -5042,9 +5042,6 @@ function Dashboard() {
 
           }
 
-          // NOTE: Route optimization and ETA updates are NOT run here.
-          // They are triggered later when stops are transitioned from 'pending' to 'in_transit'
-          // via the Assign/Accept All button or Start Delivery action.
           console.log('📝 [AddToRoute] Saving pending deliveries - optimization will run when stops are started');
 
           for (const stop of stopsToProcess) {
