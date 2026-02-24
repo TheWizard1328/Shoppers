@@ -50,10 +50,8 @@ class LocationTracker {
         this._pendingEventUpdate = false;
         this._eventUpdateTime = 0;
 
-        // Arrival time tracking - detect when driver arrives at a stop
-        this.arrivalConfirmationDelay = 30000; // 30 seconds minimum stay to confirm arrival
-        this.currentDeliveries = []; // Track active deliveries
-        this.deliveryArrivalTimers = {}; // Map of delivery_id -> timer info
+        // Track current delivery date for arrival detection
+        this.currentDeliveryDate = null;
 
       // Load settings from RouteOptimizationSettings
       this.loadSettings();
