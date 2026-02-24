@@ -1,3 +1,4 @@
+import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactDOM from "react-dom";
@@ -416,17 +417,8 @@ export default function StopCard({
     return patient?.phone || '';
   }, [delivery, isPickup, store, patient]);
 
-  const isRouteCompleted = useMemo(() => {
-    if (!delivery || !allDeliveries || !Array.isArray(allDeliveries)) return false;
-
-    const driverDeliveriesForDate = allDeliveries.filter((d) => {
-      if (!d) return false;
-      return d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id;
-    });
-
-    if (driverDeliveriesForDate.length === 0) return false;
-
-    return driverDeliveriesForDate.every((d) => FINISHED_STATUSES.includes(d.status));
+  const routeCompleted = React.useMemo(() => {
+    return isRouteCompleted(delivery, allDeliveries, FINISHED_STATUSES, new Date(), "America/Edmonton");
   }, [delivery, allDeliveries]);
 
   // Check if this is an InterStore delivery (DropOff or Pickup)
