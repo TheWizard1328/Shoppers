@@ -734,19 +734,9 @@ function Dashboard() {
     mapViewPhaseRef.current = mapViewPhase;
   }, [mapViewPhase]);
 
-  // CRITICAL: Unified FAB reactivation logic for all update events
+  // Unified FAB reactivation: Phase 1 never reactivates; Phase 2/3 stay locked and trigger map update
   const reactivateFAB = useCallback((source = 'unknown') => {
-    const currentPhase = mapViewPhaseRef.current;
-    
-    // CRITICAL: Phase 1 NEVER reactivates - it's a one-time view that unlocks and stays unlocked
-    if (currentPhase === 1) {
-      console.log(`⏭️ [FAB Reactivate - ${source}] Phase 1 - skipping (Phase 1 never reactivates)`);
-      return;
-    }
-    
-    console.log(`🔄 [FAB Reactivate - ${source}] Phase ${currentPhase} - triggering map update`);
-    
-    // Phase 2 & 3: Stay locked (no visual change), just trigger map update
+    if (mapViewPhaseRef.current === 1) return;
     lastProgrammaticMapMoveRef.current = Date.now();
     window._lastProgrammaticMapMove = Date.now();
     setMapViewTrigger((prev) => prev + 1);
