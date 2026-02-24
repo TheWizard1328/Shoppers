@@ -85,11 +85,21 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         onCardClick(null);
       }
     };
+
+    const handleCollapseSelected = () => {
+      if (onSelectionChange) {
+        onSelectionChange(null, false);
+      } else if (onCardClick) {
+        onCardClick(null);
+      }
+    };
     
     window.addEventListener('collapseAllStopCards', handleCollapseAll);
+    window.addEventListener('collapseSelectedStopCard', handleCollapseSelected);
     
     return () => {
       window.removeEventListener('collapseAllStopCards', handleCollapseAll);
+      window.removeEventListener('collapseSelectedStopCard', handleCollapseSelected);
     };
   }, [onSelectionChange, onCardClick]);
 
