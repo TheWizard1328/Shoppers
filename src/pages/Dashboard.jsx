@@ -5149,42 +5149,19 @@ function Dashboard() {
           });
 
           const optimizedRoute = [...completedStops, ...incompleteStops];
-          let windowsProcessed = 0;
           for (const stop of optimizedRoute) {
-            if (!stop) continue;
-
-            if (stop.patient_id !== null) {
-              const stopPatient = patients.find((p) => p.id === stop.patient_id);
-
-              // CRITICAL: Find the corresponding pickup by matching BOTH store_id AND ampm_deliveries
-              const correspondingPickup = optimizedRoute.find((s) => {
-                if (!s) return false;
-                return s.store_id === stop.store_id &&
-                s.patient_id === null &&
-                s.ampm_deliveries === stop.ampm_deliveries;
-              });
-
-              if (stopPatient?.time_window_start) {
-                stop.delivery_time_start = stopPatient.time_window_start;
-              } else if (correspondingPickup) {
-                const pickupStartPlus5 = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
-                const pickupETAPlus5 = correspondingPickup.estimated_arrival ?
-                addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
-
-                if (pickupETAPlus5 && pickupETAPlus5 > pickupStartPlus5) {
-                  stop.delivery_time_start = pickupETAPlus5;
-                } else if (pickupStartPlus5) {
-                  stop.delivery_time_start = pickupStartPlus5;
-                }
-              }
-
-              // CRITICAL: Only set delivery_time_end if patient has explicit time window
-              if (stopPatient?.time_window_end) {
-                stop.delivery_time_end = stopPatient.time_window_end;
-              }
-              // DISABLED: No longer auto-assign default end times - leave blank if patient has no time window
-              windowsProcessed++;
+            if (!stop || stop.patient_id === null) continue;
+            const stopPatient = patients.find((p) => p.id === stop.patient_id);
+            const correspondingPickup = optimizedRoute.find((s) => s && s.store_id === stop.store_id && s.patient_id === null && s.ampm_deliveries === stop.ampm_deliveries);
+            if (stopPatient?.time_window_start) {
+              stop.delivery_time_start = stopPatient.time_window_start;
+            } else if (correspondingPickup) {
+              const p5 = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
+              const eta5 = correspondingPickup.estimated_arrival ? addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
+              if (eta5 && eta5 > p5) stop.delivery_time_start = eta5;
+              else if (p5) stop.delivery_time_start = p5;
             }
+            if (stopPatient?.time_window_end) stop.delivery_time_end = stopPatient.time_window_end;
           }
 
           // First, set AM/PM on all pickups based on their scheduled time
