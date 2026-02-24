@@ -8210,7 +8210,6 @@ function Dashboard() {
 }
 
 // END OF DASHBOARD (JSX moved to components/dashboard/DashboardView.jsx)
-              <div className="pr-1 flex items-center gap-2">
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
                 <div className="flex items-center gap-1.5">
