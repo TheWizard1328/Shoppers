@@ -5046,13 +5046,13 @@ function Dashboard() {
 
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew) continue;
-
             if (!stop.patient_id) {
               if (!stop.stop_id) {
                 stop.stop_id = generateUniqueSID(allDeliveriesForDate);
               }
               stop.puid = stop.stop_id;
-              }
+            }
+          }
 
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew || !stop.patient_id) continue;
@@ -5781,7 +5781,14 @@ function Dashboard() {
         return timeA.localeCompare(timeB);
       });
 
-      calculateRouteStats(optimizedRoute, stores, patients);
+      const routeStats = calculateRouteStats(optimizedRoute, stores, patients);
+      optimizedRoute.forEach((stop, index) => {
+        if (!stop) return; // Defensive check
+        const stopPatient = patients.find((p) => p.id === stop.patient_id);
+        const stopStore = stores.find((s) => s.id === stop.store_id);
+        const stopName = stop.patient_id ? stopPatient?.full_name : `${stopStore?.name} Pickup`;
+        const eta = stop.estimated_arrival || stop.delivery_time_start || 'N/A';
+      });
 
       for (const stop of optimizedRoute) {
         if (!stop) continue; // Defensive check
@@ -5830,14 +5837,28 @@ function Dashboard() {
 
       const storeAMPMMap = {};
       for (const stop of optimizedRoute) {
-        if (!stop) continue;
+        if (!stop) continue; // Defensive check
+
         if (stop.patient_id === null && stop.delivery_time_start) {
-          storeAMPMMap[stop.store_id] = determineAMPMFromTime(stop.delivery_time_start);
+          const ampm = determineAMPMFromTime(stop.delivery_time_start);
+          storeAMPMMap[stop.store_id] = ampm;
+
+          const stopStore = stores.find((s) => s.id === stop.store_id);
         }
       }
+
       for (const stop of optimizedRoute) {
-        if (!stop) continue;
-        stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
+        if (!stop) continue; // Defensive check
+
+        if (stop.patient_id === null) {
+          stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
+        } else {
+          stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
+        }
+
+        const stopName = stop.patient_id ?
+        patients.find((p) => p.id === stop.patient_id)?.full_name :
+        stores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
       }
 
       let pickupTRCounter = 0;
