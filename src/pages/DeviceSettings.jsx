@@ -490,6 +490,8 @@ export default function DeviceSettings() {
           </CardContent>
         </Card>
         </div>
+        </div>
+        </div>
 
         {/* Delete Account Confirmation Dialog */}
         {showDeleteAccountDialog && (
