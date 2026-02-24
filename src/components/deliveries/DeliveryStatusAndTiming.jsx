@@ -108,12 +108,6 @@ export default function DeliveryStatusAndTiming({
       <div className="flex gap-3">
         {storeSelect}
         {statusSelect}
-        {isPickupMode && isActive && (
-          <div className="flex-1 space-y-1">
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup ID</Label>
-            <Input value={formData.puid || formData.stop_id || ''} disabled placeholder="Auto-generated" className="h-9 text-sm bg-slate-100" />
-          </div>
-        )}
       </div>
 
       {/* Row 2: Start/End Time — only for active statuses */}
