@@ -1,4 +1,3 @@
-
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -256,7 +255,7 @@ export default function DeliveryForm({
   // PID lookup state (for the Delivery Identifiers panel)
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
-  originalPidRef.current = '';
+  const originalPidRef = useRef('');
 
   // Camera state
   const videoRef = useRef(null);
