@@ -1269,16 +1269,14 @@ export default function StopCard({
                       <Phone className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
                   }
-                  {/* CRITICAL: Only show GPS button for isNextDelivery cards */}
-                  {isNextDelivery && finalDisplayAddress &&
+                  {/* CRITICAL: Only show GPS button for isNextDelivery cards - always use coordinates */}
+                  {isNextDelivery && ((!isPickup && patient?.latitude && patient?.longitude) || (isPickup && store?.latitude && store?.longitude)) &&
                     <a
                       href={(() => {
-                        if (!shouldRedact && !isPickup && patient?.latitude && patient?.longitude) {
+                        if (!isPickup && patient?.latitude && patient?.longitude) {
                           return `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
-                        } else if (!shouldRedact && isPickup && store?.latitude && store?.longitude) {
+                        } else if (isPickup && store?.latitude && store?.longitude) {
                           return `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
-                        } else {
-                          return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(finalDisplayAddress)}`;
                         }
                       })()}
                       target="_blank"
