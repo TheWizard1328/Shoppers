@@ -8120,21 +8120,12 @@ function Dashboard() {
           </p>
         </div>
       </div>);
-
   }
 
-  // Handle snapshot selection
-  const handleSnapshotSelect = (snapshot) => {
-    if (!snapshot) return;
-    
-    setSnapshotData({
-      deliveries: snapshot.snapshot_data?.deliveries || [],
-      driverLocations: snapshot.snapshot_data?.driverLocations || []
-    });
-  };
-
+  // PLACEHOLDER — replaced below by DashboardView
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+...
 
       {/* Snapshot Timeline - Only visible when snapshot mode is active */}
       {isSnapshotModeActive && isAppOwner(currentUser) &&
