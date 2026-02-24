@@ -5028,13 +5028,13 @@ function Dashboard() {
 
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew) continue;
-
             if (!stop.patient_id) {
               if (!stop.stop_id) {
                 stop.stop_id = generateUniqueSID(allDeliveriesForDate);
               }
               stop.puid = stop.stop_id;
-              }
+            }
+          }
 
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew || !stop.patient_id) continue;
