@@ -534,8 +534,8 @@ export default function DeviceSettings() {
               </div>
             </CardContent>
           </Card>
-        </div>
-        )}
-        </div>
-        );
+          </div>
+          )}
+          </div>
+          );
         }
