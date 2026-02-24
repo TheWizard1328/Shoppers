@@ -1,3 +1,4 @@
+
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -255,7 +256,7 @@ export default function DeliveryForm({
   // PID lookup state (for the Delivery Identifiers panel)
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
-  const originalPidRef = useRef('');
+  originalPidRef.current = '';
 
   // Camera state
   const videoRef = useRef(null);
@@ -1142,8 +1143,8 @@ export default function DeliveryForm({
 
     const stagedDelivery = {
       ...updatedFormData,
-      delivery_time_start: patient.time_window_start || '',
-      delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
+      time_window_start: patient.time_window_start || '',
+      time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: puid || '',
       ampm_deliveries: timeSlot,
       status: 'Staged',
@@ -2061,8 +2062,8 @@ export default function DeliveryForm({
 
     const newStagedDelivery = {
       ...formData,
-      delivery_time_start: patient?.time_window_start || '',
-      delivery_time_end: patient?.time_window_end || '',
+      time_window_start: patient?.time_window_start || '',
+      time_window_end: patient?.time_window_end || '',
       cod_total_amount_required: codAmount,
       puid: puid || '',
       ampm_deliveries: timeSlot,
@@ -2792,8 +2793,6 @@ export default function DeliveryForm({
             oversized: updated.oversized || false,
             no_charge: updated.no_charge || false,
             extra_time: updated.extra_time || 0,
-            time_window_start: updated.time_window_start || '',
-            time_window_end: updated.time_window_end || '',
             paid_km_override: updated.paid_km_override ?? null,
             store_id: updated.store_id || '',
             ampm_deliveries: updated.ampm_deliveries || null,
@@ -3407,7 +3406,7 @@ export default function DeliveryForm({
       if (dateChanged) {
         console.log('📅 [DeliveryForm] Date changed - keeping in_transit status and setting 10:00 AM start time');
         dataToSave.status = 'in_transit';
-        dataToSave.delivery_time_start = '10:00';
+        dataToSave.time_window_start = '10:00';
       }
 
       // Check if status changed to in_transit (trigger Square COD creation)
@@ -3599,7 +3598,7 @@ export default function DeliveryForm({
         }
       }
       
-      // CRITICAL: Update ETAs for all incomplete stops if time windows changed
+      // CRITICAL: Update ETAs for all incomplete stops if delivery time windows changed
       const timeWindowChanged = delivery && (
         delivery.time_window_start !== formData.time_window_start ||
         delivery.time_window_end !== formData.time_window_end
@@ -4356,8 +4355,8 @@ export default function DeliveryForm({
       patient_phone: patient.phone || '',
       unit_number: patient.unit_number || '',
       delivery_date: formData.delivery_date,
-      delivery_time_start: patient.time_window_start || '',
-      delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
+      delivery_time_start: patient.delivery_time_start || '',
+      delivery_time_end: patient.delivery_time_end || (patient.delivery_time_start ? '' : ''),
       time_window_start: patient.time_window_start || '',
       time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: '', // Will be updated after async call

@@ -1121,7 +1121,6 @@ export default function StopCard({
                       delivery.delivery_time_eta || (
                         isPickup ? delivery.delivery_time_start : null) ||
                       delivery.delivery_time_start ||
-                      delivery.time_window_start ||
                       '--:--'
                     )}</span>
                   }
@@ -1137,14 +1136,14 @@ export default function StopCard({
                   }
                 </div>
                 {/* Time Window - Only for non-finished stops */}
-                {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
+                {!FINISHED_STATUSES.includes(delivery.status) && (delivery.delivery_time_start || delivery.delivery_time_end) &&
                   <div className="text-sm md:text-[11px]" style={{ color: 'var(--text-slate-500)' }}>
-                    {delivery.time_window_start && delivery.time_window_end ?
-                      <>{formatTime12Hour(delivery.time_window_start)} → {formatTime12Hour(delivery.time_window_end)}</> :
-                      delivery.time_window_start ?
-                        <>{formatTime12Hour(delivery.time_window_start)} →</> :
-                        delivery.time_window_end ?
-                          <>← {formatTime12Hour(delivery.time_window_end)}</> :
+                    {delivery.delivery_time_start && delivery.delivery_time_end ?
+                      <>{formatTime12Hour(delivery.delivery_time_start)} → {formatTime12Hour(delivery.delivery_time_end)}</> :
+                      delivery.delivery_time_start ?
+                        <>{formatTime12Hour(delivery.delivery_time_start)} →</> :
+                        delivery.delivery_time_end ?
+                          <>← {formatTime12Hour(delivery.delivery_time_end)}</> :
                           null}
                   </div>
                 }
