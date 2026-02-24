@@ -701,12 +701,12 @@ class LocationTracker {
     this.backoffTime = 0;
   }
 
-  async restartTracking(user) {
+  async restartTracking(user, deliveryDate = null) {
     this.stopTracking();
     await new Promise(resolve => setTimeout(resolve, 500));
     
     try {
-      await this.startTracking(user);
+      await this.startTracking(user, deliveryDate);
     } catch (error) {
       console.error('❌ Failed to restart tracking:', error);
       throw error;
