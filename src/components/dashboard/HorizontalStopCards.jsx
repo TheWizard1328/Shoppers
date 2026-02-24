@@ -316,6 +316,9 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   });
 
   const isMobile = isMobileDevice();
+  const { deviceType } = getUserAgentInfo();
+  const isTabletPortrait = deviceType === 'Tablet' && getOrientation() === 'portrait';
+  const hasBottomNav = isMobile || isTabletPortrait;
 
   return (
     <div
@@ -329,7 +332,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         scrollSnapStop: isMobile ? 'always' : 'normal',
         paddingLeft: isMobile ? 'calc(50% - 140px)' : '16px',
         paddingRight: isMobile ? 'calc(50% - 140px)' : '16px',
-        paddingBottom: window.innerWidth >= 768 && window.innerHeight < window.innerWidth ? 'calc(var(--bottom-nav-height, 64px) + 16px)' : undefined
+        paddingBottom: hasBottomNav ? 'calc(var(--bottom-nav-height, 64px) + 16px)' : undefined
       }}
       onWheel={(e) => {
         e.currentTarget.scrollLeft += e.deltaY;
