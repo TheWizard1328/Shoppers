@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import MobileSelect from '@/components/ui/mobile-select';
+import { MobileSelect } from '@/components/ui/mobile-select';
 import { isMobileDevice, isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { globalFilters } from '../utils/globalFilters';
 import { clearUserCache } from '../utils/auth';
