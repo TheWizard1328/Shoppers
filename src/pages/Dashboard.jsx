@@ -5763,8 +5763,6 @@ function Dashboard() {
         return timeA.localeCompare(timeB);
       });
 
-      calculateRouteStats(optimizedRoute, stores, patients);
-
       for (const stop of optimizedRoute) {
         if (!stop) continue; // Defensive check
 
