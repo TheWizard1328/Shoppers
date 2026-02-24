@@ -906,7 +906,7 @@ function Dashboard() {
             await locationTracker.startTracking({
               ...currentUser,
               appUserId: appUser.id
-            });
+            }, format(selectedDate, 'yyyy-MM-dd'));
             console.log('✅ [Dashboard] Location tracking started successfully');
 
             // CRITICAL: Also start live distance tracker
