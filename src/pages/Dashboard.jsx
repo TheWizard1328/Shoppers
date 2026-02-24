@@ -8210,13 +8210,6 @@ function Dashboard() {
 }
 
 // END OF DASHBOARD (JSX moved to components/dashboard/DashboardView.jsx)
-function _UNUSED() { return (<div className="hidden">
-          <div
-
-
-            
-
-            <div className="mt-1 mb-2 flex items-center justify-between">
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
