@@ -4778,13 +4778,9 @@ function Dashboard() {
   };
 
   const handleSaveDelivery = async (deliveryData) => {
-    // Pause ONLY smart refresh and offline sync, NOT mutations
-    // Mutations are needed to save deliveries
-    console.log('⏸️ [SAVE] Pausing smart refresh and offline sync...');
     setIsEntityUpdating(true);
     pauseOfflineSync();
     smartRefreshManager.pause();
-    
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     try {
