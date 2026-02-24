@@ -6078,13 +6078,10 @@ function Dashboard() {
             return new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time);
           });
           for (let i = 0; i < sortedCompleted.length; i++) {
-            const stop = sortedCompleted[i];
-            if (!stop) continue; // Defensive check
-            await updateDeliveryLocal(stop.id, { stop_order: i + 1 });
-            const stopName = stop.patient_id ?
-            patients.find((p) => p && p.id === stop.patient_id)?.full_name :
-            stores.find((s) => s && s.id === stop.store_id)?.name + ' Pickup';
-          }
+              const stop = sortedCompleted[i];
+              if (!stop) continue;
+              await updateDeliveryLocal(stop.id, { stop_order: i + 1 });
+            }
         }
         continue;
       }
