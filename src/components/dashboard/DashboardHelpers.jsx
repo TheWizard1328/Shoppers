@@ -108,8 +108,7 @@ export const populateTemporaryStartTimes = (deliveries, stores) => {
     );
     if (parentPickup) {
       if (finishedStatuses.includes(parentPickup.status) && parentPickup.actual_delivery_time) {
-        const { format } = require('date-fns');
-        const completionTime = format(new Date(parentPickup.actual_delivery_time), 'HH:mm');
+          const completionTime = format(new Date(parentPickup.actual_delivery_time), 'HH:mm');
         delivery.delivery_time_start = addMinutesToTime(completionTime, 5);
       } else if (parentPickup.delivery_time_eta) {
         delivery.delivery_time_start = addMinutesToTime(parentPickup.delivery_time_eta, 5);
