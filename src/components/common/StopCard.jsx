@@ -444,22 +444,15 @@ export default function StopCard({
     if (!delivery || !currentUser) return false;
     // Never redact regular pickups, InterStore deliveries, or InterStore pickups
     if (isPickup || isInterStore || isInterStorePickup) return false;
-    // Redact completed deliveries for drivers (not admins/dispatchers)
-    if (isCompleted &&
-      !userHasRole(currentUser, 'admin') &&
-      !userHasRole(currentUser, 'dispatcher') &&
-      userHasRole(currentUser, 'driver')) {
-      return true;
-    }
-    // Redact when route is complete for drivers
-    if (isRouteCompleted &&
+    // ONLY redact AFTER stop is completed or failed - show info while in progress
+    if ((delivery.status === 'completed' || delivery.status === 'failed') &&
       !userHasRole(currentUser, 'admin') &&
       !userHasRole(currentUser, 'dispatcher') &&
       userHasRole(currentUser, 'driver')) {
       return true;
     }
     return false;
-  }, [isCompleted, isPickup, isInterStore, isInterStorePickup, currentUser, delivery, isRouteCompleted]);
+  }, [delivery?.status, isPickup, isInterStore, isInterStorePickup, currentUser]);
 
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
 
