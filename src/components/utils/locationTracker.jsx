@@ -699,6 +699,10 @@ class LocationTracker {
     this.appUserId = null;
     this.failedUpdateCount = 0;
     this.backoffTime = 0;
+    this.currentDeliveryDate = null;
+    
+    // Clear arrival detection state
+    arrivalTimeDetector.clearRecordedArrivals();
   }
 
   async restartTracking(user, deliveryDate = null) {
