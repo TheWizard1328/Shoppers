@@ -386,6 +386,16 @@ class LocationTracker {
         await this.collectBreadcrumb(latitude, longitude, Date.now());
       }
 
+      // CRITICAL: Check for arrival at delivery locations when on_duty
+      if (!timestampOnly && this.driverStatus === 'on_duty' && this.currentDeliveryDate) {
+        await arrivalTimeDetector.processLocationUpdate(
+          latitude, 
+          longitude, 
+          this.currentUser?.id, 
+          this.currentDeliveryDate
+        );
+      }
+
       console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
 
       window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
