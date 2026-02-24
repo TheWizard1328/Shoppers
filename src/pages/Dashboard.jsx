@@ -967,7 +967,7 @@ function Dashboard() {
               await locationTracker.restartTracking({
                 ...currentUser,
                 appUserId: appUser.id
-              });
+              }, format(selectedDate, 'yyyy-MM-dd'));
               console.log('✅ [GPS Reinit] Location tracking restarted successfully');
             } else if (shouldTrack && locationTracker.isTracking) {
               console.log('✅ [GPS Reinit] Location tracker already running');
