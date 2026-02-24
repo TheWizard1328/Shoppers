@@ -16,42 +16,47 @@ const broadcastMutation = async (entity, action, id, data) => {
 
 class LocationTracker {
     constructor() {
-      this.watchId = null;
-      this.heartbeatInterval = null; // Poll GPS every 15 seconds
-      this.isTracking = false;
-      this.lastPosition = null;
-      this.lastUpdate = 0;
-      this.lastCoordinateUpdate = 0;
-      this.currentUser = null;
-      this.appUserId = null;
-      this.driverStatus = 'off_duty';
-      this.updateInterval = 15000; // 15 seconds GPS polling
-      this.coordinateUpdateInterval = 15000; // 15 seconds between coordinate updates
+        this.watchId = null;
+        this.heartbeatInterval = null; // Poll GPS every 15 seconds
+        this.isTracking = false;
+        this.lastPosition = null;
+        this.lastUpdate = 0;
+        this.lastCoordinateUpdate = 0;
+        this.currentUser = null;
+        this.appUserId = null;
+        this.driverStatus = 'off_duty';
+        this.updateInterval = 15000; // 15 seconds GPS polling
+        this.coordinateUpdateInterval = 15000; // 15 seconds between coordinate updates
 
-      // Distance threshold - only upload if moved > 200m
-      this.minDistanceChange = 200; // 200 meters minimum movement to trigger upload
+        // Distance threshold - only upload if moved > 200m
+        this.minDistanceChange = 200; // 200 meters minimum movement to trigger upload
 
-      // Deduplication - prevent duplicate updates within 2 seconds
-      this.lastUploadTime = 0;
-      this.minTimeBetweenUploads = 2000; // 2 second minimum between uploads
+        // Deduplication - prevent duplicate updates within 2 seconds
+        this.lastUploadTime = 0;
+        this.minTimeBetweenUploads = 2000; // 2 second minimum between uploads
 
-      // Heartbeat timestamp updates - keep location fresh even when stationary
-      this.lastTimestampUpdate = 0;
-      this.timestampUpdateInterval = 60000; // 1 minute - update timestamp to prevent stale mode
+        // Heartbeat timestamp updates - keep location fresh even when stationary
+        this.lastTimestampUpdate = 0;
+        this.timestampUpdateInterval = 60000; // 1 minute - update timestamp to prevent stale mode
 
-      this.failedUpdateCount = 0;
-      this.maxFailedUpdates = 3;
-      this.backoffTime = 0;
-      this.lastSuccessfulUpdate = 0;
-      this.deviceCapabilities = null;
+        this.failedUpdateCount = 0;
+        this.maxFailedUpdates = 3;
+        this.backoffTime = 0;
+        this.lastSuccessfulUpdate = 0;
+        this.deviceCapabilities = null;
 
-      // Event-driven updates tracking
-      this._pendingEventUpdate = false;
-      this._eventUpdateTime = 0;
-    
-    // Load settings from RouteOptimizationSettings
-    this.loadSettings();
-  }
+        // Event-driven updates tracking
+        this._pendingEventUpdate = false;
+        this._eventUpdateTime = 0;
+
+        // Arrival time tracking - detect when driver arrives at a stop
+        this.arrivalConfirmationDelay = 30000; // 30 seconds minimum stay to confirm arrival
+        this.currentDeliveries = []; // Track active deliveries
+        this.deliveryArrivalTimers = {}; // Map of delivery_id -> timer info
+
+      // Load settings from RouteOptimizationSettings
+      this.loadSettings();
+    }
 
   /**
    * Load tracking settings from RouteOptimizationSettings
@@ -807,27 +812,160 @@ class LocationTracker {
     }
   }
 
-  getStatus() {
-    return {
-      isTracking: this.isTracking,
-      driverStatus: this.driverStatus,
-      lastUpdate: this.lastUpdate,
-      lastSuccessfulUpdate: this.lastSuccessfulUpdate,
-      lastCoordinateUpdate: this.lastCoordinateUpdate,
-      lastLocation: this.lastPosition,
-      hasPosition: this.lastPosition !== null,
-      failedUpdateCount: this.failedUpdateCount,
-      backoffTime: this.backoffTime,
-      isOnline: navigator.onLine,
-      deviceCapabilities: this.deviceCapabilities,
-      updateInterval: this.updateInterval,
-      minDistanceChange: this.minDistanceChange
-    };
+  /**
+   * Check if driver has arrived at a specific delivery location
+   * CRITICAL: Distance threshold of 100 meters or less confirms arrival
+   * CRITICAL: 30 second confirmation delay to ensure driver is actually at the location
+   */
+  async checkAndRecordArrival(latitude, longitude, nextDeliveryId = null) {
+    if (!this.currentDeliveries.length || !nextDeliveryId) {
+      return;
+    }
+
+    const delivery = this.currentDeliveries.find((d) => d.id === nextDeliveryId);
+    if (!delivery || !delivery.latitude || !delivery.longitude) {
+      return;
+    }
+
+    // Calculate distance to next delivery
+    const distanceMeters = this.calculateDistanceInMeters(latitude, longitude, delivery.latitude, delivery.longitude);
+    const ARRIVAL_THRESHOLD = 100; // 100 meters = arrival
+
+    // If already confirmed, skip
+    if (this.deliveryArrivalTimers[nextDeliveryId]?.confirmed) {
+      return;
+    }
+
+    if (distanceMeters <= ARRIVAL_THRESHOLD) {
+      // Driver is close to delivery location
+      if (!this.deliveryArrivalTimers[nextDeliveryId]) {
+        // First time being close - start confirmation timer
+        console.log(`⏱️ [LocationTracker] Driver within ${distanceMeters.toFixed(0)}m of delivery ${nextDeliveryId} - starting 30s confirmation timer`);
+
+        const timerInfo = {
+          startTime: Date.now(),
+          deliveryId: nextDeliveryId,
+          confirmed: false,
+          timerId: null
+        };
+
+        timerInfo.timerId = setTimeout(async () => {
+          await this.confirmAndSaveArrival(nextDeliveryId, delivery);
+        }, this.arrivalConfirmationDelay);
+
+        this.deliveryArrivalTimers[nextDeliveryId] = timerInfo;
+      }
+    } else {
+      // Driver moved away - clear timer
+      if (this.deliveryArrivalTimers[nextDeliveryId] && !this.deliveryArrivalTimers[nextDeliveryId].confirmed) {
+        console.log(`🚗 [LocationTracker] Driver moved away from delivery ${nextDeliveryId} (${distanceMeters.toFixed(0)}m) - cancelling arrival timer`);
+        clearTimeout(this.deliveryArrivalTimers[nextDeliveryId].timerId);
+        delete this.deliveryArrivalTimers[nextDeliveryId];
+      }
+    }
   }
 
-  reloadSettings() {
-    this.loadSettings();
+  /**
+   * Confirm arrival and save arrival_time to both online and offline databases
+   */
+  async confirmAndSaveArrival(deliveryId, delivery) {
+    if (!deliveryId) return;
+
+    try {
+      console.log(`✅ [LocationTracker] Arrival confirmed for delivery ${deliveryId} after 30 seconds`);
+
+      // Generate local timestamp (same format as actual_delivery_time)
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const localTimestamp = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+
+      // Update delivery with arrival_time
+      await base44.entities.Delivery.update(deliveryId, {
+        arrival_time: localTimestamp
+      });
+
+      console.log(`📤 [LocationTracker] Saved arrival_time ${localTimestamp} to online DB for delivery ${deliveryId}`);
+
+      // Also save to offline DB
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        const existingDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId);
+        if (existingDelivery) {
+          await offlineDB.save(offlineDB.STORES.DELIVERIES, {
+            ...existingDelivery,
+            arrival_time: localTimestamp
+          });
+          console.log(`💾 [LocationTracker] Saved arrival_time to offline DB for delivery ${deliveryId}`);
+        }
+      } catch (offlineError) {
+        console.warn(`⚠️ [LocationTracker] Failed to save arrival_time to offline DB:`, offlineError.message);
+      }
+
+      // Mark as confirmed
+      if (this.deliveryArrivalTimers[deliveryId]) {
+        this.deliveryArrivalTimers[deliveryId].confirmed = true;
+      }
+
+      // Dispatch event for UI updates
+      window.dispatchEvent(new CustomEvent('deliveryArrivalRecorded', {
+        detail: { deliveryId, arrivalTime: localTimestamp }
+      }));
+
+    } catch (error) {
+      console.error(`❌ [LocationTracker] Failed to save arrival_time:`, error.message);
+    }
   }
+
+  /**
+   * Set active deliveries for arrival tracking
+   * Call this when the route is loaded/updated
+   */
+  setActiveDeliveries(deliveries) {
+    if (!Array.isArray(deliveries)) {
+      this.currentDeliveries = [];
+      return;
+    }
+
+    // Filter for non-finished deliveries and map to required fields
+    this.currentDeliveries = deliveries
+      .filter((d) => d && d.latitude && d.longitude && !['completed', 'failed', 'cancelled'].includes(d.status))
+      .map((d) => ({
+        id: d.id,
+        latitude: d.latitude,
+        longitude: d.longitude,
+        status: d.status,
+        patient_name: d.patient_name
+      }));
+
+    console.log(`📋 [LocationTracker] Updated active deliveries for arrival tracking:`, this.currentDeliveries.length);
+  }
+
+  getStatus() {
+     return {
+       isTracking: this.isTracking,
+       driverStatus: this.driverStatus,
+       lastUpdate: this.lastUpdate,
+       lastSuccessfulUpdate: this.lastSuccessfulUpdate,
+       lastCoordinateUpdate: this.lastCoordinateUpdate,
+       lastLocation: this.lastPosition,
+       hasPosition: this.lastPosition !== null,
+       failedUpdateCount: this.failedUpdateCount,
+       backoffTime: this.backoffTime,
+       isOnline: navigator.onLine,
+       deviceCapabilities: this.deviceCapabilities,
+       updateInterval: this.updateInterval,
+       minDistanceChange: this.minDistanceChange
+     };
+   }
+
+   reloadSettings() {
+     this.loadSettings();
+   }
 }
 
 export const locationTracker = new LocationTracker();
