@@ -242,10 +242,13 @@ export default function DeviceSettings() {
           <Plus className="w-4 h-4" />
           Add Device
         </Button>
+        </div>
       </div>
 
-      {showForm && (
-        <DeviceForm
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 max-w-4xl mx-auto">
+          {showForm && (
+            <DeviceForm
           device={editingDevice}
           existingDevices={devices}
           onSubmit={handleFormSubmit}
