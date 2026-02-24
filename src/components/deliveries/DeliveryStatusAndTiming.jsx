@@ -138,7 +138,9 @@ export default function DeliveryStatusAndTiming({
       {isCompletion && (
         <div className="flex gap-3">
           <div className="flex-1 space-y-1">
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
+            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+              Completion Time {delivery?.arrival_time && `[Arrived: ${format(new Date(delivery.arrival_time), 'HH:mm')}]`} *
+            </Label>
             <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isSaving} className="h-9 text-sm" />
           </div>
         </div>
