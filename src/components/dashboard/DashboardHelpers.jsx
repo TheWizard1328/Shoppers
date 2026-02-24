@@ -1,6 +1,7 @@
 // DashboardHelpers.jsx - Extracted helper components and utilities from Dashboard
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { format } from 'date-fns';
 
 // StatBadge - simple component without hooks to avoid violations
 export const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
