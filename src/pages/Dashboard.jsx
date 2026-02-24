@@ -5381,9 +5381,6 @@ function Dashboard() {
           // NOTE: Route optimizer is NOT run here - deliveries are saved as 'pending'.
           // Optimization runs when stops are transitioned to 'in_transit' status.
 
-          // CRITICAL: Skip all post-save operations - these will be handled by background sync
-          // The deliveries are already created and mutations are queued
-          // Smart refresh will handle updating isNextDelivery flags when it resumes
           console.log('[AddToRoute] ✅ Deliveries created - skipping post-save operations (handled by background sync)');
 
         }
