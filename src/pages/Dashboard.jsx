@@ -6126,14 +6126,6 @@ function Dashboard() {
 
       const finalSortedRoute = [...sortedCompleted, ...optimizedRoute];
 
-      finalSortedRoute.forEach((stop, idx) => {
-        if (!stop) return; // Defensive check
-        const stopPatient = patients.find((p) => p && p.id === stop.patient_id);
-        const stopStore = stores.find((s) => s && s.id === stop.store_id);
-        const stopName = stop.patient_id ? stopPatient?.full_name : `${stopStore?.name} Pickup`;
-        const isComplete = finishedStatuses.includes(stop.status);
-      });
-
       for (let i = 0; i < finalSortedRoute.length; i++) {
         const stop = finalSortedRoute[i];
         if (!stop) continue; // Defensive check
