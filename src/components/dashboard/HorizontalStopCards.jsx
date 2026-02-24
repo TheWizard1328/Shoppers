@@ -1,7 +1,7 @@
 import React from "react";
 import StopCard from '../common/StopCard';
 import { format } from 'date-fns';
-import { isMobileDevice } from '../utils/deviceUtils';
+import { isMobileDevice, getUserAgentInfo, getOrientation } from '../utils/deviceUtils';
 
 const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const {
