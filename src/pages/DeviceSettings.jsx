@@ -224,7 +224,7 @@ export default function DeviceSettings() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
+      <div className="sticky top-0 z-40 flex justify-between items-center mb-6 -mx-6 -mt-6 px-6 py-6" style={{ background: 'var(--bg-white)', borderBottomColor: 'var(--border-slate-200)' }} className="border-b">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Device Settings</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
