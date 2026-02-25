@@ -2023,7 +2023,7 @@ export default function StopCard({
                                   const offsetMins = Math.abs(offsetMinutes) % 60;
                                   const offsetSign = offsetMinutes >= 0 ? '+' : '-';
                                   const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
-                                  const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:00${offsetString}`;
+                                  const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
                                   
                                   await updateDeliveryLocal(delivery.id, {
                                     status: 'completed',
