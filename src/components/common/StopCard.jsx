@@ -1223,276 +1223,26 @@ export default function StopCard({
           </div>}
 
           {/* Delete Confirmation Dialog - Portal to body for proper z-index */}
-          {showDeleteConfirm && ReactDOM.createPortal(
-            <div
-              className="fixed inset-0 flex items-center justify-center"
-              style={{ background: 'rgba(0, 0, 0, 0.6)', zIndex: 999999, pointerEvents: 'auto' }}
-              onClick={() => setShowDeleteConfirm(false)}>
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4" style={{ background: 'var(--bg-white)' }}>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
-                  <Trash2 className="w-5 h-5" />
-                  Confirm Delete
-                </h3>
-
-                <div className="space-y-3 mb-6">
-                  <p className="text-slate-700">
-                    Are you sure you want to delete this {isPickup ? 'pickup' : 'delivery'}?
-                  </p>
-
-                  <div className="rounded-lg p-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
-                    <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
-                    <span style={{ color: 'var(--text-slate-900)' }}>{displayName}</span>
-
-                    {displayAddress && <>
-                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
-                      <span style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</span>
-                    </>}
-
-                    {delivery.tracking_number && <>
-                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
-                      <span style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</span>
-                    </>}
-                  </div>
-
-                  {/* CRITICAL: Warning for pickups with pending deliveries + Transfer option */}
-                  {isPickup && delivery.stop_id && pendingPickups && pendingPickups.length > 0 &&
-                    <div className="rounded-lg p-3 border-2 border-amber-400 space-y-3" style={{ background: 'var(--bg-amber-50)' }}>
-                      <div>
-                        <p className="text-sm font-semibold text-amber-800 mb-1">
-                          ⚠️ Warning: {pendingPickups.length} Pending Delivery{pendingPickups.length > 1 ? 's' : ''} Will {selectedTransferPickupId ? 'Be Transferred' : 'Also Be Deleted'}
-                        </p>
-                        <p className="text-xs text-amber-700">
-                          {pendingPickups.map(p => p.patient_name).join(', ')}
-                        </p>
-                      </div>
-                      
-                      {/* Transfer Pickup Selection */}
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold text-amber-900">Transfer to another pickup (optional):</Label>
-                        <Select
-                          value={selectedTransferPickupId}
-                          onValueChange={(value) => setSelectedTransferPickupId(value)}
-                        >
-                          <SelectTrigger className="h-8 text-sm bg-white">
-                            <SelectValue placeholder="Select pickup location" />
-                          </SelectTrigger>
-                          <SelectContent className="z-[999999]">
-                            <SelectItem value="delete_all">All Stops Will Be Deleted</SelectItem>
-                            {availableTransferPickups.map(pickup => (
-                              <SelectItem key={pickup.id} value={pickup.id}>
-                                {store?.name} [{pickup.ampm_deliveries || 'AM'}] (TR# {pickup.tracking_number})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {selectedTransferPickupId && selectedTransferPickupId !== 'delete_all' && (
-                          <p className="text-xs text-blue-700 italic">
-                            Pending stops will be updated with new PUID and TR# range
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  }
-
-                  <p className="text-sm text-red-600 font-medium">
-                    This action cannot be undone.
-                  </p>
-                </div>
-
-                <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setShowDeleteConfirm(false);
-                      setSelectedTransferPickupId('');
-                    }}>
-                    Cancel
-                  </Button>
-                  <Button
-                    className="flex-1 bg-red-600 hover:bg-red-700"
-                    onClick={async () => {
-                      try {
-                        // CRITICAL: If transfer pickup selected, transfer pending stops first
-                        if (isPickup && selectedTransferPickupId && selectedTransferPickupId !== 'delete_all' && pendingPickups && pendingPickups.length > 0) {
-                          console.log('🔄 [Transfer] Transferring pending stops to new pickup:', selectedTransferPickupId);
-                          
-                          const newPickup = allDeliveries.find(d => d.id === selectedTransferPickupId);
-                          if (!newPickup) {
-                            toast.error('Selected pickup not found');
-                            return;
-                          }
-                          
-                          const newPuid = newPickup.stop_id;
-                          const newPickupTR = parseInt(newPickup.tracking_number, 10);
-                          
-                          // Update all pending stops with new PUID and TR# range
-                          const sortedPending = [...pendingPickups].sort((a, b) =>
-                            (a.patient_name || '').localeCompare(b.patient_name || '')
-                          );
-                          
-                          const updatePromises = sortedPending.map((pending, index) => {
-                            const newTR = String(newPickupTR + index + 1);
-                            console.log(`📦 [Transfer] ${pending.patient_name}: PUID ${pending.puid} → ${newPuid}, TR# ${pending.tracking_number} → ${newTR}`);
-                            return base44.entities.Delivery.update(pending.id, {
-                              puid: newPuid,
-                              tracking_number: newTR,
-                              ampm_deliveries: newPickup.ampm_deliveries
-                            });
-                          });
-                          
-                          await Promise.all(updatePromises);
-                          console.log('✅ [Transfer] All pending stops transferred');
-                          toast.success(`Transferred ${pendingPickups.length} pending stop(s)`);
-                        }
-                        
-                        // CRITICAL: Delete Square COD item if delivery has COD and is in_transit
-                        if (delivery.status === 'in_transit' && delivery.cod_total_amount_required > 0 && delivery.patient_id) {
-                          try {
-                            console.log('💳 [Delete] Deleting Square COD item for:', delivery.id);
-                            await base44.functions.invoke('squareDeleteCodItem', {
-                              deliveryId: delivery.id,
-                              reason: 'delivery_deleted'
-                            });
-                            console.log('✅ [Delete] Square COD item deleted');
-                          } catch (squareError) {
-                            console.error('⚠️ [Delete] Failed to delete Square COD item:', squareError);
-                          }
-                        }
-
-                        await onDeleteDelivery(delivery.id);
-                        setShowDeleteConfirm(false);
-                        setSelectedTransferPickupId('');
-                      } catch (error) {
-                        console.error('Delete failed:', error);
-                        toast.error(`Failed: ${error.message}`);
-                      }
-                    }}>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {availableTransferPickups.length === 0 ? 'Delete All' : selectedTransferPickupId && selectedTransferPickupId !== 'delete_all' ? 'Trans & Del' : 'Delete'}
-                  </Button>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
+          <StopCardConfirmDialogs
+            showDeleteConfirm={showDeleteConfirm} setShowDeleteConfirm={setShowDeleteConfirm}
+            isPickup={isPickup} delivery={delivery} displayName={displayName} displayAddress={displayAddress}
+            store={store} pendingPickups={pendingPickups} availableTransferPickups={availableTransferPickups}
+            selectedTransferPickupId={selectedTransferPickupId} setSelectedTransferPickupId={setSelectedTransferPickupId}
+            allDeliveries={allDeliveries} onDeleteDelivery={onDeleteDelivery}
+            showReturnConfirm={showReturnConfirm} returnPatient={returnPatient}
+            handleCancelReturn={handleCancelReturn} handleConfirmReturn={handleConfirmReturn}
+            isCreatingReturn={isCreatingReturn} driver={driver} patient={patient}
+          />
 
           {/* Fullscreen Image Viewer */}
-          {viewingImageUrl && ReactDOM.createPortal(
-            <div
-              className="fixed inset-0 flex items-center justify-center p-4"
-              style={{ background: 'rgba(0,0,0,0.75)', zIndex: 999999, pointerEvents: 'auto' }}
-              onClick={() => setViewingImageUrl(null)}>
-              <div
-                className="relative bg-white rounded-xl shadow-2xl p-4 max-w-[95vw] max-h-[90vh] flex flex-col items-center"
-                onClick={(e) => e.stopPropagation()}>
-                {/* Close button - prominent, top right */}
-                <button
-                  onClick={() => setViewingImageUrl(null)}
-                  className="absolute -top-3 -right-3 bg-white border-2 border-slate-300 hover:bg-red-50 hover:border-red-400 text-slate-700 hover:text-red-600 rounded-full w-9 h-9 flex items-center justify-center shadow-lg transition-colors z-10">
-                  <X className="w-5 h-5" />
-                </button>
-                <img
-                  src={viewingImageUrl}
-                  alt="Proof of delivery"
-                  className="max-w-full max-h-[75vh] object-contain rounded-lg"
-                  style={{ background: 'white' }}
-                />
-                <p className="mt-3 text-sm text-slate-500 font-medium">Tap outside to close</p>
-              </div>
-            </div>,
-            document.body
-          )}
-
-          {/* Signature Capture - Full Screen Landscape */}
-          {showSignatureCapture &&
-            <SignatureCapture
-              customerName={displayName}
-              onSave={async (signatureBlob) => {
-                try {
-                  console.log('📝 [Signature] Starting upload...', signatureBlob);
-
-                  // Convert Blob to File for multipart/form-data upload
-                  const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
-                  const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureFile });
-                  const signatureUrl = uploadResult.file_url;
-
-                  console.log('📝 [Signature] Upload complete:', signatureUrl);
-
-                  // Update delivery with signature DIRECTLY
-                  await base44.entities.Delivery.update(delivery.id, {
-                    signature_image_url: signatureUrl
-                  });
-
-                  console.log('📝 [Signature] Database updated');
-
-                  // Close modal
-                  setShowSignatureCapture(false);
-
-                  // Force immediate refresh
-                  invalidate('Delivery');
-                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                  console.log('📝 [Signature] UI refreshed - signature should now show green');
-
-                  toast.success('Signature saved!');
-                } catch (error) {
-                  console.error('❌ [Signature] Save failed:', error);
-                  toast.error(`Failed to save signature: ${error.message}`);
-                  setShowSignatureCapture(false);
-                }
-              }}
-              onCancel={() => setShowSignatureCapture(false)} />
-
-          }
-
-          {/* Photo Capture */}
-          {showPhotoCapture &&
-            <PhotoCapture
-              onSave={async (photoBlobs) => {
-                try {
-                  console.log('📷 [Photos] Starting upload...', photoBlobs.length, 'photos');
-
-                  // Upload photos immediately - convert Blob to File for multipart/form-data
-                  const uploadPromises = photoBlobs.map((blob, i) => {
-                    const file = new File([blob], `photo_${i + 1}.jpg`, { type: 'image/jpeg' });
-                    return base44.integrations.Core.UploadFile({ file });
-                  });
-                  const results = await Promise.all(uploadPromises);
-                  const newPhotoUrls = results.map((r) => r.file_url);
-
-                  console.log('📷 [Photos] Upload complete:', newPhotoUrls);
-
-                  // Update delivery with photos DIRECTLY
-                  const existingPhotos = delivery.proof_photo_urls || [];
-                  await base44.entities.Delivery.update(delivery.id, {
-                    proof_photo_urls: [...existingPhotos, ...newPhotoUrls]
-                  });
-
-                  console.log('📷 [Photos] Database updated');
-
-                  // Close modal
-                  setShowPhotoCapture(false);
-
-                  // Force immediate refresh
-                  invalidate('Delivery');
-                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                  console.log('📷 [Photos] UI refreshed - photos should now show green');
-
-                  toast.success(`${photoBlobs.length} photo(s) saved!`);
-                } catch (error) {
-                  console.error('❌ [Photos] Save failed:', error);
-                  toast.error(`Failed to save photos: ${error.message}`);
-                  setShowPhotoCapture(false);
-                }
-              }}
-              onCancel={() => setShowPhotoCapture(false)}
-              maxPhotos={3} />
-
-          }
+          <StopCardPOD
+            delivery={delivery} displayName={displayName} isNextDelivery={isNextDelivery}
+            isFinishedDelivery={isFinishedDelivery} isPickup={isPickup}
+            viewingImageUrl={viewingImageUrl} setViewingImageUrl={setViewingImageUrl}
+            showSignatureCapture={showSignatureCapture} setShowSignatureCapture={setShowSignatureCapture}
+            showPhotoCapture={showPhotoCapture} setShowPhotoCapture={setShowPhotoCapture}
+            forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
+          />
 
           {/* Failure Reason Dialog */}
           <FailureReasonDialog
@@ -1800,183 +1550,17 @@ export default function StopCard({
                     </div>
                   }
 
-                  <AnimatePresence>
-                    {showCODCollection && hasCODRequired && !isPickup && !isStrippedForDriver && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden rounded-md p-3 space-y-2 w-full"
-                        style={{ background: 'var(--bg-slate-50)' }}
-                        onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm md:text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Collect COD Payments</span>
-                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={async (e) => {
-                            e.stopPropagation();
-                            console.log('🗑️ [COD Clear] Clearing all COD payments');
-                            setCodPayments([]);
-                            if (onCODUpdate) {
-                              try {
-                                await onCODUpdate(delivery.id, [], true);
-                                console.log('✅ [COD Clear] Database updated');
-                              } catch (error) {
-                                console.error('❌ [COD Clear] Failed:', error);
-                              }
-                            }
-                            setShowCODCollection(false);
-                          }}>
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {codPayments.map((payment, index) =>
-                            <div key={index} className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                              <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => { if (open) setShowCODCollection(true); }}>
-                                <SelectTrigger className="h-7 text-sm md:text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
-                                  <SelectValue placeholder="Type" />
-                                </SelectTrigger>
-                                <SelectContent onClick={(e) => e.stopPropagation()} className="z-[500]">
-                                  <SelectItem value="Cash">Cash</SelectItem>
-                                  <SelectItem value="Debit">Debit</SelectItem>
-                                  <SelectItem value="Credit">Credit</SelectItem>
-                                  <SelectItem value="Check">Check</SelectItem>
-                                </SelectContent>
-                              </Select>
-
-                              <div className="relative flex-1">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm md:text-xs" style={{ color: 'var(--text-slate-500)' }}>$</span>
-                                <input
-                                  ref={(el) => codAmountInputRefs.current[index] = el}
-                                  type="text"
-                                  value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
-                                  onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)}
-                                  className="h-7 w-full pl-5 pr-2 text-sm md:text-xs rounded-md"
-                                  style={{
-                                    background: 'var(--bg-white)',
-                                    borderWidth: '1px',
-                                    borderColor: 'var(--border-slate-300)',
-                                    color: 'var(--text-slate-900)'
-                                  }}
-                                  placeholder="0.00"
-                                  onClick={(e) => e.stopPropagation()}
-                                  onFocus={(e) => e.target.select()} />
-
-                              </div>
-
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600 hover:text-red-800" onClick={(e) => { e.stopPropagation(); handleRemoveCODPayment(index); }}>
-                                <X className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-
-                        <Button size="sm" variant="outline" className="w-full h-7 text-sm md:text-xs" onClick={(e) => { e.stopPropagation(); handleAddCODPayment(); }}>
-                          <Plus className="w-3 h-3 mr-1" />
-                          Add Payment
-                        </Button>
-
-                        <div className="flex items-center justify-between pt-2" style={{ borderTopWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                          <div className="text-sm md:text-xs">
-                            <span style={{ color: 'var(--text-slate-600)' }}>Total: </span>
-                            <span className="font-bold" style={{ color: isCODComplete ? 'var(--text-emerald-600)' : 'var(--text-amber-600)' }}>
-                              ${codTotalCollected.toFixed(2)}
-                            </span>
-                            <span style={{ color: 'var(--text-slate-600)' }}> / ${codTotalRequired.toFixed(2)}</span>
-                          </div>
-
-                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={async (e) => { 
-                            e.stopPropagation(); 
-                            if (onCODUpdate) {
-                              try {
-                                setIsCompleting(true);
-                                
-                                // CRITICAL: Check if delivery is already completed
-                                const isAlreadyCompleted = delivery.status === 'completed';
-                                
-                                if (isAlreadyCompleted) {
-                                  // JUST SAVE COD - don't change status or anything else
-                                  console.log('💰 [COD Edit] Delivery already completed - only saving COD payments');
-                                  await onCODUpdate(delivery.id, codPayments, true);
-                                  setShowCODCollection(false);
-                                  toast.success('COD payments updated!');
-                                } else {
-                                  // NORMAL FLOW: Save COD and complete delivery
-                                  fabControlEvents.deactivateFAB();
-                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                  driverLocationPoller.pause();
-                                  
-                                  // Save COD payments
-                                  await onCODUpdate(delivery.id, codPayments, true);
-                                  setShowCODCollection(false);
-                                  
-                                  // Auto-complete the delivery
-                                  const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-
-                                  await updateDeliveryLocal(delivery.id, {
-                                    status: 'completed',
-                                    actual_delivery_time: localTimeString,
-                                    isNextDelivery: false
-                                  }, { skipSmartRefresh: true });
-                                  
-                                  // Find next incomplete delivery
-                                  const driverDeliveries = allDeliveries.filter(d => 
-                                    d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                                  );
-                                  const incompleteDeliveries = driverDeliveries.filter(d => 
-                                    d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
-                                  ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-                                  
-                                  if (incompleteDeliveries.length > 0) {
-                                    await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
-                                    invalidate('Delivery');
-                                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                    
-                                    setTimeout(() => {
-                                      const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
-                                      if (nextCardElement) {
-                                        nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                      }
-                                    }, 100);
-                                  } else {
-                                    fabControlEvents.notifyDoneButtonClicked();
-                                    window.dispatchEvent(new CustomEvent('showRouteSummary', {
-                                      detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                    }));
-                                  }
-                                  
-                                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                    detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                  }));
-                                  
-                                  // Collapse the card
-                                  if (onSelectionChange) {
-                                    onSelectionChange(delivery.id, false);
-                                  } else if (onClick) {
-                                    onClick(null);
-                                  }
-                                  
-                                  driverLocationPoller.resume();
-                                  fabControlEvents.reactivateFAB(true);
-                                  toast.success('COD saved and delivery completed!');
-                                }
-                              } catch (error) {
-                                console.error('❌ Failed to save COD:', error);
-                                toast.error(`Failed: ${error.message}`);
-                                fabControlEvents.reactivateFAB(true);
-                              } finally {
-                                setIsCompleting(false);
-                              }
-                            }
-                          }} disabled={codPayments.length === 0 || isCompleting}>
-                            {isCompleting ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : delivery.status === 'completed' ? <Save className="w-3 h-3 mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
-                            {delivery.status === 'completed' ? 'Save' : 'Save & Complete'}
-                          </Button>
-                        </div>
-                      </motion.div>
-                    }
-                  </AnimatePresence>
+                  <StopCardCODCollection
+                    delivery={delivery} codPayments={codPayments} setCodPayments={setCodPayments}
+                    showCODCollection={showCODCollection} setShowCODCollection={setShowCODCollection}
+                    codTotalRequired={codTotalRequired} codTotalCollected={codTotalCollected}
+                    isCODComplete={isCODComplete} isFinishedDelivery={isFinishedDelivery}
+                    isStrippedForDriver={isStrippedForDriver} currentUser={currentUser}
+                    onCODUpdate={onCODUpdate} allDeliveries={allDeliveries} FINISHED_STATUSES={FINISHED_STATUSES}
+                    forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
+                    isCompleting={isCompleting} setIsCompleting={setIsCompleting}
+                    onSelectionChange={onSelectionChange} onClick={onClick}
+                  />
 
                   {/* Patient Notes - Hide for driver-stripped AND non-AppOwner on completed/past routes */}
                   {!isStrippedForDriver && isFinishedDelivery && !isPickup && patient?.notes && (isAppOwner(currentUser) || (delivery.delivery_date === format(new Date(), 'yyyy-MM-dd'))) &&
@@ -2633,90 +2217,20 @@ export default function StopCard({
                       /* NON-FAILED DELIVERY FOOTER - Original layout */
                       <>
                         {/* Proof of Delivery Buttons - Only on next delivery, OR completed with captured proof */}
-                        {!isPickup &&
-                          <div className="flex items-center gap-2">
-                            {/* Signature Button - Capture when active, View when completed */}
-                            {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.signature_image_url) ?
-                              <div className="flex items-center">
-                                <Button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (delivery.status === 'completed' && delivery.signature_image_url) {
-                                      setViewingImageUrl(delivery.signature_image_url);
-                                    } else {
-                                      setShowSignatureCapture(true);
-                                    }
-                                  }}
-                                  size="sm"
-                                  variant="outline"
-                                  className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.signature_image_url ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}>
-                                  {delivery.status === 'completed' && delivery.signature_image_url
-                                    ? <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
-                                    : <Pen className={`w-5 h-5 md:w-4 md:h-4 ${delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-600'}`} />
-                                  }
-                                </Button>
-                                {/* Only show X (delete) button when NOT completed */}
-                                {delivery.signature_image_url && delivery.status !== 'completed' && (
-                                  <Button
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await base44.entities.Delivery.update(delivery.id, { signature_image_url: null });
-                                      invalidate('Delivery');
-                                      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                    }}
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-10 md:h-8 w-6 p-0 bg-red-50 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none">
-                                    <X className="w-3 h-3 text-red-500" />
-                                  </Button>
-                                )}
-                              </div> :
-                              null}
-
-                            {/* Photo Button - Capture when active, View when completed */}
-                            {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0) ?
-                              <div className="flex items-center">
-                                <Button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0) {
-                                      setViewingImageUrl(delivery.proof_photo_urls[0]);
-                                    } else {
-                                      setShowPhotoCapture(true);
-                                    }
-                                  }}
-                                  size="sm"
-                                  variant="outline"
-                                  className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}>
-                                  {delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0
-                                    ? <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
-                                    : <Camera className={`w-5 h-5 md:w-4 md:h-4 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-600'}`} />
-                                  }
-                                </Button>
-                                {/* Only show X (delete) button when NOT completed */}
-                                {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 && delivery.status !== 'completed' && (
-                                  <Button
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await base44.entities.Delivery.update(delivery.id, { proof_photo_urls: [] });
-                                      invalidate('Delivery');
-                                      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                    }}
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-10 md:h-8 w-6 p-0 bg-red-50 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none">
-                                    <X className="w-3 h-3 text-red-500" />
-                                  </Button>
-                                )}
-                              </div> :
-                              null}
-                          </div>
-                        }
+                        <StopCardPOD
+                          delivery={delivery} displayName={displayName} isNextDelivery={isNextDelivery}
+                          isFinishedDelivery={isFinishedDelivery} isPickup={isPickup}
+                          viewingImageUrl={viewingImageUrl} setViewingImageUrl={setViewingImageUrl}
+                          showSignatureCapture={showSignatureCapture} setShowSignatureCapture={setShowSignatureCapture}
+                          showPhotoCapture={showPhotoCapture} setShowPhotoCapture={setShowPhotoCapture}
+                          forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
+                        />
 
                         {/* Start/Complete/Restart button and menu - right aligned */}
                         <div className="flex items-center ml-auto">
-                      {/* Start button for active non-failed deliveries */}
-                      {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
+
+                        {/* Start button for active non-failed deliveries */}
+                        {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
                             isNextDelivery ?
                               <Button
                                 onClick={async (e) => {
