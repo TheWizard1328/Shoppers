@@ -2550,14 +2550,12 @@ export default function StopCard({
                                   setIsStarting(false);
                                   setIsEntityUpdating(false);
                                 }
-
                               }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
                                 {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Start</span>
                               </Button>
                           )}
                       
-
                       {/* Restart button for completed/cancelled on today's date when route not finished (NOT failed) */}
                       {delivery.status !== 'failed' && FINISHED_STATUSES.includes(delivery.status) && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
                         <Button
@@ -2579,7 +2577,6 @@ export default function StopCard({
                                 console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
                                 throw new Error('This delivery has been deleted. Please refresh the page.');
                               }
-
                               console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
 
                               const driverDeliveries = allDeliveries.filter((d) =>
@@ -2680,8 +2677,6 @@ export default function StopCard({
                             </DropdownMenuItem>
                           }
 
-
-
                           {/* Failed/Cancel menu item - for active deliveries */}
                           {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
                             <>
@@ -2700,7 +2695,6 @@ export default function StopCard({
                           }
 
                           {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
-
                           {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                             <DropdownMenuItem
                               onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
@@ -2718,12 +2712,9 @@ export default function StopCard({
                   </>
                 }
               </div>
-
-
             </div>
           </div>}
         </CardContent>
       </Card>
     </motion.div>);
-
 }
