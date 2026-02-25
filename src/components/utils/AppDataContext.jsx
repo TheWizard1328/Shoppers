@@ -138,9 +138,9 @@ export const AppDataProvider = ({ children, value }) => {
           const other = (value.deliveries || []).filter(d => d && d.delivery_date !== selectedDate);
           value.updateDeliveriesLocally([...other, ...offlineDeliveries], true);
         }
-        // Push offline app users (best effort)
-        if (Array.isArray(offlineAppUsers) && offlineAppUsers.length > 0 && value.updateAppUsersLocally) {
-          try { value.updateAppUsersLocally(offlineAppUsers, true); } catch (_) { value.updateAppUsersLocally(offlineAppUsers); }
+        // Push offline app users (merge-safe, never overwrite fresher in-memory data)
+        if (Array.isArray(offlineAppUsers) && offlineAppUsers.length > 0) {
+          await wrappedUpdateAppUsersLocally(offlineAppUsers, false);
         }
 
         // 2) If offline missing or stale, fetch ONLINE progressively and persist
@@ -160,9 +160,9 @@ export const AppDataProvider = ({ children, value }) => {
             const other2 = (value.deliveries || []).filter(d => d && d.delivery_date !== selectedDate);
             value.updateDeliveriesLocally([...other2, ...onlineDeliveries], true);
           }
-          if (onlineAppUsers && onlineAppUsers.length > 0 && value.updateAppUsersLocally) {
+          if (onlineAppUsers && onlineAppUsers.length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, onlineAppUsers);
-            try { value.updateAppUsersLocally(onlineAppUsers, true); } catch (_) { value.updateAppUsersLocally(onlineAppUsers); }
+            await wrappedUpdateAppUsersLocally(onlineAppUsers, false);
           }
         }
       } catch (e) {
@@ -245,9 +245,58 @@ export const AppDataProvider = ({ children, value }) => {
     }
   };
   
+  // Merge-safe AppUsers updater: prefers newer location_updated_at to prevent stale offline overwrites
+  const wrappedUpdateAppUsersLocally = async (incoming, isFullReplacement = false) => {
+    const incomingList = Array.isArray(incoming) ? incoming.filter(Boolean) : [];
+    const existing = appUsersRef.current || [];
+
+    // Build map of existing by id
+    const byId = new Map(existing.map(u => [u?.id, u]).filter(([id]) => !!id));
+
+    const ts = (u) => {
+      const t = u?.location_updated_at || u?.updated_date || u?.created_date;
+      return t ? new Date(t).getTime() : 0;
+    };
+
+    const acceptedForOffline = [];
+
+    // Merge incoming into map using last-write-wins on timestamp
+    for (const u of incomingList) {
+      if (!u || !u.id) continue;
+      const cur = byId.get(u.id);
+      if (!cur) {
+        byId.set(u.id, u);
+        acceptedForOffline.push(u);
+      } else {
+        const newer = ts(u) >= ts(cur) ? u : cur;
+        byId.set(u.id, newer);
+        if (newer === u) acceptedForOffline.push(u);
+      }
+    }
+
+    // If full replacement requested, include any incoming-only ids already handled above.
+    const merged = Array.from(byId.values());
+
+    if (value.updateAppUsersLocally) {
+      // Always commit merged snapshot to prevent regressions
+      value.updateAppUsersLocally(merged, true);
+    }
+
+    // Dual-write: persist fresher incoming records to offline DB
+    if (acceptedForOffline.length > 0) {
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, acceptedForOffline);
+      } catch (e) {
+        console.warn('[AppDataContext] Failed to persist AppUsers to offline DB:', e.message);
+      }
+    }
+  };
+  
   const wrappedValue = {
     ...value,
     updateDeliveriesLocally: wrappedUpdateDeliveriesLocally,
+    updateAppUsersLocally: wrappedUpdateAppUsersLocally,
     forceRefreshDriverDeliveries,
     onSelectedDateDataReady: value.onSelectedDateDataReady,
     setOnSelectedDateDataReady: value.setOnSelectedDateDataReady
