@@ -51,6 +51,7 @@ export default function StopCardBody({
   isCompleted,
   userHasRole,
   Textarea,
+  isAppOwnerFn,
 }) {
   const handleNotesBlur = () => {
     if (!notesInput.trim() || notesInput.trim() === 'No driver notes') {
@@ -182,7 +183,7 @@ export default function StopCardBody({
                 isFinishedDelivery &&
                 !isPickup &&
                 patient?.notes &&
-                (currentUser?.app_owner || delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && (
+                ((isAppOwnerFn ? isAppOwnerFn(currentUser) : false) || (delivery.delivery_date === format(new Date(), 'yyyy-MM-dd'))) && (
                   <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
