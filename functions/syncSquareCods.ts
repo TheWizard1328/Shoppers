@@ -43,6 +43,8 @@ Deno.serve(async (req) => {
               {
                 type: 'ITEM',
                 id: `#${idempotencyKey}`,
+                present_at_all_locations: false,
+                present_at_location_ids: [SQUARE_LOCATION_ID],
                 item_data: {
                   present_at_all_locations: false,
                   present_at_location_ids: [SQUARE_LOCATION_ID],
