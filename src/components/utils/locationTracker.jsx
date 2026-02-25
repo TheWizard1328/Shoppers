@@ -327,11 +327,16 @@ class LocationTracker {
         location_tracking_enabled: updatedAppUser.location_tracking_enabled
       });
 
-      // Step 3: Save to offline DB
+      // Step 3: Save to offline DB (dual-write) AND dispatch to in-memory context before broadcasting
       try {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
         console.log(`💾 [LocationTracker] Saved AppUser to offline DB`);
+
+        // Immediately dispatch to AppDataContext via custom event so UI prefers newest
+        window.dispatchEvent(new CustomEvent('appUserUpdated', {
+          detail: { appUser: updatedAppUser, fromLocationTracker: true }
+        }));
       } catch (offlineError) {
         console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
       }
