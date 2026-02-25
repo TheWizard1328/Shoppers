@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     const fetchYearData = async (year, cityId) => {
       const cacheKey = `${CACHE_VERSION}_${year}_${cityId || 'all'}`;
       const cached = statsCache.get(cacheKey);
-      if (cached && (Date.now() - cached.timestamp < 3600000)) {
+      if (cached && (Date.now() - cached.timestamp < 300000)) {  // 5 min cache TTL
         console.log(`📊 Using CACHED year data for ${year} city=${cityId || 'all'}`);
         return cached.data;
       }
