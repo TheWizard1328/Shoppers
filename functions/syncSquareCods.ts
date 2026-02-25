@@ -1,43 +1,38 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-// Gentle Square COD batch processor
+// Gentle Square COD batch processor (v1.0.1)
 // Payload: { items: [{ deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId }] }
-// Behavior: processes sequentially with delays and basic retries to avoid Square rate limits
+// Processes sequentially with delays and retries to avoid Square rate limits
 
 Deno.serve(async (req) => {
-  const start = Date.now();
+  const startedAt = new Date().toISOString();
   try {
     const base44 = createClientFromRequest(req);
-
-    // Must be authenticated
     const user = await base44.auth.me();
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Parse payload
-    const body = await req.json().catch(() => ({}));
+    const bodyText = await req.text();
+    let body;
+    try { body = JSON.parse(bodyText || '{}'); } catch { body = {}; }
     const items = Array.isArray(body?.items) ? body.items : [];
+
     if (items.length === 0) {
-      return Response.json({ success: true, processed: 0, message: 'No items to process' });
+      return Response.json({ success: true, processed: 0, message: 'No items to process', startedAt });
     }
 
-    // Read Square creds from env (already set per context)
     const SQUARE_ACCESS_TOKEN = Deno.env.get('SQUARE_ACCESS_TOKEN');
     const SQUARE_LOCATION_ID = Deno.env.get('SQUARE_LOCATION_ID');
-
     if (!SQUARE_ACCESS_TOKEN || !SQUARE_LOCATION_ID) {
       return Response.json({ error: 'Square configuration missing' }, { status: 500 });
     }
 
-    // Helpers
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    // Create/Upsert a simple Catalog Item for COD using Square Catalog API
-    // Minimal implementation that upserts unique item names based on deliveryId
     async function upsertCodItem(item) {
       const idempotencyKey = `cod-${item.deliveryId}`;
-      const itemName = `${item.deliveryDate?.slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`;
+      const itemName = `${(item.deliveryDate || '').slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`;
       const amountCents = Math.round((Number(item.codAmount) || 0) * 100);
 
       const payload = {
@@ -90,7 +85,6 @@ Deno.serve(async (req) => {
 
     const results = [];
 
-    // Process sequentially with delay + retries
     for (const item of items) {
       let attempts = 0;
       let lastErr = null;
@@ -98,53 +92,45 @@ Deno.serve(async (req) => {
         attempts += 1;
         try {
           const data = await upsertCodItem(item);
-          // Log minimal audit to SquareTransaction for visibility
           try {
             await base44.entities.SquareTransaction.create({
               type: 'collection',
               status: 'completed',
               amount: Number(item.codAmount) || 0,
               amount_cents: Math.round((Number(item.codAmount) || 0) * 100),
-              item_name: `${item.deliveryDate?.slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`,
+              item_name: `${(item.deliveryDate || '').slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`,
               delivery_id: item.deliveryId,
               store_id: item.storeId,
               raw_square_data: data,
             });
-          } catch (_) {
-            // ignore logging errors
-          }
+          } catch (_) {}
           results.push({ deliveryId: item.deliveryId, status: 'ok' });
           break;
         } catch (e) {
           lastErr = e;
-          // Backoff: 500ms -> 1500ms -> 4000ms
           const backoffs = [500, 1500, 4000];
           await sleep(backoffs[attempts - 1] || 4000);
         }
       }
-      // Gentle spacing between items regardless of success
       await sleep(350);
       if (lastErr && attempts >= 3) {
-        // Record failure in SquareTransaction for audit
         try {
           await base44.entities.SquareTransaction.create({
             type: 'collection',
             status: 'failed',
             amount: Number(item.codAmount) || 0,
             amount_cents: Math.round((Number(item.codAmount) || 0) * 100),
-            item_name: `${item.deliveryDate?.slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`,
+            item_name: `${(item.deliveryDate || '').slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`,
             delivery_id: item.deliveryId,
             store_id: item.storeId,
             raw_square_data: { error: String(lastErr?.message || lastErr) },
           });
-        } catch (_) {
-          // ignore
-        }
+        } catch (_) {}
         results.push({ deliveryId: item.deliveryId, status: 'failed', error: String(lastErr?.message || lastErr) });
       }
     }
 
-    return Response.json({ success: true, processed: results.length, results, ms: Date.now() - start });
+    return Response.json({ success: true, processed: results.length, results, startedAt, finishedAt: new Date().toISOString() });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
