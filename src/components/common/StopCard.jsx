@@ -751,7 +751,7 @@ export default function StopCard({
         console.log(`📦 [Square] Queuing ${codBatch.length} COD items to backend...`, codBatch);
         base44.functions.invoke('syncSquareCods', { items: codBatch })
           .then(() => {
-            try { (await import('sonner')).toast?.success?.(`Queued ${codBatch.length} CODs to Square`); } catch (_) {}
+            try { toast?.success?.(`Queued ${codBatch.length} CODs to Square`); } catch (_) {}
           })
           .catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
       }
