@@ -85,12 +85,14 @@ export default function StopCardHeader({
     const baseRate = driverAppUser?.pay_rate_per_delivery || 0;
     const isAfterHours = delivery?.after_hours_pickup === true;
     const hasExtraPay = pay > baseRate && !isAfterHours;
+    const isNoCharge = delivery?.no_charge === true;
+    const payDisplay = isNoCharge ? 'N/C' : formatPay(pay);
 
     payBadge = !isAfterHours && !hasExtraPay ? (
-      <div className="text-xm font-bold text-emerald-600">{formatPay(pay)}</div>
+      <div className="text-xm font-bold text-emerald-600">{payDisplay}</div>
     ) : (
       <Badge variant="secondary" className="inline-flex items-center border transition-colors text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
-        {formatPay(pay)}
+        {payDisplay}
       </Badge>
     );
   }

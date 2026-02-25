@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     // CRITICAL: Patient deliveries count when completed OR failed
     // Pickups count ONLY when they have after_hours_pickup = true AND (completed OR cancelled)
     const completedPatientDeliveries = deliveries.filter(d => 
-      d.patient_id && (d.status === 'completed' || d.status === 'failed')
+      d.patient_id && !d.no_charge && (d.status === 'completed' || d.status === 'failed')
     );
 
     const completedAfterHoursPickups = deliveries.filter(d => 
@@ -124,6 +124,11 @@ Deno.serve(async (req) => {
       
       // Total km = actual distance traveled (travel_dist)
       totalKm += (d.travel_dist || 0);
+
+      // Do not award extra km for No Charge deliveries
+      if (d.no_charge) {
+        return;
+      }
 
       // Extra km = based on paid_km_override or patient.distance_from_store
       let paidDistance = 0;

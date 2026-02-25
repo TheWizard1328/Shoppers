@@ -216,6 +216,8 @@ export default function DriverPayrollGrid({
   // Calculate extra km for a delivery
   const calculateExtraKm = (delivery) => {
     if (!delivery) return 0;
+    // Exclude no-charge deliveries from extra KM calculations
+    if (delivery.no_charge) return 0;
     
     // Use paid_km_override if set, otherwise get distance_from_store from patient
     let distance = delivery.paid_km_override;
