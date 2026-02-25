@@ -243,7 +243,7 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
         // Calculate today's stats
         const todayPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
         const todayActiveDrivers = new Set(todayDeliveries.filter(d => d?.driver_id).map(d => d.driver_id)).size;
-        const todayActiveStops = todayPatientDeliveries.length;
+        const todayActiveStops = todayPatientDeliveries.filter(d => !['completed','failed','cancelled','returned'].includes(d?.status)).length;
         const todayCompleted = todayPatientDeliveries.filter(d => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter(d => d?.status === 'failed').length;
         const todayReturns = todayPatientDeliveries.filter(d => {
