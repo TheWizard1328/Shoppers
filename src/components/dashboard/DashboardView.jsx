@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -112,6 +113,25 @@ export default function DashboardView({
       driverLocations: snapshot.snapshot_data?.driverLocations || []
     });
   };
+
+  // Failsafe: once deliveries + patients + stores are ready on initial load, trigger a unified UI refresh
+  const initialDataReadyRef = useRef(null);
+  useEffect(() => {
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    const hasDeliveriesForDate = Array.isArray(deliveries) && deliveries.some(d => d && d.delivery_date === dateStr);
+    const hasPatients = Array.isArray(patients) && patients.length > 0;
+    const hasStores = Array.isArray(stores) && stores.length > 0;
+
+    if (hasDeliveriesForDate && hasPatients && hasStores && initialDataReadyRef.current !== dateStr) {
+      initialDataReadyRef.current = dateStr;
+      // Defer to next tick to allow React state to settle
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'initialDataReady', deliveryDate: dateStr } }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
+      }, 0);
+    }
+  }, [deliveries, patients, stores, selectedDate]);
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
