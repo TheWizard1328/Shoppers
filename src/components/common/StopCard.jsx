@@ -1602,16 +1602,20 @@ export default function StopCard({
 
                 // CRITICAL: Round completion time to nearest 5-minute mark
                 const currentTime = new Date();
-                const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-                const roundedHours = Math.floor(roundedMinutes / 60);
-                const roundedMins = roundedMinutes % 60;
-
+                const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
+                let hours, minutes;
+                if (shouldRound) {
+                  const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                  const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+                  hours = String(Math.floor(roundedMinutes / 60)).padStart(2, '0');
+                  minutes = String(roundedMinutes % 60).padStart(2, '0');
+                } else {
+                  hours = String(currentTime.getHours()).padStart(2, '0');
+                  minutes = String(currentTime.getMinutes()).padStart(2, '0');
+                }
                 const year = currentTime.getFullYear();
                 const month = String(currentTime.getMonth() + 1).padStart(2, '0');
                 const day = String(currentTime.getDate()).padStart(2, '0');
-                const hours = String(roundedHours).padStart(2, '0');
-                const minutes = String(roundedMins).padStart(2, '0');
                 const seconds = '00';
                 const offsetMinutes = -currentTime.getTimezoneOffset();
                 const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
@@ -1999,15 +2003,20 @@ export default function StopCard({
                                   
                                   // Auto-complete the delivery
                                   const currentTime = new Date();
-                                  const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                                  const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-                                  const roundedHours = Math.floor(roundedMinutes / 60);
-                                  const roundedMins = roundedMinutes % 60;
+                                  const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
+                                  let hours, minutes;
+                                  if (shouldRound) {
+                                    const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                                    const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+                                    hours = String(Math.floor(roundedMinutes / 60)).padStart(2, '0');
+                                    minutes = String(roundedMinutes % 60).padStart(2, '0');
+                                  } else {
+                                    hours = String(currentTime.getHours()).padStart(2, '0');
+                                    minutes = String(currentTime.getMinutes()).padStart(2, '0');
+                                  }
                                   const year = currentTime.getFullYear();
                                   const month = String(currentTime.getMonth() + 1).padStart(2, '0');
                                   const day = String(currentTime.getDate()).padStart(2, '0');
-                                  const hours = String(roundedHours).padStart(2, '0');
-                                  const minutes = String(roundedMins).padStart(2, '0');
                                   const offsetMinutes = -currentTime.getTimezoneOffset();
                                   const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
                                   const offsetMins = Math.abs(offsetMinutes) % 60;
@@ -2879,16 +2888,20 @@ export default function StopCard({
                                     // Update status to completed with timestamp
                                     // CRITICAL: Round completion time to nearest 5-minute mark
                                     const currentTime = new Date();
-                                    const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                                    const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-                                    const roundedHours = Math.floor(roundedMinutes / 60);
-                                    const roundedMins = roundedMinutes % 60;
-
+                                    const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
+                                    let hours, minutes;
+                                    if (shouldRound) {
+                                      const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                                      const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+                                      hours = String(Math.floor(roundedMinutes / 60)).padStart(2, '0');
+                                      minutes = String(roundedMinutes % 60).padStart(2, '0');
+                                    } else {
+                                      hours = String(currentTime.getHours()).padStart(2, '0');
+                                      minutes = String(currentTime.getMinutes()).padStart(2, '0');
+                                    }
                                     const year = currentTime.getFullYear();
                                     const month = String(currentTime.getMonth() + 1).padStart(2, '0');
                                     const day = String(currentTime.getDate()).padStart(2, '0');
-                                    const hours = String(roundedHours).padStart(2, '0');
-                                    const minutes = String(roundedMins).padStart(2, '0');
                                     const seconds = '00';
 
                                     // Get timezone offset in minutes and format as ±HH:MM
