@@ -43,15 +43,17 @@ import {
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
-import { isFirstOrLastStop, generateCompletionTimestamp } from '../utils/timeRoundingHelper'; // <-- Add generateCompletionTimestamp
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
 import { updateDeliveryLocal } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
-import SignatureCapture from './SignatureCapture';
-import PhotoCapture from './PhotoCapture';
 import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
-import { Pen, Camera, Eye } from 'lucide-react';
+
+import { generateCompletionTimestamp } from '../utils/timeRoundingHelper';
+import StopCardCODCollection from './StopCardCODCollection';
+import StopCardConfirmDialogs from './StopCardConfirmDialogs';
+import StopCardPOD from './StopCardPOD';
+import { useDeliveryDisplayInfo } from './StopCardRedaction';
 
 // Global statusConfig
 const statusConfig = {
@@ -391,33 +393,6 @@ export default function StopCard({
 
   const storeColor = useMemo(() => store ? getStoreColor(store) : "#71717A", [store]);
 
-  const displayName = useMemo(() => {
-    if (!delivery) return '';
-    // For InterStore pickups, show the patient name (e.g., "Shoppers Callingwood(ISP)")
-    if (isPickup && isInterStorePickup) {
-      return delivery.patient_name || patient?.full_name || `${store?.name || 'Unknown Store'} Pickup`;
-    }
-    if (isPickup) return `${store?.name || 'Unknown Store'} Pickup`;
-    return patient?.full_name || 'Unknown';
-  }, [delivery, isPickup, isInterStorePickup, store, patient]);
-
-  const displayAddress = useMemo(() => {
-    if (!delivery) return '';
-    if (isPickup) {
-      // Clean buzzer numbers from store pickup addresses
-      return cleanBuzzerFromAddress(store?.address || '');
-    }
-    return formatAddressWithUnit(patient?.address || "", patient?.unit_number || delivery.unit_number || "");
-  }, [delivery, isPickup, store, patient]);
-
-  const displayPhone = useMemo(() => {
-    if (!delivery) return '';
-    if (isPickup) {
-      return store?.phone || '';
-    }
-    return patient?.phone || '';
-  }, [delivery, isPickup, store, patient]);
-
   const routeCompleted = React.useMemo(() => {
     return isRouteCompleted(delivery, allDeliveries, FINISHED_STATUSES, new Date(), "America/Edmonton");
   }, [delivery, allDeliveries]);
@@ -441,57 +416,13 @@ export default function StopCard({
     return false;
   }, [delivery, patient]);
 
-  const shouldRedact = useMemo(() => {
-    if (!delivery || !currentUser) return false;
-    // Never redact regular pickups, InterStore deliveries, or InterStore pickups
-    if (isPickup || isInterStore || isInterStorePickup) return false;
-    // ONLY redact AFTER stop is completed or failed - show info while in progress
-    if ((delivery.status === 'completed' || delivery.status === 'failed') &&
-      !userHasRole(currentUser, 'admin') &&
-      !userHasRole(currentUser, 'dispatcher') &&
-      userHasRole(currentUser, 'driver')) {
-      return true;
-    }
-    return false;
-  }, [delivery?.status, isPickup, isInterStore, isInterStorePickup, currentUser]);
-
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
 
-  const finalDisplayName = useMemo(() => {
-    // InterStore stops (pickups and dropoffs) are store data, never redact
-    if (isInterStore || isInterStorePickup) {
-      return displayName;
-    }
-    if (isStrippedDelivery && !shouldRedact) {
-      if (store?.name) {
-        return `${store.name} ${isPickup ? 'Pickup' : 'Delivery'}`;
-      }
-      return isPickup ? 'Other Store Pickup' : 'Other Store Delivery';
-    }
-    if (!shouldRedact) return displayName;
-    const firstName = patient?.full_name?.split(' ')[0] || '';
-    return firstName + ' *****';
-  }, [isStrippedDelivery, shouldRedact, displayName, patient, isPickup, store, isInterStore, isInterStorePickup]);
+  const { displayName, displayAddress, displayPhone, shouldRedact, finalDisplayName, finalDisplayAddress, finalDisplayPhone } = useDeliveryDisplayInfo({
+    delivery, patient, store, currentUser, isPickup, isInterStore, isInterStorePickup, isStrippedDelivery, isStrippedForDispatcher,
+  });
 
-  const finalDisplayAddress = useMemo(() => {
-    // InterStore stops are store data, never redact
-    if (isInterStore || isInterStorePickup) return displayAddress;
-    if (isStrippedDelivery) return '';
-    if (!shouldRedact) return displayAddress;
-    const firstPart = displayAddress?.split(' ')[0] || '';
-    return firstPart + ' *****';
-  }, [isStrippedDelivery, shouldRedact, displayAddress, isInterStore, isInterStorePickup]);
-
-  const finalDisplayPhone = useMemo(() => {
-    // InterStore stops are store data, never redact
-    if (isInterStore || isInterStorePickup) return displayPhone;
-    if (isStrippedDelivery) return null;
-    if (!shouldRedact) return displayPhone;
-    if (!displayPhone) return null;
-    return `(***) ***-${displayPhone.replace(/\D/g, '').slice(-4)}`;
-  }, [isStrippedDelivery, shouldRedact, displayPhone, isInterStore, isInterStorePickup]);
-
-  // Check if retry/return should be disabled based on duplicate deliveries
+// Check if retry/return should be disabled based on duplicate deliveries
   const shouldDisableRetryReturn = useMemo(() => {
     if (delivery.status !== 'failed' || isPickup || !patient) return false;
     
