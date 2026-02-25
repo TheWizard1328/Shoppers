@@ -75,11 +75,13 @@ Deno.serve(async (req) => {
       let deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
       let payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
       
-      // Filter by year (robust to different date formats)
+      // Filter by year (robust; fallback to actual_delivery_time/arrival_time)
       deliveries = deliveries.filter(d => {
-        if (!d || !d.delivery_date) return false;
-        const parsed = new Date(d.delivery_date);
-        const y = !isNaN(parsed.getTime()) ? parsed.getFullYear() : parseInt(String(d.delivery_date).slice(0, 4), 10);
+        if (!d) return false;
+        const raw = d.delivery_date || (d.actual_delivery_time ? String(d.actual_delivery_time).slice(0,10) : null) || (d.arrival_time ? String(d.arrival_time).slice(0,10) : null);
+        if (!raw) return false;
+        const parsed = new Date(raw);
+        const y = !isNaN(parsed.getTime()) ? parsed.getFullYear() : parseInt(String(raw).slice(0, 4), 10);
         return y === Number(year);
       });
       
@@ -299,8 +301,10 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   const storeMonthlyFees = new Map();
   const storesPayingFeesSet = new Set();
 
-  for (const delivery of deliveries.filter(d => d && d.delivery_date)) {
-    const date = new Date(delivery.delivery_date);
+  for (const delivery of deliveries.filter(d => d && (d.delivery_date || d.actual_delivery_time || d.arrival_time))) {
+    const rawDate = delivery.delivery_date || (delivery.actual_delivery_time ? String(delivery.actual_delivery_time).slice(0,10) : null) || (delivery.arrival_time ? String(delivery.arrival_time).slice(0,10) : null);
+    if (!rawDate) continue;
+    const date = new Date(rawDate);
     const monthIndex = date.getMonth();
     const dayOfMonth = date.getDate();
     const store = delivery.store_id ? storeMap.get(delivery.store_id) : null;
@@ -470,8 +474,10 @@ function calculateEnvelopeMetrics(deliveries, stores) {
   const envelopeRegex = /(\d{1,2})\s*Envelope/i;
 
   for (const delivery of deliveries) {
-    if (!delivery || !delivery.delivery_date || !delivery.store_id) continue;
-    const month = new Date(delivery.delivery_date).getMonth() + 1;
+    if (!delivery || !delivery.store_id) continue;
+    const rawDate = delivery.delivery_date || (delivery.actual_delivery_time ? String(delivery.actual_delivery_time).slice(0,10) : null) || (delivery.arrival_time ? String(delivery.arrival_time).slice(0,10) : null);
+    if (!rawDate) continue;
+    const month = new Date(rawDate).getMonth() + 1;
     const storeId = delivery.store_id;
     if (!envelopeMetrics.byStoreAndMonth[storeId]) envelopeMetrics.byStoreAndMonth[storeId] = {};
     if (!envelopeMetrics.byStoreAndMonth[storeId][month]) {
