@@ -237,8 +237,8 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
           if (!dispatcherStoreIds) return true;
           return dispatcherStoreIds.has(d.store_id);
         };
-        const todayDeliveries = allDeliveries.filter(d => d?.delivery_date === selectedDateStr && filterByStore(d));
-        const monthDeliveries = allDeliveries.filter(d => d?.delivery_date?.startsWith(monthStr) && filterByStore(d));
+        const todayDeliveries = allDeliveries.filter(d => d?.delivery_date === selectedDateStr && filterByStore(d) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
+        const monthDeliveries = allDeliveries.filter(d => d?.delivery_date?.startsWith(monthStr) && filterByStore(d) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
         
         // Calculate today's stats
         const todayPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
