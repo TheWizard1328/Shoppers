@@ -482,7 +482,7 @@ export default function DeliveryFormView({
                     <Plus className="w-4 h-4" />Add
                   </Button>
                 ) : (
-                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); window.dispatchEvent(new CustomEvent('collapseSelectedStopCard')); if (closeOnSave) onCancel(); setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')), 500); }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || !isFormValid || isPatientFormOpen || isFormLockedByPayroll}>
+                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); window.dispatchEvent(new CustomEvent('collapseSelectedStopCard')); if (closeOnSave) onCancel(); window.dispatchEvent(new CustomEvent('refreshDeliveryStats')); }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || !isFormValid || isPatientFormOpen || isFormLockedByPayroll}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
                 )}
