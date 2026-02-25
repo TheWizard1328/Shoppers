@@ -57,9 +57,8 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // Fetch all reference data in parallel (including deliveries)
-      const [rawDeliveries, stores, appUsers, patients, cities, appSettings, rawPayrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000),  // latest first to ensure current-year data
+      // Fetch reference data (excluding deliveries) in parallel
+      const [stores, appUsers, patients, cities, appSettings, rawPayrollRecords] = await Promise.all([
         base44.asServiceRole.entities.Store.list('', 50000),
         base44.asServiceRole.entities.AppUser.list('', 50000),
         base44.asServiceRole.entities.Patient.list('', 50000),
@@ -67,6 +66,23 @@ Deno.serve(async (req) => {
         base44.asServiceRole.entities.AppSettings.list(),
         base44.asServiceRole.entities.Payroll.list('-pay_period_start', 50000)
       ]);
+
+      // Fetch deliveries up to 50,000 PER CITY (via per-store queries)
+      let rawDeliveries = [];
+      if (storeIds && storeIds.length > 0) {
+        const CHUNK_SIZE = 25;
+        for (let i = 0; i < storeIds.length; i += CHUNK_SIZE) {
+          const chunk = storeIds.slice(i, i + CHUNK_SIZE);
+          const chunkResults = await Promise.all(
+            chunk.map(id => base44.asServiceRole.entities.Delivery.filter({ store_id: id }, '-delivery_date', 50000))
+          );
+          for (const arr of chunkResults) {
+            if (Array.isArray(arr)) rawDeliveries.push(...arr);
+          }
+        }
+      } else {
+        rawDeliveries = await base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000);
+      }
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
