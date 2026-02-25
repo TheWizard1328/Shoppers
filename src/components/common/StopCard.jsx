@@ -22,7 +22,7 @@ import { calculateDeliveryPay, formatPay } from '../utils/payCalculator';
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
-import { format as formatDateFns } from "date-fns";
+import StopCardHeader from "./StopCardHeader";
 import {notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn} from "../utils/deliveryMessaging";
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
@@ -931,153 +931,24 @@ export default function StopCard({
                 <GripVertical className="w-5 h-5 text-slate-400 hover:text-slate-600" />
               </div>
             }
-
-            <div className="flex flex-col py-0. gap-0.5  items-center">
-              <Badge
-                variant="secondary" className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 w-[40px] justify-center"
-                style={{
-                  backgroundColor: storeColor || '#10B981',
-                  color: 'white'
-                }}>
-                #{delivery.display_stop_order || delivery.stop_order || 0}
-              </Badge>
-
-              {isPickup && pendingPickups && pendingPickups.length > 0 &&
-                <Badge
-                  variant="secondary" className="bg-purple-500 text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-lg inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 !text-white justify-center">
-
-                  P: {pendingPickups.length}
-                </Badge>
-              }
-
-              <SpecialSymbolsBadges
-                delivery={delivery}
-                patient={patient}
-                isPickup={isPickup}
-                size="card"
-                className="mt-1" />
-
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <h3 className="pt-0 text-2xl md:text-xl font-semibold text-center truncate" style={{ color: 'var(--text-slate-900)' }}>
-                {finalDisplayName}
-              </h3>
-              <div className="flex flex-col items-center min-h-[40px]">
-                <div className="text-lg md:text-sm flex items-center justify-center" style={{ color: 'var(--text-slate-600)' }}>
-                  {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
-                    <>
-                      <Clock className="w-3 h-3" />
-                      <span className="font-medium">{formatTime12Hour(format(new Date(delivery.actual_delivery_time), 'HH:mm'))}</span>
-                    </> :
-
-                    <span className="font-medium">ETA: {formatTime12Hour(
-                      delivery.delivery_time_eta || (
-                        isPickup ? delivery.delivery_time_start : null) ||
-                      delivery.delivery_time_start ||
-                      '--:--'
-                    )}</span>
-                  }
-                  {showDriverName && safeDriver &&
-                    <>
-                      <span className="px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80" style={{ color: 'var(--text-slate-500)' }}>•</span>
-                      <Badge
-                        variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-0.5 rounded-full text-xs !text-white  font-semibold"
-                        style={{ backgroundColor: driverBadgeColor, color: driverBadgeTextColor }}>
-                        {getDriverDisplayName(safeDriver)}
-                      </Badge>
-                    </>
-                  }
-                </div>
-                {/* Time Window - Only for non-finished stops */}
-                {!FINISHED_STATUSES.includes(delivery.status) && (delivery.delivery_time_start || delivery.delivery_time_end) &&
-                  <div className="text-sm md:text-[11px]" style={{ color: 'var(--text-slate-500)' }}>
-                    {delivery.delivery_time_start && delivery.delivery_time_end ?
-                      <>{formatTime12Hour(delivery.delivery_time_start)} → {formatTime12Hour(delivery.delivery_time_end)}</> :
-                      delivery.delivery_time_start ?
-                        <>{formatTime12Hour(delivery.delivery_time_start)} →</> :
-                        delivery.delivery_time_end ?
-                          <>← {formatTime12Hour(delivery.delivery_time_end)}</> :
-                          null}
-                  </div>
-                }
-                {/* Driver Pay for Finished Stops - Drivers and Admins */}
-                {FINISHED_STATUSES.includes(delivery.status) && (
-                  userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) && (
-                  delivery.patient_id || delivery.after_hours_pickup) && (() => {
-                  // For drivers viewing their own deliveries, use their own pay rates
-                  // For admins, use the assigned driver's pay rates
-                  // CRITICAL: delivery.driver_id IS the user_id (auth user ID), NOT AppUser.id
-                  let driverAppUser = null;
-
-                  if (appUsers && appUsers.length > 0) {
-                    if (userHasRole(currentUser, 'admin')) {
-                      // For admin: find AppUser by matching user_id to delivery.driver_id
-                      driverAppUser = appUsers.find((au) => au?.user_id === delivery.driver_id);
-                    } else {
-                      // For driver: find their own AppUser record
-                      driverAppUser = appUsers.find((au) => au?.user_id === currentUser?.id);
-                    }
-                  }
-
-                  // If no appUsers array, try using driver prop if it has pay rates
-                  if (!driverAppUser && driver && driver.pay_rate_per_delivery) {
-                    driverAppUser = driver;
-                  }
-
-                  const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
-                  const baseRate = driverAppUser?.pay_rate_per_delivery || 0;
-                  const isAfterHours = delivery.after_hours_pickup === true;
-                  const hasExtraPay = pay > baseRate && !isAfterHours;
-
-                  // No badge for base pay only
-                  if (!isAfterHours && !hasExtraPay) {
-                    return (
-                      <div className="text-xm font-bold text-emerald-600">
-                        {formatPay(pay)}
-                      </div>);
-
-                  }
-
-                  // Badge for extra pay or after hours
-                  return (
-                    <Badge
-                      variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
-                      {formatPay(pay)}
-                    </Badge>);
-
-                })()}
-              </div>
-            </div>
-
-            <div className="flex flex-col py-0.5 gap-0.5 items-center">
-              <div className="flex items-center gap-1">
-                <Badge
-                  variant="secondary"
-                  className={`text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full hover:bg-secondary/80 border-transparent inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
-                    isReturnDelivery ? 'bg-orange-500' :
-                      delivery.status === 'failed' || delivery.status === 'cancelled' ? 'bg-red-500' : 'bg-emerald-500'}`
-                  }
-                  style={{ color: isPickup && delivery.after_hours_pickup && FINISHED_STATUSES.includes(delivery.status) ? '#3b82f6' : 'white' }}>
-                  {isReturnDelivery ? 'Return' : statusConfig[delivery.status]?.label || delivery.status}
-                </Badge>
-              </div>
-
-              {delivery.tracking_number && store?.abbreviation &&
-                <Badge
-                  variant="secondary" className="bg-secondary text-secondary-foreground mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80"
-                  style={{ backgroundColor: `${storeColor}`, color: `White` }}>
-                  {(() => {
-                    const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
-                    const trackingNum = parseInt(delivery.tracking_number) || 0;
-                    const formattedNum = trackingNum > 99 ?
-                      trackingNum.toString().padStart(3, '0') :
-                      trackingNum.toString().padStart(2, '0');
-                    return `${storeAbbr}${formattedNum}`;
-                  })()}
-                </Badge>
-              }
-            </div>
+            
+            <StopCardHeader
+              delivery={delivery}
+              store={store}
+              patient={patient}
+              isPickup={isPickup}
+              pendingPickups={pendingPickups}
+              storeColor={storeColor}
+              finalDisplayName={finalDisplayName}
+              FINISHED_STATUSES={FINISHED_STATUSES}
+              showDriverName={showDriverName}
+              safeDriver={safeDriver}
+              driverBadgeColor={driverBadgeColor}
+              driverBadgeTextColor={driverBadgeTextColor}
+              currentUser={currentUser}
+              appUsers={appUsers}
+              isReturnDelivery={isReturnDelivery}
+            />
           </div>
 
           {/* Show address/phone: NOT driver-stripped AND NOT dispatcher-stripped, AND (not finished OR expanded) */}
