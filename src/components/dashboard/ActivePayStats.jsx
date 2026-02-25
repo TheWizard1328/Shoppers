@@ -93,9 +93,9 @@ export default function ActivePayStats({
         ? `Completed Deliveries: ${stats.completed}, Completed Pickups: ${stats.completedPickups}`
         : `Completed Stops: ${stats.completed}`,
     failed: `Failed: ${stats.failed}, Returned: ${stats.returned}`,
-    pay: isLoadingPayrollStats ? 'Loading...' : `Total Pay: $${displayPay.toFixed(2)}`,
+    pay: isLoadingPayrollStats ? 'Loading...' : `Total Pay: $${displayPay.toFixed(2)} (excl. N/C)`,
     distance: isLoadingPayrollStats ? 'Loading...' : (liveDistance > 0 ? `Total Distance (Live): ${displayKm.toFixed(2)} km` : `Total Distance: ${displayKm.toFixed(2)} km`),
-    extraKm: isLoadingPayrollStats ? 'Loading...' : `Extra Km (beyond ${extraKmLimit} km limit): ${displayExtraKm.toFixed(2)} km`,
+    extraKm: isLoadingPayrollStats ? 'Loading...' : `Extra Km (beyond ${extraKmLimit} km limit): ${displayExtraKm.toFixed(2)} km (excl. N/C)`,
     time: isLoadingPayrollStats ? 'Loading...' : `Time on Duty: ${displayTime} (first stop to now, minus breaks)`
   };
   

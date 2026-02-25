@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     );
 
     const completedAfterHoursPickups = deliveries.filter(d => 
-      !d.patient_id && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
+      !d.patient_id && d.after_hours_pickup === true && !d.no_charge && (d.status === 'completed' || d.status === 'cancelled')
     );
 
     const completedDeliveries = [...completedPatientDeliveries, ...completedAfterHoursPickups];
