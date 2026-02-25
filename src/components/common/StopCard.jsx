@@ -2904,14 +2904,11 @@ export default function StopCard({
                                     const month = String(currentTime.getMonth() + 1).padStart(2, '0');
                                     const day = String(currentTime.getDate()).padStart(2, '0');
                                     const seconds = '00';
-
-                                    // Get timezone offset in minutes and format as ±HH:MM
                                     const offsetMinutes = -currentTime.getTimezoneOffset();
                                     const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
                                     const offsetMins = Math.abs(offsetMinutes) % 60;
                                     const offsetSign = offsetMinutes >= 0 ? '+' : '-';
                                     const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
-
                                     const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
 
                                     const completionUpdate = {
