@@ -183,7 +183,13 @@ Deno.serve(async (req) => {
         cities: yearData.cities,
         payrollRecords: yearData.payrollRecords,
         driverStats,
-        storeStats
+        storeStats,
+        // minimal counts to aid UI without filtering
+        totals: {
+          deliveries: yearData.deliveries.length,
+          drivers: drivers.length,
+          stores: yearData.stores.length
+        }
       };
       console.log(`✅ PayrollData for ${payrollYear}: ${payrollData.deliveries.length} deliveries, ${payrollData.payrollRecords.length} payroll records, driver stats calculated`);
     }
