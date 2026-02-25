@@ -74,8 +74,13 @@ Deno.serve(async (req) => {
       let deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
       let payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
       
-      // Filter by year
-      deliveries = deliveries.filter(d => d && d.delivery_date && d.delivery_date.startsWith(`${year}`));
+      // Filter by year (robust to different date formats)
+      deliveries = deliveries.filter(d => {
+        if (!d || !d.delivery_date) return false;
+        const parsed = new Date(d.delivery_date);
+        const y = !isNaN(parsed.getTime()) ? parsed.getFullYear() : parseInt(String(d.delivery_date).slice(0, 4), 10);
+        return y === Number(year);
+      });
       
       // Filter by stores if city is specified
       if (storeIds && storeIds.length > 0) {
