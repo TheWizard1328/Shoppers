@@ -211,19 +211,16 @@ export default function StopCard({
       
       if (!appUser) {
         // Fallback to API only if offline DB doesn't have data
-        console.log('📥 [ensureDriverOnline] Offline DB empty - fetching from API');
         const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
         appUser = appUsers?.[0];
         
         // CRITICAL: Always save to offline DB immediately after API fetch
         if (appUsers && appUsers.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
-          console.log(`💾 [ensureDriverOnline] Saved ${appUsers.length} app users to offline DB`);
         }
       }
       
       if (appUser && appUser.driver_status !== 'on_duty') {
-        console.log('🔄 Auto-toggling driver to on_duty');
         await base44.entities.AppUser.update(appUser.id, {
           driver_status: 'on_duty',
           location_tracking_enabled: true
@@ -697,13 +694,9 @@ export default function StopCard({
   const handleSaveCODPayments = async () => {
     if (onCODUpdate) {
       try {
-        console.log('💾 [COD Save] Saving payments:', codPayments);
-        console.log('💾 [COD Save] Current delivery cod_payments:', delivery?.cod_payments);
-
         // Pass skipAutoCenter=true to prevent card scrolling after COD save
         await onCODUpdate(delivery.id, codPayments, true);
 
-        console.log('✅ [COD Save] onCODUpdate completed');
         setShowCODCollection(false);
       } catch (error) {
         console.error('❌ [COD Save] Failed:', error);
@@ -719,14 +712,11 @@ export default function StopCard({
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     
     try {
-      console.log('🟢 [Accept All] PHASE 1: Pausing and transitioning all pending stops...');
       driverLocationPoller.pause();
       smartRefreshManager.pause();
       setIsEntityUpdating(true);
 
       const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
-      console.log(`  Found ${allPendingDeliveries.length} pending deliveries`);
-
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const startMinutes = currentMinutes + 5;
@@ -747,9 +737,7 @@ export default function StopCard({
           tracking_number: String(baseTR + i + 1)
         }, { skipSmartRefresh: true })
       );
-
       await Promise.all(statusUpdatePromises);
-      console.log(`✅ Updated ${allPendingDeliveries.length} deliveries to in_transit with TR#s`);
 
       // Batch Square COD item creation
       const codPromises = allPendingDeliveries
@@ -772,14 +760,9 @@ export default function StopCard({
 
       if (codPromises.length > 0) {
         await Promise.all(codPromises);
-        console.log(`✅ Created ${codPromises.length} Square COD items`);
       }
 
-      console.log('✅ [Accept All] PHASE 1 Complete - All transitions done');
-
       // ═══════════ PHASE 2: SINGLE UI UPDATE ═══════════
-      console.log('🎯 [Accept All] PHASE 2: Single UI update...');
-      
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
       
@@ -790,10 +773,7 @@ export default function StopCard({
         detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
       }));
       
-      console.log('✅ [Accept All] PHASE 2 Complete - UI updated');
-
       // ═══════════ PHASE 3: BACKEND OPTIMIZATION ═══════════
-      console.log('🔄 [Accept All] PHASE 3: Running backend route optimization...');
       window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
         detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
       }));
@@ -805,7 +785,6 @@ export default function StopCard({
           currentLocalTime: currentLocalTime,
           generatePolyline: false
         });
-        console.log('✅ [Accept All] Backend optimization complete');
       } finally {
         // CRITICAL: Mark that optimization is complete - prevents RealTimeRouteOptimizer from re-running
         window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
@@ -814,8 +793,6 @@ export default function StopCard({
       }
 
       // ═══════════ PHASE 4: FINAL UI UPDATE ═══════════
-      console.log('🎯 [Accept All] PHASE 4: Final UI update with optimized route from backend...');
-      
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
       
@@ -829,8 +806,6 @@ export default function StopCard({
         }
       }));
       
-      console.log('✅ [Accept All] All phases complete - data optimized by backend');
-
       // Send notifications
       const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
       if (isDriverAction) {
@@ -901,19 +876,16 @@ export default function StopCard({
       try {
         const now = new Date();
         const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        console.log('🔄 [Return] Running optimizeRouteRealTime...');
         await base44.functions.invoke('optimizeRouteRealTime', {
           driverId: delivery.driver_id,
           deliveryDate: delivery.delivery_date,
           currentLocalTime: currentLocalTime,
           generatePolyline: false
         });
-        console.log('✅ [Return] Route optimized');
 
         // CRITICAL: Refresh UI to show reordered stops
         invalidate('Delivery');
         await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-        console.log('✅ [Return] UI refreshed with new stop order');
       } catch (optimizeError) {
         console.warn('⚠️ [Return] Route optimizer failed:', optimizeError);
       }
@@ -1255,8 +1227,6 @@ export default function StopCard({
               const status = pendingFailureStatus;
 
               try {
-                console.log('🔴 [FAILURE] Starting failure/cancel with reason:', reason);
-
                 setShowFailureReasonDialog(false);
                 setPendingFailureStatus(null);
                 setIsFailing(true);
@@ -1284,12 +1254,6 @@ export default function StopCard({
                 // CRITICAL: Round completion time to nearest 5-minute mark
                 const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
 
-                console.log('📞 [FAILURE] Saving to both databases with status:', status);
-                console.log('📦 [FAILURE] Extra data:', {
-                  delivery_notes: updatedNotes,
-                  actual_delivery_time: localTimeString
-                });
-
                 // CRITICAL: Save to both offline and online databases
                 try {
                   await updateDeliveryLocal(delivery.id, {
@@ -1297,7 +1261,6 @@ export default function StopCard({
                     delivery_notes: updatedNotes,
                     actual_delivery_time: localTimeString
                   }, { skipSmartRefresh: true });
-                  console.log('✅ [FAILURE] Saved to both databases');
 
                   // Also call onStatusUpdate if available for additional UI updates
                   if (onStatusUpdate) {
@@ -1322,7 +1285,6 @@ export default function StopCard({
                 );
 
                 if (incompleteAfterThis.length === 0) {
-                  console.log('🏁 [FAILED/CANCELLED] FINAL STOP - Activating FAB and showing route summary');
                   fabControlEvents.notifyDoneButtonClicked();
                   window.dispatchEvent(new CustomEvent('showRouteSummary', {
                     detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
@@ -1348,19 +1310,16 @@ export default function StopCard({
                 try {
                   const now = new Date();
                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                  console.log('🔄 [Failed/Cancelled] Running optimizeRouteRealTime...');
                   await base44.functions.invoke('optimizeRouteRealTime', {
                     driverId: delivery.driver_id,
                     deliveryDate: delivery.delivery_date,
                     currentLocalTime: currentLocalTime,
                     generatePolyline: false
                   });
-                  console.log('✅ [Failed/Cancelled] Route optimized');
 
                   // CRITICAL: Refresh UI to show reordered stops
                   invalidate('Delivery');
                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                  console.log('✅ [Failed/Cancelled] UI refreshed with new stop order');
 
                   // CRITICAL: Trigger map update
                   window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
@@ -1377,7 +1336,6 @@ export default function StopCard({
                 ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
                 if (incompleteDeliveries.length > 0) {
-                  console.log(`✅ [FAILURE] Setting isNextDelivery=true on ${incompleteDeliveries[0].patient_name || 'Pickup'}`);
                   await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
                   
                   // Final refresh to show isNextDelivery update
@@ -1810,7 +1768,6 @@ export default function StopCard({
                                         try {
                                           const storeForCod = stores.find((s) => s && s.id === projectedDelivery.store_id);
                                           const codAmountDollars = projectedDelivery.cod_total_amount_required;
-                                          console.log('💳 [Square] Creating COD item for single accept:', projectedDelivery.id, 'Amount:', codAmountDollars);
                                           await base44.functions.invoke('squareCreateCodItem', {
                                             deliveryId: projectedDelivery.id,
                                             patientName: projectedDelivery.patient_name,
@@ -1819,7 +1776,6 @@ export default function StopCard({
                                             deliveryDate: projectedDelivery.delivery_date,
                                             storeId: projectedDelivery.store_id
                                           });
-                                          console.log('✅ [Square] COD item created for:', projectedDelivery.patient_name);
                                         } catch (squareError) {
                                           console.error('⚠️ [Square] Failed to create COD item:', squareError);
                                         }
@@ -1963,7 +1919,6 @@ export default function StopCard({
                               fabControlEvents.deactivateFAB();
                               setIsRetrying(true);
                               setIsProcessingBackground(true);
-                              console.log('⏸️ [Retry] Pausing location poller...');
                               const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                               driverLocationPoller.pause();
 
@@ -2012,25 +1967,19 @@ export default function StopCard({
                                 delete retryDelivery.updated_date;
                                 delete retryDelivery.created_by;
 
-                                console.log('🔄 [Retry] Creating duplicate delivery with TR#', nextTR);
                                 const newDelivery = await base44.entities.Delivery.create(retryDelivery);
-                                console.log('✅ [Retry] Duplicate created:', newDelivery.id);
-
                                 try {
                                   const now = new Date();
                                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                  console.log('🔄 [Retry] Running optimizeRouteRealTime...');
                                   await base44.functions.invoke('optimizeRouteRealTime', {
                                     driverId: delivery.driver_id,
                                     deliveryDate: delivery.delivery_date,
                                     currentLocalTime: currentLocalTime,
                                     generatePolyline: false
                                   });
-                                  console.log('✅ [Retry] Route optimized');
 
                                   invalidate('Delivery');
                                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                  console.log('✅ [Retry] UI refreshed with new stop order');
                                 } catch (optimizeError) {
                                   console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
                                 }
@@ -2054,8 +2003,6 @@ export default function StopCard({
 
                                 setIsRetrying(false);
                                 setIsProcessingBackground(false);
-                                console.log('✅ [RETRY] Retry cycle complete');
-
                                 fabControlEvents.reactivateFAB(true);
                               }
                             }}
@@ -2086,7 +2033,6 @@ export default function StopCard({
                               setIsRestarting(true);
                               setIsEntityUpdating(true);
                               setIsProcessingBackground(true);
-                              console.log('⏸️ [Restart] Pausing location poller...');
                               const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                               driverLocationPoller.pause();
 
@@ -2098,8 +2044,6 @@ export default function StopCard({
                                   console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
                                   throw new Error('This delivery has been deleted. Please refresh the page.');
                                 }
-
-                                console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
 
                                 const driverDeliveries = allDeliveries.filter((d) =>
                                   d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
@@ -2122,26 +2066,21 @@ export default function StopCard({
                                 try {
                                   const now = new Date();
                                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                  console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
                                   await base44.functions.invoke('optimizeRouteRealTime', {
                                     driverId: delivery.driver_id,
                                     deliveryDate: delivery.delivery_date,
                                     currentLocalTime: currentLocalTime,
                                     generatePolyline: false
                                   });
-                                  console.log('✅ [Restart Delivery] Route optimized');
 
                                   invalidate('Delivery');
                                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                  console.log('✅ [Restart Delivery] UI refreshed with new stop order');
                                 } catch (optimizeError) {
                                   console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
                                 }
 
                                 invalidate('Delivery');
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                                console.log('✅ [RESTART] Delivery restarted successfully');
 
                                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                                   detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
@@ -2239,7 +2178,6 @@ export default function StopCard({
                                  fabControlEvents.deactivateFAB();
                                  setIsCompleting(true);
                                  setIsProcessingBackground(true);
-                                 console.log('⏸️ [Complete] Pausing location poller...');
                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                                  driverLocationPoller.pause();
 
@@ -2261,7 +2199,6 @@ export default function StopCard({
 
                                     // CRITICAL: Auto-collect COD if required and not already collected
                                     if (hasCODRequired && codPayments.length === 0 && onCODUpdate) {
-                                      console.log('💰 [COMPLETE] Auto-collecting COD:', codTotalRequired);
                                       const autoCODPayment = [{
                                         type: 'Cash',
                                         amount: codTotalRequired
@@ -2272,27 +2209,18 @@ export default function StopCard({
 
                                       // Save COD payment to both databases
                                       await onCODUpdate(delivery.id, autoCODPayment, true);
-                                      console.log('✅ [COMPLETE] COD auto-collected and saved');
                                     }
 
                                     // CRITICAL: For pickups with pending deliveries, trigger Accept All FIRST, then continue to complete pickup
                                     if (isPickup && pendingPickups && pendingPickups.length > 0) {
                                       const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');
                                       if (hasPendingDeliveries) {
-                                        console.log('⚠️ [Complete Pickup] Pending deliveries detected - triggering Accept All logic...');
-                                        await handleAcceptAllStops();
-                                        console.log('✅ [Complete Pickup] Accept All logic completed - now continuing to complete pickup itself...');
-                                        // Continue execution - don't return early
+                                        await handleAcceptAllStops();  // Continue execution - don't return early
                                       }
                                     }
 
                                     // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
-                                    console.log('🎯 [COMPLETE] PHASE 1: Updating UI immediately...');
-
-                                    // Update status to completed with timestamp
-                                    // CRITICAL: Round completion time to nearest 5-minute mark
-                                    const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-
+                                    const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES); // Update status to completed with timestamp
                                     const completionUpdate = {
                                       status: 'completed',
                                       actual_delivery_time: localTimeString,
@@ -2300,12 +2228,8 @@ export default function StopCard({
                                     };
 
                                     // CRITICAL: Save to both offline and online databases
-                                    console.log('💾 [COMPLETE] Saving completion to databases...');
                                     await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
-                                    console.log('✅ [COMPLETE] Saved to databases');
-
                                     // CRITICAL: Re-fetch ALL deliveries to ensure we see the newly transitioned deliveries
-                                    console.log('🔄 [Complete Pickup] Re-fetching ALL deliveries after Accept All...');
                                     const refreshedAfterAccept = await base44.entities.Delivery.filter({
                                       driver_id: delivery.driver_id,
                                       delivery_date: delivery.delivery_date
@@ -2316,15 +2240,11 @@ export default function StopCard({
                                       filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').
                                       sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-                                    console.log(`🎯 [Complete Pickup] Found ${incompleteDeliveries.length} incomplete deliveries`);
                                     if (incompleteDeliveries.length > 0) {
                                       const nextStop = incompleteDeliveries[0];
-                                      console.log(`✅ [Complete Pickup] Setting isNextDelivery=true on ${nextStop.patient_name || 'Pickup'}`);
                                       await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
                                     } else {
                                       // CRITICAL: This is the FINAL stop - activate FAB phase 1 and show route summary
-                                      console.log('🏁 [COMPLETE] FINAL STOP COMPLETED - Activating FAB and showing route summary');
-
                                       // Activate FAB phase 1
                                       fabControlEvents.notifyDoneButtonClicked();
 
@@ -2359,7 +2279,6 @@ export default function StopCard({
                                     }
 
                                     // Force UI refresh with ONLY local data (skip API call)
-                                    console.log('🔄 [COMPLETE] Refreshing UI with local data...');
                                     invalidate('Delivery');
 
                                     // CRITICAL: Use local data only to avoid slow API call
@@ -2374,7 +2293,6 @@ export default function StopCard({
                                        return d;
                                      });
                                      updateDeliveriesLocally(updatedDeliveries, true);
-                                     console.log('✅ [COMPLETE] UI updated with local data');
                                     }
 
                                     // CRITICAL: Trigger map and stop cards update immediately
@@ -2393,18 +2311,13 @@ export default function StopCard({
                                         const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
                                         if (nextCardElement) {
                                           nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                          console.log('📍 [COMPLETE] Scrolled to next delivery card');
                                         }
                                       }, 100);
                                     }
 
                                     // CRITICAL: Reactivate FAB immediately (before background work)
                                     fabControlEvents.reactivateFAB(true);
-
-                                    console.log('✅ [COMPLETE] PHASE 1: UI updated - markers, routes, FAB, and next card centered');
-
                                     // ═══════════ PHASE 2: BACKGROUND TASKS ═══════════
-                                    console.log('🔄 [COMPLETE] PHASE 2: Background tasks starting...');
                                     setIsProcessingBackground(true);
 
                                     // Background: Route optimization (fire and forget - don't wait)
@@ -2415,7 +2328,6 @@ export default function StopCard({
                                        currentLocalTime: format(currentTime, 'HH:mm'),
                                        generatePolyline: false
                                      }).then(() => {
-                                       console.log('✅ [COMPLETE] Background: Route optimized');
                                        window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
                                      }).catch((err) => console.warn('⚠️ [COMPLETE] Background optimization failed:', err)),
 
@@ -2444,7 +2356,6 @@ export default function StopCard({
                                      }).catch((err) => console.warn('Route optimization failed:', err))
                                     ]).finally(() => {
                                      setIsProcessingBackground(false);
-                                     console.log('✅ [COMPLETE] All background tasks complete');
                                     });
 
                                   } catch (error) {
@@ -2481,8 +2392,6 @@ export default function StopCard({
                                 driverLocationPoller.pause();
 
                                 try {
-                                  console.log('🎯 [START] Updating database...');
-
                                   // Get all driver deliveries
                                   const driverDeliveries = allDeliveries.filter((d) =>
                                     d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
@@ -2495,7 +2404,6 @@ export default function StopCard({
 
                                   if (resetPromises.length > 0) {
                                     await Promise.all(resetPromises);
-                                    console.log(`✅ [START] Cleared ${resetPromises.length} old isNextDelivery flags`);
                                   }
 
                                   // Set this delivery as isNextDelivery with status update
@@ -2507,7 +2415,6 @@ export default function StopCard({
                                     status: isPickup ? 'en_route' : 'in_transit',
                                     delivery_time_start: currentLocalTime
                                   }, { skipSmartRefresh: true });
-                                  console.log(`✅ [START] Set isNextDelivery=true on ${delivery.id}`);
 
                                   // Refresh UI
                                   invalidate('Delivery');
@@ -2518,8 +2425,6 @@ export default function StopCard({
                                     detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                                   }));
 
-                                  console.log('✅ [START] Complete');
-
                                   // Background tasks (fire and forget)
                                   Promise.all([
                                     base44.functions.invoke('optimizeRouteRealTime', {
@@ -2528,7 +2433,6 @@ export default function StopCard({
                                       currentLocalTime: currentLocalTime,
                                       generatePolyline: false
                                     }).then(() => {
-                                      console.log('✅ [START] Background: Route optimized');
                                       window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
                                     }),
                                     ensureDriverOnline(),
@@ -2565,7 +2469,6 @@ export default function StopCard({
                             setIsRestarting(true);
                             setIsEntityUpdating(true);
                             setIsProcessingBackground(true);
-                            console.log('⏸️ [Restart] Pausing location poller...');
                             const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                             driverLocationPoller.pause();
 
@@ -2577,8 +2480,6 @@ export default function StopCard({
                                 console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
                                 throw new Error('This delivery has been deleted. Please refresh the page.');
                               }
-                              console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
-
                               const driverDeliveries = allDeliveries.filter((d) =>
                                 d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                               );
@@ -2600,26 +2501,20 @@ export default function StopCard({
                               try {
                                 const now = new Date();
                                 const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
                                 await base44.functions.invoke('optimizeRouteRealTime', {
                                   driverId: delivery.driver_id,
                                   deliveryDate: delivery.delivery_date,
                                   currentLocalTime: currentLocalTime,
                                   generatePolyline: false
                                 });
-                                console.log('✅ [Restart Delivery] Route optimized');
-
                                 invalidate('Delivery');
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                console.log('✅ [Restart Delivery] UI refreshed with new stop order');
                               } catch (optimizeError) {
                                 console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
                               }
 
                               invalidate('Delivery');
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                              console.log('✅ [RESTART] Delivery restarted successfully');
 
                               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                                 detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
