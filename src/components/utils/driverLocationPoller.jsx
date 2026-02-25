@@ -136,8 +136,23 @@ class DriverLocationPoller {
    // Update internal current user reference
    this.currentUser = currentUser;
 
-   // Use provided appUsers directly
-   let usersData = appUsers;
+   // Use provided appUsers directly, but guard against stale offline overwrites by preferring newest timestamps
+   let usersData = appUsers?.slice?.() || [];
+
+   // Last-write-wins: if duplicates by id exist with different timestamps, keep the freshest
+   const byId = new Map();
+   const ts = (u) => {
+     const t = u?.location_updated_at || u?.updated_date || u?.created_date;
+     return t ? new Date(t).getTime() : 0;
+   };
+   for (const u of usersData) {
+     if (!u || !u.id) continue;
+     const cur = byId.get(u.id);
+     if (!cur || ts(u) >= ts(cur)) {
+       byId.set(u.id, u);
+     }
+   }
+   usersData = Array.from(byId.values());
 
     // Process location data silently
 
