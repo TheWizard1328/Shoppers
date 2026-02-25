@@ -60,13 +60,13 @@ Deno.serve(async (req) => {
       // Fetch all reference data in parallel
       // Note: Using list() with limit to get all deliveries; filter() returns a string buffer
       const [rawDeliveries, stores, appUsers, patients, cities, appSettings, rawPayrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.list('', 50000),  // increased to 50,000
+        base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000),  // latest first to ensure current-year data
         base44.asServiceRole.entities.Store.list('', 50000),
         base44.asServiceRole.entities.AppUser.list('', 50000),
         base44.asServiceRole.entities.Patient.list('', 50000),
         base44.asServiceRole.entities.City.list('', 50000),
         base44.asServiceRole.entities.AppSettings.list(),
-        base44.asServiceRole.entities.Payroll.list('', 50000)
+        base44.asServiceRole.entities.Payroll.list('-pay_period_start', 50000) // latest first to ensure current-year data
       ]);
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
