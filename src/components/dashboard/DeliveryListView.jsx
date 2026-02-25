@@ -204,7 +204,7 @@ const DeliveryListView = ({
           </div>
         ) : (
           <>
-            {deliveries.map((delivery) => {
+            {deliveries.map((delivery, idx) => {
               if (!delivery) return null;
 
               const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
@@ -212,7 +212,7 @@ const DeliveryListView = ({
 
               return (
                 <DeliveryRow
-                  key={delivery.id}
+                  key={delivery.id || `${delivery.delivery_date||'unknown'}-${delivery.patient_id ?? 'pickup'}-${delivery.store_id ?? 'store'}-${delivery.tracking_number || idx}` }
                   delivery={delivery}
                   patient={patient}
                   store={store}

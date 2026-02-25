@@ -3326,7 +3326,7 @@ export default function DeliveriesPage() {
               <div className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center" style={{ maxHeight: 'calc(100vh - 280px)' }}>
                 {deliveriesToRender.map((delivery, index) =>
               <StopCard
-                key={delivery.id}
+                key={delivery.id || `${delivery.delivery_date||'unknown'}-${delivery.patient_id ?? 'pickup'}-${delivery.store_id ?? 'store'}-${delivery.tracking_number || index}` }
                 delivery={delivery}
                 patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
                 store={(stores || []).find((s) => s && s.id === delivery.store_id)}
