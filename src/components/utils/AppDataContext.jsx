@@ -70,6 +70,7 @@ export const AppDataProvider = ({ children, value }) => {
           
           // CRITICAL: Update appUsers array in context for instant UI updates
           if (updateAppUsersLocallyRef.current) {
+            // Merge-safe: prefer fresher timestamps to avoid stale flips from cache/offline
             updateAppUsersLocallyRef.current([data], false);
           }
           
