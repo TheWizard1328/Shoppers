@@ -43,7 +43,7 @@ import {
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
-import { isFirstOrLastStop } from '../utils/timeRoundingHelper';
+import { isFirstOrLastStop, generateCompletionTimestamp } from '../utils/timeRoundingHelper'; // <-- Add generateCompletionTimestamp
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
 import { updateDeliveryLocal } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
@@ -1601,28 +1601,7 @@ export default function StopCard({
                   `[${status.toUpperCase()}] ${reason}`;
 
                 // CRITICAL: Round completion time to nearest 5-minute mark
-                const currentTime = new Date();
-                const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
-                let hours, minutes;
-                if (shouldRound) {
-                  const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                  const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-                  hours = String(Math.floor(roundedMinutes / 60)).padStart(2, '0');
-                  minutes = String(roundedMinutes % 60).padStart(2, '0');
-                } else {
-                  hours = String(currentTime.getHours()).padStart(2, '0');
-                  minutes = String(currentTime.getMinutes()).padStart(2, '0');
-                }
-                const year = currentTime.getFullYear();
-                const month = String(currentTime.getMonth() + 1).padStart(2, '0');
-                const day = String(currentTime.getDate()).padStart(2, '0');
-                const seconds = '00';
-                const offsetMinutes = -currentTime.getTimezoneOffset();
-                const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
-                const offsetMins = Math.abs(offsetMinutes) % 60;
-                const offsetSign = offsetMinutes >= 0 ? '+' : '-';
-                const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
-                const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
+                const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
 
                 console.log('📞 [FAILURE] Saving to both databases with status:', status);
                 console.log('📦 [FAILURE] Extra data:', {
@@ -2002,29 +1981,8 @@ export default function StopCard({
                                   setShowCODCollection(false);
                                   
                                   // Auto-complete the delivery
-                                  const currentTime = new Date();
-                                  const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
-                                  let hours, minutes;
-                                  if (shouldRound) {
-                                    const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                                    const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-                                    hours = String(Math.floor(roundedMinutes / 60)).padStart(2, '0');
-                                    minutes = String(roundedMinutes % 60).padStart(2, '0');
-                                  } else {
-                                    hours = String(currentTime.getHours()).padStart(2, '0');
-                                    minutes = String(currentTime.getMinutes()).padStart(2, '0');
-                                  }
-                                  const year = currentTime.getFullYear();
-                                  const month = String(currentTime.getMonth() + 1).padStart(2, '0');
-                                  const day = String(currentTime.getDate()).padStart(2, '0');
-                                  const seconds = '00';
-                                  const offsetMinutes = -currentTime.getTimezoneOffset();
-                                  const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
-                                  const offsetMins = Math.abs(offsetMinutes) % 60;
-                                  const offsetSign = offsetMinutes >= 0 ? '+' : '-';
-                                  const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
-                                  const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
-                                  
+                                  const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
+
                                   await updateDeliveryLocal(delivery.id, {
                                     status: 'completed',
                                     actual_delivery_time: localTimeString,
@@ -2888,28 +2846,7 @@ export default function StopCard({
 
                                     // Update status to completed with timestamp
                                     // CRITICAL: Round completion time to nearest 5-minute mark
-                                    const currentTime = new Date();
-                                    const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
-                                    let hours, minutes;
-                                    if (shouldRound) {
-                                      const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                                      const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-                                      hours = String(Math.floor(roundedMinutes / 60)).padStart(2, '0');
-                                      minutes = String(roundedMinutes % 60).padStart(2, '0');
-                                    } else {
-                                      hours = String(currentTime.getHours()).padStart(2, '0');
-                                      minutes = String(currentTime.getMinutes()).padStart(2, '0');
-                                    }
-                                    const year = currentTime.getFullYear();
-                                    const month = String(currentTime.getMonth() + 1).padStart(2, '0');
-                                    const day = String(currentTime.getDate()).padStart(2, '0');
-                                    const seconds = '00';
-                                    const offsetMinutes = -currentTime.getTimezoneOffset();
-                                    const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
-                                    const offsetMins = Math.abs(offsetMinutes) % 60;
-                                    const offsetSign = offsetMinutes >= 0 ? '+' : '-';
-                                    const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
-                                    const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
+                                    const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
 
                                     const completionUpdate = {
                                       status: 'completed',
