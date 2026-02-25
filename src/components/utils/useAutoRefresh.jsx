@@ -33,7 +33,8 @@ export const useAutoRefresh = (refreshFunction, interval = 300000, paused = fals
       backoffTime.current = 0;
     } catch (error) {
       if (error.response?.status === 429 || error.message?.includes('429')) {
-        backoffTime.current = Math.min(backoffTime.current * 2 || 120000, 600000);
+        // Exponential pattern: 1m → 2m → 5m (cap)
+        backoffTime.current = backoffTime.current === 0 ? 60000 : (backoffTime.current === 60000 ? 120000 : 300000);
         console.warn(`Rate limit hit, backing off for ${backoffTime.current}ms`);
       }
       console.error('Refresh failed:', error);

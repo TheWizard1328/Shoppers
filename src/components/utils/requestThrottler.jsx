@@ -16,7 +16,7 @@ const THROTTLE_DELAYS = {
 };
 
 const BATCH_COOLDOWN = 1000; // Delay between different batch types
-const RATE_LIMIT_BACKOFF = 60000; // 60 seconds when rate limited
+let RATE_LIMIT_BACKOFF_MS = 60000; // starts at 1m (exponential: 1m -> 2m -> 5m)
 
 let requestQueue = [];
 let isProcessing = false;
@@ -70,7 +70,7 @@ export const requestThrottler = {
       if (isRateLimited && Date.now() < rateLimitUntil) {
         const waitTime = rateLimitUntil - Date.now();
         console.warn(`⏰ [RequestThrottler] Rate limited - waiting ${(waitTime / 1000).toFixed(1)}s`);
-        await new Promise(r => setTimeout(r, Math.min(waitTime + 1000, RATE_LIMIT_BACKOFF)));
+        await new Promise(r => setTimeout(r, waitTime + 1000));
         isRateLimited = false;
       }
       
@@ -97,14 +97,19 @@ export const requestThrottler = {
         const result = await request.fn();
         request.resolve(result);
         
+        // Reset backoff on success
+        RATE_LIMIT_BACKOFF_MS = 60000;
+        
         // Small delay between requests in same priority
         await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
       } catch (error) {
         // Check if rate limited
         if (error.response?.status === 429 || error.message?.includes('Rate limit')) {
           isRateLimited = true;
-          rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF;
-          console.warn(`⚠️ [RequestThrottler] Rate limit detected - backing off for ${RATE_LIMIT_BACKOFF / 1000}s`);
+          rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+          console.warn(`⚠️ [RequestThrottler] Rate limit detected - backing off for ${Math.round(RATE_LIMIT_BACKOFF_MS / 1000)}s`);
+          // Exponential backoff progression: 1m -> 2m -> 5m
+          RATE_LIMIT_BACKOFF_MS = RATE_LIMIT_BACKOFF_MS === 60000 ? 120000 : 300000;
           
           // Re-queue the request
           requestQueue.unshift(request);
