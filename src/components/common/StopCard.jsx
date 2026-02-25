@@ -1776,6 +1776,17 @@ export default function StopCard({
                                   // Set this delivery as isNextDelivery with status update
                                   const now = new Date();
                                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                                  // Backend safety: clear all other isNextDelivery=true for this driver/date, then set current
+                                  try {
+                                    await base44.functions.invoke('setNextDeliveryFlag', {
+                                      driverId: delivery.driver_id,
+                                      deliveryDate: delivery.delivery_date,
+                                      targetDeliveryId: delivery.id
+                                    });
+                                  } catch (e) {
+                                    console.warn('setNextDeliveryFlag failed, continuing with local update:', e);
+                                  }
                                   
                                   await updateDeliveryLocal(delivery.id, {
                                     isNextDelivery: true,
