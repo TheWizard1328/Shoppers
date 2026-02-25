@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       // Build optional store filter when a city is selected
       let storeIds = null;
       if (cityId && cityId !== 'all') {
-        const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
+        const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId }, '', 50000);
         storeIds = cityStores.map(s => s.id);
       }
 
