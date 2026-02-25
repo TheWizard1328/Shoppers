@@ -697,28 +697,20 @@ export default function StopCard({
       );
       await Promise.all(statusUpdatePromises);
 
-      // Batch Square COD item creation
-      const codPromises = allPendingDeliveries
+      // Prepare Square COD batch for gentle backend processing
+      const codBatch = allPendingDeliveries
         .filter(pd => pd.cod_total_amount_required > 0 && pd.patient_id)
-        .map(async (pendingDelivery) => {
-          try {
-            const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
-            await base44.functions.invoke('squareCreateCodItem', {
-              deliveryId: pendingDelivery.id,
-              patientName: pendingDelivery.patient_name,
-              storeAbbreviation: storeForCod?.abbreviation || '',
-              codAmount: pendingDelivery.cod_total_amount_required,
-              deliveryDate: pendingDelivery.delivery_date,
-              storeId: pendingDelivery.store_id
-            });
-          } catch (squareError) {
-            console.error('⚠️ [Square] Failed to create COD item:', squareError);
-          }
+        .map((pendingDelivery) => {
+          const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
+          return {
+            deliveryId: pendingDelivery.id,
+            patientName: pendingDelivery.patient_name,
+            storeAbbreviation: storeForCod?.abbreviation || '',
+            codAmount: pendingDelivery.cod_total_amount_required,
+            deliveryDate: pendingDelivery.delivery_date,
+            storeId: pendingDelivery.store_id
+          };
         });
-
-      if (codPromises.length > 0) {
-        await Promise.all(codPromises);
-      }
 
       // ═══════════ PHASE 2: SINGLE UI UPDATE ═══════════
       invalidate('Delivery');
@@ -753,7 +745,13 @@ export default function StopCard({
       // ═══════════ PHASE 4: FINAL UI UPDATE ═══════════
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-      
+
+      // Kick off gentle Square COD creation in backend (fire-and-forget)
+      if (typeof codBatch !== 'undefined' && codBatch.length > 0) {
+        base44.functions.invoke('syncSquareCods', { items: codBatch })
+          .catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
+      }
+
       // CRITICAL: Dispatch event with flag indicating data is already optimized
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { 
