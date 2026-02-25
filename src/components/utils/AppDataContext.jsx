@@ -139,8 +139,8 @@ export const AppDataProvider = ({ children, value }) => {
           value.updateDeliveriesLocally([...other, ...offlineDeliveries], true);
         }
         // Push offline app users (best effort)
-        if (Array.isArray(offlineAppUsers) && offlineAppUsers.length > 0 && value.updateAppUsersLocally) {
-          try { value.updateAppUsersLocally(offlineAppUsers, true); } catch (_) { value.updateAppUsersLocally(offlineAppUsers); }
+        if (Array.isArray(offlineAppUsers) && offlineAppUsers.length > 0) {
+          wrappedUpdateAppUsersLocally(offlineAppUsers, true);
         }
 
         // 2) If offline missing or stale, fetch ONLINE progressively and persist
@@ -160,9 +160,10 @@ export const AppDataProvider = ({ children, value }) => {
             const other2 = (value.deliveries || []).filter(d => d && d.delivery_date !== selectedDate);
             value.updateDeliveriesLocally([...other2, ...onlineDeliveries], true);
           }
-          if (onlineAppUsers && onlineAppUsers.length > 0 && value.updateAppUsersLocally) {
+          if (onlineAppUsers && onlineAppUsers.length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, onlineAppUsers);
-            try { value.updateAppUsersLocally(onlineAppUsers, true); } catch (_) { value.updateAppUsersLocally(onlineAppUsers); }
+            await offlineDB.deduplicateAppUsers();
+            wrappedUpdateAppUsersLocally(onlineAppUsers, true);
           }
         }
       } catch (e) {
@@ -192,6 +193,46 @@ export const AppDataProvider = ({ children, value }) => {
       
       // Call the original function with isFullReplacement flag
       value.updateDeliveriesLocally(updates, isFullReplacement);
+    }
+  };
+
+  // Wrap updateAppUsersLocally with staleness-aware merge to prevent location "flapping"
+  const wrappedUpdateAppUsersLocally = (updates, isFullReplacement = false) => {
+    const incoming = Array.isArray(updates) ? updates : [];
+    const existing = appUsersRef.current || value.appUsers || [];
+
+    const parseTime = (t) => {
+      if (!t) return 0;
+      const n = Date.parse(t);
+      return isNaN(n) ? 0 : n;
+    };
+
+    const byId = new Map();
+    existing.forEach(u => { if (u?.id) byId.set(u.id, u); });
+
+    incoming.forEach(u => {
+      if (!u?.id) return;
+      const prev = byId.get(u.id);
+      if (!prev) { byId.set(u.id, u); return; }
+
+      const prevLocTs = parseTime(prev.location_updated_at);
+      const nextLocTs = parseTime(u.location_updated_at);
+      const prevUpd = parseTime(prev.updated_date);
+      const nextUpd = parseTime(u.updated_date);
+      const isNextFresher = (nextLocTs || nextUpd) > (prevLocTs || prevUpd);
+
+      if (isNextFresher) {
+        byId.set(u.id, { ...prev, ...u });
+      } else {
+        // Keep previous coords/timestamps if incoming is older
+        const { current_latitude, current_longitude, location_updated_at, ...restIncoming } = u;
+        byId.set(u.id, { ...restIncoming, ...prev });
+      }
+    });
+
+    const merged = Array.from(byId.values());
+    if (value.updateAppUsersLocally) {
+      value.updateAppUsersLocally(merged, true);
     }
   };
   
@@ -245,9 +286,15 @@ export const AppDataProvider = ({ children, value }) => {
     }
   };
   
+  // Ensure the AppUsers updater ref points to our wrapper to avoid stale merges
+  useEffect(() => {
+    updateAppUsersLocallyRef.current = wrappedUpdateAppUsersLocally;
+  }, [value.updateAppUsersLocally, value.appUsers]);
+
   const wrappedValue = {
     ...value,
     updateDeliveriesLocally: wrappedUpdateDeliveriesLocally,
+    updateAppUsersLocally: wrappedUpdateAppUsersLocally,
     forceRefreshDriverDeliveries,
     onSelectedDateDataReady: value.onSelectedDateDataReady,
     setOnSelectedDateDataReady: value.setOnSelectedDateDataReady
