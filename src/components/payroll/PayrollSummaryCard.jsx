@@ -1,0 +1,1 @@
+<copied from components/payroll/PayrollSummaryCard>
