@@ -2017,6 +2017,7 @@ export default function StopCard({
                                   const year = currentTime.getFullYear();
                                   const month = String(currentTime.getMonth() + 1).padStart(2, '0');
                                   const day = String(currentTime.getDate()).padStart(2, '0');
+                                  const seconds = '00';
                                   const offsetMinutes = -currentTime.getTimezoneOffset();
                                   const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
                                   const offsetMins = Math.abs(offsetMinutes) % 60;
