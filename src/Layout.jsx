@@ -3927,7 +3927,7 @@ export default function Layout({ children, currentPageName }) {
                         </div>
                         <QuickStats
                         currentUser={currentUser}
-                        storeIds={stores.map((s) => s?.id).filter(Boolean)}
+                        storeIds={stores.filter(s => s && s.city_id === globalFilters.getSelectedCityId()).map(s => s.id)}
                         isMobile={isMobile}
                         screenWidth={screenWidth} />
 
