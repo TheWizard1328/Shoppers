@@ -232,11 +232,7 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
         const dispatcherStoreIds = isDispatcher ? new Set(currentUser.store_ids || []) : null;
 
         // Filter deliveries for today and month, scoped to dispatcher's stores if applicable
-        const filterByStore = (d) => {
-          if (!d) return false;
-          if (!dispatcherStoreIds) return true;
-          return dispatcherStoreIds.has(d.store_id);
-        };
+        const filterByStore = (d) => { if (!d) return false; if (dispatcherStoreIds) return dispatcherStoreIds.has(d.store_id); if (Array.isArray(storeIds) && storeIds.length > 0) return storeIds.includes(d.store_id); return true; };
         const todayDeliveries = allDeliveries.filter(d => d?.delivery_date === selectedDateStr && filterByStore(d) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
         const monthDeliveries = allDeliveries.filter(d => d?.delivery_date?.startsWith(monthStr) && filterByStore(d) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
         
