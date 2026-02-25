@@ -44,6 +44,8 @@ Deno.serve(async (req) => {
                 type: 'ITEM',
                 id: `#${idempotencyKey}`,
                 item_data: {
+                  present_at_all_locations: false,
+                  present_at_location_ids: [SQUARE_LOCATION_ID],
                   name: itemName,
                   description: `COD for ${item.patientName || 'Patient'} | Delivery ${item.deliveryId}`,
                   variations: [
