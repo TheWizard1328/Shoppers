@@ -8,13 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from
 "@/components/ui/select";
 import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox } from "lucide-react";
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
@@ -29,17 +23,7 @@ import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
 import { format as formatDateFns } from "date-fns";
-import {
-  notifyDriverAcceptedAll,
-  notifyDriverAcceptedOne,
-  notifyDispatcherAssignedAll,
-  notifyDriverStarted,
-  notifyDriverCompleted,
-  notifyDriverFailed,
-  notifyDriverRetry,
-  notifyDriverReturn
-} from
-"../utils/deliveryMessaging";
+import {notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn} from "../utils/deliveryMessaging";
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
@@ -48,7 +32,6 @@ import { updateDeliveryLocal } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
-
 import { generateCompletionTimestamp } from '../utils/timeRoundingHelper';
 import StopCardCODCollection from './StopCardCODCollection';
 import StopCardConfirmDialogs from './StopCardConfirmDialogs';
@@ -104,43 +87,19 @@ const formatTime12Hour = (timeString) => {
 };
 
 export default function StopCard({
-  delivery,
-  store,
-  driver,
-  patients = [],
-  currentUser,
-  isExpanded: externalIsExpanded,
-  showDriverName = false,
-  onStatusUpdate,
-  onNotesUpdate,
-  onEditDelivery,
-  onDeleteDelivery,
-  onRestart,
-  allDeliveries = [],
-  selectedDate,
-  onEditPatient,
-  drivers = [],
-  onDriverChange,
-  canEdit = false,
-  getDriverColor,
-  onClick,
-  isSelected,
-  isProjected = false,
-  pendingPickups = [],
-  onSelectionChange,
-  selectedDeliveryIds = [],
-  stopOrder = {},
-  onCODUpdate,
-  stores = [],
-  onCreateReturn,
-  onStartDelivery,
-  allStopsPending = false,
-  onDriverStatusChange,
-  appUsers = [],
-  showDragHandle = false,
-  dragHandleProps,
-  compact = false
-}) {
+  delivery, store, driver, patients = [],
+  currentUser, isExpanded: externalIsExpanded,
+  showDriverName = false, onStatusUpdate,
+  onNotesUpdate, onEditDelivery, onDeleteDelivery,
+  onRestart, allDeliveries = [], selectedDate,
+  onEditPatient, drivers = [], onDriverChange,
+  canEdit = false, getDriverColor, onClick,
+  isSelected, isProjected = false, pendingPickups = [],
+  onSelectionChange, selectedDeliveryIds = [], stopOrder = {},
+  onCODUpdate, stores = [], onCreateReturn, onStartDelivery,
+  allStopsPending = false, onDriverStatusChange, appUsers = [],
+  showDragHandle = false, dragHandleProps, compact = false}) 
+{
   // CRITICAL: Use delivery.isNextDelivery from the entity, not the prop
   const isNextDelivery = delivery?.isNextDelivery || false;
   // CRITICAL FIX: ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP
@@ -510,10 +469,8 @@ export default function StopCard({
           futureReturnExists = true;
         }
       }
-
       if (futureRetryExists && futureReturnExists && completedDeliveryExists) break;
     }
-
     return { hasFutureRetry: futureRetryExists, hasFutureReturn: futureReturnExists, hasCompletedDelivery: completedDeliveryExists };
   }, [delivery, allDeliveries, patient, isPickup, patients]);
 
@@ -2523,10 +2480,7 @@ export default function StopCard({
                               if (userHasRole(currentUser, 'driver')) {
                                 await notifyDriverRetry({
                                   driver: currentUser,
-                                  patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                  delivery,
-                                  store,
-                                  appUsers
+                                  patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers
                                 });
                               }
                             } finally {
