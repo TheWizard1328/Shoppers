@@ -233,8 +233,8 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
 
         // Filter deliveries for today and month, scoped to dispatcher's stores if applicable
         const filterByStore = (d) => { if (!d) return false; if (dispatcherStoreIds) return dispatcherStoreIds.has(d.store_id); if (Array.isArray(storeIds) && storeIds.length > 0) return storeIds.includes(d.store_id); return true; };
-        const todayDeliveries = allDeliveries.filter(d => d?.delivery_date === selectedDateStr && filterByStore(d) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
-        const monthDeliveries = allDeliveries.filter(d => d?.delivery_date?.startsWith(monthStr) && filterByStore(d) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
+        const todayDeliveries = allDeliveries.filter(d => d?.delivery_date === selectedDateStr && filterByStore(d) && (selectedDriverId === 'all' || d?.driver_id === selectedDriverId) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
+        const monthDeliveries = allDeliveries.filter(d => d?.delivery_date?.startsWith(monthStr) && filterByStore(d) && (selectedDriverId === 'all' || d?.driver_id === selectedDriverId) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
         
         // Calculate today's stats
         const todayPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
