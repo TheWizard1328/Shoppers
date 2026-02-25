@@ -68,11 +68,8 @@ export const AppDataProvider = ({ children, value }) => {
           const coords = `${data.current_latitude?.toFixed(6)}, ${data.current_longitude?.toFixed(6)}`;
           console.log(`🔔 [AppDataContext] AppUser ${eventType} via realtime - user: ${data.user_name}, coords: ${coords}`);
           
-          // CRITICAL: Update appUsers array in context for instant UI updates
-          if (updateAppUsersLocallyRef.current) {
-            // Merge-safe: prefer fresher timestamps to avoid stale flips from cache/offline
-            updateAppUsersLocallyRef.current([data], false);
-          }
+          // Merge-safe update to avoid stale flips from cache/offline
+          wrappedUpdateAppUsersLocally([data], false);
           
           // CRITICAL: Merge this update with existing appUsers before dispatching
           const currentAppUsers = appUsersRef.current || [];
