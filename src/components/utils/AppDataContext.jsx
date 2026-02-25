@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { smartRefreshManager } from './smartRefreshManager';
 import { base44 } from '@/api/base44Client';
 import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
@@ -14,6 +14,10 @@ export const AppDataProvider = ({ children, value }) => {
   const updateAppUsersLocallyRef = useRef(value.updateAppUsersLocally);
   const deliveriesRef = useRef(value.deliveries);
   const appUsersRef = useRef(value.appUsers);
+  
+  // Track boot sync per city/date and syncing banner state
+  const bootKeyRef = useRef('');
+  const [isProgressiveSyncing, setIsProgressiveSyncing] = useState(false);
 
   // Keep refs in sync with latest values
   useEffect(() => { updateDeliveriesLocallyRef.current = value.updateDeliveriesLocally; }, [value.updateDeliveriesLocally]);
@@ -104,6 +108,74 @@ export const AppDataProvider = ({ children, value }) => {
   // Using refs above ensures callbacks always see latest data without triggering re-subscriptions
   }, [value.currentUser?.id, value.selectedCityId, value.selectedDate]);
   
+  // Offline-first boot for selected date/city
+  useEffect(() => {
+    const selectedDate = value.selectedDate;
+    const selectedCityId = value.selectedCityId;
+    if (!value.currentUser || !selectedDate) return;
+
+    const key = `${selectedCityId || 'all'}|${selectedDate}`;
+    // Avoid rerunning for the same key during this session
+    if (bootKeyRef.current === key) return;
+    bootKeyRef.current = key;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsProgressiveSyncing(true);
+        const { offlineDB } = await import('./offlineDatabase');
+
+        // 1) Load OFFLINE first in parallel
+        const [offlineDeliveries, offlineAppUsers] = await Promise.all([
+          offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate),
+          offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => [])
+        ]);
+
+        if (cancelled) return;
+
+        // Push offline deliveries to UI immediately (merge by date)
+        if (Array.isArray(offlineDeliveries) && offlineDeliveries.length > 0 && value.updateDeliveriesLocally) {
+          const other = (value.deliveries || []).filter(d => d && d.delivery_date !== selectedDate);
+          value.updateDeliveriesLocally([...other, ...offlineDeliveries], true);
+        }
+        // Push offline app users (best effort)
+        if (Array.isArray(offlineAppUsers) && offlineAppUsers.length > 0 && value.updateAppUsersLocally) {
+          try { value.updateAppUsersLocally(offlineAppUsers, true); } catch (_) { value.updateAppUsersLocally(offlineAppUsers); }
+        }
+
+        // 2) If offline missing or stale, fetch ONLINE progressively and persist
+        const needsOnline = !offlineDeliveries || offlineDeliveries.length === 0;
+        if (needsOnline) {
+          const [onlineDeliveries, onlineAppUsers] = await Promise.all([
+            // Minimal online pull scoped by date to reduce rate limits
+            base44.entities.Delivery.filter({ delivery_date: selectedDate }),
+            base44.entities.AppUser.list().catch(() => [])
+          ]);
+
+          if (cancelled) return;
+
+          // Save to offline and refresh UI once
+          if (onlineDeliveries && onlineDeliveries.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveries);
+            const other2 = (value.deliveries || []).filter(d => d && d.delivery_date !== selectedDate);
+            value.updateDeliveriesLocally([...other2, ...onlineDeliveries], true);
+          }
+          if (onlineAppUsers && onlineAppUsers.length > 0 && value.updateAppUsersLocally) {
+            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, onlineAppUsers);
+            try { value.updateAppUsersLocally(onlineAppUsers, true); } catch (_) { value.updateAppUsersLocally(onlineAppUsers); }
+          }
+        }
+      } catch (e) {
+        console.warn('Offline-first boot failed (continuing):', e);
+      } finally {
+        if (!cancelled) setIsProgressiveSyncing(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // Only react to these keys
+  }, [value.currentUser?.id, value.selectedCityId, value.selectedDate]);
+  
   // Wrap updateDeliveriesLocally to register pending updates with driver/date context
   const wrappedUpdateDeliveriesLocally = (updates, isFullReplacement = false) => {
     if (value.updateDeliveriesLocally) {
@@ -183,6 +255,11 @@ export const AppDataProvider = ({ children, value }) => {
   
   return (
     <AppDataContext.Provider value={wrappedValue}>
+      {isProgressiveSyncing && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[9999] rounded-full bg-slate-900/90 text-white text-xs px-3 py-1 shadow">
+          Syncing…
+        </div>
+      )}
       {children}
     </AppDataContext.Provider>
   );
