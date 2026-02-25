@@ -21,6 +21,7 @@ export default function StopCardPOD({
   showPhotoCapture,
   setShowPhotoCapture,
   forceRefreshDriverDeliveries,
+  showButtons = true,
 }) {
   const handleSignatureSave = async (signatureBlob) => {
     try {
@@ -98,7 +99,90 @@ export default function StopCardPOD({
           maxPhotos={3} />
       }
 
-      {/* POD buttons now only in footer; duplicate removed */}
+      {/* POD Buttons - Only for non-pickup, non-finished or completed with proof (shown when showButtons=true) */}
+      {showButtons && !isPickup && (
+        <div className="flex items-center gap-2">
+          {/* Signature Button */}
+          {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.signature_image_url)) && (
+            <div className="flex items-center">
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (delivery.status === 'completed' && delivery.signature_image_url) {
+                    setViewingImageUrl(delivery.signature_image_url);
+                  } else {
+                    setShowSignatureCapture(true);
+                  }
+                }}
+                size="sm"
+                variant="outline"
+                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.signature_image_url ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
+              >
+                {delivery.status === 'completed' && delivery.signature_image_url ? (
+                  <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
+                ) : (
+                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-600'}`} />
+                )}
+              </Button>
+              {delivery.signature_image_url && delivery.status !== 'completed' && (
+                <Button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await base44.entities.Delivery.update(delivery.id, { signature_image_url: null });
+                    invalidate('Delivery');
+                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="h-10 md:h-8 w-6 p-0 bg-red-50 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none"
+                >
+                  <X className="w-3 h-3 text-red-500" />
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Photo Button */}
+          {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0)) && (
+            <div className="flex items-center">
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0) {
+                    setViewingImageUrl(delivery.proof_photo_urls[0]);
+                  } else {
+                    setShowPhotoCapture(true);
+                  }
+                }}
+                size="sm"
+                variant="outline"
+                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
+              >
+                {delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0 ? (
+                  <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
+                ) : (
+                  <Camera className={`w-5 h-5 md:w-4 md:h-4 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-600'}`} />
+                )}
+              </Button>
+              {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 && delivery.status !== 'completed' && (
+                <Button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await base44.entities.Delivery.update(delivery.id, { proof_photo_urls: [] });
+                    invalidate('Delivery');
+                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="h-10 md:h-8 w-6 p-0 bg-red-50 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none"
+                >
+                  <X className="w-3 h-3 text-red-500" />
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

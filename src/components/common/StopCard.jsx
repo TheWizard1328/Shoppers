@@ -1043,6 +1043,7 @@ export default function StopCard({
             showSignatureCapture={showSignatureCapture} setShowSignatureCapture={setShowSignatureCapture}
             showPhotoCapture={showPhotoCapture} setShowPhotoCapture={setShowPhotoCapture}
             forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
+            showButtons={false}
           />
 
           {/* Failure Reason Dialog */}
