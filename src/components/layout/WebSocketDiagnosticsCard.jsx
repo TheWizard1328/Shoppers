@@ -8,7 +8,24 @@ export default function WebSocketDiagnosticsCard() {
   const [topOffset, setTopOffset] = useState(72);
   const [isMobile, setIsMobile] = useState(false);
 
-  useEffect(() => {
+    const [isBypassed, setIsBypassed] = useState(() => {
+      try { return localStorage.getItem('wsDiagnosticsHidden') === 'true'; } catch { return false; }
+    });
+
+    useEffect(() => {
+      const onStorage = (e) => {
+        if (e.key === 'wsDiagnosticsHidden') setIsBypassed(e.newValue === 'true');
+      };
+      const onEvt = (e) => setIsBypassed(!!(e.detail && e.detail.hidden));
+      window.addEventListener('storage', onStorage);
+      window.addEventListener('wsBannerToggleChanged', onEvt);
+      return () => {
+        window.removeEventListener('storage', onStorage);
+        window.removeEventListener('wsBannerToggleChanged', onEvt);
+      };
+    }, []);
+
+    useEffect(() => {
     // Check if this is the primary device
     const checkPrimaryDevice = async () => {
       try {
@@ -119,7 +136,7 @@ export default function WebSocketDiagnosticsCard() {
     };
   }, [isPrimaryDevice]);
 
-  if (!event || isPrimaryDevice) return null;
+  if (isBypassed || !event || isPrimaryDevice) return null;
 
   return (
     <Card 
