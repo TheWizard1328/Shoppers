@@ -54,7 +54,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   const radius = 0;
 
   return (
-    <div className="fixed inset-0 z-[2147483647]" aria-hidden onClick={onClose}>
+    <div className="fixed inset-0 z-[2147483647]" aria-hidden onClick={onClose} style={{ pointerEvents: 'auto' }}>
       {/* Global dim removed – using outer shadow for opacity control */}
 
       {/* Highlight ring around target */}
