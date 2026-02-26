@@ -66,9 +66,7 @@ export function getDeviceType() {
  * CRITICAL: Check device type to set appropriate default theme
  */
 const getInitialDefaultSettings = () => {
-  const { deviceType } = getUserAgentInfo();
-  const isMobile = deviceType === 'Mobile';
-  
+  const isMobile = isMobileDeviceForTheme(); // UA-only, ignore viewport to avoid PWA misclassification
   return {
     fab_map_cycle_phase: 1,
     units_of_measurement: 'kilometers',
@@ -533,9 +531,17 @@ function applyAutoDarkMode() {
   const currentSettings = cachedSettings || { ...DEFAULT_SETTINGS };
   if (currentSettings.theme_preference !== 'auto') return;
 
-  // Do NOT toggle Tailwind's .dark here (handled centrally in Layout)
-  // Only expose system theme to the app for diagnostics/optional UI tweaks
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isMobile = isMobileDeviceForTheme();
+
+  // Only toggle Tailwind's .dark on mobile/tablet; always remove on desktop
+  if (isMobile) {
+    document.documentElement.classList.toggle('dark', prefersDark);
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+
+  // Expose for diagnostics
   document.documentElement.setAttribute('data-system-theme', prefersDark ? 'dark' : 'light');
   console.log(`🌓 [UserSettings] Auto dark mode synced with system: ${prefersDark ? 'DARK' : 'LIGHT'}`);
 }

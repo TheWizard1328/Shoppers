@@ -753,7 +753,7 @@ export default function Layout({ children, currentPageName }) {
     
     if (!isMobilePhone) {
       // Force light mode on desktops and tablets
-      document.documentElement.classList.remove('auto-theme', 'dark-theme');
+      document.documentElement.classList.remove('auto-theme', 'dark-theme', 'dark');
       document.documentElement.classList.add('light-theme');
       return;
     }
@@ -761,9 +761,9 @@ export default function Layout({ children, currentPageName }) {
     // Mobile phone theme switching
     if (themePreference === 'dark') {
       document.documentElement.classList.remove('auto-theme', 'light-theme');
-      document.documentElement.classList.add('dark-theme');
+      document.documentElement.classList.add('dark-theme', 'dark');
     } else if (themePreference === 'light') {
-      document.documentElement.classList.remove('auto-theme', 'dark-theme');
+      document.documentElement.classList.remove('auto-theme', 'dark-theme', 'dark');
       document.documentElement.classList.add('light-theme');
     } else {
       document.documentElement.classList.remove('light-theme', 'dark-theme');
