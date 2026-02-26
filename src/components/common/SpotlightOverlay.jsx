@@ -67,7 +67,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
           height: rect.height + pad * 2,
           borderRadius: radius,
           backgroundColor: "rgba(0,0,0,0.15)",
-          boxShadow: "0 0 0 9999px rgba(0,0,0,1), 0 0 0 3px #fff",
+          boxShadow: "0 0 0 9999px rgba(0,0,0,0.6), 0 0 0 3px #fff",
         }}
       />
 
