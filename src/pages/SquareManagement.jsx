@@ -744,34 +744,13 @@ export default function SquareManagement() {
                 const store = stores.find(s => s.square_location_config_id === config.id);
                 const storeColor = store ? getStoreColor(store.id) : null;
                 return (
-                  <div
+                  <LocationSummaryCard
                     key={config.id}
+                    location={{ name: config?.name || store?.name || 'Unknown', square_location_id: config.square_location_id }}
+                    codTotal={codTotal}
+                    itemCount={locationItems.length}
                     onClick={() => setSelectedLocation(config)}
-                    className="cursor-pointer transition-all rounded-xl p-4 border-2 bg-white dark:bg-slate-800"
-                    style={{
-                      borderColor: storeColor ? storeColor.border : 'rgb(226, 232, 240)',
-                      opacity: storeColor ? 1 : 0.6
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = '0.8';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = storeColor ? '1' : '0.6';
-                    }}
-                  >
-                    <div className="text-sm font-semibold mb-2 text-slate-900 dark:text-slate-50">
-                      {config?.name || store?.name || 'Unknown'}
-                    </div>
-                    <div className="text-xl font-bold mb-1 text-emerald-600 dark:text-emerald-400">
-                      ${codTotal.toFixed(2)}
-                    </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">
-                      {locationItems.length} {locationItems.length === 1 ? 'item' : 'items'}
-                    </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 italic">
-                      Click to view details
-                    </div>
-                  </div>
+                  />
                 );
               })}
           </div>
