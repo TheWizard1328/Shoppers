@@ -171,8 +171,8 @@ export default function DriverPayroll() {
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   const [selectedCityId, setSelectedCityId] = useState('all');
   const [selectedDriverId, setSelectedDriverId] = useState('all');
-  const [payPeriod, setPayPeriod] = useState('monthly');
-  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
+  const [payPeriod, setPayPeriod] = useState(null); // null until determined from data
+  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(null); // null until determined
   const [hasInitialized, setHasInitialized] = useState(false);
   const [payrollData, setPayrollData] = useState(null);
   const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
