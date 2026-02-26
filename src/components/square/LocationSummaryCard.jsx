@@ -22,7 +22,7 @@ export default function LocationSummaryCard({ location, codTotal, itemCount, onC
         
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-slate-50 rounded p-2">
-            <div className="text-xs text-slate-500">COD Total</div>
+            <div className="text-xs text-slate-500">Total</div>
             <div className="text-lg font-bold text-emerald-600">${codTotal.toFixed(2)}</div>
           </div>
           <div className="bg-slate-50 rounded p-2">
