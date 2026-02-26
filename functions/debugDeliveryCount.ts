@@ -53,16 +53,24 @@ Deno.serve(async (req) => {
       if (!Array.isArray(r)) break; // stop once it breaks
     }
 
-    // Approach 5: filter 2026 with large limit
-    const filter2026Big = await base44.asServiceRole.entities.Delivery.filter(
-      { delivery_date: { $gte: '2026-01-01', $lte: '2026-12-31' } },
-      '-delivery_date',
-      10000
-    );
-    results.filter2026BigCount = Array.isArray(filter2026Big) ? filter2026Big.length : 'not_array_' + typeof filter2026Big;
-    if (Array.isArray(filter2026Big) && filter2026Big.length > 0) {
-      results.filter2026BigFirst = filter2026Big[0]?.delivery_date;
-      results.filter2026BigLast = filter2026Big[filter2026Big.length - 1]?.delivery_date;
+    // Approach 5: filter 2026 with smaller limits
+    const filterLimits = [100, 500, 1000, 2000, 3000, 4000];
+    results.filterLimitTests = {};
+    for (const lim of filterLimits) {
+      const r = await base44.asServiceRole.entities.Delivery.filter(
+        { delivery_date: { $gte: '2026-01-01', $lte: '2026-12-31' } },
+        '-delivery_date',
+        lim
+      );
+      results.filterLimitTests[lim] = {
+        isArray: Array.isArray(r),
+        length: Array.isArray(r) ? r.length : (typeof r === 'string' ? `string(${r.length})` : typeof r)
+      };
+      if (Array.isArray(r) && r.length < lim) {
+        // Got all data, record total
+        results.totalDeliveries2026 = r.length;
+        break;
+      }
     }
 
     return Response.json(results);
