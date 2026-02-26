@@ -1081,7 +1081,7 @@ export default function SquareManagement() {
                     )}
                   </div>
                 );
-              })
+              })}
             </div>
           )}
         </CardContent>
