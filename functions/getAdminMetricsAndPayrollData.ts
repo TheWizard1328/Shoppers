@@ -1,7 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 // In-memory cache keyed by year+cityId — busted on new deploy
-const CACHE_VERSION = Date.now().toString();
+// IMPORTANT: Cache version is bumped on each deploy to invalidate stale data
+const CACHE_VERSION = `v3_${Date.now()}`;
 const statsCache = new Map();
 
 Deno.serve(async (req) => {
