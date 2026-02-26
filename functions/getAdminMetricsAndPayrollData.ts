@@ -57,33 +57,51 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // Fetch deliveries using filter() with date range to avoid loading entire DB
-      // Also fetch reference data in parallel
-      const startDate = `${year}-01-01`;
-      const endDate = `${year}-12-31`;
-      
-      const deliveryFilter = { delivery_date: { $gte: startDate, $lte: endDate } };
-      if (storeIds && storeIds.length > 0) {
-        deliveryFilter.store_id = { $in: storeIds };
-      }
-      
-      const payrollFilter = { pay_period_start: { $gte: startDate, $lte: endDate } };
-
+      // Fetch all reference data in parallel
+      // Use list() for deliveries and payroll - filter client-side by year
       const [rawDeliveries, stores, appUsers, patients, cities, appSettings, rawPayrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.filter(deliveryFilter, '-delivery_date', 50000),
+        base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000),
         base44.asServiceRole.entities.Store.list('', 50000),
         base44.asServiceRole.entities.AppUser.list('', 50000),
         base44.asServiceRole.entities.Patient.list('', 50000),
         base44.asServiceRole.entities.City.list('', 50000),
         base44.asServiceRole.entities.AppSettings.list(),
-        base44.asServiceRole.entities.Payroll.filter(payrollFilter, '-pay_period_start', 50000)
+        base44.asServiceRole.entities.Payroll.list('-pay_period_start', 50000)
       ]);
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
-      // Ensure arrays
+      // Ensure arrays and inspect raw data format
       let deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
       let payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
+      
+      // Debug: Log raw delivery format to understand filtering issue
+      if (deliveries.length > 0) {
+        const sample = deliveries[0];
+        console.log(`🔎 Raw delivery sample - delivery_date value: "${sample.delivery_date}", type: ${typeof sample.delivery_date}`);
+        console.log(`🔎 Raw delivery keys:`, Object.keys(sample).join(', '));
+        console.log(`🔎 StartsWith test: "${sample.delivery_date}".startsWith("${year}") = ${String(sample.delivery_date || '').startsWith(String(year))}`);
+      } else {
+        console.log(`⚠️ rawDeliveries is array: ${Array.isArray(rawDeliveries)}, length: ${rawDeliveries?.length}, type: ${typeof rawDeliveries}`);
+        // Try to inspect what rawDeliveries actually is
+        if (rawDeliveries && !Array.isArray(rawDeliveries)) {
+          console.log(`🔎 rawDeliveries is NOT array. Type: ${typeof rawDeliveries}, keys: ${Object.keys(rawDeliveries || {}).slice(0, 10).join(', ')}`);
+        }
+      }
+      
+      // Filter by year
+      const yearStr = String(year);
+      deliveries = deliveries.filter(d => {
+        if (!d || !d.delivery_date) return false;
+        return String(d.delivery_date).startsWith(yearStr);
+      });
+      
+      // Filter by stores if city is specified
+      if (storeIds && storeIds.length > 0) {
+        deliveries = deliveries.filter(d => d && storeIds.includes(d.store_id));
+      }
+      
+      payrollRecords = payrollRecords.filter(p => p && p.pay_period_start && String(p.pay_period_start).startsWith(yearStr));
 
       console.log(`📦 Raw deliveries returned: ${(rawDeliveries || []).length}, filtered to ${deliveries.length} for year ${year}`);
       if (deliveries.length > 0) {
