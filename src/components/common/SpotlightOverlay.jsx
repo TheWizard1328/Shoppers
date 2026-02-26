@@ -84,8 +84,8 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
         const arrowClasses = 'border-r border-b';
         return (
           <div
-            className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 max-w-xs"
-            style={{ top, left, width: bubbleWidth }}
+            className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 max-w-xs opacity-100"
+            style={{ top, left, width: bubbleWidth, zIndex: 2 }}
           >
             <div className="text-sm font-medium">Add deliveries here</div>
             <p className="text-xs mt-1 leading-relaxed">
