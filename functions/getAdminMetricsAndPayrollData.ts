@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
       let deliveries = allYearDeliveries;
-      let payrollRecords = allYearPayroll;
+      let payrollRecords = payrollArr;
       
       // Filter by stores if city is specified
       if (storeIds && storeIds.length > 0) {
