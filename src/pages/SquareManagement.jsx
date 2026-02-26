@@ -720,7 +720,7 @@ export default function SquareManagement() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto bg-background text-foreground">
+    <div className="p-4 md:p-6 bg-background text-foreground w-full min-h-screen md:h-screen flex flex-col overflow-hidden">
     {/* Header */}
     <div className="flex flex-col gap-4 mb-6">
       <div className="flex items-center gap-3">
@@ -792,7 +792,7 @@ export default function SquareManagement() {
       {currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
         <div>
           <h2 className="text-base md:text-lg font-semibold mb-4 text-slate-900 dark:text-slate-50">By Location</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-none md:auto-cols-fr md:grid-flow-col gap-2 md:gap-4 mb-6 md:mb-8">
             {locationConfigs
               .sort((a, b) => {
                 const storeA = stores.find(s => s.square_location_config_id === a.id);
@@ -846,11 +846,11 @@ export default function SquareManagement() {
       )}
 
       {/* Active Square Items */}
-      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-        <CardHeader>
+      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex-1 flex flex-col min-h-0">
+        <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
           <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">Active COD Items</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
