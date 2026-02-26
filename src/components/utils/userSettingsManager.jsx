@@ -6,7 +6,7 @@
 
 import { UserSettings } from '@/entities/UserSettings';
 import { offlineManager } from './offlineManager';
-import { getUserAgentInfo } from './deviceUtils';
+import { getUserAgentInfo, isMobileDeviceForTheme } from './deviceUtils';
 
 // In-memory cache for current session
 let cachedSettings = null;
@@ -53,14 +53,9 @@ export function getDeviceType() {
     return cachedDeviceType;
   }
 
-  const { deviceType } = getUserAgentInfo();
-  
-  // Classify Tablet as Mobile
-  if (deviceType === 'Tablet') {
-    cachedDeviceType = 'Mobile';
-  } else {
-    cachedDeviceType = deviceType === 'Mobile' ? 'Mobile' : 'Desktop';
-  }
+  // Theme/Settings device classification MUST ignore viewport width to avoid PWAs mis-detecting
+  const uaMobileOrTablet = isMobileDeviceForTheme();
+  cachedDeviceType = uaMobileOrTablet ? 'Mobile' : 'Desktop';
   
   console.log('📱 [UserSettings] Device Type:', cachedDeviceType);
   return cachedDeviceType;
@@ -536,21 +531,12 @@ export function getSetting(key) {
  */
 function applyAutoDarkMode() {
   const currentSettings = cachedSettings || { ...DEFAULT_SETTINGS };
-  
-  if (currentSettings.theme_preference !== 'auto') {
-    return; // Only applies to 'auto' mode
-  }
-  
-  // Check device's system dark mode preference
+  if (currentSettings.theme_preference !== 'auto') return;
+
+  // Do NOT toggle Tailwind's .dark here (handled centrally in Layout)
+  // Only expose system theme to the app for diagnostics/optional UI tweaks
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  
-  // Apply theme to document root
-  if (prefersDark) {
-    document.documentElement.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-  }
-  
+  document.documentElement.setAttribute('data-system-theme', prefersDark ? 'dark' : 'light');
   console.log(`🌓 [UserSettings] Auto dark mode synced with system: ${prefersDark ? 'DARK' : 'LIGHT'}`);
 }
 
