@@ -196,6 +196,7 @@ export default function DriverPayroll() {
   }, []);
 
   const allPeriods = useMemo(() => {
+    if (!payPeriod) return [];
     return calculateAllPeriods(selectedYear, payPeriod);
   }, [selectedYear, payPeriod]);
 
