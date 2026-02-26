@@ -71,23 +71,19 @@ Deno.serve(async (req) => {
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
-      // Ensure arrays and inspect raw data format
-      let deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
-      let payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
-      
-      // Debug: Log raw delivery format to understand filtering issue
-      if (deliveries.length > 0) {
-        const sample = deliveries[0];
-        console.log(`🔎 Raw delivery sample - delivery_date value: "${sample.delivery_date}", type: ${typeof sample.delivery_date}`);
-        console.log(`🔎 Raw delivery keys:`, Object.keys(sample).join(', '));
-        console.log(`🔎 StartsWith test: "${sample.delivery_date}".startsWith("${year}") = ${String(sample.delivery_date || '').startsWith(String(year))}`);
-      } else {
-        console.log(`⚠️ rawDeliveries is array: ${Array.isArray(rawDeliveries)}, length: ${rawDeliveries?.length}, type: ${typeof rawDeliveries}`);
-        // Try to inspect what rawDeliveries actually is
-        if (rawDeliveries && !Array.isArray(rawDeliveries)) {
-          console.log(`🔎 rawDeliveries is NOT array. Type: ${typeof rawDeliveries}, keys: ${Object.keys(rawDeliveries || {}).slice(0, 10).join(', ')}`);
+      // CRITICAL: list() may return a string instead of array for large datasets - parse if needed
+      const ensureArray = (raw) => {
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw); } catch (_) { return []; }
         }
-      }
+        return [];
+      };
+      
+      let deliveries = ensureArray(rawDeliveries);
+      let payrollRecords = ensureArray(rawPayrollRecords);
+      
+      console.log(`📦 Deliveries parsed: ${deliveries.length}, Payroll parsed: ${payrollRecords.length}`);
       
       // Filter by year
       const yearStr = String(year);
