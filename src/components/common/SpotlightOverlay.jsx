@@ -3,14 +3,14 @@ import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 export default function SpotlightOverlay({ targetRef, text, visible, onClose, durationMs = 15000 }) {
   const [rect, setRect] = useState(null);
 
-  // Recalculate target rect on resize/scroll/visibility
+  // Recalculate target rect on resize/scroll/visibility (viewport coords for fixed overlay)
   const updateRect = () => {
     const el = targetRef?.current;
     if (!el) return setRect(null);
     const r = el.getBoundingClientRect();
     setRect({
-      top: r.top + window.scrollY,
-      left: r.left + window.scrollX,
+      top: r.top,
+      left: r.left,
       width: r.width,
       height: r.height,
     });
