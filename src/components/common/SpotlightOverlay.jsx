@@ -51,7 +51,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   if (!visible || !rect) return null;
 
   const pad = 0; // padding around the highlight (align exactly to button)
-  const radius = rect.radius ?? 10;
+  const radius = 0;
 
   return (
     <div className="fixed inset-0 z-[2147483647]" aria-hidden onClick={onClose}>
