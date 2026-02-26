@@ -4238,34 +4238,21 @@ function Dashboard() {
       let priorityDeliveries;
 
       if (dataSource === 'online') {
-        // ONLINE MODE: Always fetch from API, skip offline DB
-        console.log(`🌐 [Date Change - ONLINE MODE] Fetching from API`);
-        if (shouldLoadAllDeliveries) {
-          priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        } else {
-          priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr, driver_id: selectedDriverId });
-        }
+        // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
+        console.log(`🌐 [Date Change - ONLINE MODE] Fetching ALL drivers for ${dateStr}`);
+        priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
         // Update offline DB in background (don't wait)
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
       } else {
-        // OFFLINE MODE: Try offline DB first, fallback to API
+        // OFFLINE MODE: Load ALL deliveries for the date from offline DB first; fallback to API
         priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
         if (!priorityDeliveries || priorityDeliveries.length === 0) {
-          if (shouldLoadAllDeliveries) {
-            console.log('📥 [Date Change] Offline DB empty - fetching ALL from API');
-            priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
-          } else {
-            console.log(`📥 [Date Change] Offline DB empty - fetching driver ${selectedDriverId} from API`);
-            priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr, driver_id: selectedDriverId });
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
-          }
+          console.log('📥 [Date Change] Offline DB empty - fetching ALL from API');
+          priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
         } else {
           console.log(`📦 [Date Change] Using ${priorityDeliveries.length} deliveries from offline DB`);
-          if (!shouldLoadAllDeliveries) {
-            priorityDeliveries = priorityDeliveries.filter((d) => d.driver_id === selectedDriverId);
-          }
         }
       }
 
@@ -4440,28 +4427,21 @@ function Dashboard() {
       const shouldLoadAllDeliveries = showAllDriverMarkers || driverId === 'all';
 
       if (dataSource === 'online') {
-        // ONLINE MODE: Always fetch from API
-        console.log(`🌐 [Driver Change - ONLINE MODE] Fetching from API`);
-        freshDeliveries = shouldLoadAllDeliveries ?
-          await base44.entities.Delivery.filter({ delivery_date: dateStr }) :
-          await base44.entities.Delivery.filter({ delivery_date: dateStr, driver_id: driverId });
+        // ONLINE MODE: Always fetch ALL deliveries for the date; UI filters by driver
+        console.log(`🌐 [Driver Change - ONLINE MODE] Fetching ALL drivers for ${dateStr}`);
+        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
         // Update offline DB in background
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
       } else {
-        // OFFLINE MODE: Try offline DB first
+        // OFFLINE MODE: Try offline DB first for ALL deliveries on date
         freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
         if (!freshDeliveries || freshDeliveries.length === 0) {
-          console.log(`📥 [Driver Change] Offline DB empty - fetching from API`);
-          freshDeliveries = shouldLoadAllDeliveries ?
-          await base44.entities.Delivery.filter({ delivery_date: dateStr }) :
-          await base44.entities.Delivery.filter({ delivery_date: dateStr, driver_id: driverId });
+          console.log(`📥 [Driver Change] Offline DB empty - fetching ALL from API`);
+          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
         } else {
           console.log(`📦 [Driver Change] Using ${freshDeliveries.length} deliveries from offline DB`);
-          if (!shouldLoadAllDeliveries && driverId !== 'all') {
-            freshDeliveries = freshDeliveries.filter((d) => d.driver_id === driverId);
-          }
         }
       }
 
