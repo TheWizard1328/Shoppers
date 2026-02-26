@@ -957,7 +957,7 @@ export default function DriverPayroll() {
               </Select>
 
               {/* Pay Cycle Selector - 4th position dropdown */}
-              <Select value={payPeriod} onValueChange={handlePayPeriodChange} disabled={payCycleInfo.disabled || isDriver}>
+              <Select value={payPeriod || 'monthly'} onValueChange={handlePayPeriodChange} disabled={payCycleInfo.disabled || isDriver}>
                 <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue placeholder="Cycle" />
                 </SelectTrigger>
