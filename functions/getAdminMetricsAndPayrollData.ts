@@ -1,8 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 // In-memory cache keyed by year+cityId — busted on new deploy
+// DISABLED cache temporarily for debugging
 const CACHE_VERSION = Date.now().toString();
 const statsCache = new Map();
+const CACHE_DISABLED = true;
 
 Deno.serve(async (req) => {
   try {
