@@ -1,8 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 // In-memory cache keyed by year+cityId — busted on new deploy
-// IMPORTANT: Cache version is bumped on each deploy to invalidate stale data
-const CACHE_VERSION = `v3_${Date.now()}`;
+const CACHE_VERSION = Date.now().toString();
 const statsCache = new Map();
 
 Deno.serve(async (req) => {
@@ -58,10 +57,10 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // Fetch all reference data in parallel
-      // Use list() for deliveries and payroll - filter client-side by year
+      // Fetch all reference data in parallel (including deliveries)
+      // Note: Using list() with limit to get deliveries; filter() may return non-array buffers depending on environment
       const [rawDeliveries, stores, appUsers, patients, cities, appSettings, rawPayrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000),
+        base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000),  // latest first to ensure current-year data
         base44.asServiceRole.entities.Store.list('', 50000),
         base44.asServiceRole.entities.AppUser.list('', 50000),
         base44.asServiceRole.entities.Patient.list('', 50000),
@@ -72,69 +71,19 @@ Deno.serve(async (req) => {
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
-      // CRITICAL: list() with large limits may return truncated string instead of array.
-      // Use pagination to safely load all deliveries for the year.
-      const ensureArray = (raw) => {
-        if (Array.isArray(raw)) return raw;
-        if (typeof raw === 'string') {
-          try { return JSON.parse(raw); } catch (e) { console.log(`⚠️ JSON parse failed: ${e.message}, raw length: ${raw.length}`); return []; }
-        }
-        return [];
-      };
+      // Filter deliveries and payroll records by year and optional city filter
+      let deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
+      let payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
       
-      let payrollRecords = ensureArray(rawPayrollRecords);
-      
-      // Re-fetch deliveries with pagination to handle large datasets
-      const yearStr = String(year);
-      let deliveries = [];
-      const PAGE_SIZE = 5000;
-      let page = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const batch = await base44.asServiceRole.entities.Delivery.list('-delivery_date', PAGE_SIZE, page * PAGE_SIZE);
-        const batchArr = ensureArray(batch);
-        
-        if (batchArr.length === 0) {
-          hasMore = false;
-          break;
-        }
-        
-        // Filter to current year
-        const yearBatch = batchArr.filter(d => d && d.delivery_date && String(d.delivery_date).startsWith(yearStr));
-        deliveries = deliveries.concat(yearBatch);
-        
-        // If we got a batch with dates before our year, we've gone past - stop
-        const oldestInBatch = batchArr[batchArr.length - 1];
-        if (oldestInBatch && oldestInBatch.delivery_date && String(oldestInBatch.delivery_date) < `${year}-01-01`) {
-          hasMore = false;
-        }
-        
-        // If batch smaller than page size, no more data
-        if (batchArr.length < PAGE_SIZE) {
-          hasMore = false;
-        }
-        
-        page++;
-        // Safety: max 20 pages (100k records)
-        if (page >= 20) hasMore = false;
-      }
-      
-      console.log(`📦 Deliveries loaded via pagination: ${deliveries.length} for year ${year} (${page} pages), Payroll: ${payrollRecords.length}`);
-      
-      // Filter by year
-      const yearStr = String(year);
-      deliveries = deliveries.filter(d => {
-        if (!d || !d.delivery_date) return false;
-        return String(d.delivery_date).startsWith(yearStr);
-      });
+      // Filter by year using delivery_date only (per spec)
+      deliveries = deliveries.filter(d => d && d.delivery_date && String(d.delivery_date).startsWith(`${year}`));
       
       // Filter by stores if city is specified
       if (storeIds && storeIds.length > 0) {
         deliveries = deliveries.filter(d => d && storeIds.includes(d.store_id));
       }
       
-      payrollRecords = payrollRecords.filter(p => p && p.pay_period_start && String(p.pay_period_start).startsWith(yearStr));
+      payrollRecords = payrollRecords.filter(p => p && p.pay_period_start && p.pay_period_start.startsWith(`${year}`));
 
       console.log(`📦 Raw deliveries returned: ${(rawDeliveries || []).length}, filtered to ${deliveries.length} for year ${year}`);
       if (deliveries.length > 0) {
