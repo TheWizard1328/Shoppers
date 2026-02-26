@@ -51,12 +51,12 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   if (!visible || !rect) return null;
 
   const pad = 8; // padding around the highlight
-  const radius = 10;
+  const radius = rect.radius ?? 10;
 
   return (
-    <div className="fixed inset-0 z-[10000]" aria-hidden onClick={onClose}>
+    <div className="fixed inset-0 z-[2147483647]" aria-hidden onClick={onClose}>
       {/* Dim background */}
-      <div className="absolute inset-0 bg-black/60" />
+      <div className="absolute inset-0 bg-black/15" />
 
       {/* Highlight ring around target */}
       <div
@@ -67,7 +67,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
           width: rect.width + pad * 2,
           height: rect.height + pad * 2,
           borderRadius: radius,
-          boxShadow: "0 0 0 9999px rgba(0,0,0,0.6), 0 0 0 3px #fff",
+          boxShadow: "0 0 0 9999px rgba(0,0,0,1), 0 0 0 3px #fff",
         }}
       />
 
@@ -103,7 +103,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
             />
           </div>
         );
-      })()}>
+      })()}
 
       {/* Click to dismiss hint */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-white/80">
