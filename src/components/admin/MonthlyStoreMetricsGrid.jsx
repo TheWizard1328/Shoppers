@@ -299,13 +299,12 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                   {formatValue(grandTotal)}
                 </td>
               </tr>
-              {/* Average Row */}
+              {/* Average Row - Smart average: completed months use actual totals,
+                  current month is projected (dailyAvg * daysInMonth), then divide by current month number */}
               <tr className="bg-slate-50">
                 <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
                 {stores.map((store) => {
-                  const avg = counts[store.abbreviation] > 0 ?
-                  totals[store.abbreviation] / 12 :
-                  0;
+                  const avg = calculateSmartAverage(store, stores, monthlyStoreData, metricsData, metricsViewMode, showEnvelopeAdjustedTotals, parseInt(selectedYear));
                   return (
                     <td
                       key={store.abbreviation}
@@ -316,7 +315,12 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
 
                 })}
                 <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
-                  {formatValue(Math.round(grandTotal / 12))}
+                  {(() => {
+                    const totalAvg = stores.reduce((sum, store) => {
+                      return sum + calculateSmartAverage(store, stores, monthlyStoreData, metricsData, metricsViewMode, showEnvelopeAdjustedTotals, parseInt(selectedYear));
+                    }, 0);
+                    return totalAvg > 0 ? formatValue(Math.round(totalAvg)) : '';
+                  })()}
                 </td>
               </tr>
               {/* Percentage Row (only for fees view) */}
