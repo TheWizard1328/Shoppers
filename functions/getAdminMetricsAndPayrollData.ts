@@ -74,57 +74,42 @@ Deno.serve(async (req) => {
 
       // CRITICAL: SDK returns a raw string (not parsed JSON) when response > ~4MB
       // This happens at around 2500+ deliveries. We must fetch in batches of 2000.
-      // Use filter() with date range to only get the year we need, paginated.
+      // Use filter() with date range, fetching month-by-month to stay under the 4MB limit.
       const BATCH_SIZE = 2000;
-      
-      // Helper: fetch all records for an entity with a filter, in batches
-      const fetchAllBatched = async (entityRef, query, sortBy) => {
-        const allResults = [];
-        let lastId = null;
-        let hasMore = true;
-        
-        while (hasMore) {
-          // Build query with cursor-based pagination using created_date
-          const batchQuery = lastId 
-            ? { ...query, id: { $gt: lastId } }
-            : query;
-          
-          const batch = await entityRef.filter(batchQuery, 'id', BATCH_SIZE);
-          
-          if (!Array.isArray(batch) || batch.length === 0) {
-            hasMore = false;
-            break;
-          }
-          
-          allResults.push(...batch);
-          lastId = batch[batch.length - 1].id;
-          
-          console.log(`  📦 Batch: ${batch.length} records (total so far: ${allResults.length})`);
-          
-          if (batch.length < BATCH_SIZE) {
-            hasMore = false;
-          }
-        }
-        
-        return allResults;
-      };
 
-      console.log(`📥 Fetching deliveries for ${year} in batches of ${BATCH_SIZE}...`);
-      const allYearDeliveries = await fetchAllBatched(
-        base44.asServiceRole.entities.Delivery,
-        { delivery_date: { $gte: yearStart, $lte: yearEnd } },
-        'id'
-      );
+      console.log(`📥 Fetching deliveries for ${year} month-by-month...`);
+      const allYearDeliveries = [];
+      for (let month = 1; month <= 12; month++) {
+        const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        
+        const monthDeliveries = await base44.asServiceRole.entities.Delivery.filter(
+          { delivery_date: { $gte: monthStart, $lte: monthEnd } },
+          '-delivery_date',
+          BATCH_SIZE
+        );
+        
+        if (Array.isArray(monthDeliveries)) {
+          allYearDeliveries.push(...monthDeliveries);
+          if (monthDeliveries.length > 0) {
+            console.log(`  📦 Month ${month}: ${monthDeliveries.length} deliveries`);
+          }
+        } else {
+          console.warn(`  ⚠️ Month ${month}: response was not an array (type=${typeof monthDeliveries})`);
+        }
+      }
       console.log(`📦 Total deliveries fetched for ${year}: ${allYearDeliveries.length}`);
 
-      // Fetch payroll records (should be small, but batch just in case)
+      // Fetch payroll records (usually small)
       console.log(`📥 Fetching payroll records for ${year}...`);
-      const allYearPayroll = await fetchAllBatched(
-        base44.asServiceRole.entities.Payroll,
+      const allYearPayroll = await base44.asServiceRole.entities.Payroll.filter(
         { pay_period_start: { $gte: yearStart, $lte: yearEnd } },
-        'id'
+        '-pay_period_start',
+        BATCH_SIZE
       );
-      console.log(`📦 Total payroll records fetched for ${year}: ${allYearPayroll.length}`);
+      const payrollArr = Array.isArray(allYearPayroll) ? allYearPayroll : [];
+      console.log(`📦 Total payroll records fetched for ${year}: ${payrollArr.length}`);
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
