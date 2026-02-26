@@ -4,6 +4,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   const [rect, setRect] = useState(null);
   const lastRectRef = useRef(null);
   const lastRectRef = useRef(null);
+  const lastRectRef = useRef(null);
 
   // Recalculate target rect on resize/scroll/visibility (viewport coords for fixed overlay)
   const updateRect = () => {
