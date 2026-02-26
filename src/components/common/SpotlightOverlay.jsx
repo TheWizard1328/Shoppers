@@ -8,11 +8,14 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
     const el = targetRef?.current;
     if (!el) return setRect(null);
     const r = el.getBoundingClientRect();
+    const cs = window.getComputedStyle(el);
+    const br = parseFloat(cs.borderRadius || '0') || 0;
     setRect({
       top: r.top,
       left: r.left,
       width: r.width,
       height: r.height,
+      radius: br,
     });
   };
 
