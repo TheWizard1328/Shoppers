@@ -40,22 +40,29 @@ Deno.serve(async (req) => {
     );
     results.filter2026Count = Array.isArray(filter2026) ? filter2026.length : 'not_array';
 
-    // Approach 4: large list to count all
-    const bigList = await base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000);
-    results.bigListCount = Array.isArray(bigList) ? bigList.length : 'not_array';
-    if (Array.isArray(bigList) && bigList.length > 0) {
-      results.bigListFirstDate = bigList[0]?.delivery_date;
-      results.bigListLastDate = bigList[bigList.length - 1]?.delivery_date;
-      
-      // Count by year
-      const yearCounts = {};
-      bigList.forEach(d => {
-        if (d?.delivery_date) {
-          const yr = String(d.delivery_date).substring(0, 4);
-          yearCounts[yr] = (yearCounts[yr] || 0) + 1;
-        }
-      });
-      results.yearCounts = yearCounts;
+    // Approach 4: test different limit sizes
+    const limits = [100, 500, 1000, 2000, 5000, 10000];
+    results.limitTests = {};
+    for (const lim of limits) {
+      const r = await base44.asServiceRole.entities.Delivery.list('-delivery_date', lim);
+      results.limitTests[lim] = {
+        isArray: Array.isArray(r),
+        type: typeof r,
+        length: Array.isArray(r) ? r.length : (typeof r === 'string' ? r.length : 'N/A')
+      };
+      if (!Array.isArray(r)) break; // stop once it breaks
+    }
+
+    // Approach 5: filter 2026 with large limit
+    const filter2026Big = await base44.asServiceRole.entities.Delivery.filter(
+      { delivery_date: { $gte: '2026-01-01', $lte: '2026-12-31' } },
+      '-delivery_date',
+      10000
+    );
+    results.filter2026BigCount = Array.isArray(filter2026Big) ? filter2026Big.length : 'not_array_' + typeof filter2026Big;
+    if (Array.isArray(filter2026Big) && filter2026Big.length > 0) {
+      results.filter2026BigFirst = filter2026Big[0]?.delivery_date;
+      results.filter2026BigLast = filter2026Big[filter2026Big.length - 1]?.delivery_date;
     }
 
     return Response.json(results);
