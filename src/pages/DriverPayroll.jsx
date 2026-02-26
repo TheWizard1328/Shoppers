@@ -14,6 +14,7 @@ import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
+import { offlineDB } from '../components/utils/offlineDatabase';
 
 // Helper: Get first Monday of a given year
 const getFirstMondayOfYear = (year) => {
