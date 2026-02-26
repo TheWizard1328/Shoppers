@@ -965,63 +965,63 @@ export default function SquareManagement() {
                 return (
                   <div 
                     key={`${item.catalog_object_id}-${item.location_id}-${index}`}
-                    className="p-4 rounded-lg transition-colors bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                    onClick={() => setSelectedCODItem(item)}
+                    role="button"
+                    aria-label={`Open details for ${item.name}`}
+                    className="p-3 rounded-lg transition-colors bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 active:ring-1 active:ring-slate-300"
                   >
-                    <div className="flex justify-between items-start gap-3 mb-2">
+                    {/* Header: name + amount + delete */}
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-sm text-slate-900 dark:text-slate-50">
+                        <p className="font-semibold text-sm text-slate-900 dark:text-slate-50 truncate">
                           {(() => {
                             const parsed = parseSquareItemName(item.name);
                             return parsed?.patientName || item.name || 'N/A';
                           })()}
                         </p>
                         {item.description && (
-                          <p className="text-xs truncate mt-1 text-slate-600 dark:text-slate-400">
+                          <p className="text-xs truncate mt-0.5 text-slate-600 dark:text-slate-400">
                             {item.description}
                           </p>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setItemToDelete(item);
-                        }}
-                        disabled={deletingId === item.catalog_object_id}
-                        className="flex-shrink-0 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
-                        {deletingId === item.catalog_object_id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                      </Button>
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="text-base font-bold leading-none text-emerald-600 dark:text-emerald-400">${(item.price_dollars || 0).toFixed(2)}</div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setItemToDelete(item);
+                          }}
+                          disabled={deletingId === item.catalog_object_id}
+                          className="flex-shrink-0 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          aria-label="Delete COD item"
+                        >
+                          {deletingId === item.catalog_object_id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
 
-                    <div className="mb-3">
-                      <div className="text-lg font-bold mb-2 text-emerald-600 dark:text-emerald-400">
-                        ${(item.price_dollars || 0).toFixed(2)}
-                      </div>
+                    {/* Status badges row */}
+                    <div className="mt-2 flex flex-wrap gap-1">
                       {(() => {
-                        // Check if this item has been sold in Square transactions
                         const soldInSquare = hasBeenSoldInSquare(item);
-
                         if (soldInSquare) {
                           return (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 text-xs">
-                              ✓ Collected
-                            </Badge>
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 text-xs">✓ Collected</Badge>
                           );
                         }
-
                         const codDetails = getCODPaymentDetails(item.name, item.location_id);
                         const parsed = parseSquareItemName(item.name);
                         const isCurrentDate = parsed && parsed.deliveryDate === format(new Date(), 'yyyy-MM-dd');
-
                         if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
                           return (
-                            <div className="flex flex-wrap gap-1">
+                            <>
                               {codDetails.payments.map((payment, idx) => {
                                 const colorClass = {
                                   'Cash': 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
@@ -1029,33 +1029,27 @@ export default function SquareManagement() {
                                   'Credit': 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
                                   'Check': 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
                                 }[payment.type] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
-
                                 return (
-                                  <Badge key={idx} className={`${colorClass} text-xs`}>
-                                    {payment.type}: ${payment.amount.toFixed(2)}
-                                  </Badge>
+                                  <Badge key={idx} className={`${colorClass} text-xs`}>{payment.type}: ${payment.amount.toFixed(2)}</Badge>
                                 );
                               })}
-                            </div>
-                          );
-                        } else if (codDetails.status === 'cash') {
-                          return (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 text-xs">
-                              Cash
-                            </Badge>
-                          );
-                        } else {
-                          return (
-                            <Badge className={`text-xs ${isCurrentDate ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'}`}>
-                              {isCurrentDate ? 'Pending Collection' : 'No Collection'}
-                            </Badge>
+                            </>
                           );
                         }
+                        if (codDetails.status === 'cash') {
+                          return (<Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 text-xs">Cash</Badge>);
+                        }
+                        return (
+                          <Badge className={`text-xs ${isCurrentDate ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'}`}>
+                            {isCurrentDate ? 'Pending Collection' : 'No Collection'}
+                          </Badge>
+                        );
                       })()}
                     </div>
 
-                    <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
-                      <div>
+                    {/* Meta grid: store + date */}
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400">
+                      <div className="truncate">
                         <span className="font-semibold text-slate-900 dark:text-slate-50">Store:</span> {(() => {
                           const locationId = item.location_id;
                           const config = locationConfigs.find(c => c.square_location_id === locationId);
@@ -1063,15 +1057,23 @@ export default function SquareManagement() {
                           return store ? store.name : (config?.name || 'Unknown');
                         })()}
                       </div>
-                      <div>
-                        <span className="font-semibold text-slate-900 dark:text-slate-50">Updated:</span> {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
+                      <div className="truncate text-right">
+                        <span className="font-semibold text-slate-900 dark:text-slate-50">Date:</span> {(() => {
+                          const delivery = findMatchingDelivery(item.name, item.location_id);
+                          if (delivery?.delivery_date) {
+                            const [year, month, day] = delivery.delivery_date.split('-');
+                            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                          }
+                          return 'N/A';
+                        })()}
                       </div>
-                      </div>
-                    
+                    </div>
+
                     {userIsAppOwner && itemDrivers.length > 0 && (
-                      <div className="flex gap-1 mt-3 flex-wrap">
+                      <div className="flex gap-1 mt-2 flex-wrap">
                         {itemDrivers.map(driver => (
-                          <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-xs border`}>
+                          <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-[10px] border`}>
                             {driver.user_name}
                           </Badge>
                         ))}
@@ -1079,7 +1081,7 @@ export default function SquareManagement() {
                     )}
                   </div>
                 );
-              })}
+              })
             </div>
           )}
         </CardContent>

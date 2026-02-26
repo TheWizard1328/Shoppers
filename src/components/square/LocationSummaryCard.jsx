@@ -9,7 +9,7 @@ export default function LocationSummaryCard({ location, codTotal, itemCount, onC
       className="cursor-pointer hover:shadow-lg transition-shadow"
       onClick={onClick}
     >
-      <CardContent className="p-4">
+      <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-start gap-2">
             <MapPin className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
