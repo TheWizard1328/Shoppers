@@ -691,24 +691,28 @@ export default function DriverPayroll() {
 
 
 
-  // Load driver's pay cycle ONCE when data first loads
+  // Refine pay cycle when live data loads (if different from offline-based initial choice)
   useEffect(() => {
     if (!payrollData?.appUsers || hasLoadedInitialDataRef.current || isManualChangeRef.current) return;
     
-    // For drivers viewing their own payroll, select their pay cycle
+    let liveCycle = null;
     if (isDriver && selectedDriverId !== 'all') {
       const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
-      if (driverAppUser?.pay_cycle_type) {
-        setPayPeriod(driverAppUser.pay_cycle_type);
-      }
+      if (driverAppUser?.pay_cycle_type) liveCycle = driverAppUser.pay_cycle_type;
+    } else if (!isDriver && selectedDriverId === 'all' && payCycleInfo.mostCommon) {
+      liveCycle = payCycleInfo.mostCommon;
     }
-    // For admins, select the most common pay cycle type among available drivers
-    else if (!isDriver && selectedDriverId === 'all' && payCycleInfo.mostCommon) {
-      setPayPeriod(payCycleInfo.mostCommon);
+    
+    // Only update if live data disagrees with offline-based selection
+    if (liveCycle && liveCycle !== payPeriod) {
+      console.log(`🔄 [DriverPayroll] Live data: updating pay cycle from ${payPeriod} to ${liveCycle}`);
+      setPayPeriod(liveCycle);
+      // Reset period selection so it recalculates for new cycle
+      periodSelectionDoneWithRecordsRef.current = false;
     }
     
     hasLoadedInitialDataRef.current = true;
-  }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon]);
+  }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon, payPeriod]);
 
   // Re-select period when live payroll records arrive (may override offline-based initial selection)
   const periodSelectionDoneWithRecordsRef = useRef(false);
