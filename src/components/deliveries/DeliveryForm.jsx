@@ -2816,7 +2816,7 @@ export default function DeliveryForm({
 
         console.log(`[AddToRoute] 🚀 Batching ${updatePromises.length} updates in parallel...`);
         await Promise.all(updatePromises);
-        console.log('[AddToRoute] ✅ All existing deliveries updated');
+        console.log('[AddToRoute] ✅ All existing deliveries updated');(()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(existingDeliveries.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});if(ids.length)console.log('🗓️ [BatchSave] Updated last_delivery_date for',ids.length,'patients');}catch(_){}})()
       }
 
       // CRITICAL: Create ALL default pickups ONLY for new routes (isNewRouteWithZeroStops = true)
@@ -3493,7 +3493,7 @@ export default function DeliveryForm({
         });
         
         const updatedDelivery = await updateDeliveryLocal(delivery.id, dataToSave);
-        console.log('✅ [DeliveryForm] Delivery updated - UI should update immediately via mutation notification');
+        console.log('✅ [DeliveryForm] Delivery updated - UI should update immediately via mutation notification'); if ((formData.status==='completed'||formData.status==='failed')&&formData.patient_id){ try{ const __todayLocal=format(new Date(),'yyyy-MM-dd'); updatePatientLocal(formData.patient_id,{ last_delivery_date: __todayLocal }); console.log('🗓️ [DeliveryForm] Updated patient last_delivery_date to',__todayLocal);}catch(e){} }
         
         // CRITICAL: Force stats refresh AND deliveries update after any delivery update
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
