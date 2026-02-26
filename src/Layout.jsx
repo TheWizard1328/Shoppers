@@ -1054,12 +1054,12 @@ export default function Layout({ children, currentPageName }) {
 
         // Square catalog items will sync via real-time events and delivery updates only
 
-        const savedDate = globalFilters.getSelectedDate();
         const _tStr = format(today, 'yyyy-MM-dd'), _isDisp = userHasRole(fetchedUser, 'dispatcher'), _isDrv = userHasRole(fetchedUser, 'driver');
-        let _resetToday = !savedDate;
-        if (_isDisp) { _resetToday = true; } else if (_isDrv && today.getHours() >= 7) { const _k = `rxd_drst_${fetchedUser.id}`; if (localStorage.getItem(_k) !== _tStr) { _resetToday = true; localStorage.setItem(_k, _tStr); } }
-        if (_resetToday) { globalFilters.setSelectedDate(today); }
-        const effectiveDateForDriverAssignment = _resetToday ? today : new Date(savedDate + 'T00:00:00');
+        // CRITICAL: For dispatchers/drivers, force today BEFORE reading savedDate
+        if (_isDisp) { globalFilters.setSelectedDate(today); } else if (_isDrv && today.getHours() >= 7) { const _k = `rxd_drst_${fetchedUser.id}`; if (localStorage.getItem(_k) !== _tStr) { globalFilters.setSelectedDate(today); localStorage.setItem(_k, _tStr); } }
+        const savedDate = globalFilters.getSelectedDate();
+        if (!savedDate) { globalFilters.setSelectedDate(today); }
+        const effectiveDateForDriverAssignment = globalFilters.getSelectedDate() ? new Date(globalFilters.getSelectedDate() + 'T00:00:00') : today;
 
         const currentDriverFilter = globalFilters.getSelectedDriverId();
         if (!currentDriverFilter) {
