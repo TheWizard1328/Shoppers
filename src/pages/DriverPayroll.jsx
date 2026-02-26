@@ -710,26 +710,22 @@ export default function DriverPayroll() {
     hasLoadedInitialDataRef.current = true;
   }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon]);
 
-  // Reset period index when pay period or year changes
-  const initialPeriodSetRef = useRef(false);
+  // Re-select period when live payroll records arrive (may override offline-based initial selection)
   const periodSelectionDoneWithRecordsRef = useRef(false);
   
   useEffect(() => {
     if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
     
-    // Reset when year or pay period changes so we re-select
+    // Reset on manual changes (year/cycle switch)
     if (isManualChangeRef.current) {
-      initialPeriodSetRef.current = false;
       periodSelectionDoneWithRecordsRef.current = false;
     }
 
     const records = payrollRecords || [];
     const hasRecords = records.length > 0;
     
-    // If we already did selection WITH records, don't redo
-    if (periodSelectionDoneWithRecordsRef.current) return;
-    // If we already set a period but have no records yet, allow re-run when records arrive
-    if (initialPeriodSetRef.current && !hasRecords) return;
+    // Only re-select when we have actual live records and haven't done so yet
+    if (!hasRecords || periodSelectionDoneWithRecordsRef.current) return;
 
     const today = new Date();
     let todayPeriodIdx = -1;
@@ -738,28 +734,29 @@ export default function DriverPayroll() {
     }
     
     let earliestIncompleteCycleIdx = -1;
-    if (hasRecords) {
-      const searchLimit = todayPeriodIdx !== -1 ? todayPeriodIdx : allPeriods.length - 1;
-      for (let i = 0; i <= searchLimit; i++) {
-        const period = allPeriods[i];
-        const startStr = period.start.toISOString().split('T')[0];
-        const endStr = period.end.toISOString().split('T')[0];
-        const recordsForPeriod = records.filter(r => r.pay_period_start === startStr && r.pay_period_end === endStr);
-        if (recordsForPeriod.length === 0) continue;
-        if (recordsForPeriod.some(r => !r.driver_finalized_at || !r.admin_finalized_at)) {
-          earliestIncompleteCycleIdx = i;
-          console.log(`✅ [DriverPayroll] Found earliest incomplete cycle: ${period.label} (index ${i})`);
-          break;
-        }
+    const searchLimit = todayPeriodIdx !== -1 ? todayPeriodIdx : allPeriods.length - 1;
+    for (let i = 0; i <= searchLimit; i++) {
+      const period = allPeriods[i];
+      const startStr = period.start.toISOString().split('T')[0];
+      const endStr = period.end.toISOString().split('T')[0];
+      const recordsForPeriod = records.filter(r => r.pay_period_start === startStr && r.pay_period_end === endStr);
+      if (recordsForPeriod.length === 0) continue;
+      if (recordsForPeriod.some(r => !r.driver_finalized_at || !r.admin_finalized_at)) {
+        earliestIncompleteCycleIdx = i;
+        console.log(`✅ [DriverPayroll] Live records: earliest incomplete cycle: ${period.label} (index ${i})`);
+        break;
       }
     }
     
     const selectedIdx = earliestIncompleteCycleIdx !== -1 ? earliestIncompleteCycleIdx : (todayPeriodIdx !== -1 ? todayPeriodIdx : 0);
-    console.log(`✅ [DriverPayroll] Period selected: ${allPeriods[selectedIdx]?.label} (index ${selectedIdx}) - ${earliestIncompleteCycleIdx !== -1 ? 'Earliest incomplete' : "Today's period"} [hasRecords=${hasRecords}]`);
-    setSelectedPeriodIndex(selectedIdx);
-    initialPeriodSetRef.current = true;
-    if (hasRecords) periodSelectionDoneWithRecordsRef.current = true;
-  }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData]);
+    
+    // Only update if different from current to avoid unnecessary re-renders
+    if (selectedIdx !== selectedPeriodIndex) {
+      console.log(`✅ [DriverPayroll] Live records: updating period to ${allPeriods[selectedIdx]?.label} (index ${selectedIdx})`);
+      setSelectedPeriodIndex(selectedIdx);
+    }
+    periodSelectionDoneWithRecordsRef.current = true;
+  }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData, selectedPeriodIndex]);
 
   // Subscribe to real-time websocket updates
   useEffect(() => {
