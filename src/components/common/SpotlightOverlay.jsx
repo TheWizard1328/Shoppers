@@ -75,9 +75,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
       {(() => {
         const bubbleWidth = 320;
         const bubbleHeight = 84;
-        const spaceAbove = rect.top;
-        const placeAbove = spaceAbove >= bubbleHeight + 16;
-        const top = placeAbove ? rect.top - bubbleHeight - 12 : rect.top + rect.height + 12;
+        const top = rect.top + rect.height + 12;
         const left = Math.min(
           Math.max(12, rect.left + rect.width / 2 - bubbleWidth / 2),
           window.innerWidth - bubbleWidth - 12
