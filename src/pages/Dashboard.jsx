@@ -9271,7 +9271,7 @@ function Dashboard() {
         }
       </AnimatePresence>
 
-      <RouteNotification
+      {false && <RouteNotification
         notification={routeNotification}
         onDismiss={() => setRouteNotification(null)}
         onNavigate={() => {
