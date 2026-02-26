@@ -1734,7 +1734,7 @@ export default function DeliveryMap({
       
       // Set the zoom to target zoom level
       setTimeout(() => {
-        if (map.getZoom() < targetZoom) {
+        if (map && map.getZoom && map._loaded && map._mapPane && map._mapPane._leaflet_pos && map.getZoom() < targetZoom) {
           map.setZoom(targetZoom, { animate: true, duration: 0.3 });
         }
       }, 600);
@@ -3720,7 +3720,7 @@ return polylines.length > 0 ? polylines : null;
                     });
                     
                     setTimeout(() => {
-                      if (map.getZoom() < targetZoom) {
+                      if (map && map.getZoom && map._loaded && map._mapPane && map._mapPane._leaflet_pos && map.getZoom() < targetZoom) {
                         map.setZoom(targetZoom, { animate: true, duration: 0.3 });
                       }
                       e.target.openPopup();
