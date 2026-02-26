@@ -1056,7 +1056,7 @@ export default function DeliveryForm({
     // CRITICAL: If NOT auto-adding to staged (single patient selection), just populate form and return
     if (!autoAddToStaged) {
       console.log('📝 [handlePatientSelect] Single selection - populating form only, not auto-adding to staged');
-      console.log(`📦 [handlePatientSelect] Patient store: ${patient.store_id}, AM/PM: ${deliveryAMPM}, Variant: ${storeVariantId}`);
+      if (!isMobileDevice) setTimeout(() => codAmountInputRef.current?.focus?.(), 100);
       setPatientSearch('');
       setHighlightedPatientIndex(-1);
       driverLocationPoller.resume();
