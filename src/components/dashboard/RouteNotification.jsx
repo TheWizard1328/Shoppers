@@ -4,6 +4,8 @@ import { MapPin, Navigation, AlertTriangle, CheckCircle, RefreshCw, X } from "lu
 import { Button } from "@/components/ui/button";
 
 export default function RouteNotification({ notification, onDismiss, onNavigate, isOptimizing = false }) {
+  // Visual notifier globally disabled
+  return null;
   const [isVisible, setIsVisible] = useState(false);
   
   useEffect(() => {
