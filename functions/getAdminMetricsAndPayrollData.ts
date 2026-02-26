@@ -57,33 +57,33 @@ Deno.serve(async (req) => {
         storeIds = cityStores.map(s => s.id);
       }
 
-      // Fetch all reference data in parallel (including deliveries)
-      // Note: Using list() with limit to get deliveries; filter() may return non-array buffers depending on environment
+      // Fetch deliveries using filter() with date range to avoid loading entire DB
+      // Also fetch reference data in parallel
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      const deliveryFilter = { delivery_date: { $gte: startDate, $lte: endDate } };
+      if (storeIds && storeIds.length > 0) {
+        deliveryFilter.store_id = { $in: storeIds };
+      }
+      
+      const payrollFilter = { pay_period_start: { $gte: startDate, $lte: endDate } };
+
       const [rawDeliveries, stores, appUsers, patients, cities, appSettings, rawPayrollRecords] = await Promise.all([
-        base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000),  // latest first to ensure current-year data
+        base44.asServiceRole.entities.Delivery.filter(deliveryFilter, '-delivery_date', 50000),
         base44.asServiceRole.entities.Store.list('', 50000),
         base44.asServiceRole.entities.AppUser.list('', 50000),
         base44.asServiceRole.entities.Patient.list('', 50000),
         base44.asServiceRole.entities.City.list('', 50000),
         base44.asServiceRole.entities.AppSettings.list(),
-        base44.asServiceRole.entities.Payroll.list('-pay_period_start', 50000)
+        base44.asServiceRole.entities.Payroll.filter(payrollFilter, '-pay_period_start', 50000)
       ]);
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
-      // Filter deliveries and payroll records by year and optional city filter
+      // Ensure arrays
       let deliveries = Array.isArray(rawDeliveries) ? rawDeliveries : [];
       let payrollRecords = Array.isArray(rawPayrollRecords) ? rawPayrollRecords : [];
-      
-      // Filter by year using delivery_date only (per spec)
-      deliveries = deliveries.filter(d => d && d.delivery_date && String(d.delivery_date).startsWith(`${year}`));
-      
-      // Filter by stores if city is specified
-      if (storeIds && storeIds.length > 0) {
-        deliveries = deliveries.filter(d => d && storeIds.includes(d.store_id));
-      }
-      
-      payrollRecords = payrollRecords.filter(p => p && p.pay_period_start && p.pay_period_start.startsWith(`${year}`));
 
       console.log(`📦 Raw deliveries returned: ${(rawDeliveries || []).length}, filtered to ${deliveries.length} for year ${year}`);
       if (deliveries.length > 0) {
