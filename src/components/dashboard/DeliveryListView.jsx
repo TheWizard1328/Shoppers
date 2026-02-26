@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { CheckCircle, Clock, Package, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
@@ -85,53 +85,6 @@ const DeliveryListView = ({
   onDriverStatusChange
 }) => {
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
-  const listRef = useRef(null);
-  const STORAGE_KEY = useMemo(() => {
-    try {
-      return `rxdeliver_listview_state_${format(selectedDate, 'yyyy-MM-dd')}`;
-    } catch {
-      return 'rxdeliver_listview_state';
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (saved.selectedDeliveryId) {
-        setSelectedDeliveryId(saved.selectedDeliveryId);
-      }
-      if (saved.scrollTop != null) {
-        requestAnimationFrame(() => {
-          if (listRef.current) listRef.current.scrollTop = saved.scrollTop;
-        });
-      }
-    } catch (e) {}
-  }, [STORAGE_KEY]);
-
-  const persistListState = useCallback(() => {
-    try {
-      const payload = {
-        selectedDeliveryId,
-        scrollTop: listRef.current ? listRef.current.scrollTop : 0,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch (e) {}
-  }, [STORAGE_KEY, selectedDeliveryId]);
-
-  useEffect(() => {
-    const handleVis = () => { if (document.hidden) persistListState(); };
-    const handleBeforeUnload = () => persistListState();
-    document.addEventListener('visibilitychange', handleVis);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVis);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [persistListState]);
-
-  useEffect(() => { persistListState(); }, [persistListState]);
 
   // Memoize patient lookup map for O(1) access
   const patientMap = useMemo(() => {
@@ -244,7 +197,7 @@ const DeliveryListView = ({
         </div>
 
         {/* Scrollable List */}
-          <div className="flex-1 overflow-y-auto" ref={listRef}>
+        <div className="flex-1 overflow-y-auto">
         {deliveries.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-slate-500">
             No deliveries found
