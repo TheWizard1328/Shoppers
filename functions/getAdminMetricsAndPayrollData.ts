@@ -108,8 +108,18 @@ Deno.serve(async (req) => {
         deliveries = deliveries.filter(d => d && storeIds.includes(d.store_id));
       }
 
-      console.log(`📦 Deliveries fetched for year ${year}: ${deliveries.length}`);
-      console.log(`📦 Payroll records fetched for year ${year}: ${payrollRecords.length}`);
+      console.log(`📦 FINAL: ${deliveries.length} deliveries, ${payrollRecords.length} payroll records for year ${year}`);
+      
+      // Debug: check what's in the raw data
+      if (deliveries.length === 0 && rawArr.length > 0) {
+        // Sample some dates to see why year filter failed
+        const sampleDates = rawArr.slice(0, 10).map(d => ({ 
+          delivery_date: d.delivery_date, 
+          type: typeof d.delivery_date,
+          startsWith: String(d.delivery_date).substring(0, 4)
+        }));
+        console.log(`⚠️ Year filter returned 0 deliveries from ${rawArr.length} raw. Sample dates:`, JSON.stringify(sampleDates));
+      }
 
       const data = {
         deliveries,
