@@ -238,7 +238,7 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
         
         // Calculate today's stats
         const todayPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
-        const todayActiveDrivers = new Set(todayDeliveries.filter(d => d?.driver_id).map(d => d.driver_id)).size;
+        const allAppUsersFromDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS); const offDutyIds = new Set((allAppUsersFromDB || []).filter(au => au?.driver_status === 'off_duty').map(au => au.user_id)); const todayActiveDrivers = [...new Set(todayDeliveries.filter(d => d?.driver_id).map(d => d.driver_id))].filter(id => !offDutyIds.has(id)).length;
         const todayActiveStops = todayPatientDeliveries.filter(d => !['completed','failed','cancelled','returned'].includes(d?.status)).length;
         const todayCompleted = todayPatientDeliveries.filter(d => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter(d => d?.status === 'failed').length;
