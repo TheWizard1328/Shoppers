@@ -70,72 +70,33 @@ Deno.serve(async (req) => {
         base44.asServiceRole.entities.AppSettings.list()
       ]);
 
-      // Fetch deliveries for the year in batches to avoid hitting limits
-      // Use list() sorted by -delivery_date and stop when we pass our year
-      let allYearDeliveries = [];
-      let batchOffset = 0;
-      const batchSize = 5000;
-      let keepFetching = true;
+      // Fetch ALL deliveries (sorted newest first), then filter to year
+      // list(sortBy, limit) - the SDK only supports sort + limit, no offset
+      const rawDeliveries = await base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000);
+      const rawArr = Array.isArray(rawDeliveries) ? rawDeliveries : [];
       
-      while (keepFetching) {
-        const batch = await base44.asServiceRole.entities.Delivery.list('-delivery_date', batchSize, batchOffset);
-        if (!Array.isArray(batch) || batch.length === 0) {
-          keepFetching = false;
-          break;
-        }
-        
-        for (const d of batch) {
-          if (!d || !d.delivery_date) continue;
-          const dDate = String(d.delivery_date);
-          
-          // Since sorted by -delivery_date (newest first), once we pass our year we're done
-          if (dDate < yearStart) {
-            keepFetching = false;
-            break;
-          }
-          
-          if (dDate >= yearStart && dDate <= yearEnd) {
-            allYearDeliveries.push(d);
-          }
-        }
-        
-        // If we got fewer than batchSize, there's no more data
-        if (batch.length < batchSize) {
-          keepFetching = false;
-        }
-        
-        batchOffset += batchSize;
+      console.log(`📦 Raw deliveries from list(): ${rawArr.length}`);
+      if (rawArr.length > 0) {
+        console.log(`📦 First delivery date: ${rawArr[0]?.delivery_date}, Last: ${rawArr[rawArr.length - 1]?.delivery_date}`);
       }
+      
+      // Filter to the requested year only
+      const allYearDeliveries = rawArr.filter(d => {
+        if (!d || !d.delivery_date) return false;
+        const dDate = String(d.delivery_date);
+        return dDate >= yearStart && dDate <= yearEnd;
+      });
+      
+      console.log(`📦 After year filter (${yearStart} to ${yearEnd}): ${allYearDeliveries.length} deliveries`);
 
-      // Fetch payroll records for the year similarly
-      let allYearPayroll = [];
-      let payrollOffset = 0;
-      let keepFetchingPayroll = true;
-      
-      while (keepFetchingPayroll) {
-        const batch = await base44.asServiceRole.entities.Payroll.list('-pay_period_start', 5000, payrollOffset);
-        if (!Array.isArray(batch) || batch.length === 0) {
-          keepFetchingPayroll = false;
-          break;
-        }
-        
-        for (const p of batch) {
-          if (!p || !p.pay_period_start) continue;
-          const pDate = String(p.pay_period_start);
-          if (pDate < yearStart) {
-            keepFetchingPayroll = false;
-            break;
-          }
-          if (pDate >= yearStart && pDate <= yearEnd) {
-            allYearPayroll.push(p);
-          }
-        }
-        
-        if (batch.length < 5000) {
-          keepFetchingPayroll = false;
-        }
-        payrollOffset += 5000;
-      }
+      // Fetch payroll records
+      const rawPayroll = await base44.asServiceRole.entities.Payroll.list('-pay_period_start', 50000);
+      const rawPayrollArr = Array.isArray(rawPayroll) ? rawPayroll : [];
+      const allYearPayroll = rawPayrollArr.filter(p => {
+        if (!p || !p.pay_period_start) return false;
+        const pDate = String(p.pay_period_start);
+        return pDate >= yearStart && pDate <= yearEnd;
+      });
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
