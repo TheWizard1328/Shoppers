@@ -80,8 +80,8 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
           Math.max(12, rect.left + rect.width / 2 - bubbleWidth / 2),
           window.innerWidth - bubbleWidth - 12
         );
-        const arrowTop = placeAbove ? bubbleHeight - 6 : -6;
-        const arrowClasses = placeAbove ? 'border-l border-t' : 'border-r border-b';
+        const arrowTop = -6;
+        const arrowClasses = 'border-r border-b';
         return (
           <div
             className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 max-w-xs"
