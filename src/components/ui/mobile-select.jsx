@@ -11,7 +11,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { SelectTrigger, SelectValue } from '@/components/ui/select';
+
 
 export function MobileSelect({ 
   value, 
@@ -50,11 +50,9 @@ export function MobileSelect({
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
-        <SelectTrigger className={triggerClassName} disabled={disabled}>
-          <SelectValue>
-            {selectedItem ? (options ? selectedItem.label : selectedItem.props.children) : placeholder}
-          </SelectValue>
-        </SelectTrigger>
+        <Button variant="outline" className={triggerClassName} disabled={disabled}>
+          {selectedItem ? (options ? selectedItem.label : selectedItem.props.children) : placeholder}
+        </Button>
       </DrawerTrigger>
       <DrawerContent className={className}>
         <DrawerHeader className="text-left">
