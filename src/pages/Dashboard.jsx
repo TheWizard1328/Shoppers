@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import AddDeliveryButton from "@/components/dashboard/AddDeliveryButton";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8353,17 +8354,14 @@ function Dashboard() {
                   </PopoverContent>
                 </Popover>
 
-                <Button
+                <AddDeliveryButton
                   onClick={() => {
                     setEditingDelivery(null);
                     setShowDeliveryForm(true);
                   }}
-                  size="sm"
-                  className={`h-8 w-8 p-0 transition-colors ${hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
                   disabled={isDateFinished && !isAdmin}
-                  title={hasRateLimitError ? 'Rate limit detected - please wait' : 'Add delivery'}>
-                  <Plus className="w-4 h-4" />
-                </Button>
+                  hasRateLimitError={hasRateLimitError}
+                />
               </div>
             </div>
 
