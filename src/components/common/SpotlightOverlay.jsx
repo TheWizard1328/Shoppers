@@ -3,9 +3,6 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 export default function SpotlightOverlay({ targetRef, text, visible, onClose, durationMs = 15000 }) {
   const [rect, setRect] = useState(null);
   const lastRectRef = useRef(null);
-  const lastRectRef = useRef(null);
-  const lastRectRef = useRef(null);
-  const lastRectRef = useRef(null);
 
   // Recalculate target rect on resize/scroll/visibility (viewport coords for fixed overlay)
   const updateRect = () => {
@@ -116,7 +113,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
         // Arrow on top-right corner
         const arrowTop = -6;
         const arrowRight = 12;
-        const arrowClasses = 'border-l border-t';
+        const arrowClasses = 'border-t border-r';
         return (
           <div
             className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 max-w-xs opacity-100"
