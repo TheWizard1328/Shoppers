@@ -1100,30 +1100,13 @@ export default function Layout({ children, currentPageName }) {
             )
           ]);
 
-          // Save to offline DB immediately
-          if (deliveryData?.length) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);
-          if (patientData?.length) await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientData);
-          if (appUserData?.length) await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserData);
-          if (storeData?.length) await offlineDB.bulkSave(offlineDB.STORES.STORES, storeData);
-          
-          console.log(`✅ [Layout Init] Offline DB primed in ${Date.now() - primeStartTime}ms`);
-          
-          // CRITICAL: Check if offline DB is still empty or has insufficient data
-          // If so, trigger a manual sync to populate it
-          const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-          
-          const isOfflineDBEmpty = 
-            (!offlineDeliveries || offlineDeliveries.length === 0) ||
-            (!offlinePatients || offlinePatients.length === 0) ||
-            (!offlineAppUsers || offlineAppUsers.length === 0);
-          
-          if (isOfflineDBEmpty) {
-            console.log('⚠️ [Layout Init] Offline DB is empty or insufficient - triggering manual sync');
-            // Dispatch event to trigger the OfflineSyncIndicator's manual sync
-            window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
-          }
+          // Save to offline DB AND populate React state immediately so Dashboard has data on first render
+          if (deliveryData?.length) { await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData); setDeliveries(deliveryData); }
+          if (patientData?.length) { await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientData); setPatients(patientData); }
+          if (appUserData?.length) { await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserData); setAppUsers(appUserData); }
+          if (storeData?.length) { await offlineDB.bulkSave(offlineDB.STORES.STORES, storeData); storeData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)); setStores(storeData); }
+          console.log(`✅ [Layout Init] Offline DB primed + React state populated in ${Date.now() - primeStartTime}ms`);
+          if (!deliveryData?.length || !patientData?.length || !appUserData?.length) { window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow')); }
         } catch (error) {
           console.warn('⚠️ [Layout Init] Offline DB prime failed (non-critical):', error.message);
           // Trigger sync anyway if priming failed
