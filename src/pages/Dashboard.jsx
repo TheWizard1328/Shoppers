@@ -9286,10 +9286,10 @@ function Dashboard() {
               cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             }
           }
-        }} />
+        /> )
 
 
-      {/* Proactive Alert System - monitors route for potential issues */}
+        {/* Proactive Alert System - monitors route for potential issues */}
       {isDriver && isAIEnabled &&
       <ProactiveAlertSystem
         currentUser={currentUser}
