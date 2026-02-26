@@ -1,7 +1,9 @@
-import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 export default function SpotlightOverlay({ targetRef, text, visible, onClose, durationMs = 15000 }) {
   const [rect, setRect] = useState(null);
+  const lastRectRef = useRef(null);
+  const lastRectRef = useRef(null);
 
   // Recalculate target rect on resize/scroll/visibility (viewport coords for fixed overlay)
   const updateRect = () => {
@@ -11,13 +13,18 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
     const cs = window.getComputedStyle(el);
     const br = parseFloat(cs.borderRadius || '0') || 0;
     // Round to whole pixels to avoid subpixel misalignment at various zoom levels
-    setRect({
+    const newRect = {
       top: Math.round(r.top),
       left: Math.round(r.left),
       width: Math.round(r.width),
       height: Math.round(r.height),
       radius: br,
-    });
+    };
+    const prev = lastRectRef.current;
+    if (!prev || prev.top !== newRect.top || prev.left !== newRect.left || prev.width !== newRect.width || prev.height !== newRect.height) {
+      lastRectRef.current = newRect;
+      setRect(newRect);
+    }
   };
 
   useLayoutEffect(() => {
@@ -75,14 +82,27 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
       {/* Bubble card near the target (prefer above; fallback below) */}
       {(() => {
         const bubbleWidth = 320;
-        const bubbleHeight = 84;
         const top = rect.top + rect.height + 12;
-        const left = Math.min(
-          Math.max(12, rect.left + rect.width / 2 - bubbleWidth / 2),
-          window.innerWidth - bubbleWidth - 12
-        );
+        // Find nearest wide/centered ancestor to act as anchor (stats card)
+        let node = targetRef?.current;
+        let anchorRect = null;
+        while (node && node !== document.body) {
+          const br = node.getBoundingClientRect();
+          const cs = window.getComputedStyle(node);
+          const wideEnough = br.width > rect.width + 120;
+          const centered = (cs.marginLeft === 'auto' && cs.marginRight === 'auto');
+          if (node.hasAttribute('data-spotlight-anchor') || wideEnough || centered) {
+            anchorRect = br;
+            break;
+          }
+          node = node.parentElement;
+        }
+        const centerX = anchorRect ? (anchorRect.left + anchorRect.width / 2) : (rect.left + rect.width / 2);
+        const left = Math.min(Math.max(12, centerX - bubbleWidth / 2), window.innerWidth - bubbleWidth - 12);
+        // Arrow on top-right corner
         const arrowTop = -6;
-        const arrowClasses = 'border-r border-b';
+        const arrowRight = 12;
+        const arrowClasses = 'border-l border-t';
         return (
           <div
             className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 max-w-xs opacity-100"
@@ -97,7 +117,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
               className={`absolute w-3 h-3 bg-white rotate-45 ${arrowClasses}`}
               style={{
                 top: arrowTop,
-                left: bubbleWidth / 2 - 6,
+                right: arrowRight,
               }}
             />
           </div>
