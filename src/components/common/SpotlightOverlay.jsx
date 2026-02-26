@@ -5,6 +5,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   const lastRectRef = useRef(null);
   const lastRectRef = useRef(null);
   const lastRectRef = useRef(null);
+  const lastRectRef = useRef(null);
 
   // Recalculate target rect on resize/scroll/visibility (viewport coords for fixed overlay)
   const updateRect = () => {
@@ -46,6 +47,18 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
       window.removeEventListener('scroll', onScroll, true);
       try { obs.disconnect(); } catch {}
     };
+  }, [visible, targetRef]);
+
+  // Smooth rAF tracking for continuous alignment during layout shifts
+  useEffect(() => {
+    if (!visible) return;
+    let rafId;
+    const loop = () => {
+      updateRect();
+      rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
   }, [visible, targetRef]);
 
   // Auto-dismiss after duration
