@@ -10,11 +10,12 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
     const r = el.getBoundingClientRect();
     const cs = window.getComputedStyle(el);
     const br = parseFloat(cs.borderRadius || '0') || 0;
+    // Round to whole pixels to avoid subpixel misalignment at various zoom levels
     setRect({
-      top: r.top,
-      left: r.left,
-      width: r.width,
-      height: r.height,
+      top: Math.round(r.top),
+      left: Math.round(r.left),
+      width: Math.round(r.width),
+      height: Math.round(r.height),
       radius: br,
     });
   };
