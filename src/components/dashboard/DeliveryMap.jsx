@@ -821,7 +821,7 @@ export default function DeliveryMap({
   // CRITICAL: Create stable dependency string for location tracking
   const realtimeLocationKey = useMemo(() => {
     if (!realtimeAppUsers || realtimeAppUsers.length === 0) return '';
-    return realtimeAppUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(6)}:${u?.current_longitude?.toFixed(6)}`).join('|');
+    return realtimeAppUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(4)}:${u?.current_longitude?.toFixed(4)}`).join('|');
   }, [realtimeAppUsers]);
   
   // CRITICAL: Force polyline update when realtimeAppUsers location data changes
@@ -1935,7 +1935,7 @@ export default function DeliveryMap({
     currentUser?.id,
     isMobile,
     // Track user location data with stable key - round coordinates to prevent micro-changes
-    safeUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.driver_status}:${u?.location_tracking_enabled}`).join('|'),
+    safeUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(4)}:${u?.current_longitude?.toFixed(4)}:${u?.driver_status}:${u?.location_tracking_enabled}`).join('|'),
     // Include deliveries for filtering idle drivers
     deliveriesForLocationFilter.map(d => `${d?.id}:${d?.driver_id}:${d?.delivery_date}:${d?.status}`).join('|'),
     polylineRenderKey // CRITICAL: Force recalculation when driver locations update
@@ -2488,7 +2488,7 @@ export default function DeliveryMap({
     currentDriverLocation?.latitude,
     currentDriverLocation?.longitude,
     // CRITICAL: Track realtimeAppUsers location changes so startPoint updates for shared markers
-    realtimeAppUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}`).join('|'),
+    realtimeAppUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(4)}:${u?.current_longitude?.toFixed(4)}`).join('|'),
     isViewingCurrentDate,
     isDriverViewingSelfToday,
     routeRenderKey // CRITICAL: Force recalculation when deliveries update
@@ -3253,7 +3253,7 @@ export default function DeliveryMap({
               }
 
               // CRITICAL: Include location coordinates in key to force re-render on location update
-              const locationKey = `${driverCurrentLocation[0].toFixed(6)}-${driverCurrentLocation[1].toFixed(6)}`;
+              const locationKey = `${driverCurrentLocation[0].toFixed(4)}-${driverCurrentLocation[1].toFixed(4)}`;
 
               console.log(`🔵 [Type1Poly-Complete] ✅ RENDERING Type 1 polyline to HOME for ${driverName}:`, {
                 from: driverCurrentLocation.map(c => c.toFixed(5)),
@@ -3640,7 +3640,7 @@ return polylines.length > 0 ? polylines : null;
 
              // CRITICAL: Include BOTH location coordinates AND driver data state in key to force re-render
              // This ensures the polyline updates every time the driver's shared location changes
-             const locationKey = `${startPoint[0].toFixed(6)}-${startPoint[1].toFixed(6)}`;
+             const locationKey = `${startPoint[0].toFixed(4)}-${startPoint[1].toFixed(4)}`;
 
              console.log(`🔵 [Type1Poly-Incomplete] ✅ RENDERING Type 1 polyline for ${driverName}:`, {
                from: startPoint.map(c => c.toFixed(5)),

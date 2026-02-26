@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { smartRefreshManager } from './smartRefreshManager';
 import { base44 } from '@/api/base44Client';
 import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
@@ -291,6 +291,120 @@ export const AppDataProvider = ({ children, value }) => {
     }
   };
   
+  // NEW: Ensure patients for selected date/city are synced locally (Pull to Sync + dashboard refresh)
+  const patientSyncStateRef = useRef({ key: '', inProgress: false, lastRunAt: 0 });
+
+  const ensurePatientsForSelectedDate = useCallback(async () => {
+    try {
+      const selectedDate = value.selectedDate;
+      const selectedCityId = value.selectedCityId;
+      if (!selectedDate || !selectedCityId) return;
+
+      const key = `${selectedCityId}|${selectedDate}`;
+      const now = Date.now();
+      if (patientSyncStateRef.current.inProgress) return;
+      if (patientSyncStateRef.current.key === key && now - patientSyncStateRef.current.lastRunAt < 15000) return;
+
+      patientSyncStateRef.current = { key, inProgress: true, lastRunAt: now };
+
+      const { offlineDB } = await import('./offlineDatabase');
+
+      // Load stores for selected city (offline first, then API fallback)
+      let cityStores = await offlineDB.getByIndex(offlineDB.STORES.STORES, 'city_id', selectedCityId);
+      if (!cityStores || cityStores.length === 0) {
+        cityStores = await base44.entities.Store.filter({ city_id: selectedCityId });
+        if (cityStores?.length) await offlineDB.bulkSave(offlineDB.STORES.STORES, cityStores);
+      }
+      const storeIds = new Set((cityStores || []).map(s => s.id));
+
+      // Get deliveries for selected date (prefer in-memory, else offline)
+      let deliveriesForDate = (deliveriesRef.current || []).filter(d => d?.delivery_date === selectedDate);
+      if (!deliveriesForDate || deliveriesForDate.length === 0) {
+        deliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
+      }
+
+      // Patient IDs needed for stops whose store is in the selected city
+      const patientIdsNeeded = Array.from(new Set(
+        (deliveriesForDate || [])
+          .filter(d => d?.patient_id && storeIds.has(d?.store_id))
+          .map(d => d.patient_id)
+      ));
+
+      if (patientIdsNeeded.length === 0) {
+        patientSyncStateRef.current.inProgress = false;
+        return;
+      }
+
+      // What do we already have offline?
+      const existingPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      const have = new Set((existingPatients || []).map(p => p.id));
+      const missingIds = patientIdsNeeded.filter(id => !have.has(id));
+
+      if (missingIds.length === 0) {
+        patientSyncStateRef.current.inProgress = false;
+        return;
+      }
+
+      // Fetch missing patients in small batches to avoid rate limits
+      const fetched = [];
+      const BATCH = 10;
+      for (let i = 0; i < missingIds.length; i += BATCH) {
+        const chunk = missingIds.slice(i, i + BATCH);
+        const chunkResults = await Promise.all(
+          chunk.map(async (pid) => {
+            const res = await base44.entities.Patient.filter({ id: pid });
+            return Array.isArray(res) && res.length > 0 ? res[0] : null;
+          })
+        );
+        fetched.push(...chunkResults.filter(Boolean));
+      }
+
+      if (fetched.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, fetched);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('patientsUpdated', {
+            detail: { count: fetched.length, selectedDate, selectedCityId }
+          }));
+        }
+      }
+
+    } catch (e) {
+      console.warn('[AppDataContext] ensurePatientsForSelectedDate failed:', e?.message || e);
+    } finally {
+      patientSyncStateRef.current.inProgress = false;
+      patientSyncStateRef.current.lastRunAt = Date.now();
+    }
+  }, [value.selectedCityId, value.selectedDate]);
+
+  // Trigger on dashboard refresh/boot
+  useEffect(() => {
+    ensurePatientsForSelectedDate();
+  }, [ensurePatientsForSelectedDate]);
+
+  // Trigger after Pull to Sync and general deliveries refresh events
+  useEffect(() => {
+    const onDeliveriesUpdated = (e) => {
+      const { triggeredBy, source } = (e && e.detail) || {};
+      if (
+        triggeredBy === 'pullToSyncComplete' ||
+        triggeredBy === 'manualRefresh' ||
+        triggeredBy === 'periodicRefresh' ||
+        triggeredBy === 'route_importer' ||
+        source === 'realtime_sync'
+      ) {
+        ensurePatientsForSelectedDate();
+      }
+    };
+    const onPullToSyncComplete = () => ensurePatientsForSelectedDate();
+
+    window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    window.addEventListener('pullToSyncComplete', onPullToSyncComplete);
+    return () => {
+      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+      window.removeEventListener('pullToSyncComplete', onPullToSyncComplete);
+    };
+  }, [ensurePatientsForSelectedDate]);
+
   const wrappedValue = {
     ...value,
     updateDeliveriesLocally: wrappedUpdateDeliveriesLocally,
