@@ -68,30 +68,39 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
         }}
       />
 
-      {/* Bubble card near the target (top by default) */}
-      <div
-        className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 max-w-xs"
-        style={{
-          top: Math.max(12, rect.top - 12 - 80),
-          left: Math.min(
-            rect.left,
-            Math.max(12, rect.left + rect.width / 2 - 160)
-          ),
-        }}
-      >
-        <div className="text-sm font-medium">Add deliveries here</div>
-        <p className="text-xs mt-1 leading-relaxed">
-          Start here to add new stop locations to your driver(s).
-        </p>
-        {/* Arrow pointing down to target */}
-        <div
-          className="absolute w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45"
-          style={{
-            top: "100%",
-            left: rect.width / 2 - 8,
-          }}
-        />
-      </div>
+      {/* Bubble card near the target (prefer above; fallback below) */}
+      {(() => {
+        const bubbleWidth = 320;
+        const bubbleHeight = 84;
+        const spaceAbove = rect.top;
+        const placeAbove = spaceAbove >= bubbleHeight + 16;
+        const top = placeAbove ? rect.top - bubbleHeight - 12 : rect.top + rect.height + 12;
+        const left = Math.min(
+          Math.max(12, rect.left + rect.width / 2 - bubbleWidth / 2),
+          window.innerWidth - bubbleWidth - 12
+        );
+        const arrowTop = placeAbove ? bubbleHeight - 6 : -6;
+        const arrowClasses = placeAbove ? 'border-l border-t' : 'border-r border-b';
+        return (
+          <div
+            className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 max-w-xs"
+            style={{ top, left, width: bubbleWidth }}
+          >
+            <div className="text-sm font-medium">Add deliveries here</div>
+            <p className="text-xs mt-1 leading-relaxed">
+              Start here to add new stop locations to your driver(s).
+            </p>
+            {/* Arrow pointing to target */}
+            <div
+              className={`absolute w-3 h-3 bg-white rotate-45 ${arrowClasses}`}
+              style={{
+                top: arrowTop,
+                left: bubbleWidth / 2 - 6,
+              }}
+            />
+          </div>
+        );
+      })()}>
 
       {/* Click to dismiss hint */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-white/80">
