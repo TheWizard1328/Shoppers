@@ -158,6 +158,54 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     return store.color || '#64748b';
   };
 
+  // Smart average calculation:
+  // - Past completed months: use actual totals
+  // - Current month: project = (actual / daysElapsed) * totalDaysInMonth
+  // - Divide sum by current month number (number of months we're averaging over)
+  function calculateSmartAverage(store, allStores, monthlyStoreData, metricsData, viewMode, envelopeToggle, year) {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const today = now.getDate();
+    
+    // Determine how many months to average over
+    const isCurrentYear = year === currentYear;
+    const monthsToAverage = isCurrentYear ? currentMonth : 12;
+    
+    if (monthsToAverage === 0) return 0;
+    
+    let totalSum = 0;
+    
+    for (let month = 1; month <= monthsToAverage; month++) {
+      const monthData = monthlyStoreData[month] || [];
+      const storeData = monthData.find((s) => s.abbreviation === store.abbreviation);
+      if (!storeData) continue;
+      
+      let value;
+      if (viewMode === 'deliveries') {
+        const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
+        const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
+        const envelopeAdjustment = envelopeToggle && envelopeInfo?.totalEnvelopeValue > 0 ?
+          envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount : 0;
+        value = totalDeliveries + envelopeAdjustment;
+      } else {
+        value = storeData.fees || 0;
+      }
+      
+      // Current month of current year: project the full month
+      if (isCurrentYear && month === currentMonth && today > 0) {
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const dailyAvg = value / today;
+        const projected = Math.round(dailyAvg * daysInMonth);
+        totalSum += projected;
+      } else {
+        totalSum += value;
+      }
+    }
+    
+    return totalSum / monthsToAverage;
+  }
+
   return (
     <Card className="bg-card text-card-foreground rounded-xl border shadow">
       <CardHeader className="pb-3">
