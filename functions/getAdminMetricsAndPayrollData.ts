@@ -72,33 +72,59 @@ Deno.serve(async (req) => {
         base44.asServiceRole.entities.AppSettings.list()
       ]);
 
-      // Fetch ALL deliveries (sorted newest first), then filter to year
-      // list(sortBy, limit) - the SDK only supports sort + limit, no offset
-      const rawDeliveries = await base44.asServiceRole.entities.Delivery.list('-delivery_date', 50000);
-      const rawArr = Array.isArray(rawDeliveries) ? rawDeliveries : [];
+      // CRITICAL: SDK returns a raw string (not parsed JSON) when response > ~4MB
+      // This happens at around 2500+ deliveries. We must fetch in batches of 2000.
+      // Use filter() with date range to only get the year we need, paginated.
+      const BATCH_SIZE = 2000;
       
-      console.log(`📦 Raw deliveries from list(): ${rawArr.length}`);
-      if (rawArr.length > 0) {
-        console.log(`📦 First delivery date: ${rawArr[0]?.delivery_date}, Last: ${rawArr[rawArr.length - 1]?.delivery_date}`);
-      }
-      
-      // Filter to the requested year only
-      const allYearDeliveries = rawArr.filter(d => {
-        if (!d || !d.delivery_date) return false;
-        const dDate = String(d.delivery_date);
-        return dDate >= yearStart && dDate <= yearEnd;
-      });
-      
-      console.log(`📦 After year filter (${yearStart} to ${yearEnd}): ${allYearDeliveries.length} deliveries`);
+      // Helper: fetch all records for an entity with a filter, in batches
+      const fetchAllBatched = async (entityRef, query, sortBy) => {
+        const allResults = [];
+        let lastId = null;
+        let hasMore = true;
+        
+        while (hasMore) {
+          // Build query with cursor-based pagination using created_date
+          const batchQuery = lastId 
+            ? { ...query, id: { $gt: lastId } }
+            : query;
+          
+          const batch = await entityRef.filter(batchQuery, 'id', BATCH_SIZE);
+          
+          if (!Array.isArray(batch) || batch.length === 0) {
+            hasMore = false;
+            break;
+          }
+          
+          allResults.push(...batch);
+          lastId = batch[batch.length - 1].id;
+          
+          console.log(`  📦 Batch: ${batch.length} records (total so far: ${allResults.length})`);
+          
+          if (batch.length < BATCH_SIZE) {
+            hasMore = false;
+          }
+        }
+        
+        return allResults;
+      };
 
-      // Fetch payroll records
-      const rawPayroll = await base44.asServiceRole.entities.Payroll.list('-pay_period_start', 50000);
-      const rawPayrollArr = Array.isArray(rawPayroll) ? rawPayroll : [];
-      const allYearPayroll = rawPayrollArr.filter(p => {
-        if (!p || !p.pay_period_start) return false;
-        const pDate = String(p.pay_period_start);
-        return pDate >= yearStart && pDate <= yearEnd;
-      });
+      console.log(`📥 Fetching deliveries for ${year} in batches of ${BATCH_SIZE}...`);
+      const allYearDeliveries = await fetchAllBatched(
+        base44.asServiceRole.entities.Delivery,
+        { delivery_date: { $gte: yearStart, $lte: yearEnd } },
+        'id'
+      );
+      console.log(`📦 Total deliveries fetched for ${year}: ${allYearDeliveries.length}`);
+
+      // Fetch payroll records (should be small, but batch just in case)
+      console.log(`📥 Fetching payroll records for ${year}...`);
+      const allYearPayroll = await fetchAllBatched(
+        base44.asServiceRole.entities.Payroll,
+        { pay_period_start: { $gte: yearStart, $lte: yearEnd } },
+        'id'
+      );
+      console.log(`📦 Total payroll records fetched for ${year}: ${allYearPayroll.length}`);
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
