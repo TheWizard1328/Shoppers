@@ -31,24 +31,7 @@ export default function SettingsMenu({
 }) {
   const isMobileDeviceForUI = isMobile !== undefined ? isMobile : isMobileDevice();
   const isMobileForTheme = isMobileDeviceForTheme();
-
-  // WebSocket banner visibility (app owner toggle)
-  const [wsBannerHidden, setWsBannerHidden] = React.useState(() => {
-    try { return localStorage.getItem('wsDiagnosticsHidden') === 'true'; } catch { return false; }
-  });
-  React.useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === 'wsDiagnosticsHidden') setWsBannerHidden(e.newValue === 'true');
-    };
-    const onEvt = (e) => setWsBannerHidden(!!(e.detail && e.detail.hidden));
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('wsBannerToggleChanged', onEvt);
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('wsBannerToggleChanged', onEvt);
-    };
-  }, []);
-
+  
   return (
     <DropdownMenuContent 
       align="end" 
@@ -243,33 +226,6 @@ export default function SettingsMenu({
             </Select>
           )}
         </div>
-      )}
-
-      {/* Diagnostics - App Owner only */}
-      {isAppOwner && (
-        <>
-          <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-          <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}>
-            Diagnostics
-          </DropdownMenuLabel>
-          <div className="px-2 py-2">
-            <label className="flex items-center justify-between">
-              <span className="font-medium" style={{ color: 'var(--text-slate-700)', fontSize: isMobileDeviceForUI ? '14px' : '13px' }}>
-                WebSocket Sync Banner
-              </span>
-              <Switch
-                checked={!wsBannerHidden}
-                onCheckedChange={(checked) => {
-                  const hidden = !checked;
-                  setWsBannerHidden(hidden);
-                  try { localStorage.setItem('wsDiagnosticsHidden', hidden ? 'true' : 'false'); } catch {}
-                  window.dispatchEvent(new CustomEvent('wsBannerToggleChanged', { detail: { hidden } }));
-                  try { if (typeof toast !== 'undefined') toast.success(checked ? 'WebSocket banner enabled' : 'WebSocket banner hidden'); } catch {}
-                }}
-              />
-            </label>
-          </div>
-        </>
       )}
 
       {/* Force Full App Refresh */}
