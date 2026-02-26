@@ -594,24 +594,96 @@ export default function DriverPayroll() {
   }, [selectedYear, selectedCityId, hasInitialized, fetchPayroll]);
 
   // Initialize defaults based on user role - runs ONCE on mount
+  // CRITICAL: Reads offline Payroll records to determine the correct pay cycle + period BEFORE rendering data
   useEffect(() => {
     if (!currentUser || hasInitialized) return;
 
-    if (currentUser.city_id && !isDriver) {
-      setSelectedCityId(currentUser.city_id);
-    }
+    const initFromOfflineData = async () => {
+      if (currentUser.city_id && !isDriver) {
+        setSelectedCityId(currentUser.city_id);
+      }
 
-    if (isDriver) {
-      setSelectedDriverId(currentUser.id);
-      setPayPeriod('monthly');
-    } else {
-      setSelectedDriverId('all');
-      setPayPeriod('semimonthly');
-    }
-    setHasInitialized(true);
-    
-    // Immediately fetch payroll data after initialization
-    fetchPayroll(false, false);
+      if (isDriver) {
+        setSelectedDriverId(currentUser.id);
+      } else {
+        setSelectedDriverId('all');
+      }
+
+      // Step 1: Read AppUsers from offline DB to determine pay cycle
+      let determinedPayCycle = 'monthly'; // fallback
+      try {
+        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const activeDrivers = (offlineAppUsers || []).filter(au => au.status === 'active' && au.app_roles?.includes('driver'));
+
+        if (isDriver) {
+          const myAppUser = activeDrivers.find(au => au.user_id === currentUser.id);
+          if (myAppUser?.pay_cycle_type) determinedPayCycle = myAppUser.pay_cycle_type;
+        } else {
+          // Admin: find the most common pay cycle
+          const cycleCounts = {};
+          activeDrivers.forEach(au => {
+            if (au.pay_cycle_type) cycleCounts[au.pay_cycle_type] = (cycleCounts[au.pay_cycle_type] || 0) + 1;
+          });
+          let maxCount = 0;
+          Object.entries(cycleCounts).forEach(([cycle, count]) => {
+            if (count > maxCount) { maxCount = count; determinedPayCycle = cycle; }
+          });
+        }
+      } catch (e) {
+        console.warn('⚠️ [DriverPayroll] Could not read offline AppUsers for pay cycle:', e);
+      }
+
+      // Step 2: Compute periods for determined pay cycle and find the right period index
+      const year = new Date().getFullYear();
+      const periods = calculateAllPeriods(year, determinedPayCycle);
+      let determinedPeriodIndex = 0;
+      const today = new Date();
+
+      // Find today's period first
+      let todayIdx = -1;
+      for (let i = 0; i < periods.length; i++) {
+        if (today >= periods[i].start && today <= periods[i].end) { todayIdx = i; break; }
+      }
+
+      // Step 3: Read offline Payroll records to find earliest incomplete cycle
+      try {
+        const offlinePayrolls = await offlineDB.getAll('payroll_records') || [];
+        // If no offline payroll store exists, this will return []
+        if (offlinePayrolls.length > 0) {
+          const searchLimit = todayIdx !== -1 ? todayIdx : periods.length - 1;
+          for (let i = 0; i <= searchLimit; i++) {
+            const startStr = periods[i].start.toISOString().split('T')[0];
+            const endStr = periods[i].end.toISOString().split('T')[0];
+            const recordsForPeriod = offlinePayrolls.filter(r => r.pay_period_start === startStr && r.pay_period_end === endStr);
+            if (recordsForPeriod.length === 0) continue;
+            if (recordsForPeriod.some(r => !r.driver_finalized_at || !r.admin_finalized_at)) {
+              determinedPeriodIndex = i;
+              console.log(`✅ [DriverPayroll Init] Offline: earliest incomplete cycle: ${periods[i].label} (index ${i})`);
+              break;
+            }
+          }
+        }
+        // If no incomplete found, default to today's period
+        if (determinedPeriodIndex === 0 && todayIdx !== -1) determinedPeriodIndex = todayIdx;
+      } catch (e) {
+        // Offline payroll store may not exist - fallback to today
+        if (todayIdx !== -1) determinedPeriodIndex = todayIdx;
+        console.warn('⚠️ [DriverPayroll] Could not read offline payroll records:', e);
+      }
+
+      console.log(`✅ [DriverPayroll Init] Pre-computed: cycle=${determinedPayCycle}, period=${periods[determinedPeriodIndex]?.label} (index ${determinedPeriodIndex})`);
+      
+      // Set all state at once to avoid double-renders
+      setPayPeriod(determinedPayCycle);
+      setSelectedPeriodIndex(determinedPeriodIndex);
+      setSelectedYear(year);
+      setHasInitialized(true);
+      
+      // Now fetch real data
+      fetchPayroll(false, false);
+    };
+
+    initFromOfflineData();
   }, [currentUser, isDriver, hasInitialized, fetchPayroll]);
 
 
