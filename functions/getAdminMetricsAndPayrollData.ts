@@ -71,19 +71,55 @@ Deno.serve(async (req) => {
 
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       
-      // CRITICAL: list() may return a string instead of array for large datasets - parse if needed
+      // CRITICAL: list() with large limits may return truncated string instead of array.
+      // Use pagination to safely load all deliveries for the year.
       const ensureArray = (raw) => {
         if (Array.isArray(raw)) return raw;
         if (typeof raw === 'string') {
-          try { return JSON.parse(raw); } catch (_) { return []; }
+          try { return JSON.parse(raw); } catch (e) { console.log(`⚠️ JSON parse failed: ${e.message}, raw length: ${raw.length}`); return []; }
         }
         return [];
       };
       
-      let deliveries = ensureArray(rawDeliveries);
       let payrollRecords = ensureArray(rawPayrollRecords);
       
-      console.log(`📦 Deliveries parsed: ${deliveries.length}, Payroll parsed: ${payrollRecords.length}`);
+      // Re-fetch deliveries with pagination to handle large datasets
+      const yearStr = String(year);
+      let deliveries = [];
+      const PAGE_SIZE = 5000;
+      let page = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const batch = await base44.asServiceRole.entities.Delivery.list('-delivery_date', PAGE_SIZE, page * PAGE_SIZE);
+        const batchArr = ensureArray(batch);
+        
+        if (batchArr.length === 0) {
+          hasMore = false;
+          break;
+        }
+        
+        // Filter to current year
+        const yearBatch = batchArr.filter(d => d && d.delivery_date && String(d.delivery_date).startsWith(yearStr));
+        deliveries = deliveries.concat(yearBatch);
+        
+        // If we got a batch with dates before our year, we've gone past - stop
+        const oldestInBatch = batchArr[batchArr.length - 1];
+        if (oldestInBatch && oldestInBatch.delivery_date && String(oldestInBatch.delivery_date) < `${year}-01-01`) {
+          hasMore = false;
+        }
+        
+        // If batch smaller than page size, no more data
+        if (batchArr.length < PAGE_SIZE) {
+          hasMore = false;
+        }
+        
+        page++;
+        // Safety: max 20 pages (100k records)
+        if (page >= 20) hasMore = false;
+      }
+      
+      console.log(`📦 Deliveries loaded via pagination: ${deliveries.length} for year ${year} (${page} pages), Payroll: ${payrollRecords.length}`);
       
       // Filter by year
       const yearStr = String(year);
