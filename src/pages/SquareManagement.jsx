@@ -37,163 +37,79 @@ export default function SquareManagement() {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
+  const [lastCleanup, setLastCleanup] = useState(null);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
     setError(null);
-    
-    // CRITICAL: Pause smart refresh during Square sync
+
+    // Pause smart refresh during full cleanup
     smartRefreshManager.pause();
     console.log('⏸️ [SquareManagement] Paused smart refresh for Square sync');
-    
+
     try {
-      // Step 0: Clear offline Square COD data to start fresh
-      console.log('🗑️ Step 0: Clearing offline Square COD data...');
+      // Start fresh: clear offline cache
       await clearSquareCODOfflineData();
-      console.log('✓ Offline Square COD data cleared');
 
-      // Step 1: Get fresh catalog from Square
-      console.log('📥 Step 1: Fetching fresh catalog from Square...');
-      const catalogResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
-      const catalogData = catalogResponse?.data || catalogResponse;
+      // Single unified cleanup: run syncSquareCods in scan mode
+      console.log('🧹 Running unified Square COD cleanup (scan mode)...');
+      const cleanupRes = await base44.functions.invoke('syncSquareCods', {});
+      const cleanupData = cleanupRes?.data || cleanupRes || {};
+      if (!cleanupData.success) throw new Error(cleanupData.error || 'Square COD cleanup failed');
 
-      if (!catalogData.success) {
-        throw new Error(catalogData.error || 'Catalog sync failed');
+      // Aggregate results for UI
+      const results = Array.isArray(cleanupData.results) ? cleanupData.results : [];
+      const counts = {
+        delete: { total: 0, ok: 0, failed: 0, skipped: 0 },
+        upsert: { total: 0, ok: 0, failed: 0, skipped: 0 },
+      };
+      for (const r of results) {
+        if (!counts[r.action]) continue;
+        counts[r.action].total += 1;
+        if (r.status === 'ok' || r.status === 'completed') counts[r.action].ok += 1;
+        else if (r.status === 'failed') counts[r.action].failed += 1;
+        else counts[r.action].skipped += 1;
       }
-
-      let catalogItems = catalogData.items || [];
-      const locationIds = catalogData.locationIds || [];
-      console.log(`✓ Got ${catalogItems.length} items from Square`);
-
-      // Step 2: Update recent payment transactions
-      console.log('💳 Step 2: Fetching recent payment transactions...');
-      const paymentsResponse = await base44.functions.invoke('squareFetchPayments', {
-       locationIds,
-       daysBack: 14
+      setLastCleanup({
+        processed: cleanupData.processed || results.length,
+        startedAt: cleanupData.startedAt,
+        finishedAt: cleanupData.finishedAt,
+        counts,
       });
 
-      const paymentsData = paymentsResponse?.data || paymentsResponse;
-      const recentPayments = paymentsData?.soldCatalogItems || [];
-      setSoldCatalogItems(recentPayments);
-      console.log(`✓ Got ${recentPayments.length} recent payment transactions`);
+      // Refresh data for UI after cleanup
+      console.log('🔄 Refreshing catalog and recent payments after cleanup...');
+      const [catalogRes, paymentsRes] = await Promise.allSettled([
+        base44.functions.invoke('squareSyncCatalogItems', {}),
+        base44.functions.invoke('squareFetchPayments', { locationIds, daysBack: 14 }),
+      ]);
 
-      // Step 3: Delete duplicate catalog items
-      console.log('🗑️ Step 3: Identifying and deleting duplicates...');
-      const uniqueItems = new Map();
-      const duplicates = [];
+      const catalogData = catalogRes.status === 'fulfilled' ? (catalogRes.value?.data || catalogRes.value || {}) : {};
+      const paymentsData = paymentsRes.status === 'fulfilled' ? (paymentsRes.value?.data || paymentsRes.value || {}) : {};
 
-      for (const item of catalogItems) {
-        const dupKey = `${item.name}|${item.location_id}`;
-        if (uniqueItems.has(dupKey)) {
-          duplicates.push(item);
-        } else {
-          uniqueItems.set(dupKey, item);
-        }
-      }
+      const finalCatalogItems = catalogData.items || catalogData.catalogItems || [];
+      const sold = paymentsData.soldCatalogItems || [];
 
-      let deletedCount = 0;
-      for (const item of duplicates) {
-        try {
-          await base44.functions.invoke('squareDeleteCodItem', {
-            catalogObjectId: item.catalog_object_id,
-            transactionId: null,
-            reason: 'duplicate'
-          });
-          deletedCount++;
-          console.log(`✓ Deleted duplicate: ${item.name}`);
-          await new Promise(resolve => setTimeout(resolve, 200));
-        } catch (err) {
-          console.warn(`Failed to delete duplicate ${item.name}:`, err);
-        }
-      }
-      console.log(`✓ Deleted ${deletedCount} duplicate items`);
+      setCatalogItems(finalCatalogItems);
+      setSoldCatalogItems(sold);
+      setAllTransactions(sold);
+      setLocationIds(catalogData.locationIds || locationIds);
 
-      // Step 4 & 5: Compare and delete collected items
-      console.log('🔍 Step 4-5: Comparing catalog to payments and deleting collected items...');
-      const collectedCatalogIds = new Set();
-      const collectedItemKeys = new Set();
+      await Promise.all([
+        saveCatalogItemsOffline(finalCatalogItems),
+        savePaymentTransactionsOffline(sold),
+      ]);
 
-      for (const payment of recentPayments) {
-        const key = `${payment.item_name}|${payment.location_id}|${payment.amount.toFixed(2)}`;
-        collectedItemKeys.add(key);
-        if (payment.square_catalog_object_id) {
-          collectedCatalogIds.add(payment.square_catalog_object_id);
-        }
-      }
+      const delOk = counts['delete'].ok || 0;
+      const upOk = counts['upsert'].ok || 0;
+      const failures = (counts['delete'].failed || 0) + (counts['upsert'].failed || 0);
+      const msgParts = [];
+      if (delOk) msgParts.push(`deleted ${delOk}`);
+      if (upOk) msgParts.push(`upserted ${upOk}`);
+      if (failures) msgParts.push(`failed ${failures}`);
+      toast.success(`Square COD cleanup: ${msgParts.join(' • ') || 'done'}`);
 
-      const collectedItemsToDelete = [];
-      for (const item of catalogItems) {
-        if (duplicates.find(d => d.catalog_object_id === item.catalog_object_id)) {
-          continue; // Already deleted
-        }
-
-        const itemKey = `${item.name}|${item.location_id}|${(item.price_dollars || 0).toFixed(2)}`;
-        if (collectedCatalogIds.has(item.catalog_object_id) || collectedItemKeys.has(itemKey)) {
-          collectedItemsToDelete.push(item);
-        }
-      }
-
-      let collectedDeletedCount = 0;
-      for (const item of collectedItemsToDelete) {
-        try {
-          const relatedPayment = recentPayments.find(p => 
-            p.square_catalog_object_id === item.catalog_object_id
-          );
-          
-          await base44.functions.invoke('squareDeleteCodItem', {
-            catalogObjectId: item.catalog_object_id,
-            transactionId: relatedPayment?.square_transaction_id || null,
-            reason: 'collected'
-          });
-          collectedDeletedCount++;
-          console.log(`✓ Deleted collected: ${item.name}`);
-          await new Promise(resolve => setTimeout(resolve, 200));
-        } catch (err) {
-          console.warn(`Failed to delete collected ${item.name}:`, err);
-        }
-      }
-      console.log(`✓ Deleted ${collectedDeletedCount} collected items`);
-
-      // Step 6: Refresh catalog data from Square
-      console.log('🔄 Step 6: Refreshing catalog from Square...');
-      const finalResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
-      const finalData = finalResponse?.data || finalResponse;
-
-      if (!finalData.success) {
-        throw new Error('Final catalog sync failed');
-      }
-
-      // Step 7: Update UI and save to offline database
-       console.log('🎨 Step 7: Updating UI and saving to offline database...');
-       const finalCatalogItems = finalData.items || [];
-       setCatalogItems(finalCatalogItems);
-       setLocationIds(finalData.locationIds || []);
-
-       // Save to offline database after sync
-       const [catalogSaveResult, paymentSaveResult] = await Promise.all([
-         saveCatalogItemsOffline(finalCatalogItems),
-         savePaymentTransactionsOffline(recentPayments)
-       ]);
-
-       console.log(`✓ Saved to offline: catalog=${catalogSaveResult.count}, payments=${paymentSaveResult.count}`);
-
-      const fourteenDaysAgo = new Date();
-      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-      const filteredPayments = recentPayments
-        .filter(item => new Date(item.payment_date) >= fourteenDaysAgo)
-        .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
-
-      setRecentTransactions(filteredPayments);
-      setAllTransactions(recentPayments);
-
-      const summary = [
-        `Synced ${finalData.itemCount || 0} active items`,
-        deletedCount > 0 ? `removed ${deletedCount} duplicates` : null,
-        collectedDeletedCount > 0 ? `removed ${collectedDeletedCount} collected` : null
-      ].filter(Boolean).join(' • ');
-
-      toast.success(summary);
-      console.log('✅ Sync complete');
+      console.log('✅ Unified cleanup + refresh complete');
     } catch (err) {
       console.error('Sync error:', err);
       setError(err.message);
@@ -201,17 +117,17 @@ export default function SquareManagement() {
     } finally {
       setIsSyncing(false);
       setIsLoading(false);
-      
-      // Update sync status
+
+      // Update sync status indicator
       const updatedSyncStatus = await getSquareCODSyncStatus();
       setSyncStatus(updatedSyncStatus);
 
-      // CRITICAL: Resume smart refresh and restart timers
+      // Resume smart refresh
       smartRefreshManager.resume();
       smartRefreshManager.restart();
       console.log('▶️ [SquareManagement] Resumed and restarted smart refresh after Square sync');
-      }
-      };
+    }
+  };
 
       const loadSyncStatus = async () => {
       try {
@@ -763,6 +679,29 @@ export default function SquareManagement() {
                 isSyncing={isSyncing}
                 error={error}
               />
+            </div>
+          )}
+
+          {lastCleanup && (
+            <div className="mb-6 md:mb-8">
+              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                <CardContent className="p-3 md:p-4">
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    <span className="font-semibold">Last Cleanup</span>
+                    <span className="text-slate-600 dark:text-slate-400">Processed: {lastCleanup.processed}</span>
+                    <span className="text-slate-600 dark:text-slate-400">Deleted OK: {(lastCleanup.counts['delete']?.ok) || 0}</span>
+                    <span className="text-slate-600 dark:text-slate-400">Upserted OK: {(lastCleanup.counts['upsert']?.ok) || 0}</span>
+                    {(((lastCleanup.counts['delete']?.failed) || 0) + ((lastCleanup.counts['upsert']?.failed) || 0)) > 0 && (
+                      <span className="text-red-600 dark:text-red-400">Failed: {((lastCleanup.counts['delete']?.failed) || 0) + ((lastCleanup.counts['upsert']?.failed) || 0)}</span>
+                    )}
+                    <span className="ml-auto text-xs flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                      <Clock className="w-3 h-3" />
+                      {new Date(lastCleanup.finishedAt || lastCleanup.startedAt).toLocaleString()}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
 
