@@ -633,81 +633,55 @@ export default function DriverPayroll() {
     hasLoadedInitialDataRef.current = true;
   }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon]);
 
-  // Reset period index when pay period or year changes - ONLY on initial load
+  // Reset period index when pay period or year changes
   const initialPeriodSetRef = useRef(false);
+  const periodSelectionDoneWithRecordsRef = useRef(false);
   
   useEffect(() => {
-    // CRITICAL: Wait for all data to be loaded BEFORE setting initial period
-    if (!hasInitialized || !payrollData || allPeriods.length === 0) {
-      return;
-    }
+    if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
     
-    // CRITICAL: Only auto-select on INITIAL load or when year/pay period changes
-    if (initialPeriodSetRef.current && !isManualChangeRef.current) {
-      return;
+    // Reset when year or pay period changes so we re-select
+    if (isManualChangeRef.current) {
+      initialPeriodSetRef.current = false;
+      periodSelectionDoneWithRecordsRef.current = false;
     }
 
+    const records = payrollRecords || [];
+    const hasRecords = records.length > 0;
+    
+    // If we already did selection WITH records, don't redo
+    if (periodSelectionDoneWithRecordsRef.current) return;
+    // If we already set a period but have no records yet, allow re-run when records arrive
+    if (initialPeriodSetRef.current && !hasRecords) return;
+
     const today = new Date();
-    
-    // PRIORITY 1: Find earliest PAST/CURRENT cycle with incomplete finalization (any driver missing driver_finalized_at OR admin_finalized_at)
-    console.log(`🔍 [DriverPayroll] Looking for earliest incomplete cycle - Total periods: ${allPeriods.length}, Payroll records: ${payrollRecords.length}`);
-    
-    // First find today's period index to limit search to past/current periods only
     let todayPeriodIdx = -1;
     for (let i = 0; i < allPeriods.length; i++) {
-      if (today >= allPeriods[i].start && today <= allPeriods[i].end) {
-        todayPeriodIdx = i;
-        break;
-      }
+      if (today >= allPeriods[i].start && today <= allPeriods[i].end) { todayPeriodIdx = i; break; }
     }
     
     let earliestIncompleteCycleIdx = -1;
-    const searchLimit = todayPeriodIdx !== -1 ? todayPeriodIdx : allPeriods.length - 1;
-    
-    // Search from earliest to current period only (don't check future periods)
-    for (let i = 0; i <= searchLimit; i++) {
-      const period = allPeriods[i];
-      const startStr = period.start.toISOString().split('T')[0];
-      const endStr = period.end.toISOString().split('T')[0];
-      
-      const recordsForPeriod = payrollRecords.filter(r => 
-        r.pay_period_start === startStr && r.pay_period_end === endStr
-      );
-      
-      if (recordsForPeriod.length === 0) continue;
-      
-      // Check if ANY record has missing driver_finalized_at OR admin_finalized_at
-      const hasIncompleteRecord = recordsForPeriod.some(r => 
-        !r.driver_finalized_at || !r.admin_finalized_at
-      );
-      
-      console.log(`🔍 [Period ${i}] ${period.label} (${startStr} to ${endStr}):`, {
-        totalRecords: recordsForPeriod.length,
-        hasIncomplete: hasIncompleteRecord,
-        details: recordsForPeriod.map(r => ({
-          driver: r.driver_id?.slice(-4),
-          driver_finalized_at: r.driver_finalized_at ? '✓' : '✗ MISSING',
-          admin_finalized_at: r.admin_finalized_at ? '✓' : '✗ MISSING',
-          status: r.status
-        }))
-      });
-      
-      if (hasIncompleteRecord) {
-        earliestIncompleteCycleIdx = i;
-        console.log(`✅ [DriverPayroll] Found earliest incomplete cycle: ${period.label} (index ${i})`);
-        break;
+    if (hasRecords) {
+      const searchLimit = todayPeriodIdx !== -1 ? todayPeriodIdx : allPeriods.length - 1;
+      for (let i = 0; i <= searchLimit; i++) {
+        const period = allPeriods[i];
+        const startStr = period.start.toISOString().split('T')[0];
+        const endStr = period.end.toISOString().split('T')[0];
+        const recordsForPeriod = records.filter(r => r.pay_period_start === startStr && r.pay_period_end === endStr);
+        if (recordsForPeriod.length === 0) continue;
+        if (recordsForPeriod.some(r => !r.driver_finalized_at || !r.admin_finalized_at)) {
+          earliestIncompleteCycleIdx = i;
+          console.log(`✅ [DriverPayroll] Found earliest incomplete cycle: ${period.label} (index ${i})`);
+          break;
+        }
       }
     }
     
-    // Select earliest incomplete cycle, or today's period as fallback
     const selectedIdx = earliestIncompleteCycleIdx !== -1 ? earliestIncompleteCycleIdx : (todayPeriodIdx !== -1 ? todayPeriodIdx : 0);
-    console.log(`🔍 [DriverPayroll] Today's cycle: ${todayPeriodIdx !== -1 ? allPeriods[todayPeriodIdx].label : 'Not found'} (index ${todayPeriodIdx})`);
-    
-    console.log(`✅ [DriverPayroll] Initial period selected: ${allPeriods[selectedIdx].label} (index ${selectedIdx}) - ${earliestIncompleteCycleIdx !== -1 ? 'Earliest incomplete cycle' : 'Today\'s period'}`);
+    console.log(`✅ [DriverPayroll] Period selected: ${allPeriods[selectedIdx]?.label} (index ${selectedIdx}) - ${earliestIncompleteCycleIdx !== -1 ? 'Earliest incomplete' : "Today's period"} [hasRecords=${hasRecords}]`);
     setSelectedPeriodIndex(selectedIdx);
-    
-    // Mark that initial period has been set
     initialPeriodSetRef.current = true;
+    if (hasRecords) periodSelectionDoneWithRecordsRef.current = true;
   }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData]);
 
   // Subscribe to real-time websocket updates
