@@ -201,7 +201,10 @@ export default function DriverPayroll() {
     return calculateAllPeriods(selectedYear, payPeriod);
   }, [selectedYear, payPeriod]);
 
-  const currentPeriod = useMemo(() => allPeriods[selectedPeriodIndex] || allPeriods[0], [allPeriods, selectedPeriodIndex]);
+  const currentPeriod = useMemo(() => {
+    if (selectedPeriodIndex === null || allPeriods.length === 0) return null;
+    return allPeriods[selectedPeriodIndex] || allPeriods[0];
+  }, [allPeriods, selectedPeriodIndex]);
 
   const sortedCities = useMemo(() => {
     if (!payrollData?.cities) return [];
