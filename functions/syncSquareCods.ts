@@ -88,11 +88,44 @@ Deno.serve(async (req) => {
       return res.json();
     }
 
+    async function updateVariationLocation(variationId, locationId) {
+      if (!variationId || !locationId) return null;
+      const payload = {
+        idempotency_key: `varlocfix-${variationId}-${locationId}`,
+        batches: [{
+          objects: [{
+            type: 'ITEM_VARIATION',
+            id: variationId,
+            present_at_all_locations: false,
+            present_at_location_ids: [locationId],
+            item_variation_data: {
+              present_at_all_locations: false,
+              present_at_location_ids: [locationId],
+            },
+          }]
+        }]
+      };
+      const res = await fetch('https://connect.squareup.com/v2/catalog/batch-upsert', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SQUARE_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Square-Version': '2023-12-13',
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`Square variation location fix failed: ${res.status} ${t}`);
+      }
+      return res.json();
+    }
+
     async function enforceItemLocation(itemName, locationId) {
       if (!itemName || !locationId) return { fixed: 0 };
       const searchPayload = {
         include_deleted_objects: false,
-        include_related_objects: false,
+        include_related_objects: true,
         object_types: ['ITEM'],
         query: { text_query: { keywords: [itemName] } }
       };
@@ -107,16 +140,34 @@ Deno.serve(async (req) => {
       });
       if (!searchRes.ok) return { fixed: 0 };
       const data = await searchRes.json();
-      const objects = Array.isArray(data?.objects) ? data.objects : [];
+      const items = Array.isArray(data?.objects) ? data.objects.filter(o => o?.type === 'ITEM') : [];
+      const related = Array.isArray(data?.related_objects) ? data.related_objects : [];
+      const varsByItem = new Map();
+      for (const ro of related) {
+        if (ro?.type === 'ITEM_VARIATION' && ro?.item_variation_data?.item_id) {
+          const arr = varsByItem.get(ro.item_variation_data.item_id) || [];
+          arr.push(ro);
+          varsByItem.set(ro.item_variation_data.item_id, arr);
+        }
+      }
       let fixed = 0;
-      for (const o of objects) {
-        if (o?.type !== 'ITEM') continue;
+      for (const o of items) {
         const atAll = o.present_at_all_locations === true || o?.item_data?.present_at_all_locations === true;
         const locs = o.present_at_location_ids || o?.item_data?.present_at_location_ids || [];
         const hasLoc = Array.isArray(locs) && locs.includes(locationId);
         const needsFix = atAll || !hasLoc || (Array.isArray(locs) && (locs.length !== 1 || locs[0] !== locationId));
         if (needsFix) {
           try { await updateItemLocation(o.id, locationId); fixed += 1; } catch (_) {}
+        }
+        const variations = varsByItem.get(o.id) || [];
+        for (const v of variations) {
+          const vatAll = v.present_at_all_locations === true || v?.item_variation_data?.present_at_all_locations === true;
+          const vlocs = v.present_at_location_ids || v?.item_variation_data?.present_at_location_ids || [];
+          const vHasLoc = Array.isArray(vlocs) && vlocs.includes(locationId);
+          const vNeedsFix = vatAll || !vHasLoc || (Array.isArray(vlocs) && (vlocs.length !== 1 || vlocs[0] !== locationId));
+          if (vNeedsFix) {
+            try { await updateVariationLocation(v.id, locationId); fixed += 1; } catch (_) {}
+          }
         }
       }
       return { fixed };
@@ -146,7 +197,11 @@ Deno.serve(async (req) => {
                     {
                       type: 'ITEM_VARIATION',
                       id: `#var-${idempotencyKey}`,
+                      present_at_all_locations: false,
+                      present_at_location_ids: [locationId],
                       item_variation_data: {
+                        present_at_all_locations: false,
+                        present_at_location_ids: [locationId],
                         name: 'Default',
                         pricing_type: 'FIXED_PRICING',
                         price_money: { amount: amountCents, currency: 'CAD' },
