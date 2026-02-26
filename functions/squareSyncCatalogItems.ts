@@ -27,6 +27,16 @@ Deno.serve(async (req) => {
       locationIds.push(defaultLocationId);
     }
 
+    // Build store abbreviation → locationId map
+    const stores = await base44.asServiceRole.entities.Store.list();
+    const storeAbbrToLocId = new Map();
+    for (const s of stores || []) {
+      const cfg = locationConfigs.find(lc => lc.id === s.square_location_config_id);
+      if (s?.abbreviation && cfg?.square_location_id) {
+        storeAbbrToLocId.set(s.abbreviation, cfg.square_location_id);
+      }
+    }
+
     if (locationIds.length === 0) {
       return Response.json({ error: 'No Square locations configured' }, { status: 400 });
     }
@@ -84,11 +94,17 @@ Deno.serve(async (req) => {
                   priceCents = variation.item_variation_data.price_money.amount || 0;
                 }
 
+                // Prefer location inferred from item name store abbreviation
+                const abbrMatch = (item.item_data.name || '').match(/\(([^)]+)\)/);
+                const inferredLocId = abbrMatch ? storeAbbrToLocId.get(abbrMatch[1]) : null;
+
                 let locationId = null;
-                if (item.present_at_all_locations) {
+                if (inferredLocId && (item.present_at_all_locations === true || presentAtLocations.includes(inferredLocId))) {
+                  locationId = inferredLocId;
+                } else if (item.present_at_all_locations) {
                   locationId = locationIds[0];
                 } else {
-                  locationId = presentAtLocations.find(locId => locationIds.includes(locId)) || locationIds[0];
+                  locationId = presentAtLocations.find(locId => locationIds.includes(locId)) || inferredLocId || locationIds[0];
                 }
 
                 catalogItems.push({

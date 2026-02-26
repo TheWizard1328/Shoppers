@@ -463,8 +463,8 @@ export default function SquareManagement() {
     if (!itemName) return null;
     
     try {
-      // Extract date (MM/DD)
-      const dateMatch = itemName.match(/^(\d{2})\/(\d{2})/);
+      // Extract date (MM/DD or MM-DD)
+      const dateMatch = itemName.match(/^(\d{2})[\/-](\d{2})/);
       if (!dateMatch) return null;
       
       const month = dateMatch[1];
