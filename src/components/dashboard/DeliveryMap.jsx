@@ -1659,7 +1659,7 @@ export default function DeliveryMap({
           [marker.latitude, marker.longitude]
         ]);
         
-        map.fitBounds(clusterBounds, fitOptions);
+        (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(clusterBounds, fitOptions);
         
         setTimeout(() => {
           setFannedLocationKey(locationKey);
@@ -1730,7 +1730,7 @@ export default function DeliveryMap({
         maxZoom: targetZoom
       };
 
-        map.fitBounds(markerBounds, panOptions);
+        (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(markerBounds, panOptions);
       
       // Set the zoom to target zoom level
       setTimeout(() => {
@@ -2597,7 +2597,7 @@ export default function DeliveryMap({
         duration: 0.8 // Smooth 800ms animation
       };
       
-      map.fitBounds(bounds, modifiedOptions);
+      (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(bounds, modifiedOptions);
 
       if (onBoundsFitted && typeof onBoundsFitted === 'function') {
         onBoundsFitted();
@@ -3711,7 +3711,7 @@ return polylines.length > 0 ? polylines : null;
                       [home.latitude, home.longitude]
                     ]);
                     
-                    map.fitBounds(markerBounds, {
+                    (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(markerBounds, {
                       paddingTopLeft: [60, dynamicTopPadding + 50],
                       paddingBottomRight: [60, dynamicBottomPadding],
                       animate: true,
