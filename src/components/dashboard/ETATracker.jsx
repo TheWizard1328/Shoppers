@@ -148,6 +148,15 @@ export default function ETATracker({
               updates: etaUpdates
             }
           }));
+
+          // Also notify the app-wide data layer to refresh stop cards
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              triggeredBy: 'etaUpdated',
+              driverId: selectedDriverId,
+              deliveryDate: selectedDate
+            }
+          }));
         }
       } catch (error) {
         console.error('❌ [ETATracker] Error updating ETAs:', error);

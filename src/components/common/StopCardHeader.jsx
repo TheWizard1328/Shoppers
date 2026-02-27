@@ -6,6 +6,25 @@ import { calculateDeliveryPay, formatPay } from "../utils/payCalculator";
 import { userHasRole } from "../utils/userRoles";
 import { format } from "date-fns";
 
+// Lightweight ETA override bus to reflect real-time ETA updates without full data reloads
+const etaBus = (() => {
+  if (typeof window === 'undefined') return { map: new Map(), version: 0 };
+  if (!window.__etaBus) {
+    window.__etaBus = { map: new Map(), version: 0 };
+    window.addEventListener('etaUpdated', (e) => {
+      try {
+        const updates = (e?.detail?.updates) || [];
+        updates.forEach((u) => {
+          const id = u?.deliveryId || u?.delivery_id;
+          if (id && u?.newEta) window.__etaBus.map.set(id, u.newEta);
+        });
+        window.__etaBus.version++;
+      } catch (_) {}
+    });
+  }
+  return window.__etaBus;
+})();
+
 // Local status labels (mirrors StopCard)
 const statusConfig = {
   pending: { label: "Pending" },
@@ -51,6 +70,13 @@ export default function StopCardHeader({
   appUsers = [],
   isReturnDelivery,
 }) {
+  // Subscribe to ETA bus to trigger re-render on updates
+  const [etaVersion, setEtaVersion] = React.useState(etaBus.version);
+  React.useEffect(() => {
+    const handler = () => setEtaVersion(etaBus.version);
+    window.addEventListener('etaUpdated', handler);
+    return () => window.removeEventListener('etaUpdated', handler);
+  }, []);
   const isFinished = FINISHED_STATUSES.includes(delivery?.status);
 
   const timeDisplay = (() => {
@@ -61,7 +87,9 @@ export default function StopCardHeader({
         </>
       );
     }
-    const eta = delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--";
+    // Prefer real-time ETA override from bus if available
+    const overrideEta = etaBus.map.get(delivery?.id);
+    const eta = overrideEta || delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--";
     return <span className="font-medium">ETA: {formatTime12Hour(eta)}</span>;
   })();
 
