@@ -126,29 +126,10 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
         const gap = 12; // distance below header/target
         const top = rect.top + rect.height + gap;
 
-        // Find nearest ancestor container to align with (Stats card container)
-        let node = targetRef?.current;
-        let anchorEl = null;
-        let anchorRect = null;
-        while (node && node !== document.body) {
-          const br = node.getBoundingClientRect();
-          const cs = window.getComputedStyle(node);
-          const wideEnough = br.width > rect.width + 120;
-          const centered = (cs.marginLeft === 'auto' && cs.marginRight === 'auto');
-          if (node.hasAttribute('data-spotlight-anchor') || wideEnough || centered) {
-            anchorEl = node;
-            anchorRect = br;
-            break;
-          }
-          node = node.parentElement;
-        }
-
-        // Compute left/right bounds using the container's paddings, and center within it
-        const padL = anchorEl ? parseFloat(window.getComputedStyle(anchorEl).paddingLeft || '0') : 12;
-        const padR = anchorEl ? parseFloat(window.getComputedStyle(anchorEl).paddingRight || '0') : 12;
-
-        const contentLeft = anchorRect ? (anchorRect.left + padL) : 12;
-        const contentRight = anchorRect ? (anchorRect.right - padR) : (window.innerWidth - 12);
+        // Simplified: center the bubble in the viewport, consistent on all devices
+        const viewportPadding = 12;
+        const contentLeft = viewportPadding;
+        const contentRight = window.innerWidth - viewportPadding;
         const contentCenterX = (contentLeft + contentRight) / 2;
 
         const unclampedLeft = contentCenterX - bubbleWidth / 2;
