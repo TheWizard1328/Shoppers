@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle } from "lucide-react";
+import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle, Locate } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -104,6 +104,34 @@ export default function DeliveryFormView({
     setProjectedDeliveries, setStagedDeliveries, setEditingStagedId,
     patientSearchInputRef, confirmAddProjectedToStaged, setDeleteConfirmation,
     isLoadingPredictions, onRefreshProjections: () => setPredictionTrigger(prev => prev + 1),
+  };
+
+  const handleGrabGPS = async () => {
+    try {
+      const driverLat = currentUser?.current_latitude;
+      const driverLon = currentUser?.current_longitude;
+      if (driverLat == null || driverLon == null) { alert("Driver GPS not available (enable location tracking)."); return; }
+      if (!selectedPatient?.id) { alert("Select a patient first."); return; }
+      const store = stores?.find(s => s && s.id === formData.store_id);
+      if (!store?.latitude || !store?.longitude) { alert("Select a store with coordinates before updating distance."); return; }
+
+      const toRad = (v) => (v * Math.PI) / 180;
+      const R = 6371; // km
+      const dLat = toRad(store.latitude - driverLat);
+      const dLon = toRad(store.longitude - driverLon);
+      const lat1 = toRad(driverLat);
+      const lat2 = toRad(store.latitude);
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distanceKm = +(R * c).toFixed(2);
+
+      await updatePatientLocal(selectedPatient.id, { latitude: driverLat, longitude: driverLon, distance_from_store: distanceKm });
+      setFormData(prev => ({ ...prev, distance_from_store: distanceKm }));
+      alert("Patient location and distance updated.");
+    } catch (err) {
+      console.error("GPS update failed:", err);
+      alert("Failed to update location.");
+    }
   };
 
   return (
@@ -400,6 +428,19 @@ export default function DeliveryFormView({
                         <div className="flex-[65] space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
                           <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
+                        </div>
+                        <div className="flex items-end pb-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={handleGrabGPS}
+                            disabled={isSaving || !currentUser?.current_latitude || !currentUser?.current_longitude || !selectedPatient?.id || !formData.store_id}
+                            title="Use driver's GPS to set patient location"
+                          >
+                            <Locate className="w-4 h-4" />
+                          </Button>
                         </div>
                         <div className="flex-[35] space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
