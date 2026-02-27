@@ -484,7 +484,11 @@ export default function DeliveryFormView({
                     <Plus className="w-4 h-4" />Add
                   </Button>
                 ) : (
-                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); if (formData?.driver_id && formData?.delivery_date) { await recalculateAndUpdateStopOrders(formData.driver_id, formData.delivery_date); const now = new Date(); const hh = String(now.getHours()).padStart(2, '0'); const mm = String(now.getMinutes()).padStart(2, '0'); const currentLocalTime = `${hh}:${mm}`; await calculateRealTimeETA({ driverId: formData.driver_id, deliveryDate: formData.delivery_date, currentLocalTime, deviceTime: currentLocalTime }); } window.dispatchEvent(new CustomEvent('collapseSelectedStopCard')); window.dispatchEvent(new CustomEvent('deliveriesUpdated')); if (closeOnSave) onCancel(); setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')), 300); }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || !isFormValid || isPatientFormOpen || isFormLockedByPayroll}>
+                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); if (formData?.driver_id && formData?.delivery_date) { await recalculateAndUpdateStopOrders(formData.driver_id, formData.delivery_date); const now = new Date(); const hh = String(now.getHours()).padStart(2, '0'); const mm = String(now.getMinutes()).padStart(2, '0'); const currentLocalTime = `${hh}:${mm}`; try {
+  await calculateRealTimeETA({ driverId: formData.driver_id, deliveryDate: formData.delivery_date, currentLocalTime, deviceTime: currentLocalTime });
+} catch (err) {
+  console.warn('ETA calculation skipped:', err?.response?.status || err?.message || err);
+} } window.dispatchEvent(new CustomEvent('collapseSelectedStopCard')); window.dispatchEvent(new CustomEvent('deliveriesUpdated')); if (closeOnSave) onCancel(); setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')), 300); }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || !isFormValid || isPatientFormOpen || isFormLockedByPayroll}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
                 )}
