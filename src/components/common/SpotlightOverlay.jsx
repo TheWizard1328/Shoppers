@@ -69,7 +69,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
 
   if (!visible || !rect) return null;
 
-  const pad = 12; // expanded padding around the highlight square
+  const pad = 5; // expanded padding around the highlight square
   const radius = 0;
 
   return (
