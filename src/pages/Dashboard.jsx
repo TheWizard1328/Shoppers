@@ -52,7 +52,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { getAvailableDrivers } from "@/components/utils/driverSelectors";
 import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
-import { isMobileDevice } from "@/components/utils/deviceUtils";
+import { isMobileDevice, isTablet } from "@/components/utils/deviceUtils";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { reorderStops } from "@/components/utils/stopReorderer";
 import { recalculateAndUpdateStopOrders, updateNextDeliveryFlags } from "@/components/utils/stopOrderManager";
@@ -253,7 +253,7 @@ function Dashboard() {
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
 
   // CRITICAL: Calculate isDriver and isAdmin early (before useEffects that need them)
-  const isMobile = useMemo(() => isMobileDevice(), []);
+  const isMobile = useMemo(() => isMobileDevice() || isTablet(), []);
 
   // Read the bottom nav height from the CSS variable set by Layout (accounts for mobile + tablet portrait)
   const bottomNavHeight = useMemo(() => {

@@ -1,5 +1,5 @@
 import { base44 } from '@/api/base44Client';
-import { isMobileDevice as checkIsMobileDevice } from './deviceUtils';
+import { isMobileDevice as checkIsMobileDevice, isTablet } from './deviceUtils';
 import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
 import { liveDistanceTracker } from './liveDistanceTracker';
 import { getCurrentDevice, updateDeviceLastActive } from './deviceManager';
@@ -130,7 +130,8 @@ class LocationTracker {
    * Enhanced mobile device detection using centralized utility
    */
   isMobileDevice() {
-    return checkIsMobileDevice();
+    // Treat tablets as mobile for tracking purposes (GPS tracking allowed on phones and tablets)
+    return checkIsMobileDevice() || isTablet();
   }
 
   /**
