@@ -94,8 +94,14 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
     setAnchorEl(found);
   }, [visible, targetRef]);
 
+  const Container = ({ children }) => (
+    <div className={`${anchorEl ? 'absolute' : 'fixed'} inset-0 z-[2147483647]`} aria-hidden style={{ pointerEvents: 'none' }}>
+      {children}
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-[2147483647]" aria-hidden style={{ pointerEvents: 'none' }}>
+    <Container>
       {/* Dimming backdrops (capture clicks outside highlight) */}
       <div
         className="absolute"
