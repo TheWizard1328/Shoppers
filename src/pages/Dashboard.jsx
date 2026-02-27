@@ -8209,7 +8209,7 @@ function Dashboard() {
             />
 
           <motion.div
-            ref={statsCardRef}
+            ref={statsCardRef} data-spotlight-anchor
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
