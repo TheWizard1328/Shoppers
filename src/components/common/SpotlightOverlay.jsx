@@ -67,6 +67,16 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
     return () => clearTimeout(t);
   }, [visible, durationMs, onClose]);
 
+  // Close overlay on any click (including clicking the + button). Use capture phase so it doesn't block underlying handlers.
+  useEffect(() => {
+    if (!visible) return;
+    const handleAnyClick = () => {
+      onClose?.();
+    };
+    window.addEventListener('click', handleAnyClick, true);
+    return () => window.removeEventListener('click', handleAnyClick, true);
+  }, [visible, onClose]);
+
   if (!visible || !rect) return null;
 
   const pad = 5; // expanded padding around the highlight square
