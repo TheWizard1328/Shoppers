@@ -37,6 +37,20 @@ export default function StopCardTimingDisplay({
 }) {
   return (
     <>
+      {/* ETA - show for non-finished stops when available */}
+      {!FINISHED_STATUSES.includes(delivery?.status) && delivery?.delivery_time_eta && (
+        <div className="text-sm md:text-[11px] flex items-center gap-1" style={{ color: 'var(--text-blue-600)' }}>
+          <Clock className="w-3 h-3" />
+          ETA: {formatTime12Hour(delivery.delivery_time_eta)}
+        </div>
+      )}
+      {/* ETA - show for non-finished stops when available */}
+      {!FINISHED_STATUSES.includes(delivery?.status) && delivery?.delivery_time_eta && (
+        <div className="text-sm md:text-[11px] flex items-center gap-1" style={{ color: 'var(--text-blue-600)' }}>
+          <Clock className="w-3 h-3" />
+          ETA: {formatTime12Hour(delivery.delivery_time_eta)}
+        </div>
+      )}
       {/* Time Window - Only for non-finished stops */}
       {!FINISHED_STATUSES.includes(delivery?.status) && (delivery?.delivery_time_start || delivery?.delivery_time_end) &&
         <div className="text-sm md:text-[11px]" style={{ color: 'var(--text-slate-500)' }}>
