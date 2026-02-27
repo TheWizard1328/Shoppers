@@ -1691,7 +1691,7 @@ export default function StopCard({
                                      base44.functions.invoke('optimizeRouteRealTime', {
                                        driverId: delivery.driver_id,
                                        deliveryDate: delivery.delivery_date,
-                                       currentLocalTime: format(currentTime, 'HH:mm'),
+                                       currentLocalTime: format(new Date(), 'HH:mm'),
                                        generatePolyline: false
                                      }).then(() => {
                                        window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
