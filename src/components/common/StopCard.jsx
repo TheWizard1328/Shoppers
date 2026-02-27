@@ -1,7 +1,5 @@
-
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,9 +24,8 @@ import { useAppData } from "../utils/AppDataContext";
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
 import {notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn} from "../utils/deliveryMessaging";
-import { triggerRouteOptimization } => "../utils/realTimeRouteOptimizer";
+import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
-import { updatePatientGPS } from "../utils/patientGPSUpdater";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
 import { updateDeliveryLocal } from '../utils/offlineMutations';
@@ -40,6 +37,7 @@ import StopCardCODCollection from './StopCardCODCollection';
 import StopCardConfirmDialogs from './StopCardConfirmDialogs';
 import StopCardPOD from './StopCardPOD';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
+import { updatePatientGPS } from "../utils/patientGPSUpdater";
 
 // Global statusConfig
 const statusConfig = {
@@ -120,13 +118,6 @@ export default function StopCard({
   const [isProcessingBackground, setIsProcessingBackground] = useState(false);
   const [isAcceptingAll, setIsAcceptingAll] = useState(false);
   const [acceptingIndividual, setAcceptingIndividual] = useState({});
-  const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false);
-  const [pendingFailureStatus, setPendingFailureStatus] = useState(null);
-  const [isFailing, setIsFailing] = useState(false);
-  const [isCreatingReturn, setIsCreatingReturn] = useState(false);
-  const [isRestarting, setIsRestarting] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const codAmountInputRefs = useRef([]);
   const { setIsEntityUpdating, forceRefreshDriverDeliveries, refreshData, updateDeliveriesLocally } = useAppData();
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
@@ -238,7 +229,7 @@ export default function StopCard({
     if (!delivery) return false;
     return !delivery.patient_id && !!delivery.store_id;
   }, [delivery?.patient_id, delivery?.store_id]);
-
+  
   // Calculate available transfer pickups for auto-selection
   const availableTransferPickups = useMemo(() => {
     if (!delivery || !isPickup) return [];
@@ -1461,9 +1452,7 @@ export default function StopCard({
                                   await notifyDriverRetry({
                                     driver: currentUser,
                                     patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                    delivery,
-                                    store,
-                                    appUsers
+                                    delivery, store, appUsers
                                   });
                                 }
                               } finally {
@@ -1508,7 +1497,7 @@ export default function StopCard({
                               </DropdownMenuItem>
                             }
 
-                            {/* New: Update GPS action for deliveries (not pickups) */}
+                            {/* New: Update GPS above the divider */}
                             {!isPickup && patient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
                               <DropdownMenuItem
                                 onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
@@ -1518,14 +1507,19 @@ export default function StopCard({
                                 Update GPS
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                            <DropdownMenuItem
-                              onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
-                              className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
-                              disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
-                              <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
+
+                            {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                              <>
+                                <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
+                                  className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                                  disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
+                                  <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            }
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -1702,7 +1696,7 @@ export default function StopCard({
                                      base44.functions.invoke('optimizeRouteRealTime', {
                                        driverId: delivery.driver_id,
                                        deliveryDate: delivery.delivery_date,
-                                       currentLocalTime: format(new Date(), 'HH:mm'), // Use current time for optimization
+                                       currentLocalTime: format(currentTime, 'HH:mm'),
                                        generatePolyline: false
                                      }).then(() => {
                                        window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
@@ -1961,16 +1955,6 @@ export default function StopCard({
                             </DropdownMenuItem>
                           }
 
-                          {!isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
-                            <DropdownMenuItem
-                              onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
-                              className="text-base md:text-sm py-2.5 md:py-1.5"
-                            >
-                              <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                              Update GPS
-                            </DropdownMenuItem>
-                          )}
-
                           {/* Failed/Cancel menu item - for active deliveries */}
                           {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
                             <>
@@ -1987,6 +1971,17 @@ export default function StopCard({
                               </DropdownMenuItem>
                             </>
                           }
+
+                          {/* New: Update GPS above the divider */}
+                          {!isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                            <DropdownMenuItem
+                              onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
+                              className="text-base md:text-sm py-2.5 md:py-1.5"
+                            >
+                              <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                              Update GPS
+                            </DropdownMenuItem>
+                          )}
 
                           {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
                           {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
