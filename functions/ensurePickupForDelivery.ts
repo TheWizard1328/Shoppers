@@ -128,76 +128,7 @@ Deno.serve(async (req) => {
             skipAutoCreate: true
         });
 
-        const newStopId = generateShortStopId();
-
-        // Calculate pickup time: 5 minutes from now
-        const pickupTime = new Date(now.getTime() + 5 * 60 * 1000);
-        const pickupTimeStr = format(pickupTime, 'HH:mm');
-
-        // Get driver name
-        const appUsers = await base44.entities.AppUser.filter({ user_id: driverId });
-        const driverName = appUsers[0]?.user_name || 'Unknown Driver';
-
-        // Get store info for store_phone
-        const stores = await base44.entities.Store.filter({ id: storeId });
-        const store = stores[0];
-
-        // CRITICAL: Find all existing pickups for this driver to determine next tracking number
-        // Pickups are multiples of 20 (0, 20, 40, 60, 80, 100, etc.)
-        const allDriverPickups = await base44.entities.Delivery.filter({
-            driver_id: driverId,
-            delivery_date: deliveryDate
-        });
-
-        // Filter to only pickups (no patient_id) and extract tracking numbers
-        const pickupTrackingNumbers = allDriverPickups
-            .filter(d => !d.patient_id && d.tracking_number)
-            .map(d => {
-                // Remove any letters to get numeric part
-                const numericPart = d.tracking_number.replace(/[A-Za-z]/g, '');
-                return parseInt(numericPart, 10);
-            })
-            .filter(num => !isNaN(num));
-
-        // Find the largest tracking number
-        const maxTrackingNumber = pickupTrackingNumbers.length > 0 
-            ? Math.max(...pickupTrackingNumbers)
-            : (store?.base_tracking_number || 0) - 20; // Subtract 20 so first pickup gets base_tracking_number
-
-        // New pickup gets max + 20 (no store abbreviation prefix)
-        const newTrackingNumber = maxTrackingNumber + 20;
-
-        console.log(`🔢 [ensurePickup] Pickup TR# calculation: max=${maxTrackingNumber}, new=${newTrackingNumber}`);
-
-        const newPickupData = {
-            delivery_date: deliveryDate,
-            store_id: storeId,
-            driver_id: driverId,
-            driver_name: driverName,
-            status: 'en_route',
-            delivery_time_start: pickupTimeStr,
-            delivery_time_end: '',
-            time_window_start: pickupTimeStr,
-            time_window_end: '',
-            ampm_deliveries: ampmDeliveries,
-            puid: newStopId, // CRITICAL: PUID = pickup's own SID (stop_id)
-            stop_id: newStopId, // 3-character short ID (e.g., "k3E")
-            delivery_stop_id: newStopId,
-            tracking_number: String(newTrackingNumber), // CRITICAL: Generated tracking number (e.g., 100)
-            store_phone: store?.phone || '',
-            delivery_notes: `Auto-created pickup for new ${ampmDeliveries} delivery`,
-            isNextDelivery: false
-        };
-
-        const newPickup = await base44.entities.Delivery.create(newPickupData);
-        console.log(`✅ Created new pickup: ${newPickup.id}, PUID: ${newPickup.stop_id}`);
-
-        return Response.json({ 
-            puid: newPickup.stop_id,
-            pickupId: newPickup.id,
-            isNew: true,
-            pickup: newPickup // Return full pickup object
-        });
+        // Removed auto-create block
 
     } catch (error) {
         console.error('❌ Error in ensurePickupForDelivery:', error.message);
