@@ -71,6 +71,7 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
 
    return (
      <nav
+       ref={navRef}
        data-mobile-bottom-nav
        className="fixed bottom-0 left-0 right-0 z-[150] border-t"
        style={{
