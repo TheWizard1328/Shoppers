@@ -116,7 +116,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
       />
       <div
         className="absolute"
-        style={{ top: rect.top - pad, left: 0, width: Math.max(0, rect.left - pad), height: rect.height + pad * 2, backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
+        style={{ top: baseRect.top - pad, left: 0, width: Math.max(0, baseRect.left - pad), height: baseRect.height + pad * 2, backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
         onClick={onClose}
       />
       <div
