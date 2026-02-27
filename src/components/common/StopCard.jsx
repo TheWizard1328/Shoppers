@@ -1492,8 +1492,8 @@ export default function StopCard({
 
 
 
-                            {/* New: Update GPS above the divider */}
-                            {!isPickup && patient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                            {/* New: Update GPS above the divider - only for Next Delivery */}
+                            {isNextDelivery && !isPickup && patient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
                               <DropdownMenuItem
                                 onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
                                 className="text-base md:text-sm py-2.5 md:py-1.5"
@@ -1943,8 +1943,8 @@ export default function StopCard({
                             </DropdownMenuItem>
                           }
 
-                          {/* Update GPS moved directly under Edit Delivery */}
-                          {!isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                          {/* Update GPS moved directly under Edit Delivery - only for Next Delivery */}
+                          {isNextDelivery && !isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
                             <DropdownMenuItem
                               onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
                               className="text-base md:text-sm py-2.5 md:py-1.5"
