@@ -212,7 +212,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
 
   return (
     <Card className="bg-card text-card-foreground rounded-xl border shadow">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 shrink-0">
         <p className="text-xs text-slate-500 mb-2">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -266,10 +266,10 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
+      <CardContent className="p-0 flex-1 overflow-hidden">
+        <div className="overflow-x-auto overflow-y-auto h-full max-h-[calc(100vh-260px)]">
           <table className="w-full text-xs">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-slate-50">
               <tr className="border-b bg-slate-50">
                 <th className="text-left px-1.5 py-0.5 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Mon</th>
                 {stores.map((store) =>
