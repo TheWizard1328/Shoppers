@@ -857,25 +857,19 @@ export default function Layout({ children, currentPageName }) {
         // Cache in localStorage (persists across refreshes) to avoid repeated checks
         const deviceIdentifier = getDeviceIdentifier();
         const cachedDeviceCheck = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
-        
         if (!cachedDeviceCheck) {
-          const existingDevices = await base44.entities.UserDevice.filter({
-            user_id: fetchedUser.id,
-            device_identifier: deviceIdentifier
-          });
-
-          if (existingDevices && existingDevices.length === 0) {
-            // Device not registered - show DeviceRegistration (shows existing devices or create new)
-            console.log('📱 [Layout] Device not registered, showing registration options');
-            setCurrentUser(fetchedUser);
-            setIsLoadingLayout(false);
-            setDataLoaded(true);
-            return;
+          try {
+            const existingDevices = await base44.entities.UserDevice.filter({ user_id: fetchedUser.id, device_identifier: deviceIdentifier });
+            if (!existingDevices || existingDevices.length === 0) {
+              console.log('📱 [Layout] Device not registered, showing registration options');
+              setCurrentUser(fetchedUser); setIsLoadingLayout(false); setDataLoaded(true); return;
+            }
+            localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
+            console.log('✅ [Layout] Device registered and cached, proceeding');
+          } catch (e) {
+            console.warn('⚠️ [Layout] Device check failed, showing registration');
+            setCurrentUser(fetchedUser); setIsLoadingLayout(false); setDataLoaded(true); return;
           }
-
-          // Device registered - cache result to prevent re-checking
-          localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
-          console.log('✅ [Layout] Device registered and cached, proceeding');
         } else {
           console.log('✅ [Layout] Device check cached, skipping API call');
         }
