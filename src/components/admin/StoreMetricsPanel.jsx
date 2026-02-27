@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -254,8 +254,8 @@ export default function StoreMetricsPanel() {
       </div>
 
       {/* Main Table Card */}
-      <Card>
-        <CardHeader>
+      <Card className="flex flex-col max-h-[calc(100vh-220px)] min-h-[420px]">
+        <CardHeader className="shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -305,7 +305,7 @@ export default function StoreMetricsPanel() {
           {metrics?.stores?.length > 0 ? (
             <div className="border rounded-lg overflow-hidden">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-slate-50">
                   <TableRow className="bg-slate-50">
                     <TableHead className="font-semibold">Store</TableHead>
                     <TableHead className="font-semibold text-center">Status</TableHead>
@@ -394,7 +394,12 @@ export default function StoreMetricsPanel() {
               No store data available for {MONTH_NAMES[parseInt(selectedMonth) - 1]} {selectedYear}
             </div>
           )}
+        </div>
         </CardContent>
+        <CardFooter className="shrink-0 justify-between">
+          <span className="text-xs text-slate-500">Showing {metrics?.stores?.length || 0} stores</span>
+          <span className="text-xs text-slate-400">Scroll to view more</span>
+        </CardFooter>
       </Card>
     </div>
   );
