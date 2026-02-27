@@ -48,6 +48,26 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
      ];
    }
 
+   const navRef = React.useRef(null);
+   React.useEffect(() => {
+     const setVar = () => {
+       const el = navRef.current;
+       const h = el ? Math.ceil(el.getBoundingClientRect().height) : 0;
+       document.documentElement.style.setProperty('--bottom-nav-height', `${h}px`);
+     };
+     setVar();
+     window.addEventListener('resize', setVar);
+     let ro;
+     if ('ResizeObserver' in window && navRef.current) {
+       ro = new ResizeObserver(setVar);
+       ro.observe(navRef.current);
+     }
+     return () => {
+       window.removeEventListener('resize', setVar);
+       if (ro) ro.disconnect();
+     };
+   }, []);
+
    React.useEffect(() => {
      // Save scroll position when leaving a page
      return () => {
