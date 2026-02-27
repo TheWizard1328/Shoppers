@@ -106,7 +106,14 @@ export default function DeliveryFormView({
     isLoadingPredictions, onRefreshProjections: () => setPredictionTrigger(prev => prev + 1),
   };
 
-
+  // Auto-focus COD amount when a staged or pending item is selected (desktop only)
+  React.useEffect(() => {
+    if (editingStagedId && !isMobileDevice) {
+      setTimeout(() => {
+        try { codAmountInputRef?.current?.focus?.(); } catch {}
+      }, 120);
+    }
+  }, [editingStagedId, isMobileDevice, codAmountInputRef]);
 
   return (
     <div
