@@ -81,11 +81,6 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   const pad = 5; // expanded padding around the highlight square
   const radius = 0;
 
-  const anchorRect = anchorEl ? anchorEl.getBoundingClientRect() : null;
-  const anchorStyles = anchorEl ? getComputedStyle(anchorEl) : null;
-  const padL = anchorEl ? parseFloat(anchorStyles.paddingLeft || '0') : 12;
-  const padR = anchorEl ? parseFloat(anchorStyles.paddingRight || '0') : 12;
-
   // Use viewport coordinate system for the container; compute positions relative to viewport
   const baseRect = rect;
 
