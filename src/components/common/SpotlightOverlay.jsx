@@ -76,6 +76,19 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
     return () => document.removeEventListener('click', handleDocClick, true);
   }, [visible, onClose]);
 
+  // Try to locate a stats card anchor to render inside so the overlay moves with it
+  const [anchorEl, setAnchorEl] = useState(null);
+  useEffect(() => {
+    if (!visible) return;
+    let n = targetRef?.current;
+    let found = null;
+    while (n && n !== document.body) {
+      if (n.hasAttribute && n.hasAttribute('data-spotlight-anchor')) { found = n; break; }
+      n = n.parentElement;
+    }
+    setAnchorEl(found);
+  }, [visible, targetRef]);
+
   if (!visible || !rect) return null;
 
   const pad = 5; // expanded padding around the highlight square
