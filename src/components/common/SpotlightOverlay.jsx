@@ -111,7 +111,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
       {/* Dimming backdrops (capture clicks outside highlight) */}
       <div
         className="absolute"
-        style={{ top: 0, left: 0, right: 0, height: Math.max(0, rect.top - pad), backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
+        style={{ top: 0, left: 0, right: 0, height: Math.max(0, baseRect.top - pad), backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
         onClick={onClose}
       />
       <div
