@@ -99,11 +99,10 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   const padL = anchorEl ? parseFloat(anchorStyles.paddingLeft || '0') : 12;
   const padR = anchorEl ? parseFloat(anchorStyles.paddingRight || '0') : 12;
 
-  const baseRect = anchorRect
-    ? { top: rect.top - anchorRect.top, left: rect.left - anchorRect.left, width: rect.width, height: rect.height }
-    : rect;
+  // Use viewport coordinate system for the container; compute positions relative to viewport
+  const baseRect = rect;
 
-  const ContainerProps = { className: `${anchorEl ? 'absolute' : 'fixed'} inset-0 z-[2147483647]`, 'aria-hidden': true, style: { pointerEvents: 'none' } };
+  const ContainerProps = { className: `fixed inset-0 z-[2147483647]`, 'aria-hidden': true, style: { pointerEvents: 'none' } };
 
   const overlay = (
     <div {...ContainerProps}>
