@@ -150,7 +150,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
       {(() => {
         const bubbleWidth = 320; // keep current width
         const gap = 12; // distance below header/target
-        const top = rect.top + rect.height + gap;
+        const top = baseRect.top + baseRect.height + gap;
 
         // If anchored, compute within the anchor's content box; otherwise fallback to viewport center
         const viewportPadding = 12;
