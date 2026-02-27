@@ -36,6 +36,12 @@ export default function AdminMetrics() {
   const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
   const [cities, setCities] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
+  
+  // Unified fee totals (supports both admin metrics and store metrics shapes)
+  const feeTotals = useMemo(() => {
+    const totals = metricsData?.storeFeeTotals || metricsData?.totals || {};
+    return totals || {};
+  }, [metricsData]);
   const [error, setError] = useState(null);
   const [initialCitySet, setInitialCitySet] = useState(false);
   const [showDayByDay, setShowDayByDay] = useState(false); // Toggle for day-by-day view
@@ -183,15 +189,15 @@ export default function AdminMetrics() {
       // For fees mode, use monthlyStoreData which has pre-calculated fees per store
       // For deliveries mode, use storeDataByMonth which has completed/failed counts
       const monthStoreData = metricsData.storeDataByMonth?.[selectedMonth] || metricsData.storeData;
-      const monthStoreDataWithFees = metricsData.monthlyStoreData?.[selectedMonth] || [];
-      const monthFees = metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0;
+      const monthStoreDataWithFees = metricsData.monthlyStoreData?.[selectedMonth] || metricsData.monthlyStoreFees?.[selectedMonth] || [];
+      const monthFees = (feeTotals?.monthly_fees?.[selectedMonth - 1] ?? feeTotals?.monthlyFees?.[selectedMonth - 1] ?? 0);
 
       // Merge fees from monthlyStoreData into storeData
-      const mergedStoreData = monthStoreData.map((store) => {
-        const feeData = monthStoreDataWithFees.find((s) => s.abbreviation === store.abbreviation);
+      const mergedStoreData = (monthStoreData || []).map((store) => {
+        const feeData = monthStoreDataWithFees.find((s) => (s.abbreviation === store.abbreviation) || (s.storeAbbr === store.abbreviation));
         return {
           ...store,
-          fees: feeData?.fees || 0
+          fees: (feeData?.fees ?? feeData?.total_fees ?? 0)
         };
       });
 
@@ -207,12 +213,14 @@ export default function AdminMetrics() {
     // Aggregate fees across all months per store for full year view
     const allMonthsStoreFees = {};
     for (let m = 1; m <= 12; m++) {
-      const monthData = metricsData.monthlyStoreData?.[m] || [];
+      const monthData = metricsData.monthlyStoreData?.[m] || metricsData.monthlyStoreFees?.[m] || [];
       monthData.forEach((s) => {
-        if (!allMonthsStoreFees[s.abbreviation]) {
-          allMonthsStoreFees[s.abbreviation] = 0;
+        const abbr = s.abbreviation || s.storeAbbr;
+        if (!abbr) return;
+        if (!allMonthsStoreFees[abbr]) {
+          allMonthsStoreFees[abbr] = 0;
         }
-        allMonthsStoreFees[s.abbreviation] += s.fees || 0;
+        allMonthsStoreFees[abbr] += (s.fees ?? s.total_fees ?? 0);
       });
     }
 
@@ -395,7 +403,7 @@ export default function AdminMetrics() {
                   <Store className="w-5 h-5" style={{ color: '#1e40af' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {metricsData.storeFeeTotals?.stores_paying_fees || 0} / {metricsData.storeFeeTotals?.active_stores || metricsData.storeFeeTotals?.total_stores || 0}
+                  {feeTotals?.stores_paying_fees || 0} / {(feeTotals?.total_stores || feeTotals?.active_stores || feeTotals?.totalStores || 0)}
                 </p>
               </div>
             </CardContent>
@@ -409,7 +417,7 @@ export default function AdminMetrics() {
                   <DollarSign className="w-5 h-5" style={{ color: 'var(--text-slate-600)' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {formatCurrency(metricsData.storeFeeTotals?.app_fee_rate || 0)}
+                  {formatCurrency(feeTotals?.app_fee_rate || 0)}
                 </p>
               </div>
             </CardContent>
@@ -425,8 +433,8 @@ export default function AdminMetrics() {
                 <p className="text-2xl font-bold" style={{ color: '#78350f' }}>
                   {formatCurrency(
                     selectedMonth ?
-                    metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0 :
-                    metricsData.storeFeeTotals?.total_fees_owed || 0
+                    (feeTotals?.monthly_fees?.[selectedMonth - 1] ?? feeTotals?.monthlyFees?.[selectedMonth - 1] ?? 0) :
+                    (feeTotals?.total_fees_owed ?? feeTotals?.totalFeesOwed ?? 0)
                   )}
                 </p>
               </div>

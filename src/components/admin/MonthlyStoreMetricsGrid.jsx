@@ -68,7 +68,9 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             0;
             value = totalDeliveries + envelopeAdjustment;
           } else {
-            value = storeData.fees || 0;
+            // Fees view: prefer inline fees, fallback to monthlyStoreFees structure
+            const fallback = (monthlyStoreFees[month] || []).find((s) => (s.abbreviation === storeData.abbreviation) || (s.storeAbbr === storeData.abbreviation));
+            value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
           }
           totals[storeData.abbreviation] += value;
           if (value > 0) counts[storeData.abbreviation]++;
@@ -99,7 +101,8 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
         0;
         value = totalDeliveries + envelopeAdjustment;
       } else {
-        value = store.fees || 0;
+        const fallback = (monthlyStoreFees[month] || []).find((s) => (s.abbreviation === store.abbreviation) || (s.storeAbbr === store.abbreviation));
+        value = store.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
       }
       return sum + value;
     }, 0);
@@ -128,7 +131,8 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
         value = totalDeliveries;
       }
     } else {
-      value = storeData.fees || 0;
+     const fallback = (monthlyStoreFees[month] || []).find((s) => (s.abbreviation === storeData.abbreviation) || (s.storeAbbr === storeData.abbreviation));
+     value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
     }
     return value;
   };
