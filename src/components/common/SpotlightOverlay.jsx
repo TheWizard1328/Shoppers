@@ -67,6 +67,14 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
     return () => clearTimeout(t);
   }, [visible, durationMs, onClose]);
 
+  // Close on ANY click anywhere (including + button and the bubble area)
+  useEffect(() => {
+    if (!visible) return;
+    const handleDocClick = () => onClose?.();
+    document.addEventListener('click', handleDocClick, true); // capture phase
+    return () => document.removeEventListener('click', handleDocClick, true);
+  }, [visible, onClose]);
+
   if (!visible || !rect) return null;
 
   const pad = 5; // expanded padding around the highlight square
