@@ -2017,7 +2017,7 @@ export default function DeliveryForm({
 
     // Check for existing pickup for this store/driver/date
     let puid = null;
-    const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
+    const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
 
     // CRITICAL: Check staged pickups FIRST
     const stagedPickup = stagedDeliveries.find((d) =>
@@ -4331,7 +4331,7 @@ export default function DeliveryForm({
 
     // Check for existing pickup for this store/driver/date
     let puid = null;
-    const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
+    const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
 
     // CRITICAL: Check staged pickups FIRST
