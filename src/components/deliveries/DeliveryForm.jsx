@@ -953,7 +953,7 @@ export default function DeliveryForm({
       const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
       const dayOfWeek = selectedDate.getDay();
 
-      const deliveryAMPM = determineDeliveryAMPM(patient); // Changed here
+      const deliveryAMPM = determineDeliveryAMPM(patient) || (patientStore ? getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries) : null) || 'AM'; // Prefer patient window, then store-assigned slot, default AM
 
       let amDriverIdField = '';
       let pmDriverIdField = '';
