@@ -396,8 +396,9 @@ export default function StoreMetricsPanel() {
               No store data available for {MONTH_NAMES[parseInt(selectedMonth) - 1]} {selectedYear}
             </div>
           )}
-        </div>
-        </CardContent>
+          </div>
+          </div>
+          </CardContent>
         <CardFooter className="shrink-0 justify-between">
           <span className="text-xs text-slate-500">Showing {metrics?.stores?.length || 0} stores</span>
           <span className="text-xs text-slate-400">Scroll to view more</span>
