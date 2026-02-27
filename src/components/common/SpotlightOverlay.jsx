@@ -135,9 +135,8 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
 
         // If anchored, compute within the anchor's content box; otherwise fallback to viewport center
         const viewportPadding = 12;
-        // If anchored, clamp inside the anchor's viewport box; else use viewport
-        const contentLeft = anchorEl ? (anchorRect.left + padL) : viewportPadding;
-        const contentRight = anchorEl ? (anchorRect.right - padR) : (window.innerWidth - viewportPadding);
+        const contentLeft = viewportPadding;
+        const contentRight = window.innerWidth - viewportPadding;
         const contentCenterX = (contentLeft + contentRight) / 2;
 
         const unclampedLeft = contentCenterX - bubbleWidth / 2;
