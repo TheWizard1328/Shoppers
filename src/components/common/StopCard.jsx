@@ -1490,12 +1490,7 @@ export default function StopCard({
                               </DropdownMenuItem>
                             }
 
-                            {patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5">
-                                <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                                Edit Patient
-                              </DropdownMenuItem>
-                            }
+
 
                             {/* New: Update GPS above the divider */}
                             {!isPickup && patient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
@@ -1948,12 +1943,18 @@ export default function StopCard({
                             </DropdownMenuItem>
                           }
 
-                          {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5">
-                              <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                              Edit Patient
+                          {/* Update GPS moved directly under Edit Delivery */}
+                          {!isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                            <DropdownMenuItem
+                              onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
+                              className="text-base md:text-sm py-2.5 md:py-1.5"
+                            >
+                              <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                              Update GPS
                             </DropdownMenuItem>
-                          }
+                          )}
+
+
 
                           {/* Failed/Cancel menu item - for active deliveries */}
                           {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
@@ -1972,16 +1973,7 @@ export default function StopCard({
                             </>
                           }
 
-                          {/* New: Update GPS above the divider */}
-                          {!isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
-                            <DropdownMenuItem
-                              onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
-                              className="text-base md:text-sm py-2.5 md:py-1.5"
-                            >
-                              <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                              Update GPS
-                            </DropdownMenuItem>
-                          )}
+
 
                           {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
                           {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
