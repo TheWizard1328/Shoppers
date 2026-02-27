@@ -81,6 +81,19 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   const pad = 5; // expanded padding around the highlight square
   const radius = 0;
 
+  // Try to locate a stats card anchor to render inside so the overlay moves with it
+  const [anchorEl, setAnchorEl] = useState(null);
+  useEffect(() => {
+    if (!visible) return;
+    let n = targetRef?.current;
+    let found = null;
+    while (n && n !== document.body) {
+      if (n.hasAttribute && n.hasAttribute('data-spotlight-anchor')) { found = n; break; }
+      n = n.parentElement;
+    }
+    setAnchorEl(found);
+  }, [visible, targetRef]);
+
   return (
     <div className="fixed inset-0 z-[2147483647]" aria-hidden style={{ pointerEvents: 'none' }}>
       {/* Dimming backdrops (capture clicks outside highlight) */}
