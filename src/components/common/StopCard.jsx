@@ -1,3 +1,4 @@
+
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Label } from "@/components/ui/label";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from
 "@/components/ui/select";
-import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox } from "lucide-react";
+import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox, Locate } from "lucide-react";
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { getStoreColor, hexToRgba, getContrastColor } from "../utils/colorGenerator";
 import { format, isBefore, startOfDay, addDays } from "date-fns";
@@ -25,8 +26,9 @@ import { useAppData } from "../utils/AppDataContext";
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
 import {notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn} from "../utils/deliveryMessaging";
-import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
+import { triggerRouteOptimization } => "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
+import { updatePatientGPS } from "../utils/patientGPSUpdater";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
 import { updateDeliveryLocal } from '../utils/offlineMutations';
@@ -1506,18 +1508,24 @@ export default function StopCard({
                               </DropdownMenuItem>
                             }
 
-                            {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                              <>
-                                <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                                <DropdownMenuItem
-                                  onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
-                                  className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
-                                  disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
-                                  <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </>
-                            }
+                            {/* New: Update GPS action for deliveries (not pickups) */}
+                            {!isPickup && patient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                              <DropdownMenuItem
+                                onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
+                                className="text-base md:text-sm py-2.5 md:py-1.5"
+                              >
+                                <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                Update GPS
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
+                              className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                              disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
+                              <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -1694,7 +1702,7 @@ export default function StopCard({
                                      base44.functions.invoke('optimizeRouteRealTime', {
                                        driverId: delivery.driver_id,
                                        deliveryDate: delivery.delivery_date,
-                                       currentLocalTime: format(currentTime, 'HH:mm'),
+                                       currentLocalTime: format(new Date(), 'HH:mm'), // Use current time for optimization
                                        generatePolyline: false
                                      }).then(() => {
                                        window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
@@ -1952,6 +1960,16 @@ export default function StopCard({
                               Edit Patient
                             </DropdownMenuItem>
                           }
+
+                          {!isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                            <DropdownMenuItem
+                              onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
+                              className="text-base md:text-sm py-2.5 md:py-1.5"
+                            >
+                              <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                              Update GPS
+                            </DropdownMenuItem>
+                          )}
 
                           {/* Failed/Cancel menu item - for active deliveries */}
                           {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
