@@ -92,10 +92,13 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
 
       {/* Bubble card near the target (prefer above; fallback below) */}
       {(() => {
-        const bubbleWidth = 320;
-        const top = rect.top + rect.height + 12;
-        // Find nearest wide/centered ancestor to act as anchor (stats card)
+        const bubbleWidth = 320; // keep current width
+        const gap = 12; // distance below header/target
+        const top = rect.top + rect.height + gap;
+
+        // Find nearest ancestor container to align with (Stats card container)
         let node = targetRef?.current;
+        let anchorEl = null;
         let anchorRect = null;
         while (node && node !== document.body) {
           const br = node.getBoundingClientRect();
@@ -103,13 +106,24 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
           const wideEnough = br.width > rect.width + 120;
           const centered = (cs.marginLeft === 'auto' && cs.marginRight === 'auto');
           if (node.hasAttribute('data-spotlight-anchor') || wideEnough || centered) {
+            anchorEl = node;
             anchorRect = br;
             break;
           }
           node = node.parentElement;
         }
-        const centerX = anchorRect ? (anchorRect.left + anchorRect.width / 2) : (rect.left + rect.width / 2);
-        const left = Math.min(Math.max(12, centerX - bubbleWidth / 2), window.innerWidth - bubbleWidth - 12);
+
+        // Compute left/right bounds using the container's paddings, and center within it
+        const padL = anchorEl ? parseFloat(window.getComputedStyle(anchorEl).paddingLeft || '0') : 12;
+        const padR = anchorEl ? parseFloat(window.getComputedStyle(anchorEl).paddingRight || '0') : 12;
+
+        const contentLeft = anchorRect ? (anchorRect.left + padL) : 12;
+        const contentRight = anchorRect ? (anchorRect.right - padR) : (window.innerWidth - 12);
+        const contentCenterX = (contentLeft + contentRight) / 2;
+
+        const unclampedLeft = contentCenterX - bubbleWidth / 2;
+        const left = Math.min(Math.max(contentLeft, unclampedLeft), contentRight - bubbleWidth);
+
         // Arrow on top-right corner
         const arrowTop = -6;
         const arrowRight = 12;
