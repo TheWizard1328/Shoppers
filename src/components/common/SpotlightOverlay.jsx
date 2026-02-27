@@ -122,7 +122,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
 
       {/* Bubble card near the target (prefer above; fallback below) */}
       {(() => {
-        // Responsive bubble width for mobile: clamp to container/viewport
+        const bubbleWidth = 320; // keep current width
         const gap = 12; // distance below header/target
         const top = rect.top + rect.height + gap;
 
@@ -149,26 +149,19 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
 
         const contentLeft = anchorRect ? (anchorRect.left + padL) : 12;
         const contentRight = anchorRect ? (anchorRect.right - padR) : (window.innerWidth - 12);
-        const maxBubbleWidth = Math.max(220, contentRight - contentLeft);
-        const bubbleWidth = Math.min(320, maxBubbleWidth);
         const contentCenterX = (contentLeft + contentRight) / 2;
 
         const unclampedLeft = contentCenterX - bubbleWidth / 2;
         const left = Math.min(Math.max(contentLeft, unclampedLeft), contentRight - bubbleWidth);
 
-        // Arrow: point toward target center and keep inside bubble bounds
+        // Arrow on top-right corner
         const arrowTop = -6;
-        const arrowSize = 12;
+        const arrowRight = 12;
         const arrowClasses = 'border-t border-r';
-        const targetCenterX = rect.left + rect.width / 2;
-        const arrowLeft = Math.min(
-          Math.max(12, targetCenterX - left - arrowSize / 2),
-          bubbleWidth - arrowSize - 12
-        );
         return (
           <div
-            className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 opacity-100"
-            style={{ top, left, width: bubbleWidth, maxWidth: 'calc(100vw - 24px)', zIndex: 3 }}
+            className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 max-w-xs opacity-100"
+            style={{ top, left, width: bubbleWidth, zIndex: 3 }}
           >
             <div className="text-sm font-medium">Add deliveries here</div>
             <p className="text-xs mt-1 leading-relaxed">
@@ -179,7 +172,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
               className={`absolute w-3 h-3 bg-white rotate-45 ${arrowClasses}`}
               style={{
                 top: arrowTop,
-                left: arrowLeft,
+                right: arrowRight,
               }}
             />
           </div>
