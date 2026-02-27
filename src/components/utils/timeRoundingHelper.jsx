@@ -51,12 +51,6 @@ export const generateCompletionTimestamp = (delivery, allDeliveries, FINISHED_ST
   const day = String(currentTime.getDate()).padStart(2, '0');
   const seconds = '00'; // Always '00' for consistency with 5-minute rounding
 
-  // Get timezone offset in minutes and format as ±HH:MM
-  const offsetMinutes = -currentTime.getTimezoneOffset();
-  const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
-  const offsetMins = Math.abs(offsetMinutes) % 60;
-  const offsetSign = offsetMinutes >= 0 ? '+' : '-';
-  const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
-
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
+  // Return LOCAL timestamp without any timezone offset suffix (e.g., 2026-02-26T16:36:00)
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
