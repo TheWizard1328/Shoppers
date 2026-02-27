@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
       const payrollArr = Array.isArray(allYearPayroll) ? allYearPayroll : [];
       console.log(`📦 Total payroll records fetched for ${year}: ${payrollArr.length}`);
 
-      const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
+      const appFeeRate = parseFloat(appSettings?.[0]?.setting_value?.app_fees_per_delivery) || 0;
       
       let deliveries = allYearDeliveries;
       let payrollRecords = payrollArr;
