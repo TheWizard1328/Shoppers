@@ -38,6 +38,27 @@ export default function SquareManagement() {
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
   const [lastCleanup, setLastCleanup] = useState(null);
+  const [navHeight, setNavHeight] = useState(0);
+
+  useEffect(() => {
+    const measure = () => {
+      const nav = document.querySelector('nav[data-mobile-bottom-nav]');
+      const h = nav ? Math.ceil(nav.getBoundingClientRect().height) : 0;
+      setNavHeight(h);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const navEl = document.querySelector('nav[data-mobile-bottom-nav]');
+    let ro;
+    if ('ResizeObserver' in window && navEl) {
+      ro = new ResizeObserver(measure);
+      ro.observe(navEl);
+    }
+    return () => {
+      window.removeEventListener('resize', measure);
+      if (ro) ro.disconnect();
+    };
+  }, []);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -768,7 +789,7 @@ export default function SquareManagement() {
         <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
           <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">Active COD Items</CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto">
+        <CardContent className="flex-1 overflow-y-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
@@ -780,7 +801,7 @@ export default function SquareManagement() {
                <p className="text-xs md:text-sm mt-1">COD items will appear here when deliveries are created with COD amounts</p>
              </div>
           ) : (
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto pb-2">
               <table className="w-full">
                 <thead>
                   <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
