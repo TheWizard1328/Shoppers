@@ -254,7 +254,7 @@ export default function StoreMetricsPanel() {
       </div>
 
       {/* Main Table Card */}
-      <Card className="flex flex-col max-h-[calc(100vh-220px)] min-h-[420px]">
+      <Card className="flex flex-col max-h-[calc(100vh-220px)] min-h-[420px] overflow-hidden">
         <CardHeader className="shrink-0">
           <div className="flex items-center justify-between">
             <div>
@@ -302,7 +302,7 @@ export default function StoreMetricsPanel() {
           </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden p-0">
-          <div className="h-full overflow-y-auto p-6">
+          <div className="h-full overflow-x-auto overflow-y-auto p-6">
           {metrics?.stores?.length > 0 ? (
             <div className="border rounded-lg overflow-hidden">
               <Table>
