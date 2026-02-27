@@ -109,7 +109,7 @@ export default function StopCard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [codPayments, setCodPayments] = useState(delivery?.cod_payments || []);
   const [showCODCollection, setShowCODCollection] = useState(false);
-  const [showReturnConfirm, setShowReturnConfirm] = useState(false);
+  const [showReturnConfirm, setShowReturnConfirm] = useState(false); const [isCreatingReturn, setIsCreatingReturn] = useState(false);
   const [returnPatient, setReturnPatient] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
