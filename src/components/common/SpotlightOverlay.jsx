@@ -190,5 +190,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
     </div>
   );
 
+  // Render inside anchor when available so it moves with the card; else render in viewport
+  if (anchorEl) return createPortal(overlay, anchorEl);
   return overlay;
 }
