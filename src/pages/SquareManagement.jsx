@@ -657,7 +657,7 @@ export default function SquareManagement() {
   };
 
   return (
-    <div className="p-4 md:p-6 bg-background text-foreground w-full min-h-screen md:h-screen flex flex-col overflow-hidden">
+    <div className="p-4 md:p-6 bg-background text-foreground w-full min-h-screen md:h-screen flex flex-col overflow-hidden" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
     {/* Header */}
     <div className="flex flex-col gap-4 mb-6">
       <div className="flex items-center gap-3">
