@@ -22,6 +22,74 @@ let isConnected = false;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
+// Helpers for auto-centering the "next delivery" card after UI settles
+let centerEventTimer = null;
+const scheduleAfterUISettled = (fn) => {
+  if (typeof window === 'undefined') return;
+  const raf = window.requestAnimationFrame || ((cb) => setTimeout(cb, 16));
+  // Double RAF + microtask to wait for React state commits/paint
+  raf(() => raf(() => setTimeout(fn, 0)));
+};
+
+const getEffectiveUser = () => {
+  try {
+    const cache = sessionStorage.getItem('effectiveUserCache');
+    if (cache) return JSON.parse(cache);
+  } catch {}
+  return null;
+};
+
+const isDeliveryVisibleToUser = (delivery) => {
+  const eff = getEffectiveUser();
+  if (!eff) return true; // Fallback: don't block if unknown
+  const roles = eff?.appUser?.app_roles || eff?.user?.app_roles || [];
+  const appUserId = eff?.appUser?.id || eff?.user?.app_user_id;
+  const userId = eff?.user?.id || eff?.user?.user_id;
+
+  // Driver: visible if delivery driver_id matches app user or user id (support both schemas)
+  if (roles.includes('driver')) {
+    if (delivery?.driver_id && (delivery.driver_id === appUserId || delivery.driver_id === userId)) return true;
+  }
+
+  // Dispatcher/Admin: visible if store_id is one they manage
+  const storeIds = eff?.appUser?.store_ids || eff?.user?.store_ids || [];
+  if ((roles.includes('dispatcher') || roles.includes('admin')) && delivery?.store_id && Array.isArray(storeIds)) {
+    if (storeIds.includes(delivery.store_id)) return true;
+  }
+
+  return false;
+};
+
+const shouldCenterForDeliveryUpdate = (data, changedFields) => {
+  if (!data) return false;
+  if (!isDeliveryVisibleToUser(data)) return false;
+  const statusChanged = Array.isArray(changedFields) && changedFields.includes('status');
+  const isNextChanged = Array.isArray(changedFields) && changedFields.includes('isNextDelivery');
+  const status = data?.status;
+
+  if ((statusChanged && (status === 'en_route' || status === 'completed')) || isNextChanged) {
+    // For isNextChanged, prefer when it becomes true
+    if (isNextChanged) {
+      return data?.isNextDelivery === true;
+    }
+    return true;
+  }
+  return false;
+};
+
+const triggerCenterNextDeliveryCard = (payload) => {
+  if (centerEventTimer) {
+    clearTimeout(centerEventTimer);
+    centerEventTimer = null;
+  }
+  // Debounce slightly to coalesce bursts of updates
+  centerEventTimer = setTimeout(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('centerNextDeliveryCard', { detail: payload }));
+    }
+  }, 50);
+};
+
 /**
  * Helper to detect changed fields between old and new data
  */
@@ -140,6 +208,22 @@ const subscribeToEntity = (entityName) => {
           window.dispatchEvent(new CustomEvent('appUserUpdated', {
             detail: { appUser: data, fromRealtime: true }
           }));
+        }
+
+        // Auto-center the next delivery card AFTER UI settles on relevant Delivery updates
+        if (entityName === 'Delivery' && (type === 'update' || type === 'create')) {
+          if (shouldCenterForDeliveryUpdate(data, changedFields)) {
+            scheduleAfterUISettled(() => {
+              triggerCenterNextDeliveryCard({
+                deliveryId: id,
+                status: data?.status,
+                isNextDelivery: !!data?.isNextDelivery,
+                changedFields,
+                eventType: type,
+                source: 'realtimeSync'
+              });
+            });
+          }
         }
       }
     });
