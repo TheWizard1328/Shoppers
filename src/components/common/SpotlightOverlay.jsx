@@ -174,9 +174,5 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
     </div>
   );
 
-  // If we have an anchor element, render inside it so overlay moves with stats card
-  if (anchorEl) {
-    return createPortal(overlay, anchorEl);
-  }
   return overlay;
 }
