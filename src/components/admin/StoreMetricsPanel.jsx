@@ -301,7 +301,8 @@ export default function StoreMetricsPanel() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="flex-1 overflow-hidden p-0">\n          <div className="h-full overflow-y-auto p-6">
+        <CardContent className="flex-1 overflow-hidden p-0">
+          <div className="h-full overflow-y-auto p-6">
           <div className="h-full overflow-y-auto p-6">
           {metrics?.stores?.length > 0 ? (
             <div className="border rounded-lg overflow-hidden">
