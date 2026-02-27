@@ -70,6 +70,14 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     }
   }
 
+  // Persist updated stop orders to backend in batch
+  if (updates.length > 0) {
+    const { base44 } = await import('@/api/base44Client');
+    await Promise.all(
+      updates.map(u => base44.entities.Delivery.update(u.id, { stop_order: u.stop_order, display_stop_order: u.display_stop_order }))
+    );
+  }
+
   return sortedDeliveries;
 };
 
