@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
         base44.asServiceRole.entities.AppUser.list('', 50000),
         base44.asServiceRole.entities.Patient.list('', 50000),
         base44.asServiceRole.entities.City.list('', 50000),
-        base44.asServiceRole.entities.AppSettings.list()
+        base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
       ]);
 
       // CRITICAL: SDK returns a raw string (not parsed JSON) when response > ~4MB
