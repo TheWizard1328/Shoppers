@@ -16,6 +16,7 @@ export default function ETANotification({
   currentUser,
   onDismiss 
 }) {
+  const { updateDeliveriesLocally } = useAppData();
   const [notification, setNotification] = useState(null);
   const [previousETAs, setPreviousETAs] = useState(new Map());
 
