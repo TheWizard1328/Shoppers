@@ -74,6 +74,18 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
 
   return (
     <div className="fixed inset-0 z-[2147483647]" aria-hidden onClick={onClose} style={{ pointerEvents: 'auto' }}>
+      {/* Transparent click-through window over the + button area to allow interaction */}
+      <div
+        className="absolute"
+        style={{
+          top: rect.top - pad,
+          left: rect.left - pad,
+          width: rect.width + pad * 2,
+          height: rect.height + pad * 2,
+          pointerEvents: 'none', // ensure clicks pass through to target
+          zIndex: 3,
+        }}
+      />
       {/* Dim via outer shadow at 40%; no hover fade changes */}
 
       {/* Highlight ring around target */}
