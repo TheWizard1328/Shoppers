@@ -484,7 +484,9 @@ export default function DeliveryFormView({
                     <Plus className="w-4 h-4" />Add
                   </Button>
                 ) : (
-                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); if (formData?.driver_id && formData?.delivery_date) { await recalculateAndUpdateStopOrders(formData.driver_id, formData.delivery_date); const now = new Date(); const hh = String(now.getHours()).padStart(2, '0'); const mm = String(now.getMinutes()).padStart(2, '0'); const currentLocalTime = `${hh}:${mm}`; try {
+                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); if (formData?.driver_id && formData?.delivery_date) { await recalculateAndUpdateStopOrders(formData.driver_id, formData.delivery_date);
+// Force UI to reflect new stop numbers on cards and markers immediately
+window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'stopOrderResequence', driverId: formData.driver_id, deliveryDate: formData.delivery_date } })); const now = new Date(); const hh = String(now.getHours()).padStart(2, '0'); const mm = String(now.getMinutes()).padStart(2, '0'); const currentLocalTime = `${hh}:${mm}`; try {
   await calculateRealTimeETA({ driverId: formData.driver_id, deliveryDate: formData.delivery_date, currentLocalTime, deviceTime: currentLocalTime });
 } catch (err) {
   console.warn('ETA calculation skipped:', err?.response?.status || err?.message || err);
