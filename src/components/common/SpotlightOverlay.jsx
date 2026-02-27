@@ -156,10 +156,15 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
         const unclampedLeft = contentCenterX - bubbleWidth / 2;
         const left = Math.min(Math.max(contentLeft, unclampedLeft), contentRight - bubbleWidth);
 
-        // Arrow on top-right corner
+        // Arrow: point toward target center and keep inside bubble bounds
         const arrowTop = -6;
-        const arrowRight = 12;
+        const arrowSize = 12;
         const arrowClasses = 'border-t border-r';
+        const targetCenterX = rect.left + rect.width / 2;
+        const arrowLeft = Math.min(
+          Math.max(12, targetCenterX - left - arrowSize / 2),
+          bubbleWidth - arrowSize - 12
+        );
         return (
           <div
             className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 opacity-100"
@@ -174,7 +179,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
               className={`absolute w-3 h-3 bg-white rotate-45 ${arrowClasses}`}
               style={{
                 top: arrowTop,
-                right: arrowRight,
+                left: arrowLeft,
               }}
             />
           </div>
