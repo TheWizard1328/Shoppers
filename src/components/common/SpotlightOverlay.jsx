@@ -122,7 +122,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
 
       {/* Bubble card near the target (prefer above; fallback below) */}
       {(() => {
-        const bubbleWidth = 320; // keep current width
+        // Responsive bubble width for mobile: clamp to container/viewport
         const gap = 12; // distance below header/target
         const top = rect.top + rect.height + gap;
 
@@ -149,6 +149,8 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
 
         const contentLeft = anchorRect ? (anchorRect.left + padL) : 12;
         const contentRight = anchorRect ? (anchorRect.right - padR) : (window.innerWidth - 12);
+        const maxBubbleWidth = Math.max(220, contentRight - contentLeft);
+        const bubbleWidth = Math.min(320, maxBubbleWidth);
         const contentCenterX = (contentLeft + contentRight) / 2;
 
         const unclampedLeft = contentCenterX - bubbleWidth / 2;
