@@ -146,10 +146,10 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
         const gap = 12; // distance below header/target
         const top = rect.top + rect.height + gap;
 
-        // Simplified: center the bubble in the viewport, consistent on all devices
+        // If anchored, compute within the anchor's content box; otherwise fallback to viewport center
         const viewportPadding = 12;
-        const contentLeft = viewportPadding;
-        const contentRight = window.innerWidth - viewportPadding;
+        const contentLeft = anchorEl ? (anchorEl.getBoundingClientRect().left + parseFloat(getComputedStyle(anchorEl).paddingLeft || '0')) : viewportPadding;
+        const contentRight = anchorEl ? (anchorEl.getBoundingClientRect().right - parseFloat(getComputedStyle(anchorEl).paddingRight || '0')) : (window.innerWidth - viewportPadding);
         const contentCenterX = (contentLeft + contentRight) / 2;
 
         const unclampedLeft = contentCenterX - bubbleWidth / 2;
