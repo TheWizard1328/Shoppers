@@ -168,9 +168,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
       // Compute selected date and city, then run targeted manual sync
       const { globalFilters } = await import('../utils/globalFilters');
-      const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
+      const dateForSync = sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
       const selectedCityId = globalFilters?.getSelectedCityId?.();
-      const syncResult = await manualSyncSelected(selectedDateStr, selectedCityId);
+      const syncResult = await manualSyncSelected(dateForSync, selectedCityId);
       console.log('✅ [OfflineSyncIndicator] manualSyncSelected complete:', syncResult);
       
       // Wait for DB to settle
