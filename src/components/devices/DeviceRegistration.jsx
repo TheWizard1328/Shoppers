@@ -77,6 +77,17 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
         setIsLoading(false);
       } catch (error) {
         console.error('Device check failed:', error);
+        // Offline/failed fallback: still show registration UI with sensible defaults
+        try {
+          const { deviceType, os } = getUserAgentInfo();
+          const defaultName = `${os} ${deviceType}`;
+          setNewDeviceName(defaultName);
+        } catch (e) {}
+        setIsCreatingNew(true);
+        if (currentUser?.app_roles?.includes('driver')) {
+          setIsPrimaryTracker(true);
+        }
+        setShowDialog(true);
         setIsLoading(false);
       }
     };
