@@ -60,9 +60,13 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     const delivery = sortedDeliveries[i];
     const newStopOrder = i + 1;
 
-    if (delivery.stop_order !== newStopOrder) {
-      updates.push({ id: delivery.id, stop_order: newStopOrder });
-      await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder });
+    if (delivery.stop_order !== newStopOrder || delivery.display_stop_order !== newStopOrder) {
+      updates.push({ id: delivery.id, stop_order: newStopOrder, display_stop_order: newStopOrder });
+      await updateDeliveryLocal(
+        delivery.id,
+        { stop_order: newStopOrder, display_stop_order: newStopOrder },
+        { skipSmartRefresh: true, isBatchOperation: true }
+      );
     }
   }
 
