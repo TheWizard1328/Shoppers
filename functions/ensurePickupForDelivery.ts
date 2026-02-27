@@ -119,8 +119,14 @@ Deno.serve(async (req) => {
             });
         }
 
-        // 2. No incomplete pickup exists - create a new one for the new delivery
-        console.log(`⚠️ No incomplete pickup found for store ${storeId}. Creating new pickup for new delivery.`);
+        // 2. No incomplete pickup exists - do NOT auto-create; Dashboard will handle pickup creation
+        console.log(`⏭️ [ensurePickup] No incomplete pickup; skipping auto-create for store ${storeId}`);
+        return Response.json({
+            puid: null,
+            pickupId: null,
+            isNew: false,
+            skipAutoCreate: true
+        });
 
         const newStopId = generateShortStopId();
 
