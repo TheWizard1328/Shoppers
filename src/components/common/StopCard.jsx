@@ -1736,7 +1736,11 @@ export default function StopCard({
                                   const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                                   driverLocationPoller.resume();
 
-                                  // CRITICAL: Collapse ALL cards after completion
+                                   // Reset UI flags after completion success
+                                   setIsCompleting(false);
+                                   setIsProcessingBackground(false);
+
+                                   // CRITICAL: Collapse ALL cards after completion
                                   if (typeof window !== 'undefined') {
                                     window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
                                   }
