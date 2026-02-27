@@ -122,7 +122,7 @@ export default function StopCard({
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState(null); // URL of image to view fullscreen
-  const [selectedTransferPickupId, setSelectedTransferPickupId] = useState('');
+  const [selectedTransferPickupId, setSelectedTransferPickupId] = useState(''); const [isHovered, setIsHovered] = useState(false);
 
   // Detect if this is a stripped delivery (from other store)
   // For drivers: strip completed deliveries (_isStripped flag from Dashboard)
