@@ -85,6 +85,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
           width: rect.width + pad * 2,
           height: rect.height + pad * 2,
           borderRadius: radius,
+          // Make only the dimmed backdrop block clicks; let the highlighted square pass-through
           backgroundColor: "rgba(0,0,0,0.15)",
           boxShadow: "0 0 0 9999px rgba(0,0,0,0.4), 0 0 0 3px #fff", zIndex: 1,
         }}
