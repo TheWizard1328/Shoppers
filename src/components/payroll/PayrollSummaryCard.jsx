@@ -114,7 +114,7 @@ export default function PayrollSummaryCard({
         if (!d.patient_id && !d.after_hours_pickup) return false;
 
         // Valid statuses: completed, failed, or cancelled (for after_hours or store returns)
-        if ((d.status === 'completed' || d.status === 'failed') && !d.no_charge) {
+        if (d.status === 'completed' || d.status === 'failed') {
 
 
           // Valid - count these
