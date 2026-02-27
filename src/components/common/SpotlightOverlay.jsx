@@ -73,18 +73,27 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   const radius = 0;
 
   return (
-    <div className="fixed inset-0 z-[2147483647]" aria-hidden onClick={onClose} style={{ pointerEvents: 'auto' }}>
-      {/* Transparent click-through window over the + button area to allow interaction */}
+    <div className="fixed inset-0 z-[2147483647]" aria-hidden style={{ pointerEvents: 'none' }}>
+      {/* Dimming backdrops (capture clicks outside highlight) */}
       <div
         className="absolute"
-        style={{
-          top: rect.top - pad,
-          left: rect.left - pad,
-          width: rect.width + pad * 2,
-          height: rect.height + pad * 2,
-          pointerEvents: 'none', // ensure clicks pass through to target
-          zIndex: 3,
-        }}
+        style={{ top: 0, left: 0, right: 0, height: Math.max(0, rect.top - pad), backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
+        onClick={onClose}
+      />
+      <div
+        className="absolute"
+        style={{ top: rect.top - pad, left: 0, width: Math.max(0, rect.left - pad), height: rect.height + pad * 2, backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
+        onClick={onClose}
+      />
+      <div
+        className="absolute"
+        style={{ top: rect.top - pad, left: rect.left + rect.width + pad, right: 0, height: rect.height + pad * 2, backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
+        onClick={onClose}
+      />
+      <div
+        className="absolute"
+        style={{ top: rect.top + rect.height + pad, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
+        onClick={onClose}
       />
       {/* Dim via outer shadow at 40%; no hover fade changes */}
 
@@ -97,9 +106,9 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
           width: rect.width + pad * 2,
           height: rect.height + pad * 2,
           borderRadius: radius,
-          // Make only the dimmed backdrop block clicks; let the highlighted square pass-through
-          backgroundColor: "rgba(0,0,0,0.15)",
-          boxShadow: "0 0 0 9999px rgba(0,0,0,0.4), 0 0 0 3px #fff", zIndex: 1,
+          backgroundColor: "transparent",
+          border: "3px solid #fff",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.08)", zIndex: 2,
         }}
       />
 
@@ -144,7 +153,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
         return (
           <div
             className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 max-w-xs opacity-100"
-            style={{ top, left, width: bubbleWidth, zIndex: 2 }}
+            style={{ top, left, width: bubbleWidth, zIndex: 3 }}
           >
             <div className="text-sm font-medium">Add deliveries here</div>
             <p className="text-xs mt-1 leading-relaxed">
