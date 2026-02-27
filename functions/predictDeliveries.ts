@@ -497,6 +497,133 @@ Deno.serve(async (req) => {
       }
     }
 
+    // New section: Projection check for failed deliveries without returns/follow-ups (last 4 days)
+    try {
+      const today = new Date();
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const fourDaysAgo = new Date(today);
+      fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
+      const fourDaysAgoStr = format(fourDaysAgo, 'yyyy-MM-dd');
+
+      // Fetch recent deliveries in the last 4 days (limit by store_ids when provided)
+      let recentDeliveries = [];
+      if (store_ids && store_ids.length > 0) {
+        const perStore = await Promise.all(
+          store_ids.map(async (sid) => {
+            let res = await base44.asServiceRole.entities.Delivery.filter({
+              delivery_date: { $gte: fourDaysAgoStr, $lte: todayStr },
+              store_id: sid
+            });
+            if (typeof res === 'string') { try { res = JSON.parse(res); } catch { res = []; } }
+            return Array.isArray(res) ? res : [];
+          })
+        );
+        recentDeliveries = perStore.flat();
+      } else {
+        let res = await base44.asServiceRole.entities.Delivery.filter({
+          delivery_date: { $gte: fourDaysAgoStr, $lte: todayStr }
+        });
+        if (typeof res === 'string') { try { res = JSON.parse(res); } catch { res = []; } }
+        recentDeliveries = Array.isArray(res) ? res : [];
+      }
+
+      const failedRecent = recentDeliveries.filter(d => d && d.status === 'failed' && d.patient_id);
+
+      // Build quick patient lookup
+      const patientById = Object.fromEntries((patients || []).filter(Boolean).map(p => [p.id, p]));
+
+      const addedReturnKeys = new Set();
+      const addedTodayKeys = new Set();
+
+      for (const fd of failedRecent) {
+        const patient = patientById[fd.patient_id] || null;
+        const patientName = (patient?.full_name || fd.patient_name || '').toLowerCase().trim();
+        if (!patientName) continue;
+
+        const failDate = new Date(fd.delivery_date + 'T00:00:00');
+        const windowEnd = new Date(failDate);
+        windowEnd.setDate(windowEnd.getDate() + 4);
+        // Cap window end at today
+        const todayStart = new Date(todayStr + 'T00:00:00');
+        if (windowEnd > todayStart) windowEnd.setTime(todayStart.getTime());
+
+        const inWindow = (d) => {
+          const dd = new Date(d.delivery_date + 'T00:00:00');
+          return dd >= failDate && dd <= windowEnd;
+        };
+
+        // Condition 1: Return by same driver within 4 days, notes mention patient name
+        const hasReturnBySameDriver = recentDeliveries.some(d =>
+          d &&
+          d.driver_id &&
+          fd.driver_id &&
+          d.driver_id === fd.driver_id &&
+          inWindow(d) &&
+          typeof d.delivery_notes === 'string' &&
+          d.delivery_notes.toLowerCase().includes(patientName)
+        );
+
+        // Condition 2: Another delivery for same patient within 4 days (non-cancelled)
+        const hasFollowupSamePatient = recentDeliveries.some(d =>
+          d &&
+          d.id !== fd.id &&
+          d.patient_id === fd.patient_id &&
+          inWindow(d) &&
+          d.status !== 'cancelled'
+        );
+
+        if (!hasReturnBySameDriver && !hasFollowupSamePatient) {
+          // A) Return projection (failed delivery date)
+          const returnKey = `${fd.patient_id}|${fd.delivery_date}|return`;
+          if (!addedReturnKeys.has(returnKey)) {
+            predictions.push({
+              patient_id: fd.patient_id,
+              patient_name: patient?.full_name || fd.patient_name || '',
+              patient_phone: patient?.phone || '',
+              store_id: patient?.store_id || fd.store_id,
+              confidence: 0.9,
+              reason: `Return projection: failed on ${fd.delivery_date}; no return or follow-up within 4 days (same driver)`,
+              delivery_instructions: patient?.notes || '',
+              unit_number: patient?.unit_number || '',
+              time_window_start: patient?.time_window_start || '',
+              time_window_end: patient?.time_window_end || '',
+              mailbox_ok: patient?.mailbox_ok || false,
+              call_upon_arrival: patient?.call_upon_arrival || false,
+              ring_bell: patient?.ring_bell ?? false,
+              dont_ring_bell: patient?.dont_ring_bell || false,
+              back_door: patient?.back_door || false
+            });
+            addedReturnKeys.add(returnKey);
+          }
+
+          // B) Today projection (current date)
+          const todayKey = `${fd.patient_id}|${todayStr}|today`;
+          if (!addedTodayKeys.has(todayKey)) {
+            predictions.push({
+              patient_id: fd.patient_id,
+              patient_name: patient?.full_name || fd.patient_name || '',
+              patient_phone: patient?.phone || '',
+              store_id: patient?.store_id || fd.store_id,
+              confidence: 0.85,
+              reason: `Schedule today (${todayStr}) due to failed on ${fd.delivery_date} with no return/follow-up in 4 days`,
+              delivery_instructions: patient?.notes || '',
+              unit_number: patient?.unit_number || '',
+              time_window_start: patient?.time_window_start || '',
+              time_window_end: patient?.time_window_end || '',
+              mailbox_ok: patient?.mailbox_ok || false,
+              call_upon_arrival: patient?.call_upon_arrival || false,
+              ring_bell: patient?.ring_bell ?? false,
+              dont_ring_bell: patient?.dont_ring_bell || false,
+              back_door: patient?.back_door || false
+            });
+            addedTodayKeys.add(todayKey);
+          }
+        }
+      }
+    } catch (projErr) {
+      console.error('[predictDeliveries] Projection check error:', projErr);
+    }
+
     // Sort by confidence (highest first)
     predictions.sort((a, b) => b.confidence - a.confidence);
 
