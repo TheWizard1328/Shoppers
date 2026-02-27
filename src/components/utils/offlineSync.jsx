@@ -1169,6 +1169,96 @@ export const forceSyncAll = async () => {
   }
 };
 
+export const manualSyncSelected = async (selectedDateStr, selectedCityId = null) => {
+  if (syncInProgress || syncPaused) return { skipped: true };
+  syncInProgress = true;
+  notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
+  try {
+    // 1) AppUsers (entire entity)
+    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10 });
+    const appUsersRaw = await AppUser.list();
+    const appUsersByUserId = new Map();
+    appUsersRaw.forEach(au => {
+      if (!au || !au.user_id) return;
+      const existing = appUsersByUserId.get(au.user_id);
+      if (!existing) {
+        appUsersByUserId.set(au.user_id, au);
+      } else {
+        const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+        const exLoc = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+        const newUpd = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+        const exUpd = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+        if (newLoc > exLoc || (newLoc === exLoc && newUpd > exUpd)) {
+          appUsersByUserId.set(au.user_id, au);
+        }
+      }
+    });
+    const appUsers = Array.from(appUsersByUserId.values());
+    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    invalidateEntityCache('AppUser');
+    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 20, count: appUsers.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // 2) Cities (entire entity)
+    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 30 });
+    const cities = await City.list();
+    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    invalidateEntityCache('City');
+    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 35, count: cities.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // Prepare store filter for selected city
+    let storeIds = null;
+    if (selectedCityId) {
+      const storesInCity = await Store.filter({ city_id: selectedCityId });
+      if (storesInCity && storesInCity.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.STORES, storesInCity);
+        invalidateEntityCache('Store');
+        storeIds = storesInCity.map(s => s.id);
+      }
+    }
+
+    // 3) Deliveries (selected date, all drivers, filtered by selected city stores)
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 45 });
+    const deliveryFilter = { delivery_date: selectedDateStr };
+    if (storeIds && storeIds.length > 0) {
+      deliveryFilter.store_id = { $in: storeIds };
+    }
+    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    invalidateEntityCache('Delivery');
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 60, count: deliveries.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // 4) Patients (only for the synced deliveries)
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 70 });
+    const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
+    let totalPatients = 0;
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < patientIds.length; i += BATCH_SIZE) {
+      const batch = patientIds.slice(i, i + BATCH_SIZE);
+      const batchPatients = await Patient.filter({ id: { $in: batch } });
+      if (batchPatients && batchPatients.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+        invalidateEntityCache('Patient');
+        totalPatients += batchPatients.length;
+      }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    await offlineDB.updateSyncMetadata('Patient', new Date().toISOString(), new Date().toISOString());
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: totalPatients });
+
+    // Finalize
+    notifySyncStatus({ status: 'complete', progress: 100 });
+    return { success: true, appUsers: appUsers.length, cities: cities.length, deliveries: deliveries.length, patients: totalPatients };
+  } catch (error) {
+    notifySyncStatus({ status: 'error', error: error.message });
+    return { error: error.message };
+  } finally {
+    syncInProgress = false;
+  }
+};
+
 export const performBidirectionalSync = forceSyncAll;
 
 export const handleDeleteBroadcast = async (entityName, recordId) => {

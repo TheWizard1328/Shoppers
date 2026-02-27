@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { subscribeSyncStatus, getSyncStats, forceSyncAll } from '@/components/utils/offlineSync';
+import { subscribeSyncStatus, getSyncStats, manualSyncSelected } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -166,9 +166,12 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // across the full date range (90 days mobile / all time desktop).
       const { offlineDB } = await import('../utils/offlineDatabase');
 
-      // Force fresh sync from server
-      const syncResult = await forceSyncAll();
-      console.log('✅ [OfflineSyncIndicator] forceSyncAll complete:', syncResult);
+      // Compute selected date and city, then run targeted manual sync
+      const { globalFilters } = await import('../utils/globalFilters');
+      const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
+      const selectedCityId = globalFilters?.getSelectedCityId?.();
+      const syncResult = await manualSyncSelected(selectedDateStr, selectedCityId);
+      console.log('✅ [OfflineSyncIndicator] manualSyncSelected complete:', syncResult);
       
       // Wait for DB to settle
       await new Promise(resolve => setTimeout(resolve, 500));
