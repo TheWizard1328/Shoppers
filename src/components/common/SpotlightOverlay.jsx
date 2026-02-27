@@ -95,8 +95,11 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
   const pad = 5; // expanded padding around the highlight square
   const radius = 0;
 
-  // Use viewport coordinate system for the container; compute positions relative to viewport
-  const baseRect = rect;
+  // Compute positions; if anchored, convert target rect to anchor's coordinate space
+  const anchorRect = anchorEl ? anchorEl.getBoundingClientRect() : null;
+  const baseRect = anchorEl && anchorRect
+    ? { top: rect.top - anchorRect.top, left: rect.left - anchorRect.left, width: rect.width, height: rect.height }
+    : rect;
 
   const ContainerProps = anchorEl
     ? { className: `absolute inset-0 z-[2147483647]`, 'aria-hidden': true, style: { pointerEvents: 'none', position: 'absolute' } }
