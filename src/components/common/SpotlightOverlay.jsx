@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export default function SpotlightOverlay({ targetRef, text, visible, onClose, durationMs = 15000 }) {
   const [rect, setRect] = useState(null);
