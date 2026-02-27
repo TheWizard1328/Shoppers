@@ -1976,7 +1976,7 @@ export default function DeliveryMap({
     }
 
     // CRITICAL: Use currentDriverLocation if available, otherwise fall back to user's AppUser location
-    let locationData = currentDriverLocation || (function(){ const au = (realtimeAppUsers||[]).find(u => u && u.id === currentUser.id); return (au && au.current_latitude && au.current_longitude) ? { latitude: au.current_latitude, longitude: au.current_longitude, timestamp: au.location_updated_at } : null; })();
+    let locationData = currentDriverLocation || (function(){ const au = (realtimeAppUsers||[]).find(u => u && (u.user_id === currentUser.id || u.id === currentUser.id)); return (au && au.current_latitude && au.current_longitude) ? { latitude: au.current_latitude, longitude: au.current_longitude, timestamp: au.location_updated_at } : null; })();
     
     if (!locationData?.latitude || !locationData?.longitude) {
       // Fall back to current user's location from AppUser data
