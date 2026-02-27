@@ -3,7 +3,6 @@ import { Bell, Clock, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-rea
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { useAppData } from '../utils/AppDataContext';
-import { useAppData } from '../utils/AppDataContext';
 
 /**
  * Real-time ETA notification system
@@ -45,7 +44,8 @@ export default function ETANotification({
       const currentETA = delivery.delivery_time_eta;
       const previousETA = previousETAs.get(delivery.id);
 
-      if (previousETA && previousETA !== currentETA) {\n        try { updateDeliveriesLocally && updateDeliveriesLocally([{ ...delivery, delivery_time_eta: currentETA }], false); } catch (_) {}\n        try { updateDeliveriesLocally && updateDeliveriesLocally([{ ...delivery, delivery_time_eta: currentETA }], false); } catch (_) {}
+      if (previousETA && previousETA !== currentETA) {
+        try { updateDeliveriesLocally && updateDeliveriesLocally([{ ...delivery, delivery_time_eta: currentETA }], false); } catch (_) {}
         try {
           // Parse HH:mm time strings
           const [prevHours, prevMinutes] = previousETA.split(':').map(Number);
