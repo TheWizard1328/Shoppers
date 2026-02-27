@@ -126,7 +126,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
       />
       <div
         className="absolute"
-        style={{ top: rect.top + rect.height + pad, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
+        style={{ top: baseRect.top + baseRect.height + pad, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', pointerEvents: 'auto', zIndex: 1 }}
         onClick={onClose}
       />
       {/* Dim via outer shadow at 40%; no hover fade changes */}
