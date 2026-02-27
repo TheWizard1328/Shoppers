@@ -17,10 +17,10 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    const { batchSize = 100, dryRun = false } = await req.json().catch(() => ({}));
+    const { batchSize = 100, dryRun = false, startDate = '2026-01-01', endDate = '2027-01-01' } = await req.json().catch(() => ({}));
 
-    // Fetch deliveries from 2026-01-01 onwards
-    const response = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: '2026-01-01' } });
+    // Fetch deliveries in the specified date range (inclusive start, exclusive end)
+    const response = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: startDate, $lt: endDate } });
 
     // Handle different response structures
     const allDeliveries = Array.isArray(response) ? response : (response?.data || response?.records || []);
