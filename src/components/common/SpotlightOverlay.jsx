@@ -135,10 +135,10 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
       <div
         className="absolute pointer-events-none shadow-[0_0_0_3px_#fff]"
         style={{
-          top: rect.top - pad,
-          left: rect.left - pad,
-          width: rect.width + pad * 2,
-          height: rect.height + pad * 2,
+          top: baseRect.top - pad,
+          left: baseRect.left - pad,
+          width: baseRect.width + pad * 2,
+          height: baseRect.height + pad * 2,
           borderRadius: radius,
           backgroundColor: "transparent",
           border: "3px solid #fff",
