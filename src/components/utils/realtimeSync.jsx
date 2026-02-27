@@ -111,9 +111,6 @@ const subscribeToEntity = (entityName) => {
         console.warn(`⚠️ [RealtimeSync] Failed to update offline DB for ${entityName}:`, offlineError.message);
       }
       
-      // Show broadcast notification with metadata
-      showBroadcastNotification(entityName, type, data);
-
       // Notify all listeners with full metadata
       listeners.forEach(callback => {
         try {
