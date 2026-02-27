@@ -303,10 +303,9 @@ export default function StoreMetricsPanel() {
         </CardHeader>
         <CardContent>
           {metrics?.stores?.length > 0 ? (
-            <div className="border rounded-lg">
-              <div className="max-h-[480px] overflow-y-auto">
+            <div className="border rounded-lg overflow-hidden">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-slate-50">
+                <TableHeader>
                   <TableRow className="bg-slate-50">
                     <TableHead className="font-semibold">Store</TableHead>
                     <TableHead className="font-semibold text-center">Status</TableHead>
@@ -368,7 +367,7 @@ export default function StoreMetricsPanel() {
                     </TableRow>
                   ))}
                   {/* Totals Row */}
-                  <TableRow className="bg-slate-100 font-semibold sticky bottom-0 z-10">
+                  <TableRow className="bg-slate-100 font-semibold">
                     <TableCell>TOTAL</TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline">
@@ -389,7 +388,6 @@ export default function StoreMetricsPanel() {
                   </TableRow>
                 </TableBody>
               </Table>
-              </div>
             </div>
           ) : (
             <div className="text-center py-12 text-slate-500">
