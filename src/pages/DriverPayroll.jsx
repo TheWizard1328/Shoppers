@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
 import { offlineDB } from '../components/utils/offlineDatabase';
+import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
+import MobileBottomActions from '@/components/payroll/MobileBottomActions';
 
 // Helper: Get first Monday of a given year
 const getFirstMondayOfYear = (year) => {
@@ -187,6 +189,8 @@ export default function DriverPayroll() {
   const isManualChangeRef = useRef(false);
   const hasLoadedInitialDataRef = useRef(false);
   const triedPreviousPeriodRef = useRef(false);
+  const summaryRef = useRef(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
@@ -347,6 +351,10 @@ export default function DriverPayroll() {
     
     return filtered;
   }, [payrollData?.deliveries, selectedCityId, filteredStores, currentPeriod]);
+
+  const totalNetPay = useMemo(() => (payrollRecords || []).reduce((sum, r) => sum + (Number(r.net_pay) || 0), 0), [payrollRecords]);
+  const totalDeliveries = useMemo(() => cityFilteredDeliveries.length, [cityFilteredDeliveries]);
+  const periodLabel = useMemo(() => currentPeriod ? currentPeriod.label : '', [currentPeriod]);
 
   const handlePayPeriodChange = useCallback((newPayPeriod) => {
     isManualChangeRef.current = true;
@@ -1029,28 +1037,44 @@ export default function DriverPayroll() {
           </div>
         </div>
 
+        <MobilePayrollSummary
+          periodLabel={periodLabel}
+          totalNetPay={totalNetPay}
+          totalDeliveries={totalDeliveries}
+          onPrev={goToPrevPeriod}
+          onNext={goToNextPeriod}
+        />
+
         {/* Content Area for Screenshot */}
         <div className="min-h-0 flex-1 overflow-auto pb-36 md:pb-12 overscroll-contain">
-          {/* Grid */}
-          <DriverPayrollGrid
-            deliveries={cityFilteredDeliveries}
-            stores={filteredStores}
-            patients={payrollData?.patients || []}
-            appUsers={payrollData?.appUsers || []}
-            selectedYear={selectedYear}
-            selectedDriverId={selectedDriverId}
-            payPeriod={payPeriod}
-            onPayPeriodChange={handlePayPeriodChange}
-            currentPeriod={currentPeriod}
-            allPeriods={allPeriods}
-            selectedPeriodIndex={selectedPeriodIndex}
-            onPrevPeriod={goToPrevPeriod}
-            onNextPeriod={goToNextPeriod}
-            driverStats={payrollData?.driverStats || {}}
-            storeStats={payrollData?.storeStats || {}}
-          />
+          {/* Grid (mobile collapsible) */}
+          <div className="lg:hidden mb-3">
+            <Button size="sm" variant="outline" className="w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
+              {detailsOpen ? 'Hide Details' : 'View Details'}
+            </Button>
+          </div>
+          <div className={detailsOpen ? '' : 'hidden lg:block'}>
+            <DriverPayrollGrid
+              deliveries={cityFilteredDeliveries}
+              stores={filteredStores}
+              patients={payrollData?.patients || []}
+              appUsers={payrollData?.appUsers || []}
+              selectedYear={selectedYear}
+              selectedDriverId={selectedDriverId}
+              payPeriod={payPeriod}
+              onPayPeriodChange={handlePayPeriodChange}
+              currentPeriod={currentPeriod}
+              allPeriods={allPeriods}
+              selectedPeriodIndex={selectedPeriodIndex}
+              onPrevPeriod={goToPrevPeriod}
+              onNextPeriod={goToNextPeriod}
+              driverStats={payrollData?.driverStats || {}}
+              storeStats={payrollData?.storeStats || {}}
+            />
+          </div>
 
           {/* Payroll Summary */}
+          <div ref={summaryRef}>
           <PayrollSummaryCard
             deliveries={cityFilteredDeliveries}
             drivers={sortedDrivers}
@@ -1074,8 +1098,17 @@ export default function DriverPayroll() {
             driverStats={payrollData?.driverStats || {}}
             storeStats={payrollData?.storeStats || {}}
           />
+          </div>
         </div>
         
+        <MobileBottomActions
+          onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          onShare={handleCaptureScreenshot}
+          onRefresh={handleManualRefresh}
+          refreshing={isRefreshing || isLoadingPayroll}
+          capturing={isCapturingScreenshot}
+        />
+
         {/* Screenshot Share Modal */}
         <ScreenshotShareModal
           isOpen={showScreenshotModal}
