@@ -36,6 +36,17 @@ class BackgroundSyncManager {
       historicalDaysToSync: 90, // Sync past 90 days
       batchSize: 50, // Number of records per batch
       maxAPICallsPerCycle: 10, // Limit API calls per sync cycle
+      // New: control historical sync behavior
+      deferHistoricalOnLoad: true, // Do NOT run historical sync immediately on app load
+      historicalDeferMinutes: 15,   // Wait 15 minutes after load before allowing historical sync
+      offPeakWindows: [
+        // 24h HH:mm local time windows considered low traffic
+        { start: '21:00', end: '06:00' }
+      ],
+      historicalMaxDatesPerCycleDaytime: 1,  // If allowed in daytime (rare), use tiny chunks
+      historicalMaxDatesPerCycleOffpeak: 5,  // Larger chunks in off-peak
+      throttleBetweenCallsMsDaytime: 1500,
+      throttleBetweenCallsMsOffpeak: 300,
       priorities: {
         deliveries: 1, // Highest priority
         patients: 2,
@@ -45,6 +56,7 @@ class BackgroundSyncManager {
     };
     
     this.currentCycleAPICalls = 0;
+    this.appStartTime = Date.now();
     this.subscribers = new Set();
   }
 
@@ -147,6 +159,34 @@ class BackgroundSyncManager {
   }
 
   /**
+   * Determine if current local time is within an off-peak window
+   */
+  isOffPeakNow() {
+    const toMinutes = (str) => {
+      const [h, m] = str.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const now = new Date();
+    const minutesNow = now.getHours() * 60 + now.getMinutes();
+    return (this.config.offPeakWindows || []).some(({ start, end }) => {
+      const s = toMinutes(start);
+      const e = toMinutes(end);
+      // window may wrap midnight
+      if (s <= e) {
+        return minutesNow >= s && minutesNow <= e;
+      }
+      return minutesNow >= s || minutesNow <= e;
+    });
+  }
+
+  /**
+   * Minutes since app start
+   */
+  minutesSinceStart() {
+    return Math.floor((Date.now() - (this.appStartTime || Date.now())) / 60000);
+  }
+
+  /**
    * Execute sync tasks in priority order
    */
   async executeSyncTasks() {
@@ -189,9 +229,17 @@ class BackgroundSyncManager {
   async syncHistoricalDeliveries() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
-    const today = new Date();
-    const oldestDate = new Date();
-    oldestDate.setDate(oldestDate.getDate() - this.config.historicalDaysToSync);
+    // Defer historical sync on initial load
+    if (this.config.deferHistoricalOnLoad && this.minutesSinceStart() < this.config.historicalDeferMinutes) {
+      console.log('⏭️ [BackgroundSync] Deferring historical deliveries sync during initial load window');
+      return;
+    }
+
+    // Only run historical sync during off-peak windows
+    if (!this.isOffPeakNow()) {
+      console.log('🌙 [BackgroundSync] Skipping historical deliveries sync (outside off-peak window)');
+      return;
+    }
 
     // Get dates that need syncing (check last sync time per date)
     const datesToSync = [];
@@ -215,7 +263,10 @@ class BackgroundSyncManager {
     }
 
     // Sync oldest dates first, but limit to available API calls
-    const datesToSyncNow = datesToSync.slice(0, Math.min(5, this.config.maxAPICallsPerCycle - this.currentCycleAPICalls));
+    const maxDates = this.isOffPeakNow()
+      ? (this.config.historicalMaxDatesPerCycleOffpeak || 5)
+      : (this.config.historicalMaxDatesPerCycleDaytime || 1);
+    const datesToSyncNow = datesToSync.slice(0, Math.min(maxDates, this.config.maxAPICallsPerCycle - this.currentCycleAPICalls));
     
     console.log(`🔄 [BackgroundSync] Syncing ${datesToSyncNow.length} historical dates`);
 
@@ -240,7 +291,10 @@ class BackgroundSyncManager {
       }
 
       // Small delay between dates to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const throttle = this.isOffPeakNow()
+        ? (this.config.throttleBetweenCallsMsOffpeak || 300)
+        : (this.config.throttleBetweenCallsMsDaytime || 1500);
+      await new Promise(resolve => setTimeout(resolve, throttle));
     }
 
     this.notifySubscribers({ type: 'deliveries_synced', count: datesToSyncNow.length });
