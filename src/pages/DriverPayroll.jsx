@@ -648,28 +648,34 @@ export default function DriverPayroll() {
         if (today >= periods[i].start && today <= periods[i].end) { todayIdx = i; break; }
       }
 
-      // Step 3: Read offline Payroll records to find earliest incomplete cycle
+      // Step 3: Read offline Payroll records to check ONLY previous cycle completeness (admin_finalized or paid) respecting filters
       try {
         const offlinePayrolls = await offlineDB.getAll('payroll_records') || [];
-        // If no offline payroll store exists, this will return []
-        if (offlinePayrolls.length > 0) {
-          const searchLimit = todayIdx !== -1 ? todayIdx : periods.length - 1;
-          for (let i = 0; i <= searchLimit; i++) {
-            const startStr = periods[i].start.toISOString().split('T')[0];
-            const endStr = periods[i].end.toISOString().split('T')[0];
-            const recordsForPeriod = offlinePayrolls.filter(r => r.pay_period_start === startStr && r.pay_period_end === endStr);
-            if (recordsForPeriod.length === 0) continue;
-            if (recordsForPeriod.some(r => !r.driver_finalized_at || !r.admin_finalized_at)) {
-              determinedPeriodIndex = i;
-              console.log(`✅ [DriverPayroll Init] Offline: earliest incomplete cycle: ${periods[i].label} (index ${i})`);
-              break;
-            }
-          }
+        const prevIdx = todayIdx > 0 ? todayIdx - 1 : -1;
+        if (prevIdx >= 0) {
+          const startStr = periods[prevIdx].start.toISOString().split('T')[0];
+          const endStr = periods[prevIdx].end.toISOString().split('T')[0];
+
+          // Apply city/driver filters
+          const filtered = offlinePayrolls.filter(r => {
+            const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
+            const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
+            const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
+            return matchPeriod && matchCity && matchDriver;
+          });
+
+          // If no records or any not finalized (not admin_finalized or paid), show previous
+          const allFinalized = filtered.length > 0 && filtered.every(r =>
+            r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+          );
+
+          determinedPeriodIndex = allFinalized ? (todayIdx !== -1 ? todayIdx : determinedPeriodIndex) : prevIdx;
+
+          console.log(`✅ [DriverPayroll Init] Offline previous ${periods[prevIdx].label} finalized? ${allFinalized}`);
+        } else if (todayIdx !== -1) {
+          determinedPeriodIndex = todayIdx;
         }
-        // If no incomplete found, default to today's period
-        if (determinedPeriodIndex === 0 && todayIdx !== -1) determinedPeriodIndex = todayIdx;
       } catch (e) {
-        // Offline payroll store may not exist - fallback to today
         if (todayIdx !== -1) determinedPeriodIndex = todayIdx;
         console.warn('⚠️ [DriverPayroll] Could not read offline payroll records:', e);
       }
@@ -725,39 +731,43 @@ export default function DriverPayroll() {
       periodSelectionDoneWithRecordsRef.current = false;
     }
 
-    const records = payrollRecords || [];
-    const hasRecords = records.length > 0;
-    
-    // Only re-select when we have actual live records and haven't done so yet
-    if (!hasRecords || periodSelectionDoneWithRecordsRef.current) return;
+    // Use full-year records if available to evaluate previous period; fallback to current state
+    const allRecords = payrollData?.payrollRecords || payrollRecords || [];
+    if (periodSelectionDoneWithRecordsRef.current) return;
 
     const today = new Date();
     let todayPeriodIdx = -1;
     for (let i = 0; i < allPeriods.length; i++) {
       if (today >= allPeriods[i].start && today <= allPeriods[i].end) { todayPeriodIdx = i; break; }
     }
-    
-    let earliestIncompleteCycleIdx = -1;
-    const searchLimit = todayPeriodIdx !== -1 ? todayPeriodIdx : allPeriods.length - 1;
-    for (let i = 0; i <= searchLimit; i++) {
-      const period = allPeriods[i];
-      const startStr = period.start.toISOString().split('T')[0];
-      const endStr = period.end.toISOString().split('T')[0];
-      const recordsForPeriod = records.filter(r => r.pay_period_start === startStr && r.pay_period_end === endStr);
-      if (recordsForPeriod.length === 0) continue;
-      if (recordsForPeriod.some(r => !r.driver_finalized_at || !r.admin_finalized_at)) {
-        earliestIncompleteCycleIdx = i;
-        console.log(`✅ [DriverPayroll] Live records: earliest incomplete cycle: ${period.label} (index ${i})`);
-        break;
+
+    const prevIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : -1;
+
+    let targetIdx = todayPeriodIdx !== -1 ? todayPeriodIdx : 0;
+
+    if (prevIdx >= 0) {
+      const startStr = allPeriods[prevIdx].start.toISOString().split('T')[0];
+      const endStr = allPeriods[prevIdx].end.toISOString().split('T')[0];
+
+      const filtered = allRecords.filter(r => {
+        const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
+        const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
+        const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
+        return matchPeriod && matchCity && matchDriver;
+      });
+
+      const allFinalized = filtered.length > 0 && filtered.every(r =>
+        r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+      );
+
+      if (!allFinalized) {
+        targetIdx = prevIdx;
       }
+      console.log(`✅ [DriverPayroll] Live: previous ${allPeriods[prevIdx].label} finalized? ${allFinalized} — selecting ${allPeriods[targetIdx]?.label}`);
     }
-    
-    const selectedIdx = earliestIncompleteCycleIdx !== -1 ? earliestIncompleteCycleIdx : (todayPeriodIdx !== -1 ? todayPeriodIdx : 0);
-    
-    // Only update if different from current to avoid unnecessary re-renders
-    if (selectedIdx !== selectedPeriodIndex) {
-      console.log(`✅ [DriverPayroll] Live records: updating period to ${allPeriods[selectedIdx]?.label} (index ${selectedIdx})`);
-      setSelectedPeriodIndex(selectedIdx);
+
+    if (targetIdx !== selectedPeriodIndex) {
+      setSelectedPeriodIndex(targetIdx);
     }
     periodSelectionDoneWithRecordsRef.current = true;
   }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData, selectedPeriodIndex]);
