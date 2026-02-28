@@ -74,9 +74,9 @@ Deno.serve(async (req) => {
         const now = new Date();
         const primarySlot = requestedAmpm === 'PM' ? 'PM' : 'AM';
 
-        console.log(`🔍 Ensuring pickup (both slots): store=${storeId}, date=${deliveryDate}, driver=${driverId}, primarySlot=${primarySlot}`);
+        console.log(`🔍 Ensuring pickup (store-scoped): store=${storeId}, date=${deliveryDate}, driver=${driverId}, primarySlot=${primarySlot}`);
 
-        // Fetch ALL pickups for this driver/date across ALL stores (AM + PM)
+        // Fetch ALL pickups for this driver/date (AM + PM) for numbering purposes
         const allPickups = await base44.entities.Delivery.filter({
             delivery_date: deliveryDate,
             driver_id: driverId
@@ -84,14 +84,17 @@ Deno.serve(async (req) => {
 
         const isIncomplete = (p) => !p.patient_id && !['completed','cancelled','returned'].includes(p.status);
 
-        // 1) Prefer an incomplete pickup that matches the primary slot
-        let targetPickup = allPickups.find(p => isIncomplete(p) && (p.ampm_deliveries || 'AM') === primarySlot);
-        // 2) Otherwise, take any incomplete pickup (other slot)
+        // Focus selection ONLY on this store
+        const storePickups = allPickups.filter(p => p.store_id === storeId);
+
+        // 1) Prefer an incomplete pickup for THIS STORE that matches the primary slot
+        let targetPickup = storePickups.find(p => isIncomplete(p) && (p.ampm_deliveries || 'AM') === primarySlot);
+        // 2) Otherwise, take any incomplete pickup for THIS STORE (other slot)
         if (!targetPickup) {
-            targetPickup = allPickups.find(p => isIncomplete(p));
+            targetPickup = storePickups.find(p => isIncomplete(p));
         }
         if (targetPickup) {
-            console.log(`✅ Using existing incomplete pickup: ${targetPickup.id}, PUID: ${targetPickup.stop_id}`);
+            console.log(`✅ Using existing incomplete pickup for store ${storeId}: ${targetPickup.id}, PUID: ${targetPickup.stop_id}`);
             return Response.json({ puid: targetPickup.stop_id, pickupId: targetPickup.id, isNew: false, pickup: targetPickup });
         }
 
