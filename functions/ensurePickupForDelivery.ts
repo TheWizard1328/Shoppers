@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
         // CRITICAL: Special stores - do NOT auto-create pickups (Dashboard handles them on-demand)
         const stores = await base44.entities.Store.filter({ id: storeId });
         const store = stores[0];
-        const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark'];
+        const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
         
         if (store && specialStoreNames.includes(store.name)) {
             console.log(`⏭️ [ensurePickup] Special store ${store.name} - skipping auto-pickup creation (handled by Dashboard)`);
