@@ -78,7 +78,7 @@ export default function PayrollMobileCard({
 
 
   return (
-    <div className="p-4 rounded-lg space-y-3 bg-white dark:bg-slate-800/50">
+    <div className="p-4 rounded-lg space-y-3 bg-white dark:bg-slate-800/50 w-full max-w-full overflow-hidden">
       {/* Driver Name Header */}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
@@ -120,9 +120,9 @@ export default function PayrollMobileCard({
 
         </button>
         {expandedSection === 'deliveries' &&
-        <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
+        <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between overflow-x-auto max-w-full" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
             {/* 5-column grid layout */}
-            <div className="space-y-1" style={{ display: 'grid', gridTemplateColumns: '1fr 0.5fr 0.8fr 0.35fr 1fr', columnGap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+            <div className="space-y-1" style={{ display: 'grid', gridTemplateColumns: '1fr 0.5fr 0.8fr 0.35fr 1fr', columnGap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace', minWidth: '360px' }}>
               {/* Total */}
               <span style={{ color: 'var(--text-slate-600)' }}>Total:</span>
               <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalDeliveries}x</span>
@@ -165,7 +165,7 @@ export default function PayrollMobileCard({
         borderColor: 'var(--border-slate-200)',
         fontVariantNumeric: 'tabular-nums'
       }}>
-        <div className="text-xs font-mono" style={{ color: 'var(--text-slate-900)' }}>
+        <div className="text-xs font-mono" style={{ color: 'var(--text-slate-900)', minWidth: '360px' }}>
           {/* Header Row */}
           <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{ 
             gridTemplateColumns: '1fr 22px 60px 22px 60px',
