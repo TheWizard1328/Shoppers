@@ -70,22 +70,28 @@ export const reorderStops = async (driverId, deliveryDate, allDeliveries, curren
     console.log(`  ${idx + 1}. ${d.patient_name || 'Pickup'} - ${d.status} - ${d.actual_delivery_time ? new Date(d.actual_delivery_time).toLocaleTimeString() : d.delivery_time_eta}`);
   });
   
-  // Update stop_order in database
-  const updates = [];
-  for (let i = 0; i < reorderedDeliveries.length; i++) {
-    const delivery = reorderedDeliveries[i];
-    const newStopOrder = i + 1;
-    
-    // Only update if stop_order changed
-    if (delivery.stop_order !== newStopOrder) {
-      await base44.entities.Delivery.update(delivery.id, {
-        stop_order: newStopOrder
-      });
-      updates.push({ id: delivery.id, stop_order: newStopOrder });
-    }
+  // Update stop_order in database (batched to avoid long serial waits)
+  const updatesToApply = reorderedDeliveries
+    .map((d, idx) => ({ id: d.id, next: idx + 1, current: d.stop_order }))
+    .filter(u => u.current !== u.next);
+
+  console.log(`📝 [Reorder] Applying ${updatesToApply.length} stop_order updates`);
+
+  const CONCURRENCY = 10;
+  const results = [];
+  for (let i = 0; i < updatesToApply.length; i += CONCURRENCY) {
+    const chunk = updatesToApply.slice(i, i + CONCURRENCY);
+    const promises = chunk.map(u =>
+      base44.entities.Delivery.update(u.id, { stop_order: u.next })
+        .then(() => ({ id: u.id, ok: true }))
+        .catch((e) => ({ id: u.id, ok: false, error: e?.message || String(e) }))
+    );
+    const settled = await Promise.all(promises);
+    results.push(...settled);
   }
-  
-  console.log(`✅ [Reorder] Updated ${updates.length} stop orders`);
-  
+
+  const okCount = results.filter(r => r.ok).length;
+  console.log(`✅ [Reorder] Updated ${okCount}/${updatesToApply.length} stop orders`);
+
   return reorderedDeliveries;
 };
