@@ -837,7 +837,7 @@ export default function DriverPayroll() {
       <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
     </div>
   ) : (
-    <div className="p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="h-full flex flex-col p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto" ref={contentRef}>
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
