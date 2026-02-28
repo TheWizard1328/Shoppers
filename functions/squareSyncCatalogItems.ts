@@ -173,18 +173,18 @@ Deno.serve(async (req) => {
       catalogItems.map(ci => `${ci.location_id}|${(ci.name || '').trim().toLowerCase()}|${ci.price_cents || Math.round((ci.price_dollars || 0) * 100)}`)
     );
 
-    // Fetch recent sold catalog items via existing function (last 7 days)
+    // Fetch recent sold items via existing function (last 7 days) — include all line items even without catalog IDs
     let soldCatalogItems = [];
     try {
-      const fpRes = await base44.asServiceRole.functions.invoke('squareFetchPayments', { locationIds, daysBack: 7 });
+      const fpRes = await base44.asServiceRole.functions.invoke('squareFetchPayments', { locationIds, daysBack: 14 });
       const fpData = fpRes?.data || fpRes;
       soldCatalogItems = fpData?.soldCatalogItems || [];
     } catch (e) {
       console.warn('squareFetchPayments invoke failed:', e.message);
     }
-    // Build sold lookup by location|name (name taken from Square line item)
+    // Build sold lookup by location|name+amount to support orders with multiple items of same name but different prices
     const soldLookup = new Set(
-      soldCatalogItems.map(si => `${si.location_id}|${(si.item_name || '').trim().toLowerCase()}`)
+      soldCatalogItems.map(si => `${si.location_id}|${(si.item_name || '').trim().toLowerCase()}|${Math.round((Number(si.amount) || 0) * 100)}`)
     );
 
     // Helper to format item name per spec [MM]/[DD](StoreAbbrev)-Patient Name
