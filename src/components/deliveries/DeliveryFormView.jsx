@@ -111,6 +111,12 @@ export default function DeliveryFormView({
     return !(existsInStaged || existsInSaved);
   })();
 
+  // Auto-open the driver dropdown when a driver must be selected
+  const [forceOpenDriverSelect, setForceOpenDriverSelect] = React.useState(false);
+  React.useEffect(() => {
+    setForceOpenDriverSelect(requiresDriverSelection);
+  }, [requiresDriverSelection]);
+
   const stagedPanelProps = {
     sortedStagedDeliveries, sortedProjectedDeliveries, stores, patients,
     currentUser, editingStagedId, isMobileDevice, handleStagedDeliveryClick,
@@ -243,9 +249,9 @@ export default function DeliveryFormView({
                     <Input type="date" value={formData.delivery_date} onChange={e => setFormData(prev => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                   </div>
 
-                  <div className={`${useMobileLayout ? 'flex-1' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className={`${useMobileLayout ? 'flex-1' : 'flex-1'} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
-                    <Select value={formData.driver_id || 'all'} onValueChange={(driverId) => {
+                    <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                       const newDriverId = driverId === 'all' ? '' : driverId;
                       const driver = driverId === 'all' ? null : allDrivers.find(d => d.id === driverId);
                       const newDriverName = driver ? getDriverNameForStorage(driver) : '';
@@ -254,6 +260,7 @@ export default function DeliveryFormView({
                         setStagedDeliveries(prev => prev.map(s => s._tempId === editingStagedId ? { ...s, driver_id: newDriverId, driver_name: newDriverName } : s));
                         setHasChanges(true);
                       }
+                      setForceOpenDriverSelect(false);
                     }} disabled={isSaving}>
                       <SelectTrigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
                       <SelectContent className="z-[999999]">
