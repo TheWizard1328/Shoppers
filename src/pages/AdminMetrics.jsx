@@ -289,10 +289,11 @@ export default function AdminMetrics() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="h-screen p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
+      <div className="max-w-7xl mx-auto h-full flex flex-col gap-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="shrink-0 space-y-6">
+          <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
               Admin Metrics
@@ -441,7 +442,9 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
         </div>
+      </div>
 
+      <div className="flex-1 overflow-auto pr-1 md:pr-2 pb-4">
         {/* Row 1: Monthly Store App Fees */}
         <div>
           <MonthlyStoreMetricsGrid
@@ -832,6 +835,7 @@ export default function AdminMetrics() {
         </div>
 
 
+      </div>
       </div>
     </div>);
 
