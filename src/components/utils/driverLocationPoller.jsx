@@ -11,6 +11,7 @@ class DriverLocationPoller {
     this.requestDataRefresh = null; // Callback to request data refresh from parent
     this.currentUser = null;
     this._lastNotifiedKey = null; // CRITICAL: Track last notification to prevent duplicates
+    this._lastNotifyTs = 0; // Throttle broadcast to reduce UI churn
   }
 
   /**
@@ -387,6 +388,12 @@ class DriverLocationPoller {
     }
 
   notifySubscribers(activeDriversWithLocation, forceNotify = false) {
+    // Throttle notifications to max ~4fps to reduce re-render churn
+    const now = Date.now();
+    if (!forceNotify && now - this._lastNotifyTs < 250) {
+      return;
+    }
+    this._lastNotifyTs = now;
     console.log(`📡 [Poller] Notifying ${activeDriversWithLocation.length} drivers`);
     
     const currentUserId = this.currentUser?.id;

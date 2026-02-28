@@ -89,6 +89,7 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'f
 const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null }) => {
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
+  const lastPropUpdateRef = useRef(0);
   const markersRef = useRef({});
   const prevVisibleIdsRef = useRef(new Set());
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);

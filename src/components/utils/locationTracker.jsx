@@ -26,7 +26,7 @@ class LocationTracker {
         this.currentUser = null;
         this.appUserId = null;
         this.driverStatus = 'off_duty';
-        this.updateInterval = 15000; // 15 seconds GPS polling
+        this.updateInterval = 15000; // 15 seconds GPS polling (balanced)
         this.coordinateUpdateInterval = 15000; // 15 seconds between coordinate updates
 
         // Distance threshold - only upload if moved > 200m

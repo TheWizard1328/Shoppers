@@ -1451,7 +1451,7 @@ export default function DeliveryMap({
         console.warn('[DeliveryMap] Invalid marker coordinates:', marker);
         return;
       }
-      const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
+      const key = `${marker.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${marker.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
       if (!unifiedGrouped.has(key)) {
         unifiedGrouped.set(key, { deliveries: [], pickups: [] });
       }
@@ -1477,7 +1477,7 @@ export default function DeliveryMap({
         console.warn('[DeliveryMap] Invalid delivery marker coordinates:', marker);
         return null;
       }
-      const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
+      const key = `${marker.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${marker.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
       return {
         ...marker,
         duplicateCount: locationCounts.get(key) || 1
@@ -1490,7 +1490,7 @@ export default function DeliveryMap({
         console.warn('[DeliveryMap] Invalid pickup marker coordinates:', marker);
         return null;
       }
-      const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
+      const key = `${marker.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${marker.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
       return {
         ...marker,
         duplicateCount: locationCounts.get(key) || 1
@@ -1502,7 +1502,7 @@ export default function DeliveryMap({
     deliveryMarkersWithCounts.forEach((marker) => {
       // CRITICAL: Validate coordinates before calling toFixed
       if (!marker || typeof marker.latitude !== 'number' || typeof marker.longitude !== 'number') return;
-      const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
+      const key = `${marker.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${marker.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
       if (!groupedDeliveries.has(key)) {
         groupedDeliveries.set(key, []);
       }
@@ -1513,7 +1513,7 @@ export default function DeliveryMap({
     pickupMarkersWithCounts.forEach((marker) => {
       // CRITICAL: Validate coordinates before calling toFixed
       if (!marker || typeof marker.latitude !== 'number' || typeof marker.longitude !== 'number') return;
-      const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
+      const key = `${marker.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${marker.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
       if (!groupedPickups.has(key)) {
         groupedPickups.set(key, []);
       }
@@ -1592,7 +1592,7 @@ export default function DeliveryMap({
 
   // NEW: Handler for marker click to toggle fanning with zoom behavior
   const handleMarkerClickForFanning = useCallback((marker, markerType) => {
-    const locationKey = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
+    const locationKey = `${marker.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${marker.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
     
     if (marker.duplicateCount > 1) {
       if (onMapInteraction) onMapInteraction();
@@ -3187,8 +3187,8 @@ export default function DeliveryMap({
               }
 
               console.log(`🔵 [Type1Poly-Complete] ✅ Driver location:`, {
-                lat: driverAppUser.current_latitude?.toFixed(6),
-                lng: driverAppUser.current_longitude?.toFixed(6),
+                lat: driverAppUser.current_latitude?.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2),
+                lng: driverAppUser.current_longitude?.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2),
                 timestamp: driverAppUser.location_updated_at
               });
 
@@ -3489,8 +3489,8 @@ return polylines.length > 0 ? polylines : null;
             }
             
             console.log(`🔵 [Type1Poly-Incomplete] ✅ Driver location:`, {
-              lat: driverAppUser.current_latitude?.toFixed(6),
-              lng: driverAppUser.current_longitude?.toFixed(6),
+              lat: driverAppUser.current_latitude?.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2),
+              lng: driverAppUser.current_longitude?.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2),
               timestamp: driverAppUser.location_updated_at
             });
 
@@ -3590,8 +3590,8 @@ return polylines.length > 0 ? polylines : null;
                let result = realtimeAppUsers.find(u => u && u.id === driverId);
                if (result) {
                  console.log(`🔵 [Type1Poly-Incomplete] Found in realtimeAppUsers:`, {
-                   lat: result.current_latitude?.toFixed(6),
-                   lng: result.current_longitude?.toFixed(6)
+                   lat: result.current_latitude?.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2),
+                   lng: result.current_longitude?.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)
                  });
                  return result;
                }
@@ -3600,8 +3600,8 @@ return polylines.length > 0 ? polylines : null;
                result = safeUsers.find(u => u && u.id === driverId);
                if (result) {
                  console.log(`🔵 [Type1Poly-Incomplete] Found in safeUsers (not in realtimeAppUsers):`, {
-                   lat: result.current_latitude?.toFixed(6),
-                   lng: result.current_longitude?.toFixed(6)
+                   lat: result.current_latitude?.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2),
+                   lng: result.current_longitude?.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)
                  });
                  return result;
                }
@@ -3767,7 +3767,7 @@ return polylines.length > 0 ? polylines : null;
         {/* ===== RENDER ORDER 4: Route markers (pickups & deliveries) ===== */}
         {/* Store Pickup Markers - NOW WITH FANNING AND HIGHLIGHT HALOS */}
         {pickupMarkers.map((pickup, index) => {
-          const locationKey = `${pickup.latitude.toFixed(6)},${pickup.longitude.toFixed(6)}`;
+          const locationKey = `${pickup.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${pickup.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
           const isClustered = pickup.duplicateCount > 1;
           const isFanned = fannedLocationKey === locationKey;
           const isHighlighted = highlightedDeliveryId === pickup.id;
@@ -3950,7 +3950,7 @@ return polylines.length > 0 ? polylines : null;
                         {pickup.duplicateCount} stops at this location
                       </div>
                       {(() => {
-                        const locationKey = `${pickup.latitude.toFixed(6)},${pickup.longitude.toFixed(6)}`;
+                        const locationKey = `${pickup.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${pickup.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
                         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
                         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
@@ -4070,7 +4070,7 @@ return polylines.length > 0 ? polylines : null;
                         {pickup.duplicateCount} stops at this location
                       </div>
                       {(() => {
-                        const locationKey = `${pickup.latitude.toFixed(6)},${pickup.longitude.toFixed(6)}`;
+                        const locationKey = `${pickup.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${pickup.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
                         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
                         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
@@ -4217,7 +4217,7 @@ return polylines.length > 0 ? polylines : null;
 
         {/* Patient Delivery Markers - NOW WITH FANNING AND HIGHLIGHT HALOS */}
         {deliveryMarkers.map((delivery, index) => {
-          const locationKey = `${delivery.latitude.toFixed(6)},${delivery.longitude.toFixed(6)}`;
+          const locationKey = `${delivery.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${delivery.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
           const isClustered = delivery.duplicateCount > 1;
           const isFanned = fannedLocationKey === locationKey;
           const isHighlighted = highlightedDeliveryId === delivery.id;
@@ -4411,7 +4411,7 @@ return polylines.length > 0 ? polylines : null;
                         {delivery.duplicateCount} stops at this location
                       </div>
                       {(() => {
-                        const locationKey = `${delivery.latitude.toFixed(6)},${delivery.longitude.toFixed(6)}`;
+                        const locationKey = `${delivery.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${delivery.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
                         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
                         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
@@ -4535,7 +4535,7 @@ return polylines.length > 0 ? polylines : null;
                         {delivery.duplicateCount} stops at this location
                       </div>
                       {(() => {
-                        const locationKey = `${delivery.latitude.toFixed(6)},${delivery.longitude.toFixed(6)}`;
+                        const locationKey = `${delivery.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${delivery.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
                         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
                         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
