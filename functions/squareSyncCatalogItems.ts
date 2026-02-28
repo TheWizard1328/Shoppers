@@ -201,6 +201,7 @@ Deno.serve(async (req) => {
 
     // Gather deliveries in the past 7 days that have COD
     const createdItems = [];
+    const deletedItems = [];
     const today = new Date();
     for (let i = 0; i < 7; i++) {
       const d = new Date();
@@ -236,11 +237,47 @@ Deno.serve(async (req) => {
         if (!locId) continue; // Skip if we cannot determine location
 
         const itemName = formatItemName(del.delivery_date, storeAbbr, del.patient_name || del.patient_id || 'Unknown');
-        const key = `${locId}|${itemName.trim().toLowerCase()}|${Math.round(codAmount * 100)}`;
+        const priceCents = Math.round(codAmount * 100);
+        const key = `${locId}|${itemName.trim().toLowerCase()}|${priceCents}`;
         const soldKey = `${locId}|${itemName.trim().toLowerCase()}`;
+
+        // Detect Debit/Credit from both sources (array + legacy field)
+        const hasDCInArray = paymentsArr.some(p => (p?.type === 'Debit' || p?.type === 'Credit'));
+        const hasDCInLegacy = (del.cod_payment_type === 'Debit' || del.cod_payment_type === 'Credit');
+        const isDebitOrCredit = hasDCInArray || hasDCInLegacy;
 
         const existsInCatalog = catalogLookup.has(key);
         const existsInSales = soldLookup.has(soldKey);
+
+        if (isDebitOrCredit) {
+          // For Debit/Credit deliveries: delete matching catalog item(s) and skip creation
+          if (existsInCatalog) {
+            const matches = catalogItems.filter(ci =>
+              ci.location_id === locId &&
+              (ci.name || '').trim().toLowerCase() === itemName.trim().toLowerCase() &&
+              (ci.price_cents || Math.round((ci.price_dollars || 0) * 100)) === priceCents
+            );
+            for (const ci of matches) {
+              try {
+                await base44.asServiceRole.functions.invoke('squareDeleteCodItem', {
+                  catalogObjectId: ci.catalog_object_id,
+                  deliveryId: del.id,
+                  reason: 'debit_or_credit'
+                });
+                deletedItems.push({
+                  delivery_id: del.id,
+                  item_name: ci.name,
+                  catalog_object_id: ci.catalog_object_id,
+                  location_id: ci.location_id
+                });
+                catalogLookup.delete(key);
+              } catch (e) {
+                console.warn('Failed to delete Square COD item for delivery', del.id, e.message);
+              }
+            }
+          }
+          continue; // Do not create catalog items for Debit/Credit
+        }
 
         if (!existsInCatalog && !existsInSales) {
           // Create missing catalog item via existing function
@@ -276,7 +313,9 @@ Deno.serve(async (req) => {
       items: mergedItems,
       locationIds,
       createdCount: createdItems.length,
-      createdItems
+      createdItems,
+      deletedCount: deletedItems.length,
+      deletedItems
     });
 
   } catch (error) {
