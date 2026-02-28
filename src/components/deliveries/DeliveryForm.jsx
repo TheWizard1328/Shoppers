@@ -1,3 +1,4 @@
+
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1256,7 +1257,7 @@ export default function DeliveryForm({
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
           canvas.toBlob((blob) => {
             if (blob) {
@@ -2020,7 +2021,7 @@ export default function DeliveryForm({
         d && !d.patient_id && d.store_id === store.id && d.delivery_date === formData.delivery_date && d.driver_id === formData.driver_id && (d.ampm_deliveries || 'AM') === timeSlot
       );
       if (existingPickup) {
-        const now=new Date(),ts=now.toISOString().slice(0,10),sel=formData.delivery_date,done=existingPickup.actual_delivery_time,ds=done?String(done).slice(0,10):'';const reusable=(['pending','en_route','in_transit','Staged'].includes(existingPickup.status))||(existingPickup.status==='completed'&&done&&sel===ts&&ds===ts&&(now-new Date(done)<60*60*1000));
+        const reusable=(['pending','en_route','in_transit','Staged'].includes(existingPickup.status));
         if (reusable) { puid = existingPickup.stop_id; }
       }
       if (!puid) {
@@ -2724,7 +2725,7 @@ export default function DeliveryForm({
           // Convert statuses for batch save
           let finalStatus = updated.status;
           if (finalStatus === 'Staged') {
-            finalStatus = (!updated.patient_id && updated._autoCreated) ? 'en_route' : 'pending';
+            finalStatus = (!updated.patient_id) ? 'en_route' : 'pending';
             // If it's a delivery (not a pickup) check if it's InterStore
             if (updated.patient_id) {
               const patientName = (updated.patient_name || '').toLowerCase();
@@ -2884,7 +2885,7 @@ export default function DeliveryForm({
         // - 'Staged' → 'in_transit' for InterStore deliveries (patient with 'InterStore', '(ISP)', or '(ISD)' in name/notes/address)
         const deliveriesReadyForDB = deliveriesWithTRs.map(d => {
           if (d.status === 'Staged') {
-            let newStatus = (!d.patient_id && d._autoCreated) ? 'en_route' : 'pending';
+            let newStatus = (!d.patient_id) ? 'en_route' : 'pending';
             // If it's a delivery (not a pickup) check if it's InterStore
             if (d.patient_id) {
               const patientName = (d.patient_name || '').toLowerCase();
