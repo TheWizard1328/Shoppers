@@ -224,8 +224,7 @@ Deno.serve(async (req) => {
         const codFromPayments = paymentsArr.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
         const codAmount = codRequired > 0 ? codRequired : (codFromPayments > 0 ? codFromPayments : 0);
         if (codAmount <= 0) continue;
-        // Skip creating items for deliveries already finalized
-        if (['completed','failed','cancelled'].includes(del.status)) continue;
+        const allowCreate = !['completed','failed','cancelled'].includes(del.status);
 
         const store = storeById.get(del.store_id);
         const storeAbbr = store?.abbreviation || 'XX';
@@ -288,7 +287,7 @@ Deno.serve(async (req) => {
           continue; // Do not create catalog items for Debit/Credit
         }
 
-        if (!existsInCatalog && !existsInSales) {
+        if (allowCreate && !existsInCatalog && !existsInSales) {
           // Create missing catalog item via existing function
           try {
             const createRes = await base44.asServiceRole.functions.invoke('squareCreateCodItem', {
