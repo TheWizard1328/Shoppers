@@ -723,6 +723,16 @@ export default function DriverPayroll() {
   // Re-select period when live payroll records arrive (may override offline-based initial selection)
   const periodSelectionDoneWithRecordsRef = useRef(false);
   
+  // Ensure period index matches the current pay cycle whenever payPeriod changes
+  useEffect(() => {
+    if (!hasInitialized || !payPeriod || isManualChangeRef.current) return;
+    const periods = calculateAllPeriods(selectedYear, payPeriod);
+    const idx = findCurrentPeriodIndex(periods, new Date());
+    if (idx !== selectedPeriodIndex) {
+      setSelectedPeriodIndex(idx);
+    }
+  }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex]);
+  
   useEffect(() => {
     if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
     
