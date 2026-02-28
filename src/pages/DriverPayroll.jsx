@@ -642,10 +642,13 @@ export default function DriverPayroll() {
       let determinedPeriodIndex = 0;
       const today = new Date();
 
-      // Find today's period first
+      // Find today's period first (date-only comparison to avoid time-of-day issues)
       let todayIdx = -1;
+      const todayStr = today.toISOString().split('T')[0];
       for (let i = 0; i < periods.length; i++) {
-        if (today >= periods[i].start && today <= periods[i].end) { todayIdx = i; break; }
+        const startStr = periods[i].start.toISOString().split('T')[0];
+        const endStr = periods[i].end.toISOString().split('T')[0];
+        if (todayStr >= startStr && todayStr <= endStr) { todayIdx = i; break; }
       }
 
       // Step 3: Read offline Payroll records to check ONLY previous cycle completeness (admin_finalized or paid) respecting filters
@@ -747,8 +750,11 @@ export default function DriverPayroll() {
 
     const today = new Date();
     let todayPeriodIdx = -1;
+    const todayStr = today.toISOString().split('T')[0];
     for (let i = 0; i < allPeriods.length; i++) {
-      if (today >= allPeriods[i].start && today <= allPeriods[i].end) { todayPeriodIdx = i; break; }
+      const startStr = allPeriods[i].start.toISOString().split('T')[0];
+      const endStr = allPeriods[i].end.toISOString().split('T')[0];
+      if (todayStr >= startStr && todayStr <= endStr) { todayPeriodIdx = i; break; }
     }
 
     const prevIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : -1;
