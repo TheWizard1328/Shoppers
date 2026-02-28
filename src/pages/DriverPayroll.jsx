@@ -746,13 +746,15 @@ export default function DriverPayroll() {
   
   // Ensure period index matches the current pay cycle whenever payPeriod changes
   useEffect(() => {
-    if (!hasInitialized || !payPeriod || isManualChangeRef.current) return;
-    const periods = calculateAllPeriods(selectedYear, payPeriod);
-    const idx = findCurrentPeriodIndex(periods, new Date());
-    if (idx !== selectedPeriodIndex) {
-      setSelectedPeriodIndex(idx);
-    }
-  }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex]);
+     if (!hasInitialized || !payPeriod) return;
+     // Do not auto-reset period index if user is navigating manually
+     if (isManualChangeRef.current) return;
+     const periods = calculateAllPeriods(selectedYear, payPeriod);
+     const idx = findCurrentPeriodIndex(periods, new Date());
+     if (idx !== selectedPeriodIndex) {
+       setSelectedPeriodIndex(idx);
+     }
+   }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex]);
   
   useEffect(() => {
      if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
