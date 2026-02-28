@@ -1052,15 +1052,14 @@ export default function DeliveryForm({
     };
 
     setFormData(updatedFormData);
-
-    // CRITICAL: If NOT auto-adding to staged (single patient selection), just populate form and return
     if (!autoAddToStaged) {
-      console.log('📝 [handlePatientSelect] Single selection - populating form only, not auto-adding to staged');
+      try { if (patientStore && updatedFormData.driver_id && updatedFormData.delivery_date) {
+        const slot = deliveryAMPM || getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries) || 'AM';
+        const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: patientStore.id, deliveryDate: updatedFormData.delivery_date, driverId: updatedFormData.driver_id, ampmDeliveries: slot });
+        const pu = r?.data?.puid; if (pu) setFormData(prev => ({ ...prev, puid: pu, ampm_deliveries: slot }));
+      } } catch {}
       if (!isMobileDevice) setTimeout(() => codAmountInputRef.current?.focus?.(), 100);
-      setPatientSearch('');
-      setHighlightedPatientIndex(-1);
-      driverLocationPoller.resume();
-      return;
+      setPatientSearch(''); setHighlightedPatientIndex(-1); driverLocationPoller.resume(); return;
     }
 
     if (!patientStore || !autoSelectedDriverId) {
