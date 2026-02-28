@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import { format } from 'npm:date-fns';
 
 function generateShortStopId() {
@@ -73,62 +73,85 @@ Deno.serve(async (req) => {
         // Determine AM/PM based on current time if not provided
         const now = new Date();
         const currentHour = now.getHours();
-        const ampmDeliveries = requestedAmpm || (currentHour < 14 ? 'AM' : 'PM');
+        const primarySlot = requestedAmpm || (currentHour < 14 ? 'AM' : 'PM');
 
-        console.log(`🔍 Checking for incomplete pickup: store=${storeId}, date=${deliveryDate}, driver=${driverId}, ampm=${ampmDeliveries}`);
+        console.log(`🔍 Ensuring pickup (both slots): store=${storeId}, date=${deliveryDate}, driver=${driverId}, primarySlot=${primarySlot}`);
 
-        // CRITICAL: Preliminary check - does this specific store already have ANY deliveries for this driver on this date?
-        const allStoreDeliveries = await base44.entities.Delivery.filter({
+        // Fetch ALL pickups for this store/date/driver (AM + PM)
+        const allPickups = await base44.entities.Delivery.filter({
             store_id: storeId,
             delivery_date: deliveryDate,
             driver_id: driverId
-        });
+        }, '-created_date', 50);
 
-        if (allStoreDeliveries.length === 0) {
-            console.log(`⏭️ [ensurePickup] No existing deliveries for store ${storeId} - skipping auto-pickup creation (first delivery for this store)`);
-            return Response.json({ 
-                puid: null,
-                pickupId: null,
-                isNew: false,
-                skipAutoCreate: true
-            });
+        const isIncomplete = (p) => !p.patient_id && !['completed','cancelled','returned'].includes(p.status);
+
+        // 1) Prefer an incomplete pickup that matches the primary slot
+        let targetPickup = allPickups.find(p => isIncomplete(p) && (p.ampm_deliveries || 'AM') === primarySlot);
+        // 2) Otherwise, take any incomplete pickup (other slot)
+        if (!targetPickup) {
+            targetPickup = allPickups.find(p => isIncomplete(p));
+        }
+        if (targetPickup) {
+            console.log(`✅ Using existing incomplete pickup: ${targetPickup.id}, PUID: ${targetPickup.stop_id}`);
+            return Response.json({ puid: targetPickup.stop_id, pickupId: targetPickup.id, isNew: false });
         }
 
-        // 1. Check for an existing incomplete pickup for this store, date, driver, and AM/PM slot
-        const existingPickups = await base44.entities.Delivery.filter({
+        // 3) No incomplete pickups — create a new one (even if prior pickups are completed)
+        const chosenSlot = primarySlot;
+
+        // Time helpers
+        const pad = (n) => String(n).padStart(2, '0');
+        const toHHMM = (mins) => `${pad(Math.floor((mins % (24*60)) / 60))}:${pad(mins % 60)}`;
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        let startMinutes;
+
+        if (deliveryDate === todayStr) {
+            // Today: start between now and 21:00 (clamped to 21:00)
+            const minutesNow = now.getHours() * 60 + now.getMinutes();
+            const clampMax = 21 * 60; // 21:00
+            startMinutes = Math.min(minutesNow, clampMax);
+        } else if (deliveryDate < todayStr) {
+            // Past date: start at last completed time + 5 minutes (fallback 10:00)
+            const completed = await base44.entities.Delivery.filter({
+                driver_id: driverId,
+                delivery_date: deliveryDate,
+                status: 'completed'
+            }, '-updated_date', 200);
+
+            let baseMinutes = 10 * 60; // 10:00 default
+            if (completed && completed.length > 0) {
+                const times = completed
+                  .map(d => d.actual_delivery_time)
+                  .filter(Boolean)
+                  .map(t => { try { const dt = new Date(t); return dt.getHours()*60 + dt.getMinutes(); } catch { return null; }})
+                  .filter(v => v !== null);
+                if (times.length > 0) baseMinutes = Math.max(...times) + 5;
+            }
+            startMinutes = baseMinutes;
+        } else {
+            // Future date: default 10:00
+            startMinutes = 10 * 60;
+        }
+
+        const delivery_time_start = toHHMM(startMinutes);
+        const delivery_time_end = toHHMM(startMinutes + 60);
+
+        const puid = generateShortStopId();
+        const newPickup = await base44.entities.Delivery.create({
+            stop_id: puid,
             store_id: storeId,
             delivery_date: deliveryDate,
             driver_id: driverId,
-            ampm_deliveries: ampmDeliveries
-        }, '-created_date', 20);
-
-        // Find pickups (no patient_id) that are incomplete
-        const incompletePickup = existingPickups.find(p => 
-            !p.patient_id && 
-            p.status !== 'completed' && 
-            p.status !== 'cancelled' && 
-            p.status !== 'returned'
-        );
-
-        if (incompletePickup) {
-            console.log(`✅ Found existing incomplete pickup: ${incompletePickup.id}, PUID: ${incompletePickup.stop_id}`);
-            return Response.json({ 
-                puid: incompletePickup.stop_id,
-                pickupId: incompletePickup.id,
-                isNew: false 
-            });
-        }
-
-        // 2. No incomplete pickup exists - do NOT auto-create; Dashboard will handle pickup creation
-        console.log(`⏭️ [ensurePickup] No incomplete pickup; skipping auto-create for store ${storeId}`);
-        return Response.json({
-            puid: null,
-            pickupId: null,
-            isNew: false,
-            skipAutoCreate: true
+            ampm_deliveries: chosenSlot,
+            status: 'pending',
+            delivery_time_start,
+            delivery_time_end
         });
 
-        // Removed auto-create block
+        console.log(`🆕 Created new pickup ${newPickup.id} (PUID ${puid}) for ${chosenSlot}`);
+        return Response.json({ puid, pickupId: newPickup.id, isNew: true, pickup: newPickup });
 
     } catch (error) {
         console.error('❌ Error in ensurePickupForDelivery:', error.message);
