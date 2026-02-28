@@ -25,41 +25,28 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
 
     const checkDevice = async () => {
       try {
-        // Check if device identifier exists in localStorage
+        // 1) If a device identifier is stored locally, try to validate it first
         const storedDeviceId = localStorage.getItem(DEVICE_ID_KEY);
-
         if (storedDeviceId) {
-          // Verify this device still exists in backend
-          const devices = await base44.entities.UserDevice.filter({ 
+          const matches = await base44.entities.UserDevice.filter({
             user_id: currentUser.id,
-            device_identifier: storedDeviceId,
-            status: 'active'
+            device_identifier: storedDeviceId
           });
-
-          if (devices && devices.length > 0) {
-            // Device found, update last_active_at
-            await base44.entities.UserDevice.update(devices[0].id, {
-              last_active_at: new Date().toISOString()
-            });
+          if (matches && matches.length > 0 && (matches[0].status === 'active' || !matches[0].status)) {
+            await base44.entities.UserDevice.update(matches[0].id, { last_active_at: new Date().toISOString() });
             setIsLoading(false);
-            if (onDeviceRegistered) onDeviceRegistered(devices[0]);
-            return;
+            if (onDeviceRegistered) onDeviceRegistered(matches[0]);
+            return; // Already linked – no dialog needed
           }
         }
 
-        // No valid device found - fetch all user's devices
-        const userDevices = await base44.entities.UserDevice.filter({ 
-          user_id: currentUser.id,
-          status: 'active'
-        });
-
-        // Sort devices - primary tracker first
+        // 2) Always fetch the user's registered devices and show the chooser if any exist
+        const userDevices = await base44.entities.UserDevice.filter({ user_id: currentUser.id });
         const sortedDevices = (userDevices || []).sort((a, b) => {
           if (a.is_primary_tracker && !b.is_primary_tracker) return -1;
           if (!a.is_primary_tracker && b.is_primary_tracker) return 1;
           return 0;
         });
-
         setExistingDevices(sortedDevices);
 
         // Suggest default device name based on device info
@@ -67,24 +54,33 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
         const defaultName = `${os} ${deviceType}`;
         setNewDeviceName(defaultName);
 
-        // If user has no devices yet, default to creating new and being primary
         if (!userDevices || userDevices.length === 0) {
+          // No devices on account – offer new registration
           setIsCreatingNew(true);
           setIsPrimaryTracker(true);
+        } else {
+          // Devices exist – show the list (do NOT force new registration)
+          setIsCreatingNew(false);
         }
 
         setShowDialog(true);
         setIsLoading(false);
       } catch (error) {
         console.error('Device check failed:', error);
-        // Offline/failed fallback: still show registration UI with sensible defaults
+        // Fallback: still try to show existing devices list without status filter
+        try {
+          const fallbackDevices = await base44.entities.UserDevice.filter({ user_id: currentUser.id });
+          setExistingDevices(fallbackDevices || []);
+          setIsCreatingNew(!(fallbackDevices && fallbackDevices.length > 0));
+        } catch (e) {
+          setIsCreatingNew(true);
+        }
         try {
           const { deviceType, os } = getUserAgentInfo();
           const defaultName = `${os} ${deviceType}`;
           setNewDeviceName(defaultName);
         } catch (e) {}
-        setIsCreatingNew(true);
-        if (currentUser?.app_roles?.includes('driver')) {
+        if (currentUser?.app_roles?.includes('driver') && isCreatingNew) {
           setIsPrimaryTracker(true);
         }
         setShowDialog(true);
