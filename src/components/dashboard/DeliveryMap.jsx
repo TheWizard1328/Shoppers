@@ -2034,8 +2034,8 @@ export default function DeliveryMap({
   const prevDriverHomeMarkersRef = useRef([]);
   
   const driverHomeMarkers = useMemo(() => {
-    if (!showRoutes || !currentUser || !isViewingCurrentDate) {
-      // Do not show home markers for past dates; clear any cached markers to avoid stale display
+    if (!showRoutes || !currentUser || (selectedDate && selectedDate < format(new Date(), 'yyyy-MM-dd'))) {
+      // Hide home markers on past dates; clear any cached markers to avoid stale display
       prevDriverHomeMarkersRef.current = [];
       return [];
     }
