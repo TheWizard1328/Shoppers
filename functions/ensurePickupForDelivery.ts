@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
         }
         if (targetPickup) {
             console.log(`✅ Using existing incomplete pickup: ${targetPickup.id}, PUID: ${targetPickup.stop_id}`);
-            return Response.json({ puid: targetPickup.stop_id, pickupId: targetPickup.id, isNew: false });
+            return Response.json({ puid: targetPickup.stop_id, pickupId: targetPickup.id, isNew: false, pickup: targetPickup });
         }
 
         // 3) No incomplete pickups — create a new one (even if prior pickups are completed)
