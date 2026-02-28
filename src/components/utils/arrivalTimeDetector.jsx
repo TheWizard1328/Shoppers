@@ -38,6 +38,15 @@ class ArrivalTimeDetector {
     }
 
     try {
+      const allowedStatuses = ['en_route','in_transit'];
+      // Verify driver is active (avoid recording when off duty)
+      const appUsers = await base44.entities.AppUser.filter({ user_id: driverId });
+      const appUser = appUsers?.[0];
+      const activeDriverStates = ['on_duty','on_break','online'];
+      if (appUser && !activeDriverStates.includes(appUser.driver_status)) {
+        this.resetStationary();
+        return;
+      }
       // Fetch driver's deliveries for the day
       const deliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
@@ -57,7 +66,7 @@ class ArrivalTimeDetector {
       // Eligible pickups: store pickups (no patient_id), non-finished, and both arrival_time & actual_delivery_time empty
       const eligiblePickups = deliveries.filter(d =>
         !d.patient_id && d.store_id &&
-        !['completed', 'failed', 'cancelled'].includes(d.status) &&
+        allowedStatuses.includes(String(d.status)) &&
         !d.arrival_time && !d.actual_delivery_time
       ).map(d => {
         const store = stores.find(s => s?.id === d.store_id);
@@ -128,7 +137,7 @@ class ArrivalTimeDetector {
 
       // 2) FALLBACK: Original behavior (for deliveries or single, non-eligible pickups)
       // Find incomplete (non-finished, arrival_time empty) stops of any type
-      const incompleteDeliveries = deliveries.filter(d => !['completed','failed','cancelled'].includes(d.status) && !d.arrival_time);
+      const incompleteDeliveries = deliveries.filter(d => allowedStatuses.includes(String(d.status)) && !d.arrival_time);
 
       let driverAtLocation = false;
       for (const delivery of incompleteDeliveries) {
