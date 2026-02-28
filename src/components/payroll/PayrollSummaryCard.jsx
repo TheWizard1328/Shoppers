@@ -2439,32 +2439,7 @@ export default function PayrollSummaryCard({
                             value={calculateAppFeeAmount('other-app-fee', otherAppFeePercent).toFixed(2)}
                             onChange={(e) => {
                               const newAmount = parseFloat(e.target.value) || 0;
-                              let totalBillableCount = 0;
-                              const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                              const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                              deliveries.forEach((d) => {
-                                if (!d || !d.store_id) return;
-                                const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                if (!validStatus) return;
-                                if (!d.patient_id && !d.after_hours_pickup) return;
-                                const store = stores.find((s) => s?.id === d.store_id);
-                                if (!store) return;
-                                let paysAppFees = store.pays_app_fees || false;
-                                if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                  const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                  new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                  );
-                                  if (sortedHistory[0]) {
-                                    paysAppFees = sortedHistory[0].pays_app_fees;
-                                  }
-                                }
-                                if (paysAppFees) {
-                                  totalBillableCount++;
-                                }
-                              });
-                              const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                              const totalMonthlyAppFees = getMonthlyAppFees();
                               const newPercent = totalMonthlyAppFees > 0 ? newAmount / totalMonthlyAppFees * 100 : 0;
                               setOtherAppFeePercent(newPercent);
 
