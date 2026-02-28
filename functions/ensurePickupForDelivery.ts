@@ -76,12 +76,11 @@ Deno.serve(async (req) => {
 
         console.log(`🔍 Ensuring pickup (both slots): store=${storeId}, date=${deliveryDate}, driver=${driverId}, primarySlot=${primarySlot}`);
 
-        // Fetch ALL pickups for this store/date/driver (AM + PM)
+        // Fetch ALL pickups for this driver/date across ALL stores (AM + PM)
         const allPickups = await base44.entities.Delivery.filter({
-            store_id: storeId,
             delivery_date: deliveryDate,
             driver_id: driverId
-        }, '-created_date', 50);
+        }, '-created_date', 200);
 
         const isIncomplete = (p) => !p.patient_id && !['completed','cancelled','returned'].includes(p.status);
 
