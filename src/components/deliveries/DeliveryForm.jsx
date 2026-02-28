@@ -1,3 +1,4 @@
+
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -256,6 +257,7 @@ export default function DeliveryForm({
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
   const originalPidRef = useRef('');
+  const autoCreatedPickupsRef = useRef(new Set());
 
   // Camera state
   const videoRef = useRef(null);
@@ -906,14 +908,7 @@ export default function DeliveryForm({
   const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
     if (!patient) return;
     
-    console.log('🔍 [handlePatientSelect] Called with patient:', {
-      id: patient.id,
-      name: patient.full_name,
-      latitude: patient.latitude,
-      longitude: patient.longitude,
-      distance_from_store: patient.distance_from_store,
-      autoAddToStaged: autoAddToStaged
-    });
+    console.log('[handlePatientSelect] patient:', patient.id);
     
     // CRITICAL: Pause location poller during patient operations
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
@@ -1057,6 +1052,10 @@ export default function DeliveryForm({
         const slot = deliveryAMPM || getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries) || 'AM';
         const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: patientStore.id, deliveryDate: updatedFormData.delivery_date, driverId: updatedFormData.driver_id, ampmDeliveries: slot });
         const pu = r?.data?.puid; if (pu) setFormData(prev => ({ ...prev, puid: pu, ampm_deliveries: slot }));
+        if (r?.data?.isNew && r?.data?.pickup) {
+          const p = r.data.pickup; const staged = { ...p, _tempId: Date.now() + Math.random(), _autoCreated: true, store_name: patientStore.name, store_abbreviation: patientStore.abbreviation };
+          setStagedDeliveries(prev => [...prev, staged]); if (p.id) autoCreatedPickupsRef.current.add(p.id);
+        }
       } } catch {}
       if (!isMobileDevice) setTimeout(() => codAmountInputRef.current?.focus?.(), 100);
       setPatientSearch(''); setHighlightedPatientIndex(-1); driverLocationPoller.resume(); return;
@@ -1159,12 +1158,7 @@ export default function DeliveryForm({
       longitude: patient.longitude
     };
     
-    console.log('📦 [handlePatientSelect] Adding to staged with coordinates:', {
-      patient_name: stagedDelivery.patient_name,
-      latitude: stagedDelivery.latitude,
-      longitude: stagedDelivery.longitude,
-      distanceFromStore: stagedDelivery.distanceFromStore
-    });
+    console.log('[handlePatientSelect] staging patient');
     
     setStagedDeliveries((prev) => [...prev, stagedDelivery]);
 
@@ -1225,7 +1219,7 @@ export default function DeliveryForm({
 
     // Only auto-focus on desktop
     if (!isMobileDevice) {
-      setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+      setTimeout(() => codAmountInputRef.current?.focus(), 100);
     }
     
     // Resume location poller after operations complete
@@ -1759,14 +1753,7 @@ export default function DeliveryForm({
   }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
 
   const handleStagedDeliveryClick = useCallback((staged) => {
-    console.log('📦 [DeliveryForm] Clicking staged item:', staged);
-    console.log('📦 PUID in staged:', staged.puid);
-    console.log('📦 Store ID in staged:', staged.store_id);
-    console.log('📦 AMPM in staged:', staged.ampm_deliveries);
-    console.log('📦 Driver ID in staged:', staged.driver_id);
-    console.log('📦 Driver Name in staged:', staged.driver_name);
-    console.log('📦 Full staged object keys:', Object.keys(staged));
-    console.log('📦 Has ID (is pending)?:', !!staged.id);
+    console.log('[DeliveryForm] Click staged');
 
     // Hide staged panel on mobile when clicking a staged item
     if (isMobileDevice) {
@@ -2742,22 +2729,21 @@ export default function DeliveryForm({
         );
 
         const updatePromises = existingDeliveries.map((updated) => {
-          // CRITICAL: Convert 'Staged' to 'pending' for existing deliveries (same logic as new deliveries)
+          // Convert statuses for batch save
           let finalStatus = updated.status;
           if (finalStatus === 'Staged') {
-            // Check if this is an InterStore delivery
-            const patientName = (updated.patient_name || '').toLowerCase();
-            const deliveryNotes = (updated.delivery_notes || '').toLowerCase();
-            const patientNotes = (updated.delivery_instructions || '').toLowerCase();
-            const deliveryAddress = (updated.delivery_address || '').toLowerCase();
-            
-            const isInterStore = patientName.includes('interstore') || 
-                                 deliveryNotes.includes('interstore') || 
-                                 patientNotes.includes('interstore') ||
-                                 deliveryAddress.includes('(isp)') || 
-                                 deliveryAddress.includes('(isd)');
-            
-            finalStatus = isInterStore ? 'in_transit' : 'pending';
+            finalStatus = (!updated.patient_id && updated._autoCreated) ? 'en_route' : 'pending';
+            // If it's a delivery (not a pickup) check if it's InterStore
+            if (updated.patient_id) {
+              const patientName = (updated.patient_name || '').toLowerCase();
+              const deliveryNotes = (updated.delivery_notes || '').toLowerCase();
+              const patientNotes = (updated.delivery_instructions || '').toLowerCase();
+              const deliveryAddress = (updated.delivery_address || '').toLowerCase();
+              const isInterStore = patientName.includes('interstore') || deliveryNotes.includes('interstore') || patientNotes.includes('interstore') || deliveryAddress.includes('(isp)') || deliveryAddress.includes('(isd)');
+              if (isInterStore) {
+                finalStatus = 'in_transit';
+              }
+            }
           }
 
           const updateData = {
@@ -2906,21 +2892,21 @@ export default function DeliveryForm({
         // - 'Staged' → 'in_transit' for InterStore deliveries (patient with 'InterStore', '(ISP)', or '(ISD)' in name/notes/address)
         const deliveriesReadyForDB = deliveriesWithTRs.map(d => {
           if (d.status === 'Staged') {
-            // Check if this is an InterStore delivery
-            const patientName = (d.patient_name || '').toLowerCase();
-            const deliveryNotes = (d.delivery_notes || '').toLowerCase();
-            const patientNotes = (d.delivery_instructions || '').toLowerCase();
-            const deliveryAddress = (d.delivery_address || '').toLowerCase();
-            
-            const isInterStore = patientName.includes('interstore') || 
-                                 deliveryNotes.includes('interstore') || 
-                                 patientNotes.includes('interstore') ||
-                                 deliveryAddress.includes('(isp)') || 
-                                 deliveryAddress.includes('(isd)');
-            
+            let newStatus = (!d.patient_id && d._autoCreated) ? 'en_route' : 'pending';
+            // If it's a delivery (not a pickup) check if it's InterStore
+            if (d.patient_id) {
+              const patientName = (d.patient_name || '').toLowerCase();
+              const deliveryNotes = (d.delivery_notes || '').toLowerCase();
+              const patientNotes = (d.delivery_instructions || '').toLowerCase();
+              const deliveryAddress = (d.delivery_address || '').toLowerCase();
+              const isInterStore = patientName.includes('interstore') || deliveryNotes.includes('interstore') || patientNotes.includes('interstore') || deliveryAddress.includes('(isp)') || deliveryAddress.includes('(isd)');
+              if (isInterStore) {
+                newStatus = 'in_transit';
+              }
+            }
             return {
               ...d,
-              status: isInterStore ? 'in_transit' : 'pending'
+              status: newStatus
             };
           }
           return d;
@@ -3699,6 +3685,7 @@ export default function DeliveryForm({
   };
 
   const handleClearForm = useCallback(() => {
+    (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
     setSelectedPatient(null);
     setSelectedPatientIds(new Set());
     setPatientSearch('');
@@ -3732,6 +3719,7 @@ export default function DeliveryForm({
     if (hasNewStagedDeliveries && !delivery) {
       const confirmed = window.confirm('You have unsaved deliveries. Discard them?');
       if (confirmed) {
+        (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}}catch(e){}})();
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
         hasLoadedPending.current = false; // Reset flag to allow reload
@@ -3754,6 +3742,7 @@ export default function DeliveryForm({
             console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
           }
         })();
+        (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
         
         onCancel();
       }
