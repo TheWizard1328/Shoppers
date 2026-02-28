@@ -256,7 +256,6 @@ export default function DeliveryForm({
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
   const originalPidRef = useRef('');
-  const autoCreatedPickupsRef = useRef(new Set());
 
   // Camera state
   const videoRef = useRef(null);
@@ -907,7 +906,14 @@ export default function DeliveryForm({
   const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
     if (!patient) return;
     
-    console.log('[handlePatientSelect] patient:', patient.id);
+    console.log('🔍 [handlePatientSelect] Called with patient:', {
+      id: patient.id,
+      name: patient.full_name,
+      latitude: patient.latitude,
+      longitude: patient.longitude,
+      distance_from_store: patient.distance_from_store,
+      autoAddToStaged: autoAddToStaged
+    });
     
     // CRITICAL: Pause location poller during patient operations
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
@@ -1051,10 +1057,6 @@ export default function DeliveryForm({
         const slot = deliveryAMPM || getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries) || 'AM';
         const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: patientStore.id, deliveryDate: updatedFormData.delivery_date, driverId: updatedFormData.driver_id, ampmDeliveries: slot });
         const pu = r?.data?.puid; if (pu) setFormData(prev => ({ ...prev, puid: pu, ampm_deliveries: slot }));
-        if (r?.data?.isNew && r?.data?.pickup) {
-          const p = r.data.pickup; const staged = { ...p, _tempId: Date.now() + Math.random(), _autoCreated: true, store_name: patientStore.name, store_abbreviation: patientStore.abbreviation };
-          setStagedDeliveries(prev => [...prev, staged]); if (p.id) autoCreatedPickupsRef.current.add(p.id);
-        }
       } } catch {}
       if (!isMobileDevice) setTimeout(() => codAmountInputRef.current?.focus?.(), 100);
       setPatientSearch(''); setHighlightedPatientIndex(-1); driverLocationPoller.resume(); return;
@@ -1157,7 +1159,12 @@ export default function DeliveryForm({
       longitude: patient.longitude
     };
     
-    console.log('[handlePatientSelect] staging patient');
+    console.log('📦 [handlePatientSelect] Adding to staged with coordinates:', {
+      patient_name: stagedDelivery.patient_name,
+      latitude: stagedDelivery.latitude,
+      longitude: stagedDelivery.longitude,
+      distanceFromStore: stagedDelivery.distanceFromStore
+    });
     
     setStagedDeliveries((prev) => [...prev, stagedDelivery]);
 
@@ -1752,7 +1759,14 @@ export default function DeliveryForm({
   }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
 
   const handleStagedDeliveryClick = useCallback((staged) => {
-    console.log('[DeliveryForm] Click staged');
+    console.log('📦 [DeliveryForm] Clicking staged item:', staged);
+    console.log('📦 PUID in staged:', staged.puid);
+    console.log('📦 Store ID in staged:', staged.store_id);
+    console.log('📦 AMPM in staged:', staged.ampm_deliveries);
+    console.log('📦 Driver ID in staged:', staged.driver_id);
+    console.log('📦 Driver Name in staged:', staged.driver_name);
+    console.log('📦 Full staged object keys:', Object.keys(staged));
+    console.log('📦 Has ID (is pending)?:', !!staged.id);
 
     // Hide staged panel on mobile when clicking a staged item
     if (isMobileDevice) {
@@ -3685,7 +3699,6 @@ export default function DeliveryForm({
   };
 
   const handleClearForm = useCallback(() => {
-    (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
     setSelectedPatient(null);
     setSelectedPatientIds(new Set());
     setPatientSearch('');
@@ -3719,7 +3732,6 @@ export default function DeliveryForm({
     if (hasNewStagedDeliveries && !delivery) {
       const confirmed = window.confirm('You have unsaved deliveries. Discard them?');
       if (confirmed) {
-        (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}}catch(e){}})();
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
         hasLoadedPending.current = false; // Reset flag to allow reload
@@ -3742,7 +3754,6 @@ export default function DeliveryForm({
             console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
           }
         })();
-        (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
         
         onCancel();
       }
