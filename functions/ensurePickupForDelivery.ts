@@ -70,10 +70,9 @@ Deno.serve(async (req) => {
             });
         }
 
-        // Determine AM/PM based on current time if not provided
+        // Determine AM/PM: default to AM unless PM explicitly requested
         const now = new Date();
-        const currentHour = now.getHours();
-        const primarySlot = requestedAmpm || (currentHour < 14 ? 'AM' : 'PM');
+        const primarySlot = requestedAmpm === 'PM' ? 'PM' : 'AM';
 
         console.log(`🔍 Ensuring pickup (both slots): store=${storeId}, date=${deliveryDate}, driver=${driverId}, primarySlot=${primarySlot}`);
 
@@ -145,7 +144,7 @@ Deno.serve(async (req) => {
             delivery_date: deliveryDate,
             driver_id: driverId,
             ampm_deliveries: chosenSlot,
-            status: 'pending',
+            status: 'Staged',
             delivery_time_start,
             delivery_time_end
         });
