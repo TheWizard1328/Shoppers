@@ -30,7 +30,7 @@ class LocationTracker {
         this.coordinateUpdateInterval = 15000; // 15 seconds between coordinate updates
 
         // Distance threshold - only upload if moved > 200m
-        this.minDistanceChange = 200; // 200 meters minimum movement to trigger upload
+        this.minDistanceChange = 250; // Balanced: 250 meters minimum movement to trigger upload
 
         // Deduplication - prevent duplicate updates within 2 seconds
         this.lastUploadTime = 0;
@@ -38,7 +38,7 @@ class LocationTracker {
 
         // Heartbeat timestamp updates - keep location fresh even when stationary
         this.lastTimestampUpdate = 0;
-        this.timestampUpdateInterval = 60000; // 1 minute - update timestamp to prevent stale mode
+        this.timestampUpdateInterval = 120000; // 2 minutes - balanced heartbeat to prevent stale mode
 
         this.failedUpdateCount = 0;
         this.maxFailedUpdates = 3;
@@ -73,7 +73,7 @@ class LocationTracker {
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
       this.updateInterval = 15000; // Default 15 seconds
-      this.minDistanceChange = 200; // Default 200m
+      this.minDistanceChange = 250; // Default 250m
     }
   }
 
@@ -221,6 +221,14 @@ class LocationTracker {
       const msRemaining = this.minTimeBetweenUploads - (now - this.lastUploadTime);
       console.log(`⏳ [LocationTracker] Dedup: Waiting ${msRemaining}ms to prevent duplicate upload`);
       return;
+    }
+
+    // Background throttle: when app is not visible, limit coordinate uploads (battery saver)
+    if (typeof document !== 'undefined' && document.hidden && !forceUpdate && !timestampOnly) {
+      if (now - this.lastCoordinateUpdate < 60000) { // at most once per 60s while hidden
+        console.log('⏸️ [LocationTracker] Page hidden - skipping upload to save battery');
+        return;
+      }
     }
 
     // CRITICAL: Check distance threshold - SKIP for primary devices (always update)

@@ -113,7 +113,7 @@ export default function RealTimeRouteOptimizer({
   // Track when optimization is in progress to prevent duplicate runs
   const isOptimizingRef = useRef(false);
   const lastOptimizationTimeRef = useRef(0);
-  const OPTIMIZATION_COOLDOWN = 10000; // 10 seconds
+  const OPTIMIZATION_COOLDOWN = 15000; // 15 seconds (balanced smoothing)
 
   useEffect(() => {
     // Listen for manual optimization triggers
