@@ -2020,8 +2020,7 @@ export default function DeliveryForm({
         d && !d.patient_id && d.store_id === store.id && d.delivery_date === formData.delivery_date && d.driver_id === formData.driver_id && (d.ampm_deliveries || 'AM') === timeSlot
       );
       if (existingPickup) {
-        const now = new Date();
-        const reusable = ['pending','en_route','in_transit'].includes(existingPickup.status) || (existingPickup.status==='completed' && existingPickup.actual_delivery_time && (now - new Date(existingPickup.actual_delivery_time) < 60*60*1000));
+        const now=new Date(),ts=now.toISOString().slice(0,10),sel=formData.delivery_date,done=existingPickup.actual_delivery_time,ds=done?String(done).slice(0,10):'';const reusable=(['pending','en_route','in_transit','Staged'].includes(existingPickup.status))||(existingPickup.status==='completed'&&done&&sel===ts&&ds===ts&&(now-new Date(done)<60*60*1000));
         if (reusable) { puid = existingPickup.stop_id; }
       }
       if (!puid) {
@@ -2099,13 +2098,7 @@ export default function DeliveryForm({
                   d.delivery_date === formData.delivery_date &&
                   d.driver_id === formData.driver_id &&
                   (d.ampm_deliveries || 'AM') === assignedTimeSlot
-                ) || allDeliveries?.some(d =>
-                  !d.patient_id && d.store_id === assignedStore.id &&
-                  d.delivery_date === formData.delivery_date &&
-                  d.driver_id === formData.driver_id &&
-                  (d.status === 'pending' || d.status === 'en_route' || d.status === 'in_transit' || d.status === 'completed') &&
-                  (d.ampm_deliveries || 'AM') === assignedTimeSlot
-                );
+                ) || allDeliveries?.some(d => !d?.patient_id && d.store_id===assignedStore.id && d.delivery_date===formData.delivery_date && d.driver_id===formData.driver_id && (d.ampm_deliveries||'AM')===assignedTimeSlot && (['pending','en_route','in_transit','Staged'].includes(d.status) || (d.status==='completed' && d.actual_delivery_time && (()=>{const n=new Date(),ts=n.toISOString().slice(0,10),sel=formData.delivery_date,ds=String(d.actual_delivery_time).slice(0,10);return sel===ts && ds===ts && (n - new Date(d.actual_delivery_time) < 60*60*1000)})())));
 
                 if (!pickupExists) {
                   try {
