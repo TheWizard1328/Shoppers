@@ -138,6 +138,14 @@ Deno.serve(async (req) => {
         const delivery_time_end = toHHMM(startMinutes + 60);
 
         const puid = generateShortStopId();
+
+        // Compute pickup TR#: StoreAbbrev + (20 * total_unique_pickups_in_slot + (-20))
+        const slotPickups = allPickups.filter(p => !p.patient_id && (p.ampm_deliveries || 'AM') === chosenSlot);
+        const uniqueStoreCount = new Set(slotPickups.map(p => p.store_id)).size;
+        const totalPickupsAfterCreate = uniqueStoreCount + 1; // include this new pickup
+        const baseNumber = totalPickupsAfterCreate * 20 - 20;
+        const trackingNumber = `${store?.abbreviation || ''}${baseNumber}`;
+
         const newPickup = await base44.entities.Delivery.create({
             stop_id: puid,
             store_id: storeId,
@@ -146,7 +154,8 @@ Deno.serve(async (req) => {
             ampm_deliveries: chosenSlot,
             status: 'Staged',
             delivery_time_start,
-            delivery_time_end
+            delivery_time_end,
+            tracking_number: trackingNumber
         });
 
         console.log(`🆕 Created new pickup ${newPickup.id} (PUID ${puid}) for ${chosenSlot}`);

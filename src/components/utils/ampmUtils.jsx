@@ -96,7 +96,9 @@ export const determineAMPMFromTime = (timeString) => {
  */
 export const parseTrackingNumber = (trackingNumber) => {
   if (trackingNumber === null || trackingNumber === undefined) return null;
-  const num = parseInt(trackingNumber, 10);
+  const digits = String(trackingNumber).match(/\d+/);
+  if (!digits) return null;
+  const num = parseInt(digits[0], 10);
   return isNaN(num) ? null : num;
 };
 
