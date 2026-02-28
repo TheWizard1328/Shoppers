@@ -57,8 +57,8 @@ export default function StopDetailsPanel({
   currentUser,
   onClose,
   onStatusUpdate,
-  onEditDelivery,
-  onDeleteDelivery,
+  onEditDelivery = () => console.warn('[StopDetailsPanel] onEditDelivery not provided'),
+  onDeleteDelivery = null,
   onRestart
 }) {
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
@@ -377,9 +377,14 @@ export default function StopDetailsPanel({
                 <Button 
                   onClick={() => {
                     if (confirm('Are you sure you want to delete this delivery?')) {
-                      onDeleteDelivery(delivery.id);
+                      if (typeof onDeleteDelivery === 'function') {
+                        onDeleteDelivery(delivery.id);
+                      } else {
+                        console.warn('[StopDetailsPanel] onDeleteDelivery not provided');
+                      }
                     }
                   }}
+                  disabled={typeof onDeleteDelivery !== 'function'}
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 hover:bg-red-50"
