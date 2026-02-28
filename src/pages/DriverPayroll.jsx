@@ -224,6 +224,14 @@ export default function DriverPayroll() {
     return sortStores(filtered);
   }, [payrollData?.stores, selectedCityId]);
 
+  // All deliveries for the selected city (no period filter) for App Fee monthly pool
+  const allCityDeliveries = useMemo(() => {
+    const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
+    if (selectedCityId === 'all') return deliveries;
+    const cityStoreIds = new Set(filteredStores.map(s => s.id));
+    return deliveries.filter(d => d && cityStoreIds.has(d.store_id));
+  }, [payrollData?.deliveries, filteredStores, selectedCityId]);
+
   const sortedDrivers = useMemo(() => {
     if (!payrollData?.drivers) return [];
     return sortUsers(payrollData.drivers.filter(d => d && d.status === 'active'));
@@ -991,7 +999,7 @@ export default function DriverPayroll() {
               </Select>
 
               {/* Pay Cycle Selector - 4th position dropdown */}
-              <Select value={payPeriod || 'monthly'} onValueChange={handlePayPeriodChange} disabled={payCycleInfo.disabled || isDriver}>
+              <Select value={payPeriod || 'monthly'} onValueChange={handlePayPeriodChange} disabled={isDriver}>
                 <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue placeholder="Cycle" />
                 </SelectTrigger>
@@ -1076,7 +1084,7 @@ export default function DriverPayroll() {
           {/* Payroll Summary */}
           <div ref={summaryRef}>
           <PayrollSummaryCard
-            deliveries={cityFilteredDeliveries}
+            deliveries={allCityDeliveries}
             drivers={sortedDrivers}
             appUsers={payrollData?.appUsers || []}
             patients={payrollData?.patients || []}
