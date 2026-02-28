@@ -89,22 +89,20 @@ Deno.serve(async (req) => {
                 if (order?.line_items && order.line_items.length > 0) {
                   console.log(`📦 [SquareFetchPayments] Order ${payment.order_id} has ${order.line_items.length} line items`);
                   for (const lineItem of order.line_items) {
-                    if (lineItem.catalog_object_id) {
-                      const soldItem = {
-                        catalog_object_id: lineItem.catalog_object_id,
-                        location_id: payment.location_id,
-                        payment_id: payment.id,
-                        square_transaction_id: payment.id,
-                        square_payment_id: payment.id,
-                        order_id: payment.order_id,
-                        item_name: lineItem.name,
-                        amount: lineItem.base_price_money?.amount ? lineItem.base_price_money.amount / 100 : 0,
-                        payment_date: payment.created_at,
-                        payment_method: payment.payment_source_type || 'UNKNOWN'
-                      };
-                      soldCatalogItems.push(soldItem);
-                      console.log(`  ✅ [SquareFetchPayments] Found catalog item: ${soldItem.item_name} (${soldItem.catalog_object_id}) - $${soldItem.amount}`);
-                    }
+                    const soldItem = {
+                      catalog_object_id: lineItem.catalog_object_id || null,
+                      location_id: payment.location_id,
+                      payment_id: payment.id,
+                      square_transaction_id: payment.id,
+                      square_payment_id: payment.id,
+                      order_id: payment.order_id,
+                      item_name: lineItem.name,
+                      amount: lineItem.base_price_money?.amount ? lineItem.base_price_money.amount / 100 : 0,
+                      payment_date: payment.created_at,
+                      payment_method: payment.payment_source_type || 'UNKNOWN'
+                    };
+                    soldCatalogItems.push(soldItem);
+                    console.log(`  ✅ [SquareFetchPayments] Found sale item: ${soldItem.item_name}${soldItem.catalog_object_id ? ` (${soldItem.catalog_object_id})` : ''} - $${soldItem.amount}`);
                   }
                 } else {
                   console.log(`⚠️ [SquareFetchPayments] Order ${payment.order_id} has no line items with catalog IDs`);
@@ -125,6 +123,7 @@ Deno.serve(async (req) => {
     // Count occurrences for backward compatibility
     const soldItemCounts = new Map();
     soldCatalogItems.forEach(item => {
+      if (!item.catalog_object_id) return; // only count items with a catalog ID
       const count = soldItemCounts.get(item.catalog_object_id) || 0;
       soldItemCounts.set(item.catalog_object_id, count + 1);
     });
