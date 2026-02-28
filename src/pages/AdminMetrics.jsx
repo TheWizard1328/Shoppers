@@ -298,19 +298,14 @@ export default function AdminMetrics() {
               Admin Metrics
             </h1>
           </div>
-
-        </div>
-
-        {/* Filters + Summary (sticky on md+) */}
-        <div className="md:sticky md:top-0 md:z-30" style={{ background: 'var(--bg-slate-50)' }}>
-          <div className="flex items-center gap-2 flex-wrap py-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
               <SelectTrigger className="w-[120px] md:w-[140px]">
                 <SelectValue placeholder="Select City" />
               </SelectTrigger>
               <SelectContent>
                 {cities.map((city) =>
-                  <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+                <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -322,7 +317,7 @@ export default function AdminMetrics() {
               <SelectContent>
                 <SelectItem value="all">All Drivers</SelectItem>
                 {metricsData?.driverData?.slice().sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)).map((driver) =>
-                  <SelectItem key={driver.driverId} value={driver.driverId}>{driver.name}</SelectItem>
+                <SelectItem key={driver.driverId} value={driver.driverId}>{driver.name}</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -333,7 +328,7 @@ export default function AdminMetrics() {
               </SelectTrigger>
               <SelectContent>
                 {availableYears.map((year) =>
-                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -344,8 +339,10 @@ export default function AdminMetrics() {
               <Share2 className="w-4 h-4" />
             </Button>
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="pt-4 pb-4">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Billable`: `${selectedYear} Deliveries`}</p>
@@ -444,9 +441,8 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
         </div>
-        </div>
 
-         {/* Row 1: Monthly Store App Fees */}
+        {/* Row 1: Monthly Store App Fees */}
         <div>
           <MonthlyStoreMetricsGrid
             metricsData={metricsData}
