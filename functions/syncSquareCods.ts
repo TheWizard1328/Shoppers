@@ -175,8 +175,13 @@ Deno.serve(async (req) => {
 
     async function upsertCodItem(item, locationId) {
       const idempotencyKey = `cod-${item.deliveryId}`;
-      const itemName = `${(item.deliveryDate || '').slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`;
-      const amountCents = Math.round((Number(item.codAmount) || 0) * 100);
+      const d = new Date(((item.deliveryDate || '') + 'T00:00:00'));
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const abbr = (item.storeAbbreviation || 'ST').trim();
+      const amountNum = Number(item.codAmount) || 0;
+      const amountCents = Math.round(amountNum * 100);
+      const itemName = `${mm}/${dd}(${abbr})-${item.patientName || 'COD'} - $${amountNum.toFixed(2)}`;
 
       const payload = {
         idempotency_key: idempotencyKey,
@@ -236,18 +241,31 @@ Deno.serve(async (req) => {
 
     // Delete COD Catalog Item(s) by exact name and optional amount check
     async function deleteCodByNameAndAmount(item, locationId) {
-      const itemName = `${(item.deliveryDate || '').slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`;
-      const amountCents = Math.round((Number(item.codAmount) || 0) * 100);
+      const d = new Date(((item.deliveryDate || '') + 'T00:00:00'));
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const abbr = (item.storeAbbreviation || 'ST').trim();
+      const patient = item.patientName || 'COD';
+      const amountNum = Number(item.codAmount) || 0;
+      const amountCents = Math.round(amountNum * 100);
+      const baseName = `${mm}/${dd}(${abbr})-${patient}`;
+      const legacyBaseName = `${mm}-${dd}(${abbr})-${patient}`;
+      const nameCandidates = [
+        baseName,
+        legacyBaseName,
+        `${baseName} - $${amountNum.toFixed(2)}`,
+        `${legacyBaseName} - $${amountNum.toFixed(2)}`
+      ];
 
       // First, ensure any stray global items are corrected to this location
-      try { await enforceItemLocation(itemName, locationId); } catch (_) {}
+      try { await enforceItemLocation(baseName, locationId); } catch (_) {}
 
-      // Search for ITEMs by exact name, include related variations for price match
+      // Search for ITEMs by name keywords, include related variations for price match
       const searchPayload = {
         include_deleted_objects: false,
         include_related_objects: true,
         object_types: ['ITEM'],
-        query: { text_query: { keywords: [itemName] } }
+        query: { text_query: { keywords: [baseName] } }
       };
 
       const searchRes = await fetch('https://connect.squareup.com/v2/catalog/search', {
@@ -269,8 +287,8 @@ Deno.serve(async (req) => {
       const objects = Array.isArray(searchData?.objects) ? searchData.objects : [];
       const related = Array.isArray(searchData?.related_objects) ? searchData.related_objects : [];
 
-      // Filter exact name matches
-      let candidates = objects.filter(o => o.type === 'ITEM' && o?.item_data?.name === itemName);
+      // Filter exact name matches across possible legacy/new formats
+      let candidates = objects.filter(o => o.type === 'ITEM' && nameCandidates.includes(o?.item_data?.name));
 
       // If multiple, try refine by amount via related variations price
       if (candidates.length > 1 && amountCents > 0 && related.length > 0) {

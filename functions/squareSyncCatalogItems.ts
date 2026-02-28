@@ -168,9 +168,15 @@ Deno.serve(async (req) => {
         };
       });
 
-    // Build quick lookup for existing catalog items by location|name|price
+    // Build quick lookup for existing catalog items by location|normalized_name|price
+    const normalizeName = (n) => {
+      const s = (n || '').trim();
+      const noAmt = s.replace(/\s-\s\$\d+(?:\.\d{2})?$/, '');
+      const unified = noAmt.replace(/^(\d{2})-(\d{2})/, '$1/$2');
+      return unified.toLowerCase();
+    };
     const catalogLookup = new Set(
-      catalogItems.map(ci => `${ci.location_id}|${(ci.name || '').trim().toLowerCase()}|${ci.price_cents || Math.round((ci.price_dollars || 0) * 100)}`)
+      catalogItems.map(ci => `${ci.location_id}|${normalizeName(ci.name)}|${ci.price_cents || Math.round((ci.price_dollars || 0) * 100)}`)
     );
 
     // Fetch recent sold items via existing function (last 7 days) — include all line items even without catalog IDs
@@ -184,7 +190,7 @@ Deno.serve(async (req) => {
     }
     // Build sold lookup by location|name+amount to support orders with multiple items of same name but different prices
     const soldLookup = new Set(
-      soldCatalogItems.map(si => `${si.location_id}|${(si.item_name || '').trim().toLowerCase()}|${Math.round((Number(si.amount) || 0) * 100)}`)
+      soldCatalogItems.map(si => `${si.location_id}|${normalizeName(si.item_name)}|${Math.round((Number(si.amount) || 0) * 100)}`)
     );
 
     // Helper to format item name per spec [MM]/[DD](StoreAbbrev)-Patient Name
@@ -218,6 +224,8 @@ Deno.serve(async (req) => {
         const codFromPayments = paymentsArr.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
         const codAmount = codRequired > 0 ? codRequired : (codFromPayments > 0 ? codFromPayments : 0);
         if (codAmount <= 0) continue;
+        // Skip creating items for deliveries already finalized
+        if (['completed','failed','cancelled'].includes(del.status)) continue;
 
         const store = storeById.get(del.store_id);
         const storeAbbr = store?.abbreviation || 'XX';
@@ -238,8 +246,9 @@ Deno.serve(async (req) => {
 
         const itemName = formatItemName(del.delivery_date, storeAbbr, del.patient_name || del.patient_id || 'Unknown');
         const priceCents = Math.round(codAmount * 100);
-        const key = `${locId}|${itemName.trim().toLowerCase()}|${priceCents}`;
-        const soldKey = `${locId}|${itemName.trim().toLowerCase()}|${priceCents}`;
+        const normalizedName = normalizeName(itemName);
+        const key = `${locId}|${normalizedName}|${priceCents}`;
+        const soldKey = `${locId}|${normalizedName}|${priceCents}`;
 
         // Detect Debit/Credit from both sources (array + legacy field)
         const hasDCInArray = paymentsArr.some(p => (p?.type === 'Debit' || p?.type === 'Credit'));
@@ -254,7 +263,7 @@ Deno.serve(async (req) => {
           if (existsInCatalog) {
             const matches = catalogItems.filter(ci =>
               ci.location_id === locId &&
-              (ci.name || '').trim().toLowerCase() === itemName.trim().toLowerCase() &&
+              normalizeName(ci.name) === normalizedName &&
               (ci.price_cents || Math.round((ci.price_dollars || 0) * 100)) === priceCents
             );
             for (const ci of matches) {

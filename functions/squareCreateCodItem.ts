@@ -88,12 +88,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'No Square location configured' }, { status: 500 });
     }
 
-    // Format: [MM]/[DD](Store Abbreviation)-Patient Name
-    const date = new Date(deliveryDate + 'T00:00:00');
+    // Format: MM/DD(Store Abbreviation)-Patient Name - $Amount
+    const date = new Date((deliveryDate || '') + 'T00:00:00');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    const storeAbbr = storeAbbreviation || 'XX';
-    const itemName = `${month}/${day}(${storeAbbr})-${patientName}`;
+    const storeAbbr = (storeAbbreviation || 'XX').trim();
+    const amountFormatted = Number.isFinite(Number(codAmount)) ? (Number(codAmount)).toFixed(2) : '0.00';
+    const itemName = `${month}/${day}(${storeAbbr})-${patientName} - $${amountFormatted}`;
 
     // Convert dollars to cents for Square
     const amountCents = Math.round(codAmount * 100);
