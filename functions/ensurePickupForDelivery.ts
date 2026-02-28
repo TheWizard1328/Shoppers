@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
             delivery_date: deliveryDate,
             driver_id: driverId,
             ampm_deliveries: chosenSlot,
-            status: 'en_route',
+            status: 'pending',
             delivery_time_start,
             delivery_time_end
         });
