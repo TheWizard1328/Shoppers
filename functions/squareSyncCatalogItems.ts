@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
         const itemName = formatItemName(del.delivery_date, storeAbbr, del.patient_name || del.patient_id || 'Unknown');
         const priceCents = Math.round(codAmount * 100);
         const key = `${locId}|${itemName.trim().toLowerCase()}|${priceCents}`;
-        const soldKey = `${locId}|${itemName.trim().toLowerCase()}`;
+        const soldKey = `${locId}|${itemName.trim().toLowerCase()}|${priceCents}`;
 
         // Detect Debit/Credit from both sources (array + legacy field)
         const hasDCInArray = paymentsArr.some(p => (p?.type === 'Debit' || p?.type === 'Credit'));
