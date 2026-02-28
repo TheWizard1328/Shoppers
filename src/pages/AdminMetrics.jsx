@@ -311,17 +311,7 @@ export default function AdminMetrics() {
               </SelectContent>
             </Select>
 
-            <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-              <SelectTrigger className="w-[140px] md:w-[160px]">
-                <SelectValue placeholder="All Drivers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Drivers</SelectItem>
-                {metricsData?.driverData?.slice().sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)).map((driver) =>
-                <SelectItem key={driver.driverId} value={driver.driverId}>{driver.name}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+
 
             <Select value={selectedYear} onValueChange={handleYearChange}>
               <SelectTrigger className="w-[120px] md:w-[140px]">
@@ -444,7 +434,7 @@ export default function AdminMetrics() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto pr-1 md:pr-2 pb-4">
+      <div className="flex-1 overflow-auto pr-1 md:pr-2 pb-4 space-y-6">
         {/* Row 1: Monthly Store App Fees */}
         <div>
           <MonthlyStoreMetricsGrid
