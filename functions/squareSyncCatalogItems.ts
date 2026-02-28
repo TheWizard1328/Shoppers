@@ -168,11 +168,115 @@ Deno.serve(async (req) => {
         };
       });
 
+    // Build quick lookup for existing catalog items by location|name|price
+    const catalogLookup = new Set(
+      catalogItems.map(ci => `${ci.location_id}|${(ci.name || '').trim().toLowerCase()}|${ci.price_cents || Math.round((ci.price_dollars || 0) * 100)}`)
+    );
+
+    // Fetch recent sold catalog items via existing function (last 7 days)
+    let soldCatalogItems = [];
+    try {
+      const fpRes = await base44.asServiceRole.functions.invoke('squareFetchPayments', { locationIds, daysBack: 7 });
+      const fpData = fpRes?.data || fpRes;
+      soldCatalogItems = fpData?.soldCatalogItems || [];
+    } catch (e) {
+      console.warn('squareFetchPayments invoke failed:', e.message);
+    }
+    // Build sold lookup by location|name (name taken from Square line item)
+    const soldLookup = new Set(
+      soldCatalogItems.map(si => `${si.location_id}|${(si.item_name || '').trim().toLowerCase()}`)
+    );
+
+    // Helper to format item name per spec [MM]/[DD](StoreAbbrev)-Patient Name
+    const formatItemName = (deliveryDate, storeAbbreviation, patientName) => {
+      const d = new Date(`${deliveryDate}T00:00:00`);
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const abbr = storeAbbreviation || 'XX';
+      return `${m}/${day}(${abbr})-${patientName || 'Unknown'}`;
+    };
+
+    // Map stores by id for quick lookup
+    const storeById = new Map((stores || []).map(s => [s.id, s]));
+
+    // Gather deliveries in the past 7 days that have COD
+    const createdItems = [];
+    const today = new Date();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${day}`;
+
+      const dayDeliveries = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: dateStr });
+      for (const del of dayDeliveries) {
+        const codRequired = Number(del.cod_total_amount_required || 0);
+        const paymentsArr = Array.isArray(del.cod_payments) ? del.cod_payments : [];
+        const codFromPayments = paymentsArr.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const codAmount = codRequired > 0 ? codRequired : (codFromPayments > 0 ? codFromPayments : 0);
+        if (codAmount <= 0) continue;
+
+        const store = storeById.get(del.store_id);
+        const storeAbbr = store?.abbreviation || 'XX';
+
+        // Derive Square location ID from store config or fallback to default env location
+        let locId = null;
+        if (store?.square_location_config_id) {
+          try {
+            const cfg = await base44.asServiceRole.entities.SquareLocationConfig.get(store.square_location_config_id);
+            locId = cfg?.square_location_id || null;
+          } catch {}
+        }
+        if (!locId) {
+          const defLoc = Deno.env.get('SQUARE_LOCATION_ID');
+          if (defLoc) locId = defLoc;
+        }
+        if (!locId) continue; // Skip if we cannot determine location
+
+        const itemName = formatItemName(del.delivery_date, storeAbbr, del.patient_name || del.patient_id || 'Unknown');
+        const key = `${locId}|${itemName.trim().toLowerCase()}|${Math.round(codAmount * 100)}`;
+        const soldKey = `${locId}|${itemName.trim().toLowerCase()}`;
+
+        const existsInCatalog = catalogLookup.has(key);
+        const existsInSales = soldLookup.has(soldKey);
+
+        if (!existsInCatalog && !existsInSales) {
+          // Create missing catalog item via existing function
+          try {
+            const createRes = await base44.asServiceRole.functions.invoke('squareCreateCodItem', {
+              deliveryId: del.id,
+              patientName: del.patient_name || del.patient_id || 'Unknown',
+              storeAbbreviation: storeAbbr,
+              codAmount,
+              deliveryDate: del.delivery_date,
+              storeId: del.store_id
+            });
+            const result = createRes?.data || createRes;
+            createdItems.push({
+              delivery_id: del.id,
+              item_name: result?.itemName || itemName,
+              amount: codAmount,
+              location_id: locId,
+              catalog_object_id: result?.catalogObjectId || null
+            });
+            // Update lookup so we don't attempt duplicates within this run
+            catalogLookup.add(key);
+          } catch (e) {
+            console.warn('Failed to create Square COD item for delivery', del.id, e.message);
+          }
+        }
+      }
+    }
+
     return Response.json({
       success: true,
       itemCount: mergedItems.length,
       items: mergedItems,
-      locationIds: locationIds
+      locationIds,
+      createdCount: createdItems.length,
+      createdItems
     });
 
   } catch (error) {
