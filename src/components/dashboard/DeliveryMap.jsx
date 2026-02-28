@@ -2141,9 +2141,9 @@ export default function DeliveryMap({
       // CRITICAL: Admins see ALL home markers (for all drivers with active stops)
       // Drivers ALWAYS see their own home marker
       const shouldRenderHome =
-        isAppOwner(currentUser) || // App owner sees all home markers
-        isCurrentUserAdmin || // Admins see all home markers
-        (isCurrentUserDriver && driver.id === currentUser.id); // Driver ALWAYS sees their own home
+        isAppOwner(currentUser) ||
+        isCurrentUserAdmin ||
+        (isCurrentUserDriver && driver.id === currentUser.id && (selectedDriverId === 'all' || selectedDriverId === currentUser.id));
       
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
 
