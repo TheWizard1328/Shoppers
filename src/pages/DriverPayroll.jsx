@@ -1004,7 +1004,7 @@ export default function DriverPayroll() {
         </div>
 
         {/* Content Area for Screenshot */}
-        <div className="min-h-0 flex-1 overflow-auto pb-28 md:pb-10 overscroll-contain">
+        <div className="min-h-0 flex-1 overflow-auto pb-36 md:pb-12 overscroll-contain">
           {/* Grid */}
           <DriverPayrollGrid
             deliveries={cityFilteredDeliveries}

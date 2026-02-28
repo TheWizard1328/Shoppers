@@ -42,7 +42,7 @@ export default function PayrollMobileCard({
     const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
     const ytdDeliveries = deliveries.filter((d) => {
       if (!d || d.driver_id !== data.driver.id) return false;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+      const validStatus = (d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup));
       if (!validStatus) return false;
       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
       return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
@@ -200,7 +200,7 @@ export default function PayrollMobileCard({
           }
 
           {/* Deductions (if any) */}
-          {((data.deductions || data.total_deductions || data.totalDeductions || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) > 0) &&
+          {(isAdmin || ((data.deductions || data.total_deductions || data.totalDeductions || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) > 0)) &&
           <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left">
               {isAdmin && onDeductionsClick ? (
@@ -219,7 +219,7 @@ export default function PayrollMobileCard({
           }
 
           {/* Bonus (if any) */}
-          {((bonusAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) > 0) &&
+          {(isAdmin || ((bonusAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) > 0)) &&
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
               <div className="text-left">
                 {isAdmin && onBonusClick ? (
@@ -238,7 +238,7 @@ export default function PayrollMobileCard({
           }
 
           {/* App Fee (if any) */}
-          {isAdmin && ((appFeeAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0) > 0) &&
+          {isAdmin && (isPeriodEndOfMonth || ((appFeeAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0) > 0)) &&
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
               <div className="text-left">
                 {onAppFeeClick ? (
