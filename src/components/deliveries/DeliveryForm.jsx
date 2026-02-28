@@ -2031,31 +2031,21 @@ export default function DeliveryForm({
       puid = stagedPickup.puid || stagedPickup.stop_id;
       console.log(`✅ [handleAddToStaging] Using PUID from staged pickup: ${puid}`);
     } else {
-      // Check for existing pickup in allDeliveries
       const existingPickup = allDeliveries.find((d) =>
-        d &&
-        !d.patient_id &&
-        d.store_id === store.id &&
-        d.delivery_date === formData.delivery_date &&
-        d.driver_id === formData.driver_id &&
-        d.ampm_deliveries === timeSlot
+        d && !d.patient_id && d.store_id === store.id && d.delivery_date === formData.delivery_date && d.driver_id === formData.driver_id && (d.ampm_deliveries || 'AM') === timeSlot
       );
-
       if (existingPickup) {
         const now = new Date();
-        const isNotCompleted = existingPickup.status !== 'completed';
-        const wasCompletedRecently = existingPickup.actual_delivery_time &&
-          now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000;
-
-        if (isNotCompleted || wasCompletedRecently) {
-          puid = existingPickup.stop_id;
-          console.log(`✅ [handleAddToStaging] Using existing pickup PUID: ${puid}`);
-        }
+        const reusable = ['pending','en_route','in_transit'].includes(existingPickup.status) || (existingPickup.status==='completed' && existingPickup.actual_delivery_time && (now - new Date(existingPickup.actual_delivery_time) < 60*60*1000));
+        if (reusable) { puid = existingPickup.stop_id; }
       }
-
       if (!puid) {
-        puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
-        console.log(`✅ [handleAddToStaging] Using calculated PUID: ${puid} (pickup will be created on Done)`);
+        try {
+          const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: store.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, ampmDeliveries: timeSlot });
+          puid = r.data?.puid || getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
+        } catch {
+          puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
+        }
       }
     }
 
@@ -4414,36 +4404,25 @@ export default function DeliveryForm({
     setStagedDeliveries((prev) => [...prev, newStagedItem]);
     setHasChanges(true);
 
-    // Calculate PUID locally if not found in staged
+    // Determine or create PUID if not found in staged
     if (!puid) {
-      const existingPickup = allDeliveries.find((d) =>
-      d &&
-      !d.patient_id &&
-      d.store_id === projected.store_id &&
-      d.delivery_date === formData.delivery_date &&
-      d.driver_id === autoDriverId &&
-      d.ampm_deliveries === timeSlot
-      );
-
+      const existingPickup = allDeliveries.find((d) => d && !d.patient_id && d.store_id === projected.store_id && d.delivery_date === formData.delivery_date && d.driver_id === autoDriverId && (d.ampm_deliveries || 'AM') === timeSlot);
+      let reusable = false;
       if (existingPickup) {
         const now = new Date();
-        const isNotCompleted = existingPickup.status !== 'completed';
-        const wasCompletedRecently = existingPickup.actual_delivery_time &&
-        now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000;
-
-        if (isNotCompleted || wasCompletedRecently) {
-          puid = existingPickup.stop_id;
+        reusable = ['pending','en_route','in_transit'].includes(existingPickup.status) || (existingPickup.status==='completed' && existingPickup.actual_delivery_time && (now - new Date(existingPickup.actual_delivery_time) < 60*60*1000));
+        if (reusable) puid = existingPickup.stop_id;
+      }
+      if (!puid) {
+        try {
+          const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: store.id, deliveryDate: formData.delivery_date, driverId: autoDriverId, ampmDeliveries: timeSlot });
+          puid = r.data?.puid || getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
+        } catch {
+          puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
         }
       }
-
-      if (!puid) {
-        puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
-      }
-
       if (puid) {
-        setStagedDeliveries((prev) => prev.map((item) => 
-          item._tempId === newStagedItem._tempId ? { ...item, puid } : item
-        ));
+        setStagedDeliveries((prev) => prev.map((item) => item._tempId === newStagedItem._tempId ? { ...item, puid } : item));
       }
     }
   }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
