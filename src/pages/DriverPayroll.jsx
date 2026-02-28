@@ -755,12 +755,10 @@ export default function DriverPayroll() {
   }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex]);
   
   useEffect(() => {
-    if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
-    
-    // Reset on manual changes (year/cycle switch)
-    if (isManualChangeRef.current) {
-      periodSelectionDoneWithRecordsRef.current = false;
-    }
+     if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
+
+     // Skip auto-selection during manual navigation
+     if (isManualChangeRef.current) return;
 
     // Use full-year records if available to evaluate previous period; fallback to current state
     const allRecords = payrollData?.payrollRecords || payrollRecords || [];
