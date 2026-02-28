@@ -2035,10 +2035,8 @@ export default function DeliveryMap({
   
   const driverHomeMarkers = useMemo(() => {
     if (!showRoutes || !currentUser || !isViewingCurrentDate) {
-      // CRITICAL: Don't clear the cache if we already have markers - preserve them during smart refresh
-      if (prevDriverHomeMarkersRef.current.length > 0) {
-        return prevDriverHomeMarkersRef.current;
-      }
+      // Do not show home markers for past dates; clear any cached markers to avoid stale display
+      prevDriverHomeMarkersRef.current = [];
       return [];
     }
 
