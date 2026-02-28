@@ -593,15 +593,17 @@ export default function DriverPayroll() {
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
     if (selectedPeriodIndex > 0) {
-      isManualChangeRef.current = false; // Allow manual navigation
-      setSelectedPeriodIndex(selectedPeriodIndex - 1);
+      isManualChangeRef.current = true; // Mark manual navigation to prevent auto-reset
+      setSelectedPeriodIndex((idx) => Math.max(0, idx - 1));
+      setTimeout(() => { isManualChangeRef.current = false; }, 200);
     }
   }, [selectedPeriodIndex]);
 
   const goToNextPeriod = useCallback(() => {
     if (selectedPeriodIndex < allPeriods.length - 1) {
-      isManualChangeRef.current = false; // Allow manual navigation
-      setSelectedPeriodIndex(selectedPeriodIndex + 1);
+      isManualChangeRef.current = true; // Mark manual navigation to prevent auto-reset
+      setSelectedPeriodIndex((idx) => Math.min(allPeriods.length - 1, idx + 1));
+      setTimeout(() => { isManualChangeRef.current = false; }, 200);
     }
   }, [selectedPeriodIndex, allPeriods.length]);
 
