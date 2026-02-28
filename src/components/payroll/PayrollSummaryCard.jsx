@@ -407,18 +407,16 @@ export default function PayrollSummaryCard({
           driversNeedingRecords.map((driverId) => {
             const driverData = payrollData.find((d) => d.driver.id === driverId);
 
-            // Calculate App Fee based on ENTIRE CALENDAR MONTH pool × driver's App Fee %
-            const appFeePercent = driverData?.appFeePercentage || 0;
-            const monthStart = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-            const monthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-            let totalBillableCount = 0;
-
+            // Calculate period app fee amount: billable deliveries * app fee % / 100
+            let periodAppFeeDeliveries = 0;
             deliveries.forEach((d) => {
-              if (!d || !d.store_id) return;
+              if (!d || d.driver_id !== driverId) return;
               const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-              if (deliveryDate < monthStart || deliveryDate > monthEnd) return;
+              const periodStart = new Date(periodStartStr + 'T00:00:00');
+              const periodEnd = new Date(periodEndStr + 'T00:00:00');
+              if (deliveryDate < periodStart || deliveryDate > periodEnd) return;
 
-              const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+              const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
               if (!validStatus) return;
               if (!d.patient_id && !d.after_hours_pickup) return;
 
@@ -427,16 +425,23 @@ export default function PayrollSummaryCard({
 
               let paysAppFees = store.pays_app_fees || false;
               if (store.app_fee_history && store.app_fee_history.length > 0) {
-                const sortedHistory = [...store.app_fee_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-                const applicableEntry = sortedHistory.find((entry) => new Date(entry.effective_date) <= deliveryDate);
-                if (applicableEntry) paysAppFees = applicableEntry.pays_app_fees;
+                const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                );
+                const applicableEntry = sortedHistory.find((entry) =>
+                new Date(entry.effective_date) <= deliveryDate
+                );
+                if (applicableEntry) {
+                  paysAppFees = applicableEntry.pays_app_fees;
+                }
               }
 
-              if (paysAppFees) totalBillableCount++;
+              if (paysAppFees) {
+                periodAppFeeDeliveries++;
+              }
             });
 
-            const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
-            const periodAppFeeAmount = totalMonthlyAppFees * appFeePercent / 100;
+            const periodAppFeeAmount = periodAppFeeDeliveries * (driverData?.appFeePercentage || 0) / 100;
 
             const recordData = {
               driver_id: driverId,
@@ -518,29 +523,41 @@ export default function PayrollSummaryCard({
           return;
         }
 
-        // Calculate App Fee amount for ENTIRE CALENDAR MONTH pool × driver's App Fee %
-        const monthStart = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-        const monthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-        let totalBillableCountNew = 0;
+        // Calculate app fee amount for this period
+        let saveAppFeeDeliveries = 0;
         deliveries.forEach((d) => {
-          if (!d || !d.store_id) return;
+          if (!d || d.driver_id !== driverId) return;
           const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-          if (deliveryDate < monthStart || deliveryDate > monthEnd) return;
-          const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+          const periodStart = new Date(periodStartStr + 'T00:00:00');
+          const periodEnd = new Date(periodEndStr + 'T00:00:00');
+          if (deliveryDate < periodStart || deliveryDate > periodEnd) return;
+
+          const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
           if (!validStatus) return;
           if (!d.patient_id && !d.after_hours_pickup) return;
+
           const store = stores.find((s) => s?.id === d.store_id);
           if (!store) return;
+
           let paysAppFees = store.pays_app_fees || false;
           if (store.app_fee_history && store.app_fee_history.length > 0) {
-            const sortedHistory = [...store.app_fee_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-            const applicableEntry = sortedHistory.find((entry) => new Date(entry.effective_date) <= deliveryDate);
-            if (applicableEntry) paysAppFees = applicableEntry.pays_app_fees;
+            const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+            );
+            const applicableEntry = sortedHistory.find((entry) =>
+            new Date(entry.effective_date) <= deliveryDate
+            );
+            if (applicableEntry) {
+              paysAppFees = applicableEntry.pays_app_fees;
+            }
           }
-          if (paysAppFees) totalBillableCountNew++;
+
+          if (paysAppFees) {
+            saveAppFeeDeliveries++;
+          }
         });
-        const totalMonthlyAppFeesNew = totalBillableCountNew * appFeesPerDelivery;
-        const saveAppFeeAmount = totalMonthlyAppFeesNew * (driverData.appFeePercentage || 0) / 100;
+
+        const saveAppFeeAmount = saveAppFeeDeliveries * (driverData.appFeePercentage || 0) / 100;
 
         const newRecordData = {
           driver_id: driverId,
@@ -636,29 +653,41 @@ export default function PayrollSummaryCard({
       const existingRecord = getDriverPayrollRecord(driverData.driver.id);
       const edit = driverEdits[driverData.driver.id] || {};
 
-      // Calculate App Fee amount for ENTIRE CALENDAR MONTH pool × App Fee % at finalize time
-      const monthStartF = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-      const monthEndF = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-      let totalBillableFinalize = 0;
+      // Calculate app fee amount for finalization
+      let finalizeAppFeeDeliveries = 0;
       deliveries.forEach((d) => {
-        if (!d || !d.store_id) return;
+        if (!d || d.driver_id !== driverData.driver.id) return;
         const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-        if (deliveryDate < monthStartF || deliveryDate > monthEndF) return;
-        const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+        const periodStart = new Date(periodStartStr + 'T00:00:00');
+        const periodEnd = new Date(periodEndStr + 'T00:00:00');
+        if (deliveryDate < periodStart || deliveryDate > periodEnd) return;
+
+        const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
         if (!validStatus) return;
         if (!d.patient_id && !d.after_hours_pickup) return;
+
         const store = stores.find((s) => s?.id === d.store_id);
         if (!store) return;
+
         let paysAppFees = store.pays_app_fees || false;
         if (store.app_fee_history && store.app_fee_history.length > 0) {
-          const sortedHistory = [...store.app_fee_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-          const applicableEntry = sortedHistory.find((entry) => new Date(entry.effective_date) <= deliveryDate);
-          if (applicableEntry) paysAppFees = applicableEntry.pays_app_fees;
+          const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+          new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+          );
+          const applicableEntry = sortedHistory.find((entry) =>
+          new Date(entry.effective_date) <= deliveryDate
+          );
+          if (applicableEntry) {
+            paysAppFees = applicableEntry.pays_app_fees;
+          }
         }
-        if (paysAppFees) totalBillableFinalize++;
+
+        if (paysAppFees) {
+          finalizeAppFeeDeliveries++;
+        }
       });
-      const totalMonthlyAppFeesFinalize = totalBillableFinalize * appFeesPerDelivery;
-      const finalizeAppFeeAmount = totalMonthlyAppFeesFinalize * (edit.appFeePercent || 0) / 100;
+
+      const finalizeAppFeeAmount = finalizeAppFeeDeliveries * (edit.appFeePercent || 0) / 100;
 
       const payrollRecord = {
         driver_id: driverData.driver.id,
@@ -1237,34 +1266,45 @@ export default function PayrollSummaryCard({
 
       // App Fee (admin/app owner only)
       if (currentUser && (userHasRole(currentUser, 'admin') || isAppOwner(currentUser))) {
-        // App Fee payable = driver's App Fee % of the ENTIRE CALENDAR MONTH fee pool
-        const appFeePercentPDF = driverData.appFeePercentage || 0;
-        const monthStartPDF = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-        const monthEndPDF = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-        let totalBillablePDF = 0;
-        deliveries.forEach((d) => {
-          if (!d || !d.store_id) return;
+        // Calculate app fee based on stores that pay app fees
+        let appFeeTotal = 0;
+        const periodDeliveries = deliveries.filter((d) => {
+          if (!d || d.driver_id !== selectedDriverId) return false;
+          const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+          if (!validStatus) return false;
+          if (!d.patient_id && !d.after_hours_pickup) return false;
           const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-          if (deliveryDate < monthStartPDF || deliveryDate > monthEndPDF) return;
-          const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
-          if (!validStatus) return;
-          if (!d.patient_id && !d.after_hours_pickup) return;
+          return deliveryDate >= currentPeriod.start && deliveryDate <= currentPeriod.end;
+        });
+
+        periodDeliveries.forEach((d) => {
           const store = stores.find((s) => s?.id === d.store_id);
           if (!store) return;
+
+          // Check if store pays app fees during this delivery date
           let paysAppFees = store.pays_app_fees || false;
           if (store.app_fee_history && store.app_fee_history.length > 0) {
-            const sortedHistory = [...store.app_fee_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-            const applicableEntry = sortedHistory.find((entry) => new Date(entry.effective_date) <= deliveryDate);
-            if (applicableEntry) paysAppFees = applicableEntry.pays_app_fees;
+            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+            const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+            );
+            const applicableEntry = sortedHistory.find((entry) =>
+            new Date(entry.effective_date) <= deliveryDate
+            );
+            if (applicableEntry) {
+              paysAppFees = applicableEntry.pays_app_fees;
+            }
           }
-          if (paysAppFees) totalBillablePDF++;
-        });
-        const totalMonthlyAppFeesPDF = totalBillablePDF * appFeesPerDelivery;
-        const appFeeTotal = totalMonthlyAppFeesPDF * appFeePercentPDF / 100;
 
-        if (appFeeTotal > 0 && appFeePercentPDF > 0) {
+          if (paysAppFees && driverData.appFeePercentage > 0) {
+            appFeeTotal += driverData.payRate * driverData.appFeePercentage;
+          }
+        });
+
+        if (appFeeTotal > 0 && driverData.appFeePercentage > 0) {
           doc.setFont('helvetica', 'normal');
-          doc.text(`App Fee (${appFeePercentPDF.toFixed(0)}%):`, col1_rowTitles, y);
+          const appFeePercentage = driverData.appFeePercentage * 100;
+          doc.text(`App Fee (${appFeePercentage.toFixed(0)}%):`, col1_rowTitles, y);
           doc.text(`$`, col3_calcTotals + 1, y);
           doc.text(appFeeTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
           y += lineHeight;
@@ -1804,54 +1844,67 @@ export default function PayrollSummaryCard({
   const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
+  // Admin Metrics-compatible helpers for App Fee billable logic
+  const isReturn = (d) => {
+    if (!d) return false;
+    const notes = (d.delivery_notes || '');
+    const patientName = (d.patient_name || '');
+    if (notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)')) return true;
+    const returnRegex = /\breturn\b/i;
+    return returnRegex.test(notes) || returnRegex.test(patientName);
+  };
+
+  const isBillableForFees = (d, store) => {
+    if (!d || !store?.pays_app_fees) return false;
+    // After-hours pickups (completed or cancelled)
+    if (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')) return true;
+    // Patient deliveries (completed/failed) OR explicit returns
+    if (d.patient_id && (
+      (d.status === 'completed' && !isReturn(d)) ||
+      (d.status === 'failed' && !isReturn(d)) ||
+      isReturn(d)
+    )) return true;
+    return false;
+  };
+
+  const getMonthlyAppFees = () => {
+    if (!currentPeriod) return 0;
+    const mStart = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+    const mEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+    let count = 0;
+    deliveries.forEach((d) => {
+      if (!d || !d.store_id || !d.delivery_date) return;
+      const dt = new Date(d.delivery_date + 'T00:00:00');
+      if (dt < mStart || dt > mEnd) return;
+      const store = stores.find((s) => s?.id === d.store_id);
+      if (isBillableForFees(d, store)) count++;
+    });
+    return count * appFeesPerDelivery;
+  };
+
+  const getYtdAppFees = () => {
+    if (!currentPeriod) return 0;
+    const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
+    const monthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+    let count = 0;
+    deliveries.forEach((d) => {
+      if (!d || !d.store_id || !d.delivery_date) return;
+      const dt = new Date(d.delivery_date + 'T00:00:00');
+      if (dt < yearStart || dt > monthEnd) return;
+      const store = stores.find((s) => s?.id === d.store_id);
+      if (isBillableForFees(d, store)) count++;
+    });
+    return count * appFeesPerDelivery;
+  };
+
   // Calculate AppFeeAmount for a driver - distribute from total monthly app fee pool
   // CRITICAL: Use CALENDAR MONTH, not pay cycle, since app fees are collected monthly
   const calculateAppFeeAmount = useCallback((driverId, appFeePercent) => {
     if (appFeePercent <= 0 || appFeesPerDelivery === 0) return 0;
-
-    // CRITICAL: Get calendar month (1st to last day), not pay period
-    const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-    const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-
-    // CRITICAL: Count only deliveries from stores that were PAYING FEES during those delivery dates
-    let totalBillableCount = 0;
-
-    // Count deliveries for each store - using CALENDAR MONTH
-    deliveries.forEach((d) => {
-      if (!d || !d.store_id) return;
-      const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-      if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-
-      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-      if (!validStatus) return;
-      if (!d.patient_id && !d.after_hours_pickup) return;
-
-      const store = stores.find((s) => s?.id === d.store_id);
-      if (!store) return;
-
-      // CRITICAL: Check if store was paying app fees at the time of delivery
-      let paysAppFees = store.pays_app_fees || false;
-      if (store.app_fee_history && store.app_fee_history.length > 0) {
-        const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-        new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-        );
-        // Find the history entry that applies to this delivery date
-        const applicableEntry = sortedHistory.find((entry) =>
-        new Date(entry.effective_date) <= deliveryDate
-        );
-        if (applicableEntry) {
-          paysAppFees = applicableEntry.pays_app_fees;
-        }
-      }
-
-      if (paysAppFees) {
-        totalBillableCount++;
-      }
-    });
-
-    const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+    // Use the same monthly pool as Admin Metrics
+    const totalMonthlyAppFees = getMonthlyAppFees();
     return totalMonthlyAppFees * appFeePercent / 100;
-  }, [deliveries, stores, currentPeriod, appFeesPerDelivery]);
+  }, [getMonthlyAppFees, appFeesPerDelivery]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
@@ -2318,32 +2371,7 @@ export default function PayrollSummaryCard({
                                 value={driverAppFeeAmount}
                                 onChange={(e) => {
                                   const newAmount = parseFloat(e.target.value) || 0;
-                                  let totalBillableCount = 0;
-                                  const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                                  const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                  deliveries.forEach((d) => {
-                                    if (!d || !d.store_id) return;
-                                    const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                    if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                    const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                    if (!validStatus) return;
-                                    if (!d.patient_id && !d.after_hours_pickup) return;
-                                    const store = stores.find((s) => s?.id === d.store_id);
-                                    if (!store) return;
-                                    let paysAppFees = store.pays_app_fees || false;
-                                    if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                      const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                      new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                      );
-                                      if (sortedHistory[0]) {
-                                        paysAppFees = sortedHistory[0].pays_app_fees;
-                                      }
-                                    }
-                                    if (paysAppFees) {
-                                      totalBillableCount++;
-                                    }
-                                  });
-                                  const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                                  const totalMonthlyAppFees = getMonthlyAppFees();
                                   const newPercent = totalMonthlyAppFees > 0 ? newAmount / totalMonthlyAppFees * 100 : 0;
 
                                   setDriverEdits((prev) => ({
@@ -2578,39 +2606,7 @@ export default function PayrollSummaryCard({
                       onChange={(e) => {
                         const newAmount = parseFloat(e.target.value) || 0;
                         // Recalculate percentage: (amount / total_monthly_app_fees) * 100
-                        // Need to get total monthly app fees for this calculation
-                        let totalBillableCount = 0;
-                        const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                        const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-
-                        deliveries.forEach((d) => {
-                          if (!d || !d.store_id) return;
-                          const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                          if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-
-                          const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                          if (!validStatus) return;
-                          if (!d.patient_id && !d.after_hours_pickup) return;
-
-                          const store = stores.find((s) => s?.id === d.store_id);
-                          if (!store) return;
-
-                          let paysAppFees = store.pays_app_fees || false;
-                          if (store.app_fee_history && store.app_fee_history.length > 0) {
-                            const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                            );
-                            if (sortedHistory[0]) {
-                              paysAppFees = sortedHistory[0].pays_app_fees;
-                            }
-                          }
-
-                          if (paysAppFees) {
-                            totalBillableCount++;
-                          }
-                        });
-
-                        const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                        const totalMonthlyAppFees = getMonthlyAppFees();
                         const newPercent = totalMonthlyAppFees > 0 ? newAmount / totalMonthlyAppFees * 100 : 0;
 
                         setDriverEdits((prev) => ({
@@ -2974,35 +2970,7 @@ export default function PayrollSummaryCard({
                           </td>
                           <td className="text-right pr-0.5">$</td>
                           <td className="text-right font-semibold" style={{ width: '60px' }}>
-                            {(() => {
-                                // Calculate total billable deliveries in calendar month
-                                const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                                const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                let totalBillableCount = 0;
-                                deliveries.forEach((d) => {
-                                  if (!d || !d.store_id) return;
-                                  const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                  if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                  const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                  if (!validStatus) return;
-                                  if (!d.patient_id && !d.after_hours_pickup) return;
-                                  const store = stores.find((s) => s?.id === d.store_id);
-                                  if (!store) return;
-                                  let paysAppFees = store.pays_app_fees || false;
-                                  if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                    const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                    new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                    );
-                                    if (sortedHistory[0]) {
-                                      paysAppFees = sortedHistory[0].pays_app_fees;
-                                    }
-                                  }
-                                  if (paysAppFees) {
-                                    totalBillableCount++;
-                                  }
-                                });
-                                return (totalBillableCount * appFeesPerDelivery).toFixed(2);
-                              })()}
+                            {getMonthlyAppFees().toFixed(2)}
                           </td>
                         </tr>
                       </tbody>
@@ -3020,38 +2988,7 @@ export default function PayrollSummaryCard({
                         <tr style={{ color: 'var(--text-slate-600)' }}>
                           <td className="text-right pr-0.5">$</td>
                           <td className="text-right font-semibold" style={{ width: '60px' }}>
-                            {(() => {
-                                // Calculate YTD total app fees (Jan 1 to current month end)
-                                const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-                                const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                let ytdTotalBillable = 0;
-                                deliveries.forEach((d) => {
-                                  if (!d || !d.store_id) return;
-                                  const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                  if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                                  const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                  if (!validStatus) return;
-                                  if (!d.patient_id && !d.after_hours_pickup) return;
-                                  const store = stores.find((s) => s?.id === d.store_id);
-                                  if (!store) return;
-                                  let paysAppFees = store.pays_app_fees || false;
-                                  if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                    const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                    new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                    );
-                                    const applicableEntry = sortedHistory.find((entry) =>
-                                    new Date(entry.effective_date) <= deliveryDate
-                                    );
-                                    if (applicableEntry) {
-                                      paysAppFees = applicableEntry.pays_app_fees;
-                                    }
-                                  }
-                                  if (paysAppFees) {
-                                    ytdTotalBillable++;
-                                  }
-                                });
-                                return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
-                              })()}
+                            {getYtdAppFees().toFixed(2)}
                           </td>
                         </tr>
                       </tbody>
@@ -3091,70 +3028,11 @@ export default function PayrollSummaryCard({
                     <div className="text-left">Total Fees:</div>
                     <div className="text-right pr-0.5">$</div>
                     <div className="text-right font-semibold">
-                      {(() => {
-                          // Calculate total billable deliveries in calendar month
-                          const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                          const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                          let totalBillableCount = 0;
-                          deliveries.forEach((d) => {
-                            if (!d || !d.store_id) return;
-                            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                            if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                            if (!validStatus) return;
-                            if (!d.patient_id && !d.after_hours_pickup) return;
-                            const store = stores.find((s) => s?.id === d.store_id);
-                            if (!store) return;
-                            let paysAppFees = store.pays_app_fees || false;
-                            if (store.app_fee_history && store.app_fee_history.length > 0) {
-                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                              );
-                              if (sortedHistory[0]) {
-                                paysAppFees = sortedHistory[0].pays_app_fees;
-                              }
-                            }
-                            if (paysAppFees) {
-                              totalBillableCount++;
-                            }
-                          });
-                          return (totalBillableCount * appFeesPerDelivery).toFixed(2);
-                        })()}
+                      {getMonthlyAppFees().toFixed(2)}
                     </div>
                     <div className="text-right pr-0.5">$</div>
                     <div className="text-right font-semibold">
-                      {(() => {
-                          // Calculate YTD total app fees (Jan 1 to current month end)
-                          const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-                          const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                          let ytdTotalBillable = 0;
-                          deliveries.forEach((d) => {
-                            if (!d || !d.store_id) return;
-                            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                            if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                            if (!validStatus) return;
-                            if (!d.patient_id && !d.after_hours_pickup) return;
-                            const store = stores.find((s) => s?.id === d.store_id);
-                            if (!store) return;
-                            let paysAppFees = store.pays_app_fees || false;
-                            if (store.app_fee_history && store.app_fee_history.length > 0) {
-                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                              );
-                              const applicableEntry = sortedHistory.find((entry) =>
-                              new Date(entry.effective_date) <= deliveryDate
-                              );
-                              if (applicableEntry) {
-                                paysAppFees = applicableEntry.pays_app_fees;
-                              }
-                            }
-                            if (paysAppFees) {
-                              ytdTotalBillable++;
-                            }
-                          });
-                          return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
-                        })()}
+                      {getYtdAppFees().toFixed(2)}
                     </div>
                   </div>
                 </div>
