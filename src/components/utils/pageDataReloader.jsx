@@ -1,6 +1,6 @@
 /**
- * Page-specific data reloader from offline database
- * Ensures each page has fresh data based on current filters
+ * Page-specific data reloader from offline database (JSX module wrapper)
+ * This file exists to satisfy dynamic imports that reference .jsx extension.
  */
 
 export const pageDataReloader = {
