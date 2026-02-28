@@ -15,7 +15,7 @@ import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle } from "lucide-
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
-import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
+import { getPickupStopIdForDelivery, determineDeliveryAMPM, getStoreAssignedTimeSlot } from '../utils/ampmUtils';
 import { isAppOwner } from '../utils/userRoles';
 import BarcodeScanner from './BarcodeScanner';
 import PatientMatchPopup from './PatientMatchPopup';
@@ -96,6 +96,20 @@ export default function DeliveryFormView({
     new: sortedStagedDeliveries.filter(s => !s.id).length,
     pending: sortedStagedDeliveries.filter(s => s.id).length,
   };
+
+  // Require driver selection when no regular pickup exists for the patient's store/date/slot
+  const requiresDriverSelection = (() => {
+    if (delivery || isPickupMode) return false; // only for new patient deliveries
+    if (formData?.driver_id) return false; // driver already chosen
+    const patientToCheck = selectedPatient || (formData?.patient_id && patients ? patients.find(p => p && p.id === formData.patient_id) : null);
+    const storeId = patientToCheck?.store_id || formData?.store_id;
+    if (!storeId || !formData?.delivery_date) return false; // don't block when incomplete
+    const storeObj = stores?.find(s => s && s.id === storeId);
+    const slot = (determineDeliveryAMPM(patientToCheck) || getStoreAssignedTimeSlot(storeObj, formData.delivery_date, allDeliveries) || 'AM');
+    const existsInStaged = (stagedDeliveries || []).some(d => !d.patient_id && d.store_id === storeId && d.delivery_date === formData.delivery_date && (d.ampm_deliveries || 'AM') === slot);
+    const existsInSaved = (allDeliveries || []).some(d => d && !d.patient_id && d.store_id === storeId && d.delivery_date === formData.delivery_date && (d.ampm_deliveries || 'AM') === slot && !['completed','cancelled','returned'].includes(d.status));
+    return !(existsInStaged || existsInSaved);
+  })();
 
   const stagedPanelProps = {
     sortedStagedDeliveries, sortedProjectedDeliveries, stores, patients,
@@ -490,7 +504,7 @@ export default function DeliveryFormView({
                     <Edit2 className="w-4 h-4" />Update
                   </Button>
                 ) : buttonState === 'add' ? (
-                  <Button type="button" size="sm" onClick={handleAddToStaging} className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || !isFormValid || isPatientFormOpen}>
+                  <Button type="button" size="sm" onClick={handleAddToStaging} className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || !isFormValid || isPatientFormOpen || requiresDriverSelection} title={requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
                     <Plus className="w-4 h-4" />Add
                   </Button>
                 ) : (
