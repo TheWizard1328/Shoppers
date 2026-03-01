@@ -132,13 +132,14 @@ export default function PayrollMobileCard({
 
   const ytdTotals = calculateYTDTotals();
 
-  // Period values aligned with desktop
-  const periodNet = (data?.grandTotal || 0);
-  const periodTax = (data?.taxAmount || 0);
-  const periodDeductions = (payrollRecord?.total_deductions ?? (data?.deductions || data?.total_deductions || data?.totalDeductions || 0));
-  const periodBonus = (bonusAmount || 0);
-  const periodAppFee = (appFeeAmount || 0);
-  const periodGross = periodNet + periodTax - periodDeductions + periodBonus + periodAppFee;
+  // Period values aligned with desktop with 2-decimal rounding per component to avoid penny drift
+  const r2 = (n) => Math.round((n || 0) * 100) / 100;
+  const periodNet = r2(data?.grandTotal || 0);
+  const periodTax = r2(data?.taxAmount || 0);
+  const periodDeductions = r2(payrollRecord?.total_deductions ?? (data?.deductions || data?.total_deductions || data?.totalDeductions || 0));
+  const periodBonus = r2(bonusAmount || 0);
+  const periodAppFee = r2(appFeeAmount || 0);
+  const periodGross = r2(periodNet + periodTax - periodDeductions + periodBonus + periodAppFee);
 
 
 
@@ -258,7 +259,7 @@ export default function PayrollMobileCard({
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Tax:</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
-            <div className="text-right font-semibold">{(data.taxAmount || 0).toFixed(2)}</div>
+            <div className="text-right font-semibold">{periodTax.toFixed(2)}</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0).toFixed(2)}</div>
           </div>
