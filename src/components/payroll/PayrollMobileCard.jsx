@@ -31,6 +31,50 @@ export default function PayrollMobileCard({
   onNotesClick
 }) {
   const [expandedSection, setExpandedSection] = useState(null);
+  const { currentUser } = useUser();
+  const [payrollRecordId, setPayrollRecordId] = useState(null);
+  const [adminNotes, setAdminNotes] = useState('');
+  const [driverNotes, setDriverNotes] = useState('');
+  const [isSavingAdmin, setIsSavingAdmin] = useState(false);
+  const [isSavingDriver, setIsSavingDriver] = useState(false);
+
+  React.useEffect(() => {
+    if (!currentPeriod || !data?.driver?.id) return;
+    const startStr = currentPeriod.start.toISOString().split('T')[0];
+    const endStr = currentPeriod.end.toISOString().split('T')[0];
+    (async () => {
+      try {
+        const list = await base44.entities.Payroll.filter({ driver_id: data.driver.id, pay_period_start: startStr, pay_period_end: endStr }, '-updated_date', 1);
+        const rec = Array.isArray(list) ? list[0] : list;
+        if (rec) {
+          setPayrollRecordId(rec.id);
+          setAdminNotes(rec.admin_notes || '');
+          setDriverNotes(rec.driver_notes || '');
+        } else {
+          setPayrollRecordId(null);
+          setAdminNotes('');
+          setDriverNotes('');
+        }
+      } catch (_) { /* no-op */ }
+    })();
+  }, [currentPeriod?.start, currentPeriod?.end, data?.driver?.id]);
+
+  const canEditDriverNotes = isAdmin || (currentUser?.id === data.driver.id);
+  const canEditAdminNotes = !!isAdmin;
+
+  const saveAdminNotes = async (value) => {
+    if (!payrollRecordId || !canEditAdminNotes) return;
+    setIsSavingAdmin(true);
+    try { await base44.entities.Payroll.update(payrollRecordId, { admin_notes: value }); }
+    finally { setIsSavingAdmin(false); }
+  };
+
+  const saveDriverNotes = async (value) => {
+    if (!payrollRecordId || !canEditDriverNotes) return;
+    setIsSavingDriver(true);
+    try { await base44.entities.Payroll.update(payrollRecordId, { driver_notes: value }); }
+    finally { setIsSavingDriver(false); }
+  };
 
   const toggleSection = (section) => {
     setExpandedSection(expandedSection === section ? null : section);
@@ -272,9 +316,34 @@ export default function PayrollMobileCard({
             <div className="text-right">{((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0)).toFixed(2)}</div>
           </div>
 
-          {/* Notes Trigger */}
-          <div className="mt-3">
-            <button onClick={() => onNotesClick && onNotesClick()} className="text-xs text-blue-600 hover:text-blue-700 font-medium">Notes</button>
+          {/* Inline Notes (hidden from exports) */}
+          <div data-notes-section="true" className="mt-3 space-y-3">
+            {isAdmin && (
+              <div>
+                <div className="text-xs font-semibold text-slate-700 mb-1">Admin Notes</div>
+                <textarea
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
+                  onBlur={() => saveAdminNotes(adminNotes)}
+                  disabled={!canEditAdminNotes || !payrollRecordId}
+                  className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white disabled:opacity-60"
+                  placeholder={payrollRecordId ? "Private notes (admins only)" : "Notes unavailable (no record yet)"}
+                />
+                {isSavingAdmin && <div className="text-[10px] text-slate-500 mt-1">Saving...</div>}
+              </div>
+            )}
+            <div>
+              <div className="text-xs font-semibold text-slate-700 mb-1">Driver Notes</div>
+              <textarea
+                value={driverNotes}
+                onChange={(e) => setDriverNotes(e.target.value)}
+                onBlur={() => saveDriverNotes(driverNotes)}
+                disabled={!canEditDriverNotes || !payrollRecordId}
+                className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white disabled:opacity-60"
+                placeholder={payrollRecordId ? "Visible to driver + admins" : "Notes unavailable (no record yet)"}
+              />
+              {isSavingDriver && <div className="text-[10px] text-slate-500 mt-1">Saving...</div>}
+            </div>
           </div>
         </div>
       </div>

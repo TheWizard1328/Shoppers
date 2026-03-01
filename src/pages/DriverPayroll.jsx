@@ -463,9 +463,11 @@ export default function DriverPayroll() {
 
       // Hide App Fee % rows
       const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
-      appFeeRows.forEach(row => {
-        row.style.display = 'none';
-      });
+      appFeeRows.forEach(row => { row.style.display = 'none'; });
+
+      // Hide Notes sections
+      const notesSections = contentRef.current.querySelectorAll('[data-notes-section="true"]');
+      notesSections.forEach(el => { el.style.display = 'none'; });
 
       // Small delay to ensure UI updates
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -497,9 +499,11 @@ export default function DriverPayroll() {
       });
 
       // Show App Fee % rows again
-      appFeeRows.forEach(row => {
-        row.style.display = '';
-      });
+      appFeeRows.forEach(row => { row.style.display = ''; });
+
+      // Show Notes sections again
+      const notesSections = contentRef.current.querySelectorAll('[data-notes-section="true"]');
+      notesSections.forEach(el => { el.style.display = ''; });
 
       const dataUrl = canvas.toDataURL('image/png');
       setScreenshotDataUrl(dataUrl);
