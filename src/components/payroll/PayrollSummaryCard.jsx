@@ -19,7 +19,7 @@ import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
-import PayrollMobileCard from './PayrollMobileCard'; import LeftStatsAndNotes from './LeftStatsAndNotes';
+import PayrollMobileCard from './PayrollMobileCard';
 
 /**
  * Payroll Summary Card
@@ -82,8 +82,8 @@ export default function PayrollSummaryCard({
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !isAdmin;
 
   // Format period dates for querying
-  const periodStartStr = currentPeriod?.start ? currentPeriod.start.toISOString().split('T')[0] : null;
-  const periodEndStr = currentPeriod?.end ? currentPeriod.end.toISOString().split('T')[0] : null;
+  const periodStartStr = currentPeriod?.start ? (()=>{const d=new Date(currentPeriod.start);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})() : null;
+  const periodEndStr = currentPeriod?.end ? (()=>{const d=new Date(currentPeriod.end);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})() : null;
 
   // Calculate payroll for each driver for the current period - MOVED BEFORE OTHER EFFECTS
   const payrollData = useMemo(() => {
@@ -282,8 +282,8 @@ export default function PayrollSummaryCard({
         initialYtdCalculationDone.current = true;
 
         // Fetch all payroll records from year start to current period end
-        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
-        const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+        const yearStart = (()=>{const d=new Date(currentPeriod.start.getFullYear(),0,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
+        const periodEnd = (()=>{const d=new Date(currentPeriod.end);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
 
         console.log(`🧮 [Payroll] YTD calculation - fetching from ${yearStart} to ${periodEnd}`);
 
@@ -323,8 +323,8 @@ export default function PayrollSummaryCard({
       try {
         // CRITICAL: Fetch ALL payroll records from Jan 1 to current period end (inclusive)
         // This ensures we get all prior periods + current period for YTD calculations
-        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
-        const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+        const yearStart = (()=>{const d=new Date(currentPeriod.start.getFullYear(),0,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
+        const periodEnd = (()=>{const d=new Date(currentPeriod.end);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
 
         console.log(`📥 [Payroll] Fetching records from ${yearStart} to ${periodEnd} (current period: ${periodStartStr} - ${periodEndStr})`);
 
@@ -1767,7 +1767,7 @@ export default function PayrollSummaryCard({
     payrollData.forEach((data) => {
       const year = currentPeriod.start.getFullYear();
       const yearStart = `${year}-01-01`;
-      const currentPeriodEnd = currentPeriod.end.toISOString().split('T')[0];
+      const currentPeriodEnd = (()=>{const d=new Date(currentPeriod.end);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
 
       // CRITICAL: Include ONLY payroll records from Jan 1 to current period end (inclusive) for this driver
       const ytdRecords = payrollRecords.filter((r) => {
@@ -2837,18 +2837,43 @@ export default function PayrollSummaryCard({
               {/* Stats and Pay Summary - Side by Side */}
               <div>
                 <div className="flex justify-between items-start">
-                  <LeftStatsAndNotes
-                    data={data}
-                    formatCurrency={formatCurrency}
-                    isAdmin={isAdmin}
-                    isDriver={isDriver}
-                    currentUser={currentUser}
-                    driverKey={driverKey}
-                    setDeductionOverlayDriverId={setDeductionOverlayDriverId}
-                    setBonusOverlayDriverId={setBonusOverlayDriverId}
-                    getDriverPayrollRecord={getDriverPayrollRecord}
-                    savePayrollChanges={savePayrollChanges}
-                  />
+                  {/* Left: 8 Stats in 4 columns x 2 rows with fixed column widths */}
+                  <div className="grid text-xs" style={{ gridTemplateColumns: '150px 140px 140px 120px', gap: '1rem 1rem', rowGap: '0.125rem' }}>
+                  {/* Row 1: Rates */}
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">{data.failedCount}</span>
+                  </div>
+                  {/* Row 2: Totals */}
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
+                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.storeReturnCount || 0}</span>
+                  </div>
+                </div>
 
                 {/* Right: Pay Summary with YTD */}
                 <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
