@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X, Save, Share2, Loader2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import ScreenshotShareModal from '../common/ScreenshotShareModal';
@@ -19,7 +18,8 @@ import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
-import PayrollMobileCard from './PayrollMobileCard'; // PeriodColumnWithNotes is used below via JSX and is auto-resolved by bundler
+import PayrollMobileCard from './PayrollMobileCard';
+import PeriodColumnWithNotes from './PeriodColumnWithNotes'; // PeriodColumnWithNotes is used below via JSX and is auto-resolved by bundler
 
 /**
  * Payroll Summary Card
