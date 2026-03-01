@@ -19,6 +19,7 @@ import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
+import PayrollMobileCard from './PayrollMobileCard';
 
 /**
  * Payroll Summary Card
@@ -1944,16 +1945,26 @@ export default function PayrollSummaryCard({
         }
       `}</style>
      <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-      <CardHeader className="pb-3">
-       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-         <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
-           <Calculator className="w-5 h-5" />
-           Payroll Summary
-         </CardTitle>
-         <div className="flex flex-wrap gap-2 items-center justify-between md:justify-end" id="payroll-controls">
-           {/* Admin View: Show finalization progress - multi-driver view only */}
-             {isAdmin && driversWithDeliveriesIds.length > 0 &&
-             selectedDriverId === 'all' &&
+       <CardHeader className="pb-3">
+        {/* Mobile View: 2 rows */}
+        <div className="md:hidden flex flex-col gap-2">
+          {/* Row 1: Title and PDF Button */}
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+              <Calculator className="w-5 h-5" />
+              Payroll
+            </CardTitle>
+            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 h-8" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <Download className="w-4 h-4" />
+              PDF
+            </Button>
+          </div>
+          
+          {/* Row 2: Confirmed Drivers and Finalize Button */}
+          <div className="flex items-center justify-between">
+            {/* Admin View: Show finalization progress - multi-driver view only */}
+              {isAdmin && driversWithDeliveriesIds.length > 0 &&
+              selectedDriverId === 'all' &&
               <>
                 {!isAdminFinalized &&
                 <>
@@ -2018,6 +2029,84 @@ export default function PayrollSummaryCard({
           </div>
         </div>
         
+        {/* Desktop View: Original single row layout */}
+        <div className="hidden md:flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+            <Calculator className="w-5 h-5" />
+            Payroll Summary
+          </CardTitle>
+          <div className="flex gap-2 items-center" id="payroll-controls">
+            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <Download className="w-4 h-4" />
+              PDF
+            </Button>
+            
+            {/* Driver Finalize Button - for drivers OR admin-drivers viewing their own payroll (single driver mode) */}
+            {(isDriver && selectedDriverId === currentUser?.id ||
+              isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) &&
+              !isCurrentDriverFinalized &&
+              <Button
+                size="sm"
+                onClick={() => setShowConfirmDialog(true)}
+                disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
+
+                <CheckCircle className="w-4 h-4" />
+                {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
+              </Button>
+              }
+            
+            {/* Driver Finalized Status - for drivers OR admin-drivers viewing their own payroll */}
+            {(isDriver && isCurrentDriverFinalized ||
+              isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id && isCurrentDriverFinalized) &&
+              <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+                <CheckCircle className="w-4 h-4" />
+                Confirmed
+              </div>
+              }
+
+            {/* Admin View: Show finalization progress - but only in multi-driver view, NOT if viewing single driver */}
+            {isAdmin && driversWithDeliveriesIds.length > 0 &&
+              selectedDriverId === 'all' &&
+              <>
+                {!isAdminFinalized &&
+                <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      <Users className="w-3 h-3 inline mr-1" />
+                      {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
+                    </span>
+                    <Button
+                    size="sm"
+                    onClick={() => setShowConfirmDialog(true)}
+                    disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
+                    className={`gap-2 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
+
+                      {allDriversFinalized ?
+                    <>
+                          <CheckCircle className="w-4 h-4" />
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
+                        </> :
+
+                    <>
+                          <Clock className="w-4 h-4" />
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
+                        </>
+                    }
+                    </Button>
+                  </div>
+                }
+                {isAdminFinalized &&
+                <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+                    <CheckCircle className="w-4 h-4" />
+                    Finalized
+                  </div>
+                }
+              </>
+              }
+          </div>
+        </div>
       </CardHeader>
 
       {/* Driver Confirmation Dialog - also for admin-drivers viewing their own payroll */}
@@ -2664,6 +2753,8 @@ export default function PayrollSummaryCard({
               data.driver.id === currentUser?.id;
               const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
 
+              // No more duplicate mobile layout logic
+
               const driverKey = data.driver.id;
               const edit = driverEdits[driverKey] || {};
 
@@ -2675,7 +2766,7 @@ export default function PayrollSummaryCard({
               };
 
               return (
-                <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+                <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
                 <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
@@ -2856,9 +2947,10 @@ export default function PayrollSummaryCard({
             })}
           
           {/* Total App Fees Collected - App Owner Only */}
-          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) &&
+          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) && isAppOwner(currentUser) &&
             <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
-            <div>
+            {/* Desktop View */}
+            <div className="hidden md:block">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
                   Total App Fees Collected
@@ -2965,13 +3057,133 @@ export default function PayrollSummaryCard({
                 </div>
               </div>
             </div>
+
+            {/* Mobile View */}
+            <div className="md:hidden">
+              <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-slate-700)' }}>
+                Total App Fees Collected
+              </div>
+              
+              <div className="p-3 rounded-lg border" style={{
+                  background: 'var(--bg-white)',
+                  borderColor: 'var(--border-slate-200)',
+                  fontVariantNumeric: 'tabular-nums'
+                }}>
+                <div className="text-xs font-mono">
+                  {/* Header Row */}
+                  <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{
+                      gridTemplateColumns: '1fr 22px 60px 22px 60px',
+                      borderColor: 'var(--border-slate-200)',
+                      color: 'var(--text-slate-700)'
+                    }}>
+                    <div></div>
+                    <div></div>
+                    <div className="text-right">Month</div>
+                    <div></div>
+                    <div className="text-right">YTD</div>
+                  </div>
+
+                  {/* Total Fees */}
+                  <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
+                    <div className="text-left">Total Fees:</div>
+                    <div className="text-right pr-0.5">$</div>
+                    <div className="text-right font-semibold">
+                      {(() => {
+                          // Calculate total billable deliveries in calendar month
+                          const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                          const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                          let totalBillableCount = 0;
+                          deliveries.forEach((d) => {
+                            if (!d || !d.store_id) return;
+                            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                            if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                            if (!validStatus) return;
+                            if (!d.patient_id && !d.after_hours_pickup) return;
+                            const store = stores.find((s) => s?.id === d.store_id);
+                            if (!store) return;
+                            let paysAppFees = store.pays_app_fees || false;
+                            if (store.app_fee_history && store.app_fee_history.length > 0) {
+                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                              );
+                              if (sortedHistory[0]) {
+                                paysAppFees = sortedHistory[0].pays_app_fees;
+                              }
+                            }
+                            if (paysAppFees) {
+                              totalBillableCount++;
+                            }
+                          });
+                          return (totalBillableCount * appFeesPerDelivery).toFixed(2);
+                        })()}
+                    </div>
+                    <div className="text-right pr-0.5">$</div>
+                    <div className="text-right font-semibold">
+                      {(() => {
+                          // Calculate YTD total app fees (Jan 1 to current month end)
+                          const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
+                          const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                          let ytdTotalBillable = 0;
+                          deliveries.forEach((d) => {
+                            if (!d || !d.store_id) return;
+                            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                            if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
+                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                            if (!validStatus) return;
+                            if (!d.patient_id && !d.after_hours_pickup) return;
+                            const store = stores.find((s) => s?.id === d.store_id);
+                            if (!store) return;
+                            let paysAppFees = store.pays_app_fees || false;
+                            if (store.app_fee_history && store.app_fee_history.length > 0) {
+                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                              );
+                              const applicableEntry = sortedHistory.find((entry) =>
+                              new Date(entry.effective_date) <= deliveryDate
+                              );
+                              if (applicableEntry) {
+                                paysAppFees = applicableEntry.pays_app_fees;
+                              }
+                            }
+                            if (paysAppFees) {
+                              ytdTotalBillable++;
+                            }
+                          });
+                          return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
+                        })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
             }
 
           {/* Grand Total for All Drivers */}
           {payrollData.length > 1 &&
             <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
-              <div>
+              {/* Desktop View - hide on phones and tablets in portrait */}
+              <div style={{
+                display: (() => {
+                  if (typeof window === 'undefined') return 'block';
+                  const ua = navigator.userAgent;
+                  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
+                  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+
+                  // Phones never show desktop
+                  if (isPhone) return 'none';
+
+                  // Tablets: portrait = hide, landscape = show
+                  if (isTabletDevice) {
+                    const isPortrait = window.innerWidth < window.innerHeight;
+                    return isPortrait ? 'none' : 'block';
+                  }
+
+                  // Desktop: show if width >= 768px
+                  return window.innerWidth >= 768 ? 'block' : 'none';
+                })()
+              }}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
                 </div>
@@ -3135,7 +3347,117 @@ export default function PayrollSummaryCard({
                   </div>
                   </div>
               </div>
-            </div>
+
+              {/* Mobile View - only show on phones and tablets in portrait */}
+              <div style={{
+                display: (() => {
+                  if (typeof window === 'undefined') return 'none';
+                  const ua = navigator.userAgent;
+                  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
+                  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+
+                  // Phones always show mobile
+                  if (isPhone) return 'block';
+
+                  // Tablets: portrait = show, landscape = hide
+                  if (isTabletDevice) {
+                    const isPortrait = window.innerWidth < window.innerHeight;
+                    return isPortrait ? 'block' : 'none';
+                  }
+
+                  // Desktop: hide if width >= 768px
+                  return window.innerWidth < 768 ? 'block' : 'none';
+                })()
+              }} className="px-4">
+                <div className="font-semibold mb-3 text-sm" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
+                
+                {/* Pay Summary Table */}
+                <div className="p-3 rounded-lg border" style={{
+                  background: 'var(--bg-white)',
+                  borderColor: 'var(--border-slate-200)',
+                  fontVariantNumeric: 'tabular-nums'
+                }}>
+                  <div className="text-xs font-mono">
+                    {/* Header Row */}
+                    <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{
+                      gridTemplateColumns: '1fr 22px 60px 22px 60px',
+                      borderColor: 'var(--border-slate-200)',
+                      color: 'var(--text-slate-700)'
+                    }}>
+                      <div></div>
+                      <div></div>
+                      <div className="text-right">Period</div>
+                      <div></div>
+                      <div className="text-right">YTD</div>
+                    </div>
+
+                    {/* Net */}
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
+                      <div className="text-left">Gross:</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right font-semibold">{grandTotalAllDrivers.toFixed(2)}</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right font-semibold">{ytdGrandTotalNet.toFixed(2)}</div>
+                    </div>
+
+                    {/* Tax */}
+                    {grandTotalTax > 0 &&
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
+                      <div className="text-left">Tax:</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right font-semibold">{grandTotalTax.toFixed(2)}</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right font-semibold">{ytdGrandTotalTax.toFixed(2)}</div>
+                    </div>
+                    }
+
+                    {/* Deductions */}
+                    {grandTotalDeductions > 0 &&
+                    <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
+                      <div className="text-left">Deductions:</div>
+                      <div className="text-right pr-0.5">-$</div>
+                      <div className="text-right font-semibold">{grandTotalDeductions.toFixed(2)}</div>
+                      <div className="text-right pr-0.5">-$</div>
+                      <div className="text-right font-semibold">{ytdGrandTotalDeductions.toFixed(2)}</div>
+                    </div>
+                    }
+
+                    {/* Bonus */}
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
+                      <div className="text-left">Bonus:</div>
+                      <div className="text-right pr-0.5">+$</div>
+                      <div className="text-right font-semibold">{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</div>
+                      <div className="text-right pr-0.5">+$</div>
+                      <div className="text-right font-semibold">{ytdGrandTotalBonus.toFixed(2)}</div>
+                    </div>
+
+                    {/* App Fee Cut (if end of month) */}
+                    {isPeriodEndOfMonth &&
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
+                      <div className="text-left">App Fee Cut:</div>
+                      <div className="text-right pr-0.5">-$</div>
+                      <div className="text-right font-semibold">{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</div>
+                      <div className="text-right pr-0.5">-$</div>
+                      <div className="text-right font-semibold">{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</div>
+                    </div>
+                    }
+
+                    {/* Gross (bold, divider) */}
+                    <div className="grid gap-1 pt-1 border-t font-bold" style={{
+                      gridTemplateColumns: '1fr 22px 60px 22px 60px',
+                      borderColor: 'var(--border-slate-200)',
+                      color: '#10b981'
+                    }}>
+                      <div className="text-left">Net:</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right">{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right">{ytdGrandTotalGross.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              </div>
             }
                   </div>
                   </CardContent>
