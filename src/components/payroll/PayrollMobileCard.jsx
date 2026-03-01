@@ -134,12 +134,12 @@ export default function PayrollMobileCard({
 
   // Period values aligned with desktop with 2-decimal rounding per component to avoid penny drift
   const r2 = (n) => Math.round((n || 0) * 100) / 100;
-  const period1Gross = r2(data?.grandTotal || 0);
+  const periodGross = r2(data?.grandTotal || 0);
   const periodTax = r2(data?.taxAmount || 0);
   const periodDeductions = r2(payrollRecord?.total_deductions ?? (data?.deductions || data?.total_deductions || data?.totalDeductions || 0));
   const periodBonus = r2(bonusAmount || 0);
   const periodAppFee = r2(appFeeAmount || 0);
-  const periodGross = r2(period1Gross + periodTax - periodDeductions + periodBonus + periodAppFee);
+  const periodNet = r2(periodGross + periodTax - periodDeductions + periodBonus + periodAppFee);
 
 
 
