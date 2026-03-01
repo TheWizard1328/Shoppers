@@ -87,7 +87,7 @@ export default function PeriodColumnWithNotes({
       </table>
 
       {/* Desktop-only notes inline under Period column */}
-      <div className="hidden md:block mt-2" data-notes-desktop-left>
+      <div className="hidden" data-notes-desktop-left>
         <DriverNotesInline
           showAdmin={isAdmin}
           canEditAdmin={isAdmin}
