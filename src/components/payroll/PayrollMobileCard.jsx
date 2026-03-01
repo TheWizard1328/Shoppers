@@ -38,10 +38,17 @@ export default function PayrollMobileCard({
   const [isSavingAdmin, setIsSavingAdmin] = useState(false);
   const [isSavingDriver, setIsSavingDriver] = useState(false);
 
-  React.useEffect(() => {
+    const toLocalYMD = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${da}`;
+    };
+
+    React.useEffect(() => {
     if (!currentPeriod || !data?.driver?.id) return;
-    const startStr = currentPeriod.start.toISOString().split('T')[0];
-    const endStr = currentPeriod.end.toISOString().split('T')[0];
+    const startStr = toLocalYMD(currentPeriod.start);
+    const endStr = toLocalYMD(currentPeriod.end);
     (async () => {
       try {
         const list = await base44.entities.Payroll.filter({ driver_id: data.driver.id, pay_period_start: startStr, pay_period_end: endStr }, '-updated_date', 1);

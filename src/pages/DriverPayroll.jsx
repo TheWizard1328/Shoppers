@@ -18,6 +18,15 @@ import { offlineDB } from '../components/utils/offlineDatabase';
 import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
 import MobileBottomActions from '@/components/payroll/MobileBottomActions';
 
+// Local date helper (device timezone, no UTC offset)
+const toLocalYMD = (d) => {
+  const dt = d instanceof Date ? d : new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const da = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${da}`;
+};
+
 // Helper: Get first Monday of a given year
 const getFirstMondayOfYear = (year) => {
   const jan1 = new Date(year, 0, 1);
@@ -135,29 +144,26 @@ const calculateAllPeriods = (year, payPeriodType) => {
 
 // Helper: Find current period index based on today's date
 const findCurrentPeriodIndex = (periods, today) => {
-  // Use ISO string comparison (YYYY-MM-DD) to avoid timezone issues
-  const todayStr = today.toISOString().split('T')[0];
-  
-  console.log(`🔍 [findCurrentPeriodIndex] Today: ${todayStr}, Periods:`, periods.map((p, i) => 
-    `${i}: ${p.start.toISOString().split('T')[0]}-${p.end.toISOString().split('T')[0]} (${p.label})`
+  const t = new Date(today);
+  t.setHours(0, 0, 0, 0);
+  const todayStr = toLocalYMD(t);
+
+  console.log(`🔍 [findCurrentPeriodIndex] Today(local): ${todayStr}, Periods:`, periods.map((p, i) =>
+    `${i}: ${toLocalYMD(p.start)}-${toLocalYMD(p.end)} (${p.label})`
   ).join(' | '));
-  
+
   for (let i = 0; i < periods.length; i++) {
-    const startStr = periods[i].start.toISOString().split('T')[0];
-    const endStr = periods[i].end.toISOString().split('T')[0];
+    const startStr = toLocalYMD(periods[i].start);
+    const endStr = toLocalYMD(periods[i].end);
     const isInRange = todayStr >= startStr && todayStr <= endStr;
-    console.log(`  Period ${i} (${periods[i].label}): ${startStr} <= ${todayStr} <= ${endStr}? ${isInRange}`);
-    
     if (isInRange) {
       console.log(`✅ Found current period: index ${i} (${periods[i].label})`);
       return i;
     }
   }
-  
-  // If not found, return closest past period
   console.log(`⚠️ No exact match found, returning closest past period`);
   for (let i = periods.length - 1; i >= 0; i--) {
-    const endStr = periods[i].end.toISOString().split('T')[0];
+    const endStr = toLocalYMD(periods[i].end);
     if (todayStr > endStr) {
       console.log(`✅ Returning closest past: index ${i} (${periods[i].label})`);
       return i;
@@ -353,8 +359,8 @@ export default function DriverPayroll() {
     // CRITICAL: Filter by selected pay period date range
     // All year data is loaded; the grid/summary need only the current period's deliveries
     if (currentPeriod) {
-      const periodStart = currentPeriod.start.toISOString().split('T')[0];
-      const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+      const periodStart = toLocalYMD(currentPeriod.start);
+      const periodEnd = toLocalYMD(currentPeriod.end);
       filtered = filtered.filter(d => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
     }
     
@@ -405,8 +411,8 @@ export default function DriverPayroll() {
     
     // CRITICAL: Just filter existing year data - no API calls
     // All year data is already loaded in fetchPayroll from getAdminMetricsAndPayrollData
-    const periodStart = currentPeriod.start.toISOString().split('T')[0];
-    const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+    const periodStart = toLocalYMD(currentPeriod.start);
+    const periodEnd = toLocalYMD(currentPeriod.end);
     
     console.log(`🔍 [DriverPayroll] Filtering payroll records for period:`, { periodStart, periodEnd, totalRecords: payrollData.payrollRecords.length });
     console.log(`🔍 [DriverPayroll] Available records:`, payrollData.payrollRecords.map(r => ({
@@ -667,10 +673,10 @@ export default function DriverPayroll() {
 
       // Find today's period first (date-only comparison to avoid time-of-day issues)
       let todayIdx = -1;
-      const todayStr = today.toISOString().split('T')[0];
+      const todayStr = toLocalYMD(today);
       for (let i = 0; i < periods.length; i++) {
-        const startStr = periods[i].start.toISOString().split('T')[0];
-        const endStr = periods[i].end.toISOString().split('T')[0];
+        const startStr = toLocalYMD(periods[i].start);
+        const endStr = toLocalYMD(periods[i].end);
         if (todayStr >= startStr && todayStr <= endStr) { todayIdx = i; break; }
       }
 
@@ -773,7 +779,7 @@ export default function DriverPayroll() {
 
     const today = new Date();
     let todayPeriodIdx = -1;
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = toLocalYMD(today);
     for (let i = 0; i < allPeriods.length; i++) {
       const startStr = allPeriods[i].start.toISOString().split('T')[0];
       const endStr = allPeriods[i].end.toISOString().split('T')[0];
