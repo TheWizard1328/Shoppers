@@ -1944,26 +1944,16 @@ export default function PayrollSummaryCard({
         }
       `}</style>
      <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-       <CardHeader className="pb-3">
-        {/* Mobile View: 2 rows */}
-        <div className="md:hidden flex flex-col gap-2">
-          {/* Row 1: Title and PDF Button */}
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
-              <Calculator className="w-5 h-5" />
-              Payroll
-            </CardTitle>
-            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 h-8" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-              <Download className="w-4 h-4" />
-              PDF
-            </Button>
-          </div>
-          
-          {/* Row 2: Confirmed Drivers and Finalize Button */}
-          <div className="flex items-center justify-between">
-            {/* Admin View: Show finalization progress - multi-driver view only */}
-              {isAdmin && driversWithDeliveriesIds.length > 0 &&
-              selectedDriverId === 'all' &&
+      <CardHeader className="pb-3">
+       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+         <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+           <Calculator className="w-5 h-5" />
+           Payroll Summary
+         </CardTitle>
+         <div className="flex flex-wrap gap-2 items-center justify-between md:justify-end" id="payroll-controls">
+           {/* Admin View: Show finalization progress - multi-driver view only */}
+             {isAdmin && driversWithDeliveriesIds.length > 0 &&
+             selectedDriverId === 'all' &&
               <>
                 {!isAdminFinalized &&
                 <>
