@@ -247,7 +247,7 @@ export default function PayrollMobileCard({
 
           {/* Net */}
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
-            <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Net:</div>
+            <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Gross:</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
             <div className="text-right font-semibold">{periodNet.toFixed(2)}</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
@@ -328,7 +328,7 @@ export default function PayrollMobileCard({
             borderColor: 'var(--border-slate-200)', 
             color: '#10b981' 
           }}>
-            <div className="text-left">Gross:</div>
+            <div className="text-left">Net:</div>
             <div className="text-right pr-0.5">$</div>
             <div className="text-right">{periodGross.toFixed(2)}</div>
             <div className="text-right pr-0.5">$</div>
