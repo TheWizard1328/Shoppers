@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
 import { offlineDB } from '../components/utils/offlineDatabase';
+import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
+import MobileBottomActions from '@/components/payroll/MobileBottomActions';
 
 // Local date helper (device timezone, no UTC offset)
 const toLocalYMD = (d) => {
@@ -1110,9 +1112,23 @@ export default function DriverPayroll() {
           </div>
         </div>
 
+        <MobilePayrollSummary
+          periodLabel={periodLabel}
+          totalNetPay={totalNetPay}
+          totalDeliveries={totalDeliveries}
+          onPrev={goToPrevPeriod}
+          onNext={goToNextPeriod}
+        />
+
         {/* Content Area for Screenshot */}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-12 overscroll-contain">
-          <div>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-36 md:pb-12 overscroll-contain">
+          {/* Grid (mobile collapsible) */}
+          <div className="lg:hidden mb-3">
+            <Button size="sm" variant="outline" className="w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
+              {detailsOpen ? 'Hide Details' : 'View Details'}
+            </Button>
+          </div>
+          <div className={detailsOpen ? '' : 'hidden lg:block'}>
             <DriverPayrollGrid
               deliveries={cityFilteredDeliveries}
               stores={filteredStores}
@@ -1159,6 +1175,14 @@ export default function DriverPayroll() {
           />
           </div>
         </div>
+        
+        <MobileBottomActions
+          onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          onShare={handleCaptureScreenshot}
+          onRefresh={handleManualRefresh}
+          refreshing={isRefreshing || isLoadingPayroll}
+          capturing={isCapturingScreenshot}
+        />
 
         {/* Screenshot Share Modal */}
         <ScreenshotShareModal
