@@ -179,13 +179,13 @@ export default function PayrollMobileCard({
             <div className="text-right">YTD</div>
           </div>
 
-          {/* Net */}
+          {/* Gross */}
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
-            <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Net:</div>
+            <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Gross:</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
             <div className="text-right font-semibold">{(data.grandTotal || 0).toFixed(2)}</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
-            <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
+            <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay || 0).toFixed(2)}</div>
           </div>
 
           {/* Tax (if any) */}
@@ -256,17 +256,17 @@ export default function PayrollMobileCard({
             </div>
           }
 
-          {/* Gross (bold, divider) */}
+          {/* Net (bold, divider) */}
           <div className="grid gap-1 pt-1 border-t font-bold" style={{ 
             gridTemplateColumns: '1fr 22px 60px 22px 60px',
             borderColor: 'var(--border-slate-200)', 
             color: '#10b981' 
           }}>
-            <div className="text-left">Gross:</div>
+            <div className="text-left">Net:</div>
             <div className="text-right pr-0.5">$</div>
-            <div className="text-right">{((data.grandTotal || 0) + (data.taxAmount || 0) + (bonusAmount || 0) + (appFeeAmount || 0)).toFixed(2)}</div>
+            <div className="text-right">{((data.grandTotal || 0) + (data.taxAmount || 0) - ((data.deductions || data.total_deductions || data.totalDeductions || 0)) + (bonusAmount || 0) + (appFeeAmount || 0)).toFixed(2)}</div>
             <div className="text-right pr-0.5">$</div>
-            <div className="text-right">{((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0) + (ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0) - (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0)).toFixed(2)}</div>
+            <div className="text-right">{((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0)).toFixed(2)}</div>
           </div>
         </div>
       </div>

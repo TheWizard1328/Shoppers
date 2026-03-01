@@ -1917,7 +1917,7 @@ export default function PayrollSummaryCard({
     });
 
     setDriverEdits(newEdits);
-  }, [payrollData, payrollRecords]);
+  }, [payrollData, payrollRecords, calculateAppFeeAmount]);
 
   // Guard clause AFTER all hooks
   if (payrollData.length === 0) {
@@ -2883,7 +2883,7 @@ export default function PayrollSummaryCard({
                   <table className="border-collapse">
                     <tbody>
                       <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">Net:</td>
+                        <td className="text-left pr-2">Gross:</td>
                         <td className="text-right pr-0.5">$</td>
                         <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
                       </tr>
@@ -2933,7 +2933,7 @@ export default function PayrollSummaryCard({
                         <td colSpan="3" className="pt-1"></td>
                       </tr>
                       <tr className="text-lg font-bold text-emerald-600">
-                        <td className="text-left pr-2">Gross:</td>
+                        <td className="text-left pr-2">Net:</td>
                         <td className="text-right pr-0.5">$</td>
                         <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
                       </tr>
@@ -2951,7 +2951,7 @@ export default function PayrollSummaryCard({
                         <tbody>
                           <tr style={{ color: 'var(--text-slate-600)' }}>
                             <td className="text-right pr-0.5">$</td>
-                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
+                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
                           </tr>
                           <tr style={{ color: 'var(--text-slate-600)' }}>
                             <td className="text-right pr-0.5">$</td>
@@ -2976,7 +2976,7 @@ export default function PayrollSummaryCard({
                           </tr>
                           <tr className="text-lg font-bold text-emerald-600">
                             <td className="text-right pr-0.5">$</td>
-                            <td className="text-right" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
+                            <td className="text-right" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
                           </tr>
 
                         </tbody>
