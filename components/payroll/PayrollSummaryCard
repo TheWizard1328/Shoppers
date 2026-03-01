@@ -1158,7 +1158,7 @@ export default function PayrollSummaryCard({
       const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
       const ytdOversizedPay = ytdOversizedCount * driverData.oversizedRate;
 
-      const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
+      const ytdNetPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
       const ytdFailedCount = ytdDeliveries.filter((d) => d.status === 'failed').length;
       const ytdReturnsCount = ytdDeliveries.filter((d) => d.status === 'cancelled' && d.after_hours_pickup).length;
 
@@ -1220,7 +1220,7 @@ export default function PayrollSummaryCard({
 
         // YTD Net Pay (same as gross for now, assuming no deductions tracking for YTD)
         doc.text(`=$`, col5_ytdTotals, y);
-        doc.text(ytdGrossPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
+        doc.text(ytdNetPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
         y += lineHeight;
 
         if (driverData.taxAmount > 0) {
@@ -1257,7 +1257,7 @@ export default function PayrollSummaryCard({
       doc.text(driverData.grossPay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
 
       doc.text(`=$`, col5_ytdTotals, y);
-      doc.text(ytdGrossPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
+      doc.text(ytdNetPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
       y += lineHeight;
 
       // Draw vertical divider between Period and YTD for Pay Summary
@@ -1838,11 +1838,11 @@ export default function PayrollSummaryCard({
 
   // YTD grand totals across all displayed drivers (calculated AFTER ytdDataByDriver)
   // CRITICAL: ytdDataByDriver already includes current period data, so just sum the YTD values directly
-  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
   // Calculate AppFeeAmount for a driver - distribute from total monthly app fee pool
   // CRITICAL: Use CALENDAR MONTH, not pay cycle, since app fees are collected monthly
@@ -2951,7 +2951,7 @@ export default function PayrollSummaryCard({
                         <tbody>
                           <tr style={{ color: 'var(--text-slate-600)' }}>
                             <td className="text-right pr-0.5">$</td>
-                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
+                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
                           </tr>
                           <tr style={{ color: 'var(--text-slate-600)' }}>
                             <td className="text-right pr-0.5">$</td>
@@ -2976,7 +2976,7 @@ export default function PayrollSummaryCard({
                           </tr>
                           <tr className="text-lg font-bold text-emerald-600">
                             <td className="text-right pr-0.5">$</td>
-                            <td className="text-right" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
+                            <td className="text-right" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
                           </tr>
 
                         </tbody>
