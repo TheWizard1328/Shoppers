@@ -320,29 +320,29 @@ export default function PayrollMobileCard({
           <div data-notes-section="true" className="mt-3 space-y-3">
             {isAdmin && (
               <div>
-                <div className="text-xs font-semibold text-slate-700 mb-1">Admin Notes</div>
+                <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Admin Notes</div>
                 <textarea
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
                   onBlur={() => saveAdminNotes(adminNotes)}
                   disabled={!canEditAdminNotes || !payrollRecordId}
-                  className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white disabled:opacity-60"
+                  className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
                   placeholder={payrollRecordId ? "Private notes (admins only)" : "Notes unavailable (no record yet)"}
                 />
-                {isSavingAdmin && <div className="text-[10px] text-slate-500 mt-1">Saving...</div>}
+                {isSavingAdmin && <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Saving...</div>}
               </div>
             )}
             <div>
-              <div className="text-xs font-semibold text-slate-700 mb-1">Driver Notes</div>
+              <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Driver Notes</div>
               <textarea
                 value={driverNotes}
                 onChange={(e) => setDriverNotes(e.target.value)}
                 onBlur={() => saveDriverNotes(driverNotes)}
                 disabled={!canEditDriverNotes || !payrollRecordId}
-                className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white disabled:opacity-60"
+                className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
                 placeholder={payrollRecordId ? "Visible to driver + admins" : "Notes unavailable (no record yet)"}
               />
-              {isSavingDriver && <div className="text-[10px] text-slate-500 mt-1">Saving...</div>}
+              {isSavingDriver && <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Saving...</div>}
             </div>
           </div>
         </div>
