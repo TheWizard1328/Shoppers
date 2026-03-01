@@ -344,7 +344,7 @@ export default function PayrollMobileCard({
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
                   onBlur={() => saveAdminNotes(adminNotes)}
-                  disabled={!canEditAdminNotes || !payrollRecordId}
+                  disabled={!canEditAdminNotes || !payrollRecordId || adminHasFinalized}
                   className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
                   placeholder={payrollRecordId ? "Private notes (admins only)" : "Notes unavailable (no record yet)"}
                 />
@@ -357,7 +357,7 @@ export default function PayrollMobileCard({
                 value={driverNotes}
                 onChange={(e) => setDriverNotes(e.target.value)}
                 onBlur={() => saveDriverNotes(driverNotes)}
-                disabled={!canEditDriverNotes || !payrollRecordId}
+                disabled={!canEditDriverNotes || !payrollRecordId || adminHasFinalized}
                 className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
                 placeholder={payrollRecordId ? "Visible to driver + admins" : "Notes unavailable (no record yet)"}
               />
