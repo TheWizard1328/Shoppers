@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import PeriodColumnWithNotes from './PeriodColumnWithNotes';
+import DriverNotesInline from './DriverNotesInline';
 import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X, Save, Share2, Loader2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import ScreenshotShareModal from '../common/ScreenshotShareModal';
