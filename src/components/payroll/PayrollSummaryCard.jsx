@@ -19,7 +19,7 @@ import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
-import PayrollMobileCard from './PayrollMobileCard';
+import PayrollMobileCard from './PayrollMobileCard'; import DriverNotesInline from './DriverNotesInline';
 
 /**
  * Payroll Summary Card
@@ -1216,7 +1216,7 @@ export default function PayrollSummaryCard({
       if (hasDeductions) {
         doc.text(`Net Pay:`, col1_rowTitles, y);
         doc.text(`=$`, col3_calcTotals, y);
-        doc.text((Math.max(0, (driverData.grandTotal || 0) - calculateAppFeeAmount(selectedDriverId || (driverData.driver?.id), (driverEdits?.[driverData.driver?.id]?.appFeePercent ?? driverData.appFeePercentage ?? 0)))).toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
+        doc.text(driverData.grandTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
 
         // YTD Net Pay (same as gross for now, assuming no deductions tracking for YTD)
         doc.text(`=$`, col5_ytdTotals, y);
@@ -1264,14 +1264,48 @@ export default function PayrollSummaryCard({
       doc.setDrawColor(150, 150, 150);
       doc.line(divider1, summaryStartY - 5, divider1, y);
 
-      // App Fee
-      {
-        const appFeePercent = (driverEdits?.[driverData.driver.id]?.appFeePercent ?? driverData.appFeePercentage ?? 0);
-        const appFeeTotal = calculateAppFeeAmount(driverData.driver.id, appFeePercent);
-        if (appFeeTotal > 0 && appFeePercent > 0) {
+      // App Fee (admin/app owner only)
+      if (currentUser && (userHasRole(currentUser, 'admin') || isAppOwner(currentUser))) {
+        // Calculate app fee based on stores that pay app fees
+        let appFeeTotal = 0;
+        const periodDeliveries = deliveries.filter((d) => {
+          if (!d || d.driver_id !== selectedDriverId) return false;
+          const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+          if (!validStatus) return false;
+          if (!d.patient_id && !d.after_hours_pickup) return false;
+          const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+          return deliveryDate >= currentPeriod.start && deliveryDate <= currentPeriod.end;
+        });
+
+        periodDeliveries.forEach((d) => {
+          const store = stores.find((s) => s?.id === d.store_id);
+          if (!store) return;
+
+          // Check if store pays app fees during this delivery date
+          let paysAppFees = store.pays_app_fees || false;
+          if (store.app_fee_history && store.app_fee_history.length > 0) {
+            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+            const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+            );
+            const applicableEntry = sortedHistory.find((entry) =>
+            new Date(entry.effective_date) <= deliveryDate
+            );
+            if (applicableEntry) {
+              paysAppFees = applicableEntry.pays_app_fees;
+            }
+          }
+
+          if (paysAppFees && driverData.appFeePercentage > 0) {
+            appFeeTotal += driverData.payRate * driverData.appFeePercentage;
+          }
+        });
+
+        if (appFeeTotal > 0 && driverData.appFeePercentage > 0) {
           doc.setFont('helvetica', 'normal');
-          doc.text(`App Fee (${appFeePercent.toFixed(2)}%):`, col1_rowTitles, y);
-          doc.text(`-$`, col3_calcTotals, y);
+          const appFeePercentage = driverData.appFeePercentage * 100;
+          doc.text(`App Fee (${appFeePercentage.toFixed(0)}%):`, col1_rowTitles, y);
+          doc.text(`$`, col3_calcTotals + 1, y);
           doc.text(appFeeTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
           y += lineHeight;
         }
@@ -1577,7 +1611,7 @@ export default function PayrollSummaryCard({
     });
 
     // Grand total for all drivers
-    if (payrollData.filter((d) => d.totalDeliveries > 0).length >= 1) {
+    if (payrollData.length > 1) {
       if (y > 260) {
         doc.addPage();
         y = 20;
@@ -1590,13 +1624,11 @@ export default function PayrollSummaryCard({
       const rightCol = portraitWidth - 14;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Net: $${(grandTotalAllDrivers - driversWithDeliveries.reduce((sum, d) => sum + calculateAppFeeAmount(d.driver.id, (driverEdits?.[d.driver.id]?.appFeePercent ?? d.appFeePercentage ?? 0)), 0)).toFixed(2)}`, rightCol, y, { align: 'right' });
+      doc.text(`Net: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' });
       y += 5;
       doc.text(`Tax: $${grandTotalTax.toFixed(2)}`, rightCol, y, { align: 'right' });
       y += 5;
       doc.text(`Deductions: $${grandTotalDeductions.toFixed(2)}`, rightCol, y, { align: 'right' });
-      y += 5;
-      doc.text(`App Fee: $${driversWithDeliveries.reduce((sum, d) => sum + calculateAppFeeAmount(d.driver.id, (driverEdits?.[d.driver.id]?.appFeePercent ?? d.appFeePercentage ?? 0)), 0).toFixed(2)}`, rightCol, y, { align: 'right' });
       y += 6;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
