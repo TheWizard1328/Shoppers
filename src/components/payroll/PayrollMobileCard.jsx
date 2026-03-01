@@ -328,7 +328,7 @@ export default function PayrollMobileCard({
             borderColor: 'var(--border-slate-200)', 
             color: '#10b981' 
           }}>
-            <div className="text-left">Gross:</div>
+            <div className="text-left">Net:</div>
             <div className="text-right pr-0.5">$</div>
             <div className="text-right">{periodGross.toFixed(2)}</div>
             <div className="text-right pr-0.5">$</div>
