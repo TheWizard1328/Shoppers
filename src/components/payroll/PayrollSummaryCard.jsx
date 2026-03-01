@@ -19,10 +19,11 @@ import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
-import PayrollMobileCard from './PayrollMobileCard';
-import LeftStatsAndNotes from './LeftStatsAndNotes';
 
-
+/**
+ * Payroll Summary Card
+ * Calculates and displays payroll totals based on pay period and driver rates
+ */
 // GST/HST rates by province (Canada)
 const PROVINCE_TAX_RATES = {
   'AB': 0.05, // Alberta - GST only
@@ -332,7 +333,7 @@ export default function PayrollSummaryCard({
 
         console.log(`📥 [Payroll] Fetched ${records?.length || 0} total payroll records from ${yearStart} to ${periodEnd}`);
         records?.forEach((r) => {
-          console.log(`   - Driver: ${r.driver_id}, Period: ${r.pay_period_start} to ${r.pay_period_end}, Gross: $${r.net_pay}`);
+          console.log(`   - Driver: ${r.driver_id}, Period: ${r.pay_period_start} to ${r.pay_period_end}, Net: $${r.net_pay}`);
         });
 
         setPayrollRecords(records || []);
@@ -802,10 +803,10 @@ export default function PayrollSummaryCard({
           period: currentPeriod,
           payrollData: driversWithDeliveries,
           grandTotals: {
-            Gross: grandTotalAllDrivers,
+            net: grandTotalAllDrivers,
             tax: grandTotalTax,
             deductions: grandTotalDeductions,
-            Net: grandTotalGross
+            gross: grandTotalGross
           }
         });
       }
@@ -1156,7 +1157,7 @@ export default function PayrollSummaryCard({
       const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
       const ytdOversizedPay = ytdOversizedCount * driverData.oversizedRate;
 
-      const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
+      const ytdNetPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
       const ytdFailedCount = ytdDeliveries.filter((d) => d.status === 'failed').length;
       const ytdReturnsCount = ytdDeliveries.filter((d) => d.status === 'cancelled' && d.after_hours_pickup).length;
 
@@ -1218,7 +1219,7 @@ export default function PayrollSummaryCard({
 
         // YTD Net Pay (same as gross for now, assuming no deductions tracking for YTD)
         doc.text(`=$`, col5_ytdTotals, y);
-        doc.text(ytdGrossPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
+        doc.text(ytdNetPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
         y += lineHeight;
 
         if (driverData.taxAmount > 0) {
@@ -1255,7 +1256,7 @@ export default function PayrollSummaryCard({
       doc.text(driverData.grossPay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
 
       doc.text(`=$`, col5_ytdTotals, y);
-      doc.text(ytdGrossPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
+      doc.text(ytdNetPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
       y += lineHeight;
 
       // Draw vertical divider between Period and YTD for Pay Summary
@@ -1586,7 +1587,7 @@ export default function PayrollSummaryCard({
       // Pay summary - right aligned
       const rightCol = portraitWidth - 14;
       doc.setFont('helvetica', 'normal');
-      doc.text(`Gross:`, rightCol - 40, y - 14);
+      doc.text(`Net:`, rightCol - 40, y - 14);
       doc.text(`$${(data.grandTotal || 0).toFixed(2)}`, rightCol, y - 14, { align: 'right' });
 
       doc.text(`Tax:`, rightCol - 40, y - 9);
@@ -1597,7 +1598,7 @@ export default function PayrollSummaryCard({
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text(`Net:`, rightCol - 40, y + 2);
+      doc.text(`Gross:`, rightCol - 40, y + 2);
       doc.text(`$${(data.grossPay || 0).toFixed(2)}`, rightCol, y + 2, { align: 'right' });
 
       y += 8;
@@ -1622,7 +1623,7 @@ export default function PayrollSummaryCard({
       const rightCol = portraitWidth - 14;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Gross: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' });
+      doc.text(`Net: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' });
       y += 5;
       doc.text(`Tax: $${grandTotalTax.toFixed(2)}`, rightCol, y, { align: 'right' });
       y += 5;
@@ -1630,7 +1631,7 @@ export default function PayrollSummaryCard({
       y += 6;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
-      doc.text(`Net: $${grandTotalGross.toFixed(2)}`, rightCol, y, { align: 'right' });
+      doc.text(`Gross: $${grandTotalGross.toFixed(2)}`, rightCol, y, { align: 'right' });
     }
 
     // Save the PDF
@@ -1836,11 +1837,11 @@ export default function PayrollSummaryCard({
 
   // YTD grand totals across all displayed drivers (calculated AFTER ytdDataByDriver)
   // CRITICAL: ytdDataByDriver already includes current period data, so just sum the YTD values directly
-  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
   // Calculate AppFeeAmount for a driver - distribute from total monthly app fee pool
   // CRITICAL: Use CALENDAR MONTH, not pay cycle, since app fees are collected monthly
@@ -2751,51 +2752,6 @@ export default function PayrollSummaryCard({
               data.driver.id === currentUser?.id;
               const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
 
-              // Mobile view - check for tablets in portrait mode
-              const shouldShowMobile = (() => {
-                if (typeof window === 'undefined') return false;
-                const ua = navigator.userAgent;
-                const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
-                const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-
-                // Phones always use mobile layout
-                if (isPhone) return true;
-
-                // Tablets: portrait = mobile, landscape = desktop
-                if (isTabletDevice) {
-                  const isPortrait = window.innerWidth < window.innerHeight;
-                  return isPortrait;
-                }
-
-                // Desktop/other: use breakpoint
-                return window.innerWidth < 768;
-              })();
-
-              if (shouldShowMobile) {
-                return (
-                  <PayrollMobileCard
-                    key={data.driver.id}
-                    data={data}
-                    isAdmin={isAdmin}
-                    driverHasConfirmed={driverHasConfirmed}
-                    adminHasFinalized={adminHasFinalized}
-                    showBadge={showBadge}
-                    canShowConfirmButton={canShowConfirmButton}
-                    onConfirmClick={() => handleDriverFinalize(data)}
-                    isFinalizing={isFinalizing}
-                    formatCurrency={formatCurrency}
-                    deliveries={deliveries}
-                    patients={patients}
-                    currentPeriod={currentPeriod}
-                    bonusAmount={driverEdits[data.driver.id]?.bonusPay || 0}
-                    appFeeAmount={calculateAppFeeAmount(data.driver.id, driverEdits[data.driver.id]?.appFeePercent || 0)}
-                    appFeePercent={driverEdits[data.driver.id]?.appFeePercent || 0}
-                    ytdDataByDriver={ytdDataByDriver}
-                    isPeriodEndOfMonth={isPeriodEndOfMonth} />);
-
-
-              }
-
               const driverKey = data.driver.id;
               const edit = driverEdits[driverKey] || {};
 
@@ -2807,7 +2763,7 @@ export default function PayrollSummaryCard({
               };
 
               return (
-                <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+                <div key={data.driver.id} className="p-3 rounded-lg mb-4" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
                 <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
@@ -2834,29 +2790,54 @@ export default function PayrollSummaryCard({
 
               {/* Stats and Pay Summary - Side by Side */}
               <div>
-                <div className="flex justify-between items-start">
-                  <LeftStatsAndNotes
-                    data={data}
-                    formatCurrency={formatCurrency}
-                    isAdmin={isAdmin}
-                    isDriver={isDriver}
-                    currentUser={currentUser}
-                    driverKey={driverKey}
-                    setDeductionOverlayDriverId={setDeductionOverlayDriverId}
-                    setBonusOverlayDriverId={setBonusOverlayDriverId}
-                    getDriverPayrollRecord={getDriverPayrollRecord}
-                    savePayrollChanges={savePayrollChanges}
-                  />
+                <div className="flex flex-col xl:flex-row justify-between items-start gap-4">
+                  {/* Left: 8 Stats in 4 columns x 2 rows with fixed column widths */}
+                  <div className="grid text-xs w-full xl:w-auto" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '1rem 1rem', rowGap: '0.5rem' }}>
+                  {/* Row 1: Rates */}
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">{data.failedCount}</span>
+                  </div>
+                  {/* Row 2: Totals */}
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
+                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.storeReturnCount || 0}</span>
+                  </div>
+                </div>
 
                 {/* Right: Pay Summary with YTD */}
-                <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <div className="text-xs ml-0 xl:ml-4 flex flex-col sm:flex-row w-full xl:w-auto gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {/* Period Column */}
                   <div className="flex flex-col">
                     <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
                   <table className="border-collapse">
                     <tbody>
                       <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">Gross:</td>
+                        <td className="text-left pr-2">Net:</td>
                         <td className="text-right pr-0.5">$</td>
                         <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
                       </tr>
@@ -2906,7 +2887,7 @@ export default function PayrollSummaryCard({
                         <td colSpan="3" className="pt-1"></td>
                       </tr>
                       <tr className="text-lg font-bold text-emerald-600">
-                        <td className="text-left pr-2">Net:</td>
+                        <td className="text-left pr-2">Gross2:</td>
                         <td className="text-right pr-0.5">$</td>
                         <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
                       </tr>
@@ -2915,7 +2896,7 @@ export default function PayrollSummaryCard({
                     </div>
 
                     {/* Vertical Divider */}
-                    <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+                    <div className="hidden sm:block" style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
 
                     {/* YTD Column */}
                     <div className="flex flex-col">
@@ -2924,7 +2905,7 @@ export default function PayrollSummaryCard({
                         <tbody>
                           <tr style={{ color: 'var(--text-slate-600)' }}>
                             <td className="text-right pr-0.5">$</td>
-                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
+                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
                           </tr>
                           <tr style={{ color: 'var(--text-slate-600)' }}>
                             <td className="text-right pr-0.5">$</td>
@@ -2949,7 +2930,7 @@ export default function PayrollSummaryCard({
                           </tr>
                           <tr className="text-lg font-bold text-emerald-600">
                             <td className="text-right pr-0.5">$</td>
-                            <td className="text-right" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
+                            <td className="text-right" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
                           </tr>
 
                         </tbody>
@@ -3253,7 +3234,7 @@ export default function PayrollSummaryCard({
                         <table className="border-collapse">
                           <tbody>
                             <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-left pr-2">Gross:</td>
+                              <td className="text-left pr-2">Net:</td>
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalAllDrivers.toFixed(2)}</td>
                             </tr>
@@ -3293,7 +3274,7 @@ export default function PayrollSummaryCard({
                               <td colSpan="3" className="pt-1"></td>
                             </tr>
                             <tr className="text-lg font-bold text-emerald-600">
-                              <td className="text-left pr-2">Net:</td>
+                              <td className="text-left pr-2">Gross:</td>
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</td>
                             </tr>
