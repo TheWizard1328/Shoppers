@@ -184,6 +184,7 @@ export default function DriverPayroll() {
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [showUpdated, setShowUpdated] = useState(false);
   
   const contentRef = useRef(null);
   const isManualChangeRef = useRef(false);
@@ -836,6 +837,57 @@ export default function DriverPayroll() {
     };
   }, [hasInitialized, fetchPayroll]);
 
+  // Real-time Delivery updates with 3s throttle, triggers background refresh and small indicator
+  useEffect(() => {
+    if (!hasInitialized) return;
+    let isMounted = true;
+    let lastRefreshTs = 0;
+    let hideTimer = null;
+
+    let unsubscribe;
+    try {
+      unsubscribe = base44.entities.Delivery.subscribe(async (event) => {
+        if (!isMounted) return;
+        const now = Date.now();
+        if (now - lastRefreshTs < 3000) return; // throttle
+        lastRefreshTs = now;
+        try {
+          await fetchPayroll(true, true);
+          setShowUpdated(true);
+          if (hideTimer) clearTimeout(hideTimer);
+          hideTimer = setTimeout(() => setShowUpdated(false), 3000);
+        } catch (e) {
+          console.warn('Delivery live refresh failed:', e);
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to subscribe to Delivery updates:', e);
+    }
+
+    return () => {
+      isMounted = false;
+      if (unsubscribe) {
+        try { unsubscribe(); } catch {}
+      }
+      if (hideTimer) clearTimeout(hideTimer);
+    };
+  }, [hasInitialized, fetchPayroll]);
+
+  // 60s fallback polling
+  useEffect(() => {
+    if (!hasInitialized) return;
+    const interval = setInterval(async () => {
+      try {
+        await fetchPayroll(true, true);
+        setShowUpdated(true);
+        setTimeout(() => setShowUpdated(false), 2000);
+      } catch (e) {
+        console.warn('Fallback refresh failed:', e);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [hasInitialized, fetchPayroll]);
+
   // Filter payroll records when period changes (don't re-fetch since all year data is loaded)
   // CRITICAL: Uses refs to avoid redundant updates
   const lastFilteredPeriodRef = useRef(null);
@@ -890,6 +942,9 @@ export default function DriverPayroll() {
             <div className="flex items-center gap-3">
               <DollarSign className="w-8 h-8 text-emerald-600" />
               <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
+              {showUpdated && (
+                <span className="ml-2 text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">Updated</span>
+              )}
             </div>
             
             {/* Mobile/Tablet Portrait: Show Refresh and Share buttons next to title */}
