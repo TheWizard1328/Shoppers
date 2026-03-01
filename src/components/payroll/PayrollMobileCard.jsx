@@ -122,10 +122,9 @@ export default function PayrollMobileCard({
 
     const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
     const ytdTaxAmount = data.taxRate ? ytdGrossPay * data.taxRate : 0;
-    const ytdDeductions = data.totalDeductions || 0;
-    const ytdBonusPay = data.bonusPay || 0;
-    const ytdAppFeeAmount = data.appFeeAmount || 0;
-    const ytdNetPay = ytdGrossPay + ytdTaxAmount - ytdDeductions + ytdBonusPay + ytdAppFeeAmount;
+    const ytdDeductions = ytdDeliveries.reduce((sum, d) => sum + (d.deductions || 0), 0);
+    const ytdBonusPay = ytdDeliveries.reduce((sum, d) => sum + (d.bonus || 0), 0);
+    const ytdAppFeeAmount = ytdDeliveries.reduce((sum, d) => sum + (d.app_fee || 0), 0);    const ytdNetPay = ytdGrossPay + ytdTaxAmount - ytdDeductions + ytdBonusPay + ytdAppFeeAmount;
 
     return { ytdGrossPay, ytdNetPay, ytdTaxAmount, ytdDeductions, ytdBonusPay, ytdAppFeeAmount };
   };
