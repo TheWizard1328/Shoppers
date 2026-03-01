@@ -276,11 +276,6 @@ export default function PayrollMobileCard({
           <div className="mt-3">
             <button onClick={() => onNotesClick && onNotesClick()} className="text-xs text-blue-600 hover:text-blue-700 font-medium">Notes</button>
           </div>
-
-          {/* Notes Trigger Row */}
-          <div className="mt-3">
-            <button onClick={() => onNotesClick && onNotesClick()} className="text-xs text-blue-600 hover:text-blue-700 font-medium">Notes</button>
-          </div>
         </div>
       </div>
       )}
