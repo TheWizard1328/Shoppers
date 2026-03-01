@@ -33,7 +33,7 @@ export default function DriverNotesInline({
   return (
     <div data-notes-section="true" className="mt-2 flex flex-col gap-2 md:flex-row md:gap-3">
       {showAdmin && (
-        <div className="md:flex-1" data-notes-admin="true">
+        <div className="md:flex-1">
           <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Admin Notes</div>
           <textarea
             value={adminNotes}

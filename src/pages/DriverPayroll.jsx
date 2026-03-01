@@ -472,7 +472,7 @@ export default function DriverPayroll() {
       appFeeRows.forEach(row => { row.style.display = 'none'; });
 
       // Hide Notes sections
-      const notesSections = contentRef.current.querySelectorAll('[data-notes-admin="true"]');
+      const notesSections = contentRef.current.querySelectorAll('[data-notes-section="true"]');
       notesSections.forEach(el => { el.style.display = 'none'; });
 
       // Small delay to ensure UI updates
@@ -508,7 +508,7 @@ export default function DriverPayroll() {
       appFeeRows.forEach(row => { row.style.display = ''; });
 
       // Show Notes sections again
-      const notesSectionsToShow = contentRef.current.querySelectorAll('[data-notes-admin="true"]');
+      const notesSectionsToShow = contentRef.current.querySelectorAll('[data-notes-section="true"]');
       notesSectionsToShow.forEach(el => { el.style.display = ''; });
 
       const dataUrl = canvas.toDataURL('image/png');

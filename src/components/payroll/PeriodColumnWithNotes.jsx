@@ -17,8 +17,6 @@ export default function PeriodColumnWithNotes({
   getDriverPayrollRecord,
   savePayrollChanges,
 }) {
-  const record = getDriverPayrollRecord(driverKey);
-  const isLocked = record?.status === 'admin_finalized' || record?.status === 'paid';
   return (
     <div className="flex flex-col">
       <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
@@ -89,11 +87,11 @@ export default function PeriodColumnWithNotes({
       </table>
 
       {/* Desktop-only notes inline under Period column */}
-      <div className="hidden md:block" data-notes-desktop-left>
+      <div className="hidden" data-notes-desktop-left>
         <DriverNotesInline
           showAdmin={isAdmin}
-          canEditAdmin={isAdmin && !isLocked}
-          canEditDriver={(isAdmin || (isDriver && currentUser?.id === driverKey)) && !isLocked}
+          canEditAdmin={isAdmin}
+          canEditDriver={isAdmin || (isDriver && currentUser?.id === driverKey)}
           initialAdminNotes={getDriverPayrollRecord(driverKey)?.admin_notes || ''}
           initialDriverNotes={getDriverPayrollRecord(driverKey)?.driver_notes || ''}
           onSaveAdmin={(val) => savePayrollChanges(driverKey, { admin_notes: val })}
