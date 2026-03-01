@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
 import { offlineDB } from '../components/utils/offlineDatabase';
+import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
+import MobileBottomActions from '@/components/payroll/MobileBottomActions';
 
 // Local date helper (device timezone, no UTC offset)
 const toLocalYMD = (d) => {
@@ -954,6 +956,36 @@ export default function DriverPayroll() {
                 <span className="ml-2 text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">Updated</span>
               )}
             </div>
+            
+            {/* Mobile/Tablet Portrait: Show Refresh and Share buttons next to title */}
+            <div className="flex lg:hidden items-center gap-1">
+              <Button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing || isLoadingPayroll}
+                size="sm"
+                variant="ghost"
+                className="p-2 h-auto border border-slate-900 dark:border-white"
+                title="Refresh payroll data"
+                style={{ color: 'var(--text-slate-900)' }}
+              >
+                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button
+                onClick={handleCaptureScreenshot}
+                disabled={isCapturingScreenshot}
+                size="sm"
+                variant="ghost"
+                className="p-2 h-auto border border-slate-900 dark:border-white"
+                title="Capture and share screenshot"
+                style={{ color: 'var(--text-slate-900)' }}
+              >
+                {isCapturingScreenshot ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Share2 className="w-5 h-5" />
+                )}
+              </Button>
+            </div>
           </div>
           
           {/* Row 2 (Mobile centered) / Middle section (Desktop) */}
@@ -1049,7 +1081,7 @@ export default function DriverPayroll() {
               </div>
 
             {/* Icon Buttons - Far Right (Desktop only) */}
-            <div id="payroll-controls" className="flex items-center gap-1 ml-auto">
+            <div id="payroll-controls" className="hidden lg:flex items-center gap-1 ml-auto">
               <Button
                 onClick={handleManualRefresh}
                 disabled={isRefreshing || isLoadingPayroll}
@@ -1080,9 +1112,23 @@ export default function DriverPayroll() {
           </div>
         </div>
 
+        <MobilePayrollSummary
+          periodLabel={periodLabel}
+          totalNetPay={totalNetPay}
+          totalDeliveries={totalDeliveries}
+          onPrev={goToPrevPeriod}
+          onNext={goToNextPeriod}
+        />
+
         {/* Content Area for Screenshot */}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-4 md:pb-12 overscroll-contain">
-          <div>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-36 md:pb-12 overscroll-contain">
+          {/* Grid (mobile collapsible) */}
+          <div className="lg:hidden mb-3">
+            <Button size="sm" variant="outline" className="w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
+              {detailsOpen ? 'Hide Details' : 'View Details'}
+            </Button>
+          </div>
+          <div className={detailsOpen ? '' : 'hidden lg:block'}>
             <DriverPayrollGrid
               deliveries={cityFilteredDeliveries}
               stores={filteredStores}
@@ -1129,6 +1175,14 @@ export default function DriverPayroll() {
           />
           </div>
         </div>
+        
+        <MobileBottomActions
+          onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          onShare={handleCaptureScreenshot}
+          onRefresh={handleManualRefresh}
+          refreshing={isRefreshing || isLoadingPayroll}
+          capturing={isCapturingScreenshot}
+        />
 
         {/* Screenshot Share Modal */}
         <ScreenshotShareModal
