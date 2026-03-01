@@ -3436,7 +3436,7 @@ export default function PayrollSummaryCard({
 
                     {/* Net */}
                     <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
-                      <div className="text-left">Net:</div>
+                      <div className="text-left">Gross:</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right font-semibold">{grandTotalAllDrivers.toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
@@ -3491,7 +3491,7 @@ export default function PayrollSummaryCard({
                       borderColor: 'var(--border-slate-200)',
                       color: '#10b981'
                     }}>
-                      <div className="text-left">Gross:</div>
+                      <div className="text-left">Net:</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right">{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
