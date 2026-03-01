@@ -82,8 +82,8 @@ export default function PayrollSummaryCard({
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !isAdmin;
 
   // Format period dates for querying
-  const periodStartStr = currentPeriod?.start ? (()=>{const d=new Date(currentPeriod.start);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})() : null;
-  const periodEndStr = currentPeriod?.end ? (()=>{const d=new Date(currentPeriod.end);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})() : null;
+  const periodStartStr = currentPeriod?.start ? currentPeriod.start.toISOString().split('T')[0] : null;
+  const periodEndStr = currentPeriod?.end ? currentPeriod.end.toISOString().split('T')[0] : null;
 
   // Calculate payroll for each driver for the current period - MOVED BEFORE OTHER EFFECTS
   const payrollData = useMemo(() => {
@@ -282,8 +282,8 @@ export default function PayrollSummaryCard({
         initialYtdCalculationDone.current = true;
 
         // Fetch all payroll records from year start to current period end
-        const yearStart = (()=>{const d=new Date(currentPeriod.start.getFullYear(),0,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
-        const periodEnd = (()=>{const d=new Date(currentPeriod.end);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
+        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+        const periodEnd = currentPeriod.end.toISOString().split('T')[0];
 
         console.log(`🧮 [Payroll] YTD calculation - fetching from ${yearStart} to ${periodEnd}`);
 
@@ -323,8 +323,8 @@ export default function PayrollSummaryCard({
       try {
         // CRITICAL: Fetch ALL payroll records from Jan 1 to current period end (inclusive)
         // This ensures we get all prior periods + current period for YTD calculations
-        const yearStart = (()=>{const d=new Date(currentPeriod.start.getFullYear(),0,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
-        const periodEnd = (()=>{const d=new Date(currentPeriod.end);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
+        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+        const periodEnd = currentPeriod.end.toISOString().split('T')[0];
 
         console.log(`📥 [Payroll] Fetching records from ${yearStart} to ${periodEnd} (current period: ${periodStartStr} - ${periodEndStr})`);
 
@@ -834,21 +834,13 @@ export default function PayrollSummaryCard({
       // Determine if user can see App Fee % (AppOwner or the driver themselves)
       const userCanSeeAppFee = isAppOwner(currentUser) || isDriver && selectedDriverId === currentUser?.id;
 
-      // Hide App Fee % rows if user doesn't have permission
+      // Hide fee rows and admin notes for export
       const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
-      appFeeRows.forEach((row) => {
-        if (!userCanSeeAppFee) {
-          row.style.display = 'none';
-        }
-      });
-
-      // Hide App Fee % YTD rows if user doesn't have permission
       const appFeeYtdRows = document.querySelectorAll('[data-app-fee-ytd-row="true"]');
-      appFeeYtdRows.forEach((row) => {
-        if (!userCanSeeAppFee) {
-          row.style.display = 'none';
-        }
-      });
+      const adminNotesEls = document.querySelectorAll('[data-notes-admin="true"]');
+      appFeeRows.forEach(row => { if (!userCanSeeAppFee) row.style.display = 'none'; });
+      appFeeYtdRows.forEach(row => { if (!userCanSeeAppFee) row.style.display = 'none'; });
+      adminNotesEls.forEach(el => { el.style.display = 'none'; });
 
       // Capture the content
       const canvas = await html2canvas(contentRef.current, {
@@ -867,14 +859,11 @@ export default function PayrollSummaryCard({
         controlsElement.style.display = 'flex';
       }
 
-      // Show App Fee % rows again
-      appFeeRows.forEach((row) => {
-        row.style.display = '';
-      });
-
-      appFeeYtdRows.forEach((row) => {
-        row.style.display = '';
-      });
+      // Show fee rows and admin notes again
+      appFeeRows.forEach(row => { row.style.display = ''; });
+      appFeeYtdRows.forEach(row => { row.style.display = ''; });
+      const adminNotesElsToShow = document.querySelectorAll('[data-notes-admin="true"]');
+      adminNotesElsToShow.forEach(el => { el.style.display = ''; });
     } catch (error) {
       console.error('Failed to capture screenshot:', error);
     } finally {
@@ -1767,7 +1756,7 @@ export default function PayrollSummaryCard({
     payrollData.forEach((data) => {
       const year = currentPeriod.start.getFullYear();
       const yearStart = `${year}-01-01`;
-      const currentPeriodEnd = (()=>{const d=new Date(currentPeriod.end);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})();
+      const currentPeriodEnd = currentPeriod.end.toISOString().split('T')[0];
 
       // CRITICAL: Include ONLY payroll records from Jan 1 to current period end (inclusive) for this driver
       const ytdRecords = payrollRecords.filter((r) => {
@@ -2877,71 +2866,23 @@ export default function PayrollSummaryCard({
 
                 {/* Right: Pay Summary with YTD */}
                 <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {/* Period Column */}
-                  <div className="flex flex-col">
-                    <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
-                  <table className="border-collapse">
-                    <tbody>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">Net:</td>
-                        <td className="text-right pr-0.5">$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
-                      </tr>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">Tax:</td>
-                        <td className="text-right pr-0.5">$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.taxAmount || 0).toFixed(2)}</td>
-                      </tr>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">
-                          {isAdmin ?
-                                  <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                              Deductions:
-                            </button> :
+                  <PeriodColumnWithNotes
+                    data={data}
+                    edit={edit}
+                    isAdmin={isAdmin}
+                    isDriver={isDriver}
+                    currentUser={currentUser}
+                    driverKey={driverKey}
+                    calculateAppFeeAmount={calculateAppFeeAmount}
+                    isPeriodEndOfMonth={isPeriodEndOfMonth}
+                    setDeductionOverlayDriverId={setDeductionOverlayDriverId}
+                    setBonusOverlayDriverId={setBonusOverlayDriverId}
+                    setAppFeeOverlayDriverId={setAppFeeOverlayDriverId}
+                    getDriverPayrollRecord={getDriverPayrollRecord}
+                    savePayrollChanges={savePayrollChanges}
+                  />
 
-                                  'Deductions:'
-                                  }
-                        </td>
-                        <td className="text-right pr-0.5">-$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
-                      </tr>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">
-                          {isAdmin ?
-                                  <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                              Bonus:
-                            </button> :
-
-                                  'Bonus:'
-                                  }
-                        </td>
-                        <td className="text-right pr-0.5">+$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.bonusPay || 0).toFixed(2)}</td>
-                      </tr>
-                      {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) &&
-                              <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
-                        <td className="text-left pr-2">
-                          <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                            App Fee %:
-                          </button>
-                        </td>
-                        <td className="text-right pr-0.5">+$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0)).toFixed(2)}</td>
-                        </tr>
-                              }
-                      <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
-                        <td colSpan="3" className="pt-1"></td>
-                      </tr>
-                      <tr className="text-lg font-bold text-emerald-600">
-                        <td className="text-left pr-2">Gross:</td>
-                        <td className="text-right pr-0.5">$</td>
-                        <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
-                      </tr>
-                    </tbody>
-                    </table>
-                    </div>
-
-                    {/* Vertical Divider */}
+                  {/* Vertical Divider */}
                     <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
 
                     {/* YTD Column */}
