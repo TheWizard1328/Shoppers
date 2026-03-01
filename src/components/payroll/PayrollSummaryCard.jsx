@@ -2766,7 +2766,7 @@ export default function PayrollSummaryCard({
               };
 
               return (
-                <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+                <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
                 <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
