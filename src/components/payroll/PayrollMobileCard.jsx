@@ -338,7 +338,7 @@ export default function PayrollMobileCard({
           {/* Inline Notes (hidden from exports) */}
           <div data-notes-section="true" className="mt-3 space-y-3">
             {isAdmin && (
-              <div>
+              <div data-notes-admin="true">
                 <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Admin Notes</div>
                 <textarea
                   value={adminNotes}
