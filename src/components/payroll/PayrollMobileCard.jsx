@@ -237,7 +237,13 @@ export default function PayrollMobileCard({
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Gross:</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
-            <div className="text-right font-semibold">{(data.grandTotal || 0).toFixed(2)}</div>
+            <div className="text-right font-semibold">{(
+              (data.grandTotal || 0) +
+              (data.taxAmount || 0) +
+              (bonusAmount || 0) -
+              ((data.deductions || data.total_deductions || data.totalDeductions || 0)) +
+              (appFeeAmount || 0)
+            ).toFixed(2)}</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay || 0).toFixed(2)}</div>
           </div>
