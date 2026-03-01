@@ -1159,14 +1159,6 @@ export default function DriverPayroll() {
           />
           </div>
         </div>
-        
-        <MobileBottomActions
-          onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          onShare={handleCaptureScreenshot}
-          onRefresh={handleManualRefresh}
-          refreshing={isRefreshing || isLoadingPayroll}
-          capturing={isCapturingScreenshot}
-        />
 
         {/* Screenshot Share Modal */}
         <ScreenshotShareModal
