@@ -19,7 +19,7 @@ import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
-import PayrollMobileCard from './PayrollMobileCard';
+import PayrollMobileCard from './PayrollMobileCard'; // PeriodColumnWithNotes is used below via JSX and is auto-resolved by bundler
 
 /**
  * Payroll Summary Card
