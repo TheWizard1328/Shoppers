@@ -332,7 +332,7 @@ export default function PayrollSummaryCard({
 
         console.log(`📥 [Payroll] Fetched ${records?.length || 0} total payroll records from ${yearStart} to ${periodEnd}`);
         records?.forEach((r) => {
-          console.log(`   - Driver: ${r.driver_id}, Period: ${r.pay_period_start} to ${r.pay_period_end}, Net: $${r.net_pay}`);
+          console.log(`   - Driver: ${r.driver_id}, Period: ${r.pay_period_start} to ${r.pay_period_end}, Gross: $${r.net_pay}`);
         });
 
         setPayrollRecords(records || []);
@@ -802,10 +802,10 @@ export default function PayrollSummaryCard({
           period: currentPeriod,
           payrollData: driversWithDeliveries,
           grandTotals: {
-            net: grandTotalAllDrivers,
+            Gross: grandTotalAllDrivers,
             tax: grandTotalTax,
             deductions: grandTotalDeductions,
-            gross: grandTotalGross
+            Net: grandTotalGross
           }
         });
       }
@@ -1586,7 +1586,7 @@ export default function PayrollSummaryCard({
       // Pay summary - right aligned
       const rightCol = portraitWidth - 14;
       doc.setFont('helvetica', 'normal');
-      doc.text(`Net:`, rightCol - 40, y - 14);
+      doc.text(`Gross:`, rightCol - 40, y - 14);
       doc.text(`$${(data.grandTotal || 0).toFixed(2)}`, rightCol, y - 14, { align: 'right' });
 
       doc.text(`Tax:`, rightCol - 40, y - 9);
@@ -1597,7 +1597,7 @@ export default function PayrollSummaryCard({
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text(`Gross:`, rightCol - 40, y + 2);
+      doc.text(`Net:`, rightCol - 40, y + 2);
       doc.text(`$${(data.grossPay || 0).toFixed(2)}`, rightCol, y + 2, { align: 'right' });
 
       y += 8;
@@ -1622,7 +1622,7 @@ export default function PayrollSummaryCard({
       const rightCol = portraitWidth - 14;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Net: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' });
+      doc.text(`Gross: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' });
       y += 5;
       doc.text(`Tax: $${grandTotalTax.toFixed(2)}`, rightCol, y, { align: 'right' });
       y += 5;
@@ -1630,7 +1630,7 @@ export default function PayrollSummaryCard({
       y += 6;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
-      doc.text(`Gross: $${grandTotalGross.toFixed(2)}`, rightCol, y, { align: 'right' });
+      doc.text(`Net: $${grandTotalGross.toFixed(2)}`, rightCol, y, { align: 'right' });
     }
 
     // Save the PDF
@@ -2856,7 +2856,7 @@ export default function PayrollSummaryCard({
                   <table className="border-collapse">
                     <tbody>
                       <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">Net:</td>
+                        <td className="text-left pr-2">Gross:</td>
                         <td className="text-right pr-0.5">$</td>
                         <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
                       </tr>
@@ -2906,7 +2906,7 @@ export default function PayrollSummaryCard({
                         <td colSpan="3" className="pt-1"></td>
                       </tr>
                       <tr className="text-lg font-bold text-emerald-600">
-                        <td className="text-left pr-2">Gross:</td>
+                        <td className="text-left pr-2">Net:</td>
                         <td className="text-right pr-0.5">$</td>
                         <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
                       </tr>
@@ -3253,7 +3253,7 @@ export default function PayrollSummaryCard({
                         <table className="border-collapse">
                           <tbody>
                             <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-left pr-2">Net:</td>
+                              <td className="text-left pr-2">Gross:</td>
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalAllDrivers.toFixed(2)}</td>
                             </tr>
@@ -3293,7 +3293,7 @@ export default function PayrollSummaryCard({
                               <td colSpan="3" className="pt-1"></td>
                             </tr>
                             <tr className="text-lg font-bold text-emerald-600">
-                              <td className="text-left pr-2">Gross:</td>
+                              <td className="text-left pr-2">Net:</td>
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</td>
                             </tr>
@@ -3409,7 +3409,7 @@ export default function PayrollSummaryCard({
 
                     {/* Net */}
                     <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
-                      <div className="text-left">Net:</div>
+                      <div className="text-left">Gross:</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right font-semibold">{grandTotalAllDrivers.toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
@@ -3464,7 +3464,7 @@ export default function PayrollSummaryCard({
                       borderColor: 'var(--border-slate-200)',
                       color: '#10b981'
                     }}>
-                      <div className="text-left">Gross:</div>
+                      <div className="text-left">Net:</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right">{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
