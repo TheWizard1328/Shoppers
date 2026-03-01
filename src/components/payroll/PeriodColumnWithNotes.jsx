@@ -1,5 +1,6 @@
 import React from "react";
 import DriverNotesInline from "./DriverNotesInline";
+import { isAppOwner } from "../utils/userRoles";
 
 export default function PeriodColumnWithNotes({
   data,
@@ -57,7 +58,7 @@ export default function PeriodColumnWithNotes({
             <td className="text-right pr-0.5">+$</td>
             <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.bonusPay || 0).toFixed(2)}</td>
           </tr>
-          {isAdmin && isPeriodEndOfMonth && (currentUser?.id === 'app_owner' || (edit.appFeePercent || 0) > 0) && (
+          {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) && (
             <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
               <td className="text-left pr-2">
                 <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
