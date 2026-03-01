@@ -2794,8 +2794,8 @@ export default function PayrollSummaryCard({
               {/* Stats and Pay Summary - Side by Side */}
               <div>
                 <div className="flex flex-col md:flex-row justify-between md:items-start">
-                  {/* Left: 8 Stats in 4 columns x 2 rows with fixed column widths */}
-                  <div className="grid text-xs" style={{ gridTemplateColumns: '150px 140px 140px 120px', gap: '1rem 1rem', rowGap: '0.125rem' }}>
+                  {/* Left: 8 Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-[150px_140px_140px_120px] text-xs gap-x-2 gap-y-1 md:gap-x-4 md:gap-y-0.5">
                   {/* Row 1: Rates */}
                   <div className="flex items-center">
                     <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
