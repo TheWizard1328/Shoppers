@@ -502,8 +502,8 @@ export default function DriverPayroll() {
       appFeeRows.forEach(row => { row.style.display = ''; });
 
       // Show Notes sections again
-      const notesSections = contentRef.current.querySelectorAll('[data-notes-section="true"]');
-      notesSections.forEach(el => { el.style.display = ''; });
+      const notesSectionsToShow = contentRef.current.querySelectorAll('[data-notes-section="true"]');
+      notesSectionsToShow.forEach(el => { el.style.display = ''; });
 
       const dataUrl = canvas.toDataURL('image/png');
       setScreenshotDataUrl(dataUrl);
