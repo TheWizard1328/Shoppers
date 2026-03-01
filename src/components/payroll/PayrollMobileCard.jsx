@@ -326,7 +326,7 @@ export default function PayrollMobileCard({
             <div className="text-right pr-0.5">$</div>
             <div className="text-right">{(data.grandTotal || 0).toFixed(2)}</div>
             <div className="text-right pr-0.5">$</div>
-            <div className="text-right">{((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0)).toFixed(2)}</div>
+            <div className="text-right">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
 
           {/* Inline Notes (hidden from exports) */}
