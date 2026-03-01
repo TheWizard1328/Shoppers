@@ -23,7 +23,7 @@ export default function PeriodColumnWithNotes({
       <table className="border-collapse">
         <tbody>
           <tr style={{ color: 'var(--text-slate-600)' }}>
-            <td className="text-left pr-2">Gross:</td>
+            <td className="text-left pr-2">Net:</td>
             <td className="text-right pr-0.5">$</td>
             <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
           </tr>
@@ -73,7 +73,7 @@ export default function PeriodColumnWithNotes({
             <td colSpan="3" className="pt-1"></td>
           </tr>
           <tr className="text-lg font-bold text-emerald-600">
-            <td className="text-left pr-2">Net:</td>
+            <td className="text-left pr-2">Gross:</td>
             <td className="text-right pr-0.5">$</td>
             <td className="text-right" style={{ width: '60px' }}>{(
               Math.round(data.grandTotal * 100) / 100 +
