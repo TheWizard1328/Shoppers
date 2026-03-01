@@ -2947,11 +2947,11 @@ export default function PayrollSummaryCard({
             })}
           
           {/* Total App Fees Collected - App Owner Only */}
-          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) && isAppOwner(currentUser) &&
+          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) &&
             <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
-            {/* Desktop View */}
-            <div className="hidden md:block">
-              <div className="flex items-center justify-between">
+            {/* Responsive View */}
+            <div>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                 <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
                   Total App Fees Collected
                 </div>
