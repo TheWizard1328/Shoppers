@@ -224,8 +224,8 @@ export default function PayrollSummaryCard({
       const deductionsArray = Array.isArray(appUser?.deductions) ? appUser.deductions : [];
       const totalDeductions = totalPay > 0 ? deductionsArray.reduce((sum, d) => sum + (d?.amount || 0), 0) : 0;
 
-      // Gross = Net + Tax - Deductions (only calculate if there's actual pay)
-      const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
+      // Gross is pre-deductions: base + extras + oversized + tax (no deductions here)
+      const grossPay = totalPay > 0 ? totalPay + taxAmount : 0;
 
       return {
         driver: { ...driver, id: driverId }, // Ensure consistent id
@@ -242,7 +242,8 @@ export default function PayrollSummaryCard({
         failedCount: failedCount,
         returnsCount: returnsCount,
         storeReturnCount: storeReturnCount,
-        grandTotal: totalPay,
+        // Net = Gross - Deductions (bonus handled separately in UI)
+        grandTotal: Math.max(0, grossPay - totalDeductions),
         // New fields
         gstHstEnabled,
         taxRate,
@@ -597,16 +598,15 @@ export default function PayrollSummaryCard({
       const driverData = payrollData.find((d) => d.driver.id === driverId);
       let recalculatedUpdates = { ...updates };
 
-      if (updates.deductions !== undefined || updates.bonus_pay !== undefined) {
-        const newDeductions = updates.total_deductions !== undefined ? updates.total_deductions : existingRecord.total_deductions || 0;
-        const newBonus = updates.bonus_pay !== undefined ? updates.bonus_pay : existingRecord.bonus_pay || 0;
+      if (updates.deductions !== undefined || updates.bonus_pay !== undefined || updates.total_deductions !== undefined) {
+      const newDeductions = updates.total_deductions !== undefined ? updates.total_deductions : existingRecord.total_deductions || 0;
+      const newBonus = updates.bonus_pay !== undefined ? updates.bonus_pay : existingRecord.bonus_pay || 0;
 
-        // Recalculate gross_pay = net_pay + tax - deductions + bonus
-        const netPay = driverData?.grandTotal || existingRecord.net_pay || 0;
-        const taxAmount = driverData?.taxAmount || 0;
-        const newGrossPay = netPay + taxAmount - newDeductions + newBonus;
+      // Keep gross pre-deductions; recalc net = gross - deductions + bonus
+      const grossPay = driverData?.grossPay ?? existingRecord.gross_pay ?? 0;
+      const newNetPay = grossPay - newDeductions + newBonus;
 
-        recalculatedUpdates.gross_pay = newGrossPay;
+      recalculatedUpdates.net_pay = Math.round(newNetPay * 100) / 100;
       }
 
       // Update existing record (round currency values)
@@ -1917,7 +1917,7 @@ export default function PayrollSummaryCard({
     });
 
     setDriverEdits(newEdits);
-  }, [payrollData, payrollRecords]);
+  }, [payrollData, payrollRecords, calculateAppFeeAmount]);
 
   // Guard clause AFTER all hooks
   if (payrollData.length === 0) {
@@ -2935,7 +2935,7 @@ export default function PayrollSummaryCard({
                       <tr className="text-lg font-bold text-emerald-600">
                         <td className="text-left pr-2">Gross:</td>
                         <td className="text-right pr-0.5">$</td>
-                        <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
+                        <td className="text-right" style={{ width: '60px' }}>{(data.grossPay || 0).toFixed(2)}</td>
                       </tr>
                     </tbody>
                     </table>
