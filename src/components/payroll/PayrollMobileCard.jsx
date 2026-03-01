@@ -160,12 +160,12 @@ export default function PayrollMobileCard({
 
       {/* Pay Summary - Table Layout with Aligned Columns */}
       {currentPeriod && ytdDataByDriver[data.driver.id]?.ytdGrossPay > 0 && (
-      <div className="p-3 rounded-lg border" style={{
+      <div className="p-3 rounded-lg border w-full overflow-x-hidden" style={{
         background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
         fontVariantNumeric: 'tabular-nums'
       }}>
-        <div className="text-xs font-mono" style={{ color: 'var(--text-slate-900)', minWidth: '360px' }}>
+        <div className="text-xs font-mono" style={{ color: 'var(--text-slate-900)', minWidth: 0, width: '100%' }}>
           {/* Header Row */}
           <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{ 
             gridTemplateColumns: '1fr 22px 60px 22px 60px',
