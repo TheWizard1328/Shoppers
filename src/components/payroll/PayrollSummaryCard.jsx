@@ -20,7 +20,7 @@ import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
 import PayrollMobileCard from './PayrollMobileCard';
-import DriverNotesInline from './DriverNotesInline';
+import PeriodColumnWithNotes from './PeriodColumnWithNotes';
 
 /**
  * Payroll Summary Card
@@ -331,6 +331,11 @@ export default function PayrollSummaryCard({
 
         const records = await base44.entities.Payroll.filter({
           pay_period_end: { $gte: yearStart, $lte: periodEnd }
+        });
+
+        console.log(`📥 [Payroll] Fetched ${records?.length || 0} total payroll records from ${yearStart} to ${periodEnd}`);
+        records?.forEach((r) => {
+          console.log(`   - Driver: ${r.driver_id}, Period: ${r.pay_period_start} to ${r.pay_period_end}, Net: $${r.net_pay}`);
         });
 
         setPayrollRecords(records || []);
@@ -1773,7 +1778,14 @@ export default function PayrollSummaryCard({
         return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
       });
 
-      // YTD debug logs removed
+      console.log(`📋 [Payroll YTD Debug] Driver ${data.driver.user_name}: Period End=${currentPeriodEnd}`);
+      console.log(`   Filtering records from ${yearStart} to ${currentPeriodEnd}`);
+      console.log(`   ALL payroll records available (${payrollRecords.length} total):`);
+      payrollRecords.filter((r) => r.driver_id === data.driver.id).forEach((r) => {
+        const isIncluded = r.pay_period_end >= yearStart && r.pay_period_end <= currentPeriodEnd;
+        console.log(`     ${isIncluded ? '✓' : '✗'} ${r.pay_period_start} to ${r.pay_period_end}: net=$${(r.net_pay || 0).toFixed(2)}, bonus=$${(r.bonus_pay || 0).toFixed(2)}, deductions=$${(r.total_deductions || 0).toFixed(2)}, app_fee=$${(r.app_fee_amount || 0).toFixed(2)}`);
+      });
+      console.log(`   YTD records included: ${ytdRecords.length}`);
 
       // Use shared utility to calculate YTD values
       const appUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
@@ -2867,77 +2879,21 @@ export default function PayrollSummaryCard({
                 {/* Right: Pay Summary with YTD */}
                 <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {/* Period Column */}
-                  <div className="flex flex-col">
-                    <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
-                  <table className="border-collapse">
-                    <tbody>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">Net:</td>
-                        <td className="text-right pr-0.5">$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
-                      </tr>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">Tax:</td>
-                        <td className="text-right pr-0.5">$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.taxAmount || 0).toFixed(2)}</td>
-                      </tr>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">
-                          {isAdmin ?
-                                  <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                              Deductions:
-                            </button> :
-
-                                  'Deductions:'
-                                  }
-                        </td>
-                        <td className="text-right pr-0.5">-$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
-                      </tr>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">
-                          {isAdmin ?
-                                  <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                              Bonus:
-                            </button> :
-
-                                  'Bonus:'
-                                  }
-                        </td>
-                        <td className="text-right pr-0.5">+$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.bonusPay || 0).toFixed(2)}</td>
-                      </tr>
-                      {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) &&
-                              <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
-                        <td className="text-left pr-2">
-                          <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                            App Fee %:
-                          </button>
-                        </td>
-                        <td className="text-right pr-0.5">+$</td>
-                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0)).toFixed(2)}</td>
-                        </tr>
-                              }
-                      <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
-                        <td colSpan="3" className="pt-1"></td>
-                      </tr>
-                      <tr className="text-lg font-bold text-emerald-600">
-                        <td className="text-left pr-2">Gross:</td>
-                        <td className="text-right pr-0.5">$</td>
-                        <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
-                      </tr>
-                    </tbody>
-                    </table>
-                    <DriverNotesInline
-                      showAdmin={isAdmin}
-                      canEditAdmin={isAdmin}
-                      canEditDriver={isAdmin || (isDriver && currentUser?.id === driverKey)}
-                      initialAdminNotes={getDriverPayrollRecord(driverKey)?.admin_notes || ''}
-                      initialDriverNotes={getDriverPayrollRecord(driverKey)?.driver_notes || ''}
-                      onSaveAdmin={(val) => savePayrollChanges(driverKey, { admin_notes: val })}
-                      onSaveDriver={(val) => savePayrollChanges(driverKey, { driver_notes: val })}
-                    />
-                    </div>
+                  <PeriodColumnWithNotes
+                    data={data}
+                    edit={edit}
+                    isAdmin={isAdmin}
+                    isDriver={isDriver}
+                    currentUser={currentUser}
+                    driverKey={driverKey}
+                    calculateAppFeeAmount={calculateAppFeeAmount}
+                    isPeriodEndOfMonth={isPeriodEndOfMonth}
+                    setDeductionOverlayDriverId={setDeductionOverlayDriverId}
+                    setBonusOverlayDriverId={setBonusOverlayDriverId}
+                    setAppFeeOverlayDriverId={setAppFeeOverlayDriverId}
+                    getDriverPayrollRecord={getDriverPayrollRecord}
+                    savePayrollChanges={savePayrollChanges}
+                  />
 
                     {/* Vertical Divider */}
                     <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
