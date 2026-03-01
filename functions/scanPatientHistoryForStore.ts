@@ -26,7 +26,7 @@ function detectPatterns(deliveryDates) {
     gaps.push(Math.round((dates[i] - dates[i-1]) / (1000 * 60 * 60 * 24)));
   }
   const dailyGaps = gaps.filter(g => g === 1).length;
-  if (dailyGaps / gaps.length >= 0.8) {
+  if (dailyGaps / gaps.length >= 0.8 && dailyGaps >= 3) {
     candidates.push({
       pattern_key: 'recurring_daily',
       pattern_label: 'Daily',
@@ -61,7 +61,7 @@ function detectPatterns(deliveryDates) {
     const x4Ratio = x4Gaps / dominantGaps.length;
 
     // Weekly: at least 60% of gaps are ~7 days (allows missed weeks)
-    if (weeklyRatio >= 0.6) {
+    if (weeklyRatio >= 0.6 && weeklyGaps >= 3) {
       const dayKey = `recurring_weekly_${dowNames[dominantDow]}`;
       candidates.push({
         pattern_key: dayKey,
@@ -72,7 +72,7 @@ function detectPatterns(deliveryDates) {
     }
 
     // Biweekly: at least 55% of gaps are ~14 days
-    if (biweeklyRatio >= 0.55) {
+    if (biweeklyRatio >= 0.55 && biweeklyGaps >= 3) {
       candidates.push({
         pattern_key: 'recurring_biweekly',
         pattern_label: 'Bi-Weekly',
@@ -82,7 +82,7 @@ function detectPatterns(deliveryDates) {
     }
 
     // Weekly x4 (once a month on a day): at least 55% of gaps are ~28-35 days
-    if (x4Ratio >= 0.55) {
+    if (x4Ratio >= 0.55 && x4Gaps >= 3) {
       candidates.push({
         pattern_key: 'recurring_weekly_x4',
         pattern_label: `Weekly x4 (${dowLabels[dominantDow]})`,
@@ -110,8 +110,9 @@ function detectPatterns(deliveryDates) {
   
   // Also check average gap
   const overallAvgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  const monthlyGaps = gaps.filter(g => g >= 25 && g <= 40).length;
 
-  if (monthlyRatio >= 0.6 && overallAvgGap >= 20 && overallAvgGap <= 45) {
+  if (monthlyRatio >= 0.6 && overallAvgGap >= 20 && overallAvgGap <= 45 && monthlyGaps >= 3) {
     candidates.push({
       pattern_key: 'recurring_monthly',
       pattern_label: 'Monthly',
@@ -121,7 +122,8 @@ function detectPatterns(deliveryDates) {
   }
 
   // --- BIMONTHLY: avg gap 50-75 days ---
-  if (overallAvgGap >= 50 && overallAvgGap <= 75 && dates.length >= MIN_DELIVERIES_FOR_PATTERN) {
+  const biMonthlyGaps = gaps.filter(g => g >= 50 && g <= 75).length;
+  if (overallAvgGap >= 50 && overallAvgGap <= 75 && biMonthlyGaps >= 3) {
     candidates.push({
       pattern_key: 'recurring_bimonthly',
       pattern_label: 'Bi-Monthly (Every 2 Months)',
@@ -249,6 +251,15 @@ Deno.serve(async (req) => {
             status: 'applied'
           });
           summary.analysis_results_created++;
+          continue;
+        }
+
+        // --- 30-DAY RECENCY CHECK ---
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+        if (!lastDeliveryDate || lastDeliveryDate < thirtyDaysAgoStr) {
+          console.log(`  ℹ️ Patient ${patient.full_name} has no delivery in last 30 days (${lastDeliveryDate || 'none'}), skipping pattern detection`);
           continue;
         }
 
