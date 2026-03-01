@@ -234,23 +234,33 @@ Deno.serve(async (req) => {
           console.log(`  ⚠️ Patient ${patient.full_name} inactive since ${lastDeliveryDate || 'never'}`);
           
           // Mark as inactive
-          await base44.asServiceRole.entities.Patient.update(patient.id, { status: 'inactive' });
-          summary.marked_inactive++;
+          try {
+            await base44.asServiceRole.entities.Patient.update(patient.id, { status: 'inactive' });
+            summary.marked_inactive++;
+          } catch (e) {
+            console.error(`  ❌ Failed to mark inactive for ${patient.full_name} (${patient.id})`, e);
+            summary.errors.push({ patient_id: patient.id, patient_name: patient.full_name, store_id: store.id, action: 'mark_inactive', message: e?.message || String(e) });
+          }
 
           // Create analysis result for inactivity
-          await base44.asServiceRole.entities.PatientAnalysisResult.create({
-            patient_id: patient.id,
-            patient_name: patient.full_name,
-            store_id: store.id,
-            store_name: store.name,
-            analysis_date: todayStr,
-            result_type: 'inactivity_flagged',
-            last_delivery_date: lastDeliveryDate || null,
-            total_deliveries_analyzed: deliveries.length,
-            suggested_patterns: [],
-            status: 'applied'
-          });
-          summary.analysis_results_created++;
+          try {
+            await base44.asServiceRole.entities.PatientAnalysisResult.create({
+              patient_id: patient.id,
+              patient_name: patient.full_name,
+              store_id: store.id,
+              store_name: store.name,
+              analysis_date: todayStr,
+              result_type: 'inactivity_flagged',
+              last_delivery_date: lastDeliveryDate || null,
+              total_deliveries_analyzed: deliveries.length,
+              suggested_patterns: [],
+              status: 'applied'
+            });
+            summary.analysis_results_created++;
+          } catch (e) {
+            console.error(`  ❌ Failed to create inactivity result for ${patient.full_name} (${patient.id})`, e);
+            summary.errors.push({ patient_id: patient.id, patient_name: patient.full_name, store_id: store.id, action: 'create_inactivity_result', message: e?.message || String(e) });
+          }
           continue;
         }
 
@@ -296,42 +306,57 @@ Deno.serve(async (req) => {
             updateData[topPattern.pattern_key] = true;
           }
           
-          await base44.asServiceRole.entities.Patient.update(patient.id, updateData);
+          try {
+            await base44.asServiceRole.entities.Patient.update(patient.id, updateData);
+          } catch (e) {
+            console.error(`  ❌ Failed to apply pattern to patient ${patient.full_name} (${patient.id})`, e);
+            summary.errors.push({ patient_id: patient.id, patient_name: patient.full_name, store_id: store.id, action: 'apply_pattern_update', message: e?.message || String(e) });
+          }
 
-          await base44.asServiceRole.entities.PatientAnalysisResult.create({
-            patient_id: patient.id,
-            patient_name: patient.full_name,
-            store_id: store.id,
-            store_name: store.name,
-            analysis_date: todayStr,
-            result_type: 'pattern_detected',
-            last_delivery_date: lastDeliveryDate,
-            total_deliveries_analyzed: deliveryDates.length,
-            suggested_patterns: patterns,
-            status: 'applied',
-            applied_pattern: topPattern.pattern_key
-          });
-          summary.patterns_detected++;
-          summary.analysis_results_created++;
+          try {
+            await base44.asServiceRole.entities.PatientAnalysisResult.create({
+              patient_id: patient.id,
+              patient_name: patient.full_name,
+              store_id: store.id,
+              store_name: store.name,
+              analysis_date: todayStr,
+              result_type: 'pattern_detected',
+              last_delivery_date: lastDeliveryDate,
+              total_deliveries_analyzed: deliveryDates.length,
+              suggested_patterns: patterns,
+              status: 'applied',
+              applied_pattern: topPattern.pattern_key
+            });
+            summary.patterns_detected++;
+            summary.analysis_results_created++;
+          } catch (e) {
+            console.error(`  ❌ Failed to create applied pattern result for ${patient.full_name} (${patient.id})`, e);
+            summary.errors.push({ patient_id: patient.id, patient_name: patient.full_name, store_id: store.id, action: 'create_pattern_result', message: e?.message || String(e) });
+          }
 
         } else {
           // Ambiguous or low confidence - queue for manual review
           console.log(`  ❓ Ambiguous patterns for ${patient.full_name}: ${patterns.map(p => p.pattern_key).join(', ')}`);
           
-          await base44.asServiceRole.entities.PatientAnalysisResult.create({
-            patient_id: patient.id,
-            patient_name: patient.full_name,
-            store_id: store.id,
-            store_name: store.name,
-            analysis_date: todayStr,
-            result_type: 'pattern_ambiguous',
-            last_delivery_date: lastDeliveryDate,
-            total_deliveries_analyzed: deliveryDates.length,
-            suggested_patterns: patterns,
-            status: 'pending_review'
-          });
-          summary.ambiguous_patterns++;
-          summary.analysis_results_created++;
+          try {
+            await base44.asServiceRole.entities.PatientAnalysisResult.create({
+              patient_id: patient.id,
+              patient_name: patient.full_name,
+              store_id: store.id,
+              store_name: store.name,
+              analysis_date: todayStr,
+              result_type: 'pattern_ambiguous',
+              last_delivery_date: lastDeliveryDate,
+              total_deliveries_analyzed: deliveryDates.length,
+              suggested_patterns: patterns,
+              status: 'pending_review'
+            });
+            summary.ambiguous_patterns++;
+            summary.analysis_results_created++;
+          } catch (e) {
+            console.error(`  ❌ Failed to create ambiguous pattern result for ${patient.full_name} (${patient.id})`, e);
+            summary.errors.push({ patient_id: patient.id, patient_name: patient.full_name, store_id: store.id, action: 'create_ambiguous_result', message: e?.message || String(e) });
+          }
         }
       }
     }

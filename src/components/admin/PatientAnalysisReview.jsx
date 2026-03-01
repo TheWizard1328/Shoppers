@@ -50,15 +50,22 @@ export default function PatientAnalysisReview({ stores = [] }) {
     setIsRunning(true);
     setRunStatus('Running scan...');
     const payload = storeId ? { store_id: storeId } : {};
-    const res = await base44.functions.invoke('scanPatientHistoryForStore', payload);
-    const summary = res?.data?.summary;
-    if (summary) {
-      setRunStatus(`Done! Scanned ${summary.patients_scanned} patients. Inactive: ${summary.marked_inactive}, Patterns: ${summary.patterns_detected}, Needs review: ${summary.ambiguous_patterns}`);
-    } else {
-      setRunStatus(res?.data?.message || 'Scan complete.');
+    try {
+      const res = await base44.functions.invoke('scanPatientHistoryForStore', payload);
+      const summary = res?.data?.summary;
+      if (summary) {
+        setRunStatus(`Done! Scanned ${summary.patients_scanned} patients. Inactive: ${summary.marked_inactive}, Patterns: ${summary.patterns_detected}, Needs review: ${summary.ambiguous_patterns}`);
+      } else {
+        setRunStatus(res?.data?.message || 'Scan complete.');
+      }
+    } catch (err) {
+      console.error('Scan failed:', err);
+      const apiMsg = err?.response?.data?.error || err?.response?.data?.message;
+      setRunStatus(apiMsg || err?.message || 'Scan failed with an unknown error.');
+    } finally {
+      setIsRunning(false);
+      loadResults();
     }
-    setIsRunning(false);
-    loadResults();
   };
 
   const handleApplyPattern = async (result, patternKey) => {
