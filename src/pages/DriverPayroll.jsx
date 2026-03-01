@@ -15,8 +15,6 @@ import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
 import { offlineDB } from '../components/utils/offlineDatabase';
-import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
-import MobileBottomActions from '@/components/payroll/MobileBottomActions';
 
 // Local date helper (device timezone, no UTC offset)
 const toLocalYMD = (d) => {
