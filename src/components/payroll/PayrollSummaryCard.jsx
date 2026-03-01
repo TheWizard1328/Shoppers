@@ -20,11 +20,9 @@ import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
 import PayrollMobileCard from './PayrollMobileCard';
+import LeftStatsAndNotes from './LeftStatsAndNotes';
 
-/**
- * Payroll Summary Card
- * Calculates and displays payroll totals based on pay period and driver rates
- */
+
 // GST/HST rates by province (Canada)
 const PROVINCE_TAX_RATES = {
   'AB': 0.05, // Alberta - GST only
@@ -1214,7 +1212,7 @@ export default function PayrollSummaryCard({
       // Only show Net Pay if different from Gross Pay
       const hasDeductions = driverData.taxAmount > 0 || driverData.deductions > 0;
       if (hasDeductions) {
-        doc.text(`Gross Pay:`, col1_rowTitles, y);
+        doc.text(`Net Pay:`, col1_rowTitles, y);
         doc.text(`=$`, col3_calcTotals, y);
         doc.text(driverData.grandTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
 
@@ -1252,7 +1250,7 @@ export default function PayrollSummaryCard({
 
       // Gross Pay
       doc.setFont('helvetica', 'bold');
-      doc.text(`Net Pay:`, col1_rowTitles, y);
+      doc.text(`Gross Pay:`, col1_rowTitles, y);
       doc.text(`=$`, col3_calcTotals, y);
       doc.text(driverData.grossPay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
 
@@ -1588,7 +1586,7 @@ export default function PayrollSummaryCard({
       // Pay summary - right aligned
       const rightCol = portraitWidth - 14;
       doc.setFont('helvetica', 'normal');
-      doc.text(`Gross:`, rightCol - 40, y - 14);
+      doc.text(`Net:`, rightCol - 40, y - 14);
       doc.text(`$${(data.grandTotal || 0).toFixed(2)}`, rightCol, y - 14, { align: 'right' });
 
       doc.text(`Tax:`, rightCol - 40, y - 9);
@@ -1599,7 +1597,7 @@ export default function PayrollSummaryCard({
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text(`Net:`, rightCol - 40, y + 2);
+      doc.text(`Gross:`, rightCol - 40, y + 2);
       doc.text(`$${(data.grossPay || 0).toFixed(2)}`, rightCol, y + 2, { align: 'right' });
 
       y += 8;
@@ -1624,7 +1622,7 @@ export default function PayrollSummaryCard({
       const rightCol = portraitWidth - 14;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Gross: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' });
+      doc.text(`Net: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' });
       y += 5;
       doc.text(`Tax: $${grandTotalTax.toFixed(2)}`, rightCol, y, { align: 'right' });
       y += 5;
@@ -1632,7 +1630,7 @@ export default function PayrollSummaryCard({
       y += 6;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
-      doc.text(`Net: $${grandTotalGross.toFixed(2)}`, rightCol, y, { align: 'right' });
+      doc.text(`Gross: $${grandTotalGross.toFixed(2)}`, rightCol, y, { align: 'right' });
     }
 
     // Save the PDF
@@ -2837,43 +2835,18 @@ export default function PayrollSummaryCard({
               {/* Stats and Pay Summary - Side by Side */}
               <div>
                 <div className="flex justify-between items-start">
-                  {/* Left: 8 Stats in 4 columns x 2 rows with fixed column widths */}
-                  <div className="grid text-xs" style={{ gridTemplateColumns: '150px 140px 140px 120px', gap: '1rem 1rem', rowGap: '0.125rem' }}>
-                  {/* Row 1: Rates */}
-                  <div className="flex items-center">
-                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
-                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">{data.failedCount}</span>
-                  </div>
-                  {/* Row 2: Totals */}
-                  <div className="flex items-center">
-                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
-                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.storeReturnCount || 0}</span>
-                  </div>
-                </div>
+                  <LeftStatsAndNotes
+                    data={data}
+                    formatCurrency={formatCurrency}
+                    isAdmin={isAdmin}
+                    isDriver={isDriver}
+                    currentUser={currentUser}
+                    driverKey={driverKey}
+                    setDeductionOverlayDriverId={setDeductionOverlayDriverId}
+                    setBonusOverlayDriverId={setBonusOverlayDriverId}
+                    getDriverPayrollRecord={getDriverPayrollRecord}
+                    savePayrollChanges={savePayrollChanges}
+                  />
 
                 {/* Right: Pay Summary with YTD */}
                 <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -2883,7 +2856,7 @@ export default function PayrollSummaryCard({
                   <table className="border-collapse">
                     <tbody>
                       <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-left pr-2">Gross:</td>
+                        <td className="text-left pr-2">Net:</td>
                         <td className="text-right pr-0.5">$</td>
                         <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
                       </tr>
@@ -2933,7 +2906,7 @@ export default function PayrollSummaryCard({
                         <td colSpan="3" className="pt-1"></td>
                       </tr>
                       <tr className="text-lg font-bold text-emerald-600">
-                        <td className="text-left pr-2">Net:</td>
+                        <td className="text-left pr-2">Gross:</td>
                         <td className="text-right pr-0.5">$</td>
                         <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
                       </tr>
@@ -3280,7 +3253,7 @@ export default function PayrollSummaryCard({
                         <table className="border-collapse">
                           <tbody>
                             <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-left pr-2">Gross:</td>
+                              <td className="text-left pr-2">Net:</td>
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalAllDrivers.toFixed(2)}</td>
                             </tr>
@@ -3320,7 +3293,7 @@ export default function PayrollSummaryCard({
                               <td colSpan="3" className="pt-1"></td>
                             </tr>
                             <tr className="text-lg font-bold text-emerald-600">
-                              <td className="text-left pr-2">Net:</td>
+                              <td className="text-left pr-2">Gross:</td>
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</td>
                             </tr>
@@ -3436,7 +3409,7 @@ export default function PayrollSummaryCard({
 
                     {/* Net */}
                     <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
-                      <div className="text-left">Gross:</div>
+                      <div className="text-left">Net:</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right font-semibold">{grandTotalAllDrivers.toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
@@ -3491,7 +3464,7 @@ export default function PayrollSummaryCard({
                       borderColor: 'var(--border-slate-200)',
                       color: '#10b981'
                     }}>
-                      <div className="text-left">Net:</div>
+                      <div className="text-left">Gross:</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right">{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
