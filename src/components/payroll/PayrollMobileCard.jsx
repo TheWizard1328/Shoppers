@@ -264,9 +264,14 @@ export default function PayrollMobileCard({
           }}>
             <div className="text-left">Net:</div>
             <div className="text-right pr-0.5">$</div>
-            <div className="text-right">{((data.grandTotal || 0) + (data.taxAmount || 0) - ((data.deductions || data.total_deductions || data.totalDeductions || 0)) + (bonusAmount || 0) + (appFeeAmount || 0)).toFixed(2)}</div>
+            <div className="text-right">{((data.grandTotal || 0) + (data.taxAmount || 0) - ((data.deductions || data.total_deductions || data.totalDeductions || 0)) + (bonusAmount || 0) - (appFeeAmount || 0)).toFixed(2)}</div>
             <div className="text-right pr-0.5">$</div>
             <div className="text-right">{((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0)).toFixed(2)}</div>
+          </div>
+
+          {/* Notes Trigger Row */}
+          <div className="mt-3">
+            <button onClick={() => onNotesClick && onNotesClick()} className="text-xs text-blue-600 hover:text-blue-700 font-medium">Notes</button>
           </div>
         </div>
       </div>
