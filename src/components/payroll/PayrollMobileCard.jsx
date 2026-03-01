@@ -122,7 +122,7 @@ export default function PayrollMobileCard({
         {expandedSection === 'deliveries' &&
         <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between overflow-x-auto max-w-full" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
             {/* 5-column grid layout */}
-            <div className="space-y-1" style={{ display: 'grid', gridTemplateColumns: '1fr 0.5fr 0.8fr 0.35fr 1fr', columnGap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace', minWidth: '360px' }}>
+            <div className="space-y-1" style={{ display: 'grid', gridTemplateColumns: '1fr 0.5fr 0.8fr 0.35fr 1fr', columnGap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace', minWidth: 0, width: '100%' }}>
               {/* Total */}
               <span style={{ color: 'var(--text-slate-600)' }}>Total:</span>
               <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalDeliveries}x</span>

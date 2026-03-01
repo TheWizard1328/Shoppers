@@ -881,8 +881,8 @@ export default function DriverPayroll() {
       <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
     </div>
   ) : (
-    <div className="h-full flex flex-col p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-7xl mx-auto flex flex-col h-full" ref={contentRef}>
+    <div className="h-full w-full max-w-full overflow-x-hidden flex flex-col p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
+      <div className="max-w-7xl w-full mx-auto flex flex-col h-full" ref={contentRef}>
         {/* Header */}
         <div className="sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4 pb-3 bg-[var(--bg-slate-50)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75">
           {/* Row 1 (Mobile) / Left section (Desktop) */}
@@ -1056,7 +1056,7 @@ export default function DriverPayroll() {
         />
 
         {/* Content Area for Screenshot */}
-        <div className="min-h-0 flex-1 overflow-auto pb-36 md:pb-12 overscroll-contain">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-36 md:pb-12 overscroll-contain">
           {/* Grid (mobile collapsible) */}
           <div className="lg:hidden mb-3">
             <Button size="sm" variant="outline" className="w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
