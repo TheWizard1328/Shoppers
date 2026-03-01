@@ -12,7 +12,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle } from '@/components/ui/dialog';
+  DialogTitle } from 
+  "@/components/ui/dialog";
 import { base44 } from '@/api/base44Client';
 import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
