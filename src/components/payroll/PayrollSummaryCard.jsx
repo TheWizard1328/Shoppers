@@ -3111,7 +3111,7 @@ export default function PayrollSummaryCard({
                   </div>
 
                   {/* Right Column: Pay Totals with YTD */}
-                  <div className="flex items-start ml-auto gap-3">
+                  <div className="flex items-start md:ml-auto gap-3 mt-4 md:mt-0">
                   {/* Period Column */}
                   <div className="flex flex-col">
                     {grandTotalTax > 0 || grandTotalDeductions > 0 ?
