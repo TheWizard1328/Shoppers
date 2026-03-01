@@ -2891,7 +2891,7 @@ export default function PayrollSummaryCard({
                   getDriverPayrollRecord={getDriverPayrollRecord}
                   savePayrollChanges={savePayrollChanges}
                   ytdDataByDriver={ytdDataByDriver}
-                />);
+                />
 
             })}
           
