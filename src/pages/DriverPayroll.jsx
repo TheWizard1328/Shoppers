@@ -9,7 +9,7 @@ import { getDriverDisplayName } from '../components/utils/driverUtils';
 import { userHasRole } from '../components/utils/userRoles';
 import { base44 } from '@/api/base44Client';
 import DriverPayrollGrid from '../components/payroll/DriverPayrollGrid';
-import PayrollSummaryCard from '@/Components/payroll/PayrollSummaryCard';
+import PayrollSummaryCard from '@/components/payroll/PayrollSummaryCard';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
