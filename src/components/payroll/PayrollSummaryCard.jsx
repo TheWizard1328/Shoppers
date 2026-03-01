@@ -3053,133 +3053,13 @@ export default function PayrollSummaryCard({
                 </div>
               </div>
             </div>
-
-            {/* Mobile View */}
-            <div className="md:hidden">
-              <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-slate-700)' }}>
-                Total App Fees Collected
-              </div>
-              
-              <div className="p-3 rounded-lg border" style={{
-                  background: 'var(--bg-white)',
-                  borderColor: 'var(--border-slate-200)',
-                  fontVariantNumeric: 'tabular-nums'
-                }}>
-                <div className="text-xs font-mono">
-                  {/* Header Row */}
-                  <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{
-                      gridTemplateColumns: '1fr 22px 60px 22px 60px',
-                      borderColor: 'var(--border-slate-200)',
-                      color: 'var(--text-slate-700)'
-                    }}>
-                    <div></div>
-                    <div></div>
-                    <div className="text-right">Month</div>
-                    <div></div>
-                    <div className="text-right">YTD</div>
-                  </div>
-
-                  {/* Total Fees */}
-                  <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
-                    <div className="text-left">Total Fees:</div>
-                    <div className="text-right pr-0.5">$</div>
-                    <div className="text-right font-semibold">
-                      {(() => {
-                          // Calculate total billable deliveries in calendar month
-                          const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                          const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                          let totalBillableCount = 0;
-                          deliveries.forEach((d) => {
-                            if (!d || !d.store_id) return;
-                            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                            if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                            if (!validStatus) return;
-                            if (!d.patient_id && !d.after_hours_pickup) return;
-                            const store = stores.find((s) => s?.id === d.store_id);
-                            if (!store) return;
-                            let paysAppFees = store.pays_app_fees || false;
-                            if (store.app_fee_history && store.app_fee_history.length > 0) {
-                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                              );
-                              if (sortedHistory[0]) {
-                                paysAppFees = sortedHistory[0].pays_app_fees;
-                              }
-                            }
-                            if (paysAppFees) {
-                              totalBillableCount++;
-                            }
-                          });
-                          return (totalBillableCount * appFeesPerDelivery).toFixed(2);
-                        })()}
-                    </div>
-                    <div className="text-right pr-0.5">$</div>
-                    <div className="text-right font-semibold">
-                      {(() => {
-                          // Calculate YTD total app fees (Jan 1 to current month end)
-                          const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-                          const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                          let ytdTotalBillable = 0;
-                          deliveries.forEach((d) => {
-                            if (!d || !d.store_id) return;
-                            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                            if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                            if (!validStatus) return;
-                            if (!d.patient_id && !d.after_hours_pickup) return;
-                            const store = stores.find((s) => s?.id === d.store_id);
-                            if (!store) return;
-                            let paysAppFees = store.pays_app_fees || false;
-                            if (store.app_fee_history && store.app_fee_history.length > 0) {
-                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                              );
-                              const applicableEntry = sortedHistory.find((entry) =>
-                              new Date(entry.effective_date) <= deliveryDate
-                              );
-                              if (applicableEntry) {
-                                paysAppFees = applicableEntry.pays_app_fees;
-                              }
-                            }
-                            if (paysAppFees) {
-                              ytdTotalBillable++;
-                            }
-                          });
-                          return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
-                        })()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
             }
 
           {/* Grand Total for All Drivers */}
           {payrollData.length > 1 &&
             <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
-              {/* Desktop View - hide on phones and tablets in portrait */}
-              <div style={{
-                display: (() => {
-                  if (typeof window === 'undefined') return 'block';
-                  const ua = navigator.userAgent;
-                  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
-                  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-
-                  // Phones never show desktop
-                  if (isPhone) return 'none';
-
-                  // Tablets: portrait = hide, landscape = show
-                  if (isTabletDevice) {
-                    const isPortrait = window.innerWidth < window.innerHeight;
-                    return isPortrait ? 'none' : 'block';
-                  }
-
-                  // Desktop: show if width >= 768px
-                  return window.innerWidth >= 768 ? 'block' : 'none';
-                })()
-              }}>
+              <div>
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
                 </div>
