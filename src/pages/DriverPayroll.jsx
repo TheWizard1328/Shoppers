@@ -1110,23 +1110,9 @@ export default function DriverPayroll() {
           </div>
         </div>
 
-        <MobilePayrollSummary
-          periodLabel={periodLabel}
-          totalNetPay={totalNetPay}
-          totalDeliveries={totalDeliveries}
-          onPrev={goToPrevPeriod}
-          onNext={goToNextPeriod}
-        />
-
         {/* Content Area for Screenshot */}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-36 md:pb-12 overscroll-contain">
-          {/* Grid (mobile collapsible) */}
-          <div className="lg:hidden mb-3">
-            <Button size="sm" variant="outline" className="w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
-              {detailsOpen ? 'Hide Details' : 'View Details'}
-            </Button>
-          </div>
-          <div className={detailsOpen ? '' : 'hidden lg:block'}>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-12 overscroll-contain">
+          <div>
             <DriverPayrollGrid
               deliveries={cityFilteredDeliveries}
               stores={filteredStores}
