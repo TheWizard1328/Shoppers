@@ -2752,51 +2752,6 @@ export default function PayrollSummaryCard({
               data.driver.id === currentUser?.id;
               const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
 
-              // Mobile view - check for tablets in portrait mode
-              const shouldShowMobile = (() => {
-                if (typeof window === 'undefined') return false;
-                const ua = navigator.userAgent;
-                const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
-                const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-
-                // Phones always use mobile layout
-                if (isPhone) return true;
-
-                // Tablets: portrait = mobile, landscape = desktop
-                if (isTabletDevice) {
-                  const isPortrait = window.innerWidth < window.innerHeight;
-                  return isPortrait;
-                }
-
-                // Desktop/other: use breakpoint
-                return window.innerWidth < 768;
-              })();
-
-              if (shouldShowMobile) {
-                return (
-                  <PayrollMobileCard
-                    key={data.driver.id}
-                    data={data}
-                    isAdmin={isAdmin}
-                    driverHasConfirmed={driverHasConfirmed}
-                    adminHasFinalized={adminHasFinalized}
-                    showBadge={showBadge}
-                    canShowConfirmButton={canShowConfirmButton}
-                    onConfirmClick={() => handleDriverFinalize(data)}
-                    isFinalizing={isFinalizing}
-                    formatCurrency={formatCurrency}
-                    deliveries={deliveries}
-                    patients={patients}
-                    currentPeriod={currentPeriod}
-                    bonusAmount={driverEdits[data.driver.id]?.bonusPay || 0}
-                    appFeeAmount={calculateAppFeeAmount(data.driver.id, driverEdits[data.driver.id]?.appFeePercent || 0)}
-                    appFeePercent={driverEdits[data.driver.id]?.appFeePercent || 0}
-                    ytdDataByDriver={ytdDataByDriver}
-                    isPeriodEndOfMonth={isPeriodEndOfMonth} />);
-
-
-              }
-
               const driverKey = data.driver.id;
               const edit = driverEdits[driverKey] || {};
 
@@ -2808,7 +2763,7 @@ export default function PayrollSummaryCard({
               };
 
               return (
-                <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+                <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
                 <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
