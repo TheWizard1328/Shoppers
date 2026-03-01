@@ -2944,10 +2944,9 @@ export default function PayrollSummaryCard({
             })}
           
           {/* Total App Fees Collected - App Owner Only */}
-          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) && isAppOwner(currentUser) &&
+          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) &&
             <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
-            {/* Desktop View */}
-            <div className="hidden md:block">
+            <div>
               <div className="flex items-center justify-between">
                 <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
                   Total App Fees Collected
