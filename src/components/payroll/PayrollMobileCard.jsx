@@ -134,12 +134,12 @@ export default function PayrollMobileCard({
 
   // Period values aligned with desktop with 2-decimal rounding per component to avoid penny drift
   const r2 = (n) => Math.round((n || 0) * 100) / 100;
-  const periodNet = r2(data?.grandTotal || 0);
+  const period1Gross = r2(data?.grandTotal || 0);
   const periodTax = r2(data?.taxAmount || 0);
   const periodDeductions = r2(payrollRecord?.total_deductions ?? (data?.deductions || data?.total_deductions || data?.totalDeductions || 0));
   const periodBonus = r2(bonusAmount || 0);
   const periodAppFee = r2(appFeeAmount || 0);
-  const periodGross = r2(periodNet + periodTax - periodDeductions + periodBonus + periodAppFee);
+  const periodGross = r2(period1Gross + periodTax - periodDeductions + periodBonus + periodAppFee);
 
 
 
@@ -249,9 +249,9 @@ export default function PayrollMobileCard({
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Gross:</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
-            <div className="text-right font-semibold">{periodNet.toFixed(2)}</div>
+            <div className="text-right font-semibold">{periodGross.toFixed(2)}</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
-            <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
+            <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay || 0).toFixed(2)}</div>
           </div>
 
           {/* Tax (if any) */}
@@ -330,9 +330,9 @@ export default function PayrollMobileCard({
           }}>
             <div className="text-left">Net:</div>
             <div className="text-right pr-0.5">$</div>
-            <div className="text-right">{periodGross.toFixed(2)}</div>
+            <div className="text-right">{periodNet.toFixed(2)}</div>
             <div className="text-right pr-0.5">$</div>
-            <div className="text-right">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay || 0).toFixed(2)}</div>
+            <div className="text-right">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
 
           {/* Inline Notes (hidden from exports) */}
