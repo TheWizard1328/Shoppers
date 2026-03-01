@@ -19,7 +19,8 @@ import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
-import PayrollMobileCard from './PayrollMobileCard'; import DriverNotesInline from './DriverNotesInline';
+import PayrollMobileCard from './PayrollMobileCard';
+import DriverNotesInline from './DriverNotesInline'; import DriverNotesInline from './DriverNotesInline';
 
 /**
  * Payroll Summary Card
@@ -330,11 +331,6 @@ export default function PayrollSummaryCard({
 
         const records = await base44.entities.Payroll.filter({
           pay_period_end: { $gte: yearStart, $lte: periodEnd }
-        });
-
-        console.log(`📥 [Payroll] Fetched ${records?.length || 0} total payroll records from ${yearStart} to ${periodEnd}`);
-        records?.forEach((r) => {
-          console.log(`   - Driver: ${r.driver_id}, Period: ${r.pay_period_start} to ${r.pay_period_end}, Net: $${r.net_pay}`);
         });
 
         setPayrollRecords(records || []);
@@ -1777,14 +1773,7 @@ export default function PayrollSummaryCard({
         return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
       });
 
-      console.log(`📋 [Payroll YTD Debug] Driver ${data.driver.user_name}: Period End=${currentPeriodEnd}`);
-      console.log(`   Filtering records from ${yearStart} to ${currentPeriodEnd}`);
-      console.log(`   ALL payroll records available (${payrollRecords.length} total):`);
-      payrollRecords.filter((r) => r.driver_id === data.driver.id).forEach((r) => {
-        const isIncluded = r.pay_period_end >= yearStart && r.pay_period_end <= currentPeriodEnd;
-        console.log(`     ${isIncluded ? '✓' : '✗'} ${r.pay_period_start} to ${r.pay_period_end}: net=$${(r.net_pay || 0).toFixed(2)}, bonus=$${(r.bonus_pay || 0).toFixed(2)}, deductions=$${(r.total_deductions || 0).toFixed(2)}, app_fee=$${(r.app_fee_amount || 0).toFixed(2)}`);
-      });
-      console.log(`   YTD records included: ${ytdRecords.length}`);
+      // YTD debug logs removed
 
       // Use shared utility to calculate YTD values
       const appUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
@@ -2939,6 +2928,15 @@ export default function PayrollSummaryCard({
                       </tr>
                     </tbody>
                     </table>
+                    <DriverNotesInline
+                      showAdmin={isAdmin}
+                      canEditAdmin={isAdmin}
+                      canEditDriver={isAdmin || (isDriver && currentUser?.id === driverKey)}
+                      initialAdminNotes={getDriverPayrollRecord(driverKey)?.admin_notes || ''}
+                      initialDriverNotes={getDriverPayrollRecord(driverKey)?.driver_notes || ''}
+                      onSaveAdmin={(val) => savePayrollChanges(driverKey, { admin_notes: val })}
+                      onSaveDriver={(val) => savePayrollChanges(driverKey, { driver_notes: val })}
+                    />
                     </div>
 
                     {/* Vertical Divider */}
