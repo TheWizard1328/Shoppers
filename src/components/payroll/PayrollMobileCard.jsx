@@ -33,6 +33,7 @@ export default function PayrollMobileCard({
   const [expandedSection, setExpandedSection] = useState(null);
   const { currentUser } = useUser();
   const [payrollRecordId, setPayrollRecordId] = useState(null);
+  const [payrollRecord, setPayrollRecord] = useState(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [driverNotes, setDriverNotes] = useState('');
   const [isSavingAdmin, setIsSavingAdmin] = useState(false);
@@ -55,10 +56,12 @@ export default function PayrollMobileCard({
         const rec = Array.isArray(list) ? list[0] : list;
         if (rec) {
           setPayrollRecordId(rec.id);
+          setPayrollRecord(rec);
           setAdminNotes(rec.admin_notes || '');
           setDriverNotes(rec.driver_notes || '');
         } else {
           setPayrollRecordId(null);
+          setPayrollRecord(null);
           setAdminNotes('');
           setDriverNotes('');
         }
@@ -128,6 +131,14 @@ export default function PayrollMobileCard({
   };
 
   const ytdTotals = calculateYTDTotals();
+
+  // Period values aligned with desktop
+  const periodNet = (data?.grandTotal || 0);
+  const periodTax = (data?.taxAmount || 0);
+  const periodDeductions = (payrollRecord?.total_deductions ?? (data?.deductions || data?.total_deductions || data?.totalDeductions || 0));
+  const periodBonus = (bonusAmount || 0);
+  const periodAppFee = (appFeeAmount || 0);
+  const periodGross = periodNet + periodTax - periodDeductions + periodBonus + periodAppFee;
 
 
 
@@ -213,7 +224,7 @@ export default function PayrollMobileCard({
       </div>
 
       {/* Pay Summary - Table Layout with Aligned Columns */}
-      {currentPeriod && ytdDataByDriver[data.driver.id]?.ytdGrossPay > 0 && (
+      {currentPeriod && (
       <div className="p-3 rounded-lg border w-full overflow-x-hidden" style={{
         background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
@@ -237,13 +248,7 @@ export default function PayrollMobileCard({
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Gross:</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
-            <div className="text-right font-semibold">{(
-              (data.grandTotal || 0) +
-              (data.taxAmount || 0) +
-              (bonusAmount || 0) -
-              ((data.deductions || data.total_deductions || data.totalDeductions || 0)) +
-              (appFeeAmount || 0)
-            ).toFixed(2)}</div>
+            <div className="text-right font-semibold">{periodGross.toFixed(2)}</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay || 0).toFixed(2)}</div>
           </div>
@@ -272,7 +277,7 @@ export default function PayrollMobileCard({
               )}
             </div>
             <div className="text-right pr-0.5">-$</div>
-            <div className="text-right font-semibold">{(data.deductions || data.total_deductions || data.totalDeductions || 0).toFixed(2)}</div>
+            <div className="text-right font-semibold">{(periodDeductions).toFixed(2)}</div>
             <div className="text-right pr-0.5">-$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0).toFixed(2)}</div>
           </div>
@@ -324,7 +329,7 @@ export default function PayrollMobileCard({
           }}>
             <div className="text-left">Net:</div>
             <div className="text-right pr-0.5">$</div>
-            <div className="text-right">{(data.grandTotal || 0).toFixed(2)}</div>
+            <div className="text-right">{periodNet.toFixed(2)}</div>
             <div className="text-right pr-0.5">$</div>
             <div className="text-right">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
