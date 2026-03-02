@@ -3837,7 +3837,7 @@ function Dashboard() {
           }
         }
       }, 500);
-    }, 500); }); }); });
+    }, 500); }); });
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers, cardsReadyForFAB]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
