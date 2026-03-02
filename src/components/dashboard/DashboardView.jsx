@@ -117,7 +117,6 @@ export default function DashboardView({
   // Failsafe: once deliveries + patients + stores are ready on initial load, trigger a unified UI refresh
   const initialDataReadyRef = useRef(null);
   const [finalizedDutyTime, setFinalizedDutyTime] = useState(null);
-  const [finalizedDutyTime, setFinalizedDutyTime] = useState(null);
   useEffect(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const hasDeliveriesForDate = Array.isArray(deliveries) && deliveries.some(d => d && d.delivery_date === dateStr);
@@ -134,38 +133,6 @@ export default function DashboardView({
       }, 0);
     }
   }, [deliveries, patients, stores, selectedDate]);
-
-  // Freeze and display finalized Time on Duty after off-duty or when day is finished
-  useEffect(() => {
-    if (!currentUser || !isDriver) return;
-    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    if (!(isDateFinished || (currentUser.driver_status === 'off_duty'))) return;
-
-    const completed = (deliveriesWithStopOrder || []).filter(d =>
-      d && d.driver_id === currentUser.id && d.delivery_date === selectedDateStr && d.status === 'completed' && d.actual_delivery_time
-    );
-    if (completed.length === 0) return;
-
-    const times = completed.map(d => new Date(d.actual_delivery_time));
-    const firstTime = new Date(Math.min(...times));
-    const lastTime = new Date(Math.max(...times));
-    const baseMinutes = Math.max(0, Math.round((lastTime - firstTime) / 60000));
-
-    (async () => {
-      try {
-        const recs = await base44.entities.DriverDailyActivity.filter({ driver_id: currentUser.id, activity_date: selectedDateStr });
-        const breakMin = (recs && recs[0]?.total_break_time_minutes) || 0;
-        const total = Math.max(0, baseMinutes - breakMin);
-        const hh = String(Math.floor(total / 60)).padStart(2, '0');
-        const mm = String(total % 60).padStart(2, '0');
-        setFinalizedDutyTime(`${hh}:${mm}`);
-      } catch (_) {
-        const hh = String(Math.floor(baseMinutes / 60)).padStart(2, '0');
-        const mm = String(baseMinutes % 60).padStart(2, '0');
-        setFinalizedDutyTime(`${hh}:${mm}`);
-      }
-    })();
-  }, [isDateFinished, currentUser?.driver_status, deliveriesWithStopOrder, selectedDate, currentUser?.id, isDriver]);
 
   // Freeze and display finalized Time on Duty after off-duty or when day is finished
   useEffect(() => {
