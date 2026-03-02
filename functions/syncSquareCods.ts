@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
       const abbr = (item.storeAbbreviation || 'ST').trim();
       const amountNum = Number(item.codAmount) || 0;
       const amountCents = Math.round(amountNum * 100);
-      const itemName = `${mm}/${dd}(${abbr})-${item.patientName || 'COD'} - $${amountNum.toFixed(2)}`;
+      const itemName = `${mm}/${dd}(${abbr})-${item.patientName || 'COD'}`;
 
       const payload = {
         idempotency_key: idempotencyKey,

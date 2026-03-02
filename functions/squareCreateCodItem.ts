@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
     const day = String(date.getDate()).padStart(2, '0');
     const storeAbbr = (storeAbbreviation || 'XX').trim();
     const amountFormatted = Number.isFinite(Number(codAmount)) ? (Number(codAmount)).toFixed(2) : '0.00';
-    const itemName = `${month}/${day}(${storeAbbr})-${patientName} - $${amountFormatted}`;
+    const itemName = `${month}/${day}(${storeAbbr})-${patientName}`;
 
     // Convert dollars to cents for Square
     const amountCents = Math.round(codAmount * 100);
