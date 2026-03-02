@@ -495,7 +495,8 @@ export default function SquareManagement() {
     }
 
     const deletePaidItems = async () => {
-      const itemsToDelete = catalogItems.filter(item => hasBeenSoldInSquare(item));
+      const MAX_DELETE = 8;
+      const itemsToDelete = catalogItems.filter(item => hasBeenSoldInSquare(item)).slice(0, MAX_DELETE);
       
       if (itemsToDelete.length === 0) {
         return; // No paid items to delete
@@ -520,7 +521,7 @@ export default function SquareManagement() {
           
           deletedCount++;
           console.log(`✓ Auto-deleted paid item: ${item.name}`);
-          await new Promise(resolve => setTimeout(resolve, 150)); // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, 700)); // Rate limiting (reduced burst)
         } catch (err) {
           console.warn(`Failed to auto-delete paid item ${item.name}:`, err);
         }

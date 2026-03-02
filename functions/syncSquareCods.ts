@@ -20,6 +20,39 @@ Deno.serve(async (req) => {
     const deletions = Array.isArray(body?.deletions) ? body.deletions : [];
     const scanMode = (!items.length && !deletions.length) || body?.scan === true;
 
+    // Entity automation optimization: when invoked by Delivery update, process only that delivery without full scan
+    if (body?.event?.entity_name === 'Delivery') {
+      try {
+        const ev = body.event;
+        const delivery = body.data || await base44.entities.Delivery.get(ev.entity_id);
+        if (delivery) {
+          const hasCard = Array.isArray(delivery.cod_payments) && delivery.cod_payments.some(p => p && (p.type === 'Debit' || p.type === 'Credit'));
+          const shouldDelete = delivery.status === 'failed' || (delivery.status === 'completed' && hasCard);
+          if (shouldDelete) {
+            const stores = await base44.entities.Store.filter({ id: delivery.store_id });
+            const store = stores?.[0];
+            const storeAbbreviation = store?.abbreviation || 'ST';
+            const locationId = await getSquareLocationIdForStore(delivery.store_id);
+            if (locationId) {
+              const delItem = {
+                deliveryId: delivery.id,
+                patientName: delivery.patient_name || 'COD',
+                storeAbbreviation,
+                codAmount: delivery.cod_total_amount_required,
+                deliveryDate: delivery.delivery_date,
+                storeId: delivery.store_id
+              };
+              const delRes = await deleteCodByNameAndAmount(delItem, locationId);
+              return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', deleted: delRes?.deleted || 0 }] });
+            }
+          }
+          return Response.json({ success: true, processed: 0, results: [{ deliveryId: delivery.id, action: 'noop', status: 'skipped' }] });
+        }
+      } catch (_) {
+        // fall through to normal flow if anything fails
+      }
+    }
+
     const SQUARE_ACCESS_TOKEN = Deno.env.get('SQUARE_ACCESS_TOKEN');
     if (!SQUARE_ACCESS_TOKEN) {
       return Response.json({ error: 'Square access token missing' }, { status: 500 });
