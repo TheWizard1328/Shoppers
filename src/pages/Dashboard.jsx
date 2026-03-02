@@ -7932,69 +7932,40 @@ function Dashboard() {
   }, [currentUser?.id, isFiltersReady]);
   
   // CRITICAL: STEP 1 - Load everything from offline DB FIRST for instant UI
+  // MUST wait for userSettingsLoaded so selectedDate/selectedDriverId are final
   const hasLoadedOfflineDataRef = useRef(false);
+  const lastOfflineLoadDateRef = useRef(null);
   
   useEffect(() => {
-    if (!currentUser || !isDataLoaded || !isFiltersReady) return;
-    if (!hasPreRenderSyncRef.current) return; // Wait for AppUser sync first
-    if (hasLoadedOfflineDataRef.current) return;
-    
+    if (!currentUser || !isDataLoaded || !isFiltersReady || !userSettingsLoaded) return;
+    if (!hasPreRenderSyncRef.current) return;
+    // Re-run if date changed (e.g. user settings loaded a different date)
+    if (hasLoadedOfflineDataRef.current && lastOfflineLoadDateRef.current === selectedDateStr) return;
     hasLoadedOfflineDataRef.current = true;
+    lastOfflineLoadDateRef.current = selectedDateStr;
     
     const loadOfflineDataFirst = async () => {
-      console.log(`📦 [Dashboard Mount - STEP 1] Loading ALL data from offline DB for instant UI...`);
-      
+      console.log(`📦 [Dashboard Mount - STEP 1] Loading data from offline DB for date ${selectedDateStr}...`);
       try {
-        // CRITICAL: Load everything from offline DB - no API calls
         const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         const mountAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        const mountPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-        
-        console.log(`📦 [Dashboard Mount - STEP 1] Loaded from offline DB: ${mountDeliveries?.length || 0} deliveries, ${mountAppUsers?.length || 0} appUsers, ${mountPatients?.length || 0} patients`);
-        
-        // Update deliveries UI immediately
+        console.log(`📦 [STEP 1] ${mountDeliveries?.length || 0} deliveries, ${mountAppUsers?.length || 0} appUsers`);
         if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
-          console.log(`✅ [Dashboard Mount - STEP 1] Deliveries UI updated`);
         }
-        
-        // CRITICAL: Process AppUsers through location poller to generate markers
-        // Fallback to context appUsers if offline DB is empty
         const appUsersToProcess = (mountAppUsers && mountAppUsers.length > 0) ? mountAppUsers : appUsers;
-        
         if (appUsersToProcess && appUsersToProcess.length > 0) {
-          driverLocationPoller.processLocationData(
-            currentUser, 
-            mountDeliveries || [], 
-            drivers, 
-            stores, 
-            appUsersToProcess, 
-            selectedDate, 
-            true,
-            'Dashboard',
-            showAllDriverMarkers
-          );
-          
-          // Dispatch location update event
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: appUsersToProcess, forceAll: true }
-          }));
-          
-          console.log(`✅ [Dashboard Mount - STEP 1] AppUsers processed - location markers ready (${appUsersToProcess.length} from ${mountAppUsers && mountAppUsers.length > 0 ? 'offline DB' : 'context'})`);
-        } else {
-          console.warn('⚠️ [Dashboard Mount - STEP 1] No appUsers available from offline DB or context');
+          driverLocationPoller.processLocationData(currentUser, mountDeliveries || [], drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: appUsersToProcess, forceAll: true } }));
         }
-        
         setForceRender((prev) => prev + 1);
-        console.log(`✅ [Dashboard Mount - STEP 1] Initial UI ready from offline DB`);
       } catch (error) {
-        console.warn('⚠️ [Dashboard Mount - STEP 1] Offline DB load failed:', error.message);
+        console.warn('⚠️ [STEP 1] Offline DB load failed:', error.message);
       }
     };
-    
     loadOfflineDataFirst();
-  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, hasPreRenderSyncRef.current]);
+  }, [currentUser?.id, isDataLoaded, isFiltersReady, userSettingsLoaded, selectedDateStr, hasPreRenderSyncRef.current]);
   
   // CRITICAL: STEP 2 - Background priority sync to update offline DB
   const hasTriggeredPrioritySyncRef = useRef(false);
