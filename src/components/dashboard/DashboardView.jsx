@@ -115,8 +115,10 @@ export default function DashboardView({
   };
 
   // Failsafe: once deliveries + patients + stores are ready on initial load, trigger a unified UI refresh
+  // ALSO: re-trigger FAB map positioning if initial FAB fired with 0 deliveries but now we have data
   const initialDataReadyRef = useRef(null);
   const [finalizedDutyTime, setFinalizedDutyTime] = useState(null);
+  const initialFabRetriggeredRef = useRef(false);
   useEffect(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const hasDeliveriesForDate = Array.isArray(deliveries) && deliveries.some(d => d && d.delivery_date === dateStr);
@@ -131,8 +133,33 @@ export default function DashboardView({
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
       }, 0);
+
+      // CRITICAL: If FAB already fired with 0 deliveries (timing issue on initial load),
+      // re-trigger map positioning now that we have data for the selected driver
+      const filteredCount = Array.isArray(deliveriesWithStopOrder) ? deliveriesWithStopOrder.length : 0;
+      if (renderSequence.fabPhaseReady && !initialFabRetriggeredRef.current && filteredCount > 0) {
+        initialFabRetriggeredRef.current = true;
+        console.log(`🔄 [DashboardView Failsafe] FAB fired with 0 deliveries initially — re-triggering Phase 1 with ${filteredCount} deliveries now available`);
+        setTimeout(() => {
+          setMapViewPhase(1);
+          setIsMapViewLocked(true);
+          lastProgrammaticMapMoveRef.current = Date.now();
+          window._lastProgrammaticMapMove = Date.now();
+          setMapViewTrigger(prev => prev + 1);
+          const lockDuration = 500;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+          mapLockTimeoutRef.current = setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
+            }
+          }, lockDuration);
+        }, 500);
+      }
     }
-  }, [deliveries, patients, stores, selectedDate]);
+  }, [deliveries, patients, stores, selectedDate, deliveriesWithStopOrder, renderSequence.fabPhaseReady]);
 
   // Freeze and display finalized Time on Duty after off-duty or when day is finished
   useEffect(() => {
