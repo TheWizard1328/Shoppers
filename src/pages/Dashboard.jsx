@@ -8118,10 +8118,8 @@ function Dashboard() {
                   console.warn('⚠️ [Pull to Sync] No appUsers available from sync or context - cannot process locations');
                 }
                 
-                // CRITICAL: Dispatch location updates for ALL drivers
-                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                  detail: { appUsers: freshAppUsers, forceAll: true }
-                }));
+                const validSyncAppUsers = freshAppUsers?.length > 0 && freshAppUsers[0]?.user_id ? freshAppUsers : appUsers;
+                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: validSyncAppUsers, forceAll: true } }));
                 
                 // Force map update based on selection mode
                 const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
