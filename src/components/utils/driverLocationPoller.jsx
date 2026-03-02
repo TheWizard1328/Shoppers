@@ -138,7 +138,13 @@ class DriverLocationPoller {
    this.currentUser = currentUser;
 
    // Use provided appUsers directly, but guard against stale offline overwrites by preferring newest timestamps
-   let usersData = appUsers?.slice?.() || [];
+   // CRITICAL: Filter out junk records from offline DB (records with undefined/missing user_id or user_name)
+   let usersData = (appUsers?.slice?.() || []).filter(u => u && u.id && u.user_id && u.user_id !== 'undefined' && u.user_name && u.user_name !== 'undefined');
+
+   if (usersData.length < (appUsers?.length || 0)) {
+     const rejected = (appUsers?.length || 0) - usersData.length;
+     console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (missing user_id/user_name)`);
+   }
 
    // Last-write-wins: if duplicates by id exist with different timestamps, keep the freshest
    const byId = new Map();
