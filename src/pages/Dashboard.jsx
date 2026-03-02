@@ -8010,7 +8010,6 @@ function Dashboard() {
   // PLACEHOLDER — replaced below by DashboardView
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
-...
 
       {/* Snapshot Timeline - Only visible when snapshot mode is active */}
       {isSnapshotModeActive && isAppOwner(currentUser) &&
