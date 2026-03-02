@@ -7964,19 +7964,15 @@ function Dashboard() {
         const syncResult = await performPrioritySyncBeforeRefresh(selectedDateStr, cityId, smartRefreshManager);
         console.log(`✅ [Dashboard Mount - STEP 2] Background sync complete`);
         
-        // Load fresh data from offline DB after sync
         const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const freshAppUsers = (await offlineDB.getAll(offlineDB.STORES.APP_USERS) || []).filter(u => u?.user_id && u.user_id !== 'undefined');
         
-        // Update UI with fresh data
         if (updateDeliveriesLocally && freshDeliveries && freshDeliveries.length > 0) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-          console.log(`✅ [Dashboard Mount - STEP 2] UI updated with ${freshDeliveries.length} deliveries`);
         }
         
-        // Process updated location data - fallback to context if sync didn't return appUsers
-        const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
+        const appUsersToProcess = freshAppUsers.length > 0 ? freshAppUsers : appUsers;
         
         if (appUsersToProcess && appUsersToProcess.length > 0) {
           driverLocationPoller.processLocationData(
