@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
     }
 
     // Get location IDs from query params
-    const { locationIds, daysBack = 14 } = await req.json();
+    const { locationIds, daysBack = 14, maxPerLocation = 10, throttleMs = 150 } = await req.json();
 
     if (!locationIds || locationIds.length === 0) {
       return Response.json({ error: 'No location IDs provided' }, { status: 400 });
@@ -59,8 +59,8 @@ Deno.serve(async (req) => {
       console.log(`📊 [SquareFetchPayments] Location ${locationId}: Got ${paymentsData.payments?.length || 0} payments`);
       
       if (paymentsData.payments) {
-        // Limit to 30 payments to avoid CPU timeout
-        const paymentsToProcess = paymentsData.payments.slice(0, 30);
+        // Limit per location to avoid rate limits
+        const paymentsToProcess = paymentsData.payments.slice(0, Math.max(1, Math.min(maxPerLocation, 100)));
         
         for (const payment of paymentsToProcess) {
           // Only process completed payments
@@ -69,8 +69,10 @@ Deno.serve(async (req) => {
           allPayments.push(payment);
           console.log(`📋 [SquareFetchPayments] Processing payment ${payment.id} at location ${payment.location_id}, order: ${payment.order_id}`);
 
-          // Try to get order details if order_id exists
+          // Try to get order details if order_id exists (pace calls to avoid rate limits)
           if (payment.order_id) {
+            // throttle between order fetches
+            await new Promise(resolve => setTimeout(resolve, throttleMs));
             try {
               const orderResponse = await fetch(`${SQUARE_BASE_URL}/orders/${payment.order_id}`, {
                 method: 'GET',
