@@ -7965,40 +7965,20 @@ function Dashboard() {
         console.log(`✅ [Dashboard Mount - STEP 2] Background sync complete`);
         
         const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        const freshAppUsers = (await offlineDB.getAll(offlineDB.STORES.APP_USERS) || []).filter(u => u?.user_id && u.user_id !== 'undefined');
         
         if (updateDeliveriesLocally && freshDeliveries && freshDeliveries.length > 0) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         }
         
-        const appUsersToProcess = freshAppUsers.length > 0 ? freshAppUsers : appUsers;
-        
-        if (appUsersToProcess && appUsersToProcess.length > 0) {
-          driverLocationPoller.processLocationData(
-            currentUser, 
-            freshDeliveries || [], 
-            drivers, 
-            stores, 
-            appUsersToProcess, 
-            selectedDate, 
-            true,
-            'Dashboard',
-            showAllDriverMarkers
-          );
-          
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: appUsersToProcess, forceAll: true }
-          }));
-        } else {
-          console.warn('⚠️ [Background Sync - STEP 2] No appUsers available from sync or context');
-        }
+        // CRITICAL: Do NOT re-process driver locations here — STEP 1 already did it
+        // Re-processing from offline DB risks injecting junk records and clearing markers
+        // WebSocket subscriptions will keep locations updated in real-time
+        console.log(`✅ [Dashboard Mount - STEP 2] Deliveries updated, skipping location reprocess (STEP 1 already handled)`);
         
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' }
         }));
-        
-        console.log(`✅ [Dashboard Mount - STEP 2] Background sync and UI update complete`);
         
         // CRITICAL: Trigger silent pull-to-sync after background sync completes
         console.log('🔇 [Dashboard Mount - STEP 2] Triggering silent pull-to-sync for full refresh...');
