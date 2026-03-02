@@ -7760,12 +7760,8 @@ function Dashboard() {
       console.log(`   Patients: ${freshPatients?.length || 0}`);
       
       try {
-        // CRITICAL: Clear all polylines and markers BEFORE updating state
         setCurrentToNextPolyline(null);
         setDriverRoutes([]);
-        setAllDriverLocations([]);
-        
-        // CRITICAL: Use flushSync for synchronous updates - forces React to apply changes immediately
         flushSync(() => {
           // Full replacement of all entities
           if (updateDeliveriesLocally && freshDeliveries) {
