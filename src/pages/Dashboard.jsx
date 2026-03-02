@@ -7923,13 +7923,13 @@ function Dashboard() {
       console.log(`📦 [Dashboard Mount - STEP 1] Loading data from offline DB for date ${selectedDateStr}...`);
       try {
         const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        const mountAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        console.log(`📦 [STEP 1] ${mountDeliveries?.length || 0} deliveries, ${mountAppUsers?.length || 0} appUsers`);
+        const mountAppUsers = (await offlineDB.getAll(offlineDB.STORES.APP_USERS) || []).filter(u => u?.user_id && u.user_id !== 'undefined');
+        console.log(`📦 [STEP 1] ${mountDeliveries?.length || 0} deliveries, ${mountAppUsers.length} valid appUsers`);
         if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
         }
-        const appUsersToProcess = (mountAppUsers && mountAppUsers.length > 0) ? mountAppUsers : appUsers;
+        const appUsersToProcess = mountAppUsers.length > 0 ? mountAppUsers : appUsers;
         if (appUsersToProcess && appUsersToProcess.length > 0) {
           driverLocationPoller.processLocationData(currentUser, mountDeliveries || [], drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: appUsersToProcess, forceAll: true } }));
