@@ -3676,32 +3676,21 @@ function Dashboard() {
   }, [mapViewPhase]);
 
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
-  // Apply initial map view on first load - WAIT for full render sequence
+  // Apply initial map view on first load - WAIT for full render sequence + DOM readiness
   const initialSyncCompletedRef = useRef(false);
   
   useEffect(() => {
-    // CRITICAL: Wait for full render sequence INCLUDING full deliveries before activating FAB phase
-    if (!renderSequence.fullDeliveriesLoaded || renderSequence.fabPhaseReady) {
-      return;
-    }
+    if (!renderSequence.fullDeliveriesLoaded || renderSequence.fabPhaseReady) return;
+    // CRITICAL: Wait for stop cards to be measured in the DOM before activating FAB
+    if (!cardsReadyForFAB) return;
 
     if (initialMapViewApplied) {
       setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
       return;
     }
 
-    console.log('✅ [Render Sequence 8] All elements rendered - activating FAB phase (skipping sync)');
-    
-    // DISABLED: Initial sync removed to prevent rate limit loops on F5
-    // Dashboard mount effect (line 6914) already handles loading deliveries on mount
-    // Periodic refresh (line 1957) keeps data current every 15 seconds
-    // This sync was redundant and causing rate limit loops when refreshing
-
-    console.log('✅ [Render Sequence 8] All elements rendered - activating FAB phase');
-    console.log(`   - deliveries count: ${deliveries.length}`);
-    console.log(`   - allDriverLocations count: ${allDriverLocations.length}`);
-    console.log(`   - showAllDriverMarkers: ${showAllDriverMarkers}`);
-    console.log(`   - deliveriesWithStopOrder count: ${deliveriesWithStopOrder.length}`);
+    console.log('✅ [Render Sequence 8] All rendered + cards measured - activating FAB');
+    console.log(`   deliveries: ${deliveries.length}, drivers: ${allDriverLocations.length}, stops: ${deliveriesWithStopOrder.length}`);
 
     // CRITICAL: Ensure we have ALL drivers' deliveries loaded when Show All is checked
     const shouldHaveAllDeliveries = selectedDriverId === 'all' || showAllDriverMarkers;
