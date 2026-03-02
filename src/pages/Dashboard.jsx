@@ -7971,7 +7971,7 @@ function Dashboard() {
   const hasTriggeredPrioritySyncRef = useRef(false);
   
   useEffect(() => {
-    if (!currentUser || !isDataLoaded || !isFiltersReady) return;
+    if (!currentUser || !isDataLoaded || !isFiltersReady || !userSettingsLoaded) return;
     if (!hasPreRenderSyncRef.current) return; // Wait for AppUser sync first
     if (!hasLoadedOfflineDataRef.current) return; // Wait for offline data to load first
     if (hasTriggeredPrioritySyncRef.current) return; // Only run once
