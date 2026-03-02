@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'No Square location configured' }, { status: 500 });
     }
 
-    // Format: MM/DD(Store Abbreviation)-Patient Name - $Amount
+    // Format: MM/DD(Store Abbreviation)-Patient Name - $Amount (force / separator everywhere)
     const date = new Date((deliveryDate || '') + 'T00:00:00');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');

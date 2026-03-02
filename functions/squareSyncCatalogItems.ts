@@ -172,7 +172,8 @@ Deno.serve(async (req) => {
     const normalizeName = (n) => {
       const s = (n || '').trim();
       const noAmt = s.replace(/\s-\s\$\d+(?:\.\d{2})?$/, '');
-      const unified = noAmt.replace(/^(\d{2})-(\d{2})/, '$1/$2');
+      const unified = noAmt.replace(/^(\d{2})-(\d{2})/, '$1/$2'); // keep legacy normalize
+
       return unified.toLowerCase();
     };
     const catalogLookup = new Set(
