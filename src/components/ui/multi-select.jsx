@@ -5,7 +5,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Badge } from "@/components/ui/badge";
 import { X, Check, ChevronDown } from "lucide-react";
 
-export const MultiSelect = React.forwardRef(({ options = [], value: propValue = [], onChange, placeholder = "Select...", className, ...props }, ref) => {
+export const MultiSelect = React.forwardRef((props, ref) => {
+    const { options = [], value: propValue = [], onChange, placeholder = "Select...", className, id, ...rest } = props;
     const [open, setOpen] = React.useState(false);
     // Ensure value is always an array to prevent rendering errors
     const value = Array.isArray(propValue) ? propValue : [];
