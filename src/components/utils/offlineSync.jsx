@@ -868,9 +868,13 @@ export const quickReconcile = async (selectedDateStr) => {
             window.dispatchEvent(new CustomEvent('offlineDBReconciled', {
               detail: { entity: 'AppUser', count: deduped.length }
             }));
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: deduped }
-            }));
+            // CRITICAL: Only dispatch valid AppUsers (filter out junk offline records)
+            const validDeduped = deduped.filter(u => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined');
+            if (validDeduped.length > 0) {
+              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                detail: { appUsers: validDeduped }
+              }));
+            }
           }
         }
       } else {
