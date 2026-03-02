@@ -7886,21 +7886,19 @@ function Dashboard() {
     hasPreRenderSyncRef.current = true;
     
     const preRenderSync = async () => {
-      console.log('🔄 [Dashboard Mount - STEP 0] Syncing ALL AppUsers (ALWAYS FRESH on load)...');
-      
       try {
-        // CRITICAL: ALWAYS fetch fresh AppUsers from API on app load
-        // This ensures offline DB is never stale or missing users
-        console.log('📥 [AppUser Sync] Fetching ALL AppUsers from API...');
+        // Purge junk offline records, then sync fresh
+        const existing = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const junk = (existing || []).filter(u => !u?.user_id || u.user_id === 'undefined');
+        if (junk.length > 0) {
+          const valid = (existing || []).filter(u => u?.user_id && u.user_id !== 'undefined');
+          await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+          if (valid.length > 0) await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, valid);
+        }
         const freshAppUsers = await base44.entities.AppUser.list();
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
         await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
-        console.log(`✅ [AppUser Sync] ${freshAppUsers.length} users synced to offline DB`);
-        
-        console.log(`✅ [Dashboard Mount - STEP 0] Pre-render sync complete`);
-      } catch (error) {
-        console.error('❌ [Dashboard Mount - STEP 0] Pre-render sync failed:', error);
-      }
+      } catch (error) { console.error('❌ [STEP 0] Pre-render sync failed:', error); }
     };
     
     preRenderSync();
