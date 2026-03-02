@@ -40,7 +40,8 @@ export const MultiSelect = React.forwardRef((props, ref) => {
                     aria-expanded={open}
                     className={`w-full justify-between h-auto min-h-[32px] border-black ${className}`}
                     onClick={() => setOpen(!open)}
-                    {...props}
+                    id={id}
+                    {...rest}
                 >
                     <div className="flex gap-1 flex-wrap">
                         {selectedOptions && selectedOptions.length > 0 ? (
