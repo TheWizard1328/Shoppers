@@ -252,9 +252,7 @@ Deno.serve(async (req) => {
       const legacyBaseName = `${mm}-${dd}(${abbr})-${patient}`;
       const nameCandidates = [
         baseName,
-        legacyBaseName,
-        `${baseName} - $${amountNum.toFixed(2)}`,
-        `${legacyBaseName} - $${amountNum.toFixed(2)}`
+        legacyBaseName
       ];
 
       // First, ensure any stray global items are corrected to this location
