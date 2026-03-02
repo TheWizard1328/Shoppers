@@ -93,29 +93,33 @@ export default function DashboardView({
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
       }, 0);
+    }
 
-      const filteredCount = Array.isArray(deliveriesWithStopOrder) ? deliveriesWithStopOrder.length : 0;
-      if (renderSequence.fabPhaseReady && !initialFabRetriggeredRef.current && filteredCount > 0) {
-        initialFabRetriggeredRef.current = true;
-        console.log(`🔄 [DashboardView Failsafe] FAB fired with 0 deliveries initially — re-triggering Phase 1 with ${filteredCount} deliveries now available`);
-        setTimeout(() => {
-          setMapViewPhase(1);
-          setIsMapViewLocked(true);
-          lastProgrammaticMapMoveRef.current = Date.now();
-          window._lastProgrammaticMapMove = Date.now();
-          setMapViewTrigger(prev => prev + 1);
-          const lockDuration = 500;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-          mapLockTimeoutRef.current = setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-            }
-          }, lockDuration);
-        }, 500);
-      }
+    // CRITICAL: Re-trigger FAB map positioning whenever deliveriesWithStopOrder gains items
+    // after the FAB already fired with 0. This handles the common race condition where:
+    // 1. FAB fires before offline DB loads complete (deliveriesWithStopOrder=0)
+    // 2. Data arrives later via sync/WebSocket/settings-load
+    const filteredCount = Array.isArray(deliveriesWithStopOrder) ? deliveriesWithStopOrder.length : 0;
+    if (renderSequence.fabPhaseReady && filteredCount > 0 && !initialFabRetriggeredRef.current) {
+      initialFabRetriggeredRef.current = true;
+      console.log(`🔄 [DashboardView Failsafe] FAB fired with 0 deliveries initially — re-triggering Phase 1 with ${filteredCount} deliveries now available`);
+      setTimeout(() => {
+        setMapViewPhase(1);
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger(prev => prev + 1);
+        const lockDuration = 500;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+          }
+        }, lockDuration);
+      }, 500);
     }
   }, [deliveries, patients, stores, selectedDate, deliveriesWithStopOrder, renderSequence.fabPhaseReady]);
 
