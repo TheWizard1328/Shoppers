@@ -3704,23 +3704,18 @@ function Dashboard() {
     // This allows other components to know when dashboard is fully loaded
     fabControlEvents.notifyDataReady();
 
-    // CRITICAL: Delay FAB activation to ensure map has fully rendered all markers
-    setTimeout(() => {
-      // CASE 1: No deliveries - set phase 1 locked, will unlock on pan/zoom
+    // CRITICAL: Use double-rAF + buffer to ensure DOM is fully painted before FAB fires
+    // This waits for actual browser layout+paint cycles, more reliable than a fixed timeout
+    requestAnimationFrame(() => { requestAnimationFrame(() => { setTimeout(() => {
       if (deliveriesWithStopOrder.length === 0) {
         setMapViewPhase(1);
         setIsMapViewLocked(true);
         setInitialMapViewApplied(true);
         setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
-
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
+        if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
         mapLockExpiresAtRef.current = null;
-
         setMapViewTrigger((prev) => prev + 1);
-        console.log('🔵 [FAB Initial] No deliveries - Phase 1 locked, will unlock on pan/zoom');
+        console.log('🔵 [FAB Initial] No deliveries - Phase 1 locked');
         return;
       }
 
@@ -3842,8 +3837,8 @@ function Dashboard() {
           }
         }
       }, 500);
-    }, 2000);
-  }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers, cardsReadyForFAB]);
+    }, 2000); // Increased delay to 2000ms to ensure stop cards are fully rendered before FAB activation
+  }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
   // This runs AFTER cards are rendered and handles ALL phases
