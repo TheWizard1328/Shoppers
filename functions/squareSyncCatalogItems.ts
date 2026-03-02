@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
       soldCatalogItems.map(si => `${si.location_id}|${normalizeName(si.item_name)}|${Math.round((Number(si.amount) || 0) * 100)}`)
     );
 
-    // Helper to format item name per spec [MM]/[DD](StoreAbbrev)-Patient Name
+    // Helper to format item name per spec [MM]/[DD](StoreAbbrev)-Patient Name (no amount)
     const formatItemName = (deliveryDate, storeAbbreviation, patientName) => {
       const d = new Date(`${deliveryDate}T00:00:00`);
       const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -213,6 +213,7 @@ Deno.serve(async (req) => {
       const abbr = storeAbbreviation || 'XX';
       return `${m}/${day}(${abbr})-${patientName || 'Unknown'}`;
     };
+
 
     // Map stores by id for quick lookup
     const storeById = new Map((stores || []).map(s => [s.id, s]));
