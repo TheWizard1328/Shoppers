@@ -99,12 +99,14 @@ export default function DashboardView({
     // after the FAB already fired with 0. This handles the common race condition where:
     // 1. FAB fires before offline DB loads complete (deliveriesWithStopOrder=0)
     // 2. Data arrives later via sync/WebSocket/settings-load
+    // IMPORTANT: Do NOT override mapViewPhase — just re-trigger the CURRENT phase
     const filteredCount = Array.isArray(deliveriesWithStopOrder) ? deliveriesWithStopOrder.length : 0;
     if (renderSequence.fabPhaseReady && filteredCount > 0 && !initialFabRetriggeredRef.current) {
       initialFabRetriggeredRef.current = true;
-      console.log(`🔄 [DashboardView Failsafe] FAB fired with 0 deliveries initially — re-triggering Phase 1 with ${filteredCount} deliveries now available`);
+      console.log(`🔄 [DashboardView Failsafe] FAB fired with 0 deliveries initially — re-triggering current phase (${mapViewPhase}) with ${filteredCount} deliveries now available`);
       setTimeout(() => {
-        setMapViewPhase(1);
+        // CRITICAL: Do NOT call setMapViewPhase here — respect the saved/current phase
+        // Only re-trigger the map view to recalculate bounds with the new data
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
