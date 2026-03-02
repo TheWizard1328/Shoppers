@@ -7778,43 +7778,22 @@ function Dashboard() {
         // Force complete UI re-render
         setForceRender((prev) => prev + 1);
         
-        // CRITICAL: Process AppUsers through location poller for marker generation
-        if (freshAppUsers && freshAppUsers.length > 0) {
-          driverLocationPoller.processLocationData(
-            currentUser,
-            freshDeliveries || [],
-            drivers,
-            stores,
-            freshAppUsers,
-            selectedDate,
-            true,
-            'Dashboard',
-            showAllDriverMarkers
-          );
+        // CRITICAL: Validate freshAppUsers — offline DB may return junk records with no user_id
+        // Fallback to existing context appUsers which are always valid
+        const validAppUsers = (freshAppUsers || []).filter(u => u?.user_id && u?.user_name);
+        const appUsersForPoller = validAppUsers.length > 0 ? validAppUsers : appUsers;
+        
+        if (appUsersForPoller && appUsersForPoller.length > 0) {
+          driverLocationPoller.processLocationData(currentUser, freshDeliveries || [], drivers, stores, appUsersForPoller, selectedDate, true, 'Dashboard', showAllDriverMarkers);
         }
         
-        // Force map update
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
-            deliveryDate: format(selectedDate, 'yyyy-MM-dd'), 
-            triggeredBy: 'pullToSyncDataReady',
-            forceFullUpdate: true
-          }
-        }));
-        
-        // Force stats refresh
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: format(selectedDate, 'yyyy-MM-dd'), triggeredBy: 'pullToSyncDataReady', forceFullUpdate: true } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        
-        // Force map repositioning
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger(prev => prev + 1);
-        
-        // Auto-unlock after 500ms
-        setTimeout(() => {
-          setIsMapViewLocked(false);
-        }, 500);
+        setTimeout(() => { setIsMapViewLocked(false); }, 500);
         
         console.log('✅ [Dashboard] Full UI update complete from pull-to-sync');
         
