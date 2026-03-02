@@ -23,6 +23,23 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Square access token not configured' }, { status: 500 });
     }
 
+    // Early guard: if a pending transaction with a catalog object already exists, skip creating another
+    const existingPending = await base44.asServiceRole.entities.SquareTransaction.filter({
+      delivery_id: deliveryId,
+      status: 'pending'
+    });
+    if (existingPending?.length && existingPending[0]?.square_catalog_object_id) {
+      const tx = existingPending[0];
+      return Response.json({
+        success: true,
+        catalogObjectId: tx.square_catalog_object_id,
+        catalogVersion: tx.square_catalog_version,
+        itemName: tx.item_name,
+        transactionId: tx.id,
+        note: 'Skipped create: existing pending Square item found'
+      });
+    }
+
     // Get the store's Square location ID from SquareLocationConfig
     let locationId = null;
     
@@ -108,7 +125,7 @@ Deno.serve(async (req) => {
         'Square-Version': '2024-01-18'
       },
       body: JSON.stringify({
-        idempotency_key: `upsert-${deliveryId}-${Date.now()}`, // Unique key for idempotency
+        idempotency_key: `upsert-delivery-${deliveryId}-${amountCents}-${locationId}`,
         object: {
           type: 'ITEM',
           id: `#${deliveryId}`, // Client-generated ID for upserting the item

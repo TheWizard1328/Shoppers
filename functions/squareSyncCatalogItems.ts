@@ -137,6 +137,17 @@ Deno.serve(async (req) => {
       }
     } while (cursor);
 
+    // Deduplicate catalog items by catalog_object_id
+    const seenIds = new Set();
+    const dedupedCatalogItems = [];
+    for (const ci of catalogItems) {
+      if (!seenIds.has(ci.catalog_object_id)) {
+        seenIds.add(ci.catalog_object_id);
+        dedupedCatalogItems.push(ci);
+      }
+    }
+    console.log(`📦 [SquareSync] Catalog items: ${catalogItems.length} → ${dedupedCatalogItems.length} after dedupe`);
+
     // Get our existing transactions to match up and identify sold items
     const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-created_date', 500);
     const transactionMap = new Map();
@@ -177,7 +188,7 @@ Deno.serve(async (req) => {
       return unified.toLowerCase();
     };
     const catalogLookup = new Set(
-      catalogItems.map(ci => `${ci.location_id}|${normalizeName(ci.name)}|${ci.price_cents || Math.round((ci.price_dollars || 0) * 100)}`)
+      dedupedCatalogItems.map(ci => `${ci.location_id}|${normalizeName(ci.name)}|${ci.price_cents || Math.round((ci.price_dollars || 0) * 100)}`)
     );
 
     // Fetch recent sold items via existing function (last 7 days) — include all line items even without catalog IDs
@@ -261,7 +272,7 @@ Deno.serve(async (req) => {
         if (isDebitOrCredit) {
           // For Debit/Credit deliveries: delete matching catalog item(s) and skip creation
           if (existsInCatalog) {
-            const matches = catalogItems.filter(ci =>
+            const matches = dedupedCatalogItems.filter(ci =>
               ci.location_id === locId &&
               normalizeName(ci.name) === normalizedName &&
               (ci.price_cents || Math.round((ci.price_dollars || 0) * 100)) === priceCents
@@ -288,7 +299,8 @@ Deno.serve(async (req) => {
           continue; // Do not create catalog items for Debit/Credit
         }
 
-        if (allowCreate && !existsInCatalog && !existsInSales) {
+        const hasPendingTx = existingTransactions.some(tx => tx.delivery_id === del.id && tx.status === 'pending');
+        if (allowCreate && !existsInCatalog && !existsInSales && !hasPendingTx) {
           // Create missing catalog item via existing function
           try {
             const createRes = await base44.asServiceRole.functions.invoke('squareCreateCodItem', {
