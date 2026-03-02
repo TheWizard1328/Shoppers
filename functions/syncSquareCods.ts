@@ -449,7 +449,7 @@ Deno.serve(async (req) => {
             });
           } catch (_) {}
           // After upsert, fix any stray global items for this name to this location only
-          const itemName = `${(item.deliveryDate || '').slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`;
+          const itemName = `${(item.deliveryDate || '').slice(5).replace('-', '/') }(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`;
           try { await enforceItemLocation(itemName, locationId); } catch (_) {}
           results.push({ deliveryId: item.deliveryId, action: 'upsert', status: 'ok' });
           break;
