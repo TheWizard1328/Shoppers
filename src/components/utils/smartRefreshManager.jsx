@@ -650,6 +650,10 @@ class LightweightRefreshManager {
 
         // Dispatch smartRefreshComplete event with full replacement flags
         if (typeof window !== 'undefined') {
+          // CRITICAL: Filter junk AppUser records before dispatching
+          if (updates.appUsers) {
+            updates.appUsers = updates.appUsers.filter(u => u?.user_id && u.user_id !== 'undefined');
+          }
           window.dispatchEvent(new CustomEvent('smartRefreshComplete', {
             detail: { 
               updates,
