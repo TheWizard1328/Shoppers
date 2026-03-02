@@ -101,7 +101,7 @@ export default function DashboardView({
     // 2. Data arrives later via sync/WebSocket/settings-load
     // IMPORTANT: Do NOT override mapViewPhase — just re-trigger the CURRENT phase
     const filteredCount = Array.isArray(deliveriesWithStopOrder) ? deliveriesWithStopOrder.length : 0;
-    if (renderSequence.fabPhaseReady && filteredCount > 0 && !initialFabRetriggeredRef.current) {
+    if (renderSequence.fabPhaseReady && filteredCount > 0 && cardsReadyForFAB && !initialFabRetriggeredRef.current) {
       initialFabRetriggeredRef.current = true;
       console.log(`🔄 [DashboardView Failsafe] FAB fired with 0 deliveries initially — re-triggering current phase (${mapViewPhase}) with ${filteredCount} deliveries now available`);
       setTimeout(() => {
