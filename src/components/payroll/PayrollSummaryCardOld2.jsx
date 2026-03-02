@@ -1836,11 +1836,11 @@ export default function PayrollSummaryCard({
 
   // YTD grand totals across all displayed drivers (calculated AFTER ytdDataByDriver)
   // CRITICAL: ytdDataByDriver already includes current period data, so just sum the YTD values directly
-  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
   // Calculate AppFeeAmount for a driver - distribute from total monthly app fee pool
   // CRITICAL: Use CALENDAR MONTH, not pay cycle, since app fees are collected monthly
