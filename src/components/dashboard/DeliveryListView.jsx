@@ -333,11 +333,11 @@ const DeliveryListView = ({
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="fixed bottom-0 left-0 right-0 z-[201] max-h-[85vh] overflow-hidden rounded-t-2xl"
+                className="fixed bottom-0 left-0 right-0 z-[201] max-h-[78vh] overflow-hidden rounded-t-2xl"
                 style={{ background: 'var(--bg-white)' }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="overflow-y-auto max-h-[85vh]">
+                <div className="overflow-y-auto max-h-[78vh]">
                   <StopDetailsPanel
                   delivery={selectedDelivery}
                   patient={selectedPatient}
