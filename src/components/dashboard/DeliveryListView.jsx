@@ -58,9 +58,6 @@ const DeliveryRow = memo(({
         {/* Patient/Pickup */}
         <div className="mt-1 min-w-0">
           <div className="flex flex-col min-w-0">
-            <span className={`font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
-              {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
-            </span>
             {patient?.address && (
               <span className="text-xs text-slate-500 truncate">{patient.address}</span>
             )}
@@ -108,12 +105,12 @@ const DeliveryRow = memo(({
 
         <div className="flex items-center">
           <div className="flex items-center gap-2">
-            {getStatusBadge(delivery.status)}
             {store?.abbreviation && (
               <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
                 {store.abbreviation}
               </Badge>
             )}
+            {getStatusBadge(delivery.status)}
           </div>
         </div>
 
