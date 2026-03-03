@@ -69,7 +69,12 @@ Deno.serve(async (req) => {
       return Response.json({ ensured: 0, message: 'No default pickups required for this driver/date' });
     }
 
-    // Ensure a pickup exists for each assigned (store, slot)
+    // Ensure a pickup exists for each assigned (store, slot) — but ONLY when starting a brand new route
+    // For safety, require an explicit flag to avoid recreating on every add
+    if (!body?.isNewRouteStart) {
+      return Response.json({ ensured: 0, message: 'Skipped: not a new route start' });
+    }
+
     const results = await Promise.all(
       targets.map(({ storeId, slot }) =>
         api.functions.invoke('ensurePickupForDelivery', {
