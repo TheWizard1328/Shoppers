@@ -368,8 +368,8 @@ const DeliveryListView = ({
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="absolute top-0 right-0 h-full w-[560px] shadow-xl z-[201] overflow-hidden"
-                style={{ background: 'var(--bg-white)' }}
+                className="absolute right-0 w-[560px] shadow-xl z-[201] overflow-hidden"
+                style={{ background: 'var(--bg-white)', top: 'var(--driver-info-offset, 88px)', height: 'calc(100% - var(--driver-info-offset, 88px))' }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="h-full overflow-y-auto">
