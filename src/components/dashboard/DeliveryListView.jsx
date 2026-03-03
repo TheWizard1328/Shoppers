@@ -324,7 +324,7 @@ const DeliveryListView = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/50 z-[200]"
+              className={`${isMobile ? 'fixed' : 'absolute'} inset-0 bg-black/50 z-[200]`
               onClick={() => setSelectedDeliveryId(null)}
             />
             {isMobile ? (
