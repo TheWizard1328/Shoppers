@@ -22,19 +22,16 @@ const DeliveryRow = memo(({
   return (
     <div
       onClick={() => onSelect(delivery.id)}
-      className={`grid grid-cols-[80px_100px_120px_130px_1fr_140px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
+      className={`grid grid-cols-[140px_120px_130px_1fr_90px_110px_140px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
         isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
       } ${isSelected ? 'bg-slate-100' : ''}`}
       style={{ borderColor: 'var(--border-slate-200)' }}
     >
       <div className="flex items-center">
-        <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>
-          #{delivery.display_stop_order || delivery.stop_order || '—'}
-        </span>
-      </div>
-
-      <div className="flex items-center">
-        <span className="font-mono text-sm text-slate-600">{delivery.tracking_number || '—'}</span>
+        <div className="flex flex-col leading-tight">
+          <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
+          <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
+        </div>
       </div>
 
       <div className="flex items-center">
@@ -54,6 +51,29 @@ const DeliveryRow = memo(({
             <span className="text-xs text-slate-500 truncate">{patient.address}</span>
           )}
         </div>
+      </div>
+
+      <div className="flex items-center">
+        {delivery.signature_image_url ? (
+          <img src={delivery.signature_image_url} alt="Signature" className="w-8 h-8 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} />
+        ) : (
+          <span className="text-slate-400">—</span>
+        )}
+      </div>
+
+      <div className="flex items-center">
+        {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
+          <div className="flex -space-x-2">
+            {delivery.proof_photo_urls.slice(0,3).map((url, i) => (
+              <img key={i} src={url} alt={`POD ${i+1}`} className="w-8 h-8 rounded-md object-cover ring-2 ring-white" />
+            ))}
+            {delivery.proof_photo_urls.length > 3 && (
+              <div className="w-8 h-8 rounded-md bg-slate-200 text-slate-700 text-[11px] flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 3}</div>
+            )}
+          </div>
+        ) : (
+          <span className="text-slate-400">—</span>
+        )}
       </div>
 
       <div className="flex items-center justify-end">
@@ -82,7 +102,8 @@ const DeliveryListView = ({
   onStartDelivery,
   allDeliveries,
   selectedDate,
-  onDriverStatusChange
+  onDriverStatusChange,
+  isMobile
 }) => {
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
 
@@ -124,10 +145,11 @@ const DeliveryListView = ({
       : 0;
 
     if (hasPayments && totalCollected > 0) {
+      const types = Array.from(new Set((delivery.cod_payments || []).map(p => p.type).filter(Boolean)));
       return (
-        <div className="flex flex-col">
+        <div className="flex flex-col items-end">
           <span className="font-semibold text-green-700">${totalCollected.toFixed(2)}</span>
-          <span className="text-xs text-green-600">Collected</span>
+          <span className="text-xs text-green-600">{types.join(' + ')}</span>
         </div>
       );
     }
@@ -186,12 +208,13 @@ const DeliveryListView = ({
       <div className="h-full flex flex-col" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
         <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-          <div className="grid grid-cols-[80px_100px_120px_130px_1fr_140px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
-            <div>Stop #</div>
-            <div>TR#</div>
+          <div className="grid grid-cols-[140px_120px_130px_1fr_90px_110px_140px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+            <div>Stop/TR</div>
             <div>Status</div>
             <div>Time</div>
             <div>Patient/Pickup</div>
+            <div>Signature</div>
+            <div>Photos</div>
             <div className="text-right">COD</div>
           </div>
         </div>
@@ -229,7 +252,7 @@ const DeliveryListView = ({
         </div>
       </div>
 
-      {/* Slide-up Details Panel Overlay */}
+      {/* Slide-in Details Panel Overlay */}
       <AnimatePresence>
         {selectedDeliveryId && selectedDelivery && (
           <>
@@ -242,19 +265,18 @@ const DeliveryListView = ({
               className="absolute inset-0 bg-black/50 z-[200]"
               onClick={() => setSelectedDeliveryId(null)}
             />
-            
-            {/* Slide-up Panel */}
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="absolute bottom-0 left-0 right-0 z-[201] max-h-[85vh] overflow-hidden rounded-t-2xl"
-              style={{ background: 'var(--bg-white)' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="overflow-y-auto max-h-[85vh]">
-                <StopDetailsPanel
+            {isMobile ? (
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="absolute bottom-0 left-0 right-0 z-[201] max-h-[85vh] overflow-hidden rounded-t-2xl"
+                style={{ background: 'var(--bg-white)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="overflow-y-auto max-h-[85vh]">
+                  <StopDetailsPanel
                   delivery={selectedDelivery}
                   patient={selectedPatient}
                   store={selectedStore}
@@ -278,6 +300,42 @@ const DeliveryListView = ({
                 />
               </div>
             </motion.div>
+            ) : (
+              <motion.div
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="absolute top-0 right-0 h-full w-[560px] shadow-xl z-[201] overflow-hidden"
+                style={{ background: 'var(--bg-white)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="h-full overflow-y-auto">
+                  <StopDetailsPanel
+                    delivery={selectedDelivery}
+                    patient={selectedPatient}
+                    store={selectedStore}
+                    currentUser={currentUser}
+                    onEdit={onEditDelivery}
+                    onEditPatient={onEditPatient}
+                    onDelete={onDeleteDelivery}
+                    onRestart={onRestart}
+                    onStatusUpdate={onStatusUpdate}
+                    onNotesUpdate={onNotesUpdate}
+                    onCODUpdate={onCODUpdate}
+                    onCreateReturn={onCreateReturn}
+                    onStartDelivery={onStartDelivery}
+                    allDeliveries={allDeliveries}
+                    selectedDate={selectedDate}
+                    patients={patients}
+                    stores={stores}
+                    drivers={drivers}
+                    onDriverStatusChange={onDriverStatusChange}
+                    onClose={() => setSelectedDeliveryId(null)}
+                  />
+                </div>
+              </motion.div>
+            )}
           </>
         )}
       </AnimatePresence>

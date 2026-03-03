@@ -158,59 +158,7 @@ export default function DateListPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Month/Year Selectors */}
-      <div className="p-2" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          <Select value={selectedMonth.toString()} onValueChange={(val) => onMonthChange(parseInt(val))}>
-            <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              {months.filter((m) => availableMonths.includes(m.value)).map((m) =>
-              <SelectItem key={m.value} value={m.value.toString()} style={{ color: 'var(--text-slate-900)' }}>
-                  {m.label}
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
 
-          <Select value={selectedYear.toString()} onValueChange={(val) => onYearChange(parseInt(val))}>
-            <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              {availableYears.map((y) =>
-              <SelectItem key={y} value={y.toString()} style={{ color: 'var(--text-slate-900)' }}>
-                  {y}
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        {onDeleteMonth && datesWithDeliveries.length > 0 && selectedDriverId && selectedDriverId !== 'all' && isAppOwner(currentUser) &&
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2 text-red-600 hover:bg-red-50"
-          onClick={() => {
-            const monthName = months[selectedMonth].label;
-            const driverDeliveries = deliveries.filter((d) => d && d.driver_id === selectedDriverId);
-            const monthStart = new Date(selectedYear, selectedMonth, 1);
-            const monthEnd = new Date(selectedYear, selectedMonth + 1, 0);
-            const startDateStr = format(monthStart, 'yyyy-MM-dd');
-            const endDateStr = format(monthEnd, 'yyyy-MM-dd');
-            const totalForMonth = driverDeliveries.filter((d) => d.delivery_date >= startDateStr && d.delivery_date <= endDateStr).length;
-            if (window.confirm(`Delete all ${totalForMonth} stops for ${monthName} ${selectedYear} for this driver? This cannot be undone.`)) {
-              onDeleteMonth(selectedYear, selectedMonth, selectedDriverId);
-            }
-          }}
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete All
-        </Button>
-        }
-      </div>
 
       {/* Date Cards List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
