@@ -248,6 +248,23 @@ export const connect = () => {
     subscribeToEntity('AppUser');
     subscribeToEntity('Message');
 
+    // Force UI refresh when patient updates cascade to deliveries
+    window.addEventListener('realtimeUpdate_Patient', async (e) => {
+      try {
+        const { data } = e.detail || {};
+        if (!data?.id) return;
+        // Small debounce to allow backend cascade to finish
+        setTimeout(async () => {
+          const { offlineDB } = await import('./offlineDatabase');
+          // Mark Patient and Delivery as freshly synced and trigger listeners
+          await offlineDB.updateSyncStatus('Patient', { status: 'synced' });
+          await offlineDB.updateSyncStatus('Delivery', { status: 'synced' });
+          // Broadcast a soft refresh hint
+          window.dispatchEvent(new CustomEvent('softRefreshDeliveries', { detail: { reason: 'patient_update_cascade', patientId: data.id } }));
+        }, 150);
+      } catch {}
+    }, { once: false });
+
     isConnected = true;
     reconnectAttempts = 0;
     console.log('✅ [RealtimeSync] WebSocket connected');
