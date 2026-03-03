@@ -5,49 +5,17 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { X, Camera, Barcode, Plus, Trash2, ZoomIn, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import JsBarcode from 'jsbarcode';
+// JsBarcode removed (package resolution issue)
 import { processBarcode } from '@/functions/processBarcode';
 
-// Renders a single barcode as SVG using JsBarcode
+// Barcode preview (text fallback - JsBarcode removed)
 function BarcodeDisplay({ value, onDelete }) {
-  const svgRef = useRef(null);
-
-  useEffect(() => {
-    if (!svgRef.current || !value) return;
-    try {
-      JsBarcode(svgRef.current, value, {
-        format: 'CODE128',
-        lineColor: '#000',
-        width: 2,
-        height: 60,
-        displayValue: true,
-        fontSize: 12,
-        margin: 8,
-        background: '#ffffff'
-      });
-    } catch (e) {
-      // If CODE128 fails try auto
-      try {
-        JsBarcode(svgRef.current, value, {
-          format: 'auto',
-          lineColor: '#000',
-          width: 2,
-          height: 60,
-          displayValue: true,
-          fontSize: 12,
-          margin: 8,
-          background: '#ffffff'
-        });
-      } catch (e2) {
-        console.warn('BarcodeDisplay: could not render barcode for value:', value);
-      }
-    }
-  }, [value]);
-
   return (
     <div className="flex items-center gap-2 p-2 rounded-lg border bg-white" style={{ borderColor: 'var(--border-slate-200)' }}>
       <div className="flex-1 min-w-0">
-        <svg ref={svgRef} className="w-full" />
+        <div className="w-full h-16 flex items-center justify-center bg-slate-50 border rounded">
+          <span className="font-mono text-sm text-slate-700 truncate">{value}</span>
+        </div>
       </div>
       <Button
         type="button"
