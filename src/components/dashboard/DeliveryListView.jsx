@@ -14,72 +14,131 @@ const DeliveryRow = memo(({
   onSelect,
   getStatusBadge,
   getTimeDisplay,
-  getCODDisplay
+  getCODDisplay,
+  isMobile
 }) => {
   const isPickup = !delivery.patient_id;
   const isNextDelivery = delivery.isNextDelivery === true;
 
   return (
-    <div
-      onClick={() => onSelect(delivery.id)}
-      className={`grid grid-cols-[140px_120px_130px_1fr_90px_110px_140px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
-        isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
-      } ${isSelected ? 'bg-slate-100' : ''}`}
-      style={{ borderColor: 'var(--border-slate-200)' }}
-    >
-      <div className="flex items-center">
-        <div className="flex flex-col leading-tight">
-          <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
-          <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
+    isMobile ? (
+      <div
+        onClick={() => onSelect(delivery.id)}
+        className={`px-4 py-3 border-b cursor-pointer transition-colors ${
+          isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
+        } ${isSelected ? 'bg-slate-100' : ''}`}
+        style={{ borderColor: 'var(--border-slate-200)' }}
+      >
+        {/* Top row: Stop/TR + Status */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
+            <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
+          </div>
+          {getStatusBadge(delivery.status)}
         </div>
-      </div>
 
-      <div className="flex items-center">
-        {getStatusBadge(delivery.status)}
-      </div>
+        {/* Time */}
+        <div className="mt-1">{getTimeDisplay(delivery)}</div>
 
-      <div className="flex items-center">
-        {getTimeDisplay(delivery)}
-      </div>
-
-      <div className="flex items-center min-w-0">
-        <div className="flex flex-col min-w-0">
-          <span className={`font-medium truncate ${isPickup ? 'text-blue-600' : 'text-slate-900'}`}>
-            {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
-          </span>
-          {patient?.address && (
-            <span className="text-xs text-slate-500 truncate">{patient.address}</span>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center">
-        {delivery.signature_image_url ? (
-          <img src={delivery.signature_image_url} alt="Signature" className="w-8 h-8 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} />
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
-      </div>
-
-      <div className="flex items-center">
-        {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
-          <div className="flex -space-x-2">
-            {delivery.proof_photo_urls.slice(0,3).map((url, i) => (
-              <img key={i} src={url} alt={`POD ${i+1}`} className="w-8 h-8 rounded-md object-cover ring-2 ring-white" />
-            ))}
-            {delivery.proof_photo_urls.length > 3 && (
-              <div className="w-8 h-8 rounded-md bg-slate-200 text-slate-700 text-[11px] flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 3}</div>
+        {/* Patient/Pickup */}
+        <div className="mt-1 min-w-0">
+          <div className="flex flex-col min-w-0">
+            <span className={`font-medium truncate ${isPickup ? 'text-blue-600' : 'text-slate-900'}`}>
+              {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
+            </span>
+            {patient?.address && (
+              <span className="text-xs text-slate-500 truncate">{patient.address}</span>
             )}
           </div>
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
-      </div>
+        </div>
 
-      <div className="flex items-center justify-end">
-        {getCODDisplay(delivery)}
+        {/* Media + COD */}
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {delivery.signature_image_url ? (
+              <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} />
+            ) : (
+              <span className="text-slate-400 text-sm">—</span>
+            )}
+            {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
+              <div className="flex -space-x-2">
+                {delivery.proof_photo_urls.slice(0,2).map((url, i) => (
+                  <img key={i} src={url} alt={`POD ${i+1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white" />
+                ))}
+                {delivery.proof_photo_urls.length > 2 && (
+                  <div className="w-7 h-7 rounded-md bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 2}</div>
+                )}
+              </div>
+            ) : (
+              <span className="text-slate-400 text-sm">—</span>
+            )}
+          </div>
+          <div>{getCODDisplay(delivery)}</div>
+        </div>
       </div>
-    </div>
+    ) : (
+      <div
+        onClick={() => onSelect(delivery.id)}
+        className={`grid grid-cols-[140px_120px_130px_1fr_90px_110px_140px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
+          isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
+        } ${isSelected ? 'bg-slate-100' : ''}`}
+        style={{ borderColor: 'var(--border-slate-200)' }}
+      >
+        <div className="flex items-center">
+          <div className="flex flex-col leading-tight">
+            <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
+            <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center">
+          {getStatusBadge(delivery.status)}
+        </div>
+
+        <div className="flex items-center">
+          {getTimeDisplay(delivery)}
+        </div>
+
+        <div className="flex items-center min-w-0">
+          <div className="flex flex-col min-w-0">
+            <span className={`font-medium truncate ${isPickup ? 'text-blue-600' : 'text-slate-900'}`}>
+              {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
+            </span>
+            {patient?.address && (
+              <span className="text-xs text-slate-500 truncate">{patient.address}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center">
+          {delivery.signature_image_url ? (
+            <img src={delivery.signature_image_url} alt="Signature" className="w-8 h-8 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} />
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </div>
+
+        <div className="flex items-center">
+          {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
+            <div className="flex -space-x-2">
+              {delivery.proof_photo_urls.slice(0,3).map((url, i) => (
+                <img key={i} src={url} alt={`POD ${i+1}`} className="w-8 h-8 rounded-md object-cover ring-2 ring-white" />
+              ))}
+              {delivery.proof_photo_urls.length > 3 && (
+                <div className="w-8 h-8 rounded-md bg-slate-200 text-slate-700 text-[11px] flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 3}</div>
+              )}
+            </div>
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end">
+          {getCODDisplay(delivery)}
+        </div>
+      </div>
+    )
   );
 });
 
@@ -208,15 +267,17 @@ const DeliveryListView = ({
       <div className="h-full flex flex-col" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
         <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-          <div className="grid grid-cols-[140px_120px_130px_1fr_90px_110px_140px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
-            <div>Stop/TR</div>
-            <div>Status</div>
-            <div>Time</div>
-            <div>Patient/Pickup</div>
-            <div>Signature</div>
-            <div>Photos</div>
-            <div className="text-right">COD</div>
-          </div>
+          {!isMobile && (
+            <div className="grid grid-cols-[140px_120px_130px_1fr_90px_110px_140px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+              <div>Stop/TR</div>
+              <div>Status</div>
+              <div>Time</div>
+              <div>Patient/Pickup</div>
+              <div>Signature</div>
+              <div>Photos</div>
+              <div className="text-right">COD</div>
+            </div>
+          )}
         </div>
 
         {/* Scrollable List */}
@@ -244,6 +305,7 @@ const DeliveryListView = ({
                   getStatusBadge={getStatusBadge}
                   getTimeDisplay={getTimeDisplay}
                   getCODDisplay={getCODDisplay}
+                  isMobile={isMobile}
                 />
               );
             })}
