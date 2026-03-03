@@ -1,4 +1,3 @@
-
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1050,7 +1049,7 @@ export default function DeliveryForm({
     if (!autoAddToStaged) {
       try { if (patientStore && updatedFormData.driver_id && updatedFormData.delivery_date) {
         const slot = deliveryAMPM || getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries) || 'AM';
-        const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: patientStore.id, deliveryDate: updatedFormData.delivery_date, driverId: updatedFormData.driver_id, ampmDeliveries: slot });
+        const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: patientStore.id, deliveryDate: updatedFormData.delivery_date, driverId: updatedFormData.driver_id, ampmDeliveries: slot, allowCreateIfMissing: true });
         const pu = r?.data?.puid; if (pu) setFormData(prev => ({ ...prev, puid: pu, ampm_deliveries: slot }));
         if (r?.data?.isNew && r?.data?.pickup) {
           const p = r.data.pickup; const staged = { ...p, _tempId: Date.now() + Math.random(), _autoCreated: true, store_name: patientStore.name, store_abbreviation: patientStore.abbreviation };
