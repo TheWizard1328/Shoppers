@@ -248,21 +248,48 @@ export const connect = () => {
     subscribeToEntity('AppUser');
     subscribeToEntity('Message');
 
-    // Force UI refresh when patient updates cascade to deliveries
+    // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
     window.addEventListener('realtimeUpdate_Patient', async (e) => {
       try {
-        const { data } = e.detail || {};
+        const { data, changedFields } = e.detail || {};
         if (!data?.id) return;
-        // Small debounce to allow backend cascade to finish
-        setTimeout(async () => {
-          const { offlineDB } = await import('./offlineDatabase');
-          // Mark Patient and Delivery as freshly synced and trigger listeners
-          await offlineDB.updateSyncStatus('Patient', { status: 'synced' });
-          await offlineDB.updateSyncStatus('Delivery', { status: 'synced' });
-          // Broadcast a soft refresh hint
-          window.dispatchEvent(new CustomEvent('softRefreshDeliveries', { detail: { reason: 'patient_update_cascade', patientId: data.id } }));
-        }, 150);
-      } catch {}
+
+        // Build local patch mirroring backend cascade
+        const patch = {
+          patient_name: data.full_name || null,
+          patient_phone: data.phone || null,
+          unit_number: data.unit_number || null,
+          delivery_instructions: data.notes || null,
+          mailbox_ok: !!data.mailbox_ok,
+          call_upon_arrival: !!data.call_upon_arrival,
+          ring_bell: data.dont_ring_bell ? false : (typeof data.ring_bell === 'boolean' ? data.ring_bell : true),
+          dont_ring_bell: !!data.dont_ring_bell,
+          back_door: !!data.back_door,
+        };
+
+        const { offlineDB } = await import('./offlineDatabase');
+        const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        const activeStatuses = new Set(['pending','en_route','in_transit']);
+        const toUpdate = (allDeliveries || []).filter(d => d?.patient_id === data.id && activeStatuses.has(d?.status || 'pending'));
+
+        if (toUpdate.length === 0) return;
+
+        const nowIso = new Date().toISOString();
+        const patched = toUpdate.map(d => ({ ...d, ...patch, updated_date: nowIso }));
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, patched);
+
+        // Broadcast local Delivery updates so UI rerenders immediately
+        patched.forEach(d => {
+          try { broadcastMutation('Delivery', 'update', d.id, d); } catch {}
+        });
+
+        // Update sync statuses and emit a soft refresh hint (non-blocking)
+        await offlineDB.updateSyncStatus('Patient', { status: 'synced' });
+        await offlineDB.updateSyncStatus('Delivery', { status: 'synced' });
+        window.dispatchEvent(new CustomEvent('softRefreshDeliveries', { detail: { reason: 'patient_update_cascade', patientId: data.id, changedFields } }));
+      } catch (err) {
+        console.warn('⚠️ [RealtimeSync] Local cascade on Patient update failed:', err?.message);
+      }
     }, { once: false });
 
     isConnected = true;
