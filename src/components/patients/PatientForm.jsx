@@ -15,6 +15,7 @@ import { sortStores } from "@/components/utils/sorting";
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autocomplete";
+import { realtimeSync } from "@/components/utils/realtimeSync";
 import { createPatientLocal, updatePatientLocal } from '../utils/offlineMutations';
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 
@@ -482,6 +483,8 @@ export default function PatientForm({
         await updatePatientLocal(patient.id, dataToSave);
         savedPatientId = patient.id;
         console.log('  ✅ Updated patient locally');
+        // Instant local broadcast so UI + offline DB cascade immediately
+        try { realtimeSync.broadcast('Patient', 'update', savedPatientId, { id: savedPatientId, ...(patient || {}), ...dataToSave }); } catch {}
       } else {
         // STEP 1: Create new patient directly on backend
         console.log('  📝 Creating new patient on backend...');
@@ -495,6 +498,9 @@ export default function PatientForm({
         const { offlineDB } = await import('../utils/offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
         console.log('  ✅ Patient synced to offline DB');
+        
+        // Instant local broadcast so UI + offline DB cascade immediately
+        try { realtimeSync.broadcast('Patient', 'create', savedPatientId, { id: savedPatientId, ...backendPatient, ...dataToSave }); } catch {}
         
         if (returnPatientOnSave) {
           // CRITICAL: Merge backend patient with dataToSave to ensure ALL fields are passed back
