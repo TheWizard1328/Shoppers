@@ -188,6 +188,11 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       
       // Update the input value with street address only (preserves directionals like NW, SE)
       onChange(streetAddress);
+
+      // Reset typing/search guards so no follow-up fetch occurs on blur
+      hasUserTyped.current = false;
+      initialValue.current = streetAddress;
+      lastSearchText.current = streetAddress;
       
       // Clear the flag after a short delay
       setTimeout(() => {
@@ -267,6 +272,12 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           onChange(e.target.value);
         }}
         onBlur={() => {
+          // If we just selected an address, suppress blur formatting and keep dropdown closed
+          if (justSelected.current) {
+            setOpen(false);
+            setSuggestions([]);
+            return;
+          }
           if (value) {
             const unabbreviated = unabbreviateAddress(value);
             onChange(unabbreviated);
