@@ -5,20 +5,29 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me().catch(() => null);
 
-    const { driverId, deliveryDate } = await req.json();
+    const payload = await req.json().catch(() => ({}));
+    const { driverId, deliveryDate, patientId: directPatientId } = payload || {};
 
-    if (!driverId || !deliveryDate) {
-      return Response.json({ error: 'Missing required parameters: driverId, deliveryDate' }, { status: 400 });
-    }
+    // Detect automation payload (Patient update)
+    const isAutomation = !!payload?.event && payload?.event?.entity_name === 'Patient';
+    const patientId = directPatientId || (isAutomation ? (payload?.event?.entity_id || payload?.data?.id) : null);
 
-    // Use user scope if authenticated; otherwise service role (e.g., if called by automation)
+    // Choose API scope
     const api = user ? base44 : base44.asServiceRole;
 
-    // Load all deliveries for this driver/date that have a patient and are not finished
+    // Load deliveries to sync
     const finished = new Set(['completed', 'failed', 'cancelled', 'returned']);
-    const deliveries = await api.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-created_date', 1000);
-    const activePatientDeliveries = deliveries.filter(d => d.patient_id && !finished.has(d.status || 'pending'));
+    let deliveries = [];
 
+    if (driverId && deliveryDate) {
+      deliveries = await api.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-created_date', 1000);
+    } else if (patientId) {
+      deliveries = await api.entities.Delivery.filter({ patient_id: patientId }, '-created_date', 500);
+    } else {
+      return Response.json({ error: 'Provide (driverId & deliveryDate) OR patientId (or trigger via Patient automation).' }, { status: 400 });
+    }
+
+    const activePatientDeliveries = deliveries.filter(d => d.patient_id && !finished.has(d.status || 'pending'));
     if (activePatientDeliveries.length === 0) {
       return Response.json({ updated: 0, message: 'No active patient deliveries to sync' });
     }
@@ -30,6 +39,8 @@ Deno.serve(async (req) => {
 
     // Prepare and apply patches
     let updatedCount = 0;
+    const etaGroups = new Set(); // unique key: driverId__deliveryDate
+
     for (const d of activePatientDeliveries) {
       const p = pMap.get(d.patient_id);
       if (!p) continue;
@@ -46,7 +57,7 @@ Deno.serve(async (req) => {
         back_door: !!p.back_door,
       };
 
-      // Time window alignment (if patient has a preferred window)
+      // Align time windows from Patient when available
       if (typeof p.time_window_start === 'string' && p.time_window_start.length >= 4) {
         patch.delivery_time_start = p.time_window_start;
       }
@@ -56,20 +67,27 @@ Deno.serve(async (req) => {
 
       await api.entities.Delivery.update(d.id, patch);
       updatedCount += 1;
+
+      if (d.driver_id && d.delivery_date) {
+        etaGroups.add(`${d.driver_id}__${d.delivery_date}`);
+      }
     }
 
-    // Recalculate ETAs to immediately reflect any GPS/time window changes
-    try {
-      await api.functions.invoke('calculateRealTimeETA', {
-        driverId,
-        deliveryDate,
-        currentLocalTime: null,
-      });
-    } catch (e) {
-      console.warn('[syncRoutePatients] ETA recalculation failed or deferred:', e?.message || e);
+    // Attempt ETA recalculation for affected driver/date groups
+    for (const key of etaGroups) {
+      const [drv, date] = key.split('__');
+      try {
+        await api.functions.invoke('calculateRealTimeETA', {
+          driverId: drv,
+          deliveryDate: date,
+          currentLocalTime: null,
+        });
+      } catch (e) {
+        console.warn('[syncRoutePatients] ETA recalculation skipped:', e?.message || String(e));
+      }
     }
 
-    return Response.json({ success: true, updated: updatedCount, deliveriesProcessed: activePatientDeliveries.length });
+    return Response.json({ success: true, updated: updatedCount, groupsProcessed: etaGroups.size });
   } catch (error) {
     return Response.json({ error: error.message || 'Failed to sync route patient data' }, { status: 500 });
   }
