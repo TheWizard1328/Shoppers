@@ -2025,7 +2025,7 @@ export default function DeliveryForm({
       }
       if (!puid) {
         try {
-          const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: store.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, ampmDeliveries: timeSlot });
+          const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: store.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, ampmDeliveries: timeSlot, allowCreateIfMissing: true });
           puid = r.data?.puid || getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
         } catch {
           puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
