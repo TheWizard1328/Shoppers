@@ -38,15 +38,15 @@ import ImageViewer from "../common/ImageViewer";
 import { base44 } from "@/api/base44Client";
 
 const statusConfig = {
-  pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', label: 'Pending', icon: Clock },
-  'Ready For Pickup': { color: 'bg-blue-100 text-blue-800 border-blue-300', label: 'Ready For Pickup', icon: Package },
-  picked_up: { color: 'bg-purple-100 text-purple-800 border-purple-300', label: 'Picked Up', icon: Package },
-  in_transit: { color: 'bg-purple-100 text-purple-800 border-purple-300', label: 'In Transit', icon: Navigation },
-  completed: { color: 'bg-emerald-100 text-emerald-800 border-emerald-300', label: 'Completed', icon: CheckCircle },
-  failed: { color: 'bg-red-100 text-red-800 border-red-300', label: 'Failed', icon: XCircle },
-  cancelled: { color: 'bg-slate-100 text-slate-800 border-slate-300', label: 'Cancelled', icon: XCircle },
-  returned: { color: 'bg-orange-100 text-orange-800 border-orange-300', label: 'Returned', icon: RotateCcw },
-  projected: { color: 'bg-gray-100 text-gray-700 border-gray-300', label: 'Projected', icon: Clock }
+  pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700', label: 'Pending', icon: Clock },
+  'Ready For Pickup': { color: 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700', label: 'Ready For Pickup', icon: Package },
+  picked_up: { color: 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700', label: 'Picked Up', icon: Package },
+  in_transit: { color: 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700', label: 'In Transit', icon: Navigation },
+  completed: { color: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700', label: 'Completed', icon: CheckCircle },
+  failed: { color: 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700', label: 'Failed', icon: XCircle },
+  cancelled: { color: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800/60 dark:text-slate-200 dark:border-slate-600', label: 'Cancelled', icon: XCircle },
+  returned: { color: 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700', label: 'Returned', icon: RotateCcw },
+  projected: { color: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/60 dark:text-gray-200 dark:border-gray-600', label: 'Projected', icon: Clock }
 };
 
 export default function StopDetailsPanel({ 
