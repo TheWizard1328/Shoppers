@@ -2024,7 +2024,7 @@ export default function Layout({ children, currentPageName }) {
     const reloadPageData = async () => {
       console.log(`🔄 [Layout] Page changed to ${currentPageName} - reloading data from offline DB...`);
       
-      const { pageDataReloader } = await import('./components/utils/pageDataReloader');
+      const { pageDataReloader } = await import('./components/utils/pageDataReloader.js');
       
       const filters = {
         selectedDate: globalFilters.getSelectedDate(),
