@@ -1782,11 +1782,11 @@ export default function StopCard({
 
                                   // Backend safety: clear all other isNextDelivery=true for this driver/date, then set current
                                   try {
-                                    await base44.functions.invoke('setNextDeliveryFlag', {
+                                    base44.functions.invoke('setNextDeliveryFlag', {
                                       driverId: delivery.driver_id,
                                       deliveryDate: delivery.delivery_date,
                                       targetDeliveryId: delivery.id
-                                    });
+                                    }).catch((e) => console.warn('setNextDeliveryFlag failed, continuing with local update:', e));
                                   } catch (e) {
                                     console.warn('setNextDeliveryFlag failed, continuing with local update:', e);
                                   }
