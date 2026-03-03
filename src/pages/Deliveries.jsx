@@ -182,10 +182,7 @@ export default function DeliveriesPage() {
   const [activeDriver, setActiveDriver] = useState(null);
   const [isDriverOnline, setIsDriverOnline] = useState(false);
   const isMounted = useRef(false);
-  const [viewMode, setViewModeState] = useState(() => {
-    const saved = localStorage.getItem('rxdeliver_routes_view_mode');
-    return saved || 'cards';
-  });
+  const [viewMode, setViewModeState] = useState('list');
 
   // Track if this is initial page load (not refresh)
   const isInitialPageLoadRef = useRef(true);
@@ -3445,7 +3442,8 @@ export default function DeliveriesPage() {
             }}
             onStartDelivery={handleStatusUpdate}
             allDeliveries={effectiveDeliveries || []}
-            selectedDate={selectedDate} />
+            selectedDate={selectedDate}
+            isMobile={isMobile} />
 
           </div>
         }
@@ -3593,31 +3591,7 @@ export default function DeliveriesPage() {
                 className="pl-10 w-full bg-slate-100 border-slate-300" />
               </div>
 
-              {/* View Mode Toggle */}
-              <div className="flex items-center gap-1 rounded-lg border p-0.5" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
-                <button
-                onClick={() => setViewMode('cards')}
-                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                viewMode === 'cards' ?
-                'bg-white shadow-sm text-slate-900' :
-                'text-slate-600 hover:text-slate-900'}`
-                }
-                title="Card view">
 
-                  Cards
-                </button>
-                <button
-                onClick={() => setViewMode('list')}
-                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                viewMode === 'list' ?
-                'bg-white shadow-sm text-slate-900' :
-                'text-slate-600 hover:text-slate-900'}`
-                }
-                title="List view">
-
-                  List
-                </button>
-              </div>
 
               <Select value={driverFilter} onValueChange={handleDriverChange}>
                 <SelectTrigger className="w-[140px] bg-white border-slate-300">
@@ -3678,10 +3652,6 @@ export default function DeliveriesPage() {
               selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
               dateListWithStats={null}
               onDateSelect={handleDateSelect}
-              selectedMonth={selectedMonth}
-              onMonthChange={handleMonthChange}
-              selectedYear={selectedYear}
-              onYearChange={handleYearChange}
               patients={effectivePatients}
               selectedDriverId={driverFilter}
               currentUser={currentUser}
@@ -3804,10 +3774,6 @@ export default function DeliveriesPage() {
                   handleDateSelect(dateStr);
                   setIsMobileMenuOpen(false);
                 }}
-                selectedMonth={selectedMonth}
-                onMonthChange={handleMonthChange}
-                selectedYear={selectedYear}
-                onYearChange={handleYearChange}
                 patients={effectivePatients}
                 selectedDriverId={driverFilter}
                 currentUser={currentUser}
