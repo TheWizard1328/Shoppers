@@ -14,11 +14,25 @@ import { updateDeliveryLocal } from './offlineMutations';
 export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   
-  // Fetch fresh data from backend to ensure accuracy
-  const driverDeliveries = await base44.entities.Delivery.filter({
-    driver_id: driverId,
-    delivery_date: deliveryDate
-  });
+  // Fetch fresh data from backend to ensure accuracy; fallback to offline DB on network error
+  const driverDeliveries = await (async () => {
+    try {
+      return await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+    } catch (err) {
+      console.warn('[StopOrderManager] Network error fetching deliveries, falling back to offline DB:', err?.message || err);
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        return (all || []).filter(d => d?.driver_id === driverId && d?.delivery_date === deliveryDate);
+      } catch (offlineErr) {
+        console.warn('[StopOrderManager] Offline fallback failed:', offlineErr?.message || offlineErr);
+        return [];
+      }
+    }
+  })();
 
   // Sort: completed first by time, then incomplete by stop_order, pending always last
   const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
@@ -70,12 +84,20 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     }
   }
 
-  // Persist updated stop orders to backend in batch
+  // Persist updated stop orders to backend in small batches with retries
   if (updates.length > 0) {
     const { base44 } = await import('@/api/base44Client');
-    await Promise.all(
-      updates.map(u => base44.entities.Delivery.update(u.id, { stop_order: u.stop_order, display_stop_order: u.display_stop_order }))
-    );
+    const chunkSize = 10;
+    for (let i = 0; i < updates.length; i += chunkSize) {
+      const slice = updates.slice(i, i + chunkSize);
+      try {
+        await Promise.all(
+          slice.map(u => base44.entities.Delivery.update(u.id, { stop_order: u.stop_order, display_stop_order: u.display_stop_order }))
+        );
+      } catch (err) {
+        console.warn('[StopOrderManager] Partial backend update failed (continuing):', err?.message || err);
+      }
+    }
   }
 
   return sortedDeliveries;
