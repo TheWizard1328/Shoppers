@@ -36,17 +36,11 @@ const DeliveryRow = memo(({
               <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
               <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
             </div>
-            <span className={`font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
-              {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
-            </span>
           </div>
           <div className="flex flex-col items-end">
             <div className="flex flex-col items-center gap-1">
               <div className="flex items-center justify-center">
                 {getStatusBadge(delivery.status)}
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-300 text-center w-full">
-                {getTimeDisplay(delivery)}
               </div>
               {store?.abbreviation && (
                 <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
@@ -57,13 +51,28 @@ const DeliveryRow = memo(({
           </div>
         </div>
 
-        {/* Time moved under badges on right */}
+        {/* Row 2: Name left, Time right */}
+        <div className="flex items-center justify-between gap-3 mt-1">
+          <div className="min-w-0">
+            <span className={`font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
+              {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
+            </span>
+          </div>
+          <div className="text-xs text-slate-600 dark:text-slate-300 text-center">
+            {getTimeDisplay(delivery)}
+          </div>
+        </div>
 
-        {/* Patient/Pickup */}
+        {/* Row 3: Address & Unit */}
         <div className="mt-1 min-w-0">
-          <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             {patient?.address && (
               <span className="text-xs text-slate-500 truncate">{patient.address}</span>
+            )}
+            {(patient?.unit_number || delivery.unit_number) && (
+              <Badge variant="secondary" className="text-[10px] px-2 py-0.5" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                Unit {patient?.unit_number || delivery.unit_number}
+              </Badge>
             )}
           </div>
         </div>
