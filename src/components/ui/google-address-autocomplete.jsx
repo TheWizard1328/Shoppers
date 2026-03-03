@@ -162,12 +162,19 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
 
       const data = response?.data || response;
       
-      // Extract only street address (remove city, province, postal code, country)
-      const fullAddress = data.formatted_address || prediction.description;
-      const streetAddress = fullAddress.split(',')[0]?.trim() || fullAddress;
+      // Prefer parsed street (with number) from backend, then formatted, then prediction
+      const parsedStreet = (data.address || '').trim();
+      const formatted = (data.formatted_address || '').trim();
+      const fromFormatted = formatted ? (formatted.split(',')[0]?.trim() || formatted) : '';
+      const fromPrediction = (prediction.description || '').split(',')[0]?.trim() || prediction.description;
+
+      // If parsed street misses a leading number but prediction has it, prefer prediction
+      const hasLeadingNumber = /^\d+\s/.test(parsedStreet || fromFormatted);
+      const streetAddress = hasLeadingNumber ? (parsedStreet || fromFormatted) : ( /^\d+\s/.test(fromPrediction) ? fromPrediction : (parsedStreet || fromFormatted || fromPrediction) );
+      const fullAddress = formatted || prediction.description || streetAddress;
       
       console.log('[GoogleAddressAutocomplete] Full address:', fullAddress);
-      console.log('[GoogleAddressAutocomplete] Street address:', streetAddress);
+      console.log('[GoogleAddressAutocomplete] Chosen street address:', streetAddress);
       console.log('[GoogleAddressAutocomplete] GPS Coords:', { lat: data.latitude, lon: data.longitude });
       
       const addressData = {
@@ -176,7 +183,8 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         latitude: data.latitude,
         longitude: data.longitude,
         place_id: prediction.place_id,
-        distance: prediction.distance
+        distance: prediction.distance,
+        unit: data.unit || null
       };
 
       console.log('[GoogleAddressAutocomplete] Address data being sent to parent:', addressData);
