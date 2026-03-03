@@ -284,8 +284,12 @@ export default function PatientForm({
   }, [setIsFormOverlayOpen]);
 
   const handleAddressSelect = (addressData) => {
-    // Use street_address which preserves directionals (NW, SE, etc.)
-    const abbreviatedAddress = abbreviateAddress(addressData.street_address || addressData.full_address);
+    // Choose street first; ensure house number stays; then abbreviate directionals
+    const rawStreet = addressData.street_address || addressData.full_address || '';
+    const abbreviatedAddress = abbreviateAddress(rawStreet);
+
+    // If unit/subpremise came back, prefill unit_number
+    const prefilledUnit = addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number;
 
     // Use distance from Google Places API if available (it's calculated from store location)
     const distanceFromStore = addressData.distance !== null && addressData.distance !== undefined 
@@ -295,8 +299,9 @@ export default function PatientForm({
     const newFormData = {
       ...formData,
       address: abbreviatedAddress,
-      latitude: parseFloat(addressData.latitude.toFixed(7)), // Round to 7 decimal places
-      longitude: parseFloat(addressData.longitude.toFixed(7)), // Round to 7 decimal places
+      unit_number: prefilledUnit || formData.unit_number,
+      latitude: parseFloat(Number(addressData.latitude).toFixed(7)), // Round to 7 decimal places
+      longitude: parseFloat(Number(addressData.longitude).toFixed(7)), // Round to 7 decimal places
       distance_from_store: distanceFromStore
     };
 
