@@ -35,7 +35,14 @@ const DeliveryRow = memo(({
             <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
             <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
           </div>
-          {getStatusBadge(delivery.status)}
+          <div className="flex items-center gap-2">
+            {getStatusBadge(delivery.status)}
+            {store?.abbreviation && (
+              <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
+                {store.abbreviation}
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Time */}
@@ -93,7 +100,14 @@ const DeliveryRow = memo(({
         </div>
 
         <div className="flex items-center">
-          {getStatusBadge(delivery.status)}
+          <div className="flex items-center gap-2">
+            {getStatusBadge(delivery.status)}
+            {store?.abbreviation && (
+              <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
+                {store.abbreviation}
+              </Badge>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center">
