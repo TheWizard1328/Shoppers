@@ -11,6 +11,16 @@ function generateShortStopId() {
     return result;
 }
 
+function generateDeliveryId() {
+    // Generate a DID-XXXXX style ID for Delivery.delivery_id
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let suffix = '';
+    for (let i = 0; i < 5; i++) {
+        suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `DID-${suffix}`;
+}
+
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
@@ -161,7 +171,7 @@ Deno.serve(async (req) => {
             delivery_date: deliveryDate,
             driver_id: driverId,
             ampm_deliveries: chosenSlot,
-            status: 'pending',
+            status: 'en_route',
             delivery_time_start,
             delivery_time_end,
             tracking_number: trackingNumber
