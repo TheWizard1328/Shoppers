@@ -98,14 +98,14 @@ const DeliveryRow = memo(({
         } ${isSelected ? 'bg-slate-100' : ''}`}
         style={{ borderColor: 'var(--border-slate-200)' }}
       >
-        <div className="flex items-center">
+        <div className="flex items-center justify-center">
           <div className="flex flex-col leading-tight">
             <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
             <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
           </div>
         </div>
 
-        <div className="flex items-center">
+        <div className="flex items-center justify-center">
           <div className="flex items-center gap-2">
             {store?.abbreviation && (
               <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
@@ -131,7 +131,7 @@ const DeliveryRow = memo(({
           </div>
         </div>
 
-        <div className="flex items-center">
+        <div className="flex items-center justify-center">
           {delivery.signature_image_url ? (
             <img src={delivery.signature_image_url} alt="Signature" className="w-8 h-8 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} />
           ) : (
@@ -139,7 +139,7 @@ const DeliveryRow = memo(({
           )}
         </div>
 
-        <div className="flex items-center">
+        <div className="flex items-center justify-center">
           {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
             <div className="flex -space-x-2">
               {delivery.proof_photo_urls.slice(0,3).map((url, i) => (
@@ -154,8 +154,8 @@ const DeliveryRow = memo(({
           )}
         </div>
 
-        <div className="flex items-center justify-end">
-          {getCODDisplay(delivery)}
+        <div className="flex items-center justify-center">
+          {getCODDisplay(delivery)
         </div>
       </div>
     )
@@ -289,13 +289,13 @@ const DeliveryListView = ({
         <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {!isMobile && (
             <div className="grid grid-cols-[140px_120px_130px_1fr_90px_110px_140px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
-              <div>Stop/TR</div>
-              <div>Status</div>
-              <div>Time</div>
-              <div>Patient/Pickup</div>
-              <div>Signature</div>
-              <div>Photos</div>
-              <div className="text-right">COD</div>
+              <div className="text-center">Stop/TR</div>
+              <div className="text-center">Status</div>
+              <div className="text-center">Time</div>
+              <div className="text-left">Patient/Pickup</div>
+              <div className="text-center">Signature</div>
+              <div className="text-center">Photos</div>
+              <div className="text-center">COD</div>
             </div>
           )}
         </div>
