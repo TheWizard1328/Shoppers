@@ -29,19 +29,18 @@ const DeliveryRow = memo(({
         } ${isSelected ? 'bg-slate-100' : ''}`}
         style={{ borderColor: 'var(--border-slate-200)' }}
       >
-        {/* Top row: Stop/TR + Status */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
-              <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
-            </div>
+        {/* Rows 1-2: Structured two-column layout */}
+        <div className="grid grid-cols-[1fr_auto] gap-x-3">
+          {/* Row 1 Left: Stop/TR */}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
+            <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
           </div>
+
+          {/* Row 1 Right: Store + Status */}
           <div className="flex flex-col items-end">
             <div className="flex flex-col items-center gap-1">
-              <div className="flex items-center justify-center">
-                {getStatusBadge(delivery.status)}
-              </div>
+              {getStatusBadge(delivery.status)}
               {store?.abbreviation && (
                 <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
                   {store.abbreviation}
@@ -49,16 +48,16 @@ const DeliveryRow = memo(({
               )}
             </div>
           </div>
-        </div>
 
-        {/* Row 2: Name left, Time right */}
-        <div className="flex items-center justify-between gap-3 mt-1">
-          <div className="min-w-0">
+          {/* Row 2 Left: Patient/Pickup */}
+          <div className="min-w-0 mt-1">
             <span className={`font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
               {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
             </span>
           </div>
-          <div className="text-xs text-slate-600 dark:text-slate-300 text-center">
+
+          {/* Row 2 Right: Time centered under status */}
+          <div className="mt-1 flex justify-center text-xs text-slate-600 dark:text-slate-300">
             {getTimeDisplay(delivery)}
           </div>
         </div>
