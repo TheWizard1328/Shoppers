@@ -264,7 +264,7 @@ const DeliveryListView = ({
 
   return (
     <>
-      <div className="h-full flex flex-col" style={{ background: 'var(--bg-white)' }}>
+      <div className="h-full flex flex-col relative" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
         <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {!isMobile && (
@@ -368,7 +368,7 @@ const DeliveryListView = ({
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="fixed top-0 right-0 h-full w-[560px] shadow-xl z-[201] overflow-hidden"
+                className="absolute top-0 right-0 h-full w-[560px] shadow-xl z-[201] overflow-hidden"
                 style={{ background: 'var(--bg-white)' }}
                 onClick={(e) => e.stopPropagation()}
               >
