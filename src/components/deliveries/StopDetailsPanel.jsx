@@ -207,7 +207,7 @@ export default function StopDetailsPanel({
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-4">
         {/* Patient Info Card */}
         <Card className="relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader className="pb-2">
