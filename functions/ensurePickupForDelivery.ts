@@ -70,9 +70,28 @@ Deno.serve(async (req) => {
             });
         }
 
-        // Determine AM/PM: default to AM unless PM explicitly requested
+        // Determine AM/PM using store schedule for the given day (fallback to AM)
         const now = new Date();
-        const primarySlot = requestedAmpm === 'PM' ? 'PM' : 'AM';
+        const dow = new Date(deliveryDate.replace(/-/g,'/')).getDay(); // 0=Sun..6=Sat
+        const isWeekday = dow >= 1 && dow <= 5;
+        const slotEnabled = (slot) => {
+          if (isWeekday) return slot === 'AM' ? !!store?.weekday_am_enabled : !!store?.weekday_pm_enabled;
+          if (dow === 6) return slot === 'AM' ? !!store?.saturday_am_enabled : !!store?.saturday_pm_enabled;
+          return slot === 'AM' ? !!store?.sunday_am_enabled : !!store?.sunday_pm_enabled;
+        };
+        let primarySlot = (requestedAmpm === 'PM' || requestedAmpm === 'AM') && slotEnabled(requestedAmpm) ? requestedAmpm : null;
+        if (!primarySlot) {
+          // Today: pick based on time if both enabled, else first enabled
+          if (slotEnabled('AM') && slotEnabled('PM')) {
+            primarySlot = now.getHours() < 14 ? 'AM' : 'PM';
+          } else if (slotEnabled('AM')) {
+            primarySlot = 'AM';
+          } else if (slotEnabled('PM')) {
+            primarySlot = 'PM';
+          } else {
+            primarySlot = 'AM';
+          }
+        }
 
         console.log(`🔍 Ensuring pickup (store-scoped): store=${storeId}, date=${deliveryDate}, driver=${driverId}, primarySlot=${primarySlot}`);
 
@@ -101,43 +120,31 @@ Deno.serve(async (req) => {
         // 3) No incomplete pickups — create a new one (even if prior pickups are completed)
         const chosenSlot = primarySlot;
 
-        // Time helpers
-        const pad = (n) => String(n).padStart(2, '0');
-        const toHHMM = (mins) => `${pad(Math.floor((mins % (24*60)) / 60))}:${pad(mins % 60)}`;
+        // Time helpers (use store's configured slot times; conservative fallbacks)
+        const fallbackTimes = (slot) => slot === 'PM' ? { start: '15:00', end: '16:00' } : { start: '10:00', end: '11:00' };
+        const getSlotTimes = (s, dow, slot) => {
+          const safe = (v) => typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null;
+          if (dow >= 1 && dow <= 5) {
+            return {
+              start: safe(slot === 'AM' ? s?.weekday_am_start : s?.weekday_pm_start),
+              end: safe(slot === 'AM' ? s?.weekday_am_end : s?.weekday_pm_end),
+            };
+          } else if (dow === 6) {
+            return {
+              start: safe(slot === 'AM' ? s?.saturday_am_start : s?.saturday_pm_start),
+              end: safe(slot === 'AM' ? s?.saturday_am_end : s?.saturday_pm_end),
+            };
+          } else {
+            return {
+              start: safe(slot === 'AM' ? s?.sunday_am_start : s?.sunday_pm_start),
+              end: safe(slot === 'AM' ? s?.sunday_am_end : s?.sunday_pm_end),
+            };
+          }
+        };
 
-        const todayStr = new Date().toISOString().split('T')[0];
-        let startMinutes;
-
-        if (deliveryDate === todayStr) {
-            // Today: start between now and 21:00 (clamped to 21:00)
-            const minutesNow = now.getHours() * 60 + now.getMinutes();
-            const clampMax = 21 * 60; // 21:00
-            startMinutes = Math.min(minutesNow, clampMax);
-        } else if (deliveryDate < todayStr) {
-            // Past date: start at last completed time + 5 minutes (fallback 10:00)
-            const completed = await base44.entities.Delivery.filter({
-                driver_id: driverId,
-                delivery_date: deliveryDate,
-                status: 'completed'
-            }, '-updated_date', 200);
-
-            let baseMinutes = 10 * 60; // 10:00 default
-            if (completed && completed.length > 0) {
-                const times = completed
-                  .map(d => d.actual_delivery_time)
-                  .filter(Boolean)
-                  .map(t => { try { const dt = new Date(t); return dt.getHours()*60 + dt.getMinutes(); } catch { return null; }})
-                  .filter(v => v !== null);
-                if (times.length > 0) baseMinutes = Math.max(...times) + 5;
-            }
-            startMinutes = baseMinutes;
-        } else {
-            // Future date: default 10:00
-            startMinutes = 10 * 60;
-        }
-
-        const delivery_time_start = toHHMM(startMinutes);
-        const delivery_time_end = toHHMM(startMinutes + 60);
+        const times = getSlotTimes(store, dow, chosenSlot) || {};
+        const delivery_time_start = times.start || fallbackTimes(chosenSlot).start;
+        const delivery_time_end = times.end || fallbackTimes(chosenSlot).end;
 
         const puid = generateShortStopId();
 
@@ -154,7 +161,7 @@ Deno.serve(async (req) => {
             delivery_date: deliveryDate,
             driver_id: driverId,
             ampm_deliveries: chosenSlot,
-            status: 'Staged',
+            status: 'pending',
             delivery_time_start,
             delivery_time_end,
             tracking_number: trackingNumber
