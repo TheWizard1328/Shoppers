@@ -127,6 +127,12 @@ Deno.serve(async (req) => {
             return Response.json({ puid: targetPickup.stop_id, pickupId: targetPickup.id, isNew: false, pickup: targetPickup });
         }
 
+        // Policy: Only auto-create a new pickup when this is the FIRST staged delivery for the driver on this date
+        // Otherwise, callers should only ensure the patient's store pickup when needed
+        if (!body?.allowCreateIfMissing) {
+            return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true });
+        }
+
         // 3) No incomplete pickups — create a new one (even if prior pickups are completed)
         const chosenSlot = primarySlot;
 
