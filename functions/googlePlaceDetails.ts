@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     });
 
     // Call Google Places API (New) v1 to get full address details
-    const url = `https://places.googleapis.com/v1/places/${place_id}?fields=addressComponents,formattedAddress,location&key=${apiKey}`;
+    const url = `https://places.googleapis.com/v1/places/${place_id}?key=${apiKey}`;
     
     const response = await fetch(url, {
       headers: {
@@ -71,7 +71,14 @@ Deno.serve(async (req) => {
       }
     });
 
-    const address = `${streetNumber} ${route}`.trim();
+    // Build a robust street string: if route lacks suffix like Ave/Avenue, prefer formattedAddress first token
+    const formattedFirst = (result.formattedAddress || '').split(',')[0]?.trim() || '';
+    let parsedStreet = `${streetNumber} ${route}`.trim();
+    if (!/^\d+\s/.test(parsedStreet) && /^\d+\s/.test(formattedFirst)) {
+      parsedStreet = formattedFirst; // fallback keeps house number
+    }
+
+    const address = parsedStreet || formattedFirst;
     const unit = subpremise;
 
     return Response.json({
