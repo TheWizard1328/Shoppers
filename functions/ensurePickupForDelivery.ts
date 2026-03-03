@@ -168,8 +168,10 @@ Deno.serve(async (req) => {
         const newPickup = await base44.entities.Delivery.create({
             stop_id: puid,
             store_id: storeId,
+            delivery_id: generateDeliveryId(),
             delivery_date: deliveryDate,
             driver_id: driverId,
+            dispatcher_id: store?.dispatcher_id || null,
             ampm_deliveries: chosenSlot,
             status: 'en_route',
             delivery_time_start,
