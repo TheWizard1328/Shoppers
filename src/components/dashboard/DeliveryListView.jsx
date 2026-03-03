@@ -155,7 +155,7 @@ const DeliveryRow = memo(({
         </div>
 
         <div className="flex items-center justify-center">
-          {getCODDisplay(delivery)
+          {getCODDisplay(delivery)}
         </div>
       </div>
     )
