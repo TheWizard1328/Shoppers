@@ -58,14 +58,10 @@ Deno.serve(async (req) => {
       back_door: !!patient.back_door,
     };
 
-    // Apply updates sequentially (SDK has per-record update)
-    let count = 0;
-    for (const d of toUpdate) {
-      await api.entities.Delivery.update(d.id, patch);
-      count += 1;
-    }
+    // Apply updates in parallel for speed
+    await Promise.all(toUpdate.map(d => api.entities.Delivery.update(d.id, patch)));
 
-    return Response.json({ updated: count, patient_id: patientId });
+    return Response.json({ updated: toUpdate.length, patient_id: patientId, patched_fields: Object.keys(patch) });
   } catch (error) {
     return Response.json({ error: error.message || 'Failed to sync patient data to deliveries' }, { status: 500 });
   }
