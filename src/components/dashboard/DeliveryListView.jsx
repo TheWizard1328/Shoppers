@@ -30,23 +30,30 @@ const DeliveryRow = memo(({
         style={{ borderColor: 'var(--border-slate-200)' }}
       >
         {/* Top row: Stop/TR + Status */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
             <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
+            <span className={`font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
+              {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            {getStatusBadge(delivery.status)}
-            {store?.abbreviation && (
-              <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
-                {store.abbreviation}
-              </Badge>
-            )}
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              {store?.abbreviation && (
+                <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
+                  {store.abbreviation}
+                </Badge>
+              )}
+              {getStatusBadge(delivery.status)}
+            </div>
+            <div className="text-xs text-slate-600 dark:text-slate-300">
+              {getTimeDisplay(delivery)}
+            </div>
           </div>
         </div>
 
-        {/* Time */}
-        <div className="mt-1">{getTimeDisplay(delivery)}</div>
+        {/* Time moved under badges on right */}
 
         {/* Patient/Pickup */}
         <div className="mt-1 min-w-0">
@@ -110,9 +117,7 @@ const DeliveryRow = memo(({
           </div>
         </div>
 
-        <div className="flex items-center">
-          {getTimeDisplay(delivery)}
-        </div>
+        <div className="flex items-center"></div>
 
         <div className="flex items-center min-w-0">
           <div className="flex flex-col min-w-0">
