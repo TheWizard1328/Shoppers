@@ -105,15 +105,13 @@ const DeliveryRow = memo(({
           </div>
         </div>
 
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-2">
-            {store?.abbreviation && (
-              <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
-                {store.abbreviation}
-              </Badge>
-            )}
-            {getStatusBadge(delivery.status)}
-          </div>
+        <div className="flex flex-col items-center justify-center gap-1">
+          {getStatusBadge(delivery.status)}
+          {store?.abbreviation && (
+            <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
+              {store.abbreviation}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center justify-center">
@@ -226,7 +224,7 @@ const DeliveryListView = ({
     if (hasPayments && totalCollected > 0) {
       const types = Array.from(new Set((delivery.cod_payments || []).map(p => p.type).filter(Boolean)));
       return (
-        <div className="flex flex-col items-end">
+        <div className="flex flex-col items-center">
           <span className="font-semibold text-green-700">${totalCollected.toFixed(2)}</span>
           <span className="text-xs text-green-600">{types.join(' + ')}</span>
         </div>
@@ -234,7 +232,7 @@ const DeliveryListView = ({
     }
 
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col items-center">
         <span className="font-semibold text-amber-700">${delivery.cod_total_amount_required.toFixed(2)}</span>
         <span className="text-xs text-amber-600">Required</span>
       </div>
