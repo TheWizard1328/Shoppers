@@ -44,7 +44,7 @@ const DeliveryRow = memo(({
         {/* Patient/Pickup */}
         <div className="mt-1 min-w-0">
           <div className="flex flex-col min-w-0">
-            <span className={`font-medium truncate ${isPickup ? 'text-blue-600' : 'text-slate-900'}`}>
+            <span className={`font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
               {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
             </span>
             {patient?.address && (
@@ -102,7 +102,7 @@ const DeliveryRow = memo(({
 
         <div className="flex items-center min-w-0">
           <div className="flex flex-col min-w-0">
-            <span className={`font-medium truncate ${isPickup ? 'text-blue-600' : 'text-slate-900'}`}>
+            <span className={`font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
               {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
             </span>
             {patient?.address && (
@@ -182,14 +182,14 @@ const DeliveryListView = ({
 
   const getStatusBadge = useCallback((status) => {
     const statusConfig = {
-      'completed': { color: 'bg-green-100 text-green-800', label: 'Completed' },
-      'in_transit': { color: 'bg-blue-100 text-blue-800', label: 'In Transit' },
-      'en_route': { color: 'bg-blue-100 text-blue-800', label: 'En Route' },
-      'pending': { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
-      'failed': { color: 'bg-red-100 text-red-800', label: 'Failed' },
-      'cancelled': { color: 'bg-slate-100 text-slate-800', label: 'Cancelled' }
+      completed: { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', label: 'Completed' },
+      in_transit: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', label: 'In Transit' },
+      en_route: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', label: 'En Route' },
+      pending: { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300', label: 'Pending' },
+      failed: { color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300', label: 'Failed' },
+      cancelled: { color: 'bg-slate-100 text-slate-800 dark:bg-slate-800/60 dark:text-slate-200', label: 'Cancelled' }
     };
-    const config = statusConfig[status] || { color: 'bg-slate-100 text-slate-800', label: status };
+    const config = statusConfig[status] || { color: 'bg-slate-100 text-slate-800 dark:bg-slate-800/60 dark:text-slate-200', label: String(status || '') };
     return <Badge className={config.color}>{config.label}</Badge>;
   }, []);
 
