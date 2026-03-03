@@ -62,6 +62,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { getEffectiveUser, isUserDataAvailable } from "../components/utils/auth";
 import StopCard from "../components/common/StopCard";
 import RouteImport from "../components/deliveries/RouteImport";
+import ExportRouteButton from "../components/deliveries/ExportRouteButton";
 import DeliveryForm from "../components/deliveries/DeliveryForm";
 import DeliveryDetails from "../components/deliveries/DeliveryDetails";
 import PatientForm from "../components/patients/PatientForm";
@@ -3574,26 +3575,12 @@ export default function DeliveriesPage() {
                 </h1>
               </div>
               <div className="flex gap-3 flex-wrap items-center">
-                {canAccessImports(currentUser) && !isMobile &&
-              <Button
-                onClick={() => setShowImportModal(true)}
-                variant="outline"
-                className="gap-2">
-                    <FileUp className="w-4 h-4" />
-                    Import Routes
-                  </Button>
-              }
-                {canCreateDeliveries &&
-              <Button
-                onClick={() => {
-                  setEditingDelivery(null);
-                  setShowDeliveryForm(true);
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-                    <Plus className="w-4 h-4" />
-                    Add Delivery
-                  </Button>
-              }
+                <ExportRouteButton
+                  currentUser={currentUser}
+                  driverFilter={driverFilter}
+                  selectedDate={selectedDate}
+                  driverFilteredDeliveries={driverFilteredDeliveries}
+                />
               </div>
             </div>
             <div className="flex items-center gap-3">
