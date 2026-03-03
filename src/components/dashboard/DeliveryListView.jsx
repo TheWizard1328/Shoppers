@@ -105,7 +105,7 @@ const DeliveryRow = memo(({
           </div>
         </div>
 
-        <div className="flex flex-col items-center">
+        <div className="flex items-center">
           <div className="flex items-center gap-2">
             {store?.abbreviation && (
               <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
@@ -113,9 +113,6 @@ const DeliveryRow = memo(({
               </Badge>
             )}
             {getStatusBadge(delivery.status)}
-          </div>
-          <div className="text-xs text-slate-600 dark:text-slate-300 text-center">
-            {getTimeDisplay(delivery)}
           </div>
         </div>
 
