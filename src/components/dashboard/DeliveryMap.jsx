@@ -2138,9 +2138,9 @@ export default function DeliveryMap({
 
         {/* TYPE 2 & 3 POLYLINES: Colored lines connecting stops in stop_order sequence (Type 2 drawn via HERE below) */}
          {showRoutes && (() => {
-           // Proceed even if safeUsers is temporarily empty (don’t block Type 2/3)
+           // CRITICAL: Return cached polylines if safeUsers is empty
            if (!safeUsers || safeUsers.length === 0) {
-             console.warn(`⚠️ [DeliveryMap] safeUsers empty in Type 2/3 polylines - proceeding without user data`);
+             console.warn(`⚠️ [DeliveryMap] safeUsers empty in Type 2/3 polylines - proceeding with default colors`);
            }
            
            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];

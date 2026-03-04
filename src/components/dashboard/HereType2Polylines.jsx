@@ -64,7 +64,7 @@ export default function HereType2Polylines({
         <Polyline
           key={`type2-here-${driverId}-${i}`}
           positions={coords || [[a.latitude, a.longitude], [b.latitude, b.longitude]]}
-          pathOptions={{ color: "#2563eb", weight: 5, opacity: coords ? 0.9 : 0.4, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
+          pathOptions={{ color: coords ? "#2563eb" : "#94a3b8", weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
           pane="overlayPane"
         />
       );

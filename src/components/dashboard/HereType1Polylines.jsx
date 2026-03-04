@@ -36,12 +36,9 @@ export default function HereType1Polylines({
     if (!isViewingCurrentDate) return;
     driverStops.forEach((stops, driverId) => {
       if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
-      const completedSorted = [...stops.complete].sort((a, b) => {
-        const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
-        const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-        return bt - at;
-      });
-      const lastCompleted = completedSorted[0];
+      const lastCompleted = [...stops.complete]
+        .filter((s) => s.actual_delivery_time)
+        .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time))[0];
       const nextStop =
         stops.incomplete.find((s) => s.isNextDelivery === true) ||
         [...stops.incomplete].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
@@ -95,7 +92,7 @@ export default function HereType1Polylines({
           [lastCompleted.latitude, lastCompleted.longitude],
           [nextStop.latitude, nextStop.longitude],
         ]}
-        pathOptions={{ color: "#2563eb", weight: 5, opacity: coords ? 0.9 : 0.4, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
+        pathOptions={{ color: coords ? "#2563eb" : "#94a3b8", weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
         pane="overlayPane"
       />
     );
@@ -104,12 +101,9 @@ export default function HereType1Polylines({
   // Render last-completed -> home for completed routes
   driversWithCompleteRoute.forEach((driverId) => {
     const all = driverStops.get(driverId) || { complete: [] };
-    const completedSorted = [...(all.complete || [])].sort((a, b) => {
-      const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
-      const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-      return bt - at;
-    });
-    const lastCompleted = completedSorted[0];
+    const lastCompleted = [...(all.complete || [])]
+      .filter((s) => s.actual_delivery_time)
+      .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time))[0];
     const home = driverHomeMarkers.find((h) => h.driverId === driverId);
     if (!lastCompleted || !home) return;
     const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}`;
@@ -121,7 +115,7 @@ export default function HereType1Polylines({
           [lastCompleted.latitude, lastCompleted.longitude],
           [home.latitude, home.longitude],
         ]}
-        pathOptions={{ color: "#2563eb", weight: 5, opacity: coords ? 0.9 : 0.4, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
+        pathOptions={{ color: coords ? "#2563eb" : "#94a3b8", weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
         pane="overlayPane"
       />
     );
