@@ -92,6 +92,7 @@ export default function HereType2Polylines({
 
   const lines = [];
   driverIncomplete.forEach((stops, driverId) => {
+    const totalLegs = Math.max(0, stops.length - 1);
     for (let i = 0; i < stops.length - 1; i++) {
       const a = stops[i];
       const b = stops[i + 1];
