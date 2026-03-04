@@ -997,7 +997,35 @@ export default function DeliveryMap({
   ]);
 
   const calculateFannedPositionWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
-    return calculateFannedPositionWrapper(originalLat, originalLng, markerIndex, totalMarkers, stopOrder, currentZoom);
+    if (currentZoom < 11 || currentZoom > 18) {
+      return [originalLat, originalLng];
+    }
+    const baseRadius = 0.0008;
+    const dynamicRadius = 0.0008;
+    const radius = baseRadius + (18 - currentZoom) * dynamicRadius;
+    let arcWidth;
+    if (totalMarkers <= 2) {
+      arcWidth = 90;
+    } else if (totalMarkers === 3) {
+      arcWidth = 120;
+    } else if (totalMarkers === 4) {
+      arcWidth = 140;
+    } else {
+      arcWidth = Math.min(180, 140 + (totalMarkers - 4) * 10);
+    }
+    const arcWidthRad = (arcWidth * Math.PI) / 180;
+    const startAngle = (Math.PI / 2) - (arcWidthRad / 2);
+    const endAngle = (Math.PI / 2) + (arcWidthRad / 2);
+    let angle;
+    if (totalMarkers === 1) {
+      angle = Math.PI / 2;
+    } else {
+      const angleStep = (endAngle - startAngle) / (totalMarkers - 1);
+      angle = startAngle + ((totalMarkers - 1 - markerIndex) * angleStep);
+    }
+    const fannedLat = originalLat + radius * Math.sin(angle);
+    const fannedLng = originalLng + radius * Math.cos(angle);
+    return [fannedLat, fannedLng];
   }, [currentZoom]);
 
   // NEW: Handler for marker click to toggle fanning with zoom behavior
@@ -2465,58 +2493,54 @@ return polylines.length > 0 ? polylines : null;
           });
         })()}
 
-        {/* ===== RENDER ORDER 1: Live location markers ===== */}
+        {/* ===== RENDER ORDER 1: Live location markers + heading-up ===== */}
         {(() => {
-          if (!currentDriverMarker) return null;
-          
-          // CRITICAL: Validate coordinates before rendering marker
+          const HeadingUpRotator = React.lazy(() => import('./HeadingUpRotator'));
+          if (!currentDriverMarker) return (
+            <React.Suspense fallback={null}>
+              <HeadingUpRotator isMobile={isMobile} currentDriverMarker={currentDriverMarker} />
+            </React.Suspense>
+          );
           if (!currentDriverMarker.latitude || !currentDriverMarker.longitude ||
               typeof currentDriverMarker.latitude !== 'number' || typeof currentDriverMarker.longitude !== 'number' ||
               isNaN(currentDriverMarker.latitude) || isNaN(currentDriverMarker.longitude)) {
-            console.warn('[DeliveryMap] Invalid currentDriverMarker coordinates:', currentDriverMarker);
             return null;
           }
-          
           return (
-            <Marker
-              key="current-driver-location"
-              position={[currentDriverMarker.latitude, currentDriverMarker.longitude]}
-              icon={createLiveLocationDot()}
-              zIndexOffset={6000}
-              eventHandlers={{
-                click: () => onMarkerClick && onMarkerClick(currentDriverMarker, 'driver'),
-                mouseover: (e) => {
-                  e.target.openPopup();
-                },
-                mouseout: (e) => {
-                  e.target.closePopup();
-                }
-              }}>
-
-              <Popup
-                autoPan={false}
-                closeButton={false}
-                offset={[0, -10]}
-                className="custom-popup">
-
-                <div className="min-w-[150px]">
-                  <div className="flex items-center gap-1.5">
-                    <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                    <h3 className="font-semibold text-xs">Your Location</h3>
-                  </div>
-                  <div className="text-[10px] text-blue-600 mt-1 font-medium flex items-center gap-1">
-                    <Activity className="w-3 h-3 animate-pulse" />
-                    Live GPS
-                  </div>
-                  {currentDriverMarker.timestamp &&
-                    <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-600">
-                      <Clock className="w-3 h-3" />
-                      Updated: {format(new Date(currentDriverMarker.timestamp), 'HH:mm:ss')}
+            <>
+              <React.Suspense fallback={null}>
+                <HeadingUpRotator isMobile={isMobile} currentDriverMarker={currentDriverMarker} />
+              </React.Suspense>
+              <Marker
+                key="current-driver-location"
+                position={[currentDriverMarker.latitude, currentDriverMarker.longitude]}
+                icon={createLiveLocationDot()}
+                zIndexOffset={6000}
+                eventHandlers={{
+                  click: () => onMarkerClick && onMarkerClick(currentDriverMarker, 'driver'),
+                  mouseover: (e) => { e.target.openPopup(); },
+                  mouseout: (e) => { e.target.closePopup(); }
+                }}>
+                <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
+                  <div className="min-w-[150px]">
+                    <div className="flex items-center gap-1.5">
+                      <Navigation className="w-3.5 h-3.5 text-blue-600" />
+                      <h3 className="font-semibold text-xs">Your Location</h3>
                     </div>
-                  }
-                </div>
-              </Popup>
-            </Marker>
+                    <div className="text-[10px] text-blue-600 mt-1 font-medium flex items-center gap-1">
+                      <Activity className="w-3 h-3 animate-pulse" />
+                      Live GPS
+                    </div>
+                    {currentDriverMarker.timestamp && (
+                      <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-600">
+                        <Clock className="w-3 h-3" />
+                        Updated: {format(new Date(currentDriverMarker.timestamp), 'HH:mm:ss')}
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            </>
           );
         })()}
 
@@ -2529,91 +2553,22 @@ return polylines.length > 0 ? polylines : null;
            selectedDate={selectedDate}
          />
 
-        {/* TYPE 1 POLYLINE: Blue dotted line from last completed stop to next stop - RENDER WITH POLYLINES & SHARED MARKERS */}
-        {isViewingCurrentDate && (() => {
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const polylines = [];
-
-          // Helper to get driver name
-          const getDriverName = (driverId) => {
-            const driver = safeUsers.find(u => u && u.id === driverId);
-            return driver ? (driver.user_name || driver.full_name || `Driver-${driverId}`) : `Unknown-${driverId}`;
-          };
-
-          const driverStopsMap = new Map();
-          [...deliveryMarkers, ...pickupMarkers].forEach(m => {
-            if (!m || !m.driver_id) return;
-            if (!driverStopsMap.has(m.driver_id)) {
-              driverStopsMap.set(m.driver_id, { incomplete: [], complete: [] });
-            }
-            if (finishedStatuses.includes(m.status)) {
-              driverStopsMap.get(m.driver_id).complete.push(m);
-            } else if (m.status !== 'pending') {
-              driverStopsMap.get(m.driver_id).incomplete.push(m);
-            }
-          });
-
-          // SECTION 1: Type 1 polylines for drivers WITH incomplete stops (to next stop)
-          driverStopsMap.forEach((stops, driverId) => {
-            if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
-
-            // Sort completed stops by actual_delivery_time descending to get the LAST completed stop
-            const sortedCompleted = [...stops.complete].sort((a, b) => {
-              const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-              const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
-              return timeB - timeA;
-            });
-            
-            const lastCompleted = sortedCompleted[0];
-            let nextStop = stops.incomplete.find(s => s.isNextDelivery === true) || stops.incomplete.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-
-            if (!lastCompleted || !nextStop) return;
-            if (typeof lastCompleted.latitude !== 'number' || typeof nextStop.latitude !== 'number') return;
-
-            const cacheKey = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
-            const hereCoords = herePolylines[cacheKey];
-
-            if (hereCoords) {
-              polylines.push(
-                <Polyline
-                  key={`type1-here-${driverId}-${lastCompleted.id}-${nextStop.id}`}
-                  positions={hereCoords}
-                  pathOptions={{
-                    color: '#3B82F6',
-                    weight: 4,
-                    opacity: 0.7,
-                    dashArray: '2, 8',
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                  pane="overlayPane"
+        {/* TYPE 1 POLYLINES (HERE): next leg + home */}
+        {isViewingCurrentDate && (
+          (() => {
+            const HereType1Polylines = React.lazy(() => import('./HereType1Polylines'));
+            return (
+              <React.Suspense fallback={null}>
+                <HereType1Polylines
+                  isViewingCurrentDate={isViewingCurrentDate}
+                  deliveryMarkers={deliveryMarkers}
+                  pickupMarkers={pickupMarkers}
+                  driverHomeMarkers={driverHomeMarkers}
                 />
-              );
-            } else {
-              // Fallback to straight line while loading
-              polylines.push(
-                <Polyline
-                  key={`type1-straight-${driverId}-${lastCompleted.id}-${nextStop.id}`}
-                  positions={[
-                    [lastCompleted.latitude, lastCompleted.longitude],
-                    [nextStop.latitude, nextStop.longitude]
-                  ]}
-                  pathOptions={{
-                    color: '#3B82F6',
-                    weight: 4,
-                    opacity: 0.7,
-                    dashArray: '2, 8',
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                  pane="overlayPane"
-                />
-              );
-            }
-          });
-
-          return polylines.length > 0 ? polylines : null;
-        })()}
+              </React.Suspense>
+            );
+          })()
+        )}
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
         {driverHomeMarkers.map((home) => {
@@ -3710,15 +3665,22 @@ return polylines.length > 0 ? polylines : null;
 
       {/* Driver Legend - Shows driver colors when in "All Drivers" mode */}
       {showLegend && driverRoutes.length > 0 && (
-        <DriverLegend
-          legendRef={legendRef}
-          legendLeft={legendLeft}
-          isStatsCardExpanded={isStatsCardExpanded}
-          driverRoutes={driverRoutes}
-          highlightedRouteId={highlightedRouteId}
-          setHighlightedRouteId={setHighlightedRouteId}
-          onLegendInteraction={onLegendInteraction}
-        />
+        (() => {
+          const DriverLegend = React.lazy(() => import('./DriverLegend'));
+          return (
+            <React.Suspense fallback={null}>
+              <DriverLegend
+                legendRef={legendRef}
+                legendLeft={legendLeft}
+                isStatsCardExpanded={isStatsCardExpanded}
+                driverRoutes={driverRoutes}
+                highlightedRouteId={highlightedRouteId}
+                setHighlightedRouteId={setHighlightedRouteId}
+                onLegendInteraction={onLegendInteraction}
+              />
+            </React.Suspense>
+          );
+        })()
       )}
 
       <style>{`
