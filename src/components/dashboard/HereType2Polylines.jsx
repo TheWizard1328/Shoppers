@@ -81,7 +81,7 @@ export default function HereType2Polylines({
         const b = stops[i + 1];
         const key = `here_${a.latitude.toFixed(5)}_${a.longitude.toFixed(5)}_${b.latitude.toFixed(5)}_${b.longitude.toFixed(5)}`;
         if (cache[key]) continue;
-        getHerePolyline(driverId, { latitude: a.latitude, longitude: a.longitude }, { latitude: b.latitude, longitude: b.longitude }).then((coords) => {
+        getHerePolyline(driverId, { latitude: a.latitude, longitude: a.longitude }, { latitude: b.latitude, longitude: b.longitude }, a.delivery_date).then((coords) => {
           if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
         });
       }
