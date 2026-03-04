@@ -1,7 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 // Lightweight Flexible Polyline decoder for HERE (returns array of {lat,lng})
-// Source adapted from HERE flexible polyline reference implementation (simplified)
 function decodeFlexiblePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
   const DECODING_TABLE = (function () {
