@@ -60,12 +60,11 @@ export default function HereType2Polylines({
       const b = stops[i + 1];
       const key = `here_${a.latitude.toFixed(5)}_${a.longitude.toFixed(5)}_${b.latitude.toFixed(5)}_${b.longitude.toFixed(5)}`;
       const coords = cache[key];
-      if (!coords) continue;
       lines.push(
         <Polyline
           key={`type2-here-${driverId}-${i}`}
-          positions={coords}
-          pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.9, dashArray: "", lineJoin: "round", lineCap: "round" }}
+          positions={coords || [[a.latitude, a.longitude], [b.latitude, b.longitude]]}
+          pathOptions={{ color: "#2563eb", weight: 5, opacity: coords ? 0.9 : 0.4, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
           pane="overlayPane"
         />
       );
