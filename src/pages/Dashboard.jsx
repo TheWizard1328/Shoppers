@@ -8696,7 +8696,7 @@ function Dashboard() {
             onLegendInteraction={handleCardInteraction}
             googleApiKey={googleApiKey}
             onDriverRoutesCalculated={setDriverRoutes}
-            onMapInteraction={handleMapInteraction}
+            onMapInteraction={handleMapInteraction} mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked}
             onDoubleTap={handleMapViewCycle}
             retractClustersRef={retractClustersRef}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
