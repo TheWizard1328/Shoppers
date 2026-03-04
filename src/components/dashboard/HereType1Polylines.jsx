@@ -49,7 +49,7 @@ export default function HereType1Polylines({
         if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
       });
     });
-  }, [isViewingCurrentDate, driverStops, cache]);
+  }, [isViewingCurrentDate, driverStops]);
 
   // Prefetch last-completed -> home (for completed routes)
   useEffect(() => {
@@ -67,7 +67,7 @@ export default function HereType1Polylines({
         if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
       });
     });
-  }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers, cache]);
+  }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers]);
 
   if (!isViewingCurrentDate) return null;
 
@@ -85,14 +85,12 @@ export default function HereType1Polylines({
     if (!lastCompleted || !nextStop) return;
     const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
     const coords = cache[key];
+    if (!coords) return;
     lines.push(
       <Polyline
         key={`type1-next-${driverId}`}
-        positions={coords || [
-          [lastCompleted.latitude, lastCompleted.longitude],
-          [nextStop.latitude, nextStop.longitude],
-        ]}
-        pathOptions={{ color: "#3B82F6", weight: 4, opacity: 0.7, dashArray: "2, 8", lineJoin: "round", lineCap: "round" }}
+        positions={coords}
+        pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.9, dashArray: "", lineJoin: "round", lineCap: "round" }}
         pane="overlayPane"
       />
     );
@@ -108,14 +106,12 @@ export default function HereType1Polylines({
     if (!lastCompleted || !home) return;
     const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}`;
     const coords = cache[key];
+    if (!coords) return;
     lines.push(
       <Polyline
         key={`type1-home-${driverId}`}
-        positions={coords || [
-          [lastCompleted.latitude, lastCompleted.longitude],
-          [home.latitude, home.longitude],
-        ]}
-        pathOptions={{ color: "#3B82F6", weight: 4, opacity: 0.7, dashArray: "2, 8", lineJoin: "round", lineCap: "round" }}
+        positions={coords}
+        pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.9, dashArray: "", lineJoin: "round", lineCap: "round" }}
         pane="overlayPane"
       />
     );
