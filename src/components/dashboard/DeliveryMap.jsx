@@ -2326,7 +2326,7 @@ return polylines.length > 0 ? polylines : null;
         {/* ===== RENDER ORDER 1: Live location markers + heading-up ===== */}
         {(() => {
           const HeadingUpRotator = React.lazy(() => import('./HeadingUpRotator'));
-          const enabled = isMobile && mapViewPhase === 2 && isMapViewLocked;
+          const enabled = false; // rotation disabled - follow-only in Phase 2
           const hasValid = !!(currentDriverMarker && typeof currentDriverMarker.latitude === 'number' && typeof currentDriverMarker.longitude === 'number' && !isNaN(currentDriverMarker.latitude) && !isNaN(currentDriverMarker.longitude));
           return (
             <>
