@@ -8,8 +8,18 @@ export default function HereType2Polylines({
   isViewingCurrentDate,
   deliveryMarkers = [],
   pickupMarkers = [],
+  driverRoutes = [],
 }) {
   const [cache, setCache] = useState({});
+
+  // Map driverId -> color from parent-provided driverRoutes (keeps colors consistent with Type 3)
+  const driverColorMap = useMemo(() => {
+    const map = new Map();
+    (driverRoutes || []).forEach((r) => {
+      if (r && r.driverId) map.set(r.driverId, r.color || '#607D8B');
+    });
+    return map;
+  }, [driverRoutes]);
 
   // Build per-driver incomplete stop sequences starting from next stop
   const driverIncomplete = useMemo(() => {
@@ -64,7 +74,7 @@ export default function HereType2Polylines({
         <Polyline
           key={`type2-here-${driverId}-${i}`}
           positions={coords || [[a.latitude, a.longitude], [b.latitude, b.longitude]]}
-          pathOptions={{ color: coords ? "#2563eb" : "#94a3b8", weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
+          pathOptions={{ color: coords ? (driverColorMap.get(driverId) || "#6366F1") : "#94a3b8", weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
           pane="overlayPane"
         />
       );
