@@ -52,13 +52,15 @@ Deno.serve(async (req) => {
         return Response.json({ success: true, transitioned: 0, trFixed: 0, deleted: 0, debounced: true });
       }
       __cleanupInFlight.set(key, nowTs);
+      setTimeout(() => { try { __cleanupInFlight.delete(key); } catch (_) {} }, 3200);
     } catch (_) {}
 
     // Find staged pickups for this date (optionally filter by driver)
     const filter = { delivery_date: deliveryDate, status: 'Staged' };
     if (driverId) filter['driver_id'] = driverId;
 
-    const pickups = await base44.entities.Delivery.filter(filter, '-updated_date', 400);
+    const limit = Math.max(1, Math.min(Number(maxToProcess) || 100, 200));
+    const pickups = await base44.entities.Delivery.filter(filter, '-updated_date', limit);
 
     let deleted = 0;
     let transitioned = 0;
@@ -74,7 +76,7 @@ Deno.serve(async (req) => {
       if (!stopId) continue;
 
       // Check if any deliveries reference this pickup (same date)
-      const children = await base44.entities.Delivery.filter({ puid: stopId, delivery_date: deliveryDate }, '-updated_date', 200);
+      const children = await base44.entities.Delivery.filter({ puid: stopId, delivery_date: deliveryDate }, '-updated_date', 80);
       const hasChildren = (children || []).some((d) => d && d.patient_id);
 
       if (!hasChildren) {
