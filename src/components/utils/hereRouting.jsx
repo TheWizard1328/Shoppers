@@ -54,13 +54,19 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
   // Skip HERE call for zero-distance legs
   const samePoint = Math.abs(fromStop.latitude - toStop.latitude) < 1e-5 && Math.abs(fromStop.longitude - toStop.longitude) < 1e-5;
-  if (samePoint) return null;
+  if (samePoint) {
+    console.info('[HERE][client] Skipping HERE call: zero-distance leg', { from: fromStop, to: toStop });
+    return null;
+  }
 
   const cacheKey = `here_${fromStop.latitude.toFixed(5)}_${fromStop.longitude.toFixed(5)}_${toStop.latitude.toFixed(5)}_${toStop.longitude.toFixed(5)}`;
+  console.debug('[HERE][client] Cache key', { cacheKey, driverId, deliveryDate });
 
   // Check memory cache
   if (memoryCache.has(cacheKey)) {
-    return memoryCache.get(cacheKey);
+    const hit = memoryCache.get(cacheKey);
+    console.debug('[HERE][client] Memory cache hit', { cacheKey, points: hit?.length });
+    return hit;
   }
 
   // Check localStorage
@@ -68,14 +74,17 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       const coords = JSON.parse(cached);
+      console.debug('[HERE][client] localStorage cache hit', { cacheKey, points: coords?.length });
       memoryCache.set(cacheKey, coords);
       return coords;
+    } else {
+      console.debug('[HERE][client] localStorage miss', { cacheKey });
     }
   } catch (e) {
-    console.warn('Failed to read HERE polyline from localStorage', e);
+    console.warn('[HERE][client] Failed to read HERE polyline from localStorage', e);
   }
 
-  if (fetchingKeys.has(cacheKey)) return null; // Prevent concurrent fetches for same key
+  if (fetchingKeys.has(cacheKey)) { console.debug('[HERE][client] Suppressing duplicate fetch', { cacheKey }); return null; } // Prevent concurrent fetches for same key
 
   // Check entity cache (DriverRoutePolyline) before hitting external APIs
   try {
@@ -90,6 +99,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       segment_dest_lon: rounded(toStop.longitude)
     }, '-updated_date', 1);
     const rec = Array.isArray(recs) ? recs[0] : null;
+    console.debug('[HERE][client] Entity cache lookup', { found: !!rec, hasPolyline: !!rec?.encoded_polyline });
     if (rec?.encoded_polyline) {
       const coords = decodeGooglePolyline(rec.encoded_polyline);
       if (Array.isArray(coords) && coords.length > 1) {
@@ -107,12 +117,15 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
   try {
     const until = localStorage.getItem(failKey);
     if (until && Date.now() < Number(until)) {
+      const ms = Number(until) - Date.now();
+      console.warn('[HERE][client] Backoff active; skipping fetch', { cacheKey, msRemaining: ms });
       return null;
     }
   } catch (_) {}
   fetchingKeys.add(cacheKey);
 
   try {
+    console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
     const res = await base44.functions.invoke('getHereDirections', {
       origin: { lat: fromStop.latitude, lng: fromStop.longitude },
       destination: { lat: toStop.latitude, lng: toStop.longitude }
@@ -120,6 +133,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
     if (res.data && res.data.coordinates) {
       const coords = res.data.coordinates.map(p => [p.lat, p.lng]);
+      console.info('[HERE][client] Received coordinates', { cacheKey, points: coords.length });
       memoryCache.set(cacheKey, coords);
       try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (e) { console.warn('Failed to save HERE polyline to localStorage', e); }
 
@@ -165,11 +179,11 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
     // Google fallback disabled: use dashed straight line when HERE/Entity not available
   } catch (err) {
-    console.error('Failed to fetch polyline (HERE/Google):', err);
+    console.error('[HERE][client] Failed to fetch polyline', { cacheKey, err: err?.message || err });
   }
   
   // Backoff 60s for this key on repeated failure
-  try { localStorage.setItem(`${cacheKey}:fail_until`, String(Date.now() + 10000)); } catch (_) {}
+  try { localStorage.setItem(`${cacheKey}:fail_until`, String(Date.now() + 10000)); console.warn('[HERE][client] Set backoff', { cacheKey, ms: 10000 }); } catch (_) {}
 
   fetchingKeys.delete(cacheKey);
   return null;
