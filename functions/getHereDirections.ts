@@ -24,16 +24,51 @@ Deno.serve(async (req) => {
         const url = `https://router.hereapi.com/v8/routes?transportMode=car&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&return=polyline&apikey=${apiKey}`;
 
         const response = await fetch(url);
+        if (!response.ok) {
+            const text = await response.text();
+            return Response.json({ error: 'HERE routing error', status: response.status, details: text?.slice(0, 500) }, { status: 502 });
+        }
         const data = await response.json();
 
-        if (data.routes && data.routes.length > 0 && data.routes[0].sections && data.routes[0].sections.length > 0) {
-            const polylineStr = data.routes[0].sections[0].polyline;
-            const decoded = decode(polylineStr);
-            const coordinates = decoded.polyline.map(p => ({ lat: p[0], lng: p[1] }));
-            return Response.json({ coordinates });
-        } else {
+        const sections = data?.routes?.[0]?.sections || [];
+        if (sections.length === 0) {
             return Response.json({ error: 'No route found' }, { status: 404 });
         }
+
+        // Concatenate all section polylines and normalize output shape
+        const allCoords = [];
+        for (const sec of sections) {
+            const poly = sec?.polyline;
+            if (!poly) continue;
+            const decoded = decode(poly);
+
+            let pts = [];
+            if (Array.isArray(decoded?.polyline?.[0])) {
+                // [[lat, lng, z?], ...]
+                pts = decoded.polyline.map(p => ({ lat: p[0], lng: p[1] }));
+            } else if (decoded?.polyline?.length) {
+                // [{lat, lng} | {latitude, longitude}, ...]
+                pts = decoded.polyline.map(p => ({ lat: p.lat ?? p.latitude, lng: p.lng ?? p.longitude }));
+            }
+
+            if (pts.length) {
+                // Avoid duplicating the connecting point between sections
+                if (
+                    allCoords.length &&
+                    allCoords[allCoords.length - 1].lat === pts[0].lat &&
+                    allCoords[allCoords.length - 1].lng === pts[0].lng
+                ) {
+                    pts = pts.slice(1);
+                }
+                allCoords.push(...pts);
+            }
+        }
+
+        if (allCoords.length < 2) {
+            return Response.json({ error: 'Failed to decode polyline' }, { status: 500 });
+        }
+
+        return Response.json({ coordinates: allCoords });
     } catch (error) {
         return Response.json({ error: error.message }, { status: 500 });
     }
