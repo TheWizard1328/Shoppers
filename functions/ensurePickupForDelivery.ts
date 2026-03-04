@@ -1,6 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import { format } from 'npm:date-fns';
 
+// Debounce map to reduce rapid consecutive creations per (storeId, date, driverId)
+const cooldown = new Map();
+
 function generateShortStopId() {
     // Generate a 3-character alphanumeric ID (same format as frontend)
     const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -30,10 +33,20 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { storeId, deliveryDate, driverId, ampmDeliveries: requestedAmpm = null } = await req.json();
+        const body = await req.json().catch(() => ({}));
+        const { storeId, deliveryDate, driverId, ampmDeliveries: requestedAmpm = null, allowCreateIfMissing = false } = body || {};
 
         if (!storeId || !deliveryDate || !driverId) {
             return Response.json({ error: 'Missing required parameters: storeId, deliveryDate, driverId' }, { status: 400 });
+        }
+
+        // Global cooldown guard to prevent thrashing/duplicates
+        {
+            const throttleKey = `${storeId}|${deliveryDate}|${driverId}`;
+            const until = cooldown.get(throttleKey);
+            if (until && Date.now() < until) {
+                return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, reason: 'cooldown' });
+            }
         }
 
         // CRITICAL: Special stores - do NOT auto-create pickups (Dashboard handles them on-demand)
@@ -129,7 +142,7 @@ Deno.serve(async (req) => {
 
         // Policy: Only auto-create a new pickup when this is the FIRST staged delivery for the driver on this date
         // Otherwise, callers should only ensure the patient's store pickup when needed
-        if (!body?.allowCreateIfMissing) {
+        if (!allowCreateIfMissing) {
             return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true });
         }
 
