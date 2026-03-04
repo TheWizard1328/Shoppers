@@ -996,7 +996,7 @@ export default function DeliveryMap({
     showOtherDriverDeliveries // CRITICAL: Re-render when checkbox changes
   ]);
 
-  const calculateFannedPositionWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
+  const calculateFannedPositionWrapperWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
     if (currentZoom < 11 || currentZoom > 18) {
       return [originalLat, originalLng];
     }
@@ -1058,7 +1058,7 @@ export default function DeliveryMap({
       const bounds = L.latLngBounds([marker.latitude, marker.longitude]);
       
       markersAtLocation.forEach((m, index) => {
-        const [fannedLat, fannedLng] = calculateFannedPositionWrapper(
+        const [fannedLat, fannedLng] = calculateFannedPositionWrapperWrapper(
           marker.latitude,
           marker.longitude,
           index,
@@ -1190,7 +1190,7 @@ export default function DeliveryMap({
     if (onMapInteraction) {
       onMapInteraction();
     }
-  }, [fannedLocationKey, onMarkerClick, currentZoom, map, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPositionWrapper, onMapInteraction, stopCardsHeight, isMobile]);
+  }, [fannedLocationKey, onMarkerClick, currentZoom, map, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPositionWrapperWrapper, onMapInteraction, stopCardsHeight, isMobile]);
 
   // NEW: Auto-unfan when zooming below level 11
   useEffect(() => {
@@ -2336,7 +2336,7 @@ return polylines.length > 0 ? polylines : null;
               return null;
             }
             
-            const [fannedLat, fannedLng] = calculateFannedPositionWrapper(
+            const [fannedLat, fannedLng] = calculateFannedPositionWrapperWrapper(
               originalLat,
               originalLng,
               idx,
@@ -2590,7 +2590,7 @@ return polylines.length > 0 ? polylines : null;
               .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
             
             const clusterIndex = allMarkersAtLocation.findIndex(p => p.id === pickup.id);
-            markerPosition = calculateFannedPositionWrapper(
+            markerPosition = calculateFannedPositionWrapperWrapper(
               pickup.latitude, 
               pickup.longitude, 
               clusterIndex, 
@@ -3043,7 +3043,7 @@ return polylines.length > 0 ? polylines : null;
               .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
             
             const clusterIndex = allMarkersAtLocation.findIndex(d => d && d.id === delivery.id);
-            markerPosition = calculateFannedPositionWrapper(
+            markerPosition = calculateFannedPositionWrapperWrapper(
               delivery.latitude, 
               delivery.longitude, 
               clusterIndex, 
