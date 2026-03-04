@@ -1,17 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import * as ReactExports from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { sortUsers } from '../utils/sorting';
-import MapModeControl from "./MapModeControl";
 import { MapPin, Phone, Clock, Package, Truck, StickyNote, UserRoundSearch, Car, Home, Navigation, Activity, User, CheckCircle2, XCircle } from 'lucide-react';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
-import { createRoot } from 'react-dom/client';
 import { getStoredRouteCoordinates } from '../utils/routePolylineManager';
 import { isMobileDevice } from '../utils/deviceUtils';
 import MapCrosshair from './MapCrosshair';
@@ -19,6 +16,8 @@ import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { base44 } from '@/api/base44Client';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import DriverLocationMarkers from './DriverLocationMarkers';
+import MapController from './MapController';
+import HereType1Polylines from './HereType1Polylines';
 
 // Fix for default icon issue with Webpack
 delete L.Icon.Default.prototype._getIconUrl;
