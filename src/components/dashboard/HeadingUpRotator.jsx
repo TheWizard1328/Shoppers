@@ -4,6 +4,46 @@ import { useMap } from "react-leaflet";
 export default function HeadingUpRotator({ isMobile, currentDriverMarker, enabled = false }) {
   const map = useMap();
   const prevRef = useRef(null);
+  const prevBearingRef = useRef(null);
+
+  const applyRotation = (deg) => {
+    const container = map?.getContainer?.();
+    if (!container) return;
+
+    // Rotate entire map container
+    container.style.transition = "transform 220ms linear";
+    // Pivot slightly lower than center so driver can sit near bottom-center
+    const w = container.clientWidth || 0;
+    const h = container.clientHeight || 0;
+    container.style.transformOrigin = `${Math.round(w / 2)}px ${Math.round(h * 0.75)}px`;
+    container.style.transform = `rotate(${-deg}deg)`;
+
+    // Counter-rotate panes so markers/popups remain upright
+    const panes = map.getPanes?.() || {};
+    [panes.markerPane, panes.popupPane, panes.tooltipPane].forEach((pane) => {
+      if (pane) {
+        pane.style.transition = "transform 220ms linear";
+        pane.style.transformOrigin = `${Math.round(w / 2)}px ${Math.round(h * 0.75)}px`;
+        pane.style.transform = `rotate(${deg}deg)`;
+      }
+    });
+  };
+
+  const clearRotation = () => {
+    const container = map?.getContainer?.();
+    if (container) {
+      container.style.transform = "";
+      container.style.transformOrigin = "";
+    }
+    const panes = map.getPanes?.() || {};
+    [panes.markerPane, panes.popupPane, panes.tooltipPane].forEach((pane) => {
+      if (pane) {
+        pane.style.transform = "";
+        pane.style.transformOrigin = "";
+      }
+    });
+    prevBearingRef.current = null;
+  };
 
   useEffect(() => {
     const container = map?.getContainer?.();
@@ -11,7 +51,7 @@ export default function HeadingUpRotator({ isMobile, currentDriverMarker, enable
 
     // Only active in Phase 2 when enabled; otherwise reset any prior rotation
     if (!isMobile || !enabled) {
-      if (container) container.style.transform = "";
+      clearRotation();
       prevRef.current = null;
       return;
     }
@@ -35,6 +75,10 @@ export default function HeadingUpRotator({ isMobile, currentDriverMarker, enable
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     };
+    const smallestAngleDiff = (a, b) => {
+      let d = ((a - b + 540) % 360) - 180; // in [-180, 180)
+      return Math.abs(d);
+    };
 
     const prev = prevRef.current;
     prevRef.current = { lat: currentDriverMarker.latitude, lon: currentDriverMarker.longitude };
@@ -45,17 +89,19 @@ export default function HeadingUpRotator({ isMobile, currentDriverMarker, enable
     if (movedMeters < 3) return;
 
     const brng = bearing(prev.lat, prev.lon, currentDriverMarker.latitude, currentDriverMarker.longitude);
-    if (Number.isFinite(brng)) {
-      container.style.transition = "transform 180ms linear";
-      container.style.transformOrigin = "50% 50%";
-      container.style.transform = `rotate(${-brng}deg)`;
-    }
+    if (!Number.isFinite(brng)) return;
+
+    // Smooth: apply only when heading change is meaningful (>= 5°)
+    const prevB = prevBearingRef.current ?? brng;
+    if (smallestAngleDiff(brng, prevB) < 5) return;
+    prevBearingRef.current = brng;
+
+    applyRotation(brng);
   }, [isMobile, enabled, currentDriverMarker?.latitude, currentDriverMarker?.longitude, map]);
 
   useEffect(() => {
     return () => {
-      const container = map?.getContainer?.();
-      if (container) container.style.transform = "";
+      clearRotation();
     };
   }, [map]);
 

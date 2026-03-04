@@ -18,6 +18,7 @@ import { formatPhoneNumber } from '../utils/phoneFormatter';
 import DriverLocationMarkers from './DriverLocationMarkers';
 import MapController from './MapController';
 import HereType1Polylines from './HereType1Polylines';
+import HereType2Polylines from './HereType2Polylines';
 
 // Fix for default icon issue with Webpack
 delete L.Icon.Default.prototype._getIconUrl;
@@ -2036,6 +2037,21 @@ export default function DeliveryMap({
       
       (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(bounds, modifiedOptions);
 
+      // Phase 2: after fitting bounds, bias the center so the driver sits near bottom-center
+      try {
+        if (mapViewPhase === 2 && isMapViewLocked && currentDriverMarker?.latitude && currentDriverMarker?.longitude) {
+          const container = map.getContainer?.();
+          const h = container?.clientHeight || 0;
+          const offset = Math.round(h * 0.20); // push driver ~20% toward bottom
+          const pt = map.project([currentDriverMarker.latitude, currentDriverMarker.longitude], map.getZoom());
+          const targetPt = L.point(pt.x, pt.y - offset); // move center upward
+          const targetLatLng = map.unproject(targetPt, map.getZoom());
+          setTimeout(() => {
+            if (map && map._loaded) map.panTo(targetLatLng, { animate: true });
+          }, 80);
+        }
+      } catch (e) {}
+
       if (onBoundsFitted && typeof onBoundsFitted === 'function') {
         onBoundsFitted();
       }
@@ -2120,7 +2136,7 @@ export default function DeliveryMap({
 
         }
 
-        {/* TYPE 2 & 3 POLYLINES: Colored lines connecting stops in stop_order sequence */}
+        {/* TYPE 2 & 3 POLYLINES: Colored lines connecting stops in stop_order sequence (Type 2 drawn via HERE below) */}
          {showRoutes && (() => {
            // CRITICAL: Return cached polylines if safeUsers is empty
            if (!safeUsers || safeUsers.length === 0) {
@@ -2229,73 +2245,12 @@ export default function DeliveryMap({
               }
             } else if (isViewingCurrentDate) {
               // TYPE 2: For active routes, only show on CURRENT DATE
-              // TYPE 2 ONLY: For incomplete routes, show only incomplete segments (no TYPE 3)
+              // We now render HERE-based Type 2 polylines separately; hide straight placeholders
+              // (keep minimal logic for timing checks but do not draw straight lines)
               
-              // Split stops into completed and incomplete
-              const completedStops = allDriverStops.filter(s => finishedStatuses.includes(s.status));
               const incompleteStops = allDriverStops.filter(s => !finishedStatuses.includes(s.status) && s.status !== 'pending');
-              
-              // CRITICAL: Skip TYPE 3 for incomplete routes - only TYPE 2 is shown
-              // TYPE 2: Draw incomplete segments (from next stop onwards)
-              // CRITICAL: For other drivers, isNextDelivery may not be set - find first incomplete stop instead
-              let nextStop = incompleteStops.find(s => s.isNextDelivery === true);
-              
-              // If no isNextDelivery flag, use first incomplete stop (for other drivers in Show All mode)
-              if (!nextStop && incompleteStops.length > 0) {
-                nextStop = incompleteStops[0];
-              }
-              
-              const nextStopIndex = nextStop ? incompleteStops.indexOf(nextStop) : 0;
-              
-              for (let i = nextStopIndex; i < incompleteStops.length - 1; i++) {
-                const stop1 = incompleteStops[i];
-                const stop2 = incompleteStops[i + 1];
-                
-                if (!stop1 || !stop2) continue;
-                
-                // CRITICAL: Validate coordinates
-                if (typeof stop1.latitude !== 'number' || typeof stop1.longitude !== 'number' ||
-                    typeof stop2.latitude !== 'number' || typeof stop2.longitude !== 'number' ||
-                    isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
-                    isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
-                  console.warn('[DeliveryMap] Skipping TYPE 2 polyline with invalid coordinates');
-                  continue;
-                }
-                
-                // CRITICAL: Skip polyline if time gap > 90 minutes
-                const timeDiffMinutes = getTimeDifferenceMinutes(stop1, stop2);
-                if (timeDiffMinutes > 90) {
-                  console.log(`⏭️ [TYPE 2] Skipping polyline - ${timeDiffMinutes.toFixed(0)} min gap exceeds 90 min threshold`);
-                  continue;
-                }
-                
-                const isAM = stop2.ampm_deliveries === 'AM';
-                const dashArray = isAM ? '10, 5' : '2, 8';
-                
-                // CRITICAL: Type 2 polylines should NOT be blue - use non-blue color
-                const type2Color = driverPolylineColor === '#1E90FF' || driverPolylineColor === '#00CED1' || driverPolylineColor === '#3B82F6'
-                  ? '#8A2BE2' // Blue Violet instead of blue
-                  : driverPolylineColor;
-                
-                polylines.push(
-                  <Polyline
-                    key={`type2-${route.driverId}-${i}-${polylineRenderKey}`}
-                    positions={[
-                      [stop1.latitude, stop1.longitude],
-                      [stop2.latitude, stop2.longitude]
-                    ]}
-                    pathOptions={{
-                      color: type2Color,
-                      weight: 4,
-                      opacity: 0.7,
-                      dashArray: dashArray,
-                      lineJoin: 'round',
-                      lineCap: 'round'
-                    }}
-                    pane="overlayPane"
-                  />
-                );
-              }
+              if (incompleteStops.length <= 1) return;
+              // No straight lines here; HERE Type 2 polylines are rendered below
             }
           });
 
