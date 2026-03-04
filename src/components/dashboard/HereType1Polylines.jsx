@@ -76,6 +76,8 @@ export default function HereType1Polylines({
       if (cache[key]) return;
       const delay2 = Math.floor(Math.random() * 150);
       setTimeout(() => {
+        const delay2 = Math.floor(Math.random() * 150);
+      setTimeout(() => {
         getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: home.latitude, longitude: home.longitude }).then((coords) => {
           if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
         });
