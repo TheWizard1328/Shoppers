@@ -996,51 +996,8 @@ export default function DeliveryMap({
     showOtherDriverDeliveries // CRITICAL: Re-render when checkbox changes
   ]);
 
-  const calculateFannedPosition = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
-    if (currentZoom < 11 || currentZoom > 18) {
-      return [originalLat, originalLng];
-    }
-
-    const baseRadius = 0.0008;
-    const dynamicRadius = 0.0008;
-    const radius = baseRadius + (18 - currentZoom) * dynamicRadius;
-
-    // Calculate arc width based on number of markers
-    // More markers = wider arc (up to -90 to +90 degrees from vertical)
-    let arcWidth;
-    if (totalMarkers <= 2) {
-      arcWidth = 90; // ±45 degrees
-    } else if (totalMarkers === 3) {
-      arcWidth = 120; // ±60 degrees
-    } else if (totalMarkers === 4) {
-      arcWidth = 140; // ±70 degrees
-    } else {
-      // For 5+ markers, scale up to maximum 180 degrees (±90)
-      arcWidth = Math.min(180, 140 + (totalMarkers - 4) * 10);
-    }
-
-    // Convert arc width to radians and calculate start/end angles
-    // 90 degrees (π/2) points straight up, so we spread symmetrically around that
-    const arcWidthRad = (arcWidth * Math.PI) / 180;
-    const startAngle = (Math.PI / 2) - (arcWidthRad / 2); // Left side of arc
-    const endAngle = (Math.PI / 2) + (arcWidthRad / 2);   // Right side of arc
-
-    // Calculate angle for this marker based on its index in the sorted array
-    let angle;
-    if (totalMarkers === 1) {
-      angle = Math.PI / 2; // Straight up
-    } else {
-      const angleStep = (endAngle - startAngle) / (totalMarkers - 1);
-      // Reverse the order: lowest stop order (index 0) goes to right (end of arc)
-      angle = startAngle + ((totalMarkers - 1 - markerIndex) * angleStep);
-    }
-
-    // Calculate new position
-    // Note: In geographic coordinates, latitude is Y and longitude is X
-    const fannedLat = originalLat + radius * Math.sin(angle);
-    const fannedLng = originalLng + radius * Math.cos(angle);
-
-    return [fannedLat, fannedLng];
+  const calculateFannedPositionWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
+    return calculateFannedPosition(originalLat, originalLng, markerIndex, totalMarkers, stopOrder, currentZoom);
   }, [currentZoom]);
 
   // NEW: Handler for marker click to toggle fanning with zoom behavior
