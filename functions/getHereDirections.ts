@@ -22,9 +22,12 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'HERE_API_KEY secret is not set' }, { status: 500 });
         }
 
-        const url = `https://router.hereapi.com/v8/routes?transportMode=car&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&return=polyline&apikey=${apiKey}`;
+        const url = `https://router.hereapi.com/v8/routes?alternatives=0&transportMode=car&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&return=polyline&apikey=${apiKey}`;
 
-        const response = await fetch(url);
+        const controller = new AbortController();
+        const to = setTimeout(() => controller.abort('timeout'), 4500);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(to);
         if (!response.ok) {
             const text = await response.text();
             console.error('[HERE] routing error', { status: response.status, details: text?.slice(0, 500) });

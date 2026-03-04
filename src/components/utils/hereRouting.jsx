@@ -3,6 +3,7 @@ import { offlineDB } from './offlineDatabase';
 
 const fetchingKeys = new Set();
 const memoryCache = new Map();
+const USE_ENTITY_LOOKUP = false;
 
 let polylineSubscribed = false;
 const ensurePolylineSubscription = () => {
@@ -162,6 +163,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
   }
 
   // Check entity cache (DriverRoutePolyline) before hitting external APIs
+  if (USE_ENTITY_LOOKUP)
   try {
     const rounded = (n) => Number(n.toFixed(5));
     const deliveryDateSafe = deliveryDate || (new Date().toISOString().slice(0,10));
@@ -186,6 +188,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     }
   } catch (e) {
     console.warn('Entity polyline lookup failed', e);
+  }
   }
 
   // If we previously stored a hard error flag for this key, short-circuit for a bit to avoid hammering APIs
