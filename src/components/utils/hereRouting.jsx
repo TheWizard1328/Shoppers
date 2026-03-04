@@ -68,7 +68,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop) => {
       origin: { lat: fromStop.latitude, lon: fromStop.longitude },
       destination: { lat: toStop.latitude, lon: toStop.longitude }
     });
-    if (gres?.data?.polyline) {
+    if (gres?.data?.polyline && typeof gres.data.polyline === 'string') {
       const gcoords = decodeGooglePolyline(gres.data.polyline);
       if (Array.isArray(gcoords) && gcoords.length > 1) {
         memoryCache.set(cacheKey, gcoords);
