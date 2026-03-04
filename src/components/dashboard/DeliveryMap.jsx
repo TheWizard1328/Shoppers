@@ -2101,7 +2101,7 @@ export default function DeliveryMap({
                : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"}
         />
 
-        <MapController />
+        {(() => { const MC = React.lazy(() => import('./MapController')); return (<React.Suspense fallback={null}><MC /></React.Suspense>); })()}
 
         {/* NEW: Draw Google Directions route polyline (if available) - CURRENT DATE ONLY, ONLY if route NOT started */}
         {/* CRITICAL: This is the PRE-ROUTE polyline (before any stops started). Once route starts, we use currentToNextPolyline instead */}
@@ -2786,7 +2786,7 @@ return polylines.length > 0 ? polylines : null;
                 ) : (
                   // Non-clustered or fanned markers show full details
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    <DeliveryPopup delivery={pickup} isPickup={true} />
+                    {(() => { const DP = React.lazy(() => import('./DeliveryPopup')); return (<React.Suspense fallback={null}><DP delivery={pickup} isPickup={true} /></React.Suspense>); })()}
                   </Popup>
                 )
               )}
@@ -3251,7 +3251,7 @@ return polylines.length > 0 ? polylines : null;
                 ) : (
                   // Non-clustered or fanned markers show full details
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    <DeliveryPopup delivery={delivery} isPickup={false} />
+                    {(() => { const DP = React.lazy(() => import('./DeliveryPopup')); return (<React.Suspense fallback={null}><DP delivery={delivery} isPickup={false} /></React.Suspense>); })()}
                   </Popup>
                 )
               )}
