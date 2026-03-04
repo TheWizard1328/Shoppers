@@ -2458,7 +2458,7 @@ console.log(`🔵 [Type1Poly] FINAL: Returning ${polylines.length} total Type 1 
 return polylines.length > 0 ? polylines : null;
 })()}
 
-        {/* DEPRECATED: Old route drawing logic - replaced by Type 2 & 3 polylines above */}
+
 
         {/* NEW: Fanning radius lines (thick, solid, grey) - UNIFIED for all markers */}
         {fannedLocationKey && (() => {
