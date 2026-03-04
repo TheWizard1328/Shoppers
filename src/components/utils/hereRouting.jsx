@@ -50,7 +50,10 @@ function encodeGooglePolyline(points) {
 
 export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) => {
   if (!fromStop || !toStop) return null;
-  if (typeof fromStop.latitude !== 'number' || typeof toStop.latitude !== 'number') return null;
+  // Normalize coords to numbers (tablet sometimes sends strings)
+  fromStop = { latitude: Number(fromStop.latitude), longitude: Number(fromStop.longitude) };
+  toStop = { latitude: Number(toStop.latitude), longitude: Number(toStop.longitude) };
+  if ([fromStop.latitude, fromStop.longitude, toStop.latitude, toStop.longitude].some((n) => Number.isNaN(n))) return null;
 
   // Skip HERE call for zero-distance legs
   const samePoint = Math.abs(fromStop.latitude - toStop.latitude) < 1e-5 && Math.abs(fromStop.longitude - toStop.longitude) < 1e-5;
@@ -84,7 +87,21 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     console.warn('[HERE][client] Failed to read HERE polyline from localStorage', e);
   }
 
-  if (fetchingKeys.has(cacheKey)) { console.debug('[HERE][client] Suppressing duplicate fetch', { cacheKey }); return null; } // Prevent concurrent fetches for same key
+  if (fetchingKeys.has(cacheKey)) { 
+    console.debug('[HERE][client] Awaiting in-flight (poll)', { cacheKey });
+    return await new Promise((resolve) => {
+      let waited = 0;
+      const iv = setInterval(() => {
+        if (memoryCache.has(cacheKey)) { clearInterval(iv); resolve(memoryCache.get(cacheKey)); return; }
+        try {
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) { clearInterval(iv); resolve(JSON.parse(cached)); return; }
+        } catch (_) {}
+        if (!fetchingKeys.has(cacheKey) || waited > 1500) { clearInterval(iv); resolve(null); }
+        waited += 100;
+      }, 100);
+    });
+  } // De-duplicate concurrent fetches
 
   // Check entity cache (DriverRoutePolyline) before hitting external APIs
   try {
@@ -136,6 +153,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       console.info('[HERE][client] Received coordinates', { cacheKey, points: coords.length });
       memoryCache.set(cacheKey, coords);
       try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (e) { console.warn('Failed to save HERE polyline to localStorage', e); }
+      try { localStorage.removeItem(failKey); } catch (_) {}
 
       // Persist to DriverRoutePolyline entity for future reuse
       try {
