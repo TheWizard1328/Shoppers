@@ -5,7 +5,7 @@ import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
-export default function DeliveryPopup({ delivery, isPickup = false, stores, patients, users }) {
+export default function DeliveryPopup({ delivery, isPickup = false, stores = [], patients = [], users = [] }) {
   const store = stores.find(s => s && s.id === delivery.store_id);
   const patient = !isPickup ? patients.find(p => p && p.id === delivery.patient_id) : null;
   const driver = users.find(u => u && u.id === delivery.driver_id);

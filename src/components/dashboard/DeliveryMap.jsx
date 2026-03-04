@@ -2786,7 +2786,7 @@ return polylines.length > 0 ? polylines : null;
                 ) : (
                   // Non-clustered or fanned markers show full details
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    {(() => { const DP = React.lazy(() => import('./DeliveryPopup')); return (<React.Suspense fallback={null}><DP delivery={pickup} isPickup={true} /></React.Suspense>); })()}
+                    {(() => { const DP = React.lazy(() => import('./DeliveryPopup')); return (<React.Suspense fallback={null}><DP delivery={pickup} isPickup={true} stores={safeStores} patients={safePatients} users={safeUsers} /></React.Suspense>); })()}
                   </Popup>
                 )
               )}
@@ -3251,7 +3251,7 @@ return polylines.length > 0 ? polylines : null;
                 ) : (
                   // Non-clustered or fanned markers show full details
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    {(() => { const DP = React.lazy(() => import('./DeliveryPopup')); return (<React.Suspense fallback={null}><DP delivery={delivery} isPickup={false} /></React.Suspense>); })()}
+                    {(() => { const DP = React.lazy(() => import('./DeliveryPopup')); return (<React.Suspense fallback={null}><DP delivery={delivery} isPickup={false} stores={safeStores} patients={safePatients} users={safeUsers} /></React.Suspense>); })()}
                   </Popup>
                 )
               )}
