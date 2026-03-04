@@ -48,7 +48,9 @@ export default function HereType1Polylines({
       if (!lastCompleted || !nextStop) return;
       const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
       if (cache[key]) return;
-      getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: nextStop.latitude, longitude: nextStop.longitude }).then((coords) => {
+      const delay = Math.floor(Math.random() * 150);
+      setTimeout(() => {
+        getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: nextStop.latitude, longitude: nextStop.longitude }).then((coords) => {
         if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
       });
     });
@@ -69,7 +71,9 @@ export default function HereType1Polylines({
       if (!lastCompleted || !home) return;
       const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}`;
       if (cache[key]) return;
-      getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: home.latitude, longitude: home.longitude }).then((coords) => {
+      const delay2 = Math.floor(Math.random() * 150);
+      setTimeout(() => {
+        getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: home.latitude, longitude: home.longitude }).then((coords) => {
         if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
       });
     });

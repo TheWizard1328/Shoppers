@@ -81,9 +81,13 @@ export default function HereType2Polylines({
         const b = stops[i + 1];
         const key = `here_${a.latitude.toFixed(5)}_${a.longitude.toFixed(5)}_${b.latitude.toFixed(5)}_${b.longitude.toFixed(5)}`;
         if (cache[key]) continue;
-        getHerePolyline(driverId, { latitude: a.latitude, longitude: a.longitude }, { latitude: b.latitude, longitude: b.longitude }, a.delivery_date).then((coords) => {
+        // tiny jitter (0-150ms) to avoid duplicate suppression storms when many legs start at once
+        const delay = Math.floor(Math.random() * 150);
+        setTimeout(() => {
+          getHerePolyline(driverId, { latitude: a.latitude, longitude: a.longitude }, { latitude: b.latitude, longitude: b.longitude }, a.delivery_date).then((coords) => {
           if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
         });
+        }, delay);
       }
     });
   }, [isViewingCurrentDate, driverIncomplete]);
