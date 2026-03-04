@@ -90,6 +90,9 @@ export const getHerePolyline = async (driverId, fromStop, toStop) => {
     console.error('Failed to fetch polyline (HERE/Google):', err);
   }
   
+  // Backoff 60s for this key on repeated failure
+  try { localStorage.setItem(`${cacheKey}:fail_until`, String(Date.now() + 60000)); } catch (_) {}
+
   fetchingKeys.delete(cacheKey);
   return null;
 };
