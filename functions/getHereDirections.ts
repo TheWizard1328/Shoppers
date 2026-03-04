@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { decode } from 'npm:here-flexible-polyline@2.0.0';
 
 Deno.serve(async (req) => {
     try {
@@ -26,8 +27,10 @@ Deno.serve(async (req) => {
         const data = await response.json();
 
         if (data.routes && data.routes.length > 0 && data.routes[0].sections && data.routes[0].sections.length > 0) {
-            const polyline = data.routes[0].sections[0].polyline;
-            return Response.json({ polyline });
+            const polylineStr = data.routes[0].sections[0].polyline;
+            const decoded = decode(polylineStr);
+            const coordinates = decoded.polyline.map(p => ({ lat: p[0], lng: p[1] }));
+            return Response.json({ coordinates });
         } else {
             return Response.json({ error: 'No route found' }, { status: 404 });
         }
