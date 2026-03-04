@@ -1190,7 +1190,7 @@ export default function DeliveryMap({
     if (onMapInteraction) {
       onMapInteraction();
     }
-  }, [fannedLocationKey, onMarkerClick, currentZoom, map, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPosition, onMapInteraction, stopCardsHeight, isMobile]);
+  }, [fannedLocationKey, onMarkerClick, currentZoom, map, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPositionWrapper, onMapInteraction, stopCardsHeight, isMobile]);
 
   // NEW: Auto-unfan when zooming below level 11
   useEffect(() => {
