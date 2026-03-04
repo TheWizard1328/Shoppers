@@ -19,6 +19,7 @@ import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { base44 } from '@/api/base44Client';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import DriverLocationMarkers from './DriverLocationMarkers';
+import HereType1Polylines from './HereType1Polylines';
 
 // Fix for default icon issue with Webpack
 delete L.Icon.Default.prototype._getIconUrl;
@@ -3142,9 +3143,8 @@ export default function DeliveryMap({
             }
           });
 
-          // CRITICAL: Type 1 polyline for drivers with complete routes (to home) - ONLY CURRENT DATE
-          if (isViewingCurrentDate) {
-            // Helper to get driver name (defined in parent scope)
+          // CRITICAL: Type 1 polyline to home moved to HereType1Polylines component
+          /* if (false) {
             const getDriverNameComplete = (driverId) => {
               const driver = safeUsers.find(u => u && u.id === driverId);
               return driver ? (driver.user_name || driver.full_name || `Driver-${driverId}`) : `Unknown-${driverId}`;
