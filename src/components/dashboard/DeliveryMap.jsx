@@ -2174,7 +2174,7 @@ export default function DeliveryMap({
              if (!route.driverId) return;
 
              // CRITICAL: Use route.color for this driver's unique color
-             const driverPolylineColor = route.color;
+             const driverPolylineColor = ((isAllDriversMode || showOtherDriverDeliveries || selectedDriverId === 'all') ? (function(hex, id){ const palette=['#8A2BE2','#EC4899','#F59E0B','#A855F7','#F43F5E','#FF7F50','#A0522D']; if(!hex||hex[0]!=='#'||hex.length<7) return hex||'#607D8B'; const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16); const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min; if(d===0) return hex; let h; switch(max){ case r: h=(g-b)/d+(g<b?6:0); break; case g: h=(b-r)/d+2; break; default: h=(r-g)/d+4; } h=h*60; if(h>=180&&h<=250){ let x=0; for(const c of String(id||'')) x=((x<<5)-x)+c.charCodeAt(0)|0; const idx=Math.abs(x)%palette.length; return palette[idx]; } return hex; })(route.color, route.driverId) : route.color);
 
              // CRITICAL: deliveryMarkers and pickupMarkers ALREADY include other drivers when showOtherDriverDeliveries is true
              // No need to merge otherDriverDeliveries again - just filter by driver ID
@@ -2380,7 +2380,7 @@ return polylines.length > 0 ? polylines : null;
          />
 
         {/* TYPE 1 POLYLINES (HERE): next leg + home */}
-        {isViewingCurrentDate && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={isAllDriversMode || (selectedDriverId === 'all')} /></>) }
+        {isViewingCurrentDate && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={isAllDriversMode || showOtherDriverDeliveries || (selectedDriverId === 'all')} /></>) }
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
         {driverHomeMarkers.map((home) => {
