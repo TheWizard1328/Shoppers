@@ -2102,7 +2102,7 @@ export default function DeliveryMap({
                : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"}
         />
 
-        {(() => { const MC = React.lazy(() => import('./MapController')); return (<React.Suspense fallback={null}><MC onMapInteraction={onMapInteraction} onDoubleTap={onDoubleTap} currentZoom={currentZoom} setCurrentZoom={setCurrentZoom} setShowZoomOverlay={setShowZoomOverlay} zoomOverlayTimeoutRef={zoomOverlayTimeoutRef} setMapCenter={setMapCenter} setVisibleBounds={setVisibleBounds} setFannedLocationKey={setFannedLocationKey} /></React.Suspense>); })()}
+        <MapController onMapInteraction={onMapInteraction} onDoubleTap={onDoubleTap} currentZoom={currentZoom} setCurrentZoom={setCurrentZoom} setShowZoomOverlay={setShowZoomOverlay} zoomOverlayTimeoutRef={zoomOverlayTimeoutRef} setMapCenter={setMapCenter} setVisibleBounds={setVisibleBounds} setFannedLocationKey={setFannedLocationKey} />
 
         {/* NEW: Draw Google Directions route polyline (if available) - CURRENT DATE ONLY, ONLY if route NOT started */}
         {/* CRITICAL: This is the PRE-ROUTE polyline (before any stops started). Once route starts, we use currentToNextPolyline instead */}
@@ -2426,21 +2426,7 @@ return polylines.length > 0 ? polylines : null;
          />
 
         {/* TYPE 1 POLYLINES (HERE): next leg + home */}
-        {isViewingCurrentDate && (
-          (() => {
-            const HereType1Polylines = React.lazy(() => import('./HereType1Polylines'));
-            return (
-              <React.Suspense fallback={null}>
-                <HereType1Polylines
-                  isViewingCurrentDate={isViewingCurrentDate}
-                  deliveryMarkers={deliveryMarkers}
-                  pickupMarkers={pickupMarkers}
-                  driverHomeMarkers={driverHomeMarkers}
-                />
-              </React.Suspense>
-            );
-          })()
-        )}
+        {isViewingCurrentDate && (<HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} />)}
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
         {driverHomeMarkers.map((home) => {
