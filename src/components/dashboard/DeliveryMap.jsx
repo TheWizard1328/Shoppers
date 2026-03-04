@@ -2087,8 +2087,7 @@ export default function DeliveryMap({
     }
   };
 
-// MapController extracted to separate component
-// DeliveryPopup extracted to separate component
+
 
   return (
     <div className="absolute inset-0">
