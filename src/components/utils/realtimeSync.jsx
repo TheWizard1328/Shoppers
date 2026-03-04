@@ -14,6 +14,60 @@ import { base44 } from '@/api/base44Client';
 // Global listeners for real-time updates
 const listeners = new Set();
 
+// Buffered inbound realtime events to reduce UI thrash
+const DEBOUNCE_MS = 1000; // per request
+const eventBuffers = {
+  Delivery: new Map(),
+  Patient: new Map(),
+  AppUser: new Map(),
+  Message: new Map(),
+};
+const flushTimers = {};
+
+function bufferEvent(entityName, payload) {
+  const buf = eventBuffers[entityName] || new Map();
+  eventBuffers[entityName] = buf;
+  const prev = buf.get(payload.id);
+  if (prev) {
+    const mergedChanged = Array.from(new Set([...(prev.changedFields || []), ...(payload.changedFields || [])]));
+    buf.set(payload.id, { ...prev, ...payload, changedFields: mergedChanged });
+  } else {
+    buf.set(payload.id, payload);
+  }
+  if (!flushTimers[entityName]) {
+    flushTimers[entityName] = setTimeout(() => flushBuffered(entityName), DEBOUNCE_MS);
+  }
+}
+
+function flushBuffered(entityName) {
+  const buf = eventBuffers[entityName];
+  if (!buf || buf.size === 0) { if (flushTimers[entityName]) { clearTimeout(flushTimers[entityName]); flushTimers[entityName] = null; } return; }
+  const items = Array.from(buf.values());
+  buf.clear();
+  if (flushTimers[entityName]) { clearTimeout(flushTimers[entityName]); flushTimers[entityName] = null; }
+
+  // Notify listeners and dispatch window events once per record
+  items.forEach(({ entityType, eventType, data, id, updatedBy, changedFields }) => {
+    listeners.forEach(callback => {
+      try { callback({ entityType, eventType, data, id, updatedBy, changedFields }); } catch (err) { console.error('❌ [RealtimeSync] Listener error:', err); }
+    });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
+      if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
+        window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }));
+      }
+    }
+  });
+
+  // Center next delivery card if any update warrants it
+  if (entityName === 'Delivery' && items.some(it => shouldCenterForDeliveryUpdate(it.data, it.changedFields))) {
+    scheduleAfterUISettled(() => {
+      triggerCenterNextDeliveryCard({ source: 'realtimeSyncBuffered' });
+    });
+  }
+}
+
+
 // Active subscription unsubscribers
 const activeSubscriptions = new Map();
 
@@ -179,53 +233,8 @@ const subscribeToEntity = (entityName) => {
         console.warn(`⚠️ [RealtimeSync] Failed to update offline DB for ${entityName}:`, offlineError.message);
       }
       
-      // Notify all listeners with full metadata
-      listeners.forEach(callback => {
-        try {
-          callback({ 
-            entityType: entityName, 
-            eventType: type, 
-            data, 
-            id,
-            updatedBy,
-            changedFields
-          });
-        } catch (error) {
-          console.error('❌ [RealtimeSync] Listener error:', error);
-        }
-      });
-
-      // Dispatch custom event for other parts of the app with full metadata
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, {
-          detail: { type, id, data, updatedBy, changedFields }
-        }));
-
-        // CRITICAL: For AppUser updates, also dispatch 'appUserUpdated' so that
-        // DriverStatusToggle and LocationTrackingToggle (mounted in Layout, outside the
-        // Dashboard's cityFilteredRealtimeSync pipeline) always receive their own status changes.
-        if (entityName === 'AppUser' && (type === 'create' || type === 'update') && data) {
-          window.dispatchEvent(new CustomEvent('appUserUpdated', {
-            detail: { appUser: data, fromRealtime: true }
-          }));
-        }
-
-        // Auto-center the next delivery card AFTER UI settles on relevant Delivery updates
-        if (entityName === 'Delivery' && (type === 'update' || type === 'create')) {
-          if (shouldCenterForDeliveryUpdate(data, changedFields)) {
-            scheduleAfterUISettled(() => {
-              triggerCenterNextDeliveryCard({
-                deliveryId: id,
-                status: data?.status,
-                isNextDelivery: !!data?.isNextDelivery,
-                changedFields,
-                eventType: type,
-                source: 'realtimeSync'
-              });
-            });
-          }
-        }
-      }
+      // Buffer notifications to debounce UI updates
+      bufferEvent(entityName, { entityType: entityName, eventType: type, data, id, updatedBy, changedFields });
     });
 
     activeSubscriptions.set(entityName, unsubscribe);

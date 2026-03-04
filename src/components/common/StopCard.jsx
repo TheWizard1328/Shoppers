@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
 import { updateDeliveryLocal } from '../utils/offlineMutations';
+import { queueDeliveryUpdate, flushQueuedDeliveryUpdates } from '../utils/updateBatcher';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
@@ -681,14 +682,14 @@ export default function StopCard({
         (a.patient_name || '').localeCompare(b.patient_name || '')
       );
 
-      const statusUpdatePromises = sortedPending.map((pendingDelivery, i) =>
-        updateDeliveryLocal(pendingDelivery.id, {
+      sortedPending.forEach((pendingDelivery, i) => {
+        queueDeliveryUpdate(pendingDelivery.id, {
           status: 'in_transit',
           delivery_time_start: deliveryTimeStart,
           tracking_number: String(baseTR + i + 1)
-        }, { skipSmartRefresh: true })
-      );
-      await Promise.all(statusUpdatePromises);
+        });
+      });
+      await flushQueuedDeliveryUpdates();
 
       // Prepare Square COD batch for gentle backend processing
       const codBatch = allPendingDeliveries
