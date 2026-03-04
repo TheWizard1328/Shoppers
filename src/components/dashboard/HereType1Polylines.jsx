@@ -54,6 +54,7 @@ export default function HereType1Polylines({
           if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
         });
       }, delay);
+      });
   }, [isViewingCurrentDate, driverStops]);
 
   // Prefetch last-completed -> home (for completed routes)
@@ -77,6 +78,7 @@ export default function HereType1Polylines({
           if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
         });
       }, delay2);
+      });
   }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers]);
 
   if (!isViewingCurrentDate) return null;
