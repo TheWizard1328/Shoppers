@@ -266,6 +266,59 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
       fetchingKeys.delete(cacheKey);
       return coords;
+    } else {
+      // Google fallback when HERE fails or returns no polyline
+      try {
+        const g = await base44.functions.invoke('getGoogleDirections', {
+          origin_lat: fromStop.latitude,
+          origin_lon: fromStop.longitude,
+          dest_lat: toStop.latitude,
+          dest_lon: toStop.longitude
+        });
+        if (g.data && g.data.encoded_polyline) {
+          const coords = decodeGooglePolyline(g.data.encoded_polyline);
+          if (Array.isArray(coords) && coords.length > 1) {
+            memoryCache.set(cacheKey, coords);
+            try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
+            try { localStorage.removeItem(failKey); } catch (_) {}
+            ensurePolylineSubscription();
+            // Persist to entity and offline DB
+            try {
+              const rounded = (n) => Number(n.toFixed(5));
+              const deliveryDateSafe = deliveryDate || (new Date().toISOString().slice(0,10));
+              const existing = await base44.entities.DriverRoutePolyline.filter({
+                driver_id: driverId,
+                delivery_date: deliveryDateSafe,
+                segment_origin_lat: rounded(fromStop.latitude),
+                segment_origin_lon: rounded(fromStop.longitude),
+                segment_dest_lat: rounded(toStop.latitude),
+                segment_dest_lon: rounded(toStop.longitude)
+              }, '-updated_date', 1);
+              const encoded = g.data.encoded_polyline;
+              if (Array.isArray(existing) && existing.length) {
+                const updated = await base44.entities.DriverRoutePolyline.update(existing[0].id, { encoded_polyline: encoded, last_generated_at: new Date().toISOString() });
+                await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [{ ...(existing[0]||{}), ...(updated||{}), encoded_polyline: encoded, last_generated_at: new Date().toISOString() }]);
+              } else {
+                const created = await base44.entities.DriverRoutePolyline.create({
+                  driver_id: driverId,
+                  delivery_date: deliveryDateSafe,
+                  encoded_polyline: encoded,
+                  segment_origin_lat: rounded(fromStop.latitude),
+                  segment_origin_lon: rounded(fromStop.longitude),
+                  segment_dest_lat: rounded(toStop.latitude),
+                  segment_dest_lon: rounded(toStop.longitude),
+                  last_generated_at: new Date().toISOString()
+                });
+                if (created) { await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [created]); }
+              }
+            } catch (e) { console.warn('Failed to persist Google fallback polyline', e); }
+            fetchingKeys.delete(cacheKey);
+            return coords;
+          }
+        }
+      } catch (e) {
+        console.warn('[HERE][client] Google fallback failed', e);
+      }
     }
 
     // Google fallback disabled: use dashed straight line when HERE/Entity not available
