@@ -163,7 +163,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
   }
 
   // Check entity cache (DriverRoutePolyline) before hitting external APIs
-  if (USE_ENTITY_LOOKUP)
+  if (USE_ENTITY_LOOKUP) {
   try {
     const rounded = (n) => Number(n.toFixed(5));
     const deliveryDateSafe = deliveryDate || (new Date().toISOString().slice(0,10));
