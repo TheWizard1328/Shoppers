@@ -1,5 +1,4 @@
 import { base44 } from '@/api/base44Client';
-import { offlineDB } from './offlineDatabase';
 
 const fetchingKeys = new Set();
 const memoryCache = new Map();
@@ -15,22 +14,16 @@ export const getHerePolyline = async (driverId, fromStop, toStop) => {
     return memoryCache.get(cacheKey);
   }
 
-  // Check offline DB
+  // Check localStorage
   try {
-    const db = await offlineDB.initDB();
-    const tx = db.transaction('keyval', 'readonly');
-    const store = tx.objectStore('keyval');
-    const cached = await new Promise(resolve => {
-      const req = store.get(cacheKey);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-    });
+    const cached = localStorage.getItem(cacheKey);
     if (cached) {
-      memoryCache.set(cacheKey, cached);
-      return cached;
+      const coords = JSON.parse(cached);
+      memoryCache.set(cacheKey, coords);
+      return coords;
     }
   } catch (e) {
-    console.warn('Failed to read HERE polyline from offline DB', e);
+    console.warn('Failed to read HERE polyline from localStorage', e);
   }
 
   if (fetchingKeys.has(cacheKey)) return null; // Prevent concurrent fetches for same key
@@ -46,14 +39,11 @@ export const getHerePolyline = async (driverId, fromStop, toStop) => {
       const coords = res.data.coordinates.map(p => [p.lat, p.lng]);
       memoryCache.set(cacheKey, coords);
       
-      // Save to offline DB
+      // Save to localStorage
       try {
-        const db = await offlineDB.initDB();
-        const tx = db.transaction('keyval', 'readwrite');
-        const store = tx.objectStore('keyval');
-        store.put(coords, cacheKey);
+        localStorage.setItem(cacheKey, JSON.stringify(coords));
       } catch (e) {
-        console.warn('Failed to save HERE polyline to offline DB', e);
+        console.warn('Failed to save HERE polyline to localStorage', e);
       }
       
       fetchingKeys.delete(cacheKey);
