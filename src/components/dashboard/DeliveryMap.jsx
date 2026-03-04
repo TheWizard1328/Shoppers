@@ -2101,7 +2101,7 @@ export default function DeliveryMap({
                : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"}
         />
 
-        {(() => { const MC = React.lazy(() => import('./MapController')); return (<React.Suspense fallback={null}><MC /></React.Suspense>); })()}
+        {(() => { const MC = React.lazy(() => import('./MapController')); return (<React.Suspense fallback={null}><MC onMapInteraction={onMapInteraction} onDoubleTap={onDoubleTap} currentZoom={currentZoom} setCurrentZoom={setCurrentZoom} setShowZoomOverlay={setShowZoomOverlay} zoomOverlayTimeoutRef={zoomOverlayTimeoutRef} setMapCenter={setMapCenter} setVisibleBounds={setVisibleBounds} setFannedLocationKey={setFannedLocationKey} /></React.Suspense>); })()}
 
         {/* NEW: Draw Google Directions route polyline (if available) - CURRENT DATE ONLY, ONLY if route NOT started */}
         {/* CRITICAL: This is the PRE-ROUTE polyline (before any stops started). Once route starts, we use currentToNextPolyline instead */}
