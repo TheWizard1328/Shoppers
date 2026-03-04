@@ -186,3 +186,41 @@ export const mergeUsersWithAppUsers = (authUsers = [], appUsers = []) => {
   
   return merged;
 };
+
+// Driver color palette for consistent coloring across the app
+const DRIVER_COLORS = [
+  '', // Index 0 - not used, to align with 1-based sort_order/hashing
+  '#1E90FF', // Dodger Blue (Index 1)
+  '#8A2BE2', // Blue Violet (Index 2)
+  '#00CED1', // Dark Cyan/Teal (Index 3)
+  '#FF69B4', // Hot Pink (Index 4)
+  '#4B0082', // Indigo (Index 5)
+  '#A0522D'  // Sienna - Reddish-Brown (Index 6)
+];
+
+/**
+ * Returns a stable, distinct driver color used by map icons and polylines
+ */
+export const getDriverColor = (driver) => {
+  if (!driver || typeof driver !== 'object' || !driver.id) {
+    return '#607D8B'; // Default blue-grey for invalid/unassigned
+  }
+
+  const numFixedColors = DRIVER_COLORS.length - 1; // Exclude empty index 0
+
+  // Prefer explicit sort_order mapping if within palette range
+  if (typeof driver.sort_order === 'number' && driver.sort_order > 0 && driver.sort_order <= numFixedColors) {
+    return DRIVER_COLORS[driver.sort_order];
+  }
+
+  // Fallback: generate HSL from driver.id in safe hue ranges (avoid greens/reds/yellows)
+  let hash = 0;
+  const idString = String(driver.id);
+  for (let i = 0; i < idString.length; i++) {
+    hash = idString.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const safeHueMin = 190; // Start from blue
+  const safeHueRange = 140; // 190-330: blues, cyans, purples, magentas
+  const hue = safeHueMin + (Math.abs(hash) % safeHueRange);
+  return `hsl(${hue}, 70%, 50%)`;
+};
