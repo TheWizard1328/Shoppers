@@ -9,6 +9,7 @@ export default function HereType2Polylines({
   deliveryMarkers = [],
   pickupMarkers = [],
   driverRoutes = [],
+  multiDriverMode = false,
 }) {
   const [cache, setCache] = useState({});
 
@@ -20,6 +21,31 @@ export default function HereType2Polylines({
     });
     return map;
   }, [driverRoutes]);
+
+  // Helpers to ensure non-blue colors in multi-driver mode
+  const isBlueHex = (hex) => {
+    if (!hex || typeof hex !== 'string' || !hex.startsWith('#') || hex.length < 7) return false;
+    const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+    const max = Math.max(r,g,b), min = Math.min(r,g,b);
+    const d = max - min;
+    if (d === 0) return false;
+    let h;
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      default: h = (r - g) / d + 4;
+    }
+    h = h * 60; // 0..360
+    return h >= 180 && h <= 250; // blue-cyan range
+  };
+  const hashId = (s) => Array.from(String(s)).reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0)|0,0);
+  const mapBlueToNonBlue = (hex, id) => {
+    if (!multiDriverMode) return hex;
+    if (!isBlueHex(hex)) return hex;
+    const palette = ['#8A2BE2', '#EC4899', '#F59E0B', '#A855F7', '#F43F5E', '#FF7F50', '#A0522D']; // no blues
+    const idx = Math.abs(hashId(id || 'x')) % palette.length;
+    return palette[idx];
+  };
 
   // Build per-driver incomplete stop sequences starting from next stop
   const driverIncomplete = useMemo(() => {
@@ -49,6 +75,7 @@ export default function HereType2Polylines({
   useEffect(() => {
     if (!isViewingCurrentDate) return;
     driverIncomplete.forEach((stops, driverId) => {
+      const totalLegs = Math.max(0, stops.length - 1);
       for (let i = 0; i < stops.length - 1; i++) {
         const a = stops[i];
         const b = stops[i + 1];
@@ -74,7 +101,19 @@ export default function HereType2Polylines({
         <Polyline
           key={`type2-here-${driverId}-${i}`}
           positions={coords || [[a.latitude, a.longitude], [b.latitude, b.longitude]]}
-          pathOptions={{ color: coords ? (driverColorMap.get(driverId) || "#6366F1") : "#94a3b8", weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
+          pathOptions={{
+            color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#6366F1"), driverId) : "#94a3b8",
+            weight: 5,
+            opacity: coords ? (() => {
+              if (totalLegs <= 1) return 0.85; // single leg
+              const t = i / (totalLegs - 1);
+              const start = 0.95, end = 0.25;
+              return Math.max(end, start + (end - start) * t);
+            })() : 0.35,
+            dashArray: coords ? "" : "6,6",
+            lineJoin: "round",
+            lineCap: "round"
+          }}
           pane="overlayPane"
         />
       );
