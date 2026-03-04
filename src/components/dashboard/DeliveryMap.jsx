@@ -145,8 +145,10 @@ export default function DeliveryMap({
   highlightedDeliveryId = null, // NEW: ID of delivery to highlight (from card hover/selection)
   areStopCardsVisible = false, // NEW: Whether stop cards are visible
   onDriverRoutesCalculated = () => {}, // NEW: Callback to pass driver routes to parent
-  onMapReady = () => {} // NEW: Callback when ALL map elements are rendered
-}) {
+  onMapReady = () => {}, // NEW: Callback when ALL map elements are rendered
+  mapViewPhase = 1,
+  isMapViewLocked = false
+  }) {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState(null);
@@ -2371,50 +2373,46 @@ return polylines.length > 0 ? polylines : null;
         {/* ===== RENDER ORDER 1: Live location markers + heading-up ===== */}
         {(() => {
           const HeadingUpRotator = React.lazy(() => import('./HeadingUpRotator'));
-          if (!currentDriverMarker) return (
-            <React.Suspense fallback={null}>
-              <HeadingUpRotator isMobile={isMobile} currentDriverMarker={currentDriverMarker} />
-            </React.Suspense>
-          );
-          if (!currentDriverMarker.latitude || !currentDriverMarker.longitude ||
-              typeof currentDriverMarker.latitude !== 'number' || typeof currentDriverMarker.longitude !== 'number' ||
-              isNaN(currentDriverMarker.latitude) || isNaN(currentDriverMarker.longitude)) {
-            return null;
-          }
+          const enabled = isMobile && mapViewPhase === 2 && isMapViewLocked;
+          const hasValid = !!(currentDriverMarker && typeof currentDriverMarker.latitude === 'number' && typeof currentDriverMarker.longitude === 'number' && !isNaN(currentDriverMarker.latitude) && !isNaN(currentDriverMarker.longitude));
           return (
             <>
-              <React.Suspense fallback={null}>
-                <HeadingUpRotator isMobile={isMobile} currentDriverMarker={currentDriverMarker} />
-              </React.Suspense>
-              <Marker
-                key="current-driver-location"
-                position={[currentDriverMarker.latitude, currentDriverMarker.longitude]}
-                icon={createLiveLocationDot()}
-                zIndexOffset={6000}
-                eventHandlers={{
-                  click: () => onMarkerClick && onMarkerClick(currentDriverMarker, 'driver'),
-                  mouseover: (e) => { e.target.openPopup(); },
-                  mouseout: (e) => { e.target.closePopup(); }
-                }}>
-                <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
-                  <div className="min-w-[150px]">
-                    <div className="flex items-center gap-1.5">
-                      <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                      <h3 className="font-semibold text-xs">Your Location</h3>
-                    </div>
-                    <div className="text-[10px] text-blue-600 mt-1 font-medium flex items-center gap-1">
-                      <Activity className="w-3 h-3 animate-pulse" />
-                      Live GPS
-                    </div>
-                    {currentDriverMarker.timestamp && (
-                      <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-600">
-                        <Clock className="w-3 h-3" />
-                        Updated: {format(new Date(currentDriverMarker.timestamp), 'HH:mm:ss')}
+              {enabled && hasValid && (
+                <React.Suspense fallback={null}>
+                  <HeadingUpRotator isMobile={isMobile} currentDriverMarker={currentDriverMarker} enabled={enabled} />
+                </React.Suspense>
+              )}
+              {hasValid && (
+                <Marker
+                  key="current-driver-location"
+                  position={[currentDriverMarker.latitude, currentDriverMarker.longitude]}
+                  icon={createLiveLocationDot()}
+                  zIndexOffset={6000}
+                  eventHandlers={{
+                    click: () => onMarkerClick && onMarkerClick(currentDriverMarker, 'driver'),
+                    mouseover: (e) => { e.target.openPopup(); },
+                    mouseout: (e) => { e.target.closePopup(); }
+                  }}>
+                  <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
+                    <div className="min-w-[150px]">
+                      <div className="flex items-center gap-1.5">
+                        <Navigation className="w-3.5 h-3.5 text-blue-600" />
+                        <h3 className="font-semibold text-xs">Your Location</h3>
                       </div>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
+                      <div className="text-[10px] text-blue-600 mt-1 font-medium flex items-center gap-1">
+                        <Activity className="w-3 h-3 animate-pulse" />
+                        Live GPS
+                      </div>
+                      {currentDriverMarker.timestamp && (
+                        <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-600">
+                          <Clock className="w-3 h-3" />
+                          Updated: {format(new Date(currentDriverMarker.timestamp), 'HH:mm:ss')}
+                        </div>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
+              )}
             </>
           );
         })()}
