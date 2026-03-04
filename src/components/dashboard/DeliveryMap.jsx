@@ -997,7 +997,7 @@ export default function DeliveryMap({
   ]);
 
   const calculateFannedPositionWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
-    return calculateFannedPosition(originalLat, originalLng, markerIndex, totalMarkers, stopOrder, currentZoom);
+    return calculateFannedPositionWrapper(originalLat, originalLng, markerIndex, totalMarkers, stopOrder, currentZoom);
   }, [currentZoom]);
 
   // NEW: Handler for marker click to toggle fanning with zoom behavior
@@ -1030,7 +1030,7 @@ export default function DeliveryMap({
       const bounds = L.latLngBounds([marker.latitude, marker.longitude]);
       
       markersAtLocation.forEach((m, index) => {
-        const [fannedLat, fannedLng] = calculateFannedPosition(
+        const [fannedLat, fannedLng] = calculateFannedPositionWrapper(
           marker.latitude,
           marker.longitude,
           index,
@@ -2433,7 +2433,7 @@ return polylines.length > 0 ? polylines : null;
               return null;
             }
             
-            const [fannedLat, fannedLng] = calculateFannedPosition(
+            const [fannedLat, fannedLng] = calculateFannedPositionWrapper(
               originalLat,
               originalLng,
               idx,
@@ -2760,7 +2760,7 @@ return polylines.length > 0 ? polylines : null;
               .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
             
             const clusterIndex = allMarkersAtLocation.findIndex(p => p.id === pickup.id);
-            markerPosition = calculateFannedPosition(
+            markerPosition = calculateFannedPositionWrapper(
               pickup.latitude, 
               pickup.longitude, 
               clusterIndex, 
@@ -3213,7 +3213,7 @@ return polylines.length > 0 ? polylines : null;
               .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
             
             const clusterIndex = allMarkersAtLocation.findIndex(d => d && d.id === delivery.id);
-            markerPosition = calculateFannedPosition(
+            markerPosition = calculateFannedPositionWrapper(
               delivery.latitude, 
               delivery.longitude, 
               clusterIndex, 
