@@ -50,13 +50,10 @@ export default function HereType1Polylines({
       if (cache[key]) return;
       const delay = Math.floor(Math.random() * 150);
       setTimeout(() => {
-        const delay = Math.floor(Math.random() * 150);
-      setTimeout(() => {
         getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: nextStop.latitude, longitude: nextStop.longitude }).then((coords) => {
           if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
         });
-        }, delay);
-    });
+      }, delay);
   }, [isViewingCurrentDate, driverStops]);
 
   // Prefetch last-completed -> home (for completed routes)
@@ -76,13 +73,10 @@ export default function HereType1Polylines({
       if (cache[key]) return;
       const delay2 = Math.floor(Math.random() * 150);
       setTimeout(() => {
-        const delay2 = Math.floor(Math.random() * 150);
-      setTimeout(() => {
         getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: home.latitude, longitude: home.longitude }).then((coords) => {
           if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
         });
-        }, delay2);
-    });
+      }, delay2);
   }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers]);
 
   if (!isViewingCurrentDate) return null;
