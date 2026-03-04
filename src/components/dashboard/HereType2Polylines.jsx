@@ -12,6 +12,7 @@ export default function HereType2Polylines({
   multiDriverMode = false,
 }) {
   const [cache, setCache] = useState({});
+  const [refreshToken, setRefreshToken] = useState(0);
 
   // Map driverId -> color from parent-provided driverRoutes (keeps colors consistent with Type 3)
   const driverColorMap = useMemo(() => {
@@ -71,6 +72,16 @@ export default function HereType2Polylines({
     return map;
   }, [deliveryMarkers, pickupMarkers]);
 
+  // Listen for route reorder events to refresh polylines
+  useEffect(() => {
+    const handler = (e) => {
+      setCache({});
+      setRefreshToken((t) => t + 1);
+    };
+    window.addEventListener('routeReordered', handler);
+    return () => window.removeEventListener('routeReordered', handler);
+  }, []);
+
   // Prefetch HERE polylines for all segments
   useEffect(() => {
     if (!isViewingCurrentDate) return;
@@ -89,7 +100,7 @@ export default function HereType2Polylines({
         }, jitter);
       }
     });
-  }, [isViewingCurrentDate, driverIncomplete]);
+  }, [isViewingCurrentDate, driverIncomplete, refreshToken]);
 
   if (!isViewingCurrentDate) return null;
 

@@ -1,7 +1,30 @@
 import { base44 } from '@/api/base44Client';
+import { offlineDB } from './offlineDatabase';
 
 const fetchingKeys = new Set();
 const memoryCache = new Map();
+
+let polylineSubscribed = false;
+const ensurePolylineSubscription = () => {
+  if (polylineSubscribed) return;
+  polylineSubscribed = true;
+  try {
+    const unsubscribe = base44.entities.DriverRoutePolyline.subscribe(async (event) => {
+      try {
+        if (event.type === 'delete') {
+          await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, event.id);
+        } else if (event.data) {
+          await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [event.data]);
+        }
+      } catch (e) {
+        console.warn('[HERE][client] Realtime polyline offline sync failed', e);
+      }
+    });
+    // Optional: store unsubscribe somewhere if needed
+  } catch (e) {
+    console.warn('[HERE][client] Failed to subscribe to DriverRoutePolyline realtime', e);
+  }
+};
 
 // Decode Google encoded polyline to [[lat, lng], ...]
 function decodeGooglePolyline(encoded) {
@@ -103,6 +126,31 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     });
   } // De-duplicate concurrent fetches
 
+  // Try offline DB cache before hitting network/entity
+  try {
+    const all = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+    if (Array.isArray(all) && all.length) {
+      const rounded = (n) => Number(n.toFixed(5));
+      const deliveryDateSafe = deliveryDate || (new Date().toISOString().slice(0,10));
+      const rec = all.find(r => r.driver_id === driverId && r.delivery_date === deliveryDateSafe &&
+        Number(r.segment_origin_lat)?.toFixed(5) === rounded(fromStop.latitude).toFixed(5) &&
+        Number(r.segment_origin_lon)?.toFixed(5) === rounded(fromStop.longitude).toFixed(5) &&
+        Number(r.segment_dest_lat)?.toFixed(5) === rounded(toStop.latitude).toFixed(5) &&
+        Number(r.segment_dest_lon)?.toFixed(5) === rounded(toStop.longitude).toFixed(5)
+      );
+      if (rec?.encoded_polyline) {
+        const coords = decodeGooglePolyline(rec.encoded_polyline);
+        if (Array.isArray(coords) && coords.length > 1) {
+          memoryCache.set(cacheKey, coords);
+          try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
+          return coords;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[HERE][client] Offline polyline lookup failed', e);
+  }
+
   // Check entity cache (DriverRoutePolyline) before hitting external APIs
   try {
     const rounded = (n) => Number(n.toFixed(5));
@@ -122,6 +170,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       if (Array.isArray(coords) && coords.length > 1) {
         memoryCache.set(cacheKey, coords);
         try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
+        try { await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]); } catch (_) {}
         return coords;
       }
     }
@@ -155,6 +204,8 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (e) { console.warn('Failed to save HERE polyline to localStorage', e); }
       try { localStorage.removeItem(failKey); } catch (_) {}
 
+      ensurePolylineSubscription();
+
       // Persist to DriverRoutePolyline entity for future reuse
       try {
         const rounded = (n) => Number(n.toFixed(5));
@@ -170,12 +221,20 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
             segment_dest_lon: rounded(toStop.longitude)
           }, '-updated_date', 1);
           if (Array.isArray(existing) && existing.length) {
-            await base44.entities.DriverRoutePolyline.update(existing[0].id, {
+            const updated = await base44.entities.DriverRoutePolyline.update(existing[0].id, {
               encoded_polyline: encoded,
               last_generated_at: new Date().toISOString()
             });
+            // Sync to offline DB as well
+            const offlineRec = {
+              ...(existing[0] || {}),
+              ...(updated || {}),
+              encoded_polyline: encoded,
+              last_generated_at: new Date().toISOString()
+            };
+            await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [offlineRec]);
           } else {
-            await base44.entities.DriverRoutePolyline.create({
+            const created = await base44.entities.DriverRoutePolyline.create({
               driver_id: driverId,
               delivery_date: deliveryDateSafe,
               encoded_polyline: encoded,
@@ -185,6 +244,10 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
               segment_dest_lon: rounded(toStop.longitude),
               last_generated_at: new Date().toISOString()
             });
+            // Save created record offline
+            if (created) {
+              await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [created]);
+            }
           }
         }
       } catch (e) {

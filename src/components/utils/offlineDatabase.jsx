@@ -5,7 +5,7 @@
 
 // CRITICAL: Use stable database name and version to prevent recreation
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
-const DB_VERSION = 6; // Incremented to add PENDING_BREADCRUMBS store
+const DB_VERSION = 7; // Incremented to add DRIVER_ROUTE_POLYLINES store
 
 // Store names
 const STORES = {
@@ -20,7 +20,8 @@ const STORES = {
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations',
   SYNC_METADATA: 'sync_metadata', // Timestamp tracking per entity
-  PENDING_BREADCRUMBS: 'pending_breadcrumbs' // Temporary GPS breadcrumbs [lat, lng, timestamp_ms] being collected for current route
+  PENDING_BREADCRUMBS: 'pending_breadcrumbs', // Temporary GPS breadcrumbs [lat, lng, timestamp_ms] being collected for current route
+  DRIVER_ROUTE_POLYLINES: 'driver_route_polylines'
 };
 
 let dbInstance = null;
@@ -149,7 +150,18 @@ const openDatabase = () => {
         breadcrumbStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
 
-    };
+      if (!db.objectStoreNames.contains(STORES.DRIVER_ROUTE_POLYLINES)) {
+        const polyStore = db.createObjectStore(STORES.DRIVER_ROUTE_POLYLINES, { keyPath: 'id' });
+        polyStore.createIndex('driver_id', 'driver_id', { unique: false });
+        polyStore.createIndex('delivery_date', 'delivery_date', { unique: false });
+        polyStore.createIndex('updated_date', 'updated_date', { unique: false });
+        polyStore.createIndex('segment_origin_lat', 'segment_origin_lat', { unique: false });
+        polyStore.createIndex('segment_origin_lon', 'segment_origin_lon', { unique: false });
+        polyStore.createIndex('segment_dest_lat', 'segment_dest_lat', { unique: false });
+        polyStore.createIndex('segment_dest_lon', 'segment_dest_lon', { unique: false });
+      }
+
+      };
   });
 };
 

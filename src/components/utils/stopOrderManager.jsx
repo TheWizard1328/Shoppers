@@ -100,6 +100,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     }
   }
 
+  try { window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate } })); } catch (_) {}
   return sortedDeliveries;
 };
 

@@ -11,6 +11,7 @@ export default function HereType1Polylines({
   driverHomeMarkers = [],
 }) {
   const [cache, setCache] = useState({});
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const driverStops = useMemo(() => {
     const map = new Map();
@@ -30,6 +31,16 @@ export default function HereType1Polylines({
     });
     return out;
   }, [driverStops]);
+
+  // Listen for route reorder events to refresh polylines
+  useEffect(() => {
+    const handler = () => {
+      setCache({});
+      setRefreshToken((t) => t + 1);
+    };
+    window.addEventListener('routeReordered', handler);
+    return () => window.removeEventListener('routeReordered', handler);
+  }, []);
 
   // Prefetch last-completed -> next-stop
   useEffect(() => {
@@ -55,7 +66,7 @@ export default function HereType1Polylines({
         });
       }, delay);
       });
-  }, [isViewingCurrentDate, driverStops]);
+  }, [isViewingCurrentDate, driverStops, refreshToken]);
 
   // Prefetch last-completed -> home (for completed routes)
   useEffect(() => {
@@ -79,7 +90,7 @@ export default function HereType1Polylines({
         });
       }, delay2);
       });
-  }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers]);
+  }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers, refreshToken]);
 
   if (!isViewingCurrentDate) return null;
 
