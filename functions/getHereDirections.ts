@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'HERE_API_KEY secret is not set' }, { status: 500 });
         }
 
-        const url = `https://router.hereapi.com/v8/routes?transportMode=car&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&return=polyline&apiKey=${apiKey}`;
+        const url = `https://router.hereapi.com/v8/routes?transportMode=car&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&return=polyline&apikey=${apiKey}`;
 
         const response = await fetch(url);
         if (!response.ok) {
