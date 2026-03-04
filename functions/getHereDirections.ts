@@ -11,6 +11,7 @@ Deno.serve(async (req) => {
         }
 
         const { origin, destination } = await req.json();
+        console.info('[HERE] getHereDirections input', { origin, destination });
 
         if (!origin || !destination) {
             return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
@@ -26,12 +27,14 @@ Deno.serve(async (req) => {
         const response = await fetch(url);
         if (!response.ok) {
             const text = await response.text();
+            console.error('[HERE] routing error', { status: response.status, details: text?.slice(0, 500) });
             return Response.json({ error: 'HERE routing error', status: response.status, details: text?.slice(0, 500) }, { status: 502 });
         }
         const data = await response.json();
 
         const sections = data?.routes?.[0]?.sections || [];
         if (sections.length === 0) {
+            console.warn('[HERE] no route found');
             return Response.json({ error: 'No route found' }, { status: 404 });
         }
 
@@ -65,11 +68,14 @@ Deno.serve(async (req) => {
         }
 
         if (allCoords.length < 2) {
+            console.error('[HERE] decode failed or too few points', { points: allCoords.length });
             return Response.json({ error: 'Failed to decode polyline' }, { status: 500 });
         }
 
+        console.info('[HERE] route OK', { points: allCoords.length, sections: sections.length });
         return Response.json({ coordinates: allCoords });
     } catch (error) {
+        console.error('[HERE] unexpected error', error?.message || error);
         return Response.json({ error: error.message }, { status: 500 });
     }
 });

@@ -52,6 +52,10 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
   if (!fromStop || !toStop) return null;
   if (typeof fromStop.latitude !== 'number' || typeof toStop.latitude !== 'number') return null;
 
+  // Skip HERE call for zero-distance legs
+  const samePoint = Math.abs(fromStop.latitude - toStop.latitude) < 1e-5 && Math.abs(fromStop.longitude - toStop.longitude) < 1e-5;
+  if (samePoint) return null;
+
   const cacheKey = `here_${fromStop.latitude.toFixed(5)}_${fromStop.longitude.toFixed(5)}_${toStop.latitude.toFixed(5)}_${toStop.longitude.toFixed(5)}`;
 
   // Check memory cache
@@ -165,7 +169,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
   }
   
   // Backoff 60s for this key on repeated failure
-  try { localStorage.setItem(`${cacheKey}:fail_until`, String(Date.now() + 60000)); } catch (_) {}
+  try { localStorage.setItem(`${cacheKey}:fail_until`, String(Date.now() + 10000)); } catch (_) {}
 
   fetchingKeys.delete(cacheKey);
   return null;
