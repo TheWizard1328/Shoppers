@@ -1767,32 +1767,20 @@ export default function StopCard({
                                     d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                                   );
 
-                                  // Clear old isNextDelivery flags in database
-                                  const resetPromises = driverDeliveries
-                                    .filter((d) => d.isNextDelivery && d.id !== delivery.id)
-                                    .map((d) => updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true }));
-
-                                  if (resetPromises.length > 0) {
-                                    await Promise.all(resetPromises);
-                                  }
+                                  // Ensure single isNextDelivery atomically on the server
+                                  await base44.functions.invoke('setNextDeliveryFlag', {
+                                    driverId: delivery.driver_id,
+                                    deliveryDate: delivery.delivery_date,
+                                    targetDeliveryId: delivery.id
+                                  });
 
                                   // Set this delivery as isNextDelivery with status update
                                   const now = new Date();
                                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-                                  // Backend safety: clear all other isNextDelivery=true for this driver/date, then set current
-                                  try {
-                                    base44.functions.invoke('setNextDeliveryFlag', {
-                                      driverId: delivery.driver_id,
-                                      deliveryDate: delivery.delivery_date,
-                                      targetDeliveryId: delivery.id
-                                    }).catch((e) => console.warn('setNextDeliveryFlag failed, continuing with local update:', e));
-                                  } catch (e) {
-                                    console.warn('setNextDeliveryFlag failed, continuing with local update:', e);
-                                  }
+                                  // Backend safety handled earlier with awaited setNextDeliveryFlag
                                   
                                   await updateDeliveryLocal(delivery.id, {
-                                    isNextDelivery: true,
                                     status: isPickup ? 'en_route' : 'in_transit',
                                     delivery_time_start: currentLocalTime
                                   }, { skipSmartRefresh: true });
