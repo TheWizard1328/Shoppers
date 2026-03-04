@@ -47,6 +47,15 @@ export const getHerePolyline = async (driverId, fromStop, toStop) => {
   }
 
   if (fetchingKeys.has(cacheKey)) return null; // Prevent concurrent fetches for same key
+
+  // If we previously stored a hard error flag for this key, short-circuit for a bit to avoid hammering APIs
+  const failKey = `${cacheKey}:fail_until`;
+  try {
+    const until = localStorage.getItem(failKey);
+    if (until && Date.now() < Number(until)) {
+      return null;
+    }
+  } catch (_) {}
   fetchingKeys.add(cacheKey);
 
   try {
