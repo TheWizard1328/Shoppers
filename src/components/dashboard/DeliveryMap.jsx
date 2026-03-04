@@ -2380,7 +2380,7 @@ return polylines.length > 0 ? polylines : null;
          />
 
         {/* TYPE 1 POLYLINES (HERE): next leg + home */}
-        {isViewingCurrentDate && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} /></>) }
+        {isViewingCurrentDate && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={isAllDriversMode || (selectedDriverId === 'all')} /></>) }
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
         {driverHomeMarkers.map((home) => {
