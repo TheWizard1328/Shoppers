@@ -1,6 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import { format } from 'npm:date-fns';
 
+// Debounce map to reduce rapid consecutive creations per (storeId, date, driverId)
+const cooldown = new Map();
+
 function generateShortStopId() {
     // Generate a 3-character alphanumeric ID (same format as frontend)
     const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -21,10 +24,6 @@ function generateDeliveryId() {
     return `DID-${suffix}`;
 }
 
-// In-memory debounce maps (per warm instance)
-const __ensurePickupInFlight = new Map();
-const __ensurePickupRecent = new Map();
-
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
@@ -41,16 +40,14 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Missing required parameters: storeId, deliveryDate, driverId' }, { status: 400 });
         }
 
-        // Debounce rapid duplicates for same store/date/driver (3.5s)
-        try {
-          const key = `${storeId}|${deliveryDate}|${driverId}`;
-          const last = __ensurePickupRecent.get(key);
-          const nowTs = Date.now();
-          if (last && (nowTs - last) < 3500) {
-            return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, debounced: true });
-          }
-          __ensurePickupRecent.set(key, nowTs);
-        } catch (_) {}
+        // Global cooldown guard to prevent thrashing/duplicates
+        {
+            const throttleKey = `${storeId}|${deliveryDate}|${driverId}`;
+            const until = cooldown.get(throttleKey);
+            if (until && Date.now() < until) {
+                return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, reason: 'cooldown' });
+            }
+        }
 
         // CRITICAL: Special stores - do NOT auto-create pickups (Dashboard handles them on-demand)
         const stores = await base44.entities.Store.filter({ id: storeId });
@@ -202,6 +199,7 @@ Deno.serve(async (req) => {
         });
 
         console.log(`🆕 Created new pickup ${newPickup.id} (PUID ${puid}) for ${chosenSlot}`);
+        cooldown.set(`${storeId}|${deliveryDate}|${driverId}`, Date.now() + 10000);
         return Response.json({ puid, pickupId: newPickup.id, isNew: true, pickup: newPickup });
 
     } catch (error) {
