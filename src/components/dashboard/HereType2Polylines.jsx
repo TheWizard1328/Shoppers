@@ -74,12 +74,14 @@ export default function HereType2Polylines({
 
   // Listen for route reorder events to refresh polylines
   useEffect(() => {
-    const handler = (e) => {
-      setCache({});
-      setRefreshToken((t) => t + 1);
+    const onReorder = () => { setCache({}); setRefreshToken((t) => t + 1); };
+    const onPolyline = () => { setCache({}); setRefreshToken((t) => t + 1); };
+    window.addEventListener('routeReordered', onReorder);
+    window.addEventListener('polylineUpdated', onPolyline);
+    return () => {
+      window.removeEventListener('routeReordered', onReorder);
+      window.removeEventListener('polylineUpdated', onPolyline);
     };
-    window.addEventListener('routeReordered', handler);
-    return () => window.removeEventListener('routeReordered', handler);
   }, []);
 
   // Prefetch HERE polylines for all segments

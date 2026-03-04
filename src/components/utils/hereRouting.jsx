@@ -14,7 +14,17 @@ const ensurePolylineSubscription = () => {
         if (event.type === 'delete') {
           await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, event.id);
         } else if (event.data) {
-          await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [event.data]);
+          const rec = event.data;
+          await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]);
+          // Invalidate caches for this segment
+          const key = rec && rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null
+            ? `here_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
+            : null;
+          if (key) {
+            try { memoryCache.delete(key); } catch (_) {}
+            try { localStorage.removeItem(key); } catch (_) {}
+            try { window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: rec.driver_id, deliveryDate: rec.delivery_date, key } })); } catch (_) {}
+          }
         }
       } catch (e) {
         console.warn('[HERE][client] Realtime polyline offline sync failed', e);
