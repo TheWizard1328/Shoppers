@@ -130,18 +130,8 @@ async function canGenerateForDriver(driverId) {
     }
     if (!allowedByDriver) return false;
 
-    // Primary device check for driver
-    if (__primaryCache.isPrimary === null || (now - __primaryCache.ts) > 30000) {
-      try {
-        const { getCurrentDevice } = await import('./deviceManager');
-        const device = await getCurrentDevice(__meCache.id);
-        __primaryCache.isPrimary = (device === null || device?.is_primary_tracker !== false);
-      } catch (_) {
-        __primaryCache.isPrimary = true; // default to primary on error
-      }
-      __primaryCache.ts = now;
-    }
-    return !!__primaryCache.isPrimary;
+    // Primary device check removed; any authenticated owner (driver/admin/dispatcher) may generate
+    return true;
   } catch (_) {
     return false;
   }
