@@ -4279,7 +4279,7 @@ export default function DeliveriesPage() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-auto">
+          className="absolute inset-0 z-[10030] flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-auto">
 
             <DeliveryForm
             delivery={editingDelivery}
