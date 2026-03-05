@@ -177,12 +177,33 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       const formatted = (data.formatted_address || '').trim();
       const fromFormatted = formatted ? (formatted.split(',')[0]?.trim() || formatted) : '';
       const fromPrediction = (prediction.description || '').split(',')[0]?.trim() || prediction.description;
-      const streetFromComponents = (data?.street_number && data?.route) ? `${data.street_number} ${data.route}`.trim() : '';
+      const routeOnly = (data?.route || '').trim();
+      const streetFromComponents = (data?.street_number && routeOnly) ? `${data.street_number} ${routeOnly}`.trim() : '';
 
-      const primaryStreet = streetFromComponents || parsedStreet || fromFormatted || fromPrediction || '';
-      const hasLeadingNumberPrimary = /^\d+\s/.test(primaryStreet);
-      const hasLeadingNumberPrediction = /^\d+\s/.test(fromPrediction || '');
-      const streetAddress = hasLeadingNumberPrimary ? primaryStreet : (hasLeadingNumberPrediction ? fromPrediction : primaryStreet);
+      // Heuristic: If we don't have street_number, but the route itself starts with a number (e.g., "142 Street NW"),
+      // prefer the prediction when it looks like "10938 142 Street NW" (two numbers at start = house + route)
+      const routeStartsWithNum = /^\d+\b/.test(routeOnly || fromFormatted || '');
+      const predictionHasHouseAndRoute = /^\d{1,6}\s+\d+\b/.test(fromPrediction || '');
+
+      // Base candidate preference order
+      let primaryStreet = streetFromComponents || fromFormatted || parsedStreet || fromPrediction || '';
+
+      if (!streetFromComponents) {
+        if (routeStartsWithNum && predictionHasHouseAndRoute) {
+          primaryStreet = fromPrediction || primaryStreet;
+        } else {
+          // If primary starts with same digits as the route (likely just the route number),
+          // but prediction starts with a different number, use prediction to keep house number.
+          const routeDigits = (routeOnly.match(/^\d+/) || [null])[0];
+          const primaryDigits = (primaryStreet.match(/^\d+/) || [null])[0];
+          const predictionDigits = (fromPrediction.match(/^\d+/) || [null])[0];
+          if (routeDigits && primaryDigits === routeDigits && predictionDigits && predictionDigits !== routeDigits) {
+            primaryStreet = fromPrediction || primaryStreet;
+          }
+        }
+      }
+
+      const streetAddress = primaryStreet.trim();
       const fullAddress = formatted || prediction.description || streetAddress;
       
       console.log('[GoogleAddressAutocomplete] Full address:', fullAddress);
