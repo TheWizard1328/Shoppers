@@ -21,7 +21,7 @@ export default function MapController({
     zoomstart: () => {
       const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
       const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-      const isProgrammaticFromTimer = timeSinceProgrammatic < 500;
+      const isProgrammaticFromTimer = timeSinceProgrammatic < 1200;
       
       if (isProgrammaticFromFlag || isProgrammaticFromTimer) {
         console.log('🗺️ [MapController] ZOOM START - PROGRAMMATIC (ignoring)');
@@ -52,7 +52,7 @@ export default function MapController({
       
       if (wasDragging && didMove) {
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        const isProgrammaticDrag = timeSinceProgrammatic < 1000;
+        const isProgrammaticDrag = timeSinceProgrammatic < 1500;
         
         if (!isProgrammaticDrag) {
           console.log('🗺️ [MapController] DRAG END - USER INTERACTION');
@@ -76,7 +76,7 @@ export default function MapController({
         
         const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        const isProgrammaticFromTimer = timeSinceProgrammatic < 1000;
+        const isProgrammaticFromTimer = timeSinceProgrammatic < 1500;
         
         if (!isProgrammaticFromFlag && !isProgrammaticFromTimer) {
           console.log('🗺️ [MapController] ZOOM END - USER INTERACTION (showing overlay)');

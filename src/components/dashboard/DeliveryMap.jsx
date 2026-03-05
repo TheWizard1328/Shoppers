@@ -2028,29 +2028,29 @@ export default function DeliveryMap({
         map._isProgrammaticZoom.current = true;
       }
       
-      // CRITICAL: Use padding values directly from Dashboard.js - don't override
+      // Adjust padding to bias center in Phase 2 without a second pan
+      const optionsFromDashboard = shouldFitBounds.options || {};
+      let paddingTopLeft = optionsFromDashboard.paddingTopLeft || [60, 60];
+      let paddingBottomRight = optionsFromDashboard.paddingBottomRight || [60, 60];
+
+      if (mapViewPhase === 2 && isMapViewLocked && currentDriverMarker?.latitude && currentDriverMarker?.longitude) {
+        const container = map.getContainer?.();
+        const h = container?.clientHeight || 0;
+        const extra = Math.round(h * 0.20); // push driver ~20% toward bottom using padding
+        paddingBottomRight = [paddingBottomRight[0], paddingBottomRight[1] + extra];
+      }
+
       const modifiedOptions = { 
-        ...shouldFitBounds.options,
+        ...optionsFromDashboard,
+        paddingTopLeft,
+        paddingBottomRight,
         animate: true,
         duration: 0.8 // Smooth 800ms animation
       };
-      
-      (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(bounds, modifiedOptions);
 
-      // Phase 2: after fitting bounds, bias the center so the driver sits near bottom-center
-      try {
-        if (mapViewPhase === 2 && isMapViewLocked && currentDriverMarker?.latitude && currentDriverMarker?.longitude) {
-          const container = map.getContainer?.();
-          const h = container?.clientHeight || 0;
-          const offset = Math.round(h * 0.20); // push driver ~20% toward bottom
-          const pt = map.project([currentDriverMarker.latitude, currentDriverMarker.longitude], map.getZoom());
-          const targetPt = L.point(pt.x, pt.y - offset); // move center upward
-          const targetLatLng = map.unproject(targetPt, map.getZoom());
-          setTimeout(() => {
-            if (map && map._loaded) map.panTo(targetLatLng, { animate: true });
-          }, 80);
-        }
-      } catch (e) {}
+      // Mark programmatic move so MapController doesn't treat it as user interaction
+      try { window._lastProgrammaticMapMove = Date.now(); } catch (_) {}
+      (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(bounds, modifiedOptions);
 
       if (onBoundsFitted && typeof onBoundsFitted === 'function') {
         onBoundsFitted();
