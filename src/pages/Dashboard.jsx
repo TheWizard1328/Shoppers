@@ -8862,7 +8862,7 @@ function Dashboard() {
               getDriverColor={getDriverColor}
               onEdit={handleEditDelivery}
               onEditPatient={handleEditPatient}
-              onDeleteDelivery={handleDeleteDelivery}
+              onDelete={handleDeleteDelivery}
               onRestart={handleRestartDelivery}
               onStatusUpdate={handleStatusUpdate}
               onNotesUpdate={handleNotesUpdate}

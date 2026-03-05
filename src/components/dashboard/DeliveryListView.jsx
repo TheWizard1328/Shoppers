@@ -180,7 +180,7 @@ const DeliveryListView = ({
   currentUser,
   onEdit,
   onEditPatient,
-  onDeleteDelivery,
+  onDelete,
   onRestart,
   onStatusUpdate,
   onNotesUpdate,
@@ -373,7 +373,7 @@ const DeliveryListView = ({
                   currentUser={currentUser}
                   onEdit={onEdit}
                   onEditPatient={onEditPatient}
-                  onDelete={onDeleteDelivery}
+                  onDelete={onDelete}
                   onRestart={onRestart}
                   onStatusUpdate={onStatusUpdate}
                   onNotesUpdate={onNotesUpdate}
@@ -408,7 +408,7 @@ const DeliveryListView = ({
                     currentUser={currentUser}
                     onEdit={onEdit}
                     onEditPatient={onEditPatient}
-                    onDelete={onDeleteDelivery}
+                    onDelete={onDelete}
                     onRestart={onRestart}
                     onStatusUpdate={onStatusUpdate}
                     onNotesUpdate={onNotesUpdate}

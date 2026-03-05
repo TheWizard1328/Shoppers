@@ -92,7 +92,7 @@ export default function StopCard({
   delivery, store, driver, patients = [],
   currentUser, isExpanded: externalIsExpanded,
   showDriverName = false, onStatusUpdate,
-  onNotesUpdate, onEdit, onDeleteDelivery,
+  onNotesUpdate, onEdit, onDelete,
   onRestart, allDeliveries = [], selectedDate,
   onEditPatient, drivers = [], onDriverChange,
   canEdit = false, getDriverColor, onClick,
@@ -1014,7 +1014,7 @@ export default function StopCard({
             isPickup={isPickup} delivery={delivery} displayName={displayName} displayAddress={displayAddress}
             store={store} pendingPickups={pendingPickups} availableTransferPickups={availableTransferPickups}
             selectedTransferPickupId={selectedTransferPickupId} setSelectedTransferPickupId={setSelectedTransferPickupId}
-            allDeliveries={allDeliveries} onDeleteDelivery={onDeleteDelivery}
+            allDeliveries={allDeliveries} onDeleteDelivery={onDelete}
             showReturnConfirm={showReturnConfirm} returnPatient={returnPatient}
             handleCancelReturn={handleCancelReturn} handleConfirmReturn={handleConfirmReturn}
             isCreatingReturn={isCreatingReturn} driver={driver} patient={patient}
@@ -1468,7 +1468,7 @@ export default function StopCard({
                               </DropdownMenuItem>
                             )}
 
-                            {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                            {onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                               <>
                                 <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                                 <DropdownMenuItem
@@ -1896,8 +1896,8 @@ export default function StopCard({
 
 
 
-                          {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEdit || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
-                          {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                          {onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEdit || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
+                          {onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                             <DropdownMenuItem
                               onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
                               className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"

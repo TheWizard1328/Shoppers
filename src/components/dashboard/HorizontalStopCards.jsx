@@ -20,7 +20,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     // NEW: Action handlers
     onEdit,
     onEditPatient,
-    onDeleteDelivery,
+    onDelete,
     onRestart,
     onStatusUpdate,
     onNotesUpdate,
@@ -417,7 +417,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               getDriverColor={getDriverColor}
               onEdit={onEdit}
               onEditPatient={onEditPatient}
-              onDeleteDelivery={onDeleteDelivery}
+              onDelete={onDelete}
               onRestart={(id) => {
                 autoScrollEnabledRef.current = true;
                 onRestart(id);

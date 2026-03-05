@@ -36,7 +36,7 @@ export default function StopCardBody({
   isAcceptingAll,
   acceptButtonText,
   handleAcceptAllStops,
-  onEditDelivery,
+  onEdit,
   onCODUpdate,
   allDeliveries,
   FINISHED_STATUSES,
@@ -340,7 +340,7 @@ export default function StopCardBody({
                             }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (onEditDelivery && projectedDelivery.id) onEditDelivery(projectedDelivery);
+                              if (onEdit && projectedDelivery.id) onEdit(projectedDelivery);
                             }}
                           >
                             <span className="text-base md:text-xs font-medium truncate flex-1" style={{ color: 'var(--text-slate-900)' }}>
@@ -363,8 +363,8 @@ export default function StopCardBody({
                                   className="h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    // Delegate to parent handler via onEditDelivery + status change; leave as-is to preserve behavior
-                                    if (onEditDelivery && projectedDelivery.id) onEditDelivery(projectedDelivery);
+                                    // Delegate to parent handler via onEdit + status change; leave as-is to preserve behavior
+                                    if (onEdit && projectedDelivery.id) onEdit(projectedDelivery);
                                   }}
                                 >
                                   <Plus className="w-3 h-3" />
