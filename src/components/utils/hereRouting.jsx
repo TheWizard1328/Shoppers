@@ -277,49 +277,16 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       fetchingKeys.delete(cacheKey);
       return coords;
     } else {
-      console.warn('[HERE][client] No HERE route returned, attempting Google fallback');
-      try {
-        const g = await base44.functions.invoke('getGoogleDirections', {
-          origin: { lat: fromStop.latitude, lon: fromStop.longitude },
-          destination: { lat: toStop.latitude, lon: toStop.longitude }
-        });
-        const enc = g?.data?.encoded_polyline || g?.data?.polyline;
-        if (enc && typeof enc === 'string') {
-          const coords = decodeGooglePolyline(enc);
-          memoryCache.set(cacheKey, coords);
-          try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
-          fetchingKeys.delete(cacheKey);
-          return coords;
-        }
-      } catch (e) {
-        console.warn('[HERE][client] Google fallback failed', e?.message || e);
-      }
+      // Google fallback disabled to avoid quota usage; keep dashed fallback if HERE returns nothing
     }
 
     // Google fallback disabled: use dashed straight line when HERE/Entity not available
   } catch (err) {
-    console.error('[HERE][client] Failed to fetch HERE polyline', { cacheKey, err: err?.message || err });
-    // Try Google fallback as a backup
-    try {
-      const g = await base44.functions.invoke('getGoogleDirections', {
-        origin: { lat: fromStop.latitude, lon: fromStop.longitude },
-        destination: { lat: toStop.latitude, lon: toStop.longitude }
-      });
-      const enc = g?.data?.encoded_polyline || g?.data?.polyline;
-      if (enc && typeof enc === 'string') {
-        const coords = decodeGooglePolyline(enc);
-        memoryCache.set(cacheKey, coords);
-        try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
-        fetchingKeys.delete(cacheKey);
-        return coords;
-      }
-    } catch (e) {
-      console.warn('[HERE][client] Google fallback failed after HERE error', e?.message || e);
-    }
+    console.error('[HERE][client] Failed to fetch polyline', { cacheKey, err: err?.message || err });
   }
   
   // Backoff 60s for this key on repeated failure
-  try { localStorage.setItem(`${cacheKey}:fail_until`, String(Date.now() + 60000)); console.warn('[HERE][client] Set backoff', { cacheKey, ms: 60000 }); } catch (_) {}
+  try { localStorage.setItem(`${cacheKey}:fail_until`, String(Date.now() + 10000)); console.warn('[HERE][client] Set backoff', { cacheKey, ms: 10000 }); } catch (_) {}
 
   fetchingKeys.delete(cacheKey);
   return null;
