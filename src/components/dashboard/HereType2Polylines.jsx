@@ -49,10 +49,9 @@ export default function HereType2Polylines({
       }
     } catch (_) {}
     return false;
-  };
-  const [optimizing, setOptimizing] = useState(false);
+    };
 
-  // Map driverId -> color from parent-provided driverRoutes (keeps colors consistent with Type 3)
+    // Map driverId -> color from parent-provided driverRoutes (keeps colors consistent with Type 3)
   const driverColorMap = useMemo(() => {
     const map = new Map();
     (driverRoutes || []).forEach((r) => {
