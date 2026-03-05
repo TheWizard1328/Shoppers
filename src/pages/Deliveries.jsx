@@ -2187,9 +2187,9 @@ export default function DeliveriesPage() {
   }, [setShowImportModal]);
 
   const handleEditDelivery = useCallback((delivery) => {
-    setEditingDelivery(delivery);
+    setSelectedDeliveryId(null); setEditingDelivery(delivery);
     setShowDeliveryForm(true);
-  }, [setEditingDelivery, setShowDeliveryForm]);
+  }, [setSelectedDeliveryId, setEditingDelivery, setShowDeliveryForm]);
 
   const handleEditPatient = useCallback((patientId) => {
     const patientToEdit = (allPatients || []).find((p) => p && p.id === patientId);
