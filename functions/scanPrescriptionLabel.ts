@@ -195,10 +195,53 @@ Use null for any field you cannot read. Return ONLY the JSON, nothing else.`,
       }
     }
 
-    // Get all patients matching the filter
-    console.log('🔍 [scanPrescriptionLabel] Fetching patients with filter:', patientFilter);
-    const allPatients = await base44.entities.Patient.filter(patientFilter);
-    console.log('✅ [scanPrescriptionLabel] Found', allPatients.length, 'patients to search');
+    // Phone-first and then name-second narrowing
+    const normalizePhoneStr = (s) => (s || '').replace(/\D/g, '');
+    const extractedDigits = normalizePhoneStr(extractedData.phone_number || '');
+    const last7 = extractedDigits.slice(-7);
+
+    let phoneMatches = [];
+    if (last7.length >= 7) {
+      try {
+        phoneMatches = await base44.entities.Patient.filter({
+          ...patientFilter,
+          phone: { $contains: last7 }
+        });
+        console.log('✅ [scanPrescriptionLabel] Phone narrowing yielded', phoneMatches.length, 'candidates');
+      } catch (e) {
+        console.warn('⚠️ [scanPrescriptionLabel] $contains not supported on phone, will fallback to local filter after fetch');
+      }
+    }
+
+    // If phone narrowing produced no candidates, fetch scoped patients
+    let allPatients = [];
+    if (phoneMatches.length === 0) {
+      console.log('🔍 [scanPrescriptionLabel] Fetching patients with filter:', patientFilter);
+      allPatients = await base44.entities.Patient.filter(patientFilter);
+      console.log('✅ [scanPrescriptionLabel] Found', allPatients.length, 'patients to search');
+
+      // Local phone narrowing fallback if server-side $contains was unavailable
+      if (last7.length >= 7) {
+        const localPhone = allPatients.filter(p => {
+          const pd = normalizePhoneStr(p.phone);
+          return pd.includes(last7) || pd.endsWith(last7);
+        });
+        if (localPhone.length > 0) {
+          console.log('✅ [scanPrescriptionLabel] Local phone narrowing yielded', localPhone.length, 'candidates');
+          phoneMatches = localPhone;
+        }
+      }
+    }
+
+    // Name-second narrowing (only if phone yielded none)
+    let nameMatches = [];
+    if (phoneMatches.length === 0 && (allPatients.length > 0) && extractedData.patient_name) {
+      const nameLower = extractedData.patient_name.toLowerCase().trim();
+      nameMatches = allPatients.filter(p => (p.full_name || '').toLowerCase().includes(nameLower));
+      console.log('✅ [scanPrescriptionLabel] Name narrowing yielded', nameMatches.length, 'candidates');
+    }
+
+    const candidatePatients = phoneMatches.length ? phoneMatches : (nameMatches.length ? nameMatches : allPatients);
 
     // Normalize address for exact matching (ignore street type variations)
     const normalizeAddress = (address) => {
