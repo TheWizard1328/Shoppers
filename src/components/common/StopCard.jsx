@@ -1205,7 +1205,7 @@ export default function StopCard({
             isAcceptingAll={isAcceptingAll}
             acceptButtonText={acceptButtonText}
             handleAcceptAllStops={handleAcceptAllStops}
-            onEditDelivery={onEditDelivery}
+            onEditDelivery={onEdit}
             onCODUpdate={onCODUpdate}
             allDeliveries={allDeliveries}
             FINISHED_STATUSES={FINISHED_STATUSES}
