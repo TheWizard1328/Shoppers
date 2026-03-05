@@ -8860,7 +8860,7 @@ function Dashboard() {
               stopOrder={{}}
               showDriverName={isAllDriversMode}
               getDriverColor={getDriverColor}
-              onEditDelivery={handleEditDelivery}
+              onEdit={handleEditDelivery}
               onEditPatient={handleEditPatient}
               onDeleteDelivery={handleDeleteDelivery}
               onRestart={handleRestartDelivery}
