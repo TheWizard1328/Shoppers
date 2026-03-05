@@ -158,6 +158,9 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       setOpen(false);
       setSuggestions([]);
       
+      // Prevent the input from immediately re-triggering a fetch due to value equality
+      hasUserTyped.current = false;
+      
       console.log('[GoogleAddressAutocomplete] Fetching details for:', prediction.place_id);
       
       // Get detailed place information
@@ -293,9 +296,16 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           onChange(e.target.value);
         }}
         onBlur={() => {
-          // Close dropdown on blur; do not mutate the value (prevents losing house number)
-          setOpen(false);
-          setSuggestions([]);
+          // Allow suggestion click to fire before closing; keep value unchanged
+          if (justSelected.current) {
+            setOpen(false);
+            setSuggestions([]);
+            return;
+          }
+          setTimeout(() => {
+            setOpen(false);
+            setSuggestions([]);
+          }, 120);
         }}
         onKeyDown={(e) => {
           if (!open || suggestions.length === 0) return;
@@ -328,10 +338,15 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           {suggestions.map((prediction, index) => (
             <button
               key={prediction.place_id}
-              onClick={(e) => {
+              onMouseDown={(e) => {
+                // MouseDown fires before input blur, ensuring selection works
                 e.preventDefault();
                 e.stopPropagation();
                 handleSelectAddress(prediction);
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
               }}
               className={`w-full px-3 py-2 text-left text-sm flex items-start gap-2 last:border-b-0 transition-colors`}
               style={{
