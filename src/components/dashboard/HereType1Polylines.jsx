@@ -34,7 +34,7 @@ export default function HereType1Polylines({
 
   // Listen for route reorder/optimization events to refresh polylines
   useEffect(() => {
-    const invalidate = () => { setCache({}); setRefreshToken((t) => t + 1); };
+    const invalidate = () => { setRefreshToken((t) => t + 1); };
     const onReorder = invalidate;
     const onDeliveriesUpdated = invalidate;
     const onOptimizationComplete = invalidate;
