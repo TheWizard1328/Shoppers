@@ -229,11 +229,8 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       try {
         const { BarcodeFormat: BF, DecodeHintType: DHT } = { BarcodeFormat, DecodeHintType };
         const hints = new Map();
-        hints.set(DHT.POSSIBLE_FORMATS, [
-          BF.CODE_128, BF.CODE_39, BF.CODE_93, BF.ITF,
-          BF.EAN_13, BF.EAN_8, BF.UPC_A, BF.UPC_E,
-          BF.DATA_MATRIX, BF.PDF_417, BF.QR_CODE
-        ]);
+        // Restrict to common pharmacy 1D formats for speed/accuracy
+        hints.set(DHT.POSSIBLE_FORMATS, [BF.CODE_128, BF.CODE_39]);
         try { hints.set(DHT.TRY_HARDER, true); } catch {}
         try { hints.set(DHT.ASSUME_GS1, true); } catch {}
         try { hints.set(DHT.ALSO_INVERTED, true); } catch {}
@@ -426,7 +423,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
                 <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
                 {/* Aim tip */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="px-2 py-0.5 text-[10px] rounded bg-black/50 text-white/80">Center the barcode here</span>
+                  <span className="px-2 py-0.5 text-[10px] rounded bg-black/50 text-white/80">Hold label so bars run left→right and fill the frame</span>
                 </div>
                 <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
                 <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
