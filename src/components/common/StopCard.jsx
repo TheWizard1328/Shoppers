@@ -1687,42 +1687,17 @@ export default function StopCard({
                                     // ═══════════ PHASE 2: BACKGROUND TASKS ═══════════
                                     setIsProcessingBackground(true);
 
-                                    // Background: Route optimization (fire and forget - don't wait)
+                                    // Background: Notifications only (no auto optimization on complete)
                                     Promise.all([
-                                     base44.functions.invoke('optimizeRouteRealTime', {
-                                       driverId: delivery.driver_id,
-                                       deliveryDate: delivery.delivery_date,
-                                       currentLocalTime: format(new Date(), 'HH:mm'),
-                                       generatePolyline: false
-                                     }).then(() => {
-                                       window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
-                                     }).catch((err) => console.warn('⚠️ [COMPLETE] Background optimization failed:', err)),
-
-                                     // Background: Send notification
-                                     userHasRole(currentUser, 'driver') ? notifyDriverCompleted({
-                                       driver: currentUser,
-                                       patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                       delivery,
-                                       store,
-                                       appUsers
-                                     }).catch((err) => console.warn('Notification failed:', err)) : Promise.resolve(),
-
-                                     // Background: AI route re-optimization
-                                     triggerRouteOptimization({
-                                       driverId: currentUser.id,
-                                       deliveryDate: format(new Date(), 'yyyy-MM-dd'),
-                                       trigger: 'delivery_complete',
-                                       completedDeliveryId: delivery.id,
-                                       onNotification: (notification) => {
-                                         if (notification.type === 'next_stop') {
-                                           toast.success(notification.message, {
-                                             description: notification.aiSuggestion
-                                           });
-                                         }
-                                       }
-                                     }).catch((err) => console.warn('Route optimization failed:', err))
+                                      userHasRole(currentUser, 'driver') ? notifyDriverCompleted({
+                                        driver: currentUser,
+                                        patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                        delivery,
+                                        store,
+                                        appUsers
+                                      }).catch((err) => console.warn('Notification failed:', err)) : Promise.resolve()
                                     ]).finally(() => {
-                                     setIsProcessingBackground(false);
+                                      setIsProcessingBackground(false);
                                     });
 
                                   } catch (error) {
