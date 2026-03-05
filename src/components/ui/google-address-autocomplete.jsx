@@ -308,12 +308,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           onChange(e.target.value);
         }}
         onBlur={() => {
-          // Allow suggestion click to fire before closing; keep value unchanged
-          if (justSelected.current) {
-            setOpen(false);
-            setSuggestions([]);
-            return;
-          }
+          // Do not change text on blur; just close the list after a short delay
           setTimeout(() => {
             setOpen(false);
             setSuggestions([]);
