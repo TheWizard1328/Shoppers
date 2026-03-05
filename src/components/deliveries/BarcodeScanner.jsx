@@ -403,10 +403,10 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       {/* Camera overlay */}
       {showCamera && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
-          <div className="relative w-full max-w-5xl mx-auto mt-[12vh] px-2">
+          <div className="relative w-screen mx-auto mt-[10vh] px-0">
             {/* Viewfinder with embedded video */}
-            <div onClick={tapToFocus} className={`relative mx-auto w-[96vw] max-w-[1000px] aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
-              <video ref={videoRef} className="w-full h-full object-contain" playsInline autoPlay muted />
+            <div onClick={tapToFocus} className={`relative mx-auto w-screen aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
+              <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
                 {/* Aim tip */}
