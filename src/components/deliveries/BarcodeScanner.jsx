@@ -7,14 +7,31 @@ import { X, Camera, Barcode, Plus, Trash2, ZoomIn, CheckCircle2, Loader2, AlertC
 import { AnimatePresence, motion } from 'framer-motion';
 // JsBarcode removed (package resolution issue)
 import { processBarcode } from '@/functions/processBarcode';
+import JsBarcode from 'jsbarcode';
 
 // Barcode preview (text fallback - JsBarcode removed)
 function BarcodeDisplay({ value, onDelete }) {
+  const svgRef = useRef(null);
+
+  useEffect(() => {
+    if (!svgRef.current) return;
+    try {
+      JsBarcode(svgRef.current, String(value || ''), {
+        format: 'CODE128',
+        lineColor: '#111827',
+        width: 2,
+        height: 64,
+        displayValue: false,
+        margin: 0,
+      });
+    } catch (_) {}
+  }, [value]);
+
   return (
     <div className="flex items-center gap-2 p-2 rounded-lg border bg-white" style={{ borderColor: 'var(--border-slate-200)' }}>
       <div className="flex-1 min-w-0">
-        <div className="w-full h-16 flex items-center justify-center bg-slate-50 border rounded">
-          <span className="font-mono text-sm text-slate-700 truncate">{value}</span>
+        <div className="w-full h-20 flex items-center justify-center bg-slate-50 border rounded">
+          <svg ref={svgRef} className="w-full h-16" aria-label="Scannable barcode" />
         </div>
       </div>
       <Button
@@ -42,6 +59,25 @@ function stopVideoStream(videoEl) {
   } catch {}
 }
 
+
+// Mini barcode badge component
+function MiniBarcode({ value }) {
+  const svgRef = useRef(null);
+  useEffect(() => {
+    if (!svgRef.current) return;
+    try {
+      JsBarcode(svgRef.current, String(value || ''), {
+        format: 'CODE128',
+        lineColor: '#334155',
+        width: 1,
+        height: 32,
+        displayValue: false,
+        margin: 0,
+      });
+    } catch (_) {}
+  }, [value]);
+  return <svg ref={svgRef} className="h-8 w-28" aria-hidden="true" />;
+}
 
 export default function BarcodeScanner({ barcodeValues = [], onChange, disabled = false }) {
   const [manualInput, setManualInput] = useState('');
@@ -131,59 +167,37 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         Use a hand scanner directly into the field, or tap the camera icon to scan with device camera.
       </p>
 
-      {/* Barcode list */}
+      {/* Barcode grid */}
       {barcodeValues.length > 0 && (
         <div className="space-y-2">
-          {barcodeValues.map((val, idx) => (
-            <div key={idx}>
-              {/* Collapsed row */}
+          <div className="flex flex-wrap gap-2">
+            {barcodeValues.map((val, idx) => (
               <div
-                className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${expandedIndex === idx ? 'border-emerald-300 bg-emerald-50' : 'bg-white hover:bg-slate-50'}`}
-                style={{ borderColor: expandedIndex === idx ? undefined : 'var(--border-slate-200)' }}
-                onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
+                key={idx}
+                className={`relative rounded-lg border bg-white p-1 cursor-pointer ${expandedIndex === idx ? 'ring-2 ring-emerald-400' : 'hover:bg-slate-50'}`}
+                style={{ borderColor: 'var(--border-slate-200)' }}
+                onClick={() => setExpandedIndex(idx)}
+                title={val}
               >
-                <Barcode className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                <span className="flex-1 text-xs font-mono truncate text-slate-700">{val}</span>
-                <Button
+                <MiniBarcode value={val} />
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 flex-shrink-0 text-slate-400 hover:text-emerald-600"
-                  onClick={(e) => { e.stopPropagation(); setExpandedIndex(expandedIndex === idx ? null : idx); }}
-                  title="Show barcode"
-                >
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 flex-shrink-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                  className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
                   onClick={(e) => { e.stopPropagation(); removeBarcode(idx); }}
-                  title="Remove"
+                  aria-label="Remove barcode"
                   disabled={disabled}
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                  <X className="w-3 h-3" />
+                </button>
               </div>
+            ))}
+          </div>
 
-              {/* Expanded barcode display */}
-              <AnimatePresence>
-                {expandedIndex === idx && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-1 p-2 bg-white rounded-lg border border-emerald-200">
-                      <BarcodeDisplay value={val} onDelete={() => removeBarcode(idx)} />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+          {expandedIndex !== null && barcodeValues[expandedIndex] && (
+            <div className="mt-2 p-2 bg-white rounded-lg border border-emerald-200">
+              <BarcodeDisplay value={barcodeValues[expandedIndex]} onDelete={() => removeBarcode(expandedIndex)} />
             </div>
-          ))}
+          )}
         </div>
       )}
 
