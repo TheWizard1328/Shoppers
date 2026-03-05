@@ -13,6 +13,7 @@ export default function HereType2Polylines({
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
+  const [optimizing, setOptimizing] = useState(false);
 
   // Map driverId -> color from parent-provided driverRoutes (keeps colors consistent with Type 3)
   const driverColorMap = useMemo(() => {
@@ -80,9 +81,11 @@ export default function HereType2Polylines({
     };
 
     const onReorder = refreshAll;
-    const onOptimizationComplete = refreshAll;
+    const onOptimizationComplete = () => { setOptimizing(false); refreshAll(); };
     const onDeliveriesUpdated = () => setRefreshToken((t)=>t+1);
     const onDeliveriesImported = refreshAll;
+
+    const onOptimizationStarted = () => { setOptimizing(true); };
 
     const onPolyline = (e) => {
       const key = e?.detail?.key;
@@ -101,6 +104,7 @@ export default function HereType2Polylines({
     window.addEventListener('routeReordered', onReorder);
     window.addEventListener('polylineUpdated', onPolyline);
     window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
+    window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.addEventListener('deliveriesImported', onDeliveriesImported);
 
@@ -108,6 +112,7 @@ export default function HereType2Polylines({
       window.removeEventListener('routeReordered', onReorder);
       window.removeEventListener('polylineUpdated', onPolyline);
       window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
+      window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('deliveriesImported', onDeliveriesImported);
     };
@@ -115,7 +120,7 @@ export default function HereType2Polylines({
 
   // Prefetch HERE polylines for all segments
   useEffect(() => {
-    if (!isViewingCurrentDate) return;
+    if (!isViewingCurrentDate || optimizing) return;
     driverIncomplete.forEach((stops, driverId) => {
       const totalLegs = Math.max(0, stops.length - 1);
       for (let i = 0; i < stops.length - 1; i++) {

@@ -68,6 +68,9 @@ export default function RealTimeRouteOptimizer({
     }
 
     console.log('🔄 [RealTimeRouteOptimizer] Triggering route optimization for driver:', selectedDriverId);
+    window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
+      detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer' }
+    }));
 
     try {
       const response = await base44.functions.invoke('optimizeRouteRealTime', {

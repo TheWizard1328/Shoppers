@@ -12,6 +12,7 @@ export default function HereType1Polylines({
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
+  const [optimizing, setOptimizing] = useState(false);
 
   const driverStops = useMemo(() => {
     const map = new Map();
@@ -37,7 +38,8 @@ export default function HereType1Polylines({
     const invalidate = () => { setRefreshToken((t) => t + 1); };
     const onReorder = invalidate;
     const onDeliveriesUpdated = invalidate;
-    const onOptimizationComplete = invalidate;
+    const onOptimizationStarted = () => { setOptimizing(true); };
+    const onOptimizationComplete = () => { setOptimizing(false); invalidate(); };
     const onPolyline = (e) => {
       const key = e?.detail?.key;
       if (!key) return;
@@ -58,17 +60,19 @@ export default function HereType1Polylines({
     window.addEventListener('polylineUpdated', onPolyline);
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
+    window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
     return () => {
       window.removeEventListener('routeReordered', onReorder);
       window.removeEventListener('polylineUpdated', onPolyline);
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
+      window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
     };
   }, []);
 
   // Prefetch last-completed -> next-stop
   useEffect(() => {
-    if (!isViewingCurrentDate) return;
+    if (!isViewingCurrentDate || optimizing) return;
     driverStops.forEach((stops, driverId) => {
       if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
       const completedSorted = [...stops.complete].sort((a, b) => {
@@ -94,7 +98,7 @@ export default function HereType1Polylines({
 
   // Prefetch last-completed -> home (for completed routes)
   useEffect(() => {
-    if (!isViewingCurrentDate) return;
+    if (!isViewingCurrentDate || optimizing) return;
     driversWithCompleteRoute.forEach((driverId) => {
       const all = driverStops.get(driverId) || { complete: [] };
       const completedSorted = [...(all.complete || [])].sort((a, b) => {
