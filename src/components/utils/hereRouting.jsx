@@ -217,9 +217,19 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       destination: { lat: toStop.latitude, lng: toStop.longitude }
     });
 
-    if (res.data && res.data.coordinates) {
-      const coords = res.data.coordinates.map(p => [p.lat, p.lng]);
-      console.info('[HERE][client] Received coordinates', { cacheKey, points: coords.length });
+    // Accept both shapes from backend: {coordinates:[{lat,lng},...]} OR {polyline:"..."}
+    const coordsFromArray = Array.isArray(res?.data?.coordinates)
+      ? res.data.coordinates.map((p) => [p.lat ?? p.latitude, p.lng ?? p.longitude])
+      : null;
+    const coordsFromEncoded = typeof res?.data?.polyline === 'string'
+      ? decodeGooglePolyline(res.data.polyline)
+      : null;
+    const coords = (coordsFromArray && coordsFromArray.length > 1)
+      ? coordsFromArray
+      : (coordsFromEncoded && coordsFromEncoded.length > 1 ? coordsFromEncoded : null);
+
+    if (coords) {
+      console.info('[HERE][client] Route OK', { cacheKey, points: coords.length, shape: coordsFromArray ? 'coordinates' : 'polyline' });
       memoryCache.set(cacheKey, coords);
       try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (e) { console.warn('Failed to save HERE polyline to localStorage', e); }
       try { localStorage.removeItem(failKey); } catch (_) {}
@@ -277,7 +287,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       fetchingKeys.delete(cacheKey);
       return coords;
     } else {
-      // Google fallback disabled to avoid quota usage; keep dashed fallback if HERE returns nothing
+      // Keep dashed fallback if HERE returns nothing
     }
 
     // Google fallback disabled: use dashed straight line when HERE/Entity not available
