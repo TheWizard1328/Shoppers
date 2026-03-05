@@ -147,7 +147,7 @@ export default function HereType1Polylines({
         if (ok) return;
         const d = Math.floor(Math.random() * 150);
         setTimeout(() => {
-          getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: nextStop.latitude, longitude: nextStop.longitude }).then((coords) => {
+          getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: nextStop.latitude, longitude: nextStop.longitude }, lastCompleted.delivery_date).then((coords) => {
             if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
           });
         }, d);
@@ -175,7 +175,7 @@ export default function HereType1Polylines({
         if (ok) return;
         const d2 = Math.floor(Math.random() * 150);
         setTimeout(() => {
-          getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: home.latitude, longitude: home.longitude }).then((coords) => {
+          getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: home.latitude, longitude: home.longitude }, lastCompleted.delivery_date).then((coords) => {
             if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
           });
         }, d2);

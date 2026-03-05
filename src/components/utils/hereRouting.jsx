@@ -92,22 +92,49 @@ function encodeGooglePolyline(points) {
 // Primary device gate for HERE polyline generation
 let __meCache = { id: null, ts: 0 };
 let __primaryCache = { isPrimary: null, ts: 0 };
+let __myRolesCache = { roles: null, ts: 0 };
 async function canGenerateForDriver(driverId) {
   try {
     const now = Date.now();
-    // cache user for 30s
+    // Cache current user
     if (!__meCache.id || (now - __meCache.ts) > 30000) {
       const me = await base44.auth.me();
       __meCache.id = me?.id || null;
       __meCache.ts = now;
     }
-    if (!__meCache.id || driverId !== __meCache.id) return false;
-    // cache primary check for 30s
+    if (!__meCache.id) return false;
+
+    // Allow admins/dispatchers to generate polylines (useful from Dashboard)
+    if (!__myRolesCache.roles || (now - __myRolesCache.ts) > 30000) {
+      try {
+        const mine = await base44.entities.AppUser.filter({ user_id: __meCache.id }, '-updated_date', 1);
+        __myRolesCache.roles = (Array.isArray(mine) && mine[0]?.app_roles) || [];
+      } catch (_) {
+        __myRolesCache.roles = [];
+      }
+      __myRolesCache.ts = now;
+    }
+    const isAdminDispatcher = (__myRolesCache.roles || []).some((r) => r === 'admin' || r === 'dispatcher');
+    if (isAdminDispatcher) return true;
+
+    // Driver self-generation: driverId may be AppUser.id → map to user_id
+    let allowedByDriver = false;
+    if (driverId && driverId === __meCache.id) {
+      allowedByDriver = true;
+    } else if (driverId) {
+      try {
+        const recs = await base44.entities.AppUser.filter({ id: driverId }, '-updated_date', 1);
+        const appUser = Array.isArray(recs) ? recs[0] : null;
+        if (appUser?.user_id && appUser.user_id === __meCache.id) allowedByDriver = true;
+      } catch (_) {}
+    }
+    if (!allowedByDriver) return false;
+
+    // Primary device check for driver
     if (__primaryCache.isPrimary === null || (now - __primaryCache.ts) > 30000) {
       try {
         const { getCurrentDevice } = await import('./deviceManager');
         const device = await getCurrentDevice(__meCache.id);
-        // Missing record => treat as primary (matches app behavior)
         __primaryCache.isPrimary = (device === null || device?.is_primary_tracker !== false);
       } catch (_) {
         __primaryCache.isPrimary = true; // default to primary on error
