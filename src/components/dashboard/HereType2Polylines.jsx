@@ -89,10 +89,23 @@ export default function HereType2Polylines({
     };
 
     const onReorder = refreshAll;
-    const onPolyline = refreshAll;
     const onOptimizationComplete = refreshAll;
     const onDeliveriesUpdated = refreshAll;
     const onDeliveriesImported = refreshAll;
+
+    const onPolyline = (e) => {
+      const key = e?.detail?.key;
+      if (!key) return;
+      try {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+          const coords = JSON.parse(cached);
+          if (Array.isArray(coords) && coords.length > 1) {
+            setCache((p) => ({ ...p, [key]: coords }));
+          }
+        }
+      } catch (_) {}
+    };
 
     window.addEventListener('routeReordered', onReorder);
     window.addEventListener('polylineUpdated', onPolyline);

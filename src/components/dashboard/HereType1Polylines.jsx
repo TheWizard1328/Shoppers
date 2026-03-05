@@ -36,9 +36,24 @@ export default function HereType1Polylines({
   useEffect(() => {
     const invalidate = () => { setCache({}); setRefreshToken((t) => t + 1); };
     const onReorder = invalidate;
-    const onPolyline = invalidate;
-    const onDeliveriesUpdated = () => { invalidate(); };
-    const onOptimizationComplete = () => { invalidate(); };
+    const onDeliveriesUpdated = invalidate;
+    const onOptimizationComplete = invalidate;
+    const onPolyline = (e) => {
+      const key = e?.detail?.key;
+      if (!key) return;
+      try {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+          const coords = JSON.parse(cached);
+          if (Array.isArray(coords) && coords.length > 1) {
+            setCache((p) => ({ ...p, [key]: coords }));
+            return;
+          }
+        }
+      } catch (_) {}
+      // Fallback: light refresh without nuking everything
+      setRefreshToken((t) => t + 1);
+    };
     window.addEventListener('routeReordered', onReorder);
     window.addEventListener('polylineUpdated', onPolyline);
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);

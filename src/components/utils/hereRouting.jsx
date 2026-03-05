@@ -22,8 +22,15 @@ const ensurePolylineSubscription = () => {
             ? `here_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
             : null;
           if (key) {
-            try { memoryCache.delete(key); } catch (_) {}
-            try { localStorage.removeItem(key); } catch (_) {}
+            try {
+              if (rec.encoded_polyline) {
+                const coords = decodeGooglePolyline(rec.encoded_polyline);
+                if (Array.isArray(coords) && coords.length > 1) {
+                  memoryCache.set(key, coords);
+                  try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
+                }
+              }
+            } catch (_) {}
             try { window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: rec.driver_id, deliveryDate: rec.delivery_date, key } })); } catch (_) {}
           }
         }
