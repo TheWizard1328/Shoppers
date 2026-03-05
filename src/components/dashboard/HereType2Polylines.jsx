@@ -14,6 +14,7 @@ export default function HereType2Polylines({
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
   const [optimizing, setOptimizing] = useState(false);
+  const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
 
   // Offline polyline hydration helper
   const round5 = (n) => Number(n.toFixed(5));
@@ -240,5 +241,7 @@ export default function HereType2Polylines({
     }
   });
 
-  return lines.length ? <>{lines}</> : null;
+  // Preserve last non-empty set to prevent blanking on date flips/loading
+  useEffect(() => { if (lines.length) setLastNonEmptyLines(lines); }, [lines.length, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
+  return lines.length ? <>{lines}</> : (lastNonEmptyLines.length ? <>{lastNonEmptyLines}</> : null);
 }

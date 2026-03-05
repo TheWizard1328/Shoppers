@@ -49,6 +49,7 @@ export default function HereType1Polylines({
     return false;
   };
   const [optimizing, setOptimizing] = useState(false);
+  const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
 
   const driverStops = useMemo(() => {
     const map = new Map();
@@ -279,5 +280,8 @@ export default function HereType1Polylines({
     );
   });
 
-  return lines.length ? <>{lines}</> : null;
+  // Preserve last non-empty set to avoid flicker during data refresh/date toggles
+  useEffect(() => { if (lines.length) setLastNonEmptyLines(lines); }, [lines.length, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
+
+  return lines.length ? <>{lines}</> : (lastNonEmptyLines.length ? <>{lastNonEmptyLines}</> : null);
 }
