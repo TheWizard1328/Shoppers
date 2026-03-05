@@ -15,6 +15,43 @@ export default function HereType2Polylines({
   const [refreshToken, setRefreshToken] = useState(0);
   const [optimizing, setOptimizing] = useState(false);
 
+  // Offline polyline hydration helper
+  const round5 = (n) => Number(n.toFixed(5));
+  const decodePolyline = (str) => {
+    let index = 0, lat = 0, lng = 0, coordinates = [];
+    while (index < str.length) {
+      let b, shift = 0, result = 0;
+      do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+      lat += dlat;
+      shift = 0; result = 0;
+      do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+      lng += dlng;
+      coordinates.push([lat / 1e5, lng / 1e5]);
+    }
+    return coordinates;
+  };
+  const hydrateFromOffline = async (key, driverId, from, to, date) => {
+    try {
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', date || new Date().toISOString().slice(0,10));
+      const fLat = round5(from.latitude), fLon = round5(from.longitude);
+      const tLat = round5(to.latitude), tLon = round5(to.longitude);
+      const match = rows.find(r => r.driver_id === driverId && round5(r.segment_origin_lat) === fLat && round5(r.segment_origin_lon) === fLon && round5(r.segment_dest_lat) === tLat && round5(r.segment_dest_lon) === tLon && r.encoded_polyline);
+      if (match) {
+        const coords = decodePolyline(match.encoded_polyline);
+        if (Array.isArray(coords) && coords.length > 1) {
+          setCache((p) => ({ ...p, [key]: coords }));
+          try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  };
+  const [optimizing, setOptimizing] = useState(false);
+
   // Map driverId -> color from parent-provided driverRoutes (keeps colors consistent with Type 3)
   const driverColorMap = useMemo(() => {
     const map = new Map();
@@ -129,11 +166,15 @@ export default function HereType2Polylines({
         const key = `here_${a.latitude.toFixed(5)}_${a.longitude.toFixed(5)}_${b.latitude.toFixed(5)}_${b.longitude.toFixed(5)}`;
         if (cache[key]) continue;
         const jitter = Math.min(800, i * 75 + Math.floor(Math.random() * 120));
-        setTimeout(() => {
-          getHerePolyline(driverId, { latitude: a.latitude, longitude: a.longitude }, { latitude: b.latitude, longitude: b.longitude }, a.delivery_date).then((coords) => {
-            if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
-          });
-        }, jitter);
+        (async () => {
+          const ok = await hydrateFromOffline(key, driverId, a, b, a.delivery_date);
+          if (ok) return;
+          setTimeout(() => {
+            getHerePolyline(driverId, { latitude: a.latitude, longitude: a.longitude }, { latitude: b.latitude, longitude: b.longitude }, a.delivery_date).then((coords) => {
+              if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
+            });
+          }, jitter);
+        })();
       }
     });
   }, [isViewingCurrentDate, driverIncomplete, refreshToken]);

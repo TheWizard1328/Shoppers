@@ -12,6 +12,42 @@ export default function HereType1Polylines({
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
+
+  // Offline polyline hydration helper
+  const round5 = (n) => Number(n.toFixed(5));
+  const decodePolyline = (str) => {
+    let index = 0, lat = 0, lng = 0, coordinates = [];
+    while (index < str.length) {
+      let b, shift = 0, result = 0;
+      do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+      lat += dlat;
+      shift = 0; result = 0;
+      do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+      lng += dlng;
+      coordinates.push([lat / 1e5, lng / 1e5]);
+    }
+    return coordinates;
+  };
+  const hydrateFromOffline = async (key, driverId, from, to, date) => {
+    try {
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', date || new Date().toISOString().slice(0,10));
+      const fLat = round5(from.latitude), fLon = round5(from.longitude);
+      const tLat = round5(to.latitude), tLon = round5(to.longitude);
+      const match = rows.find(r => r.driver_id === driverId && round5(r.segment_origin_lat) === fLat && round5(r.segment_origin_lon) === fLon && round5(r.segment_dest_lat) === tLat && round5(r.segment_dest_lon) === tLon && r.encoded_polyline);
+      if (match) {
+        const coords = decodePolyline(match.encoded_polyline);
+        if (Array.isArray(coords) && coords.length > 1) {
+          setCache((p) => ({ ...p, [key]: coords }));
+          try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  };
   const [optimizing, setOptimizing] = useState(false);
 
   const driverStops = useMemo(() => {
@@ -87,12 +123,16 @@ export default function HereType1Polylines({
       if (!lastCompleted || !nextStop) return;
       const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
       if (cache[key]) return;
-      const delay = Math.floor(Math.random() * 150);
-      setTimeout(() => {
-        getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: nextStop.latitude, longitude: nextStop.longitude }).then((coords) => {
-          if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
-        });
-      }, delay);
+      (async () => {
+        const ok = await hydrateFromOffline(key, driverId, lastCompleted, nextStop, lastCompleted.delivery_date);
+        if (ok) return;
+        const d = Math.floor(Math.random() * 150);
+        setTimeout(() => {
+          getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: nextStop.latitude, longitude: nextStop.longitude }).then((coords) => {
+            if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
+          });
+        }, d);
+      })();
       });
   }, [isViewingCurrentDate, driverStops, refreshToken]);
 
@@ -111,12 +151,16 @@ export default function HereType1Polylines({
       if (!lastCompleted || !home) return;
       const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}`;
       if (cache[key]) return;
-      const delay2 = Math.floor(Math.random() * 150);
-      setTimeout(() => {
-        getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: home.latitude, longitude: home.longitude }).then((coords) => {
-          if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
-        });
-      }, delay2);
+      (async () => {
+        const ok = await hydrateFromOffline(key, driverId, lastCompleted, home, lastCompleted.delivery_date);
+        if (ok) return;
+        const d2 = Math.floor(Math.random() * 150);
+        setTimeout(() => {
+          getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: home.latitude, longitude: home.longitude }).then((coords) => {
+            if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
+          });
+        }, d2);
+      })();
       });
   }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers, refreshToken]);
 
