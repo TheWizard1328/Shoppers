@@ -2704,8 +2704,9 @@ export default function DeliveryForm({
               throw new Error(errorMessage);
             })
         );
-        await Promise.all(trUpdatePromises);
-        console.log('[AddToRoute] ✅ Existing TR#s corrected');
+        Promise.allSettled(trUpdatePromises)
+          .then(() => console.log('[AddToRoute] ✅ Existing TR#s corrected (bg)'))
+          .catch(() => {});
       }
 
       // Second, update existing deliveries (both pending and status-changed) - batched for speed
@@ -2781,9 +2782,13 @@ export default function DeliveryForm({
             });
         });
 
-        console.log(`[AddToRoute] 🚀 Batching ${updatePromises.length} updates in parallel...`);
-        await Promise.all(updatePromises);
-        console.log('[AddToRoute] ✅ All existing deliveries updated');(()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(existingDeliveries.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});if(ids.length)console.log('🗓️ [BatchSave] Updated last_delivery_date for',ids.length,'patients');}catch(_){}})()
+        console.log(`[AddToRoute] 🚀 Batching ${updatePromises.length} updates in parallel (bg)...`);
+        Promise.allSettled(updatePromises)
+          .then(() => {
+            console.log('[AddToRoute] ✅ All existing deliveries updated (bg)');
+            (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(existingDeliveries.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});if(ids.length)console.log('🗓️ [BatchSave] Updated last_delivery_date for',ids.length,'patients');}catch(_){}})()
+          })
+          .catch(() => {});
       }
 
       // CRITICAL: Create ALL default pickups ONLY for new routes (isNewRouteWithZeroStops = true)
@@ -2931,7 +2936,9 @@ export default function DeliveryForm({
           });
 
         if (squarePromises.length > 0) {
-          await Promise.all(squarePromises);
+          Promise.allSettled(squarePromises)
+            .then(()=>console.log('✅ [Square] COD background tasks done'))
+            .catch(()=>{});
         }
         console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
@@ -3027,40 +3034,29 @@ export default function DeliveryForm({
       }
 
       // CRITICAL: Force IMMEDIATE backend data fetch (don't wait for smart refresh cycle)
-      console.log('[AddToRoute] 🔄 IMMEDIATE: Fetching fresh data from backend...');
-      try {
-        const freshDeliveries = await base44.entities.Delivery.filter({
-          driver_id: formData.driver_id,
-          delivery_date: formData.delivery_date
-        });
-        
-        // Update offline DB immediately
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        
-        // Dispatch immediate update event with fresh data
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
-            deliveryDate: formData.delivery_date, 
-            driverId: formData.driver_id,
-            triggeredBy: 'doneButtonCreates',
-            immediate: true,
-            freshDeliveries: freshDeliveries // Include fresh data for instant UI update
-          }
-        }));
-        
-        console.log(`✅ [AddToRoute] Immediate refresh complete - ${freshDeliveries.length} deliveries`);
-      } catch (fetchError) {
-        console.warn('⚠️ [AddToRoute] Immediate fetch failed, will rely on smart refresh:', fetchError);
-        // Fallback to regular event without fresh data
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
-            deliveryDate: formData.delivery_date, 
-            driverId: formData.driver_id,
-            triggeredBy: 'doneButtonCreates'
-          }
-        }));
-      }
+      console.log('[AddToRoute] 🔄 Scheduling background data refresh...');
+      setTimeout(async () => {
+        try {
+          const freshDeliveries = await base44.entities.Delivery.filter({
+            driver_id: formData.driver_id,
+            delivery_date: formData.delivery_date
+          });
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { 
+              deliveryDate: formData.delivery_date, 
+              driverId: formData.driver_id,
+              triggeredBy: 'doneButtonCreates',
+              immediate: true,
+              freshDeliveries
+            }
+          }));
+          console.log(`✅ [AddToRoute] Background refresh complete - ${freshDeliveries.length} deliveries`);
+        } catch (e) {
+          console.warn('⚠️ [AddToRoute] Background refresh failed:', e);
+        }
+      }, 0);
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
       // CRITICAL: Clear staged state AFTER dispatching event
@@ -3383,22 +3379,19 @@ export default function DeliveryForm({
       // SQUARE INTEGRATION: Create COD item when delivery transitions to in_transit
       // Note: formData.cod_total_amount_required is in CENTS (multiplied by 100 in form)
       if (statusChangedToInTransit && delivery?.id && formData.cod_total_amount_required > 0) {
-        try {
+        setTimeout(() => {
           const store = stores?.find(s => s && s.id === formData.store_id);
           const codAmountDollars = formData.cod_total_amount_required / 100;
-          console.log('💳 [Square] Creating COD item for in_transit delivery:', delivery.id, 'Amount:', codAmountDollars);
-          await base44.functions.invoke('squareCreateCodItem', {
+          console.log('💳 [Square] (bg) Creating COD item for in_transit delivery:', delivery.id, 'Amount:', codAmountDollars);
+          base44.functions.invoke('squareCreateCodItem', {
             deliveryId: delivery.id,
             patientName: formData.patient_name,
             storeAbbreviation: store?.abbreviation || '',
             codAmount: codAmountDollars,
             deliveryDate: formData.delivery_date,
             storeId: formData.store_id
-          });
-          console.log('✅ [Square] COD item created');
-        } catch (squareError) {
-          console.error('⚠️ [Square] Failed to create COD item:', squareError);
-        }
+          }).then(()=>console.log('✅ [Square] COD item created (bg)')).catch((e)=>console.error('⚠️ [Square] Failed to create COD item (bg):', e));
+        }, 0);
       }
 
       // Check if status changed to a completion status (completed, cancelled, failed)
@@ -3408,17 +3401,14 @@ export default function DeliveryForm({
 
       // SQUARE INTEGRATION: Delete COD item when delivery is completed or failed
       if (statusChangedToCompletion && delivery?.id && (formData.status === 'completed' || formData.status === 'failed')) {
-        try {
-          console.log('💳 [Square] Deleting COD item for completed/failed delivery:', delivery.id);
-          await base44.functions.invoke('squareDeleteCodItem', {
+        setTimeout(() => {
+          console.log('💳 [Square] (bg) Deleting COD item for completed/failed delivery:', delivery.id);
+          base44.functions.invoke('squareDeleteCodItem', {
             deliveryId: delivery.id,
             reason: formData.status
-          });
-          console.log('✅ [Square] COD item deleted');
-        } catch (squareError) {
-          console.warn('⚠️ [Square] Failed to delete COD item:', squareError.message);
-          // Don't block the delivery update if Square fails
-        }
+          }).then(()=>console.log('✅ [Square] COD item deleted (bg)'))
+          .catch((squareError)=>console.warn('⚠️ [Square] Failed to delete COD item (bg):', squareError?.message));
+        }, 0);
       }
 
       // SQUARE INTEGRATION: Delete COD item if COD was removed (checkbox unchecked)
@@ -3426,22 +3416,18 @@ export default function DeliveryForm({
         (formData.cod_total_amount_required === 0 || !formData.cod_total_amount_required);
       
       if (codWasRemoved && delivery?.id) {
-        try {
-          console.log('💳 [Square] Deleting COD item - COD was removed from delivery:', delivery.id);
-          
-          // CRITICAL: Clear cod_payments array when COD is removed
-          dataToSave.cod_payments = [];
-          dataToSave.cod_payment_type = 'No Payment';
-          dataToSave.cod_amount = '';
-          
-          await base44.functions.invoke('squareDeleteCodItem', {
+        console.log('💳 [Square] (bg) Deleting COD item - COD was removed from delivery:', delivery.id);
+        // CRITICAL: Clear cod_payments array when COD is removed
+        dataToSave.cod_payments = [];
+        dataToSave.cod_payment_type = 'No Payment';
+        dataToSave.cod_amount = '';
+        setTimeout(() => {
+          base44.functions.invoke('squareDeleteCodItem', {
             deliveryId: delivery.id,
             reason: 'cod_removed'
-          });
-          console.log('✅ [Square] COD item deleted (COD removed)');
-        } catch (squareError) {
-          console.warn('⚠️ [Square] Failed to delete COD item:', squareError.message);
-        }
+          }).then(()=>console.log('✅ [Square] COD item deleted (bg, COD removed)'))
+          .catch((squareError)=>console.warn('⚠️ [Square] Failed to delete COD item (bg):', squareError?.message));
+        }, 0);
       }
 
       // CRITICAL: Save to both offline and online databases using local-first approach
@@ -3580,16 +3566,17 @@ export default function DeliveryForm({
             d.delivery_date === formData.delivery_date &&
             incompleteStatuses.includes(d.status)
           );
-          
           if (incompleteDeliveries.length > 0) {
-            const response = await base44.functions.invoke('calculateRealTimeETA', {
-              driverId: formData.driver_id,
-              deliveryDate: formData.delivery_date
-            });
-            console.log(`✅ [DeliveryForm] ETAs updated for ${incompleteDeliveries.length} incomplete stops`);
+            setTimeout(() => {
+              base44.functions.invoke('calculateRealTimeETA', {
+                driverId: formData.driver_id,
+                deliveryDate: formData.delivery_date
+              }).then(()=>console.log(`✅ [DeliveryForm] ETAs updated (bg) for ${incompleteDeliveries.length} incomplete stops`))
+              .catch((error)=>console.error('❌ [DeliveryForm] ETA update failed (bg):', error));
+            }, 0);
           }
         } catch (error) {
-          console.error('❌ [DeliveryForm] ETA update failed:', error);
+          console.error('❌ [DeliveryForm] ETA update setup failed:', error);
         }
       }
 
@@ -3597,8 +3584,11 @@ export default function DeliveryForm({
       if (delivery && formData.driver_id && formData.delivery_date) {
         console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
         try {
-          await reorderStops(formData.driver_id, formData.delivery_date, allDeliveries);
-          console.log('✅ [DeliveryForm] Stop reordering complete');
+          setTimeout(() => {
+            reorderStops(formData.driver_id, formData.delivery_date, allDeliveries)
+              .then(()=>console.log('✅ [DeliveryForm] Stop reordering complete (bg)'))
+              .catch((error)=>console.error('❌ [DeliveryForm] Stop reordering failed (bg):', error));
+          }, 0);
         } catch (error) {
           console.error('❌ [DeliveryForm] Stop reordering failed:', error);
         }
