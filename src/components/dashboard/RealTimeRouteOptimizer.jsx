@@ -68,9 +68,11 @@ export default function RealTimeRouteOptimizer({
     }
 
     console.log('🔄 [RealTimeRouteOptimizer] Triggering route optimization for driver:', selectedDriverId);
-    window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
-      detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer' }
-    }));
+    if (showUIRef.current) {
+      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
+        detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer', showUI: true }
+      }));
+    }
 
     try {
       const response = await base44.functions.invoke('optimizeRouteRealTime', {
@@ -86,13 +88,14 @@ export default function RealTimeRouteOptimizer({
         if (data.routeChanged) {
           // CRITICAL: Backend has already updated stop_order and ETAs
           // Just show notification and force UI refresh
-          setNotification({
-            id: Date.now(),
-            updates: data.optimizedRoute || [],
-            totalStops: data.totalStops || 0
-          });
-
-          setTimeout(() => setNotification(null), 6000);
+          if (showUIRef.current) {
+            setNotification({
+              id: Date.now(),
+              updates: data.optimizedRoute || [],
+              totalStops: data.totalStops || 0
+            });
+            setTimeout(() => setNotification(null), 6000);
+          }
 
           if (onRouteOptimized) {
             onRouteOptimized(data.optimizedRoute);
@@ -112,24 +115,27 @@ export default function RealTimeRouteOptimizer({
             detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer' }
           }));
           window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
-            detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer' }
+            detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer', showUI: showUIRef.current }
           }));
         }
       }
     } catch (error) {
       console.error('❌ [RealTimeRouteOptimizer] Error:', error);
     }
+    showUIRef.current = false;
   };
 
   // Track when optimization is in progress to prevent duplicate runs
   const isOptimizingRef = useRef(false);
   const lastOptimizationTimeRef = useRef(0);
   const OPTIMIZATION_COOLDOWN = 15000; // 15 seconds (balanced smoothing)
+  const showUIRef = useRef(false);
 
   useEffect(() => {
     // Listen for manual optimization triggers
     const handleTriggerOptimization = () => {
       console.log('🎯 [RealTimeRouteOptimizer] Manual trigger received');
+      showUIRef.current = true;
       optimizeRoute();
     };
 
@@ -142,6 +148,8 @@ export default function RealTimeRouteOptimizer({
       if (!allowedTriggers.has(triggeredBy)) {
         return;
       }
+      const uiTriggers = new Set(['assignAll', 'acceptAll', 'reoptimizeRoute', 'manualOptimize']);
+      showUIRef.current = uiTriggers.has(triggeredBy);
       
       // Skip if data is already optimized (came from backend optimization)
       if (alreadyOptimized) {
