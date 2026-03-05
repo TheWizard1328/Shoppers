@@ -76,7 +76,11 @@ Deno.serve(async (req) => {
         }
 
         console.info('[HERE] route OK', { points: allCoords.length, sections: sections.length });
-        return Response.json({ coordinates: allCoords });
+        const totalDistanceMeters = sections.reduce((sum, s) => sum + (s.summary?.distance || 0), 0);
+        const totalDurationSeconds = sections.reduce((sum, s) => sum + (s.summary?.duration || 0), 0);
+        const estimated_distance_km = Math.round((totalDistanceMeters / 1000) * 10) / 10;
+        const estimated_duration_minutes = Math.round(totalDurationSeconds / 60);
+        return Response.json({ coordinates: allCoords, estimated_distance_km, estimated_duration_minutes });
     } catch (error) {
         console.error('[HERE] unexpected error', error?.message || error);
         return Response.json({ error: error.message }, { status: 500 });

@@ -321,14 +321,18 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
           if (Array.isArray(existing) && existing.length) {
             const updated = await base44.entities.DriverRoutePolyline.update(existing[0].id, {
               encoded_polyline: encoded,
-              last_generated_at: new Date().toISOString()
+              last_generated_at: new Date().toISOString(),
+              estimated_distance_km: res?.data?.estimated_distance_km,
+              estimated_duration_minutes: res?.data?.estimated_duration_minutes
             });
             // Sync to offline DB as well
             const offlineRec = {
               ...(existing[0] || {}),
               ...(updated || {}),
               encoded_polyline: encoded,
-              last_generated_at: new Date().toISOString()
+              last_generated_at: new Date().toISOString(),
+              estimated_distance_km: res?.data?.estimated_distance_km,
+              estimated_duration_minutes: res?.data?.estimated_duration_minutes
             };
             await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [offlineRec]);
           } else {
@@ -340,7 +344,9 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
               segment_origin_lon: rounded(fromStop.longitude),
               segment_dest_lat: rounded(toStop.latitude),
               segment_dest_lon: rounded(toStop.longitude),
-              last_generated_at: new Date().toISOString()
+              last_generated_at: new Date().toISOString(),
+              estimated_distance_km: res?.data?.estimated_distance_km,
+              estimated_duration_minutes: res?.data?.estimated_duration_minutes
             });
             // Save created record offline
             if (created) {
