@@ -284,6 +284,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       // CRITICAL: Set all fields based on status
       if (newStatus === 'on_duty') {
         console.log('📍 [DriverStatusToggle] Going ON DUTY - enabling location tracking...');
+        // Force-enable routes on map for this device
+        try { localStorage.setItem('rxdeliver_show_routes', 'true'); } catch (_) {}
+        try { window.dispatchEvent(new CustomEvent('forceEnableRoutes')); } catch (_) {}
         updatePayload.location_tracking_enabled = true;
         updatePayload.location_updated_at = nowTimestamp;
         updatePayload.current_latitude = currentLat;
