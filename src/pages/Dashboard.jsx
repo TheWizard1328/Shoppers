@@ -619,42 +619,47 @@ function Dashboard() {
     
     // CRITICAL: Listen for manual refresh payroll stats trigger from SmartRefreshIndicator
     const handleRefreshPayrollStatsAfterSync = async () => {
-      // Only fetch if: (driver viewing own route) OR (admin viewing any driver)
       const shouldFetch = (isDriver && selectedDriverId === currentUser?.id) || (isAdmin && selectedDriverId && selectedDriverId !== 'all');
-      
-      if (!shouldFetch) {
-        console.log('⏭️ [Payroll Stats Refresh] Skipping - conditions not met');
-        return;
-      }
+      if (!shouldFetch) { return; }
 
-      const targetDriverId = isAdmin ? selectedDriverId : currentUser.id;
-      console.log('📊 [Payroll Stats Refresh] Fetching after sync for driver:', targetDriverId, 'date:', format(selectedDate, 'yyyy-MM-dd'));
+      const MIN_INTERVAL = 10000;
+      const now = Date.now();
+      const last = window.__lastPayrollFetchAt || 0;
+      if (window.__payrollInFlight || (now - last) < MIN_INTERVAL) { return; }
 
-      try {
-        const response = await base44.functions.invoke('getDriverPayrollStats', {
-          driverId: targetDriverId,
-          deliveryDate: format(selectedDate, 'yyyy-MM-dd')
-        });
+      const inProgress = !!sessionStorage.getItem('driver_status_change_in_progress');
+      const delay = inProgress ? 1500 : 0;
 
-        const data = response?.data || response;
-        console.log('📊 [Payroll Stats Refresh] Response:', data);
-        
-        if (data?.success) {
-          const stats = {
-            totalPay: data.totalPay || 0,
-            totalKm: data.totalKm || 0,
-            totalExtraKm: data.totalExtraKm || 0,
-            totalTimeOnDuty: data.totalTimeOnDuty || '00:00',
-            extraKmLimit: data.extraKmLimit || 0
-          };
-          console.log('✅ [Payroll Stats Refresh] Updated stats:', stats);
-          setPerformanceStats(stats);
-        } else {
-          console.warn('⚠️ [Payroll Stats Refresh] Success=false:', data?.error);
+      setTimeout(async () => {
+        if (window.__payrollInFlight) return;
+        window.__payrollInFlight = true;
+        setIsLoadingPayrollStats(true);
+        try {
+          const targetDriverId = isAdmin ? selectedDriverId : currentUser.id;
+          const response = await base44.functions.invoke('getDriverPayrollStats', {
+            driverId: targetDriverId,
+            deliveryDate: format(selectedDate, 'yyyy-MM-dd')
+          });
+          const data = response?.data || response;
+          if (data?.success) {
+            setPerformanceStats({
+              totalPay: data.totalPay || 0,
+              totalKm: data.totalKm || 0,
+              totalExtraKm: data.totalExtraKm || 0,
+              totalTimeOnDuty: data.totalTimeOnDuty || '00:00',
+              extraKmLimit: data.extraKmLimit || 0
+            });
+          } else {
+            setPerformanceStats(null);
+          }
+        } catch (_) {
+          setPerformanceStats(null);
+        } finally {
+          setIsLoadingPayrollStats(false);
+          window.__payrollInFlight = false;
+          window.__lastPayrollFetchAt = Date.now();
         }
-      } catch (error) {
-        console.warn('⚠️ [Payroll Stats Refresh] Failed:', error.message);
-      }
+      }, delay);
     };
 
     // CRITICAL: Listen for live travel_dist updates
@@ -767,65 +772,49 @@ function Dashboard() {
     checkPrimaryDevice();
   }, [currentUser?.id]);
 
-  // Fetch actual payroll stats when driver or date changes
+  // Fetch payroll stats with debounce/throttle to avoid 429s
   useEffect(() => {
-    const fetchPayrollStats = async () => {
-      console.log('💰 [Payroll Stats] Checking conditions:', {
-        isDriver,
-        isAdmin,
-        hasUserId: !!currentUser?.id,
-        selectedDriverId,
-        currentUserId: currentUser?.id,
-        match: selectedDriverId === currentUser?.id,
-        isAll: selectedDriverId === 'all'
-      });
+    const shouldFetch = (isDriver && selectedDriverId === currentUser?.id) || (isAdmin && selectedDriverId && selectedDriverId !== 'all');
+    if (!shouldFetch) { setPerformanceStats(null); setIsLoadingPayrollStats(false); return; }
 
-      // Fetch if: (driver viewing own route) OR (admin viewing any driver)
-      const shouldFetch = (isDriver && selectedDriverId === currentUser?.id) || (isAdmin && selectedDriverId && selectedDriverId !== 'all');
-      
-      if (!shouldFetch) {
-        console.log('⏭️ [Payroll Stats] Skipping fetch - conditions not met');
-        setPerformanceStats(null);
-        setIsLoadingPayrollStats(false);
-        return;
-      }
+    const MIN_INTERVAL = 10000; // 10s
+    const now = Date.now();
+    const last = window.__lastPayrollFetchAt || 0;
+    const inProgress = !!sessionStorage.getItem('driver_status_change_in_progress');
+    const delay = Math.max(0, (last + MIN_INTERVAL) - now) + (inProgress ? 1500 : 0);
 
-      const targetDriverId = isAdmin ? selectedDriverId : currentUser.id;
-      console.log('📊 [Payroll Stats] Fetching for driver:', targetDriverId, 'date:', format(selectedDate, 'yyyy-MM-dd'));
+    const timer = setTimeout(async () => {
+      if (window.__payrollInFlight) return;
+      window.__payrollInFlight = true;
       setIsLoadingPayrollStats(true);
-
       try {
+        const targetDriverId = isAdmin ? selectedDriverId : currentUser.id;
         const response = await base44.functions.invoke('getDriverPayrollStats', {
           driverId: targetDriverId,
           deliveryDate: format(selectedDate, 'yyyy-MM-dd')
         });
-
         const data = response?.data || response;
-        console.log('📊 [Payroll Stats] Response:', data);
-        
         if (data?.success) {
-          const stats = {
+          setPerformanceStats({
             totalPay: data.totalPay || 0,
             totalKm: data.totalKm || 0,
             totalExtraKm: data.totalExtraKm || 0,
             totalTimeOnDuty: data.totalTimeOnDuty || '00:00',
             extraKmLimit: data.extraKmLimit || 0
-          };
-          console.log('✅ [Payroll Stats] Setting stats:', stats);
-          setPerformanceStats(stats);
+          });
         } else {
-          console.warn('⚠️ [Payroll Stats] Success=false:', data?.error);
           setPerformanceStats(null);
         }
-      } catch (error) {
-        console.warn('⚠️ [Payroll Stats] Failed to fetch:', error.message);
+      } catch (_) {
         setPerformanceStats(null);
       } finally {
         setIsLoadingPayrollStats(false);
+        window.__payrollInFlight = false;
+        window.__lastPayrollFetchAt = Date.now();
       }
-    };
+    }, delay);
 
-    fetchPayrollStats();
+    return () => clearTimeout(timer);
   }, [isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate]);
 
   // Track dynamically measured heights for map padding
