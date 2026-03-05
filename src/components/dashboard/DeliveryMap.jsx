@@ -999,9 +999,6 @@ export default function DeliveryMap({
   ]);
 
   const calculateFannedPositionWrapperWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
-    if (currentZoom < 11 || currentZoom > 18) {
-      return [originalLat, originalLng];
-    }
     const baseRadius = 0.0008;
     const dynamicRadius = 0.0008;
     const radius = baseRadius + (18 - currentZoom) * dynamicRadius;
@@ -1057,7 +1054,7 @@ export default function DeliveryMap({
       const markersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation];
       
       markersAtLocation.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-      const bounds = L.latLngBounds([marker.latitude, marker.longitude]);
+      const bounds = L.latLngBounds([]);
       
       markersAtLocation.forEach((m, index) => {
         const [fannedLat, fannedLng] = calculateFannedPositionWrapperWrapper(
@@ -1093,14 +1090,9 @@ export default function DeliveryMap({
           duration: 0.6
         };
         
-        // Create bounds around just the original cluster point
-        const clusterBounds = L.latLngBounds([
-          [marker.latitude, marker.longitude],
-          [marker.latitude, marker.longitude]
-        ]);
-        
-        (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(clusterBounds, fitOptions);
-        
+        // Fit to fanned bounds (ensures sufficient zoom for separation)
+        (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(bounds, fitOptions);
+
         setTimeout(() => {
           setFannedLocationKey(locationKey);
         }, 650);
