@@ -90,8 +90,8 @@ function encodeGooglePolyline(points) {
 }
 
 // Primary device gate for HERE polyline generation
+// DEPRECATED: primary-device restriction removed
 let __meCache = { id: null, ts: 0 };
-let __primaryCache = { isPrimary: null, ts: 0 };
 let __myRolesCache = { roles: null, ts: 0 };
 async function canGenerateForDriver(driverId) {
   try {
