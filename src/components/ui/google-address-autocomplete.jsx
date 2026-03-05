@@ -203,7 +203,9 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         longitude: data.longitude,
         place_id: prediction.place_id,
         distance: prediction.distance,
-        unit: data.unit || null
+        unit: data.unit || null,
+        street_number: data.street_number || null,
+        route: data.route || null
       };
 
       console.log('[GoogleAddressAutocomplete] Address data being sent to parent:', addressData);

@@ -285,9 +285,11 @@ export default function PatientForm({
   }, [setIsFormOverlayOpen]);
 
   const handleAddressSelect = (addressData) => {
-    // Choose street first; ensure house number stays; then abbreviate directionals
-    const rawStreet = addressData.street_address || addressData.full_address || '';
-    const abbreviatedAddress = abbreviateAddress(rawStreet);
+    // Build from components if present to ensure we keep house number
+    const street = (addressData.street_number && addressData.route)
+      ? `${addressData.street_number} ${addressData.route}`
+      : (addressData.street_address || addressData.full_address || '');
+    const abbreviatedAddress = abbreviateAddress(street);
 
     // If unit/subpremise came back, prefill unit_number
     const prefilledUnit = addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number;
