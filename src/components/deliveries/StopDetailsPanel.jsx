@@ -57,8 +57,8 @@ export default function StopDetailsPanel({
   currentUser,
   onClose,
   onStatusUpdate,
-  onEditDelivery = () => console.warn('[StopDetailsPanel] onEditDelivery not provided'),
-  onDeleteDelivery = null,
+  onEdit = () => console.warn('[StopDetailsPanel] onEdit not provided'),
+  onDelete = null,
   onRestart
 }) {
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
@@ -367,7 +367,7 @@ export default function StopDetailsPanel({
             {currentUser?.app_roles?.includes('admin') && (
               <div className="absolute bottom-4 right-4 flex gap-2">
                 <Button 
-                  onClick={() => onEditDelivery(delivery)}
+                  onClick={() => onEdit(delivery)}
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
@@ -377,14 +377,14 @@ export default function StopDetailsPanel({
                 <Button 
                   onClick={() => {
                     if (confirm('Are you sure you want to delete this delivery?')) {
-                      if (typeof onDeleteDelivery === 'function') {
-                        onDeleteDelivery(delivery.id);
+                      if (typeof onDelete === 'function') {
+                        onDelete(delivery.id);
                       } else {
-                        console.warn('[StopDetailsPanel] onDeleteDelivery not provided');
+                        console.warn('[StopDetailsPanel] onDelete not provided');
                       }
                     }
                   }}
-                  disabled={typeof onDeleteDelivery !== 'function'}
+                  disabled={typeof onDelete !== 'function'}
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 hover:bg-red-50"
