@@ -222,11 +222,14 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       hasUserTyped.current = false;
       initialValue.current = streetAddress;
       lastSearchText.current = streetAddress;
-      
+
+      // Prevent blur formatter from altering the value during the immediate refocus to unit field
+      justSelected.current = true;
+
       // Clear the flag after a short delay
       setTimeout(() => {
         justSelected.current = false;
-      }, 300);
+      }, 400);
     } catch (error) {
       console.error('[GoogleAddressAutocomplete] Error fetching place details:', error);
       // Fallback to using the prediction description
