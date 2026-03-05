@@ -622,7 +622,7 @@ function Dashboard() {
       const shouldFetch = (isDriver && selectedDriverId === currentUser?.id) || (isAdmin && selectedDriverId && selectedDriverId !== 'all');
       if (!shouldFetch) { return; }
 
-      const MIN_INTERVAL = 10000;
+      const MIN_INTERVAL = 30000;
       const now = Date.now();
       const last = window.__lastPayrollFetchAt || 0;
       if (window.__payrollInFlight || (now - last) < MIN_INTERVAL) { return; }
@@ -777,7 +777,7 @@ function Dashboard() {
     const shouldFetch = (isDriver && selectedDriverId === currentUser?.id) || (isAdmin && selectedDriverId && selectedDriverId !== 'all');
     if (!shouldFetch) { setPerformanceStats(null); setIsLoadingPayrollStats(false); return; }
 
-    const MIN_INTERVAL = 10000; // 10s
+    const MIN_INTERVAL = 30000; // 10s
     const now = Date.now();
     const last = window.__lastPayrollFetchAt || 0;
     const inProgress = !!sessionStorage.getItem('driver_status_change_in_progress');
