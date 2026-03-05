@@ -208,7 +208,8 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         video: {
           facingMode: { ideal: 'environment' },
           width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          height: { ideal: 1080 },
+          aspectRatio: { ideal: 16/9 }
         },
         audio: false
       };
@@ -217,8 +218,13 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       try {
         const { BarcodeFormat: BF, DecodeHintType: DHT } = { BarcodeFormat, DecodeHintType };
         const hints = new Map();
-        hints.set(DHT.POSSIBLE_FORMATS, [BF.CODE_128, BF.CODE_39, BF.EAN_13, BF.QR_CODE]);
+        hints.set(DHT.POSSIBLE_FORMATS, [
+          BF.CODE_128, BF.CODE_39, BF.CODE_93, BF.ITF,
+          BF.EAN_13, BF.EAN_8, BF.UPC_A, BF.UPC_E,
+          BF.DATA_MATRIX, BF.PDF_417, BF.QR_CODE
+        ]);
         try { hints.set(DHT.TRY_HARDER, true); } catch {}
+        try { hints.set(DHT.ASSUME_GS1, true); } catch {}
         codeReaderRef.current.setHints(hints);
       } catch {}
 
@@ -385,10 +391,14 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
           <div className="relative w-full max-w-md mx-auto mt-[22vh] px-4">
             {/* Viewfinder with embedded video */}
-            <div onClick={tapToFocus} className={`relative mx-auto h-24 max-w-[360px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
-              <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
+            <div onClick={tapToFocus} className={`relative mx-auto h-40 max-w-[420px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
+              <video ref={videoRef} className="w-full h-full object-contain" playsInline autoPlay muted />
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
+                {/* Aim tip */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="px-2 py-0.5 text-[10px] rounded bg-black/50 text-white/80">Center the barcode here</span>
+                </div>
                 <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
                 <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
                 <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl" />
@@ -423,7 +433,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
 
             {/* Status */}
             <div className="mt-2 text-center text-xs text-white/70">
-              {isStartingCamera ? 'Starting camera...' : (flashHit ? 'Captured!' : 'Point camera at a barcode')}
+              {isStartingCamera ? 'Starting camera...' : (flashHit ? 'Captured!' : 'Point camera at a barcode • Tap to focus • Use Torch/Zoom if available')}
             </div>
           </div>
         </div>
