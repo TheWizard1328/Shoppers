@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import { decode } from 'npm:here-flexible-polyline@2.0.0';
+import { decode } from 'npm:@here/flexible-polyline@2.1.0';
 
 Deno.serve(async (req) => {
     try {
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'HERE_API_KEY secret is not set' }, { status: 500 });
         }
 
-        const url = `https://router.hereapi.com/v8/routes?alternatives=0&transportMode=car&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&return=polyline&apikey=${apiKey}`;
+        const url = `https://router.hereapi.com/v8/routes?alternatives=0&transportMode=car&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&return=polyline,summary&apikey=${apiKey}`;
 
         const controller = new AbortController();
         const to = setTimeout(() => controller.abort('timeout'), 8000);
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
         }
 
         console.info('[HERE] route OK', { points: allCoords.length, sections: sections.length });
-        const totalDistanceMeters = sections.reduce((sum, s) => sum + (s.summary?.distance || 0), 0);
+        const totalDistanceMeters = sections.reduce((sum, s) => sum + (s.summary?.length || 0), 0);
         const totalDurationSeconds = sections.reduce((sum, s) => sum + (s.summary?.duration || 0), 0);
         const estimated_distance_km = Math.round((totalDistanceMeters / 1000) * 10) / 10;
         const estimated_duration_minutes = Math.round(totalDurationSeconds / 60);
