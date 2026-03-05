@@ -2033,13 +2033,6 @@ export default function DeliveryMap({
       let paddingTopLeft = optionsFromDashboard.paddingTopLeft || [60, 60];
       let paddingBottomRight = optionsFromDashboard.paddingBottomRight || [60, 60];
 
-      if (mapViewPhase === 2 && isMapViewLocked && currentDriverMarker?.latitude && currentDriverMarker?.longitude) {
-        const container = map.getContainer?.();
-        const h = container?.clientHeight || 0;
-        const extra = Math.round(h * 0.20); // push driver ~20% toward bottom using padding
-        paddingBottomRight = [paddingBottomRight[0], paddingBottomRight[1] + extra];
-      }
-
       const modifiedOptions = { 
         ...optionsFromDashboard,
         paddingTopLeft,
