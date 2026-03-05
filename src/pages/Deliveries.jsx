@@ -3339,7 +3339,7 @@ export default function DeliveriesPage() {
                 onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
                 onStatusUpdate={handleStatusUpdate}
                 onNotesUpdate={handleNotesUpdate}
-                onEditDelivery={handleEditDelivery}
+                onEdit={handleEditDelivery}
                 onDeleteDelivery={handleDeleteDelivery}
                 showDriverName={false}
                 onRestart={handleRestartDelivery}
@@ -3394,7 +3394,7 @@ export default function DeliveriesPage() {
               currentUser={currentUser}
               onClose={() => setSelectedDeliveryId(null)}
               onStatusUpdate={handleStatusUpdate}
-              onEditDelivery={handleEditDelivery}
+              onEdit={handleEditDelivery}
               onDeleteDelivery={handleDeleteDelivery}
               onRestart={handleRestartDelivery} />
 
@@ -3409,7 +3409,7 @@ export default function DeliveriesPage() {
             stores={stores || []}
             drivers={effectiveDrivers || []}
             currentUser={currentUser}
-            onEditDelivery={handleEditDelivery}
+            onEdit={handleEditDelivery}
             onEditPatient={handleEditPatient}
             onDeleteDelivery={handleDeleteDelivery}
             onRestart={handleRestartDelivery}
@@ -4261,7 +4261,7 @@ export default function DeliveriesPage() {
                   currentUser={currentUser}
                   onClose={() => setSelectedDeliveryId(null)}
                   onStatusUpdate={handleStatusUpdate}
-                  onEditDelivery={handleEditDelivery}
+                  onEdit={handleEditDelivery}
                   onDeleteDelivery={handleDeleteDelivery}
                   onRestart={handleRestartDelivery} />);
 
