@@ -101,7 +101,6 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const [canZoom, setCanZoom] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
-  const [rotateFeed, setRotateFeed] = useState(false);
 
   const adjustZoom = (delta) => {
     const track = streamRef.current?.getVideoTracks?.()[0];
@@ -261,17 +260,6 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         );
       }
 
-      // Detect portrait feeds and auto-rotate to landscape fill
-      try {
-        const onMeta = () => {
-          const v = videoRef.current;
-          if (!v) return;
-          const ratio = (v.videoWidth || 0) / Math.max(1, v.videoHeight || 1);
-          setRotateFeed(ratio < 1);
-        };
-        videoRef.current?.addEventListener('loadedmetadata', onMeta, { once: true });
-      } catch {}
-
       // capture stream ref once attached and configure focus/zoom/torch if supported
       setTimeout(() => {
         try {
@@ -418,12 +406,12 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           <div className="relative w-full max-w-5xl mx-auto mt-[12vh] px-2">
             {/* Viewfinder with embedded video */}
             <div onClick={tapToFocus} className={`relative mx-auto w-[96vw] max-w-[1000px] aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
-              <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: rotateFeed ? 'rotate(90deg)' : 'none' }} playsInline autoPlay muted />
+              <video ref={videoRef} className="w-full h-full object-contain" playsInline autoPlay muted />
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
                 {/* Aim tip */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="px-2 py-0.5 text-[10px] rounded bg-black/50 text-white/80">Hold label so bars run left→right and fill the frame</span>
+                  <span className="px-2 py-0.5 text-[10px] rounded bg-black/50 text-white/80">Hold label so bars run left→right and fill the frame (no auto-rotate)</span>
                 </div>
                 <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
                 <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
