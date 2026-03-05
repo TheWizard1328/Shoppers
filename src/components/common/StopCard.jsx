@@ -1205,7 +1205,7 @@ export default function StopCard({
             isAcceptingAll={isAcceptingAll}
             acceptButtonText={acceptButtonText}
             handleAcceptAllStops={handleAcceptAllStops}
-            onEditDelivery={onEdit}
+            onEdit={onEdit}
             onCODUpdate={onCODUpdate}
             allDeliveries={allDeliveries}
             FINISHED_STATUSES={FINISHED_STATUSES}
@@ -1857,8 +1857,8 @@ export default function StopCard({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                          {onEditDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDelivery(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                          {onEdit && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
                               <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
                             </DropdownMenuItem>
@@ -1896,7 +1896,7 @@ export default function StopCard({
 
 
 
-                          {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
+                          {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEdit || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
                           {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                             <DropdownMenuItem
                               onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}

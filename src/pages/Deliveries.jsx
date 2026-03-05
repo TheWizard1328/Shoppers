@@ -3340,7 +3340,7 @@ export default function DeliveriesPage() {
                 onStatusUpdate={handleStatusUpdate}
                 onNotesUpdate={handleNotesUpdate}
                 onEdit={handleEditDelivery}
-                onDeleteDelivery={handleDeleteDelivery}
+                onDelete={handleDeleteDelivery}
                 showDriverName={false}
                 onRestart={handleRestartDelivery}
                 allDeliveries={effectiveDeliveries || []}
@@ -3395,7 +3395,7 @@ export default function DeliveriesPage() {
               onClose={() => setSelectedDeliveryId(null)}
               onStatusUpdate={handleStatusUpdate}
               onEdit={handleEditDelivery}
-              onDeleteDelivery={handleDeleteDelivery}
+              onDelete={handleDeleteDelivery}
               onRestart={handleRestartDelivery} />
 
               </div>
@@ -3411,7 +3411,7 @@ export default function DeliveriesPage() {
             currentUser={currentUser}
             onEdit={handleEditDelivery}
             onEditPatient={handleEditPatient}
-            onDeleteDelivery={handleDeleteDelivery}
+            onDelete={handleDeleteDelivery}
             onRestart={handleRestartDelivery}
             onStatusUpdate={handleStatusUpdate}
             onNotesUpdate={handleNotesUpdate}
@@ -4262,7 +4262,7 @@ export default function DeliveriesPage() {
                   onClose={() => setSelectedDeliveryId(null)}
                   onStatusUpdate={handleStatusUpdate}
                   onEdit={handleEditDelivery}
-                  onDeleteDelivery={handleDeleteDelivery}
+                  onDelete={handleDeleteDelivery}
                   onRestart={handleRestartDelivery} />);
 
 

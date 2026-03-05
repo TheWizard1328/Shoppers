@@ -415,7 +415,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               stopOrder={stopOrder}
               showDriverName={showDriverName}
               getDriverColor={getDriverColor}
-              onEditDelivery={onEditDelivery}
+              onEdit={onEdit}
               onEditPatient={onEditPatient}
               onDeleteDelivery={onDeleteDelivery}
               onRestart={(id) => {
