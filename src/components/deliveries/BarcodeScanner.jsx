@@ -204,12 +204,22 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       isReaderActiveRef.current = true;
 
       // Prefer rear camera with decent resolution for better decode accuracy
+      // Prefer rear camera explicitly when possible
+      let selectedDeviceId = null;
+      try {
+        const inputs = await BrowserMultiFormatReader.listVideoInputDevices();
+        const back = inputs.find(d => /back|rear|environment/i.test(d.label));
+        selectedDeviceId = (back || inputs[inputs.length - 1])?.deviceId || null;
+      } catch {}
+
       const constraints = {
         video: {
+          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          aspectRatio: { ideal: 16/9 }
+          width: { min: 1280, ideal: 1920 },
+          height: { min: 720, ideal: 1080 },
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30, max: 60 }
         },
         audio: false
       };
@@ -271,6 +281,12 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           }
           if (caps.focusMode?.includes?.('continuous')) {
             track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+          }
+          if (caps.exposureMode?.includes?.('continuous')) {
+            track.applyConstraints({ advanced: [{ exposureMode: 'continuous' }] }).catch(() => {});
+          }
+          if (caps.whiteBalanceMode?.includes?.('continuous')) {
+            track.applyConstraints({ advanced: [{ whiteBalanceMode: 'continuous' }] }).catch(() => {});
           }
         } catch {}
       }, 300);
@@ -391,7 +407,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
           <div className="relative w-full max-w-md mx-auto mt-[22vh] px-4">
             {/* Viewfinder with embedded video */}
-            <div onClick={tapToFocus} className={`relative mx-auto h-40 max-w-[420px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
+            <div onClick={tapToFocus} className={`relative mx-auto h-[28vh] max-h-72 max-w-[480px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
               <video ref={videoRef} className="w-full h-full object-contain" playsInline autoPlay muted />
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
