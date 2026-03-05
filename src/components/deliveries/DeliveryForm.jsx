@@ -2365,7 +2365,7 @@ export default function DeliveryForm({
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
       hasLoadedPending.current = false; // Reset flag when closing without saves
       predictionsStopped.current = false; // Reset for next open
-      base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel(); // Close form immediately
+      handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel(); // Close form immediately
       return;
     }
 
@@ -2401,7 +2401,7 @@ export default function DeliveryForm({
         }
       })();
       
-      base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
+      handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
       
       // Background refresh (non-blocking)
       setTimeout(async () => {
@@ -2494,7 +2494,7 @@ export default function DeliveryForm({
       hasLoadedPending.current = false;
       predictionsStopped.current = false; // Reset for next open
       setIsLoadingPredictions(true); // Keep predictions blocked
-      base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
+      handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
       return;
     }
 
@@ -2989,7 +2989,7 @@ export default function DeliveryForm({
           }
         })();
 
-        base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel(); // Close form IMMEDIATELY
+        handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel(); // Close form IMMEDIATELY
 
         // CRITICAL: Immediate UI refresh events
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -3091,7 +3091,7 @@ export default function DeliveryForm({
 
       // Close form FIRST
       console.log('[AddToRoute] 🚪 Closing form...');
-      base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
+      handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
 
       // CRITICAL: Wait for form to close, reload from offline DB, then update UI
       setTimeout(async () => {
@@ -3640,7 +3640,7 @@ export default function DeliveryForm({
 
       // CRITICAL: Resume background operations AFTER closing form
       // CRITICAL: Always close form after successful update
-      base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
+      handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
       // Resume managers immediately (non-blocking)
       setTimeout(async () => {
         try {
@@ -3726,7 +3726,7 @@ export default function DeliveryForm({
         })();
         (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
         
-        base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
+        handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
       }
     } else {
       // CRITICAL: Reset the auto-load flag when canceling without changes
@@ -3754,7 +3754,7 @@ export default function DeliveryForm({
         }
       })();
       
-      base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
+      handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
     }
   }, [stagedDeliveries, onCancel, delivery]);
 
