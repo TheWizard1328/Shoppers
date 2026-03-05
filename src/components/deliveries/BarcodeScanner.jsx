@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { processBarcode } from '@/functions/processBarcode';
 import JsBarcode from 'jsbarcode';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 // Barcode preview (text fallback - JsBarcode removed)
 function BarcodeDisplay({ value, onDelete }) {
@@ -164,12 +165,49 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       setIsStartingCamera(true);
       codeReaderRef.current = new BrowserMultiFormatReader();
       isReaderActiveRef.current = true;
-      codeReaderRef.current.decodeFromVideoDevice(null, videoRef.current, (result, err) => {
-        if (result) {
-          const text = result.getText ? result.getText() : String(result?.text || '');
-          if (text) handleCameraDetected(text);
-        }
-      });
+
+      // Prefer rear camera with decent resolution for better decode accuracy
+      const constraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+
+      // Bias decoder toward common pharma/shipping symbologies
+      try {
+        const { BarcodeFormat: BF, DecodeHintType: DHT } = { BarcodeFormat, DecodeHintType };
+        const hints = new Map();
+        hints.set(DHT.POSSIBLE_FORMATS, [BF.CODE_128, BF.CODE_39, BF.EAN_13, BF.QR_CODE]);
+        codeReaderRef.current.setHints(hints);
+      } catch {}
+
+      if (typeof codeReaderRef.current.decodeFromConstraints === 'function') {
+        codeReaderRef.current.decodeFromConstraints(
+          constraints,
+          videoRef.current,
+          (result, err) => {
+            if (result) {
+              const text = result.getText ? result.getText() : String(result?.text || '');
+              if (text) handleCameraDetected(text);
+            }
+          }
+        );
+      } else {
+        codeReaderRef.current.decodeFromVideoDevice(
+          null,
+          videoRef.current,
+          (result, err) => {
+            if (result) {
+              const text = result.getText ? result.getText() : String(result?.text || '');
+              if (text) handleCameraDetected(text);
+            }
+          }
+        );
+      }
+
       // capture stream ref once attached
       setTimeout(() => { try { streamRef.current = videoRef.current?.srcObject || null; } catch {} }, 200);
     } catch (e) {
@@ -286,13 +324,12 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
 
       {/* Camera overlay */}
       {showCamera && (
-        <div className="fixed inset-0 z-50 bg-black/90">
-          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline autoPlay muted />
-
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
           <div className="relative w-full max-w-md mx-auto mt-[22vh] px-4">
-            {/* Viewfinder */}
-            <div className={`mx-auto h-20 max-w-[320px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md relative bg-black/20`}>
-              <div className="absolute inset-0 pointer-events-none">
+            {/* Viewfinder with embedded video */}
+            <div className={`relative mx-auto h-24 max-w-[360px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
+              <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
+              <div className="pointer-events-none absolute inset-0">
                 <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
                 <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
                 <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
