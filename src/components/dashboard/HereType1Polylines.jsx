@@ -184,11 +184,36 @@ export default function HereType1Polylines({
       });
   }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers, refreshToken]);
 
+  // Prefetch home -> first stop for not-yet-started routes (Type 1 pre-route)
+  useEffect(() => {
+    if (!isViewingCurrentDate || optimizing) return;
+    driverStops.forEach((stops, driverId) => {
+      const hasCompleted = (stops?.complete?.length || 0) > 0;
+      const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
+      if (hasCompleted || !hasIncomplete) return;
+      const first = [...stops.incomplete].sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0))[0];
+      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+      if (!first || !home) return;
+      const key = `here_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}_${first.latitude.toFixed(5)}_${first.longitude.toFixed(5)}`;
+      if (cache[key]) return;
+      (async () => {
+        const ok = await hydrateFromOffline(key, driverId, home, first, first.delivery_date);
+        if (ok) return;
+        const d = Math.floor(Math.random() * 150);
+        setTimeout(() => {
+          getHerePolyline(driverId, { latitude: home.latitude, longitude: home.longitude }, { latitude: first.latitude, longitude: first.longitude }, first.delivery_date).then((coords) => {
+            if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
+          });
+        }, d);
+      })();
+    });
+  }, [isViewingCurrentDate, driverStops, driverHomeMarkers, optimizing, refreshToken]);
+
   /* always render polylines on any date; previously gated by current date */
 
   const lines = [];
 
-  // Pre-route fallback: draw home -> first stop (dashed grey) when route hasn't started yet
+  // Pre-route: prefer real HERE polyline (home -> first); only show dashed after a short grace period
   driverStops.forEach((stops, driverId) => {
     const hasCompleted = (stops?.complete?.length || 0) > 0;
     const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
@@ -200,11 +225,36 @@ export default function HereType1Polylines({
         typeof first.latitude === 'number' && typeof first.longitude === 'number' &&
         typeof home.latitude === 'number' && typeof home.longitude === 'number'
       ) {
+        const key = `here_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}_${first.latitude.toFixed(5)}_${first.longitude.toFixed(5)}`;
+        let coords = cache[key];
+        if (!coords) {
+          try {
+            const cached = localStorage.getItem(key);
+            if (cached) {
+              const c = JSON.parse(cached);
+              if (Array.isArray(c) && c.length > 1) coords = c;
+            }
+          } catch (_) {}
+        }
+        let allowFallback = true;
+        if (!coords && isViewingCurrentDate) {
+          const ts = requestTimesRef.current[key];
+          if (!ts) {
+            requestTimesRef.current[key] = Date.now();
+            allowFallback = false;
+            setTimeout(() => setRefreshToken((t) => t + 1), 900);
+          } else if (Date.now() - ts < 900) {
+            allowFallback = false;
+          }
+        }
+        if (!coords && !allowFallback) {
+          return;
+        }
         lines.push(
           <Polyline
             key={`type1-pre-home-${driverId}`}
-            positions={[[home.latitude, home.longitude], [first.latitude, first.longitude]]}
-            pathOptions={{ color: '#94a3b8', weight: 5, opacity: 0.35, dashArray: '6,6', lineJoin: 'round', lineCap: 'round' }}
+            positions={coords || [[home.latitude, home.longitude], [first.latitude, first.longitude]]}
+            pathOptions={{ color: coords ? "#2563eb" : '#94a3b8', weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? '' : '6,6', lineJoin: 'round', lineCap: 'round' }}
             pane="overlayPane"
           />
         );
