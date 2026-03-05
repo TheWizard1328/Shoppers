@@ -128,12 +128,10 @@ export default function AutoRouteOptimizer({
     }
   };
 
-  // Auto-optimize when driver moves 100m+ (check every 2 minutes)
+  // DISABLED: Auto-optimize on movement; optimization now only runs on explicit triggers
   useEffect(() => {
-    if (!autoOptimizeEnabled || !isActive || !currentUser || !driverLocation?.latitude) {
-      return;
-    }
-
+    return; // no-op to prevent background optimizations
+    
     const checkAndOptimize = async () => {
       if (!driverLocation?.latitude || !driverLocation?.longitude) return;
 
