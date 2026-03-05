@@ -138,14 +138,11 @@ export default function HereType1Polylines({
         return bt - at;
       });
       const lastCompleted = completedSorted[0];
-      const nextStop =
-        stops.incomplete.find((s) => s.isNextDelivery === true) ||
-        [...stops.incomplete].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+      const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true);
       if (!lastCompleted || !nextStop) return;
 
-      const useLiveOrigin = isViewingCurrentDate && currentDriverMarker && (currentDriverMarker.driver?.id === driverId) && typeof currentDriverMarker.latitude === 'number' && typeof currentDriverMarker.longitude === 'number';
-      const originLat = useLiveOrigin ? Number(currentDriverMarker.latitude) : Number(lastCompleted.latitude);
-      const originLon = useLiveOrigin ? Number(currentDriverMarker.longitude) : Number(lastCompleted.longitude);
+      const originLat = Number(lastCompleted.latitude);
+      const originLon = Number(lastCompleted.longitude);
 
       const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
       if (cache[key]) return;
@@ -202,17 +199,17 @@ export default function HereType1Polylines({
       const hasCompleted = (stops?.complete?.length || 0) > 0;
       const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
       if (hasCompleted || !hasIncomplete) return;
-      const first = [...stops.incomplete].sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0))[0];
+      const next = stops.incomplete.find((s) => s.isNextDelivery === true);
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-      if (!first || !home) return;
-      const key = `here_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}_${first.latitude.toFixed(5)}_${first.longitude.toFixed(5)}`;
+      if (!next || !home) return;
+      const key = `here_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
       if (cache[key]) return;
       (async () => {
-        const ok = await hydrateFromOffline(key, driverId, home, first, first.delivery_date);
+        const ok = await hydrateFromOffline(key, driverId, home, next, next.delivery_date);
         if (ok) return;
         const d = Math.floor(Math.random() * 150);
         setTimeout(() => {
-          getHerePolyline(driverId, { latitude: home.latitude, longitude: home.longitude }, { latitude: first.latitude, longitude: first.longitude }, first.delivery_date).then((coords) => {
+          getHerePolyline(driverId, { latitude: home.latitude, longitude: home.longitude }, { latitude: next.latitude, longitude: next.longitude }, next.delivery_date).then((coords) => {
             if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
           });
         }, d);
@@ -229,14 +226,14 @@ export default function HereType1Polylines({
     const hasCompleted = (stops?.complete?.length || 0) > 0;
     const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
     if (!hasCompleted && hasIncomplete) {
-      const first = [...stops.incomplete].sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0))[0];
+      const next = stops.incomplete.find((s) => s.isNextDelivery === true);
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
       if (
-        first && home &&
-        typeof first.latitude === 'number' && typeof first.longitude === 'number' &&
+        next && home &&
+        typeof next.latitude === 'number' && typeof next.longitude === 'number' &&
         typeof home.latitude === 'number' && typeof home.longitude === 'number'
       ) {
-        const key = `here_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}_${first.latitude.toFixed(5)}_${first.longitude.toFixed(5)}`;
+        const key = `here_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
         let coords = cache[key];
         if (!coords) {
           try {
@@ -251,7 +248,7 @@ export default function HereType1Polylines({
         lines.push(
           <Polyline
             key={`type1-pre-home-${driverId}`}
-            positions={coords || [[home.latitude, home.longitude], [first.latitude, first.longitude]]}
+            positions={coords || [[home.latitude, home.longitude], [next.latitude, next.longitude]]}
             pathOptions={{ color: coords ? "#2563eb" : '#94a3b8', weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? '' : '6,6', lineJoin: 'round', lineCap: 'round' }}
             pane="overlayPane"
           />
@@ -269,13 +266,10 @@ export default function HereType1Polylines({
       return bt - at;
     });
     const lastCompleted = completedSorted[0];
-    const nextStop =
-      stops.incomplete.find((s) => s.isNextDelivery === true) ||
-      [...stops.incomplete].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+    const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true);
     if (!lastCompleted || !nextStop) return;
-    const useLiveOrigin = isViewingCurrentDate && currentDriverMarker && (currentDriverMarker.driver?.id === driverId) && typeof currentDriverMarker.latitude === 'number' && typeof currentDriverMarker.longitude === 'number';
-    const originLat = useLiveOrigin ? Number(currentDriverMarker.latitude) : Number(lastCompleted.latitude);
-    const originLon = useLiveOrigin ? Number(currentDriverMarker.longitude) : Number(lastCompleted.longitude);
+    const originLat = Number(lastCompleted.latitude);
+    const originLon = Number(lastCompleted.longitude);
 
     const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
     let coords = cache[key];
