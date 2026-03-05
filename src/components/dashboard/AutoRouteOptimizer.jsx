@@ -161,17 +161,9 @@ export default function AutoRouteOptimizer({
       }
     };
 
-    // Check immediately
-    checkAndOptimize();
+    // Disabled background checks
+    return () => {};
 
-    // Then check every 2 minutes
-    optimizationIntervalRef.current = setInterval(checkAndOptimize, 120000);
-
-    return () => {
-      if (optimizationIntervalRef.current) {
-        clearInterval(optimizationIntervalRef.current);
-      }
-    };
   }, [autoOptimizeEnabled, isActive, currentUser, driverLocation, deliveries]);
 
   // Save toggle state
