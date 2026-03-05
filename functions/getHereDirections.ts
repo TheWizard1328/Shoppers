@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
         const url = `https://router.hereapi.com/v8/routes?alternatives=0&transportMode=car&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&return=polyline&apikey=${apiKey}`;
 
         const controller = new AbortController();
-        const to = setTimeout(() => controller.abort('timeout'), 4500);
+        const to = setTimeout(() => controller.abort('timeout'), 8000);
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(to);
         if (!response.ok) {
