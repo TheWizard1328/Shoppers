@@ -147,6 +147,13 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       // Set flag to prevent search after selection
       justSelected.current = true;
       
+      // Cancel any pending debounced search to prevent reopen
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
+      lastSearchText.current = null;
+      
       // CRITICAL: Close dropdown immediately
       setOpen(false);
       setSuggestions([]);
@@ -162,15 +169,17 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
 
       const data = response?.data || response;
       
-      // Prefer parsed street (with number) from backend, then formatted, then prediction
+      // Prefer exact street_number + route if provided by backend, then parsed/formatted, then prediction
       const parsedStreet = (data.address || '').trim();
       const formatted = (data.formatted_address || '').trim();
       const fromFormatted = formatted ? (formatted.split(',')[0]?.trim() || formatted) : '';
       const fromPrediction = (prediction.description || '').split(',')[0]?.trim() || prediction.description;
+      const streetFromComponents = (data?.street_number && data?.route) ? `${data.street_number} ${data.route}`.trim() : '';
 
-      // If parsed street misses a leading number but prediction has it, prefer prediction
-      const hasLeadingNumber = /^\d+\s/.test(parsedStreet || fromFormatted);
-      const streetAddress = hasLeadingNumber ? (parsedStreet || fromFormatted) : ( /^\d+\s/.test(fromPrediction) ? fromPrediction : (parsedStreet || fromFormatted || fromPrediction) );
+      const primaryStreet = streetFromComponents || parsedStreet || fromFormatted || fromPrediction || '';
+      const hasLeadingNumberPrimary = /^\d+\s/.test(primaryStreet);
+      const hasLeadingNumberPrediction = /^\d+\s/.test(fromPrediction || '');
+      const streetAddress = hasLeadingNumberPrimary ? primaryStreet : (hasLeadingNumberPrediction ? fromPrediction : primaryStreet);
       const fullAddress = formatted || prediction.description || streetAddress;
       
       console.log('[GoogleAddressAutocomplete] Full address:', fullAddress);
@@ -231,8 +240,12 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
 
   // Debounced search on input change
   useEffect(() => {
-    // Skip search if we just selected an address
+    // Skip search if we just selected an address (also cancel any pending debounce)
     if (justSelected.current) {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
       console.log('[GoogleAddressAutocomplete] Skipping search - just selected an address');
       return;
     }
@@ -280,16 +293,9 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           onChange(e.target.value);
         }}
         onBlur={() => {
-          // If we just selected an address, suppress blur formatting and keep dropdown closed
-          if (justSelected.current) {
-            setOpen(false);
-            setSuggestions([]);
-            return;
-          }
-          if (value) {
-            const unabbreviated = unabbreviateAddress(value);
-            onChange(unabbreviated);
-          }
+          // Close dropdown on blur; do not mutate the value (prevents losing house number)
+          setOpen(false);
+          setSuggestions([]);
         }}
         onKeyDown={(e) => {
           if (!open || suggestions.length === 0) return;
