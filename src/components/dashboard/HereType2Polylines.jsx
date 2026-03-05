@@ -219,21 +219,7 @@ export default function HereType2Polylines({
           }
         } catch (_) {}
       }
-      // Grace period before dashed fallback on current date
-      let allowFallback = true;
-      if (!coords && isViewingCurrentDate) {
-        const ts = requestTimesRef.current[key];
-        if (!ts) {
-          requestTimesRef.current[key] = Date.now();
-          allowFallback = false;
-          setTimeout(() => setRefreshToken((t) => t + 1), 900);
-        } else if (Date.now() - ts < 900) {
-          allowFallback = false;
-        }
-      }
-      if (!coords && !allowFallback) {
-        return;
-      }
+      // Show dashed fallback immediately; HERE polyline will hydrate when ready
       lines.push(
         <Polyline
           key={`type2-here-${driverId}-${i}`}
@@ -278,18 +264,7 @@ export default function HereType2Polylines({
         const a = nonFinished[i];
         const b = nonFinished[i+1];
         const key = `here_${a.latitude.toFixed(5)}_${a.longitude.toFixed(5)}_${b.latitude.toFixed(5)}_${b.longitude.toFixed(5)}`;
-        let allowFallback = true;
-        if (isViewingCurrentDate) {
-          const ts = requestTimesRef.current[key];
-          if (!ts) {
-            requestTimesRef.current[key] = Date.now();
-            allowFallback = false;
-            setTimeout(() => setRefreshToken((t) => t + 1), 900);
-          } else if (Date.now() - ts < 900) {
-            allowFallback = false;
-          }
-        }
-        if (!allowFallback) continue;
+        // Always show dashed fallback immediately; HERE polyline will hydrate when ready
         lines.push(
           <Polyline
             key={`type2-pending-fallback-${driverId}-${i}`}

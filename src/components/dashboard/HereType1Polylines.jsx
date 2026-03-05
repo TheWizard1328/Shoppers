@@ -236,20 +236,7 @@ export default function HereType1Polylines({
             }
           } catch (_) {}
         }
-        let allowFallback = true;
-        if (!coords && isViewingCurrentDate) {
-          const ts = requestTimesRef.current[key];
-          if (!ts) {
-            requestTimesRef.current[key] = Date.now();
-            allowFallback = false;
-            setTimeout(() => setRefreshToken((t) => t + 1), 900);
-          } else if (Date.now() - ts < 900) {
-            allowFallback = false;
-          }
-        }
-        if (!coords && !allowFallback) {
-          return;
-        }
+        // Always show dashed fallback immediately; HERE polyline will hydrate when ready
         lines.push(
           <Polyline
             key={`type1-pre-home-${driverId}`}
@@ -286,21 +273,7 @@ export default function HereType1Polylines({
         }
       } catch (_) {}
     }
-    // Grace period before dashed fallback on current date
-    let allowFallback = true;
-    if (!coords && isViewingCurrentDate) {
-      const ts = requestTimesRef.current[key];
-      if (!ts) {
-        requestTimesRef.current[key] = Date.now();
-        allowFallback = false;
-        setTimeout(() => setRefreshToken((t) => t + 1), 900);
-      } else if (Date.now() - ts < 900) {
-        allowFallback = false;
-      }
-    }
-    if (!coords && !allowFallback) {
-      return;
-    }
+    // Show dashed fallback immediately; HERE polyline will hydrate when ready
     lines.push(
       <Polyline
         key={`type1-next-${driverId}`}
@@ -333,21 +306,7 @@ export default function HereType1Polylines({
         }
       } catch (_) {}
     }
-    // Grace period before dashed fallback on current date
-    let allowFallbackHome = true;
-    if (!coords && isViewingCurrentDate) {
-      const ts = requestTimesRef.current[key];
-      if (!ts) {
-        requestTimesRef.current[key] = Date.now();
-        allowFallbackHome = false;
-        setTimeout(() => setRefreshToken((t) => t + 1), 900);
-      } else if (Date.now() - ts < 900) {
-        allowFallbackHome = false;
-      }
-    }
-    if (!coords && !allowFallbackHome) {
-      return;
-    }
+    // Show dashed fallback immediately; HERE polyline will hydrate when ready
     lines.push(
       <Polyline
         key={`type1-home-${driverId}`}
