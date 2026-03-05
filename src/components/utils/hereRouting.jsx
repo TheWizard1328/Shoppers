@@ -414,18 +414,22 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
         console.warn('Failed to persist polyline entity', e);
       }
 
+      // Clear lock after success
+      try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
       fetchingKeys.delete(cacheKey);
       return coords;
     } else {
       // Keep dashed fallback if HERE returns nothing
     }
 
-    // Google fallback disabled: use dashed straight line when HERE/Entity not available
   } catch (err) {
     console.error('[HERE][client] Failed to fetch polyline', { cacheKey, err: err?.message || err });
+  } finally {
+    // Ensure lock is cleared on error/timeout
+    try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
   }
   
-  // Backoff 60s for this key on repeated failure
+  // Backoff 10s for this key on failure
   try { localStorage.setItem(`${cacheKey}:fail_until`, String(Date.now() + 10000)); console.warn('[HERE][client] Set backoff', { cacheKey, ms: 10000 }); } catch (_) {}
 
   fetchingKeys.delete(cacheKey);
