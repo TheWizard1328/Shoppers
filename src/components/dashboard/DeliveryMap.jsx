@@ -57,7 +57,7 @@ const ZOOM_LEVELS = {
 };
 
 // Shared finished statuses array
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 import { createSimpleCircleIcon, createStoreIcon, createDeliveryIcon, createLiveLocationDot, createHomeIcon } from './MapIcons';
 
@@ -1440,7 +1440,7 @@ export default function DeliveryMap({
       if (!driverStopsMap.has(m.driver_id)) {
         driverStopsMap.set(m.driver_id, { incomplete: [], complete: [] });
       }
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
       if (finishedStatuses.includes(m.status)) {
         driverStopsMap.get(m.driver_id).complete.push(m);
       } else if (m.status !== 'pending') {
@@ -1487,7 +1487,7 @@ export default function DeliveryMap({
     // Check if current user is app owner (Base44 platform admin)
     const isCurrentUserDriver = userHasRole(currentUser, 'driver');
     const isCurrentUserAdmin = userHasRole(currentUser, 'admin');
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
 
     const driversToShowHome = new Set();
     const driversToExcludeFromBounds = new Set(); // CRITICAL: Track home markers to exclude from centering
@@ -2128,7 +2128,7 @@ export default function DeliveryMap({
              console.warn(`⚠️ [DeliveryMap] safeUsers empty in Type 2/3 polylines - proceeding with default colors`);
            }
            
-           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+           const finishedStatuses = ['completed', 'failed', 'cancelled'];
            const polylines = [];
            
            // Helper: Calculate time difference between two stops in minutes
@@ -2365,7 +2365,7 @@ return polylines.length > 0 ? polylines : null;
          />
 
         {/* TYPE 1 POLYLINES (HERE): next leg + home */}
-        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={isAllDriversMode || (selectedDriverId === 'all')} /></>) }
+        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={currentDriverMarker} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={isAllDriversMode || (selectedDriverId === 'all')} /></>) }
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
         {driverHomeMarkers.map((home) => {

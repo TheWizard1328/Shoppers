@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 
-const FINISHED = ["completed", "failed", "cancelled", "returned"];
+const FINISHED = ["completed", "failed", "cancelled"];
 
 export default function HereType1Polylines({
   isViewingCurrentDate,
   deliveryMarkers = [],
   pickupMarkers = [],
   driverHomeMarkers = [],
+  currentDriverMarker = null,
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
@@ -141,14 +142,24 @@ export default function HereType1Polylines({
         stops.incomplete.find((s) => s.isNextDelivery === true) ||
         [...stops.incomplete].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
       if (!lastCompleted || !nextStop) return;
-      const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
+
+      const useLiveOrigin = isViewingCurrentDate && currentDriverMarker && (currentDriverMarker.driver?.id === driverId) && typeof currentDriverMarker.latitude === 'number' && typeof currentDriverMarker.longitude === 'number';
+      const originLat = useLiveOrigin ? Number(currentDriverMarker.latitude) : Number(lastCompleted.latitude);
+      const originLon = useLiveOrigin ? Number(currentDriverMarker.longitude) : Number(lastCompleted.longitude);
+
+      const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
       if (cache[key]) return;
       (async () => {
-        const ok = await hydrateFromOffline(key, driverId, lastCompleted, nextStop, lastCompleted.delivery_date);
+        const ok = await hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, nextStop, lastCompleted.delivery_date);
         if (ok) return;
         const d = Math.floor(Math.random() * 150);
         setTimeout(() => {
-          getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: nextStop.latitude, longitude: nextStop.longitude }, lastCompleted.delivery_date).then((coords) => {
+          getHerePolyline(
+            driverId,
+            { latitude: originLat, longitude: originLon },
+            { latitude: nextStop.latitude, longitude: nextStop.longitude },
+            lastCompleted.delivery_date
+          ).then((coords) => {
             if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
           });
         }, d);
@@ -262,7 +273,11 @@ export default function HereType1Polylines({
       stops.incomplete.find((s) => s.isNextDelivery === true) ||
       [...stops.incomplete].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
     if (!lastCompleted || !nextStop) return;
-    const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
+    const useLiveOrigin = isViewingCurrentDate && currentDriverMarker && (currentDriverMarker.driver?.id === driverId) && typeof currentDriverMarker.latitude === 'number' && typeof currentDriverMarker.longitude === 'number';
+    const originLat = useLiveOrigin ? Number(currentDriverMarker.latitude) : Number(lastCompleted.latitude);
+    const originLon = useLiveOrigin ? Number(currentDriverMarker.longitude) : Number(lastCompleted.longitude);
+
+    const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
     let coords = cache[key];
     if (!coords) {
       try {
@@ -278,7 +293,7 @@ export default function HereType1Polylines({
       <Polyline
         key={`type1-next-${driverId}`}
         positions={coords || [
-          [lastCompleted.latitude, lastCompleted.longitude],
+          [originLat, originLon],
           [nextStop.latitude, nextStop.longitude],
         ]}
         pathOptions={{ color: coords ? "#2563eb" : "#94a3b8", weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}

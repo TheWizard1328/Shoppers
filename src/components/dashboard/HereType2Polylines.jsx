@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 
-const FINISHED = ["completed", "failed", "cancelled", "returned"];
+const FINISHED = ["completed", "failed", "cancelled"];
 
 export default function HereType2Polylines({
   isViewingCurrentDate,
