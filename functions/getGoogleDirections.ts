@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 Deno.serve(async (req) => {
   try {
@@ -9,9 +9,11 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { origin, destination } = await req.json();
+    const body = await req.json();
+    const origin = body.origin || { lat: body.origin_lat, lon: body.origin_lon };
+    const destination = body.destination || { lat: body.dest_lat, lon: body.dest_lon };
 
-    if (!origin || !destination) {
+    if (!origin || !destination || origin.lat == null || origin.lon == null || destination.lat == null || destination.lon == null) {
       return Response.json({ 
         error: 'Missing required parameters: origin and destination' 
       }, { status: 400 });
@@ -58,7 +60,7 @@ Deno.serve(async (req) => {
 
     const polyline = directionsData.routes[0].overview_polyline.points;
 
-    return Response.json({ polyline });
+    return Response.json({ encoded_polyline: polyline, polyline });
   } catch (error) {
     console.error('❌ Error fetching Google Directions:', error);
     return Response.json({ 

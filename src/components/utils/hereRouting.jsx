@@ -273,13 +273,12 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       // Google fallback when HERE fails or returns no polyline
       try {
         const g = await base44.functions.invoke('getGoogleDirections', {
-          origin_lat: fromStop.latitude,
-          origin_lon: fromStop.longitude,
-          dest_lat: toStop.latitude,
-          dest_lon: toStop.longitude
+          origin: { lat: fromStop.latitude, lon: fromStop.longitude },
+          destination: { lat: toStop.latitude, lon: toStop.longitude }
         });
-        if (g.data && g.data.encoded_polyline) {
-          const coords = decodeGooglePolyline(g.data.encoded_polyline);
+        const encoded = g?.data?.encoded_polyline || g?.data?.polyline;
+        if (encoded) {
+          const coords = decodeGooglePolyline(encoded);
           if (Array.isArray(coords) && coords.length > 1) {
             memoryCache.set(cacheKey, coords);
             try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
