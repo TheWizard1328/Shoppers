@@ -1771,15 +1771,8 @@ export default function StopCard({
                                   }));
 
                                   // Background tasks (fire and forget)
+                                  // Background: ensure online + notifications only (no auto optimization on start)
                                   Promise.all([
-                                    base44.functions.invoke('optimizeRouteRealTime', {
-                                      driverId: delivery.driver_id,
-                                      deliveryDate: delivery.delivery_date,
-                                      currentLocalTime: currentLocalTime,
-                                      generatePolyline: false
-                                    }).then(() => {
-                                      window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
-                                    }),
                                     ensureDriverOnline(),
                                     userHasRole(currentUser, 'driver') ? notifyDriverStarted({
                                       driver: currentUser,
