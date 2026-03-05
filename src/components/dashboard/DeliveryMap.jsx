@@ -49,7 +49,7 @@ const getDriverTextColor = (driverColor) => {
 
 // NEW: Zoom level thresholds for dynamic display
 const ZOOM_LEVELS = {
-  HIDE_ROUTES: 10, // Below this, hide routes completely
+  HIDE_ROUTES: 8, // Below this, hide routes completely (was 10)
   SIMPLIFY_ROUTES: 12, // Below this, simplify route lines
   HIDE_NUMBERS: 11, // Below this, hide stop numbers
   HIDE_CIRCLES: 11, // Below this, hide pickup circles

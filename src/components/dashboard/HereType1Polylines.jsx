@@ -164,7 +164,7 @@ export default function HereType1Polylines({
       });
   }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers, refreshToken]);
 
-  if (!isViewingCurrentDate) return null;
+  /* always render polylines on any date; previously gated by current date */
 
   const lines = [];
 

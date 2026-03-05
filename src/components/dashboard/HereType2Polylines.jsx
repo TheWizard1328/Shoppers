@@ -178,7 +178,7 @@ export default function HereType2Polylines({
     });
   }, [isViewingCurrentDate, driverIncomplete, refreshToken]);
 
-  if (!isViewingCurrentDate) return null;
+  /* always render polylines on any date; previously gated by current date */
 
   const lines = [];
   driverIncomplete.forEach((stops, driverId) => {
