@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 // JsBarcode removed (package resolution issue)
 import { processBarcode } from '@/functions/processBarcode';
 import JsBarcode from 'jsbarcode';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 
 // Barcode preview (text fallback - JsBarcode removed)
 function BarcodeDisplay({ value, onDelete }) {
@@ -82,8 +83,11 @@ function MiniBarcode({ value }) {
 export default function BarcodeScanner({ barcodeValues = [], onChange, disabled = false }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
+  const [isStartingCamera, setIsStartingCamera] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
   const inputRef = useRef(null);
+  const videoRef = useRef(null);
+  const codeReaderRef = useRef(null);
 
   const addBarcode = useCallback((value) => {
     const trimmed = value.trim();
@@ -115,6 +119,40 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
     // Don't close camera — continuous scanning mode. Just add the barcode.
     addBarcode(value);
   }, [addBarcode]);
+
+  // Camera start/stop
+  const startCamera = useCallback(async () => {
+    if (disabled) return;
+    try {
+      setIsStartingCamera(true);
+      codeReaderRef.current = new BrowserMultiFormatReader();
+      await codeReaderRef.current.decodeFromVideoDevice(null, videoRef.current, (result, err) => {
+        if (result) {
+          const text = result.getText ? result.getText() : String(result?.text || '');
+          if (text) handleCameraDetected(text);
+        }
+      });
+    } catch (e) {
+      console.warn('Camera start failed', e);
+      setShowCamera(false);
+    } finally {
+      setIsStartingCamera(false);
+    }
+  }, [disabled, handleCameraDetected]);
+
+  const stopCameraReader = useCallback(() => {
+    try { codeReaderRef.current?.reset?.(); } catch {}
+    stopVideoStream(videoRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (showCamera) {
+      startCamera();
+    } else {
+      stopCameraReader();
+    }
+    return () => stopCameraReader();
+  }, [showCamera, startCamera, stopCameraReader]);
 
   // Auto-focus input after adding
   const handleAdd = () => {
@@ -160,12 +198,39 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         >
           <Plus className="w-4 h-4" />
         </Button>
-
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-9 px-3 flex-shrink-0 sm:hidden"
+          onClick={() => setShowCamera(true)}
+          disabled={disabled}
+          title="Scan with camera"
+        >
+          <Camera className="w-4 h-4" />
+        </Button>
       </div>
 
       <p className="text-xs text-slate-400">
         Use a hand scanner directly into the field, or tap the camera icon to scan with device camera.
       </p>
+
+      {/* Camera overlay */}
+      {showCamera && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+          <div className="relative w-full max-w-md mx-auto">
+            <video ref={videoRef} className="w-full rounded-lg" playsInline autoPlay muted />
+            <div className="absolute top-2 right-2 flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowCamera(false)}>
+                <X className="w-4 h-4 mr-1" /> Close
+              </Button>
+            </div>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-white text-sm bg-black/40 px-3 py-1 rounded">
+              {isStartingCamera ? 'Starting camera...' : 'Point camera at a barcode'}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Barcode grid */}
       {barcodeValues.length > 0 && (
