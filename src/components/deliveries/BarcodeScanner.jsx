@@ -88,6 +88,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const inputRef = useRef(null);
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
+  const isReaderActiveRef = useRef(false);
 
   const addBarcode = useCallback((value) => {
     const trimmed = value.trim();
@@ -122,10 +123,11 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
 
   // Camera start/stop
   const startCamera = useCallback(async () => {
-    if (disabled) return;
+    if (disabled || isReaderActiveRef.current) return;
     try {
       setIsStartingCamera(true);
       codeReaderRef.current = new BrowserMultiFormatReader();
+      isReaderActiveRef.current = true;
       await codeReaderRef.current.decodeFromVideoDevice(null, videoRef.current, (result, err) => {
         if (result) {
           const text = result.getText ? result.getText() : String(result?.text || '');
@@ -134,7 +136,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       });
     } catch (e) {
       console.warn('Camera start failed', e);
-      setShowCamera(false);
+      // keep overlay open; user can close manually
     } finally {
       setIsStartingCamera(false);
     }
@@ -143,6 +145,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const stopCameraReader = useCallback(() => {
     try { codeReaderRef.current?.reset?.(); } catch {}
     stopVideoStream(videoRef.current);
+    isReaderActiveRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -152,7 +155,10 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       stopCameraReader();
     }
     return () => stopCameraReader();
-  }, [showCamera, startCamera, stopCameraReader]);
+    // Only depend on showCamera to avoid restarting the stream on re-renders
+    // (intentionally not including startCamera/stopCameraReader)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCamera]);
 
   // Auto-focus input after adding
   const handleAdd = () => {
