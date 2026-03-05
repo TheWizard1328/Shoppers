@@ -91,7 +91,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       <div className="flex items-center gap-2">
         <Barcode className="w-4 h-4 text-emerald-600" />
         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-          Package Barcodes
+          Tx Barcodes
         </Label>
         {barcodeValues.length > 0 && (
           <Badge className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0 h-5">
