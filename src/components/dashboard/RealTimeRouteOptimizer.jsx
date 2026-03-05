@@ -100,8 +100,16 @@ export default function RealTimeRouteOptimizer({
             detail: {
               driverId: selectedDriverId,
               deliveryDate: selectedDate,
-              triggeredBy: 'realTimeRouteOptimizer'
+              triggeredBy: 'realTimeRouteOptimizer',
+              alreadyOptimized: true
             }
+          }));
+          // Also signal downstream layers to invalidate polylines for this driver/date
+          window.dispatchEvent(new CustomEvent('routeReordered', {
+            detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer' }
+          }));
+          window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
+            detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer' }
           }));
         }
       }

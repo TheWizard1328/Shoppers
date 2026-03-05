@@ -32,15 +32,22 @@ export default function HereType1Polylines({
     return out;
   }, [driverStops]);
 
-  // Listen for route reorder events to refresh polylines
+  // Listen for route reorder/optimization events to refresh polylines
   useEffect(() => {
-    const onReorder = () => { setCache({}); setRefreshToken((t) => t + 1); };
-    const onPolyline = () => { setCache({}); setRefreshToken((t) => t + 1); };
+    const invalidate = () => { setCache({}); setRefreshToken((t) => t + 1); };
+    const onReorder = invalidate;
+    const onPolyline = invalidate;
+    const onDeliveriesUpdated = () => { invalidate(); };
+    const onOptimizationComplete = () => { invalidate(); };
     window.addEventListener('routeReordered', onReorder);
     window.addEventListener('polylineUpdated', onPolyline);
+    window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
     return () => {
       window.removeEventListener('routeReordered', onReorder);
       window.removeEventListener('polylineUpdated', onPolyline);
+      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+      window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
     };
   }, []);
 
