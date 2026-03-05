@@ -134,7 +134,16 @@ export default function HereType1Polylines({
       [...stops.incomplete].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
     if (!lastCompleted || !nextStop) return;
     const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
-    const coords = cache[key];
+    let coords = cache[key];
+    if (!coords) {
+      try {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+          const c = JSON.parse(cached);
+          if (Array.isArray(c) && c.length > 1) coords = c;
+        }
+      } catch (_) {}
+    }
     lines.push(
       <Polyline
         key={`type1-next-${driverId}`}
@@ -157,7 +166,16 @@ export default function HereType1Polylines({
     const home = driverHomeMarkers.find((h) => h.driverId === driverId);
     if (!lastCompleted || !home) return;
     const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}`;
-    const coords = cache[key];
+    let coords = cache[key];
+    if (!coords) {
+      try {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+          const c = JSON.parse(cached);
+          if (Array.isArray(c) && c.length > 1) coords = c;
+        }
+      } catch (_) {}
+    }
     lines.push(
       <Polyline
         key={`type1-home-${driverId}`}

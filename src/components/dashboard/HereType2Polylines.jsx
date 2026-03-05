@@ -75,22 +75,13 @@ export default function HereType2Polylines({
   // Listen for route reorder events to refresh polylines
   useEffect(() => {
     const refreshAll = () => {
-      setCache({});
+      // Keep existing caches to avoid flicker; just trigger re-evaluation
       setRefreshToken((t) => t + 1);
-      // Aggressively clear browser polyline cache for new stop graph
-      try {
-        const keysToDelete = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('here_')) keysToDelete.push(k);
-        }
-        keysToDelete.forEach((k) => localStorage.removeItem(k));
-      } catch (_) {}
     };
 
     const onReorder = refreshAll;
     const onOptimizationComplete = refreshAll;
-    const onDeliveriesUpdated = refreshAll;
+    const onDeliveriesUpdated = () => setRefreshToken((t)=>t+1);
     const onDeliveriesImported = refreshAll;
 
     const onPolyline = (e) => {
@@ -151,7 +142,16 @@ export default function HereType2Polylines({
       const a = stops[i];
       const b = stops[i + 1];
       const key = `here_${a.latitude.toFixed(5)}_${a.longitude.toFixed(5)}_${b.latitude.toFixed(5)}_${b.longitude.toFixed(5)}`;
-      const coords = cache[key];
+      let coords = cache[key];
+      if (!coords) {
+        try {
+          const cached = localStorage.getItem(key);
+          if (cached) {
+            const c = JSON.parse(cached);
+            if (Array.isArray(c) && c.length > 1) coords = c;
+          }
+        } catch (_) {}
+      }
       lines.push(
         <Polyline
           key={`type2-here-${driverId}-${i}`}

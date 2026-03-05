@@ -138,7 +138,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
           const cached = localStorage.getItem(cacheKey);
           if (cached) { clearInterval(iv); resolve(JSON.parse(cached)); return; }
         } catch (_) {}
-        if (!fetchingKeys.has(cacheKey) || waited > 1500) { clearInterval(iv); resolve(null); }
+        if (!fetchingKeys.has(cacheKey) || waited > 5000) { clearInterval(iv); resolve(null); }
         waited += 100;
       }, 100);
     });
