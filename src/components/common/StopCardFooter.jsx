@@ -116,18 +116,9 @@ export default function StopCardFooter({
                           delete retryDelivery.created_by;
                           const newDelivery = await base44.entities.Delivery.create(retryDelivery);
                           try {
-                            const now = new Date();
-                            const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                            await base44.functions.invoke('optimizeRouteRealTime', {
-                              driverId: delivery.driver_id,
-                              deliveryDate: delivery.delivery_date,
-                              currentLocalTime,
-                              generatePolyline: false,
-                            });
+                            // No auto optimization on retry; just refresh
                             invalidate('Delivery');
-                          } catch (optimizeError) {
-                            console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
-                          }
+                          } catch (_) {}
                           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'retry', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
                           if (userHasRole(currentUser, 'driver')) {
                             const { notifyDriverRetry } = await import('../utils/deliveryMessaging');

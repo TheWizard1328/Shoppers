@@ -828,21 +828,10 @@ export default function StopCard({
 
       // CRITICAL: Run route optimizer to insert return at optimal position
       try {
-        const now = new Date();
-        const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        await base44.functions.invoke('optimizeRouteRealTime', {
-          driverId: delivery.driver_id,
-          deliveryDate: delivery.delivery_date,
-          currentLocalTime: currentLocalTime,
-          generatePolyline: false
-        });
-
-        // CRITICAL: Refresh UI to show reordered stops
+        // No auto optimization on return; just refresh
         invalidate('Delivery');
         await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-      } catch (optimizeError) {
-        console.warn('⚠️ [Return] Route optimizer failed:', optimizeError);
-      }
+      } catch (_) {}
 
       // CRITICAL: Trigger immediate map update
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -1132,26 +1121,11 @@ export default function StopCard({
                   }
                 }
 
-                // CRITICAL: Run recursive route optimization after failure
+                // CRITICAL: No auto optimization on failure/cancel; just refresh
                 try {
-                  const now = new Date();
-                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                  await base44.functions.invoke('optimizeRouteRealTime', {
-                    driverId: delivery.driver_id,
-                    deliveryDate: delivery.delivery_date,
-                    currentLocalTime: currentLocalTime,
-                    generatePolyline: false
-                  });
-
-                  // CRITICAL: Refresh UI to show reordered stops
                   invalidate('Delivery');
                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                  // CRITICAL: Trigger map update
-                  window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
-                } catch (optimizeError) {
-                  console.warn('⚠️ [Failed/Cancelled] Route optimizer failed:', optimizeError);
-                }
+                } catch (_) {}
 
                 // CRITICAL: Find next incomplete delivery and set isNextDelivery flag
                 const driverDeliveries = allDeliveries.filter((d) =>
