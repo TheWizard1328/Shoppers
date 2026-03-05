@@ -84,6 +84,8 @@ Deno.serve(async (req) => {
     return Response.json({
       address,
       unit,
+      street_number: streetNumber || null,
+      route: route || null,
       formatted_address: result.formattedAddress,
       latitude: result.location?.latitude,
       longitude: result.location?.longitude
