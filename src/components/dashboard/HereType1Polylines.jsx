@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 
@@ -50,6 +50,7 @@ export default function HereType1Polylines({
   };
   const [optimizing, setOptimizing] = useState(false);
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
+  const requestTimesRef = useRef({});
 
   const driverStops = useMemo(() => {
     const map = new Map();
@@ -235,6 +236,21 @@ export default function HereType1Polylines({
         }
       } catch (_) {}
     }
+    // Grace period before dashed fallback on current date
+    let allowFallback = true;
+    if (!coords && isViewingCurrentDate) {
+      const ts = requestTimesRef.current[key];
+      if (!ts) {
+        requestTimesRef.current[key] = Date.now();
+        allowFallback = false;
+        setTimeout(() => setRefreshToken((t) => t + 1), 900);
+      } else if (Date.now() - ts < 900) {
+        allowFallback = false;
+      }
+    }
+    if (!coords && !allowFallback) {
+      return;
+    }
     lines.push(
       <Polyline
         key={`type1-next-${driverId}`}
@@ -266,6 +282,21 @@ export default function HereType1Polylines({
           if (Array.isArray(c) && c.length > 1) coords = c;
         }
       } catch (_) {}
+    }
+    // Grace period before dashed fallback on current date
+    let allowFallbackHome = true;
+    if (!coords && isViewingCurrentDate) {
+      const ts = requestTimesRef.current[key];
+      if (!ts) {
+        requestTimesRef.current[key] = Date.now();
+        allowFallbackHome = false;
+        setTimeout(() => setRefreshToken((t) => t + 1), 900);
+      } else if (Date.now() - ts < 900) {
+        allowFallbackHome = false;
+      }
+    }
+    if (!coords && !allowFallbackHome) {
+      return;
     }
     lines.push(
       <Polyline
