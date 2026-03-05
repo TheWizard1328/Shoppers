@@ -137,17 +137,9 @@ export default function RealTimeRouteOptimizer({
     const handleDeliveriesUpdated = (event) => {
       const { alreadyOptimized, triggeredBy, driverId, deliveryDate } = event.detail || {};
       
-      // Only run for explicit triggers (assign/accept all, start, FAB/manual)
-      const allowedTriggers = new Set(['assignAll', 'acceptAll', 'start', 'startRoute', 'startButton']);
+      // Only run for explicit triggers (assign/accept all, start, or explicit FAB/manual)
+      const allowedTriggers = new Set(['assignAll', 'acceptAll', 'start', 'startRoute', 'startButton', 'reoptimizeRoute', 'manualOptimize']);
       if (!allowedTriggers.has(triggeredBy)) {
-        // Also allow explicit FAB/Manual triggers via custom event
-        if (triggeredBy === 'reoptimizeRoute' || triggeredBy === 'manualOptimize') {
-          // pass-through
-        } else {
-          return;
-        }
-      }
-        console.log(`⏭️ [RealTimeRouteOptimizer] Skipping - trigger not allowed (${triggeredBy || 'unknown'})`);
         return;
       }
       
