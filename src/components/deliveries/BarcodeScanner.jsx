@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { X, Camera, Barcode, Plus, Trash2, ZoomIn, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { X, Camera, Barcode, Plus, Minus, Sun, Trash2, ZoomIn, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 // JsBarcode removed (package resolution issue)
 import { processBarcode } from '@/functions/processBarcode';
@@ -97,6 +97,43 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const lastValueRef = useRef('');
   const lastScanAtRef = useRef(0);
   const [flashHit, setFlashHit] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [canZoom, setCanZoom] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+
+  const adjustZoom = (delta) => {
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (!track) return;
+    const caps = track.getCapabilities?.();
+    if (!caps?.zoom) return;
+    const settings = track.getSettings?.() || {};
+    const current = settings.zoom ?? zoom ?? caps.zoom.min;
+    const next = Math.min(caps.zoom.max, Math.max(caps.zoom.min, current + delta));
+    track.applyConstraints({ advanced: [{ zoom: next }] }).catch(() => {});
+    setZoom(next);
+  };
+
+  const toggleTorch = async () => {
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (!track) return;
+    const caps = track.getCapabilities?.();
+    if (!caps?.torch) return;
+    const next = !torchOn;
+    try { await track.applyConstraints({ advanced: [{ torch: next }] }); } catch {}
+    setTorchOn(next);
+  };
+
+  const tapToFocus = async () => {
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (!track) return;
+    try {
+      const caps = track.getCapabilities?.();
+      if (caps?.focusMode?.includes?.('single-shot')) {
+        await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
+      }
+    } catch {}
+  };
 
   function beep() {
     try {
@@ -170,8 +207,8 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       const constraints = {
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
         },
         audio: false
       };
@@ -181,6 +218,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         const { BarcodeFormat: BF, DecodeHintType: DHT } = { BarcodeFormat, DecodeHintType };
         const hints = new Map();
         hints.set(DHT.POSSIBLE_FORMATS, [BF.CODE_128, BF.CODE_39, BF.EAN_13, BF.QR_CODE]);
+        try { hints.set(DHT.TRY_HARDER, true); } catch {}
         codeReaderRef.current.setHints(hints);
       } catch {}
 
@@ -208,8 +246,28 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         );
       }
 
-      // capture stream ref once attached
-      setTimeout(() => { try { streamRef.current = videoRef.current?.srcObject || null; } catch {} }, 200);
+      // capture stream ref once attached and configure focus/zoom/torch if supported
+      setTimeout(() => {
+        try {
+          const stream = videoRef.current?.srcObject;
+          streamRef.current = stream || null;
+          const track = stream?.getVideoTracks?.()[0];
+          if (!track) return;
+          const caps = track.getCapabilities?.() || {};
+          if (caps.zoom) {
+            setCanZoom(true);
+            const target = Math.min(Math.max(2, caps.zoom.min || 1), caps.zoom.max || 1);
+            track.applyConstraints({ advanced: [{ zoom: target }] }).catch(() => {});
+            setZoom(target);
+          }
+          if (caps.torch) {
+            setHasTorch(true);
+          }
+          if (caps.focusMode?.includes?.('continuous')) {
+            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+          }
+        } catch {}
+      }, 300);
     } catch (e) {
       console.warn('Camera start failed', e);
       // keep overlay open; user can close manually
@@ -327,7 +385,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
           <div className="relative w-full max-w-md mx-auto mt-[22vh] px-4">
             {/* Viewfinder with embedded video */}
-            <div className={`relative mx-auto h-24 max-w-[360px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
+            <div onClick={tapToFocus} className={`relative mx-auto h-24 max-w-[360px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
               <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
@@ -340,7 +398,24 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
 
             {/* Controls row */}
             <div className="mt-3 flex items-center justify-between text-white/90">
-              <div className="text-sm">{barcodeValues.length} scanned</div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm">{barcodeValues.length} scanned</div>
+                {canZoom && (
+                  <div className="ml-1 flex items-center gap-1">
+                    <Button variant="secondary" size="sm" onClick={() => adjustZoom(-0.5)} title="Zoom out">
+                      <Minus className="w-4 h-4" />
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => adjustZoom(0.5)} title="Zoom in">
+                      <ZoomIn className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+                {hasTorch && (
+                  <Button variant="secondary" size="sm" onClick={toggleTorch} title="Toggle torch" className={torchOn ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}>
+                    <Sun className="w-4 h-4 mr-1" /> {torchOn ? 'Torch On' : 'Torch'}
+                  </Button>
+                )}
+              </div>
               <Button variant="secondary" size="sm" onClick={() => { stopCameraReader(); setShowCamera(false); }}>
                 <X className="w-4 h-4 mr-1" /> Close
               </Button>
