@@ -136,6 +136,13 @@ export default function HereType2Polylines({
         }
       } catch (_) {}
     };
+    const onDriverStatusChanged = (e) => {
+      try { if (e?.detail?.newStatus === 'on_duty') setRefreshToken((t)=>t+1); } catch (_) { setRefreshToken((t)=>t+1); }
+    };
+    const onDeliveryStarted = () => setRefreshToken((t)=>t+1);
+    const onDeliveryCompleted = () => setRefreshToken((t)=>t+1);
+    const onDeliveryFailed = () => setRefreshToken((t)=>t+1);
+    const onDeliveryAction = () => setRefreshToken((t)=>t+1);
 
     window.addEventListener('routeReordered', onReorder);
     window.addEventListener('polylineUpdated', onPolyline);
@@ -143,6 +150,12 @@ export default function HereType2Polylines({
     window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.addEventListener('deliveriesImported', onDeliveriesImported);
+    // New triggers for HERE refresh
+    window.addEventListener('driverStatusChanged', onDriverStatusChanged);
+    window.addEventListener('deliveryStarted', onDeliveryStarted);
+    window.addEventListener('deliveryCompleted', onDeliveryCompleted);
+    window.addEventListener('deliveryFailed', onDeliveryFailed);
+    window.addEventListener('deliveryAction', onDeliveryAction);
 
     return () => {
       window.removeEventListener('routeReordered', onReorder);
@@ -151,6 +164,11 @@ export default function HereType2Polylines({
       window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('deliveriesImported', onDeliveriesImported);
+      window.removeEventListener('driverStatusChanged', onDriverStatusChanged);
+      window.removeEventListener('deliveryStarted', onDeliveryStarted);
+      window.removeEventListener('deliveryCompleted', onDeliveryCompleted);
+      window.removeEventListener('deliveryFailed', onDeliveryFailed);
+      window.removeEventListener('deliveryAction', onDeliveryAction);
     };
   }, []);
 
