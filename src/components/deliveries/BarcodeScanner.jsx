@@ -89,6 +89,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
   const isReaderActiveRef = useRef(false);
+  const streamRef = useRef(null);
 
   const addBarcode = useCallback((value) => {
     const trimmed = value.trim();
@@ -128,12 +129,14 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       setIsStartingCamera(true);
       codeReaderRef.current = new BrowserMultiFormatReader();
       isReaderActiveRef.current = true;
-      await codeReaderRef.current.decodeFromVideoDevice(null, videoRef.current, (result, err) => {
+      codeReaderRef.current.decodeFromVideoDevice(null, videoRef.current, (result, err) => {
         if (result) {
           const text = result.getText ? result.getText() : String(result?.text || '');
           if (text) handleCameraDetected(text);
         }
       });
+      // capture stream ref once attached
+      setTimeout(() => { try { streamRef.current = videoRef.current?.srcObject || null; } catch {} }, 200);
     } catch (e) {
       console.warn('Camera start failed', e);
       // keep overlay open; user can close manually
@@ -144,7 +147,17 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
 
   const stopCameraReader = useCallback(() => {
     try { codeReaderRef.current?.reset?.(); } catch {}
-    stopVideoStream(videoRef.current);
+    try {
+      const s = streamRef.current || videoRef.current?.srcObject;
+      if (s && typeof s.getTracks === 'function') {
+        s.getTracks().forEach(t => { try { t.stop(); } catch {} });
+      }
+    } catch {}
+    if (videoRef.current) {
+      try { videoRef.current.pause(); } catch {}
+      try { videoRef.current.srcObject = null; } catch {}
+    }
+    streamRef.current = null;
     isReaderActiveRef.current = false;
   }, []);
 
@@ -159,6 +172,21 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
     // (intentionally not including startCamera/stopCameraReader)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCamera]);
+
+  useEffect(() => {
+    const handleHide = () => {
+      if (showCamera) {
+        stopCameraReader();
+        setShowCamera(false);
+      }
+    };
+    window.addEventListener('pagehide', handleHide);
+    document.addEventListener('visibilitychange', handleHide);
+    return () => {
+      window.removeEventListener('pagehide', handleHide);
+      document.removeEventListener('visibilitychange', handleHide);
+    };
+  }, [showCamera, stopCameraReader]);
 
   // Auto-focus input after adding
   const handleAdd = () => {
@@ -227,7 +255,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           <div className="relative w-full max-w-md mx-auto">
             <video ref={videoRef} className="w-full rounded-lg" playsInline autoPlay muted />
             <div className="absolute top-2 right-2 flex gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setShowCamera(false)}>
+              <Button variant="secondary" size="sm" onClick={() => { stopCameraReader(); setShowCamera(false); }}>
                 <X className="w-4 h-4 mr-1" /> Close
               </Button>
             </div>
