@@ -58,7 +58,7 @@ export default function HereType1Polylines({
       if (!m || !m.driver_id || typeof m.latitude !== "number" || typeof m.longitude !== "number") return;
       if (!map.has(m.driver_id)) map.set(m.driver_id, { complete: [], incomplete: [] });
       if (FINISHED.includes(m.status)) map.get(m.driver_id).complete.push(m);
-      else if (m.status !== "pending") map.get(m.driver_id).incomplete.push(m);
+      else map.get(m.driver_id).incomplete.push(m);
     });
     return map;
   }, [deliveryMarkers, pickupMarkers]);
