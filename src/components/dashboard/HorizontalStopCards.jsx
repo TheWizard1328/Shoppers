@@ -18,7 +18,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     showDriverName = false, // Accept new prop
     getDriverColor, // Accept new prop
     // NEW: Action handlers
-    onEditDelivery,
+    onEdit,
     onEditPatient,
     onDeleteDelivery,
     onRestart,

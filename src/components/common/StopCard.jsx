@@ -92,7 +92,7 @@ export default function StopCard({
   delivery, store, driver, patients = [],
   currentUser, isExpanded: externalIsExpanded,
   showDriverName = false, onStatusUpdate,
-  onNotesUpdate, onEditDelivery, onDeleteDelivery,
+  onNotesUpdate, onEdit, onDeleteDelivery,
   onRestart, allDeliveries = [], selectedDate,
   onEditPatient, drivers = [], onDriverChange,
   canEdit = false, getDriverColor, onClick,

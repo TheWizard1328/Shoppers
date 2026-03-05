@@ -178,7 +178,7 @@ const DeliveryListView = ({
   stores,
   drivers,
   currentUser,
-  onEditDelivery,
+  onEdit,
   onEditPatient,
   onDeleteDelivery,
   onRestart,
