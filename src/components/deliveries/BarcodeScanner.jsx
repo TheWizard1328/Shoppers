@@ -91,6 +91,29 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const isReaderActiveRef = useRef(false);
   const streamRef = useRef(null);
 
+  // Audio + feedback refs
+  const audioCtxRef = useRef(null);
+  const lastValueRef = useRef('');
+  const lastScanAtRef = useRef(0);
+  const [flashHit, setFlashHit] = useState(false);
+
+  function beep() {
+    try {
+      if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.14);
+    } catch {}
+  }
+
   const addBarcode = useCallback((value) => {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -118,8 +141,20 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   };
 
   const handleCameraDetected = useCallback((value) => {
-    // Don't close camera — continuous scanning mode. Just add the barcode.
-    addBarcode(value);
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return;
+    const now = Date.now();
+    // De-duplicate rapid consecutive identical reads
+    if (trimmed === lastValueRef.current && now - lastScanAtRef.current < 800) return;
+    lastValueRef.current = trimmed;
+    lastScanAtRef.current = now;
+
+    beep();
+    setFlashHit(true);
+    setTimeout(() => setFlashHit(false), 120);
+
+    // Continuous scanning mode — keep camera open, just append
+    addBarcode(trimmed);
   }, [addBarcode]);
 
   // Camera start/stop
@@ -251,16 +286,32 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
 
       {/* Camera overlay */}
       {showCamera && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
-          <div className="relative w-full max-w-md mx-auto">
-            <video ref={videoRef} className="w-full rounded-lg" playsInline autoPlay muted />
-            <div className="absolute top-2 right-2 flex gap-2">
+        <div className="fixed inset-0 z-50 bg-black/90">
+          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline autoPlay muted />
+
+          <div className="relative w-full max-w-md mx-auto mt-[22vh] px-4">
+            {/* Viewfinder */}
+            <div className={`mx-auto h-20 max-w-[320px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md relative bg-black/20`}>
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
+                <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
+                <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
+                <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl" />
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br" />
+              </div>
+            </div>
+
+            {/* Controls row */}
+            <div className="mt-3 flex items-center justify-between text-white/90">
+              <div className="text-sm">{barcodeValues.length} scanned</div>
               <Button variant="secondary" size="sm" onClick={() => { stopCameraReader(); setShowCamera(false); }}>
                 <X className="w-4 h-4 mr-1" /> Close
               </Button>
             </div>
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-white text-sm bg-black/40 px-3 py-1 rounded">
-              {isStartingCamera ? 'Starting camera...' : 'Point camera at a barcode'}
+
+            {/* Status */}
+            <div className="mt-2 text-center text-xs text-white/70">
+              {isStartingCamera ? 'Starting camera...' : (flashHit ? 'Captured!' : 'Point camera at a barcode')}
             </div>
           </div>
         </div>
