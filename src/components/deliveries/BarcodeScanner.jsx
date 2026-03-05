@@ -101,6 +101,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const [canZoom, setCanZoom] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
+  const [rotateFeed, setRotateFeed] = useState(false);
 
   const adjustZoom = (delta) => {
     const track = streamRef.current?.getVideoTracks?.()[0];
@@ -235,6 +236,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         ]);
         try { hints.set(DHT.TRY_HARDER, true); } catch {}
         try { hints.set(DHT.ASSUME_GS1, true); } catch {}
+        try { hints.set(DHT.ALSO_INVERTED, true); } catch {}
         codeReaderRef.current.setHints(hints);
       } catch {}
 
@@ -261,6 +263,17 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           }
         );
       }
+
+      // Detect portrait feeds and auto-rotate to landscape fill
+      try {
+        const onMeta = () => {
+          const v = videoRef.current;
+          if (!v) return;
+          const ratio = (v.videoWidth || 0) / Math.max(1, v.videoHeight || 1);
+          setRotateFeed(ratio < 1);
+        };
+        videoRef.current?.addEventListener('loadedmetadata', onMeta, { once: true });
+      } catch {}
 
       // capture stream ref once attached and configure focus/zoom/torch if supported
       setTimeout(() => {
@@ -405,10 +418,10 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       {/* Camera overlay */}
       {showCamera && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
-          <div className="relative w-full max-w-md mx-auto mt-[22vh] px-4">
+          <div className="relative w-full max-w-5xl mx-auto mt-[12vh] px-2">
             {/* Viewfinder with embedded video */}
-            <div onClick={tapToFocus} className={`relative mx-auto h-[28vh] max-h-72 max-w-[480px] border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
-              <video ref={videoRef} className="w-full h-full object-contain" playsInline autoPlay muted />
+            <div onClick={tapToFocus} className={`relative mx-auto w-[96vw] max-w-[1000px] aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
+              <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: rotateFeed ? 'rotate(90deg)' : 'none' }} playsInline autoPlay muted />
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
                 {/* Aim tip */}
