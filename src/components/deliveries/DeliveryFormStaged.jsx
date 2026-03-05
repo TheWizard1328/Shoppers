@@ -78,6 +78,23 @@ export default function DeliveryFormStaged({
                         isPickup={false}
                         size="sm"
                       />
+                      {Array.isArray(staged.barcode_values) && staged.barcode_values.length > 0 && (
+                        <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                          <svg className="h-3 w-4" viewBox="0 0 40 12" aria-hidden="true">
+                            <rect x="1" y="1" width="2" height="10" fill="currentColor"/>
+                            <rect x="6" y="1" width="1" height="10" fill="currentColor"/>
+                            <rect x="9" y="1" width="3" height="10" fill="currentColor"/>
+                            <rect x="14" y="1" width="1" height="10" fill="currentColor"/>
+                            <rect x="17" y="1" width="2" height="10" fill="currentColor"/>
+                            <rect x="21" y="1" width="1" height="10" fill="currentColor"/>
+                            <rect x="24" y="1" width="3" height="10" fill="currentColor"/>
+                            <rect x="29" y="1" width="1" height="10" fill="currentColor"/>
+                            <rect x="32" y="1" width="2" height="10" fill="currentColor"/>
+                            <rect x="36" y="1" width="1" height="10" fill="currentColor"/>
+                          </svg>
+                          x{staged.barcode_values.length}
+                        </Badge>
+                      )}
                       {staged.ampm_deliveries &&
                         <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
                           {staged.ampm_deliveries}
@@ -173,6 +190,23 @@ export default function DeliveryFormStaged({
                         isPickup={false}
                         size="sm"
                       />
+                      {Array.isArray(staged.barcode_values) && staged.barcode_values.length > 0 && (
+                        <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                          <svg className="h-3 w-4" viewBox="0 0 40 12" aria-hidden="true">
+                            <rect x="1" y="1" width="2" height="10" fill="currentColor"/>
+                            <rect x="6" y="1" width="1" height="10" fill="currentColor"/>
+                            <rect x="9" y="1" width="3" height="10" fill="currentColor"/>
+                            <rect x="14" y="1" width="1" height="10" fill="currentColor"/>
+                            <rect x="17" y="1" width="2" height="10" fill="currentColor"/>
+                            <rect x="21" y="1" width="1" height="10" fill="currentColor"/>
+                            <rect x="24" y="1" width="3" height="10" fill="currentColor"/>
+                            <rect x="29" y="1" width="1" height="10" fill="currentColor"/>
+                            <rect x="32" y="1" width="2" height="10" fill="currentColor"/>
+                            <rect x="36" y="1" width="1" height="10" fill="currentColor"/>
+                          </svg>
+                          x{staged.barcode_values.length}
+                        </Badge>
+                      )}
                       {staged.ampm_deliveries &&
                         <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
                           {staged.ampm_deliveries}
