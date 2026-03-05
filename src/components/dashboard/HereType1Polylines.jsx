@@ -186,6 +186,30 @@ export default function HereType1Polylines({
 
   const lines = [];
 
+  // Pre-route fallback: draw home -> first stop (dashed grey) when route hasn't started yet
+  driverStops.forEach((stops, driverId) => {
+    const hasCompleted = (stops?.complete?.length || 0) > 0;
+    const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
+    if (!hasCompleted && hasIncomplete) {
+      const first = [...stops.incomplete].sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0))[0];
+      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+      if (
+        first && home &&
+        typeof first.latitude === 'number' && typeof first.longitude === 'number' &&
+        typeof home.latitude === 'number' && typeof home.longitude === 'number'
+      ) {
+        lines.push(
+          <Polyline
+            key={`type1-pre-home-${driverId}`}
+            positions={[[home.latitude, home.longitude], [first.latitude, first.longitude]]}
+            pathOptions={{ color: '#94a3b8', weight: 5, opacity: 0.35, dashArray: '6,6', lineJoin: 'round', lineCap: 'round' }}
+            pane="overlayPane"
+          />
+        );
+      }
+    }
+  });
+
   // Render last-completed -> next-stop using HERE (fallback straight)
   driverStops.forEach((stops, driverId) => {
     if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
