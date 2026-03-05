@@ -362,8 +362,8 @@ export default function DeliveryFormView({
                     )}
                   </div>
 
-                  {/* Barcode Scanner (AppOwner + editing) */}
-                  {isAppOwner(currentUser) && (!delivery ? !isPickupMode : true) && (
+                  {/* Barcode Scanner */}
+                  {(!delivery ? !isPickupMode : true) && (
                     <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <BarcodeScanner barcodeValues={formData.barcode_values || []} onChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))} disabled={isSaving} />
                     </div>
