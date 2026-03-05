@@ -1427,20 +1427,10 @@ export default function StopCard({
                                 }, { skipSmartRefresh: true });
 
                                 try {
-                                  const now = new Date();
-                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                  await base44.functions.invoke('optimizeRouteRealTime', {
-                                    driverId: delivery.driver_id,
-                                    deliveryDate: delivery.delivery_date,
-                                    currentLocalTime: currentLocalTime,
-                                    generatePolyline: false
-                                  });
-
+                                  // No auto optimization on restart; just refresh data
                                   invalidate('Delivery');
                                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                } catch (optimizeError) {
-                                  console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
-                                }
+                                } catch (e) {}
 
                                 invalidate('Delivery');
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
