@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { getStoredRouteCoordinates } from '../utils/routePolylineManager';
 import { isMobileDevice } from '../utils/deviceUtils';
 import MapCrosshair from './MapCrosshair';
-import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
+import DeliveryPopup from './DeliveryPopup';
 import { base44 } from '@/api/base44Client';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import DriverLocationMarkers from './DriverLocationMarkers';
@@ -2716,7 +2716,7 @@ return polylines.length > 0 ? polylines : null;
                 ) : (
                   // Non-clustered or fanned markers show full details
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    {(() => { const DP = React.lazy(() => import('./DeliveryPopup')); return (<React.Suspense fallback={null}><DP delivery={pickup} isPickup={true} stores={safeStores} patients={safePatients} users={safeUsers} /></React.Suspense>); })()}
+                    <DeliveryPopup delivery={pickup} isPickup={true} stores={safeStores} patients={safePatients} users={safeUsers} />
                   </Popup>
                 )
               )}
@@ -3181,7 +3181,7 @@ return polylines.length > 0 ? polylines : null;
                 ) : (
                   // Non-clustered or fanned markers show full details
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    {(() => { const DP = React.lazy(() => import('./DeliveryPopup')); return (<React.Suspense fallback={null}><DP delivery={delivery} isPickup={false} stores={safeStores} patients={safePatients} users={safeUsers} /></React.Suspense>); })()}
+                    <DeliveryPopup delivery={delivery} isPickup={false} stores={safeStores} patients={safePatients} users={safeUsers} />
                   </Popup>
                 )
               )}
