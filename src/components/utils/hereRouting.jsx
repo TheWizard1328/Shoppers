@@ -89,6 +89,37 @@ function encodeGooglePolyline(points) {
   return out;
 }
 
+// Primary device gate for HERE polyline generation
+let __meCache = { id: null, ts: 0 };
+let __primaryCache = { isPrimary: null, ts: 0 };
+async function canGenerateForDriver(driverId) {
+  try {
+    const now = Date.now();
+    // cache user for 30s
+    if (!__meCache.id || (now - __meCache.ts) > 30000) {
+      const me = await base44.auth.me();
+      __meCache.id = me?.id || null;
+      __meCache.ts = now;
+    }
+    if (!__meCache.id || driverId !== __meCache.id) return false;
+    // cache primary check for 30s
+    if (__primaryCache.isPrimary === null || (now - __primaryCache.ts) > 30000) {
+      try {
+        const { getCurrentDevice } = await import('./deviceManager');
+        const device = await getCurrentDevice(__meCache.id);
+        // Missing record => treat as primary (matches app behavior)
+        __primaryCache.isPrimary = (device === null || device?.is_primary_tracker !== false);
+      } catch (_) {
+        __primaryCache.isPrimary = true; // default to primary on error
+      }
+      __primaryCache.ts = now;
+    }
+    return !!__primaryCache.isPrimary;
+  } catch (_) {
+    return false;
+  }
+}
+
 export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) => {
   if (!fromStop || !toStop) return null;
   // Normalize coords to numbers (tablet sometimes sends strings)
@@ -105,6 +136,8 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
   const cacheKey = `here_${fromStop.latitude.toFixed(5)}_${fromStop.longitude.toFixed(5)}_${toStop.latitude.toFixed(5)}_${toStop.longitude.toFixed(5)}`;
   console.debug('[HERE][client] Cache key', { cacheKey, driverId, deliveryDate });
+  // Ensure we are subscribed to entity changes so non-primary devices get updates
+  ensurePolylineSubscription();
 
   // Check memory cache
   if (memoryCache.has(cacheKey)) {
@@ -209,6 +242,14 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     }
   } catch (_) {}
   fetchingKeys.add(cacheKey);
+
+  // Only the driver's PRIMARY device (and the driver themselves) should generate & persist polylines
+  const __allowed = await canGenerateForDriver(driverId);
+  if (!__allowed) {
+    console.info('[HERE][client] Skipping HERE generation on this device (not primary or not driver owner)', { driverId, cacheKey });
+    fetchingKeys.delete(cacheKey);
+    return null;
+  }
 
   try {
     console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
