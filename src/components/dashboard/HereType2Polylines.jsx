@@ -199,6 +199,8 @@ export default function HereType2Polylines({
   /* always render polylines on any date; previously gated by current date */
 
   const lines = [];
+
+  // Safety: if HERE/entity/offline caches miss, still render dashed straight segments
   driverIncomplete.forEach((stops, driverId) => {
     const totalLegs = Math.max(0, stops.length - 1);
     for (let i = 0; i < stops.length - 1; i++) {
