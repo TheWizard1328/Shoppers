@@ -74,21 +74,38 @@ export default function HereType2Polylines({
 
   // Listen for route reorder events to refresh polylines
   useEffect(() => {
-    const invalidate = () => { setCache({}); setRefreshToken((t) => t + 1); };
-    const onReorder = invalidate;
-    const onPolyline = invalidate;
-    const onDeliveriesUpdated = () => { invalidate(); };
-    const onOptimizationComplete = () => { invalidate(); };
+    const refreshAll = () => {
+      setCache({});
+      setRefreshToken((t) => t + 1);
+      // Aggressively clear browser polyline cache for new stop graph
+      try {
+        const keysToDelete = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('here_')) keysToDelete.push(k);
+        }
+        keysToDelete.forEach((k) => localStorage.removeItem(k));
+      } catch (_) {}
+    };
+
+    const onReorder = refreshAll;
+    const onPolyline = refreshAll;
+    const onOptimizationComplete = refreshAll;
+    const onDeliveriesUpdated = refreshAll;
+    const onDeliveriesImported = refreshAll;
 
     window.addEventListener('routeReordered', onReorder);
     window.addEventListener('polylineUpdated', onPolyline);
-    window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
+    window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    window.addEventListener('deliveriesImported', onDeliveriesImported);
+
     return () => {
       window.removeEventListener('routeReordered', onReorder);
       window.removeEventListener('polylineUpdated', onPolyline);
-      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
+      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+      window.removeEventListener('deliveriesImported', onDeliveriesImported);
     };
   }, []);
 
