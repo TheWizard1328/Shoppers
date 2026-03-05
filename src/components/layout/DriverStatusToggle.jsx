@@ -365,6 +365,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         
         // CRITICAL: Dispatch event to force LocationTrackingToggle UI refresh
         window.dispatchEvent(new CustomEvent('locationSharingDisabled'));
+
+        // Hint payroll stats scheduler that a burst may follow
+        sessionStorage.setItem('driver_status_change_in_progress', Date.now().toString());
         
         // If going on break, save current FAB phase and notify Dashboard
             // Backend cleared isNextDelivery flags in setDriverStatus
@@ -488,8 +491,11 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       } catch (e) {}
     } finally {
       console.log('▶️ [DRIVER STATUS] Resuming smart refresh');
-      
-      // CRITICAL: Clear updating flags immediately so UI is responsive
+
+      // Clear the burst hint shortly after
+      setTimeout(() => { try { sessionStorage.removeItem('driver_status_change_in_progress'); } catch (_) {} }, 1500);
+
+        // CRITICAL: Clear updating flags immediately so UI is responsive
       // Backend status change is already applied
       setPendingStatus(null);
       setIsUpdating(false);
