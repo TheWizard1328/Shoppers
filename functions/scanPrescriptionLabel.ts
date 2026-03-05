@@ -292,7 +292,7 @@ Use null for any field you cannot read. Return ONLY the JSON, nothing else.`,
 
     // Calculate match scores for all patients
     console.log('🧮 [scanPrescriptionLabel] Calculating match scores...');
-    const patientsWithScores = allPatients.map(patient => ({
+    const patientsWithScores = candidatePatients.map(patient => ({)
       patient,
       score: calculateMatch(patient, extractedData)
     })).filter(item => item.score >= 60) // Only keep matches above 60%
