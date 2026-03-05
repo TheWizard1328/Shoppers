@@ -241,6 +241,38 @@ export default function HereType2Polylines({
     }
   });
 
+  // Fallback: if a driver has only pending stops (no in_transit/en_route), draw dashed grey between stops
+  try {
+    const byDriverAll = new Map();
+    const allStops = [...pickupMarkers, ...deliveryMarkers]
+      .filter(s => s && typeof s.latitude === 'number' && typeof s.longitude === 'number')
+      .sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0));
+    allStops.forEach(s => {
+      if (!byDriverAll.has(s.driver_id)) byDriverAll.set(s.driver_id, []);
+      byDriverAll.get(s.driver_id).push(s);
+    });
+    byDriverAll.forEach((stops, driverId) => {
+      const active = driverIncomplete.get(driverId);
+      if (active && active.length) return; // already handled above
+      const nonFinished = stops.filter(s => !FINISHED.includes(s.status));
+      if (nonFinished.length < 2) return;
+      const allPending = nonFinished.every(s => s.status === 'pending');
+      if (!allPending) return; // show only when route not started
+      for (let i = 0; i < nonFinished.length - 1; i++) {
+        const a = nonFinished[i];
+        const b = nonFinished[i+1];
+        lines.push(
+          <Polyline
+            key={`type2-pending-fallback-${driverId}-${i}`}
+            positions={[[a.latitude, a.longitude], [b.latitude, b.longitude]]}
+            pathOptions={{ color: '#94a3b8', weight: 5, opacity: 0.35, dashArray: '6,6', lineJoin: 'round', lineCap: 'round' }}
+            pane="overlayPane"
+          />
+        );
+      }
+    });
+  } catch (_) {}
+
   // Preserve last non-empty set to prevent blanking on date flips/loading
   useEffect(() => { if (lines.length) setLastNonEmptyLines(lines); }, [lines.length, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
   return lines.length ? <>{lines}</> : (lastNonEmptyLines.length ? <>{lastNonEmptyLines}</> : null);
