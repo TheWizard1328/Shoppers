@@ -459,7 +459,49 @@ export default function DriverPayroll() {
 
     // Pre-compute the periods for the target settings so we can select the right cycle immediately
     const nextPeriods = calculateAllPeriods(effectiveYear, newPayPeriod);
-    const nextIdx = findCurrentPeriodIndex(nextPeriods, new Date());
+
+    // Helper to choose correct index like initial load: prefer previous unfinalized, else current/closest
+    const decideIndex = async () => {
+      const today = new Date();
+      const idxClose = findCurrentPeriodIndex(nextPeriods, today);
+      let targetIdx = idxClose;
+
+      try {
+        const todayStr = toLocalYMD(today);
+        const inRange = (() => {
+          const p = nextPeriods[idxClose];
+          if (!p) return false;
+          const s = toLocalYMD(p.start);
+          const e = toLocalYMD(p.end);
+          return todayStr >= s && todayStr <= e;
+        })();
+
+        const prevIdx = inRange ? (idxClose > 0 ? idxClose - 1 : -1) : idxClose;
+        if (prevIdx >= 0) {
+          const startStr = nextPeriods[prevIdx].start.toISOString().split('T')[0];
+          const endStr = nextPeriods[prevIdx].end.toISOString().split('T')[0];
+
+          const offlinePayrolls = await offlineDB.getAll('payroll_records') || [];
+          const filtered = offlinePayrolls.filter(r => {
+            const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
+            const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
+            const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
+            return matchPeriod && matchCity && matchDriver;
+          });
+          const allFinalized = filtered.length > 0 && filtered.every(r =>
+            r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+          );
+          targetIdx = allFinalized ? idxClose : prevIdx;
+        }
+      } catch (e) {
+        // keep idxClose when offline read fails
+        console.warn('[DriverPayroll] PayPeriod change - offline check failed:', e);
+      }
+
+      React.startTransition(() => {
+        setSelectedPeriodIndex(targetIdx);
+      });
+    };
 
     // Batch all state updates together in a single synchronous block
     React.startTransition(() => {
@@ -470,14 +512,11 @@ export default function DriverPayroll() {
         setSelectedYear(effectiveYear);
       }
 
-      // Immediately select the correct period index for the new cycle
-      setSelectedPeriodIndex(nextIdx);
-      
       // Reset selected driver to 'all' to force refresh with new pay cycle filter
       if (selectedDriverId !== 'all') {
         setSelectedDriverId('all');
       }
-      
+
       setPayrollData(prev => {
         if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
           const driverAppUser = prev.appUsers.find(au => au.user_id === selectedDriverId);
@@ -494,9 +533,12 @@ export default function DriverPayroll() {
         return prev;
       });
     });
-    
+
+    // Decide and set the period index based on offline finalized status, mirroring initial load behavior
+    decideIndex();
+
     setTimeout(() => { isManualChangeRef.current = false; }, 200);
-  }, [selectedDriverId, selectedYear]);
+  }, [selectedDriverId, selectedYear, selectedCityId]);
 
   const refreshPayrollRecords = useCallback(async () => {
     if (!currentPeriod || !payrollData?.payrollRecords) {
