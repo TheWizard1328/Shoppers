@@ -250,46 +250,47 @@ Deno.serve(async (req) => {
 
     console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
 
-    // STEP 4: Optimize ONLY the current (first) stage using Google Directions API
+    // STEP 4: Optimize ONLY the current (first) stage using HERE Routing API
     const currentStage = stages[0];
     console.log(`\n🎯 [optimizeRemainingStops] Optimizing current stage: ${currentStage.length} stops`);
 
-    const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    const hereApiKey = Deno.env.get('HERE_API_KEY');
     let optimizedCurrentStage = [];
     let directionsLegs = [];
     let totalApiCalls = 0;
 
     // CRITICAL: Current stage is already sorted by delivery_time_start from STEP 1
-    // Just use it as-is for Google API (no re-sorting, no optimize:true)
+    // Just use it as-is for HERE API (no re-sorting, no optimize:true)
     const currentStageSorted = currentStage;
 
     console.log(`📋 [optimizeRemainingStops] Using time-sorted order for current stage`);
 
-    // Get travel times from Google Directions API (with time-based pre-ordering)
+    // Get travel times from HERE Routing API (with time-based pre-ordering)
     if (currentStageSorted.length > 0) {
       const routeCoords = [currentPosition, ...currentStageSorted.map(s => ({ lat: s.lat, lng: s.lng }))];
       
       if (routeCoords.length >= 2) {
         const origin = `${routeCoords[0].lat},${routeCoords[0].lng}`;
         const destination = `${routeCoords[routeCoords.length - 1].lat},${routeCoords[routeCoords.length - 1].lng}`;
-        const waypoints = routeCoords.slice(1, -1).map(c => `${c.lat},${c.lng}`);
-        const waypointsStr = waypoints.length > 0 ? `&waypoints=${waypoints.join('|')}` : '';
+        
+        let hereWaypoints = `origin=${origin}&destination=${destination}`;
+        routeCoords.slice(1, -1).forEach(c => {
+          hereWaypoints += `&via=${c.lat},${c.lng}`;
+        });
 
         // Log API call
         await base44.asServiceRole.entities.GoogleAPILog.create({
           timestamp: new Date().toISOString(),
-          api_type: 'Directions',
-          purpose: `Current stage optimization for driver ${driverAppUser.user_name}`,
+          api_type: 'Directions (HERE)',
+          purpose: `Current stage optimization for driver ${driverAppUser?.user_name || driverId}`,
           function_name: 'optimizeRemainingStops',
           user_id: user.id,
-          user_name: user.full_name,
+          user_name: driverAppUser?.user_name || user.full_name,
           metadata: { driver_id: driverId, delivery_date: deliveryDate, stops_count: currentStageSorted.length }
         });
 
         // CRITICAL: Don't use optimize:true - respect the time-based order
-        const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
-          `origin=${origin}&destination=${destination}${waypointsStr}&` +
-          `departure_time=now&traffic_model=best_guess&key=${googleMapsKey}`;
+        const directionsUrl = `https://router.hereapi.com/v8/routes?${hereWaypoints}&return=summary&transportMode=car&routingMode=fast&apiKey=${hereApiKey}`;
 
         let directionsData = null;
         for (let attempt = 0; attempt < 3; attempt++) {
@@ -297,7 +298,7 @@ Deno.serve(async (req) => {
             if (attempt > 0) await new Promise(r => setTimeout(r, Math.min(1000 * Math.pow(2, attempt), 5000)));
             const response = await fetch(directionsUrl, { signal: AbortSignal.timeout(15000) });
             directionsData = await response.json();
-            if (directionsData.status === 'OK') {
+            if (directionsData.routes && directionsData.routes.length > 0) {
               totalApiCalls++;
               break;
             }
@@ -306,18 +307,18 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (directionsData?.status === 'OK' && directionsData.routes?.[0]?.legs) {
-          directionsLegs = directionsData.routes[0].legs.map(leg => ({
-            duration: leg.duration_in_traffic?.value || leg.duration?.value || 0,
-            distance: leg.distance?.value || 0
+        if (directionsData?.routes && directionsData.routes.length > 0) {
+          directionsLegs = directionsData.routes[0].sections.map(section => ({
+            duration: section.summary.duration || 0,
+            distance: section.summary.length || 0
           }));
-          console.log('✅ [optimizeRemainingStops] Google Directions API success');
+          console.log('✅ [optimizeRemainingStops] HERE Routing API success');
           
-          // Use the pre-sorted order (don't apply Google's waypoint_order)
+          // Use the pre-sorted order
           optimizedCurrentStage = currentStageSorted;
         } else {
           // Fallback to crow-flies
-          console.log('⚠️ [optimizeRemainingStops] Google API failed - using crow-flies fallback');
+          console.log('⚠️ [optimizeRemainingStops] HERE API failed - using crow-flies fallback');
           optimizedCurrentStage = currentStageSorted;
           let prevPos = currentPosition;
           for (const stop of optimizedCurrentStage) {
