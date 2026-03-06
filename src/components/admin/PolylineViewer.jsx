@@ -6,6 +6,7 @@ import { queueEntityRequest } from '../utils/requestQueue';
 import { Loader2, MapPin, Trash2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
+import { clearHereCacheForSegment } from '../utils/hereRouting';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
