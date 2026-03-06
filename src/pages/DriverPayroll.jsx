@@ -745,6 +745,12 @@ export default function DriverPayroll() {
         const firstPeriodStart = testPeriods[0]?.start;
         if (firstPeriodStart && today < firstPeriodStart) {
           year = year - 1;
+        } else if (testPeriods.length > 0) {
+          // Also check if today is AFTER the last period of the current year
+          const lastPeriodEnd = testPeriods[testPeriods.length - 1]?.end;
+          if (lastPeriodEnd && today > lastPeriodEnd) {
+            year = year + 1;
+          }
         }
       }
       
