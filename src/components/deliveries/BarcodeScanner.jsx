@@ -417,32 +417,30 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
 
       {/* Input row */}
       <div className="flex gap-2 items-center">
-        {!isMobile && (
-          <>
-            <Input
-              ref={inputRef}
-              type="text"
-              value={manualInput}
-              onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
-              onKeyDown={handleInputKeyDown}
-              placeholder={placeholder}
-              className="flex-1 h-9 text-sm font-mono"
-              disabled={disabled}
-              autoComplete="off"
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-9 px-3 flex-shrink-0"
-              onClick={handleAdd}
-              disabled={disabled || !manualInput.trim()}
-              title="Add barcode"
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
-          </>
-        )}
+        {/* Always show manual text entry on all devices */}
+        <Input
+          ref={inputRef}
+          type="text"
+          value={manualInput}
+          onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
+          onKeyDown={handleInputKeyDown}
+          placeholder={placeholder}
+          className="flex-1 h-9 text-sm font-mono"
+          disabled={disabled}
+          autoComplete="off"
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-9 px-3 flex-shrink-0"
+          onClick={handleAdd}
+          disabled={disabled || !manualInput.trim()}
+          title="Add barcode"
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
+        {/* Keep hidden input on mobile to capture fast BT scanner keystrokes */}
         {isMobile && (
           <input
             ref={hiddenInputRef}
