@@ -112,7 +112,7 @@ export default function HereType2Polylines({
   const driverIncomplete = useMemo(() => {
     const map = new Map();
     const all = [...pickupMarkers, ...deliveryMarkers]
-      .filter((s) => s && typeof s.latitude === "number" && typeof s.longitude === "number")
+      .filter((s) => s && !Number.isNaN(Number(s.latitude)) && !Number.isNaN(Number(s.longitude)))
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
     const scopedStops = (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all')
@@ -274,7 +274,7 @@ export default function HereType2Polylines({
   try {
     const byDriverAll = new Map();
     const allStops = [...pickupMarkers, ...deliveryMarkers]
-      .filter(s => s && typeof s.latitude === 'number' && typeof s.longitude === 'number')
+      .filter(s => s && !Number.isNaN(Number(s.latitude)) && !Number.isNaN(Number(s.longitude)))
       .sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0));
     const scopedAllStops = (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all')
       ? allStops.filter(s => s.driver_id === selectedDriverId)
