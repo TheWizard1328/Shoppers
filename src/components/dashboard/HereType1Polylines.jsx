@@ -4,6 +4,22 @@ import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRoutin
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
+// Helper: visible fallback even when stops share same coordinates or coords are strings
+const samePoint = (a, b) => (
+  Math.abs(Number(a?.latitude) - Number(b?.latitude)) < 1e-5 &&
+  Math.abs(Number(a?.longitude) - Number(b?.longitude)) < 1e-5
+);
+const makeFallback = (a, b) => {
+  if (!a || !b) return [];
+  const A = [Number(a.latitude), Number(a.longitude)];
+  const B = [Number(b.latitude), Number(b.longitude)];
+  if (!isFinite(A[0]) || !isFinite(A[1]) || !isFinite(B[0]) || !isFinite(B[1])) return [];
+  if (samePoint(a, b)) {
+    return [A, [A[0] + 0.0003, A[1] + 0.0003]];
+  }
+  return [A, B];
+};
+
 export default function HereType1Polylines({
   isViewingCurrentDate,
   deliveryMarkers = [],
@@ -72,7 +88,7 @@ export default function HereType1Polylines({
       : allStops;
 
     scopedStops.forEach((m) => {
-      if (!m || !m.driver_id || typeof m.latitude !== "number" || typeof m.longitude !== "number") return;
+      if (!m || !m.driver_id || Number.isNaN(Number(m.latitude)) || Number.isNaN(Number(m.longitude))) return;
       if (!map.has(m.driver_id)) map.set(m.driver_id, { complete: [], incomplete: [] });
       if (FINISHED.includes(m.status)) map.get(m.driver_id).complete.push(m);
       else if (m.status === "in_transit" || m.status === "en_route") map.get(m.driver_id).incomplete.push(m);
