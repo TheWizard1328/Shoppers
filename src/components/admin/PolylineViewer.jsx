@@ -179,15 +179,14 @@ export default function PolylineViewer({ users = [] }) {
   // Remove any cached polyline keys (memory resets on reload; we clear localStorage keys here)
   const clearLocalCachesForPolyline = (rec) => {
     try {
-      const round5 = (n) => Number(n).toFixed(5);
       if (
         rec && rec.segment_origin_lat != null && rec.segment_origin_lon != null &&
         rec.segment_dest_lat != null && rec.segment_dest_lon != null
       ) {
-        const key = `here_${round5(rec.segment_origin_lat)}_${round5(rec.segment_origin_lon)}_${round5(rec.segment_dest_lat)}_${round5(rec.segment_dest_lon)}`;
-        try { localStorage.removeItem(key); } catch (_) {}
-        try { localStorage.removeItem(`${key}:fail_until`); } catch (_) {}
-        try { localStorage.removeItem(`polylock:${key}`); } catch (_) {}
+        clearHereCacheForSegment(
+          { latitude: Number(rec.segment_origin_lat), longitude: Number(rec.segment_origin_lon) },
+          { latitude: Number(rec.segment_dest_lat), longitude: Number(rec.segment_dest_lon) }
+        );
       }
     } catch (_) {}
   };
