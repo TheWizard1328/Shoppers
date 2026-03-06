@@ -895,7 +895,7 @@ export default function DriverPayroll() {
       setSelectedPeriodIndex(targetIdx);
     }
     periodSelectionDoneWithRecordsRef.current = true;
-  }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData, selectedPeriodIndex]);
+  }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData, selectedCityId, selectedDriverId, selectedPeriodIndex]);
 
   // Subscribe to real-time websocket updates
   useEffect(() => {
