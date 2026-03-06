@@ -10,6 +10,7 @@ import { processBarcode } from '@/functions/processBarcode';
 import JsBarcode from 'jsbarcode';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { isMobileDevice } from '@/components/utils/deviceUtils';
 
 // Barcode preview (text fallback - JsBarcode removed)
 function BarcodeDisplay({ value, onDelete }) {
@@ -92,6 +93,9 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const isReaderActiveRef = useRef(false);
   const streamRef = useRef(null);
 
+  const isMobile = isMobileDevice();
+  const hiddenInputRef = useRef(null);
+
   // Audio + feedback refs
   const audioCtxRef = useRef(null);
   const lastValueRef = useRef('');
@@ -107,6 +111,8 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const scannerModeRef = useRef(false);
   const lastKeyAtRef = useRef(0);
   const scannerResetTimerRef = useRef(null);
+
+  const fastThreshold = isMobile ? 50 : 35;
 
   const adjustZoom = (delta) => {
     const track = streamRef.current?.getVideoTracks?.()[0];
@@ -184,7 +190,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
     const delta = now - (lastKeyAtRef.current || 0);
 
     // Treat very fast input as hardware scanner; buffer silently
-    if (isChar && (delta < 35 || scannerModeRef.current)) {
+    if (isChar && (delta < fastThreshold || scannerModeRef.current)) {
       e.preventDefault();
       e.stopPropagation();
       scannerModeRef.current = true;
@@ -384,6 +390,12 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
     };
   }, [showCamera, stopCameraReader]);
 
+  // Keep hidden input focused on mobile for fast BT scanner entry (no visible text input)
+  useEffect(() => {
+    if (!isMobile || showCamera) return;
+    try { hiddenInputRef.current?.focus(); } catch {}
+  }, [isMobile, barcodeValues.length, showCamera]);
+
   // Auto-focus input after adding
   const handleAdd = () => {
     addBarcode(manualInput);
@@ -405,29 +417,44 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       </div>
 
       {/* Input row */}
-      <div className="flex gap-2">
-        <Input
-          ref={inputRef}
-          type="text"
-          value={manualInput}
-          onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
-          onKeyDown={handleInputKeyDown}
-          placeholder={placeholder}
-          className="flex-1 h-9 text-sm font-mono"
-          disabled={disabled}
-          autoComplete="off"
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-9 px-3 flex-shrink-0"
-          onClick={handleAdd}
-          disabled={disabled || !manualInput.trim()}
-          title="Add barcode"
-        >
-          <Plus className="w-4 h-4" />
-        </Button>
+      <div className="flex gap-2 items-center">
+        {!isMobile && (
+          <>
+            <Input
+              ref={inputRef}
+              type="text"
+              value={manualInput}
+              onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
+              onKeyDown={handleInputKeyDown}
+              placeholder={placeholder}
+              className="flex-1 h-9 text-sm font-mono"
+              disabled={disabled}
+              autoComplete="off"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 px-3 flex-shrink-0"
+              onClick={handleAdd}
+              disabled={disabled || !manualInput.trim()}
+              title="Add barcode"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </>
+        )}
+        {isMobile && (
+          <input
+            ref={hiddenInputRef}
+            type="text"
+            className="sr-only absolute -left-[9999px] w-0 h-0 opacity-0"
+            onKeyDown={handleInputKeyDown}
+            onChange={() => {}}
+            autoFocus
+            aria-hidden="true"
+          />
+        )}
         <Button
           type="button"
           size="sm"
@@ -442,7 +469,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       </div>
 
       <p className="text-xs text-slate-400">
-        Use a hand scanner directly into the field, or tap the camera icon to scan with device camera.
+        Use a hand scanner or tap the camera icon to scan with the device camera.
       </p>
 
       {/* Camera overlay */}
