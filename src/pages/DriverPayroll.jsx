@@ -763,10 +763,16 @@ export default function DriverPayroll() {
       // Step 3: Read offline Payroll records to check ONLY previous cycle completeness (admin_finalized or paid) respecting filters
       try {
         const offlinePayrolls = await offlineDB.getAll('payroll_records') || [];
-        const prevIdx = todayIdx > 0 ? todayIdx - 1 : -1;
-        if (prevIdx >= 0) {
-          const startStr = periods[prevIdx].start.toISOString().split('T')[0];
-          const endStr = periods[prevIdx].end.toISOString().split('T')[0];
+        
+        // Find the most recent period that has unfinalized records
+        let foundUnfinalizedPeriodIndex = -1;
+        
+        // Check periods backwards starting from the one before today
+        const startCheckIdx = todayIdx > 0 ? todayIdx - 1 : periods.length - 1;
+        
+        for (let i = startCheckIdx; i >= 0; i--) {
+          const startStr = periods[i].start.toISOString().split('T')[0];
+          const endStr = periods[i].end.toISOString().split('T')[0];
 
           // Apply city/driver filters
           const filtered = offlinePayrolls.filter(r => {
@@ -776,14 +782,21 @@ export default function DriverPayroll() {
             return matchPeriod && matchCity && matchDriver;
           });
 
-          // If no records or any not finalized (not admin_finalized or paid), show previous
-          const allFinalized = filtered.length > 0 && filtered.every(r =>
-            r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
-          );
+          if (filtered.length > 0) {
+            const allFinalized = filtered.every(r =>
+              r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+            );
+            
+            if (!allFinalized) {
+              foundUnfinalizedPeriodIndex = i;
+              console.log(`✅ [DriverPayroll Init] Found unfinalized period: ${periods[i].label}`);
+              break; // Found the most recent unfinalized period
+            }
+          }
+        }
 
-          determinedPeriodIndex = allFinalized ? (todayIdx !== -1 ? todayIdx : determinedPeriodIndex) : prevIdx;
-
-          console.log(`✅ [DriverPayroll Init] Offline previous ${periods[prevIdx].label} finalized? ${allFinalized}`);
+        if (foundUnfinalizedPeriodIndex !== -1) {
+          determinedPeriodIndex = foundUnfinalizedPeriodIndex;
         } else if (todayIdx !== -1) {
           determinedPeriodIndex = todayIdx;
         }
