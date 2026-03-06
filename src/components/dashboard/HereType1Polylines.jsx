@@ -275,6 +275,7 @@ export default function HereType1Polylines({
 
   // Pre-route: prefer real HERE polyline (home -> first); only show dashed after a short grace period
   driverStops.forEach((stops, driverId) => {
+    if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
     const hasCompleted = (stops?.complete?.length || 0) > 0;
     const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
     
