@@ -450,7 +450,7 @@ export default function DeliveryMap({
   // Legacy: Keep for backwards compatibility with home route logic (today only)
   const isDriverViewingSelfToday = useMemo(() => {
     if (!isDriverViewingSelf) return false;
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = getEdmDate();
     return selectedDate === today;
   }, [isDriverViewingSelf, selectedDate]);
 
@@ -1136,7 +1136,7 @@ export default function DeliveryMap({
 
   // Check if viewing current date (for real-time features) - FIXED: treat null as today
   const isViewingCurrentDate = useMemo(() => {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = getEdmDate();
     // If no selectedDate, assume we're viewing today
     if (!selectedDate) return true;
     return selectedDate === today;
@@ -1149,7 +1149,7 @@ export default function DeliveryMap({
   
   const driverLocationMarkers = useMemo(() => {
     // CRITICAL: Only show on today or future dates
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = getEdmDate();
     const isViewingTodayOrFuture = !selectedDate || selectedDate >= today;
     
     if (!isViewingTodayOrFuture) {
@@ -1173,7 +1173,7 @@ export default function DeliveryMap({
     const currentUserCityId = currentUser?.city_id;
     const fiveMinutesInMs = 5 * 60 * 1000;
     const now = Date.now();
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todayStr = getEdmDate();
     const currentUserId = currentUser?.id;
 
     // CRITICAL: Use realtimeAppUsers as the source of truth (contains merged location data)
@@ -1326,7 +1326,7 @@ export default function DeliveryMap({
     }
 
     // CRITICAL: Check if viewing today or future date - handle null selectedDate as today
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = getEdmDate();
     const isViewingTodayOrFuture = !selectedDate || selectedDate >= today;
     
     if (!isViewingTodayOrFuture) {
@@ -1407,7 +1407,7 @@ export default function DeliveryMap({
   const prevDriverHomeMarkersRef = useRef([]);
   
   const driverHomeMarkers = useMemo(() => {
-    if (!showRoutes || !currentUser || (selectedDate && selectedDate < format(new Date(), 'yyyy-MM-dd'))) {
+    if (!showRoutes || !currentUser || (selectedDate && selectedDate < getEdmDate())) {
       // Hide home markers on past dates; clear any cached markers to avoid stale display
       prevDriverHomeMarkersRef.current = [];
       return [];
