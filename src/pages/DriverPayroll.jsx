@@ -750,19 +750,22 @@ export default function DriverPayroll() {
       let determinedPeriodIndex = 0;
       const today = new Date();
 
-      // Find today's period first (date-only comparison to avoid time-of-day issues)
-      let todayIdx = -1;
+      // Determine the closest relevant index for today within this year's periods
       const todayStr = toLocalYMD(today);
-      for (let i = 0; i < periods.length; i++) {
-        const startStr = toLocalYMD(periods[i].start);
-        const endStr = toLocalYMD(periods[i].end);
-        if (todayStr >= startStr && todayStr <= endStr) { todayIdx = i; break; }
+      const idxClose = findCurrentPeriodIndex(periods, today);
+      let isInRange = false;
+      if (periods[idxClose]) {
+        const s = toLocalYMD(periods[idxClose].start);
+        const e = toLocalYMD(periods[idxClose].end);
+        isInRange = todayStr >= s && todayStr <= e;
       }
 
-      // Step 3: Read offline Payroll records to check ONLY previous cycle completeness (admin_finalized or paid) respecting filters
+      // Step 3: Read offline Payroll records to check ONLY previous (or closest past) cycle completeness
       try {
         const offlinePayrolls = await offlineDB.getAll('payroll_records') || [];
-        const prevIdx = todayIdx > 0 ? todayIdx - 1 : -1;
+        const prevIdx = isInRange ? (idxClose > 0 ? idxClose - 1 : -1) : idxClose;
+        let targetIdx = isInRange ? idxClose : idxClose; // default to current or closest past
+
         if (prevIdx >= 0) {
           const startStr = periods[prevIdx].start.toISOString().split('T')[0];
           const endStr = periods[prevIdx].end.toISOString().split('T')[0];
@@ -775,19 +778,18 @@ export default function DriverPayroll() {
             return matchPeriod && matchCity && matchDriver;
           });
 
-          // If no records or any not finalized (not admin_finalized or paid), show previous
+          // If previous (or closest past) period has any unfinalized, select it; otherwise keep current/closest
           const allFinalized = filtered.length > 0 && filtered.every(r =>
             r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
           );
 
-          determinedPeriodIndex = allFinalized ? (todayIdx !== -1 ? todayIdx : determinedPeriodIndex) : prevIdx;
-
-          console.log(`✅ [DriverPayroll Init] Offline previous ${periods[prevIdx].label} finalized? ${allFinalized}`);
-        } else if (todayIdx !== -1) {
-          determinedPeriodIndex = todayIdx;
+          targetIdx = allFinalized ? targetIdx : prevIdx;
+          console.log(`✅ [DriverPayroll Init] Checked ${periods[prevIdx].label} finalized? ${allFinalized}`);
         }
+
+        determinedPeriodIndex = targetIdx;
       } catch (e) {
-        if (todayIdx !== -1) determinedPeriodIndex = todayIdx;
+        determinedPeriodIndex = idxClose;
         console.warn('⚠️ [DriverPayroll] Could not read offline payroll records:', e);
       }
 
