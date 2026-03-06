@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { queueEntityRequest } from '../utils/requestQueue';
 import { Loader2, MapPin, Trash2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
