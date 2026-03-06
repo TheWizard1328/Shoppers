@@ -425,7 +425,71 @@ const deliveryDateSafe = deliveryDate || todayStr;
     }
 
   } catch (err) {
-    console.error('[HERE][client] Failed to fetch polyline', { cacheKey, err: err?.message || err });
+    console.warn('[HERE][client] HERE fetch failed, trying Google fallback', { cacheKey, err: err?.message || err });
+    try {
+      const gres = await base44.functions.invoke('getGoogleDirections', {
+        origin: { lat: fromStop.latitude, lon: fromStop.longitude },
+        destination: { lat: toStop.latitude, lon: toStop.longitude }
+      });
+      const coordsFromArray = Array.isArray(gres?.data?.coordinates)
+        ? gres.data.coordinates.map((p) => [p.lat ?? p.latitude, p.lng ?? p.longitude])
+        : null;
+      const coordsFromEncoded = typeof gres?.data?.polyline === 'string'
+        ? decodeGooglePolyline(gres.data.polyline)
+        : null;
+      const coords = (coordsFromArray && coordsFromArray.length > 1)
+        ? coordsFromArray
+        : (coordsFromEncoded && coordsFromEncoded.length > 1 ? coordsFromEncoded : null);
+      if (coords) {
+        memoryCache.set(cacheKey, coords);
+        try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
+        try { localStorage.removeItem(failKey); } catch (_) {}
+        ensurePolylineSubscription();
+        try {
+          const rounded = (n) => Number(n.toFixed(5));
+          const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
+          const parts = formatter.formatToParts(new Date());
+          const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
+          const deliveryDateSafe = deliveryDate || todayStr;
+          const encoded = encodeGooglePolyline(coords);
+          if (encoded && typeof encoded === 'string') {
+            const existing = await base44.entities.DriverRoutePolyline.filter({
+              driver_id: driverId,
+              delivery_date: deliveryDateSafe,
+              segment_origin_lat: rounded(fromStop.latitude),
+              segment_origin_lon: rounded(fromStop.longitude),
+              segment_dest_lat: rounded(toStop.latitude),
+              segment_dest_lon: rounded(toStop.longitude)
+            }, '-updated_date', 1);
+            if (Array.isArray(existing) && existing.length) {
+              const updated = await base44.entities.DriverRoutePolyline.update(existing[0].id, {
+                encoded_polyline: encoded,
+                last_generated_at: new Date().toISOString()
+              });
+              const offlineRec = { ...(existing[0] || {}), ...(updated || {}), encoded_polyline: encoded, last_generated_at: new Date().toISOString() };
+              await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [offlineRec]);
+            } else {
+              const created = await base44.entities.DriverRoutePolyline.create({
+                driver_id: driverId,
+                delivery_date: deliveryDateSafe,
+                encoded_polyline: encoded,
+                segment_origin_lat: rounded(fromStop.latitude),
+                segment_origin_lon: rounded(fromStop.longitude),
+                segment_dest_lat: rounded(toStop.latitude),
+                segment_dest_lon: rounded(toStop.longitude),
+                last_generated_at: new Date().toISOString()
+              });
+              if (created) { await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [created]); }
+            }
+          }
+        } catch (_) {}
+        try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
+        fetchingKeys.delete(cacheKey);
+        return coords;
+      }
+    } catch (gerr) {
+      console.warn('[HERE][client] Google fallback failed', gerr?.message || gerr);
+    }
   } finally {
     // Ensure lock is cleared on error/timeout
     try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
