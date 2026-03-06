@@ -422,7 +422,7 @@ export default function PolylineViewer({ users = [] }) {
 
             <div className="flex gap-4" style={{ height: '600px' }}>
               {/* Left: List */}
-              <div className="w-1/3 border rounded-lg overflow-hidden flex flex-col">
+              <div className="w-1/3 border rounded-lg overflow-hidden flex flex-col disabled:opacity-50">
                 <div className="bg-slate-100 p-3 border-b flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Checkbox
