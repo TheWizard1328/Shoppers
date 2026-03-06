@@ -378,7 +378,7 @@ export default function HereType1Polylines({
       .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time))[0];
     const home = driverHomeMarkers.find((h) => h.driverId === driverId);
     if (!lastCompleted || !home) return;
-    const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}`;
+    const key = `here_${Number(lastCompleted.latitude).toFixed(5)}_${Number(lastCompleted.longitude).toFixed(5)}_${Number(home.latitude).toFixed(5)}_${Number(home.longitude).toFixed(5)}`;
     let coords = cache[key];
     if (!coords) {
       try {
@@ -394,10 +394,10 @@ export default function HereType1Polylines({
       <Polyline
         key={`type1-home-${driverId}`}
         positions={coords || [
-          [lastCompleted.latitude, lastCompleted.longitude],
-          [home.latitude, home.longitude],
+          [Number(lastCompleted.latitude), Number(lastCompleted.longitude)],
+          [Number(home.latitude), Number(home.longitude)],
         ]}
-        pathOptions={{ color: coords ? "#2563eb" : "#94a3b8", weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
+        pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
         pane="overlayPane"
       />
     );
