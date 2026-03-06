@@ -225,6 +225,48 @@ export default function HereType2Polylines({
     });
   }, [isViewingCurrentDate, driverIncomplete, refreshToken]);
 
+  // Additionally, prefetch for pending-only sequences (no 'en_route'/'in_transit') to seed polylines
+  useEffect(() => {
+    if (!isViewingCurrentDate || optimizing) return;
+    try {
+      const byDriverAll = new Map();
+      const allStops = [...pickupMarkers, ...deliveryMarkers]
+        .filter(s => s && !Number.isNaN(Number(s.latitude)) && !Number.isNaN(Number(s.longitude)))
+        .sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0));
+      const scopedAllStops = (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all')
+        ? allStops.filter(s => s.driver_id === selectedDriverId)
+        : allStops;
+      scopedAllStops.forEach(s => {
+        if (!byDriverAll.has(s.driver_id)) byDriverAll.set(s.driver_id, []);
+        byDriverAll.get(s.driver_id).push(s);
+      });
+      byDriverAll.forEach((stops, driverId) => {
+        const active = driverIncomplete.get(driverId);
+        if (active && active.length) return;
+        const nonFinished = stops.filter(s => !FINISHED.includes(s.status));
+        const limit = Math.min(Math.max(0, nonFinished.length - 1), 3);
+        for (let i = 0; i < limit; i++) {
+          const a = nonFinished[i];
+          const b = nonFinished[i + 1];
+          const key = `here_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
+          if (cache[key]) continue;
+          setTimeout(() => {
+            getHerePolyline(
+              driverId,
+              { latitude: Number(a.latitude), longitude: Number(a.longitude) },
+              { latitude: Number(b.latitude), longitude: Number(b.longitude) },
+              a.delivery_date
+            ).then((coords) => {
+              if (Array.isArray(coords) && coords.length > 1) {
+                setCache((p) => ({ ...p, [key]: coords }));
+              }
+            });
+          }, Math.min(600, i * 120 + Math.floor(Math.random() * 120)));
+        }
+      });
+    } catch (_) {}
+  }, [isViewingCurrentDate, optimizing, pickupMarkers, deliveryMarkers, multiDriverMode, selectedDriverId, driverIncomplete, refreshToken]);
+
   /* always render polylines on any date; previously gated by current date */
 
   const lines = [];
