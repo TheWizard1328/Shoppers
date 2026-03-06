@@ -298,12 +298,11 @@ export default function DriverPayroll() {
     // CRITICAL: Ensure deliveries is always an array
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
 
-    // CRITICAL: Show all active drivers (ignore pay cycle requirement for dropdown)
-    // This ensures drivers are visible even if they don't have deliveries for this cycle
+    // CRITICAL: Filter drivers by the selected pay cycle
     const driverIdsToShow = new Set();
 
     payrollData.appUsers.forEach(au => {
-      if (au.status === 'active') {
+      if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
         driverIdsToShow.add(au.user_id);
       }
     });
