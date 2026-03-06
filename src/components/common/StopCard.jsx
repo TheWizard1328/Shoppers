@@ -1685,6 +1685,7 @@ export default function StopCard({
                                   } finally {
                                   const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                                   driverLocationPoller.resume();
+                                   smartRefreshManager.resume();
 
                                    // Reset UI flags after completion success
                                    setIsCompleting(false);
