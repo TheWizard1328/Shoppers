@@ -81,37 +81,48 @@ export default function PolylineViewer({ users = [] }) {
   const [opProgress, setOpProgress] = useState({ total: 0, processed: 0, label: '' });
   const [driverFilter, setDriverFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
+  const [dataSource, setDataSource] = useState('online'); // 'online' | 'offline'
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        console.log('📥 [PolylineViewer] Fetching polylines and breadcrumbs...');
-        
-        const polylinesData = await base44.entities.DriverRoutePolyline.list('-delivery_date', 1000);
-        console.log(`✅ [PolylineViewer] Loaded ${polylinesData?.length || 0} polylines`);
-        setPolylines(polylinesData || []);
-        
-        // Try to load breadcrumbs, but fail gracefully if entity doesn't exist
-        try {
-          const breadcrumbsData = await base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 1000);
-          console.log(`✅ [PolylineViewer] Loaded ${breadcrumbsData?.length || 0} breadcrumbs`);
-          setBreadcrumbs(breadcrumbsData || []);
-        } catch (breadcrumbError) {
-          console.warn('⚠️ [PolylineViewer] DeliveryBreadcrumbs entity not available:', breadcrumbError.message);
-          setBreadcrumbs([]);
+        if (viewMode === 'polylines') {
+          if (dataSource === 'online') {
+            const polylinesData = await queueEntityRequest(
+              () => base44.entities.DriverRoutePolyline.list('-delivery_date', 250),
+              'Routes: DriverRoutePolyline.list'
+            );
+            setPolylines(polylinesData || []);
+          } else {
+            const { offlineDB } = await import('../utils/offlineDatabase');
+            const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+            // Sort newest first and cap to 500 for performance
+            const sorted = (rows || []).sort((a,b) => String(b.delivery_date||'').localeCompare(String(a.delivery_date||''))).slice(0,500);
+            setPolylines(sorted);
+          }
+        } else {
+          // Breadcrumbs view (online only)
+          try {
+            const breadcrumbsData = await queueEntityRequest(
+              () => base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 250),
+              'Routes: DeliveryBreadcrumbs.list'
+            );
+            setBreadcrumbs(breadcrumbsData || []);
+          } catch (breadcrumbError) {
+            console.warn('⚠️ [PolylineViewer] DeliveryBreadcrumbs entity not available:', breadcrumbError.message);
+            setBreadcrumbs([]);
+          }
         }
       } catch (error) {
         console.error('❌ [PolylineViewer] Error fetching data:', error);
-        setPolylines([]);
-        setBreadcrumbs([]);
+        if (viewMode === 'polylines') setPolylines([]); else setBreadcrumbs([]);
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchData();
-  }, []);
+  }, [viewMode, dataSource]);
 
   const handlePolylineClick = (polyline) => {
     setSelectedPolyline(polyline);
@@ -355,6 +366,26 @@ export default function PolylineViewer({ users = [] }) {
                   className="h-8"
                 >
                   Breadcrumbs
+                </Button>
+              </div>
+
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                <Button
+                  variant={dataSource === 'online' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setDataSource('online')}
+                  className="h-8"
+                >
+                  Online
+                </Button>
+                <Button
+                  variant={dataSource === 'offline' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setDataSource('offline')}
+                  disabled={viewMode !== 'polylines'}
+                  className="h-8"
+                >
+                  Offline
                 </Button>
               </div>
 
