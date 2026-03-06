@@ -839,14 +839,11 @@ export default function DriverPayroll() {
      if (!hasInitialized || !payPeriod) return;
      if (isManualChangeRef.current) return;
 
-     // Recompute periods like allPeriods does (weekly/biweekly by classification year)
-     const effectiveYear = (payPeriod === 'weekly' || payPeriod === 'biweekly')
-       ? getClassificationYearForDate(new Date(), payPeriod)
-       : selectedYear;
-     const periods = calculateAllPeriods(effectiveYear, payPeriod);
+     // Use the already-computed periods list for the selectedYear (weekly/biweekly are classification-filtered)
+     const periods = allPeriods;
      const idx = findCurrentPeriodIndex(periods, new Date());
      if (idx !== selectedPeriodIndex) setSelectedPeriodIndex(idx);
-   }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex]);
+   }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex, allPeriods]);
   
   useEffect(() => {
      if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
