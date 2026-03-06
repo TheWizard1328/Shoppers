@@ -102,6 +102,12 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const [hasTorch, setHasTorch] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
+  // Fast scanner capture (prevents printing long strings into the input)
+  const scannerBufferRef = useRef('');
+  const scannerModeRef = useRef(false);
+  const lastKeyAtRef = useRef(0);
+  const scannerResetTimerRef = useRef(null);
+
   const adjustZoom = (delta) => {
     const track = streamRef.current?.getVideoTracks?.()[0];
     if (!track) return;
@@ -171,11 +177,50 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   }, [barcodeValues, onChange, expandedIndex]);
 
   const handleInputKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (disabled) return;
+    const key = e.key;
+    const isChar = key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+    const now = Date.now();
+    const delta = now - (lastKeyAtRef.current || 0);
+
+    // Treat very fast input as hardware scanner; buffer silently
+    if (isChar && (delta < 35 || scannerModeRef.current)) {
       e.preventDefault();
       e.stopPropagation();
-      addBarcode(manualInput);
+      scannerModeRef.current = true;
+      lastKeyAtRef.current = now;
+      scannerBufferRef.current += key;
+
+      if (scannerResetTimerRef.current) clearTimeout(scannerResetTimerRef.current);
+      scannerResetTimerRef.current = setTimeout(() => {
+        scannerModeRef.current = false;
+        scannerBufferRef.current = '';
+      }, 400);
+      return;
     }
+
+    if (key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (scannerModeRef.current && scannerBufferRef.current) {
+        addBarcode(scannerBufferRef.current);
+        scannerBufferRef.current = '';
+        scannerModeRef.current = false;
+        return;
+      }
+      addBarcode(manualInput);
+      return;
+    }
+
+    if (scannerModeRef.current && key === 'Backspace') {
+      e.preventDefault();
+      e.stopPropagation();
+      scannerBufferRef.current = scannerBufferRef.current.slice(0, -1);
+      lastKeyAtRef.current = now;
+      return;
+    }
+
+    lastKeyAtRef.current = now;
   };
 
   const handleCameraDetected = useCallback((value) => {
@@ -365,7 +410,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           ref={inputRef}
           type="text"
           value={manualInput}
-          onChange={(e) => setManualInput(e.target.value)}
+          onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
           onKeyDown={handleInputKeyDown}
           placeholder="Scan or type barcode value..."
           className="flex-1 h-9 text-sm font-mono"
