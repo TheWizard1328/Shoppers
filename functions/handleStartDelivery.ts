@@ -74,13 +74,29 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Step 5: Trigger real-time route optimization so ETAs and stop orders refresh immediately
+    let optimization = null;
+    try {
+      const payload = { driverId, deliveryDate, deviceTime: new Date().toISOString() };
+      if (currentLat && currentLng) {
+        payload.startLocation = { lat: currentLat, lng: currentLng };
+      }
+      const res = await base44.functions.invoke('optimizeRouteRealTime', payload);
+      optimization = res?.data || res;
+      console.log(`✅ [handleStartDelivery] optimizeRouteRealTime complete`);
+    } catch (e) {
+      console.warn('[handleStartDelivery] optimizeRouteRealTime failed (non-fatal):', e?.message || e);
+    }
+
     console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}, transferred ${distanceToTransfer} km`);
 
     return Response.json({
       success: true,
       distanceTransferred: distanceToTransfer,
       newNextDeliveryId: deliveryId,
-      oldNextDeliveryId
+      oldNextDeliveryId,
+      routeChanged: Boolean(optimization?.routeChanged),
+      optimization
     });
 
   } catch (error) {
