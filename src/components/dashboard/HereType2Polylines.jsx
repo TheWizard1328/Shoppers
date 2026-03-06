@@ -38,7 +38,10 @@ export default function HereType2Polylines({
   const hydrateFromOffline = async (key, driverId, from, to, date) => {
     try {
       const { offlineDB } = await import('../utils/offlineDatabase');
-      const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', date || new Date().toISOString().slice(0,10));
+      const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
+      const parts = formatter.formatToParts(new Date());
+      const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
+      const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', date || todayStr);
       const fLat = round5(from.latitude), fLon = round5(from.longitude);
       const tLat = round5(to.latitude), tLon = round5(to.longitude);
       const match = rows.find(r => r.driver_id === driverId && round5(r.segment_origin_lat) === fLat && round5(r.segment_origin_lon) === fLon && round5(r.segment_dest_lat) === tLat && round5(r.segment_dest_lon) === tLon && r.encoded_polyline);
