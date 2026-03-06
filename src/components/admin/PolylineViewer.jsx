@@ -98,8 +98,16 @@ export default function PolylineViewer({ users = [] }) {
           } else {
             const { offlineDB } = await import('../utils/offlineDatabase');
             const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+            // Keep ONLY today's records (America/Edmonton)
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+            const todays = (rows || []).filter(r => r?.delivery_date === today);
+            // Best-effort prune: remove older records from offline DB so it matches policy
+            const stale = (rows || []).filter(r => r?.delivery_date && r.delivery_date !== today);
+            if (stale.length) {
+              try { await Promise.all(stale.map(r => offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, r.id))); } catch (_) {}
+            }
             // Sort newest first and cap to 500 for performance
-            const sorted = (rows || []).sort((a,b) => String(b.delivery_date||'').localeCompare(String(a.delivery_date||''))).slice(0,500);
+            const sorted = (todays || []).sort((a,b) => String(b.delivery_date||'').localeCompare(String(a.delivery_date||''))).slice(0,500);
             setPolylines(sorted);
           }
         } else {
@@ -137,15 +145,16 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   const filteredPolylines = useMemo(() => {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+    const effectiveDate = dateFilter || today; // Always restrict to today unless a date is explicitly chosen
+
     let filtered = polylines;
 
     if (driverFilter !== 'all') {
       filtered = filtered.filter(p => p.driver_id === driverFilter);
     }
 
-    if (dateFilter) {
-      filtered = filtered.filter(p => p.delivery_date === dateFilter);
-    }
+    filtered = filtered.filter(p => p.delivery_date === effectiveDate);
 
     // Hide records with no encoded polyline (nothing to display on map)
     filtered = filtered.filter(p => typeof p.encoded_polyline === 'string' && p.encoded_polyline.length > 0);
@@ -221,34 +230,19 @@ export default function PolylineViewer({ users = [] }) {
       setOpProgress({ total: ids.length, processed: 0, label: 'Deleting selected…' });
       const CHUNK = 50;
 
-      if (dataSource === 'offline') {
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        for (let i = 0; i < ids.length; i += CHUNK) {
-          const batch = ids.slice(i, i + CHUNK);
-          await Promise.all(batch.map(async (id) => {
-            const rec = polylines.find(p => p.id === id);
-            if (rec) clearLocalCachesForPolyline(rec);
-            try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
-          }));
-          setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
-          await new Promise(r => setTimeout(r, 75));
-        }
-      } else {
-        for (let i = 0; i < ids.length; i += CHUNK) {
-          const batch = ids.slice(i, i + CHUNK);
-          await Promise.all(batch.map(async (id) => {
-            const rec = polylines.find(p => p.id === id);
-            if (rec) clearLocalCachesForPolyline(rec);
-            try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
-            // Best-effort: also remove any offline copy with same id
-            try {
-              const { offlineDB } = await import('../utils/offlineDatabase');
-              await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id);
-            } catch (_) {}
-          }));
-          setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
-          await new Promise(r => setTimeout(r, 150));
-        }
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const batch = ids.slice(i, i + CHUNK);
+        await Promise.all(batch.map(async (id) => {
+          const rec = polylines.find(p => p.id === id);
+          if (rec) clearLocalCachesForPolyline(rec);
+          // Delete online (ignore errors)
+          try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
+          // Delete offline (ignore errors)
+          try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
+        }));
+        setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
+        await new Promise(r => setTimeout(r, 100));
       }
 
       const remaining = polylines.filter(p => !selectedPolylines.has(p.id));
@@ -274,34 +268,19 @@ export default function PolylineViewer({ users = [] }) {
       setOpProgress({ total: ids.length, processed: 0, label: 'Deleting filtered…' });
       const CHUNK = 50;
 
-      if (dataSource === 'offline') {
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        for (let i = 0; i < ids.length; i += CHUNK) {
-          const batch = ids.slice(i, i + CHUNK);
-          await Promise.all(batch.map(async (id) => {
-            const rec = filteredPolylines.find(p => p.id === id) || polylines.find(p => p.id === id);
-            if (rec) clearLocalCachesForPolyline(rec);
-            try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
-          }));
-          setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
-          await new Promise(r => setTimeout(r, 75));
-        }
-      } else {
-        for (let i = 0; i < ids.length; i += CHUNK) {
-          const batch = ids.slice(i, i + CHUNK);
-          await Promise.all(batch.map(async (id) => {
-            const rec = filteredPolylines.find(p => p.id === id) || polylines.find(p => p.id === id);
-            if (rec) clearLocalCachesForPolyline(rec);
-            try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
-            // Best-effort: also remove any offline copy
-            try {
-              const { offlineDB } = await import('../utils/offlineDatabase');
-              await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id);
-            } catch (_) {}
-          }));
-          setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
-          await new Promise(r => setTimeout(r, 150));
-        }
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const batch = ids.slice(i, i + CHUNK);
+        await Promise.all(batch.map(async (id) => {
+          const rec = filteredPolylines.find(p => p.id === id) || polylines.find(p => p.id === id);
+          if (rec) clearLocalCachesForPolyline(rec);
+          // Delete online (ignore errors)
+          try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
+          // Delete offline (ignore errors)
+          try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
+        }));
+        setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
+        await new Promise(r => setTimeout(r, 100));
       }
 
       const remaining = polylines.filter(p => !ids.includes(p.id));
