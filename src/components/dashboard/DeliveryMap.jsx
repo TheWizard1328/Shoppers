@@ -406,16 +406,15 @@ export default function DeliveryMap({
     const handleDeliveriesUpdate = (event) => {
       // CRITICAL: Clear cached routes to force full recalculation
       prevDriverRoutesRef.current = [];
-      // Force re-render by incrementing BOTH keys
-      setRouteRenderKey(prev => prev + 1);
-      setPolylineRenderKey(prev => prev + 1);
+      // Force re-render and reset fanning in a single pass to avoid ghost clusters
+      setRouteRenderKey(prev => prev + 1); setPolylineRenderKey(prev => prev + 1); setFannedLocationKey(null);
     };
 
     // NEW: Listen for route optimization completion to refresh map
     const handleRouteOptimizationComplete = (event) => {
       prevDriverRoutesRef.current = [];
-      setRouteRenderKey(prev => prev + 1);
-      setPolylineRenderKey(prev => prev + 1);
+      // Force re-render and reset fanning to ensure clean marker remount
+      setRouteRenderKey(prev => prev + 1); setPolylineRenderKey(prev => prev + 1); setFannedLocationKey(null);
     };
 
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
@@ -2020,7 +2019,7 @@ export default function DeliveryMap({
   return (
     <div className="absolute inset-0">
       <MapContainer
-        key="delivery-map-container"
+        key={`delivery-map-container-${routeRenderKey}`
         center={center || [53.5461, -113.4938]}
         zoom={zoom || (safeDeliveries.length === 0 ? 11 : 12)}
         maxZoom={18}
@@ -2494,7 +2493,7 @@ return polylines.length > 0 ? polylines : null;
               }} />,
 
             <Marker
-              key={`pickup-${pickup.id}`}
+              key={`pickup-${pickup.id}-${routeRenderKey}`}
               position={markerPosition}
               icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, pickup.isNextDelivery, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished) : createStoreIcon(
                 pickup.status, 
@@ -2952,7 +2951,7 @@ return polylines.length > 0 ? polylines : null;
             })(),
             
             <Marker
-              key={`delivery-${delivery.id}`}
+              key={`delivery-${delivery.id}-${routeRenderKey}`}
               position={markerPosition}
               icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished) : delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished) : createDeliveryIcon(
                 delivery.status,
