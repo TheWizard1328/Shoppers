@@ -89,69 +89,63 @@ const getClassificationYearForDate = (date, payPeriodType) => {
 };
 
 // Helper: Calculate all pay periods for a given year and pay period type
+// For weekly/biweekly, we generate Monday-anchored periods across the boundary
+// and then include only those whose majority of days fall in the requested year.
 const calculateAllPeriods = (year, payPeriodType) => {
   const periods = [];
   
   switch (payPeriodType) {
     case 'weekly': {
-      const firstMonday = getFirstMondayOfYear(year);
-      // Add prior year period if Jan 1 is before first Monday
-      const jan1 = new Date(year, 0, 1);
-      if (jan1 < firstMonday) {
-        periods.push({
-          year,
-          start: jan1,
-          end: new Date(firstMonday.getTime() - 86400000), // day before first Monday
-          label: `Prior Year Period`,
-          isPriorYear: true
-        });
-      }
-      // Generate weekly periods
-      let weekStart = new Date(firstMonday);
+      const stepDays = 7;
+      const anchor = getMondayOnOrBefore(new Date(year, 0, 1));
+      const endBoundary = new Date(year + 1, 0, 1);
+      endBoundary.setDate(endBoundary.getDate() + (stepDays - 1)); // cover spill
+
+      let cur = new Date(anchor);
       let weekNum = 1;
-      const yearEnd = new Date(year, 11, 31);
-      while (weekStart <= yearEnd) {
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        periods.push({
-          year,
-          start: new Date(weekStart),
-          end: weekEnd > yearEnd ? yearEnd : weekEnd,
-          label: `Week ${weekNum}`,
-          weekNum
-        });
-        weekNum++;
-        weekStart.setDate(weekStart.getDate() + 7);
+      while (cur <= endBoundary) {
+        const start = new Date(cur);
+        const end = new Date(cur);
+        end.setDate(end.getDate() + (stepDays - 1));
+        const belongsToYear = classifyPeriodYear(start, end) === year;
+        if (belongsToYear) {
+          periods.push({
+            year,
+            start,
+            end,
+            label: `Week ${weekNum}`,
+            weekNum
+          });
+          weekNum++;
+        }
+        cur.setDate(cur.getDate() + stepDays);
       }
       break;
     }
     case 'biweekly': {
-      const firstMonday = getFirstMondayOfYear(year);
-      const jan1 = new Date(year, 0, 1);
-      if (jan1 < firstMonday) {
-        periods.push({
-          year,
-          start: jan1,
-          end: new Date(firstMonday.getTime() - 86400000),
-          label: `Prior Year Period`,
-          isPriorYear: true
-        });
-      }
-      let biweekStart = new Date(firstMonday);
+      const stepDays = 14;
+      const anchor = getMondayOnOrBefore(new Date(year, 0, 1));
+      const endBoundary = new Date(year + 1, 0, 1);
+      endBoundary.setDate(endBoundary.getDate() + (stepDays - 1));
+
+      let cur = new Date(anchor);
       let periodNum = 1;
-      const yearEnd = new Date(year, 11, 31);
-      while (biweekStart <= yearEnd) {
-        const biweekEnd = new Date(biweekStart);
-        biweekEnd.setDate(biweekStart.getDate() + 13);
-        periods.push({
-          year,
-          start: new Date(biweekStart),
-          end: biweekEnd > yearEnd ? yearEnd : biweekEnd,
-          label: `Period ${periodNum}`,
-          periodNum
-        });
-        periodNum++;
-        biweekStart.setDate(biweekStart.getDate() + 14);
+      while (cur <= endBoundary) {
+        const start = new Date(cur);
+        const end = new Date(cur);
+        end.setDate(end.getDate() + (stepDays - 1));
+        const belongsToYear = classifyPeriodYear(start, end) === year;
+        if (belongsToYear) {
+          periods.push({
+            year,
+            start,
+            end,
+            label: `Period ${periodNum}`,
+            periodNum
+          });
+          periodNum++;
+        }
+        cur.setDate(cur.getDate() + stepDays);
       }
       break;
     }
