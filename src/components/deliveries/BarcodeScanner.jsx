@@ -170,10 +170,12 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
     // Avoid duplicates
     if (barcodeValues.includes(trimmed)) {
       setManualInput('');
+      setTimeout(() => { try { inputRef.current?.focus(); } catch {} }, 0);
       return;
     }
     onChange([...barcodeValues, trimmed]);
     setManualInput('');
+    setTimeout(() => { try { inputRef.current?.focus(); } catch {} }, 0);
   }, [barcodeValues, onChange]);
 
   const removeBarcode = useCallback((index) => {
@@ -211,11 +213,11 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         addBarcode(scannerBufferRef.current);
         scannerBufferRef.current = '';
         scannerModeRef.current = false;
-        setTimeout(() => { try { hiddenInputRef.current?.focus(); } catch {} }, 0);
+        setTimeout(() => { try { inputRef.current?.focus(); } catch {} }, 0);
         return;
       }
       addBarcode(manualInput);
-      setTimeout(() => { try { hiddenInputRef.current?.focus(); } catch {} }, 0);
+      setTimeout(() => { try { inputRef.current?.focus(); } catch {} }, 0);
       return;
     }
 

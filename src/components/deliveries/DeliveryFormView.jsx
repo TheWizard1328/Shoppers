@@ -532,7 +532,15 @@ export default function DeliveryFormView({
                 </Button>
               )}
               <div className="flex gap-2 ml-auto">
-                <Button type="button" variant="outline" size="sm" onClick={delivery ? handleCancelClick : cancelButtonState === 'clear' ? handleClearForm : handleCancelClick} disabled={isSaving || isPatientFormOpen} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <Button type="button" variant="outline" size="sm" onClick={() => {
+                  if (delivery) { handleCancelClick(); return; }
+                  if (cancelButtonState === 'clear') {
+                    setFormData(prev => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
+                    handleClearForm();
+                  } else {
+                    handleCancelClick();
+                  }
+                }} disabled={isSaving || isPatientFormOpen} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
                 </Button>
 
