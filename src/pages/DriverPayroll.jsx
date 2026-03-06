@@ -65,6 +65,7 @@ const calculateAllPeriods = (year, payPeriodType) => {
     case 'weekly': {
       // Start from late December of previous year to catch periods that belong to current year
       let weekStart = new Date(year - 1, 11, 20);
+      weekStart.setHours(0, 0, 0, 0);
       // Adjust to Monday
       const dayOfWeek = weekStart.getDay();
       const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -76,6 +77,7 @@ const calculateAllPeriods = (year, payPeriodType) => {
       while (true) {
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
         
         const periodYear = getPeriodYear(weekStart, weekEnd);
         
@@ -94,13 +96,16 @@ const calculateAllPeriods = (year, payPeriodType) => {
           weekNum++;
         }
         
-        weekStart.setDate(weekStart.getDate() + 7);
+        weekStart = new Date(weekEnd);
+        weekStart.setDate(weekStart.getDate() + 1);
+        weekStart.setHours(0, 0, 0, 0);
       }
       break;
     }
     case 'biweekly': {
       // Start from late December of previous year
       let biweekStart = new Date(year - 1, 11, 15);
+      biweekStart.setHours(0, 0, 0, 0);
       // Adjust to Monday
       const dayOfWeek = biweekStart.getDay();
       const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -111,6 +116,7 @@ const calculateAllPeriods = (year, payPeriodType) => {
       while (true) {
         const biweekEnd = new Date(biweekStart);
         biweekEnd.setDate(biweekStart.getDate() + 13);
+        biweekEnd.setHours(23, 59, 59, 999);
         
         const periodYear = getPeriodYear(biweekStart, biweekEnd);
         
@@ -129,7 +135,9 @@ const calculateAllPeriods = (year, payPeriodType) => {
           periodNum++;
         }
         
-        biweekStart.setDate(biweekStart.getDate() + 14);
+        biweekStart = new Date(biweekEnd);
+        biweekStart.setDate(biweekStart.getDate() + 1);
+        biweekStart.setHours(0, 0, 0, 0);
       }
       break;
     }
