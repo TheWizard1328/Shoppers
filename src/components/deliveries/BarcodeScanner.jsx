@@ -426,6 +426,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           value={manualInput}
           onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
           onKeyDown={handleInputKeyDown}
+          onFocus={() => { try { hiddenInputRef.current?.blur(); } catch {} }}
           placeholder={placeholder}
           className="flex-1 h-9 text-sm font-mono"
           disabled={disabled}
