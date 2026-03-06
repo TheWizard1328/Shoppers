@@ -79,10 +79,10 @@ function MiniBarcode({ value }) {
       });
     } catch (_) {}
   }, [value]);
-  return <svg ref={svgRef} className="h-8 w-28" aria-hidden="true" />;
+  return <svg ref={svgRef} className="h-10 w-full" aria-hidden="true" />;
 }
 
-export default function BarcodeScanner({ barcodeValues = [], onChange, disabled = false, title = "Tx Barcodes", placeholder = "Scan or type barcode value..." }) {
+export default function BarcodeScanner({ barcodeValues = [], onChange, disabled = false, title = "Tx Barcodes", placeholder = "Scan or type barcode value...", onSelectBarcode = () => {} }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
@@ -179,8 +179,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const removeBarcode = useCallback((index) => {
     const updated = barcodeValues.filter((_, i) => i !== index);
     onChange(updated);
-    if (expandedIndex === index) setExpandedIndex(null);
-  }, [barcodeValues, onChange, expandedIndex]);
+  }, [barcodeValues, onChange]);
 
   const handleInputKeyDown = (e) => {
     if (disabled) return;
@@ -532,13 +531,13 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       {/* Barcode grid */}
       {barcodeValues.length > 0 && (
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {barcodeValues.map((val, idx) => (
               <div
                 key={idx}
-                className={`relative rounded-lg border bg-white p-1 cursor-pointer ${expandedIndex === idx ? 'ring-2 ring-emerald-400' : 'hover:bg-slate-50'}`}
+                className="relative rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
                 style={{ borderColor: 'var(--border-slate-200)' }}
-                onClick={() => setExpandedIndex(idx)}
+                onClick={() => onSelectBarcode(val)}
                 title={val}
               >
                 <MiniBarcode value={val} />
@@ -556,9 +555,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           </div>
 
           {expandedIndex !== null && barcodeValues[expandedIndex] && (
-            <div className="mt-2 p-2 bg-white rounded-lg border border-emerald-200">
-              <BarcodeDisplay value={barcodeValues[expandedIndex]} onDelete={() => removeBarcode(expandedIndex)} />
-            </div>
+            {/* Large preview moved to parent container */}
           )}
         </div>
       )}
