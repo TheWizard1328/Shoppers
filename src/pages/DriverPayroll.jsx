@@ -802,6 +802,7 @@ export default function DriverPayroll() {
             }
           }
         }
+        }
 
         if (foundUnfinalizedPeriodIndex !== -1) {
           determinedPeriodIndex = foundUnfinalizedPeriodIndex;
