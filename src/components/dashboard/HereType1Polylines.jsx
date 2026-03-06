@@ -285,8 +285,9 @@ export default function HereType1Polylines({
     // Let's check if we have a current driver marker. If so, we should draw from there instead of home!
     
     if (!hasCompleted && hasIncomplete) {
-      // Fallback to first incomplete stop if isNextDelivery is not set
+      // Fallback to first active stop (exclude pending) if isNextDelivery is not set
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
+      if (!next) return;
       
       // Always use static Home as origin for Type 1 pre-route
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
@@ -294,7 +295,7 @@ export default function HereType1Polylines({
       const originLon = home && typeof home.longitude === 'number' ? home.longitude : undefined;
 
       if (
-        next && originLat !== undefined && originLon !== undefined &&
+        originLat !== undefined && originLon !== undefined &&
         next.latitude !== undefined && next.longitude !== undefined
       ) {
         const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(next.latitude).toFixed(5)}_${Number(next.longitude).toFixed(5)}`;
