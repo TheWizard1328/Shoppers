@@ -140,7 +140,7 @@ export default function DeliveryForm({
 
   const [formData, setFormData] = useState(() => {
     const initialState = {
-      patient_id: "",
+      patient_id: initialPatientId || "",
       delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
       delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
       time_window_start: "", time_window_end: "", status: "Staged",
@@ -150,7 +150,7 @@ export default function DeliveryForm({
       cod_payment_type: "No Payment", cod_amount: "",
       tracking_number: "", delivery_stop_id: "", stop_id: "", puid: "",
       paid_km_override: null,
-      patient_name: "", patient_phone: "", unit_number: "", store_phone: "", store_id: "",
+      patient_name: (initialPatientId && Array.isArray(patients) ? (patients.find(pt=>pt&&pt.id===initialPatientId)?.full_name || "") : ""), patient_phone: (initialPatientId && Array.isArray(patients) ? (patients.find(pt=>pt&&pt.id===initialPatientId)?.phone || "") : ""), unit_number: (initialPatientId && Array.isArray(patients) ? (patients.find(pt=>pt&&pt.id===initialPatientId)?.unit_number || "") : ""), store_phone: "", store_id: (initialPatientId && Array.isArray(patients) ? (patients.find(pt=>pt&&pt.id===initialPatientId)?.store_id || "") : ""),
       mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
       dont_ring_bell: false, back_door: false, signature_needed: false,
       fridge_item: false, oversized: false, after_hours_pickup: false, no_charge: false, extra_time: 0,
@@ -205,7 +205,7 @@ export default function DeliveryForm({
   });
 
   const [patientSearch, setPatientSearch] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [selectedPatient, setSelectedPatient] = useState(() => (initialPatientId && Array.isArray(patients) ? (patients.find((pt) => pt && pt.id === initialPatientId) || null) : null));
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedPickupOption, setSelectedPickupOption] = useState('');
