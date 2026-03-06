@@ -460,65 +460,27 @@ export default function DriverPayroll() {
     // Pre-compute the periods for the target settings so we can select the right cycle immediately
     const nextPeriods = calculateAllPeriods(effectiveYear, newPayPeriod);
 
-    // Helper to choose correct index like initial load: prefer previous unfinalized, else current/closest
-    const decideIndex = async () => {
-      const today = new Date();
-      const todayStr = toLocalYMD(today);
-      // Robust index detection using local date strings
-      let idxClose = -1;
+    // Select today's period (or closest past) WITHOUT shifting to previous unfinalized
+    const today = new Date();
+    const todayStr = toLocalYMD(today);
+    let nextIdx = -1;
+    for (let i = 0; i < nextPeriods.length; i++) {
+      const s = toLocalYMD(nextPeriods[i].start);
+      const e = toLocalYMD(nextPeriods[i].end);
+      if (todayStr >= s && todayStr <= e) { nextIdx = i; break; }
+    }
+    if (nextIdx === -1) {
+      let lastPastIdx = -1;
+      let lastPastEnd = '0000-00-00';
       for (let i = 0; i < nextPeriods.length; i++) {
-        const s = toLocalYMD(nextPeriods[i].start);
         const e = toLocalYMD(nextPeriods[i].end);
-        if (todayStr >= s && todayStr <= e) { idxClose = i; break; }
+        if (e < todayStr && e > lastPastEnd) { lastPastIdx = i; lastPastEnd = e; }
       }
-      if (idxClose === -1) {
-        // choose closest past period if not in range
-        let lastPastIdx = -1;
-        let lastPastEnd = '0000-00-00';
-        for (let i = 0; i < nextPeriods.length; i++) {
-          const e = toLocalYMD(nextPeriods[i].end);
-          if (e < todayStr && e > lastPastEnd) { lastPastIdx = i; lastPastEnd = e; }
-        }
-        idxClose = lastPastIdx !== -1 ? lastPastIdx : 0;
-      }
-      let targetIdx = idxClose;
+      nextIdx = lastPastIdx !== -1 ? lastPastIdx : 0;
+    }
 
-      try {
-        const todayStr = toLocalYMD(today);
-        const inRange = (() => {
-          const p = nextPeriods[idxClose];
-          if (!p) return false;
-          const s = toLocalYMD(p.start);
-          const e = toLocalYMD(p.end);
-          return todayStr >= s && todayStr <= e;
-        })();
-
-        const prevIdx = inRange ? (idxClose > 0 ? idxClose - 1 : -1) : idxClose;
-        if (prevIdx >= 0) {
-          const startStr = nextPeriods[prevIdx].start.toISOString().split('T')[0];
-          const endStr = nextPeriods[prevIdx].end.toISOString().split('T')[0];
-
-          const offlinePayrolls = await offlineDB.getAll('payroll_records') || [];
-          const filtered = offlinePayrolls.filter(r => {
-            const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
-            const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
-            const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
-            return matchPeriod && matchCity && matchDriver;
-          });
-          const anyUnfinalized = filtered.length > 0 && !filtered.every(r =>
-            r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
-          );
-          targetIdx = anyUnfinalized ? prevIdx : idxClose;
-        }
-      } catch (e) {
-        // keep idxClose when offline read fails
-        console.warn('[DriverPayroll] PayPeriod change - offline check failed:', e);
-      }
-
-      React.startTransition(() => {
-        setSelectedPeriodIndex(targetIdx);
-      });
-    };
+    // Avoid the "no data -> jump previous" effect right after a cycle change
+    triedPreviousPeriodRef.current = true;
 
     // Batch all state updates together in a single synchronous block
     React.startTransition(() => {
@@ -528,6 +490,9 @@ export default function DriverPayroll() {
       if (shouldClassify && effectiveYear !== selectedYear) {
         setSelectedYear(effectiveYear);
       }
+
+      // Immediately select the correct period index for the new cycle (today or closest past)
+      setSelectedPeriodIndex(nextIdx);
 
       // Reset selected driver to 'all' to force refresh with new pay cycle filter
       if (selectedDriverId !== 'all') {
@@ -551,11 +516,8 @@ export default function DriverPayroll() {
       });
     });
 
-    // Decide and set the period index based on offline finalized status, mirroring initial load behavior
-    decideIndex();
-
     setTimeout(() => { isManualChangeRef.current = false; }, 200);
-  }, [selectedDriverId, selectedYear, selectedCityId]);
+  }, [selectedDriverId, selectedYear]);
 
   const refreshPayrollRecords = useCallback(async () => {
     if (!currentPeriod || !payrollData?.payrollRecords) {
