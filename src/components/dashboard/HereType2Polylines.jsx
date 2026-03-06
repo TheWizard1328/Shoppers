@@ -106,12 +106,16 @@ export default function HereType2Polylines({
     });
 
     grouped.forEach((stops, driverId) => {
-      // Include pending stops in the Type 2 route visualization
-      const incomplete = stops.filter((s) => !FINISHED.includes(s.status));
+      const incomplete = stops.filter((s) => !FINISHED.includes(s.status) && s.status !== "pending");
       if (incomplete.length === 0) return;
+      // Ensure they are sorted by stop_order so the sequence is correct
+      incomplete.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      
       const next = incomplete.find((s) => s.isNextDelivery) || incomplete[0];
       const startIdx = incomplete.indexOf(next);
-      map.set(driverId, incomplete.slice(startIdx));
+      
+      // If startIdx is somehow -1 (shouldn't happen), default to 0
+      map.set(driverId, incomplete.slice(startIdx >= 0 ? startIdx : 0));
     });
 
     return map;
@@ -267,18 +271,39 @@ export default function HereType2Polylines({
       if (active && active.length) return; // already handled above
       const nonFinished = stops.filter(s => !FINISHED.includes(s.status));
       if (nonFinished.length < 2) return;
-      const allPending = nonFinished.every(s => s.status === 'pending');
-      if (!allPending) return; // show only when route not started
+      
+      // If we have no active stops in driverIncomplete, but we DO have nonFinished stops,
+      // it means they are ALL pending OR we somehow missed them.
+      // Let's draw the dashed lines for them so the route is visible!
       for (let i = 0; i < nonFinished.length - 1; i++) {
         const a = nonFinished[i];
         const b = nonFinished[i+1];
         const key = `here_${a.latitude.toFixed(5)}_${a.longitude.toFixed(5)}_${b.latitude.toFixed(5)}_${b.longitude.toFixed(5)}`;
-        // Always show dashed fallback immediately; HERE polyline will hydrate when ready
+        
+        let coords = cache[key];
+        if (!coords) {
+          try {
+            const cached = localStorage.getItem(key);
+            if (cached) {
+              const c = JSON.parse(cached);
+              if (Array.isArray(c) && c.length > 1) coords = c;
+            }
+          } catch (_) {}
+        }
+        
+        // Always show dashed fallback immediately
         lines.push(
           <Polyline
             key={`type2-pending-fallback-${driverId}-${i}`}
-            positions={[[a.latitude, a.longitude], [b.latitude, b.longitude]]}
-            pathOptions={{ color: '#94a3b8', weight: 5, opacity: 0.35, dashArray: '6,6', lineJoin: 'round', lineCap: 'round' }}
+            positions={coords || [[a.latitude, a.longitude], [b.latitude, b.longitude]]}
+            pathOptions={{ 
+              color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#6366F1"), driverId) : '#94a3b8', 
+              weight: 5, 
+              opacity: coords ? 0.6 : 0.35, 
+              dashArray: '6,6', 
+              lineJoin: 'round', 
+              lineCap: 'round' 
+            }}
             pane="overlayPane"
           />
         );

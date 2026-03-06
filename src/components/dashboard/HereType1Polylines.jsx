@@ -215,22 +215,35 @@ export default function HereType1Polylines({
       if (hasCompleted || !hasIncomplete) return;
       // Fallback to first incomplete stop if isNextDelivery is not set
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
-      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-      if (!next || !home) return;
-      const key = `here_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
+      
+      let originLat, originLon;
+      if (currentDriverMarker && currentDriverMarker.driver?.id === driverId && currentDriverMarker.latitude && currentDriverMarker.longitude) {
+        originLat = currentDriverMarker.latitude;
+        originLon = currentDriverMarker.longitude;
+      } else {
+        const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+        if (home && typeof home.latitude === 'number' && typeof home.longitude === 'number') {
+          originLat = home.latitude;
+          originLon = home.longitude;
+        }
+      }
+
+      if (!next || originLat === undefined || originLon === undefined) return;
+      
+      const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
       if (cache[key]) return;
       (async () => {
-        const ok = await hydrateFromOffline(key, driverId, home, next, next.delivery_date);
+        const ok = await hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date);
         if (ok) return;
         const d = Math.floor(Math.random() * 150);
         setTimeout(() => {
-          getHerePolyline(driverId, { latitude: home.latitude, longitude: home.longitude }, { latitude: next.latitude, longitude: next.longitude }, next.delivery_date).then((coords) => {
+          getHerePolyline(driverId, { latitude: originLat, longitude: originLon }, { latitude: next.latitude, longitude: next.longitude }, next.delivery_date).then((coords) => {
             if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
           });
         }, d);
       })();
     });
-  }, [isViewingCurrentDate, driverStops, driverHomeMarkers, optimizing, refreshToken]);
+  }, [isViewingCurrentDate, driverStops, driverHomeMarkers, currentDriverMarker, optimizing, refreshToken]);
 
   /* always render polylines on any date; previously gated by current date */
 
@@ -240,16 +253,41 @@ export default function HereType1Polylines({
   driverStops.forEach((stops, driverId) => {
     const hasCompleted = (stops?.complete?.length || 0) > 0;
     const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
+    
+    // Determine if we should draw the pre-route line (home -> first stop)
+    // We draw it if there are NO completed stops AND we have incomplete stops
+    // AND the route hasn't "started" in a way that gives us a live GPS location to draw from instead.
+    // Wait, if ALL stops are in_transit, hasCompleted is false.
+    // We should draw the line from the driver's current live location to the next stop if they are on duty,
+    // but Type 1 handles "home -> first" or "last completed -> next".
+    // If they are in_transit but have NO completed stops, they are on their way to the first stop.
+    // Let's check if we have a current driver marker. If so, we should draw from there instead of home!
+    
     if (!hasCompleted && hasIncomplete) {
       // Fallback to first incomplete stop if isNextDelivery is not set
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
-      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+      
+      // If we have a live driver marker for this driver, use it instead of home!
+      let originLat, originLon;
+      let isLive = false;
+      
+      if (currentDriverMarker && currentDriverMarker.driver?.id === driverId && currentDriverMarker.latitude && currentDriverMarker.longitude) {
+        originLat = currentDriverMarker.latitude;
+        originLon = currentDriverMarker.longitude;
+        isLive = true;
+      } else {
+        const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+        if (home && typeof home.latitude === 'number' && typeof home.longitude === 'number') {
+          originLat = home.latitude;
+          originLon = home.longitude;
+        }
+      }
+
       if (
-        next && home &&
-        typeof next.latitude === 'number' && typeof next.longitude === 'number' &&
-        typeof home.latitude === 'number' && typeof home.longitude === 'number'
+        next && originLat !== undefined && originLon !== undefined &&
+        typeof next.latitude === 'number' && typeof next.longitude === 'number'
       ) {
-        const key = `here_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
+        const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
         let coords = cache[key];
         if (!coords) {
           try {
@@ -260,12 +298,14 @@ export default function HereType1Polylines({
             }
           } catch (_) {}
         }
-        // Always show dashed fallback immediately; HERE polyline will hydrate when ready
+        
+        // If it's a live GPS location, we might not want to wait for HERE API and just draw a straight dashed line
+        // because the GPS updates frequently. But we'll try to use the cached HERE line if available.
         lines.push(
           <Polyline
             key={`type1-pre-home-${driverId}`}
-            positions={coords || [[home.latitude, home.longitude], [next.latitude, next.longitude]]}
-            pathOptions={{ color: coords ? "#2563eb" : '#94a3b8', weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? '' : '6,6', lineJoin: 'round', lineCap: 'round' }}
+            positions={coords || [[originLat, originLon], [next.latitude, next.longitude]]}
+            pathOptions={{ color: coords ? "#2563eb" : '#2563eb', weight: 5, opacity: coords ? 0.9 : 0.6, dashArray: coords ? '' : '10, 5', lineJoin: 'round', lineCap: 'round' }}
             pane="overlayPane"
           />
         );
