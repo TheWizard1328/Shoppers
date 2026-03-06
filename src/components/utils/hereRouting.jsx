@@ -194,16 +194,17 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     });
   } // De-duplicate concurrent fetches
 
-  // Try offline DB cache before hitting network/entity
+  // Try offline DB cache before hitting network/entity (indexed by delivery_date for speed)
   try {
-    const all = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
-    if (Array.isArray(all) && all.length) {
-      const rounded = (n) => Number(n.toFixed(5));
-      const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
-const parts = formatter.formatToParts(new Date());
-const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
-const deliveryDateSafe = deliveryDate || todayStr;
-      const rec = all.find(r => r.driver_id === driverId && r.delivery_date === deliveryDateSafe &&
+    const rounded = (n) => Number(n.toFixed(5));
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const parts = formatter.formatToParts(new Date());
+    const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
+    const deliveryDateSafe = deliveryDate || todayStr;
+
+    const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDateSafe);
+    if (Array.isArray(rows) && rows.length) {
+      const rec = rows.find(r => r.driver_id === driverId &&
         Number(r.segment_origin_lat)?.toFixed(5) === rounded(fromStop.latitude).toFixed(5) &&
         Number(r.segment_origin_lon)?.toFixed(5) === rounded(fromStop.longitude).toFixed(5) &&
         Number(r.segment_dest_lat)?.toFixed(5) === rounded(toStop.latitude).toFixed(5) &&
