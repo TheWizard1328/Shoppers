@@ -1026,7 +1026,7 @@ function Dashboard() {
         if (!driverToSelect) {
           if (userHasRole(currentUser, 'dispatcher')) {
             // DISPATCHERS: Auto-select based on drivers with deliveries for their stores on SELECTED date
-            const selectedDateStr = settings.selected_date || format(new Date(), 'yyyy-MM-dd');
+            const selectedDateStr = settings.selected_date || getEdmDate();
             const dispatcherStoreIds = currentUser.store_ids || [];
             
             // Get drivers with at least 1 pickup or delivery for dispatcher's stores
@@ -1973,7 +1973,7 @@ function Dashboard() {
     if (!currentUser || !isAppOwner(currentUser)) return;
 
     try {
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const todayStr = getEdmDate();
       const todayStart = new Date(todayStr + 'T00:00:00').toISOString();
       const todayEnd = new Date(todayStr + 'T23:59:59').toISOString();
 
@@ -2483,7 +2483,7 @@ function Dashboard() {
       setCurrentToNextPolyline(null);
       return;
     }
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todayStr = getEdmDate();
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     if (todayStr !== selectedDateStr) {
       setCurrentToNextPolyline(null);
@@ -2819,7 +2819,7 @@ function Dashboard() {
         let hasDriverMarkers = false;
 
         // Check if viewing today's date
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const todayStr = getEdmDate();
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         const isViewingToday = todayStr === selectedDateStr;
 
@@ -3266,7 +3266,7 @@ function Dashboard() {
         const allCoordinatesPhase3 = [];
         
         // Check if viewing today's date
-        const todayStrPhase3 = format(new Date(), 'yyyy-MM-dd');
+        const todayStrPhase3 = getEdmDate();
         const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
         const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
         
@@ -6424,7 +6424,7 @@ function Dashboard() {
       driverId = targetDelivery.driver_id;
       deliveryDate = targetDelivery.delivery_date;
       
-      const currentDate = format(new Date(), 'yyyy-MM-dd');
+      const currentDate = getEdmDate();
       const isPickup = !targetDelivery.patient_id;
       const isRetry = targetDelivery.status === 'failed' && (newStatus === 'in_transit' || newStatus === 'en_route');
 
@@ -7136,7 +7136,7 @@ function Dashboard() {
       
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const currentDate = format(new Date(), 'yyyy-MM-dd');
+      const currentDate = getEdmDate();
 
       // CRITICAL: Find the patient from the failed delivery
       const failedPatient = patients.find((p) => p?.id === originalDelivery.patient_id);
