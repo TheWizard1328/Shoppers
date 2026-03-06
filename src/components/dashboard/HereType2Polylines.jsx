@@ -106,7 +106,8 @@ export default function HereType2Polylines({
     });
 
     grouped.forEach((stops, driverId) => {
-      const incomplete = stops.filter((s) => !FINISHED.includes(s.status) && s.status !== "pending");
+      // Include pending stops in the Type 2 route visualization
+      const incomplete = stops.filter((s) => !FINISHED.includes(s.status));
       if (incomplete.length === 0) return;
       const next = incomplete.find((s) => s.isNextDelivery) || incomplete[0];
       const startIdx = incomplete.indexOf(next);
