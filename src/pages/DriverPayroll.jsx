@@ -248,15 +248,6 @@ export default function DriverPayroll() {
 
   const allPeriods = useMemo(() => {
     if (!payPeriod) return [];
-
-    // For weekly/biweekly, select classification year so the first cycle listed
-    // is the set where most days of that period fall in the chosen year.
-    if (payPeriod === 'weekly' || payPeriod === 'biweekly') {
-      // Determine which year the current period (containing today) belongs to
-      const targetYear = getClassificationYearForDate(new Date(), payPeriod);
-      return calculateAllPeriods(targetYear, payPeriod);
-    }
-
     return calculateAllPeriods(selectedYear, payPeriod);
   }, [selectedYear, payPeriod]);
 
