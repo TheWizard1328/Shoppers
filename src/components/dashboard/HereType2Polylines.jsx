@@ -275,7 +275,7 @@ export default function HereType2Polylines({
   });
 
 
-  // Preserve last non-empty set to prevent blanking on date flips/loading
-  useEffect(() => { if (lines.length) setLastNonEmptyLines(lines); }, [lines.length, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
+  // Preserve last non-empty set only in multi-driver mode to avoid ghost lines when switching drivers
+  useEffect(() => { if (lines.length && multiDriverMode) setLastNonEmptyLines(lines); }, [lines.length, multiDriverMode, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
   return lines.length ? <>{lines}</> : (lastNonEmptyLines.length ? <>{lastNonEmptyLines}</> : null);
 }
