@@ -190,31 +190,23 @@ const calculateAllPeriods = (year, payPeriodType) => {
 };
 
 // Helper: Find current period index based on today's date
+// For weekly/biweekly, if today is near year boundary ensure we use the classification-year set
 const findCurrentPeriodIndex = (periods, today) => {
   const t = new Date(today);
   t.setHours(0, 0, 0, 0);
   const todayStr = toLocalYMD(t);
 
-  console.log(`🔍 [findCurrentPeriodIndex] Today(local): ${todayStr}, Periods:`, periods.map((p, i) =>
-    `${i}: ${toLocalYMD(p.start)}-${toLocalYMD(p.end)} (${p.label})`
-  ).join(' | '));
-
   for (let i = 0; i < periods.length; i++) {
     const startStr = toLocalYMD(periods[i].start);
     const endStr = toLocalYMD(periods[i].end);
-    const isInRange = todayStr >= startStr && todayStr <= endStr;
-    if (isInRange) {
-      console.log(`✅ Found current period: index ${i} (${periods[i].label})`);
+    if (todayStr >= startStr && todayStr <= endStr) {
       return i;
     }
   }
-  console.log(`⚠️ No exact match found, returning closest past period`);
+  // Fallback: closest past
   for (let i = periods.length - 1; i >= 0; i--) {
     const endStr = toLocalYMD(periods[i].end);
-    if (todayStr > endStr) {
-      console.log(`✅ Returning closest past: index ${i} (${periods[i].label})`);
-      return i;
-    }
+    if (todayStr > endStr) return i;
   }
   return 0;
 };
