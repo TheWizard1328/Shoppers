@@ -242,8 +242,12 @@ export default function HereType1Polylines({
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-      const originLat = home && typeof home.latitude === 'number' ? home.latitude : undefined;
-      const originLon = home && typeof home.longitude === 'number' ? home.longitude : undefined;
+      const live = (currentDriverMarker && currentDriverMarker.driverId === driverId)
+        ? currentDriverMarker
+        : (driverLocations || []).find((d) => d && d.driverId === driverId);
+      const origin = home || live;
+      const originLat = origin && !Number.isNaN(Number(origin.latitude)) ? Number(origin.latitude) : undefined;
+      const originLon = origin && !Number.isNaN(Number(origin.longitude)) ? Number(origin.longitude) : undefined;
 
       if (!next || originLat === undefined || originLon === undefined) return;
       
