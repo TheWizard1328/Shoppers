@@ -162,17 +162,17 @@ export default function HereType1Polylines({
       const originLat = Number(lastCompleted.latitude);
       const originLon = Number(lastCompleted.longitude);
 
-      const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
+      const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(nextStop.latitude).toFixed(5)}_${Number(nextStop.longitude).toFixed(5)}`;
       if (cache[key]) return;
       (async () => {
-        const ok = await hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, nextStop, lastCompleted.delivery_date);
+        const ok = await hydrateFromOffline(key, driverId, { latitude: Number(originLat), longitude: Number(originLon) }, { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) }, lastCompleted.delivery_date);
         if (ok) return;
         const d = Math.floor(Math.random() * 150);
         setTimeout(() => {
           getHerePolyline(
             driverId,
-            { latitude: originLat, longitude: originLon },
-            { latitude: nextStop.latitude, longitude: nextStop.longitude },
+            { latitude: Number(originLat), longitude: Number(originLon) },
+            { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) },
             lastCompleted.delivery_date
           ).then((coords) => {
             if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
