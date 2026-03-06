@@ -9,12 +9,12 @@ export default function BarcodeOverlay({ value, onClose }) {
     try {
       JsBarcode(svgRef.current, String(value), {
         format: 'CODE128',
-        lineColor: '#ffffff',
-        background: 'transparent',
-        width: 2,
-        height: 180,
+        lineColor: '#000000',
+        background: '#ffffff',
+        width: 3,
+        height: 200,
         displayValue: false,
-        margin: 10,
+        margin: 24,
       });
     } catch {}
   }, [value]);
@@ -29,12 +29,12 @@ export default function BarcodeOverlay({ value, onClose }) {
       aria-modal="true"
       aria-label="Barcode preview"
     >
-      <div className="max-w-[95vw] w-full sm:max-w-2xl bg-transparent">
-        <div className="rounded-xl border border-white/30 p-4 backdrop-blur-sm bg-black/30">
+      <div className="max-w-[95vw] w-full sm:max-w-2xl">
+        <div className="rounded-xl border p-4 bg-white">
           <div className="flex flex-col items-center gap-3 select-none">
-            <svg ref={svgRef} className="w-full h-[180px]" aria-hidden="true" />
-            <p className="text-xs text-white/70 break-all">{value}</p>
-            <p className="text-[11px] text-white/60">Tap anywhere to close</p>
+            <svg ref={svgRef} className="w-full h-[200px]" aria-hidden="true" />
+            <p className="text-xs text-slate-700 break-all">{value}</p>
+            <p className="text-[11px] text-slate-500">Tap anywhere to close</p>
           </div>
         </div>
       </div>
