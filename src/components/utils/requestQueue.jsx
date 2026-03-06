@@ -3,7 +3,7 @@
  * All entity.filter() and entity.list() calls should go through this queue
  */
 
-const MIN_REQUEST_INTERVAL = 50; // Minimum 50ms between requests - balanced for offline-first strategy
+const MIN_REQUEST_INTERVAL = 600; // Minimum 600ms between requests to avoid bursts and 429s
 const DEDUP_WINDOW = 500; // Deduplicate identical requests within 500ms window
 
 class RequestQueue {

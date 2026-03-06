@@ -26,8 +26,8 @@ class LightweightRefreshManager {
 
     // Minimal intervals - only for non-WebSocket entities and offline sync
     this.intervals = {
-      cities: 600000,        // 10min - Full Cities dataset
-      stores: 600000,        // 10min - Full Stores dataset
+      cities: 1800000,       // 30min - Cities dataset (less frequent to avoid 429)
+      stores: 1800000,       // 30min - Stores dataset (less frequent to avoid 429)
       appUsers: 60000,       // 60sec - Backup poll ONLY if no recent WebSocket update
       offlineSync: 0,        // DISABLED - offlineDB reads, not syncs
       cacheRefresh: 600000   // 10min - Cache consistency check
@@ -380,6 +380,12 @@ class LightweightRefreshManager {
       touchUserCache();
     } catch (e) {
       // Ignore
+    }
+
+    // Global cooldown guard: if we're within error cooldown window, skip this cycle entirely
+    const __now = Date.now();
+    if (__now < (this.errorCooldownUntil || 0)) {
+      return null;
     }
 
     this.isRefreshing = true;

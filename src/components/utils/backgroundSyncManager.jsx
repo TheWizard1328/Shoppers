@@ -32,7 +32,7 @@ class BackgroundSyncManager {
     // Default configuration
     this.config = {
       enabled: true,
-      syncInterval: 5 * 60 * 1000, // 5 minutes
+      syncInterval: 10 * 60 * 1000, // 10 minutes (reduce daytime pressure)
       historicalDaysToSync: 90, // Sync past 90 days
       batchSize: 50, // Number of records per batch
       maxAPICallsPerCycle: 10, // Limit API calls per sync cycle
@@ -306,6 +306,12 @@ class BackgroundSyncManager {
   async syncPatients() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
+    // Daytime throttle: only run patient sync during off-peak windows
+    if (!this.isOffPeakNow()) {
+      console.log('\u23f0 [BackgroundSync] Skipping patient sync (daytime)');
+      return;
+    }
+
     try {
       // Get patients updated in the last 7 days
       const sevenDaysAgo = new Date();
@@ -339,6 +345,12 @@ class BackgroundSyncManager {
   async syncAppUsers() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
+    // Daytime throttle: only run appUsers sync during off-peak windows
+    if (!this.isOffPeakNow()) {
+      console.log('\u23f0 [BackgroundSync] Skipping appUsers sync (daytime)');
+      return;
+    }
+
     try {
       const appUsers = await base44.entities.AppUser.list();
       
@@ -364,6 +376,12 @@ class BackgroundSyncManager {
    */
   async syncCities() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
+
+    // Daytime throttle: only run cities sync during off-peak windows
+    if (!this.isOffPeakNow()) {
+      console.log('\u23f0 [BackgroundSync] Skipping cities sync (daytime)');
+      return;
+    }
 
     try {
       const cities = await base44.entities.City.list();
