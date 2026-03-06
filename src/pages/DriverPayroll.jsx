@@ -234,10 +234,26 @@ export default function DriverPayroll() {
   // All deliveries for the selected city (no period filter) for App Fee monthly pool
   const allCityDeliveries = useMemo(() => {
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
-    if (selectedCityId === 'all') return deliveries;
-    const cityStoreIds = new Set(filteredStores.map(s => s.id));
-    return deliveries.filter(d => d && cityStoreIds.has(d.store_id));
-  }, [payrollData?.deliveries, filteredStores, selectedCityId]);
+    let filtered = deliveries;
+    
+    if (selectedCityId !== 'all') {
+      const cityStoreIds = new Set(filteredStores.map(s => s.id));
+      filtered = filtered.filter(d => d && cityStoreIds.has(d.store_id));
+    }
+    
+    // Filter by pay cycle
+    if (payrollData?.appUsers && payPeriod) {
+      const matchingDriverIds = new Set();
+      payrollData.appUsers.forEach(au => {
+        if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
+          matchingDriverIds.add(au.user_id);
+        }
+      });
+      filtered = filtered.filter(d => d && matchingDriverIds.has(d.driver_id));
+    }
+    
+    return filtered;
+  }, [payrollData?.deliveries, payrollData?.appUsers, filteredStores, selectedCityId, payPeriod]);
 
   const sortedDrivers = useMemo(() => {
     if (!payrollData?.drivers || !payrollData?.appUsers) return [];
