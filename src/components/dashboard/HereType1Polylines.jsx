@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRouting";
 
-const FINISHED = ["completed", "failed", "cancelled"];
+const FINISHED = ["completed", "failed", "cancelled", "returned"];
 
 // Helper: visible fallback even when stops share same coordinates or coords are strings
 const samePoint = (a, b) => (
@@ -91,7 +91,7 @@ export default function HereType1Polylines({
       if (!m || !m.driver_id || Number.isNaN(Number(m.latitude)) || Number.isNaN(Number(m.longitude))) return;
       if (!map.has(m.driver_id)) map.set(m.driver_id, { complete: [], incomplete: [] });
       if (FINISHED.includes(m.status)) map.get(m.driver_id).complete.push(m);
-      else if (m.status === "in_transit" || m.status === "en_route") map.get(m.driver_id).incomplete.push(m);
+      else if (!FINISHED.includes(m.status)) map.get(m.driver_id).incomplete.push(m);
     });
     
     // Sort incomplete stops by stop_order to ensure we find the true "next" stop
@@ -348,6 +348,25 @@ export default function HereType1Polylines({
           if (Array.isArray(c) && c.length > 1) coords = c;
         }
       } catch (_) {}
+    }
+
+    // If still missing, trigger a fetch once (debounced) to hydrate HERE polyline
+    if (!coords && !optimizing) {
+      const lastReq = requestTimesRef.current[key] || 0;
+      const now = Date.now();
+      if (now - lastReq > 4000) {
+        requestTimesRef.current[key] = now;
+        getHerePolyline(
+          driverId,
+          { latitude: fallbackLat, longitude: fallbackLon },
+          { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) },
+          nextStop.delivery_date
+        ).then((fetched) => {
+          if (Array.isArray(fetched) && fetched.length > 1) {
+            setCache((p) => ({ ...p, [key]: fetched }));
+          }
+        }).catch(() => {});
+      }
     }
     
     // Always use static last-completed stop as origin for Type 1 segment
