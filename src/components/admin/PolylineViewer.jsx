@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, MapPin, Trash2 } from 'lucide-react';
+import { Loader2, MapPin, Trash2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { Button } from '@/components/ui/button';
@@ -75,6 +75,9 @@ export default function PolylineViewer({ users = [] }) {
   const [selectedPolyline, setSelectedPolyline] = useState(null);
   const [decodedCoordinates, setDecodedCoordinates] = useState([]);
   const [selectedPolylines, setSelectedPolylines] = useState(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRecomputing, setIsRecomputing] = useState(false);
+  const [opProgress, setOpProgress] = useState({ total: 0, processed: 0, label: '' });
   const [driverFilter, setDriverFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
 
@@ -179,15 +182,21 @@ export default function PolylineViewer({ users = [] }) {
 
   const handleDeleteSelected = async () => {
     if (selectedPolylines.size === 0) return;
-    
     if (!window.confirm(`Delete ${selectedPolylines.size} selected polyline(s)?`)) return;
 
     try {
-      setIsLoading(true);
-      for (const id of selectedPolylines) {
-        await base44.entities.DriverRoutePolyline.delete(id);
+      setIsDeleting(true);
+      const ids = Array.from(selectedPolylines);
+      setOpProgress({ total: ids.length, processed: 0, label: 'Deleting selected…' });
+      const CHUNK = 50;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const batch = ids.slice(i, i + CHUNK);
+        await Promise.all(batch.map(async (id) => {
+          try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
+        }));
+        setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
+        await new Promise(r => setTimeout(r, 150));
       }
-      
       const remaining = polylines.filter(p => !selectedPolylines.has(p.id));
       setPolylines(remaining);
       setSelectedPolylines(new Set());
@@ -196,23 +205,29 @@ export default function PolylineViewer({ users = [] }) {
       console.error('Error deleting polylines:', error);
       alert('Failed to delete polylines: ' + error.message);
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
+      setOpProgress({ total: 0, processed: 0, label: '' });
     }
   };
 
   const handleDeleteAll = async () => {
     if (filteredPolylines.length === 0) return;
-    
     if (!window.confirm(`Delete all ${filteredPolylines.length} filtered polyline(s)? This cannot be undone.`)) return;
 
     try {
-      setIsLoading(true);
-      for (const polyline of filteredPolylines) {
-        await base44.entities.DriverRoutePolyline.delete(polyline.id);
-        await new Promise(resolve => setTimeout(resolve, 50));
+      setIsDeleting(true);
+      const ids = filteredPolylines.map(p => p.id);
+      setOpProgress({ total: ids.length, processed: 0, label: 'Deleting filtered…' });
+      const CHUNK = 50;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const batch = ids.slice(i, i + CHUNK);
+        await Promise.all(batch.map(async (id) => {
+          try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
+        }));
+        setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
+        await new Promise(r => setTimeout(r, 150));
       }
-      
-      const remaining = polylines.filter(p => !filteredPolylines.find(fp => fp.id === p.id));
+      const remaining = polylines.filter(p => !ids.includes(p.id));
       setPolylines(remaining);
       setSelectedPolylines(new Set());
       setSelectedPolyline(null);
@@ -220,7 +235,8 @@ export default function PolylineViewer({ users = [] }) {
       console.error('Error deleting all polylines:', error);
       alert('Failed to delete polylines: ' + error.message);
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
+      setOpProgress({ total: 0, processed: 0, label: '' });
     }
   };
 
@@ -237,14 +253,58 @@ export default function PolylineViewer({ users = [] }) {
           </div>
           <div className="flex gap-2">
             {selectedPolylines.size > 0 && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDeleteSelected}
-                disabled={isLoading}
-              >
-                Delete Selected ({selectedPolylines.size})
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (!window.confirm(`Recompute distance/time for ${selectedPolylines.size} selected polyline(s)?`)) return;
+                    try {
+                      setIsRecomputing(true);
+                      const ids = Array.from(selectedPolylines);
+                      setOpProgress({ total: ids.length, processed: 0, label: 'Recomputing…' });
+                      for (let i = 0; i < ids.length; i++) {
+                        const id = ids[i];
+                        const pl = polylines.find(p => p.id === id);
+                        if (!pl) continue;
+                        try {
+                          const res = await base44.functions.invoke('getHereDirections', {
+                            origin: { lat: pl.segment_origin_lat, lng: pl.segment_origin_lon },
+                            destination: { lat: pl.segment_dest_lat, lng: pl.segment_dest_lon }
+                          });
+                          const estKm = res?.data?.estimated_distance_km ?? null;
+                          const estMin = res?.data?.estimated_duration_minutes ?? null;
+                          if (estKm !== null && estMin !== null) {
+                            await base44.entities.DriverRoutePolyline.update(pl.id, {
+                              estimated_distance_km: estKm,
+                              estimated_duration_minutes: estMin,
+                              last_generated_at: new Date().toISOString(),
+                            });
+                            setPolylines(prev => prev.map(p => p.id === pl.id ? { ...p, estimated_distance_km: estKm, estimated_duration_minutes: estMin, last_generated_at: new Date().toISOString() } : p));
+                          }
+                        } catch (_) {}
+                        setOpProgress((p) => ({ ...p, processed: i + 1 }));
+                        await new Promise(r => setTimeout(r, 75));
+                      }
+                    } finally {
+                      setIsRecomputing(false);
+                      setOpProgress({ total: 0, processed: 0, label: '' });
+                    }
+                  }}
+                  disabled={isLoading || isDeleting || isRecomputing}
+                  className="gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" /> Recompute Selected
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteSelected}
+                  disabled={isLoading || isDeleting}
+                >
+                  {isDeleting ? 'Deleting…' : `Delete Selected (${selectedPolylines.size})`}
+                </Button>
+              </>
             )}
             {filteredPolylines.length > 0 && selectedPolylines.size === 0 && (
               <Button
@@ -260,6 +320,12 @@ export default function PolylineViewer({ users = [] }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {(isDeleting || isRecomputing) && opProgress.total > 0 ? (
+          <div className="flex justify-center items-center h-24 mb-4 rounded border bg-slate-50 text-slate-700">
+            <Loader2 className="w-5 h-5 animate-spin mr-2" />
+            {opProgress.label} {opProgress.processed}/{opProgress.total}
+          </div>
+        ) : null}
         {isLoading ? (
           <div className="flex justify-center items-center h-96">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
