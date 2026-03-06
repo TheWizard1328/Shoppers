@@ -962,8 +962,8 @@ export default function DriverPayroll() {
     // Only check if we have a valid index
     if (startCheckIdx >= 0 && startCheckIdx < allPeriods.length) {
       for (let i = startCheckIdx; i >= 0; i--) {
-        const startStr = allPeriods[i].start.toISOString().split('T')[0];
-        const endStr = allPeriods[i].end.toISOString().split('T')[0];
+        const startStr = toLocalYMD(allPeriods[i].start);
+        const endStr = toLocalYMD(allPeriods[i].end);
 
         const filtered = allRecords.filter(r => {
           const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
