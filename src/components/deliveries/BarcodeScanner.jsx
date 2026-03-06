@@ -470,7 +470,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
 
       {/* Camera overlay */}
       {showCamera && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10030] bg-black/50 backdrop-blur-sm">
           <div className="relative w-screen mx-auto mt-[10vh] px-0">
             {/* Viewfinder with embedded video */}
             <div onClick={tapToFocus} className={`relative mx-auto w-screen aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
