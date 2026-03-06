@@ -1745,8 +1745,35 @@ export default function StopCard({
                                     detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                                   }));
 
+                                  // Kick off route optimization so ETAs and stop orders refresh immediately
+                                  window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
+                                    detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                  }));
+                                  try {
+                                    const now = new Date();
+                                    const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                    const res = await base44.functions.invoke('optimizeRouteRealTime', {
+                                      driverId: delivery.driver_id,
+                                      deliveryDate: delivery.delivery_date,
+                                      currentLocalTime,
+                                      generatePolyline: false
+                                    });
+                                    // Optional: broadcast ETA updates without waiting for full refetch
+                                    if (res?.data?.optimizedRoute && Array.isArray(res.data.optimizedRoute)) {
+                                      window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: res.data.optimizedRoute.map(u => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.newETA })) } }));
+                                    }
+                                  } catch (optErr) {
+                                    console.warn('⚠️ [Start] optimizeRouteRealTime failed:', optErr?.message || optErr);
+                                  } finally {
+                                    window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
+                                      detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                    }));
+                                    // Refresh to reflect new orders/ETAs
+                                    invalidate('Delivery');
+                                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                  }
+
                                   // Background tasks (fire and forget)
-                                  // Background: ensure online + notifications only (no auto optimization on start)
                                   Promise.all([
                                     ensureDriverOnline(),
                                     userHasRole(currentUser, 'driver') ? notifyDriverStarted({
