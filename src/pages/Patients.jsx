@@ -879,7 +879,7 @@ export default function Patients() {
         setShowPatientForm(false);
         setSelectedPatient(null);
         setEditingPatient(null);
-        setShowPatientImport(false);
+
         setShowDeliveryForm(false);
         setPatientForNewDelivery(null);
         setShowDeleteConfirm(false);

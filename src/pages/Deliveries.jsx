@@ -4296,8 +4296,8 @@ export default function DeliveriesPage() {
 
           </motion.div>
         }
-        {showImportModal &&
-        <RouteImport
+        {
+        
           onImportComplete={handleImportComplete}
           onCancel={() => setShowImportModal(false)}
           patients={allPatients || []}
