@@ -68,6 +68,12 @@ export default function HereType1Polylines({
       if (FINISHED.includes(m.status)) map.get(m.driver_id).complete.push(m);
       else map.get(m.driver_id).incomplete.push(m);
     });
+    
+    // Sort incomplete stops by stop_order to ensure we find the true "next" stop
+    map.forEach((stops) => {
+      stops.incomplete.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+    });
+    
     return map;
   }, [deliveryMarkers, pickupMarkers, selectedDriverId, showAll]);
 
@@ -145,7 +151,8 @@ export default function HereType1Polylines({
         return bt - at;
       });
       const lastCompleted = completedSorted[0];
-      const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true);
+      // Fallback to first incomplete stop if isNextDelivery is not set
+      const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       if (!lastCompleted || !nextStop) return;
 
       const originLat = Number(lastCompleted.latitude);
@@ -206,7 +213,8 @@ export default function HereType1Polylines({
       const hasCompleted = (stops?.complete?.length || 0) > 0;
       const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
       if (hasCompleted || !hasIncomplete) return;
-      const next = stops.incomplete.find((s) => s.isNextDelivery === true);
+      // Fallback to first incomplete stop if isNextDelivery is not set
+      const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
       if (!next || !home) return;
       const key = `here_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
@@ -233,7 +241,8 @@ export default function HereType1Polylines({
     const hasCompleted = (stops?.complete?.length || 0) > 0;
     const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
     if (!hasCompleted && hasIncomplete) {
-      const next = stops.incomplete.find((s) => s.isNextDelivery === true);
+      // Fallback to first incomplete stop if isNextDelivery is not set
+      const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
       if (
         next && home &&
@@ -273,7 +282,8 @@ export default function HereType1Polylines({
       return bt - at;
     });
     const lastCompleted = completedSorted[0];
-    const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true);
+    // Fallback to first incomplete stop if isNextDelivery is not set
+    const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
     if (!lastCompleted || !nextStop) return;
     const originLat = Number(lastCompleted.latitude);
     const originLon = Number(lastCompleted.longitude);
