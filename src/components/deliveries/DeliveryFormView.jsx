@@ -372,6 +372,7 @@ export default function DeliveryFormView({
                             placeholder="Scan receipt barcode..."
                             barcodeValues={formData.receipt_barcode_values || []}
                             onChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
+                            onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
                             disabled={isSaving}
                           />
                         </div>
@@ -381,6 +382,7 @@ export default function DeliveryFormView({
                             placeholder="Scan Rx barcode..."
                             barcodeValues={formData.barcode_values || []}
                             onChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
+                            onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
                             disabled={isSaving}
                           />
                         </div>
