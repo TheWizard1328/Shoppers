@@ -81,7 +81,7 @@ function MiniBarcode({ value }) {
   return <svg ref={svgRef} className="h-8 w-28" aria-hidden="true" />;
 }
 
-export default function BarcodeScanner({ barcodeValues = [], onChange, disabled = false }) {
+export default function BarcodeScanner({ barcodeValues = [], onChange, disabled = false, title = "Tx Barcodes", placeholder = "Scan or type barcode value..." }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
@@ -395,7 +395,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       <div className="flex items-center gap-2">
         <Barcode className="w-4 h-4 text-emerald-600" />
         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-          Tx Barcodes
+         {title}
         </Label>
         {barcodeValues.length > 0 && (
           <Badge className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0 h-5">
@@ -412,7 +412,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           value={manualInput}
           onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
           onKeyDown={handleInputKeyDown}
-          placeholder="Scan or type barcode value..."
+          placeholder={placeholder}
           className="flex-1 h-9 text-sm font-mono"
           disabled={disabled}
           autoComplete="off"
