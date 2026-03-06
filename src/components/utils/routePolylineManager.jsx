@@ -1,4 +1,4 @@
-// routePolylineManager.js - Manages Google Directions API calls and polyline storage
+// routePolylineManager.js - Manages route polylines (HERE only) and polyline storage
 
 import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
@@ -61,7 +61,7 @@ const hasCoordinatesChanged = (oldLat, oldLon, newLat, newLon) => {
 };
 
 /**
- * Fetches route from Google Directions API
+ * Fetches route from HERE (backend)
  * 
  * @param {number} startLat
  * @param {number} startLon
@@ -143,9 +143,22 @@ const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleA
  * @returns {Promise<Object|null>} Existing polyline or null
  */
 const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = null, startLon = null, endLat = null, endLon = null) => {
-  // DISABLED: DriverRoutePolyline queries - prevents rate limit waste
-  console.log('⏭️ [RoutePolyline] Skipping getStoredPolyline - feature disabled');
-  return null;
+  try {
+    const rounded = (n) => Number(n.toFixed(6));
+    const recs = await base44.entities.DriverRoutePolyline.filter({
+      driver_id: driverId,
+      delivery_date,
+      segment_origin_lat: rounded(startLat),
+      segment_origin_lon: rounded(startLon),
+      segment_dest_lat: rounded(endLat),
+      segment_dest_lon: rounded(endLon)
+    }, '-updated_date', 1);
+    const rec = Array.isArray(recs) ? recs[0] : null;
+    return rec || null;
+  } catch (e) {
+    console.log('⏭️ [RoutePolyline] getStoredPolyline lookup failed', e?.message || e);
+    return null;
+  }
 };
 
 /**
@@ -163,17 +176,38 @@ const savePolyline = async ({
   estimatedDistanceKm,
   estimatedDurationSeconds
 }) => {
-  const now = new Date();
-  const todayStr = format(now, 'yyyy-MM-dd');
-  
-  // Set expiry to next day at midnight (date only)
-  const expiresAt = new Date(now);
-  expiresAt.setDate(expiresAt.getDate() + 1);
-  expiresAt.setHours(0, 0, 0, 0);
+  try {
+    const rounded = (n) => Number(n.toFixed(6));
+    const exists = await base44.entities.DriverRoutePolyline.filter({
+      driver_id: driverId,
+      delivery_date,
+      segment_origin_lat: rounded(startLat),
+      segment_origin_lon: rounded(startLon),
+      segment_dest_lat: rounded(endLat),
+      segment_dest_lon: rounded(endLon)
+    }, '-updated_date', 1);
 
-  // DISABLED: DriverRoutePolyline save operations - prevents rate limit waste
-  console.log('⏭️ [RoutePolyline] Skipping polyline save - feature disabled');
-  return;
+    const payload = {
+      driver_id: driverId,
+      delivery_date: deliveryDate,
+      encoded_polyline: encodedPolyline,
+      segment_origin_lat: rounded(startLat),
+      segment_origin_lon: rounded(startLon),
+      segment_dest_lat: rounded(endLat),
+      segment_dest_lon: rounded(endLon),
+      estimated_distance_km: estimatedDistanceKm,
+      estimated_duration_minutes: Math.round((estimatedDurationSeconds || 0) / 60),
+      last_generated_at: new Date().toISOString()
+    };
+
+    if (Array.isArray(exists) && exists.length) {
+      await base44.entities.DriverRoutePolyline.update(exists[0].id, payload);
+    } else {
+      await base44.entities.DriverRoutePolyline.create(payload);
+    }
+  } catch (e) {
+    console.log('⏭️ [RoutePolyline] savePolyline failed', e?.message || e);
+  }
 };
 
 /**
@@ -412,9 +446,17 @@ const POLYLINE_CACHE_DURATION = 5000; // 5 seconds
  * @returns {Promise<Array<{lat: number, lng: number}>|null>} Decoded coordinates or null
  */
 export const getStoredRouteCoordinates = async (driverId, deliveryDate, routeType) => {
-  // DISABLED: DriverRoutePolyline queries - entity not currently in use, prevents rate limit waste
-  console.log('⏭️ [RoutePolyline] Skipping DriverRoutePolyline query - feature disabled');
-  return null;
+  try {
+    const recs = await base44.entities.DriverRoutePolyline.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-updated_date', 20);
+    if (!Array.isArray(recs) || !recs.length) return null;
+    // Return the most recent polyline for display
+    const rec = recs[0];
+    if (!rec?.encoded_polyline) return null;
+    return decodePolyline(rec.encoded_polyline).map(p => ({ lat: p.lat, lng: p.lng }));
+  } catch (e) {
+    console.log('⏭️ [RoutePolyline] getStoredRouteCoordinates failed', e?.message || e);
+    return null;
+  }
 };
 
 /**
