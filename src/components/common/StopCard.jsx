@@ -1504,16 +1504,18 @@ export default function StopCard({
                             isNextDelivery ?
                               <Button
                                 onClick={async (e) => {
-                                 e.stopPropagation();
+                                                                  e.stopPropagation();
+                                                                  if (isCompleting || isProcessingBackground || isFailing) return;
 
-                                 fabControlEvents.deactivateFAB();
-                                 setIsCompleting(true);
-                                 setIsProcessingBackground(true);
-                                 const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                 driverLocationPoller.pause();
+                                                                  fabControlEvents.deactivateFAB();
+                                                                  setIsCompleting(true);
+                                                                  setIsProcessingBackground(true);
+                                                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                                                  driverLocationPoller.pause();
+                                                                  smartRefreshManager.pause();
 
-                                 smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                                 await new Promise((resolve) => setTimeout(resolve, 50));
+                                                                  smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+                                                                  await new Promise((resolve) => setTimeout(resolve, 50));
 
                                   try {
                                     // CRITICAL: Verify delivery still exists before completing
