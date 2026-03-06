@@ -452,10 +452,19 @@ export default function DriverPayroll() {
 
   const handlePayPeriodChange = useCallback((newPayPeriod) => {
     isManualChangeRef.current = true;
-    
+
+    // Determine effective year when switching to weekly/biweekly (majority-of-days rule)
+    const shouldClassify = newPayPeriod === 'weekly' || newPayPeriod === 'biweekly';
+    const effectiveYear = shouldClassify ? getClassificationYearForDate(new Date(), newPayPeriod) : selectedYear;
+
     // Batch all state updates together in a single synchronous block
     React.startTransition(() => {
       setPayPeriod(newPayPeriod);
+
+      // Adjust year for weekly/biweekly so the period list uses the correct classification year
+      if (shouldClassify && effectiveYear !== selectedYear) {
+        setSelectedYear(effectiveYear);
+      }
       
       // Reset selected driver to 'all' to force refresh with new pay cycle filter
       if (selectedDriverId !== 'all') {
@@ -480,7 +489,7 @@ export default function DriverPayroll() {
     });
     
     setTimeout(() => { isManualChangeRef.current = false; }, 200);
-  }, [selectedDriverId]);
+  }, [selectedDriverId, selectedYear]);
 
   const refreshPayrollRecords = useCallback(async () => {
     if (!currentPeriod || !payrollData?.payrollRecords) {
