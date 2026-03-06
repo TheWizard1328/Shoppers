@@ -12,6 +12,7 @@ export default function HereType1Polylines({
   currentDriverMarker = null,
   selectedDriverId = null,
   showAll = false,
+  driverLocations = [],
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
@@ -221,10 +222,16 @@ export default function HereType1Polylines({
         originLat = currentDriverMarker.latitude;
         originLon = currentDriverMarker.longitude;
       } else {
-        const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-        if (home && typeof home.latitude === 'number' && typeof home.longitude === 'number') {
-          originLat = home.latitude;
-          originLon = home.longitude;
+        const liveLoc = driverLocations.find(l => l.id === driverId);
+        if (liveLoc && liveLoc.latitude && liveLoc.longitude) {
+          originLat = liveLoc.latitude;
+          originLon = liveLoc.longitude;
+        } else {
+          const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+          if (home && typeof home.latitude === 'number' && typeof home.longitude === 'number') {
+            originLat = home.latitude;
+            originLon = home.longitude;
+          }
         }
       }
 
@@ -276,10 +283,17 @@ export default function HereType1Polylines({
         originLon = currentDriverMarker.longitude;
         isLive = true;
       } else {
-        const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-        if (home && typeof home.latitude === 'number' && typeof home.longitude === 'number') {
-          originLat = home.latitude;
-          originLon = home.longitude;
+        const liveLoc = driverLocations.find(l => l.id === driverId);
+        if (liveLoc && liveLoc.latitude && liveLoc.longitude) {
+          originLat = liveLoc.latitude;
+          originLon = liveLoc.longitude;
+          isLive = true;
+        } else {
+          const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+          if (home && typeof home.latitude === 'number' && typeof home.longitude === 'number') {
+            originLat = home.latitude;
+            originLon = home.longitude;
+          }
         }
       }
 

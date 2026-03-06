@@ -111,11 +111,8 @@ export default function HereType2Polylines({
       // Ensure they are sorted by stop_order so the sequence is correct
       incomplete.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       
-      const next = incomplete.find((s) => s.isNextDelivery) || incomplete[0];
-      const startIdx = incomplete.indexOf(next);
-      
-      // If startIdx is somehow -1 (shouldn't happen), default to 0
-      map.set(driverId, incomplete.slice(startIdx >= 0 ? startIdx : 0));
+      // Use all incomplete stops to draw the full remaining route
+      map.set(driverId, incomplete);
     });
 
     return map;
