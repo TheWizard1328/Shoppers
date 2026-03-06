@@ -363,6 +363,38 @@ export default function DeliveryFormView({
                     )}
                   </div>
 
+                  {/* Delivery Options & COD */}
+                  {!isPickupMode && (
+                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <div className="flex gap-3">
+                        <div className="flex-1 space-y-2">
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
+                          <div className="space-y-3">
+                            <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={c => setFormData(p => ({ ...p, fridge_item: c }))} disabled={isSaving} />
+                            <CheckboxField id="oversized" label="Oversized" checked={formData.oversized} onChange={c => setFormData(p => ({ ...p, oversized: c }))} disabled={isSaving} />
+                            <CheckboxField id="signature_needed" label="Signature Needed" checked={formData.signature_needed} onChange={c => setFormData(p => ({ ...p, signature_needed: c }))} disabled={isSaving} />
+                            <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={c => setFormData(p => ({ ...p, no_charge: c }))} disabled={isSaving} />
+                          </div>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={checked => { setFormData(p => ({ ...p, cod_total_amount_required: 0 })); if (checked) setTimeout(() => codAmountInputRef.current?.focus(), 100); }} disabled={isSaving} />
+                              <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
+                            </div>
+                            {formData.cod_total_amount_required >= 0 && (
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                                <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={e => { const cents = parseInt(e.target.value.replace(/[^\d]/g, '')) || 0; setFormData(p => ({ ...p, cod_total_amount_required: cents })); }} placeholder="0.00" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Barcode Scanner */}
                   {(!delivery ? !isPickupMode : true) && (
                     <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
@@ -397,38 +429,6 @@ export default function DeliveryFormView({
                           />
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {/* Delivery Options & COD */}
-                  {!isPickupMode && (
-                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <div className="flex gap-3">
-                        <div className="flex-1 space-y-2">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
-                          <div className="space-y-3">
-                            <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={c => setFormData(p => ({ ...p, fridge_item: c }))} disabled={isSaving} />
-                            <CheckboxField id="oversized" label="Oversized" checked={formData.oversized} onChange={c => setFormData(p => ({ ...p, oversized: c }))} disabled={isSaving} />
-                            <CheckboxField id="signature_needed" label="Signature Needed" checked={formData.signature_needed} onChange={c => setFormData(p => ({ ...p, signature_needed: c }))} disabled={isSaving} />
-                            <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={c => setFormData(p => ({ ...p, no_charge: c }))} disabled={isSaving} />
-                          </div>
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
-                          <div className="space-y-3">
-                            <div className="flex items-center space-x-2">
-                              <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={checked => { setFormData(p => ({ ...p, cod_total_amount_required: 0 })); if (checked) setTimeout(() => codAmountInputRef.current?.focus(), 100); }} disabled={isSaving} />
-                              <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
-                            </div>
-                            {formData.cod_total_amount_required >= 0 && (
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                                <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={e => { const cents = parseInt(e.target.value.replace(/[^\d]/g, '')) || 0; setFormData(p => ({ ...p, cod_total_amount_required: cents })); }} placeholder="0.00" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   )}
 
