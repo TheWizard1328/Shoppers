@@ -358,7 +358,7 @@ export default function HereType1Polylines({
         requestTimesRef.current[key] = now;
         getHerePolyline(
           driverId,
-          { latitude: fallbackLat, longitude: fallbackLon },
+          { latitude: originLat, longitude: originLon },
           { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) },
           nextStop.delivery_date
         ).then((fetched) => {
