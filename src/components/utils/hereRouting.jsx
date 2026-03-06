@@ -5,6 +5,17 @@ const fetchingKeys = new Set();
 const memoryCache = new Map();
 const USE_ENTITY_LOOKUP = true; // keep entity lookup enabled for instant hydration across devices
 
+// If the online entity has been purged, avoid rehydrating from stale localStorage keys
+export function clearHereCacheForSegment(from, to) {
+  try {
+    if (!from || !to) return;
+    const key = `here_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
+    try { localStorage.removeItem(key); } catch (_) {}
+    try { localStorage.removeItem(`${key}:fail_until`); } catch (_) {}
+    // memoryCache is module-scoped; cannot clear externally, but a reload resets it
+  } catch (_) {}
+}
+
 let polylineSubscribed = false;
 export const ensurePolylineSubscription = () => {
   if (polylineSubscribed) return;
