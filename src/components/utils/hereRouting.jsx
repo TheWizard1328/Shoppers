@@ -247,20 +247,26 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
     const deliveryDateSafe = deliveryDate || todayStr;
 
-    const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDateSafe);
-    if (Array.isArray(rows) && rows.length) {
-      const rec = rows.find(r => r.driver_id === driverId &&
-        Number(r.segment_origin_lat)?.toFixed(5) === rounded(fromStop.latitude).toFixed(5) &&
-        Number(r.segment_origin_lon)?.toFixed(5) === rounded(fromStop.longitude).toFixed(5) &&
-        Number(r.segment_dest_lat)?.toFixed(5) === rounded(toStop.latitude).toFixed(5) &&
-        Number(r.segment_dest_lon)?.toFixed(5) === rounded(toStop.longitude).toFixed(5)
-      );
-      if (rec?.encoded_polyline) {
-        const coords = decodeGooglePolyline(rec.encoded_polyline);
-        if (Array.isArray(coords) && coords.length > 1) {
-          memoryCache.set(cacheKey, coords);
-          try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
-          return coords;
+    // Enforce today-only policy: if requesting a non-today date, skip offline/entity hydration
+    if (deliveryDateSafe !== todayStr) {
+      // Clear any stale cache to avoid ghost lines
+      try { localStorage.removeItem(cacheKey); } catch (_) {}
+    } else {
+      const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDateSafe);
+      if (Array.isArray(rows) && rows.length) {
+        const rec = rows.find(r => r.driver_id === driverId &&
+          Number(r.segment_origin_lat)?.toFixed(5) === rounded(fromStop.latitude).toFixed(5) &&
+          Number(r.segment_origin_lon)?.toFixed(5) === rounded(fromStop.longitude).toFixed(5) &&
+          Number(r.segment_dest_lat)?.toFixed(5) === rounded(toStop.latitude).toFixed(5) &&
+          Number(r.segment_dest_lon)?.toFixed(5) === rounded(toStop.longitude).toFixed(5)
+        );
+        if (rec?.encoded_polyline) {
+          const coords = decodeGooglePolyline(rec.encoded_polyline);
+          if (Array.isArray(coords) && coords.length > 1) {
+            memoryCache.set(cacheKey, coords);
+            try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
+            return coords;
+          }
         }
       }
     }
