@@ -435,22 +435,20 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           readOnly={isMobile && silentEntry}
         />
 
-        {/* Keep hidden input on mobile to capture fast BT scanner keystrokes */}
-        {isMobile && (
-          <input
-            ref={hiddenInputRef}
-            type="text"
-            className="sr-only absolute -left-[9999px] w-0 h-0 opacity-0"
-            onKeyDown={handleInputKeyDown}
-            onChange={() => {}}
-            autoFocus
-            aria-hidden="true"
-            autoComplete="off"
-            autoCapitalize="off"
-            autoCorrect="off"
-            inputMode="none"
-          />
-        )}
+        {/* Hidden input to capture fast BT scanner keystrokes on all devices (silent) */}
+        <input
+          ref={hiddenInputRef}
+          type="text"
+          className="sr-only absolute -left-[9999px] w-0 h-0 opacity-0"
+          onKeyDown={handleInputKeyDown}
+          onChange={() => {}}
+          autoFocus={isMobile}
+          aria-hidden="true"
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          inputMode="none"
+        />
         <Button
           type="button"
           size="sm"
