@@ -412,15 +412,15 @@ export default function DeliveryFormView({
                         </div>
                         <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
                           <BarcodeScanner
-                             title="Rx Barcodes"
-                             placeholder="Scan Rx barcode..."
-                             barcodeValues={formData.barcode_values || []}
-                             onChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
-                             onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
-                             disabled={isSaving || (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name))}
-                             twoPerRow
-                             silentEntry
-                           />
+                              title="Rx Barcodes"
+                              placeholder="Scan Rx barcode..."
+                              barcodeValues={formData.barcode_values || []}
+                              onChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
+                              onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
+                              disabled={isSaving || (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name))}
+                              twoPerRow
+                              silentEntry={!(isMobileDevice && (delivery || editingStagedId))}
+                            />
                         </div>
                       </div>
 
