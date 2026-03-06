@@ -51,7 +51,7 @@ const DeliveryRow = memo(({
 
           {/* Row 2 Left: Patient/Pickup */}
           <div className="min-w-0 mt-1">
-            <span className={`font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
+            <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
               {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
             </span>
           </div>
@@ -103,7 +103,7 @@ const DeliveryRow = memo(({
     ) : (
       <div
         onClick={() => onSelect(delivery.id)}
-        className={`grid grid-cols-[140px_120px_130px_1fr_90px_110px_140px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
+        className={`grid grid-cols-[120px_110px_120px_minmax(320px,1fr)_80px_110px_120px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
           isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
         } ${isSelected ? 'bg-slate-100' : ''}`}
         style={{ borderColor: 'var(--border-slate-200)' }}
@@ -130,7 +130,7 @@ const DeliveryRow = memo(({
 
         <div className="flex items-center min-w-0">
           <div className="flex flex-col min-w-0">
-            <span className={`font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
+            <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
               {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
             </span>
             {patient?.address && (
@@ -309,7 +309,7 @@ const DeliveryListView = ({
         {/* Table Header */}
         <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {!isMobile && (
-            <div className="grid grid-cols-[140px_120px_130px_1fr_90px_110px_140px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+            <div className="grid grid-cols-[120px_110px_120px_minmax(320px,1fr)_80px_110px_120px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
               <div className="text-center">Stop/TR</div>
               <div className="text-center">Status</div>
               <div className="text-center">Time</div>
