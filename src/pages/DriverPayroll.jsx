@@ -394,8 +394,19 @@ export default function DriverPayroll() {
       filtered = filtered.filter(d => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
     }
     
+    // Filter by pay cycle
+    if (payrollData?.appUsers && payPeriod) {
+      const matchingDriverIds = new Set();
+      payrollData.appUsers.forEach(au => {
+        if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
+          matchingDriverIds.add(au.user_id);
+        }
+      });
+      filtered = filtered.filter(d => d && matchingDriverIds.has(d.driver_id));
+    }
+    
     return filtered;
-  }, [payrollData?.deliveries, selectedCityId, filteredStores, currentPeriod]);
+  }, [payrollData?.deliveries, payrollData?.appUsers, selectedCityId, filteredStores, currentPeriod, payPeriod]);
 
   const totalNetPay = useMemo(() => (payrollRecords || []).reduce((sum, r) => sum + (Number(r.net_pay) || 0), 0), [payrollRecords]);
   const totalDeliveries = useMemo(() => cityFilteredDeliveries.length, [cityFilteredDeliveries]);
