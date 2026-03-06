@@ -205,6 +205,8 @@ export default function HereType2Polylines({
   useEffect(() => {
     if (!isViewingCurrentDate || optimizing) return;
     driverIncomplete.forEach((stops, driverId) => {
+      if (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
+      if (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
       const totalLegs = Math.max(0, stops.length - 1);
       for (let i = 0; i < stops.length - 1; i++) {
         const a = stops[i];

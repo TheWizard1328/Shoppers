@@ -146,6 +146,9 @@ export default function PolylineViewer({ users = [] }) {
       filtered = filtered.filter(p => p.delivery_date === dateFilter);
     }
 
+    // Hide records with no encoded polyline (nothing to display on map)
+    filtered = filtered.filter(p => typeof p.encoded_polyline === 'string' && p.encoded_polyline.length > 0);
+
     return filtered;
   }, [polylines, driverFilter, dateFilter]);
 
