@@ -56,7 +56,6 @@ import Deliveries from './pages/Deliveries';
 import DeliveryMetrics from './pages/DeliveryMetrics';
 import DeviceSettings from './pages/DeviceSettings';
 import DiagnosticsPage from './pages/DiagnosticsPage';
-import DriverPayroll from './pages/DriverPayroll';
 import DriverSettings from './pages/DriverSettings';
 import Home from './pages/Home';
 import PatientActivityReview from './pages/PatientActivityReview';
@@ -68,6 +67,7 @@ import SquareManagement from './pages/SquareManagement';
 import StoreInvoices from './pages/StoreInvoices';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
+import DriverPayroll from './pages/DriverPayroll';
 import __Layout from './Layout.jsx';
 
 
@@ -81,7 +81,6 @@ export const PAGES = {
     "DeliveryMetrics": DeliveryMetrics,
     "DeviceSettings": DeviceSettings,
     "DiagnosticsPage": DiagnosticsPage,
-    "DriverPayroll": DriverPayroll,
     "DriverSettings": DriverSettings,
     "Home": Home,
     "PatientActivityReview": PatientActivityReview,
@@ -93,6 +92,7 @@ export const PAGES = {
     "StoreInvoices": StoreInvoices,
     "Stores": Stores,
     "Users": Users,
+    "DriverPayroll": DriverPayroll,
 }
 
 export const pagesConfig = {

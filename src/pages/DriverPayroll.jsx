@@ -35,6 +35,59 @@ const getFirstMondayOfYear = (year) => {
   return new Date(year, 0, 1 + daysUntilMonday);
 };
 
+// Helper: Monday on or before a given date
+const getMondayOnOrBefore = (date) => {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = d.getDay(); // 0=Sun,1=Mon,...
+  const diff = (day + 6) % 7; // days since Monday
+  d.setDate(d.getDate() - diff);
+  return d;
+};
+
+// Count overlap days (inclusive) of a period within a specific calendar year
+const countOverlapDaysInYear = (start, end, year) => {
+  const jan1 = new Date(year, 0, 1);
+  const dec31 = new Date(year, 11, 31);
+  const s = new Date(Math.max(start.getTime(), jan1.getTime()));
+  const e = new Date(Math.min(end.getTime(), dec31.getTime()));
+  if (s > e) return 0;
+  const oneDay = 24 * 60 * 60 * 1000;
+  return Math.floor((e.getTime() - s.getTime()) / oneDay) + 1; // inclusive days
+};
+
+// Determine classification year for a weekly/biweekly period by majority days
+const classifyPeriodYear = (start, end) => {
+  const yStart = start.getFullYear();
+  const yEnd = end.getFullYear();
+  if (yStart === yEnd) return yStart;
+  const daysStartYear = countOverlapDaysInYear(start, end, yStart);
+  const daysEndYear = countOverlapDaysInYear(start, end, yEnd);
+  return daysStartYear >= daysEndYear ? yStart : yEnd;
+};
+
+// Determine which year the CURRENT period (containing given date) belongs to, based on most days
+const getClassificationYearForDate = (date, payPeriodType) => {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const stepDays = payPeriodType === 'biweekly' ? 14 : 7;
+  const anchor = getMondayOnOrBefore(new Date(year, 0, 1));
+  // Generate a safe window covering the boundary around current date
+  const endBoundary = new Date(year + 1, 0, 1);
+  endBoundary.setDate(endBoundary.getDate() + (stepDays - 1));
+
+  let cur = new Date(anchor);
+  while (cur <= endBoundary) {
+    const start = new Date(cur);
+    const end = new Date(cur);
+    end.setDate(end.getDate() + (stepDays - 1));
+    if (d >= start && d <= end) {
+      return classifyPeriodYear(start, end);
+    }
+    cur.setDate(cur.getDate() + stepDays);
+  }
+  return year; // fallback
+};
+
 // Helper: Calculate all pay periods for a given year and pay period type
 const calculateAllPeriods = (year, payPeriodType) => {
   const periods = [];
