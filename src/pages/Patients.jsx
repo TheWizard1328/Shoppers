@@ -33,7 +33,7 @@ import { format, addDays, differenceInCalendarDays, getDay, isSameDay, startOfWe
 import PatientCard from "../components/patients/PatientCard";
 import PatientForm from "../components/patients/PatientForm";
 import PatientDetails from "../components/patients/PatientDetails";
-import PatientImport from "../components/patients/PatientImport";
+
 import DeliveryForm from "../components/deliveries/DeliveryForm";
 import { getData, invalidate } from "../components/utils/dataManager";
 import { sortStores, sortUsers, sortCities } from "../components/utils/sorting";
@@ -366,7 +366,7 @@ const getPrimaryRole = (user) => {
 };
 
 // Store Overview Component
-function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importStats, getAssignedDrivers }) {
+function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, getAssignedDrivers }) {
   // CRITICAL FIX: Move all hooks to the top
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
@@ -398,12 +398,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
     };
   }, [allPatients, deliveries, today]);
 
-  const getStoreImportStats = useCallback((store) => {
-    if (!importStats || !importStats.byStore || !store) {
-      return { new: 0, updated: 0 };
-    }
-    return importStats.byStore[store.id] || { new: 0, updated: 0 };
-  }, [importStats]);
+
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -422,7 +417,6 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
           {stores.map((store) => {
             const stats = getStoreStats(store);
             const driversInfo = getAssignedDrivers(store);
-            const storeImportStats = getStoreImportStats(store);
 
             console.log(`[StoreOverview] Rendering card for ${store.name}: ${store.patientCount} patients`);
 
@@ -550,21 +544,6 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
                       </table>
                     </div>
 
-                    {/* Import Stats - Only shown if there are stats */}
-                    {importStats && (storeImportStats.new > 0 || storeImportStats.updated > 0) &&
-                    <div className="mt-2 pt-2 flex gap-3 text-xs font-medium" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
-                        {storeImportStats.new > 0 &&
-                      <span className="text-green-600">
-                            New: {storeImportStats.new}
-                          </span>
-                      }
-                        {storeImportStats.updated > 0 &&
-                      <span className="text-blue-600">
-                            Updated: {storeImportStats.updated}
-                          </span>
-                      }
-                      </div>
-                    }
                   </div>
                 </CardContent>
               </Card>);
@@ -673,7 +652,7 @@ export default function Patients() {
       setAllUsers(finalUsers);
 
       // Force refresh of import stats display when data changes
-      setImportStats((prev) => prev ? { ...prev, timestamp: new Date() } : null);
+      
     }
   }, [contextDataLoaded, contextPatients, contextDeliveries, contextStores, contextDrivers, contextUsers, contextAppUsers, contextCities]);
 
@@ -1635,12 +1614,7 @@ export default function Patients() {
                   <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage patient information and delivery preferences</p>
                 </div>
                 <div className="flex gap-3 flex-wrap items-center">
-                  {showImportButton && !isMobile &&
-              <Button onClick={() => setShowPatientImport(true)} variant="outline" className="hidden md:inline-flex bg-yellow-200 px-4 py-2 text-sm font-medium rounded-md items-center justify-center whitespace-nowrap ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input hover:bg-accent hover:text-accent-foreground h-10 gap-2">
-                      <Upload className="w-4 h-4" />
-                      Import Patients
-                    </Button>
-              }
+
                   {canCreatePatients &&
               <Button
                 onClick={() => {setShowPatientForm(true);setEditingPatient(null);}}
@@ -1673,16 +1647,7 @@ export default function Patients() {
                         </Button>
                   }
                     </div>
-                    {showImportButton && !isMobile &&
-                <Button
-                  onClick={() => setShowPatientImport(true)}
-                  variant="outline"
-                  size="sm"
-                  className="bg-yellow-200 gap-1 h-9 flex-shrink-0">
-                        <Upload className="w-4 h-4" />
-                        Import
-                      </Button>
-                }
+                    
                   </div>
 
                   {/* Row 2: All filters */}
@@ -2106,33 +2071,10 @@ export default function Patients() {
         }
       </AnimatePresence>
 
-      <AnimatePresence>
-        {showPatientImport &&
-        <PatientImport
-          stores={stores}
-          onImportComplete={handleImportPatients}
-          onCancel={() => setShowPatientImport(false)}
-          patients={allPatients}
-          allUsers={allUsers} />
 
-        }
-      </AnimatePresence>
 
       {/* Floating Import Progress Indicator */}
-      <AnimatePresence>
-        {importInProgress &&
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50 }}
-          transition={{ duration: 0.3 }}
-          className="fixed bottom-6 right-6 p-4 bg-blue-600 text-white rounded-lg shadow-lg flex items-center gap-3 z-50">
 
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Import in progress... Please wait.</span>
-          </motion.div>
-        }
-      </AnimatePresence>
     </div>);
 
 }

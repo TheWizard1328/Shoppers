@@ -61,7 +61,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { getEffectiveUser, isUserDataAvailable } from "../components/utils/auth";
 import StopCard from "../components/common/StopCard";
-import RouteImport from "../components/deliveries/RouteImport";
+
 import ExportRouteButton from "../components/deliveries/ExportRouteButton";
 import DeliveryForm from "../components/deliveries/DeliveryForm";
 import DeliveryDetails from "../components/deliveries/DeliveryDetails";
@@ -3906,11 +3906,7 @@ export default function DeliveriesPage() {
                         <Plus className="w-4 h-4" /> Add Delivery
                       </Button>
                   }
-                    {canAccessImports(currentUser) && !isMobile &&
-                  <Button onClick={handleOpenRouteImport} variant="outline" className="gap-2 w-[140px]">
-                        <FileUp className="w-4 h-4" /> Import Route
-                      </Button>
-                  }
+
                   </div>
                 </CardContent>
               </Card>
