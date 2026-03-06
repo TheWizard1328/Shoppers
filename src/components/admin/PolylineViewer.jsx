@@ -343,10 +343,6 @@ export default function PolylineViewer({ users = [] }) {
             <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
             <span className="ml-3 text-slate-600">Loading polyline data...</span>
           </div>
-        ) : polylines.length === 0 ? (
-          <div className="text-center py-12 text-slate-500">
-            No polyline data found.
-          </div>
         ) : (
           <>
             <div className="flex gap-3 mb-4">
