@@ -549,7 +549,7 @@ export default function DeliveryFormView({
                     <Plus className="w-4 h-4" />Add
                   </Button>
                 ) : (
-                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); if (formData?.driver_id && formData?.delivery_date) {
+                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); setFormData(prev => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null })); if (formData?.driver_id && formData?.delivery_date) {
   // Fire-and-forget heavy tasks to keep UI responsive
   Promise.resolve()
     .then(() => recalculateAndUpdateStopOrders(formData.driver_id, formData.delivery_date))
