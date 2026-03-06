@@ -310,7 +310,7 @@ export default function HereType1Polylines({
         lines.push(
           <Polyline
             key={`type1-pre-home-${driverId}`}
-            positions={coords || [[Number(originLat), Number(originLon)], [Number(next.latitude), Number(next.longitude)]]}
+            positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
             pathOptions={{ color: coords ? "#2563eb" : '#3b82f6', weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
             pane="overlayPane"
           />
@@ -354,10 +354,7 @@ export default function HereType1Polylines({
     lines.push(
       <Polyline
         key={`type1-next-${driverId}`}
-        positions={coords || [
-          [Number(fallbackLat), Number(fallbackLon)],
-          [Number(nextStop.latitude), Number(nextStop.longitude)],
-        ]}
+        positions={coords || makeFallback({ latitude: fallbackLat, longitude: fallbackLon }, nextStop)}
         pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
         pane="overlayPane"
       />
@@ -387,10 +384,7 @@ export default function HereType1Polylines({
     lines.push(
       <Polyline
         key={`type1-home-${driverId}`}
-        positions={coords || [
-          [Number(lastCompleted.latitude), Number(lastCompleted.longitude)],
-          [Number(home.latitude), Number(home.longitude)],
-        ]}
+        positions={coords || makeFallback(lastCompleted, home)}
         pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
         pane="overlayPane"
       />
