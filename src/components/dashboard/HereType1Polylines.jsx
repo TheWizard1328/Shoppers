@@ -291,10 +291,13 @@ export default function HereType1Polylines({
       // Fallback to first incomplete stop if isNextDelivery is not set
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       
-      // Always use static Home as origin for Type 1 pre-route
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-      const originLat = home && typeof home.latitude === 'number' ? home.latitude : undefined;
-      const originLon = home && typeof home.longitude === 'number' ? home.longitude : undefined;
+      const live = (currentDriverMarker && currentDriverMarker.driverId === driverId)
+        ? currentDriverMarker
+        : (driverLocations || []).find((d) => d && d.driverId === driverId);
+      const origin = home || live;
+      const originLat = origin && !Number.isNaN(Number(origin.latitude)) ? Number(origin.latitude) : undefined;
+      const originLon = origin && !Number.isNaN(Number(origin.longitude)) ? Number(origin.longitude) : undefined;
 
       if (
         next && originLat !== undefined && originLon !== undefined &&
@@ -417,8 +420,8 @@ export default function HereType1Polylines({
     );
   });
 
-  // Preserve last non-empty set to avoid flicker during data refresh/date toggles
-  useEffect(() => { if (lines.length) setLastNonEmptyLines(lines); }, [lines.length, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
+  // Preserve last non-empty set only in multi-driver showAll mode to prevent ghost lines on driver switch
+  useEffect(() => { if (lines.length && showAll) setLastNonEmptyLines(lines); }, [lines.length, showAll, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
 
   return lines.length ? <>{lines}</> : ((showAll && lastNonEmptyLines.length) ? <>{lastNonEmptyLines}</> : null);
 }
