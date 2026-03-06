@@ -240,9 +240,23 @@ export default function DriverPayroll() {
   }, [payrollData?.deliveries, filteredStores, selectedCityId]);
 
   const sortedDrivers = useMemo(() => {
-    if (!payrollData?.drivers) return [];
-    return sortUsers(payrollData.drivers.filter(d => d && d.status === 'active'));
-  }, [payrollData?.drivers]);
+    if (!payrollData?.drivers || !payrollData?.appUsers) return [];
+    
+    const matchingDriverIds = new Set();
+    payrollData.appUsers.forEach(au => {
+      if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
+        matchingDriverIds.add(au.user_id);
+      }
+    });
+
+    return sortUsers(
+      payrollData.drivers.filter(d => {
+        if (!d || d.status !== 'active') return false;
+        const driverId = d.user_id || d.id;
+        return matchingDriverIds.has(driverId);
+      })
+    );
+  }, [payrollData?.drivers, payrollData?.appUsers, payPeriod]);
 
   const availablePayCycles = useMemo(() => {
     if (!payrollData?.appUsers) return [];
