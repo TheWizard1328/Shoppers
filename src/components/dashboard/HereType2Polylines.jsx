@@ -109,7 +109,7 @@ export default function HereType2Polylines({
     });
 
     grouped.forEach((stops, driverId) => {
-      const incomplete = stops.filter((s) => !FINISHED.includes(s.status));
+      const incomplete = stops.filter((s) => s.status === "in_transit" || s.status === "en_route");
       if (incomplete.length === 0) return;
       // Ensure they are sorted by stop_order so the sequence is correct
       incomplete.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
