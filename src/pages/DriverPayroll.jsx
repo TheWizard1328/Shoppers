@@ -885,6 +885,9 @@ export default function DriverPayroll() {
        return; // The year change will trigger a re-render and this effect will run again
      }
      
+     // Don't auto-reset if we've already selected a period based on unfinalized records
+     if (periodSelectionDoneWithRecordsRef.current) return;
+     
      const periods = calculateAllPeriods(selectedYear, payPeriod);
      const idx = findCurrentPeriodIndex(periods, today);
      if (idx !== selectedPeriodIndex) {
