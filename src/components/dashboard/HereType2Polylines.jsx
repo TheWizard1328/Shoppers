@@ -10,6 +10,7 @@ export default function HereType2Polylines({
   pickupMarkers = [],
   driverRoutes = [],
   multiDriverMode = false,
+  selectedDriverId = null,
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
@@ -94,8 +95,12 @@ export default function HereType2Polylines({
       .filter((s) => s && typeof s.latitude === "number" && typeof s.longitude === "number")
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
+    const scopedStops = (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all')
+      ? all.filter(s => s.driver_id === selectedDriverId)
+      : all;
+
     const grouped = new Map();
-    all.forEach((s) => {
+    scopedStops.forEach((s) => {
       if (!grouped.has(s.driver_id)) grouped.set(s.driver_id, []);
       grouped.get(s.driver_id).push(s);
     });
@@ -109,7 +114,7 @@ export default function HereType2Polylines({
     });
 
     return map;
-  }, [deliveryMarkers, pickupMarkers]);
+  }, [deliveryMarkers, pickupMarkers, multiDriverMode, selectedDriverId]);
 
   // Listen for route reorder events to refresh polylines
   useEffect(() => {
@@ -249,7 +254,10 @@ export default function HereType2Polylines({
     const allStops = [...pickupMarkers, ...deliveryMarkers]
       .filter(s => s && typeof s.latitude === 'number' && typeof s.longitude === 'number')
       .sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0));
-    allStops.forEach(s => {
+    const scopedAllStops = (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all')
+      ? allStops.filter(s => s.driver_id === selectedDriverId)
+      : allStops;
+    scopedAllStops.forEach(s => {
       if (!byDriverAll.has(s.driver_id)) byDriverAll.set(s.driver_id, []);
       byDriverAll.get(s.driver_id).push(s);
     });

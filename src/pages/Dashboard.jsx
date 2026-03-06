@@ -201,7 +201,6 @@ function Dashboard() {
     fullDeliveriesLoaded: false,
     fabPhaseReady: false
   });
-  const [googleApiKey, setGoogleApiKey] = useState(null);
   const [allDriverLocations, setAllDriverLocations] = useState([]);
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const [cardWidth, setCardWidth] = useState(340);
@@ -1968,20 +1967,7 @@ function Dashboard() {
     };
   }, [selectedCardId, stopCardsBaseHeight]);
 
-  useEffect(() => {
-    const fetchGoogleApiKey = async () => {
-      try {
-        const response = await base44.functions.invoke('getGoogleMapsKey');
-        if (response.data && response.data.apiKey) {
-          setGoogleApiKey(response.data.apiKey);
-        }
-      } catch (error) {
-        console.error('Error fetching Google API key:', error);
-      }
-    };
 
-    fetchGoogleApiKey();
-  }, []);
 
   // Fetch daily API call count from GoogleAPILog for app owner badge
   const fetchPolylineCount = useCallback(async () => {

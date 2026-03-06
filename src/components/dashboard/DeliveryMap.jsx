@@ -9,7 +9,6 @@ import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
-import { getStoredRouteCoordinates } from '../utils/routePolylineManager';
 import { isMobileDevice } from '../utils/deviceUtils';
 import MapCrosshair from './MapCrosshair';
 import DeliveryPopup from './DeliveryPopup';
@@ -157,7 +156,6 @@ export default function DeliveryMap({
   const [hasInitialFit, setHasInitialFit] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(zoom);
   const isMobile = useMemo(() => isMobileDevice(), []); // MODIFIED: Use isMobileDevice utility function
-  const [googleRouteCoordinates, setGoogleRouteCoordinates] = useState(null);
   const [highlightedRouteId, setHighlightedRouteId] = useState(null);
   const [fannedLocationKey, setFannedLocationKey] = useState(null);
   const legendRef = useRef(null);
@@ -647,62 +645,7 @@ export default function DeliveryMap({
     return { pickups, patientDeliveries };
   }, [safeDeliveries, otherDriverDeliveries, showOtherDriverDeliveries]);
 
-  // NEW: Fetch Google route polyline for display
-  useEffect(() => {
-  const fetchGoogleRoute = async () => {
-  // Only fetch if:
-  // 1. We have deliveries to display
-  // 2. We're in single driver mode
-  // 3. showRoutes is enabled
-  if (!safeDeliveries.length || !isSingleDriverMode || !showRoutes) {
-    setGoogleRouteCoordinates(null);
-    return;
-  }
 
-  // Get the driver ID from deliveries
-  const driverId = safeDeliveries[0]?.driver_id;
-  if (!driverId) {
-    setGoogleRouteCoordinates(null);
-    return;
-  }
-
-  // Get delivery date
-  const deliveryDate = safeDeliveries[0]?.delivery_date;
-  if (!deliveryDate) {
-    setGoogleRouteCoordinates(null);
-    return;
-  }
-
-  // Check if route has started (has in-transit or completed stops)
-  const hasStarted = safeDeliveries.some((d) =>
-    ['in_transit', ...FINISHED_STATUSES].includes(d.status)
-  );
-
-      if (hasStarted) {
-        setGoogleRouteCoordinates(null);
-        return;
-      }
-
-      try {
-        const coordinates = await getStoredRouteCoordinates(
-          driverId,
-          deliveryDate,
-          'to_first_stop'
-        );
-
-        if (coordinates && coordinates.length > 0) {
-          const leafletCoords = coordinates.map((coord) => [coord.lat, coord.lng]);
-          setGoogleRouteCoordinates(leafletCoords);
-        } else {
-          setGoogleRouteCoordinates(null);
-        }
-      } catch (error) {
-        setGoogleRouteCoordinates(null);
-      }
-    };
-
-    fetchGoogleRoute();
-  }, [safeDeliveries, isSingleDriverMode, showRoutes]);
 
   // CRITICAL: FREEZE driver order on FIRST component mount - NEVER recalculate
   // Don't use useMemo—compute once via ref and always return cached result
@@ -2105,21 +2048,7 @@ export default function DeliveryMap({
 
         <MapController onMapInteraction={onMapInteraction} onDoubleTap={onDoubleTap} currentZoom={currentZoom} setCurrentZoom={setCurrentZoom} setShowZoomOverlay={setShowZoomOverlay} zoomOverlayTimeoutRef={zoomOverlayTimeoutRef} setMapCenter={setMapCenter} setVisibleBounds={setVisibleBounds} setFannedLocationKey={setFannedLocationKey} />
 
-        {/* NEW: Draw Google Directions route polyline (if available) - CURRENT DATE ONLY, ONLY if route NOT started */}
-        {/* CRITICAL: This is the PRE-ROUTE polyline (before any stops started). Once route starts, we use currentToNextPolyline instead */}
-        {isViewingCurrentDate && googleRouteCoordinates && googleRouteCoordinates.length > 1 && !currentToNextPolyline &&
-          <Polyline
-            positions={googleRouteCoordinates}
-            pathOptions={{
-              color: '#2563eb',
-              weight: 5,
-              opacity: 1,
-              dashArray: '10, 5',
-              lineJoin: 'round',
-              lineCap: 'round'
-            }} />
 
-        }
 
         {/* TYPE 2 & 3 POLYLINES: Colored lines connecting stops in stop_order sequence (Type 2 drawn via HERE below) */}
         {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (() => {
@@ -2365,7 +2294,7 @@ return polylines.length > 0 ? polylines : null;
          />
 
         {/* TYPE 1 POLYLINES (HERE): next leg + home */}
-        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={currentDriverMarker} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={isAllDriversMode || (selectedDriverId === 'all')} /></>) }
+        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={currentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={isAllDriversMode || selectedDriverId === 'all' || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} /></>) }
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
         {driverHomeMarkers.map((home) => {

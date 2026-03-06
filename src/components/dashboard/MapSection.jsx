@@ -13,7 +13,7 @@ export default function MapSection({
   mapCenter, mapZoom, shouldFitBounds, setShouldFitBounds, setMapCenter, setMapZoom,
   mapMode, setMapMode, driverLocation, allDriverLocations, currentToNextPolyline,
   showRoutes, showAllDriverMarkers, showBreadcrumbs, breadcrumbsData,
-  highlightedCardId, retractClustersRef, googleApiKey,
+  highlightedCardId, retractClustersRef,
   setDriverRoutes, renderSequence, setRenderSequence,
   stopCardsBaseHeight, handleMarkerClick, handleCardInteraction,
   areCardsVisible, handleMapViewCycle, isStatsCardCentered,
@@ -70,7 +70,6 @@ export default function MapSection({
           showLegend={false}
           areCardsVisible={areCardsVisible}
           onLegendInteraction={handleCardInteraction}
-          googleApiKey={googleApiKey}
           onDriverRoutesCalculated={setDriverRoutes}
           onMapInteraction={(isUser) => { if (isUser) {} }}
           onDoubleTap={handleMapViewCycle}

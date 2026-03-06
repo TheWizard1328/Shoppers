@@ -10,6 +10,8 @@ export default function HereType1Polylines({
   pickupMarkers = [],
   driverHomeMarkers = [],
   currentDriverMarker = null,
+  selectedDriverId = null,
+  showAll = false,
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
@@ -55,14 +57,19 @@ export default function HereType1Polylines({
 
   const driverStops = useMemo(() => {
     const map = new Map();
-    [...deliveryMarkers, ...pickupMarkers].forEach((m) => {
+    const allStops = [...deliveryMarkers, ...pickupMarkers];
+    const scopedStops = (!showAll && selectedDriverId && selectedDriverId !== 'all')
+      ? allStops.filter(m => m && m.driver_id === selectedDriverId)
+      : allStops;
+
+    scopedStops.forEach((m) => {
       if (!m || !m.driver_id || typeof m.latitude !== "number" || typeof m.longitude !== "number") return;
       if (!map.has(m.driver_id)) map.set(m.driver_id, { complete: [], incomplete: [] });
       if (FINISHED.includes(m.status)) map.get(m.driver_id).complete.push(m);
       else map.get(m.driver_id).incomplete.push(m);
     });
     return map;
-  }, [deliveryMarkers, pickupMarkers]);
+  }, [deliveryMarkers, pickupMarkers, selectedDriverId, showAll]);
 
   const driversWithCompleteRoute = useMemo(() => {
     const out = new Set();
