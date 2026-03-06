@@ -89,9 +89,10 @@ export default function HereType1Polylines({
 
     scopedStops.forEach((m) => {
       if (!m || !m.driver_id || Number.isNaN(Number(m.latitude)) || Number.isNaN(Number(m.longitude))) return;
-      if (!map.has(m.driver_id)) map.set(m.driver_id, { complete: [], incomplete: [] });
+      if (!map.has(m.driver_id)) map.set(m.driver_id, { complete: [], incomplete: [], pending: [] });
       if (FINISHED.includes(m.status)) map.get(m.driver_id).complete.push(m);
       else if (m.status === "in_transit" || m.status === "en_route") map.get(m.driver_id).incomplete.push(m);
+      else if (m.status === "pending") map.get(m.driver_id).pending.push(m);
     });
     
     // Sort incomplete stops by stop_order to ensure we find the true "next" stop
@@ -105,7 +106,8 @@ export default function HereType1Polylines({
   const driversWithCompleteRoute = useMemo(() => {
     const out = new Set();
     driverStops.forEach((stops, driverId) => {
-      if (stops.incomplete.length === 0 && stops.complete.length > 0) out.add(driverId);
+      const pendingCount = (stops.pending?.length || 0);
+      if (stops.incomplete.length === 0 && pendingCount === 0 && stops.complete.length > 0) out.add(driverId);
     });
     return out;
   }, [driverStops]);
