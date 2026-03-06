@@ -36,6 +36,7 @@ import SignatureCapture from "../common/SignatureCapture";
 import PhotoCapture from "../common/PhotoCapture";
 import ImageViewer from "../common/ImageViewer";
 import BarcodeThumb from "./BarcodeThumb";
+import BarcodeOverlay from "./BarcodeOverlay";
 import { base44 } from "@/api/base44Client";
 
 const statusConfig = {
@@ -66,6 +67,7 @@ export default function StopDetailsPanel({
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
   const [viewingImage, setViewingImage] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [barcodePreview, setBarcodePreview] = useState(null);
 
   if (!delivery) {
     return (
@@ -413,7 +415,12 @@ export default function StopDetailsPanel({
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {delivery.receipt_barcode_values.map((val, idx) => (
-                      <div key={`rb-${idx}`} className="border rounded-md p-2 bg-white dark:bg-slate-800" style={{ borderColor: 'var(--border-slate-200)' }}>
+                      <div
+                        key={`rb-${idx}`}
+                        className="border rounded-md p-2 bg-white dark:bg-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+                        style={{ borderColor: 'var(--border-slate-200)' }}
+                        onClick={() => setBarcodePreview(val)}
+                      >
                         <BarcodeThumb value={val} />
                         <p className="mt-1 text-[11px] text-center text-slate-500 break-all">{val}</p>
                       </div>
@@ -428,7 +435,12 @@ export default function StopDetailsPanel({
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {delivery.barcode_values.map((val, idx) => (
-                      <div key={`rx-${idx}`} className="border rounded-md p-2 bg-white dark:bg-slate-800" style={{ borderColor: 'var(--border-slate-200)' }}>
+                      <div
+                        key={`rx-${idx}`}
+                        className="border rounded-md p-2 bg-white dark:bg-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+                        style={{ borderColor: 'var(--border-slate-200)' }}
+                        onClick={() => setBarcodePreview(val)}
+                      >
                         <BarcodeThumb value={val} />
                         <p className="mt-1 text-[11px] text-center text-slate-500 break-all">{val}</p>
                       </div>
@@ -613,6 +625,10 @@ export default function StopDetailsPanel({
           title={viewingImage.title}
           onClose={() => setViewingImage(null)}
         />
+      )}
+
+      {barcodePreview && (
+        <BarcodeOverlay value={barcodePreview} onClose={() => setBarcodePreview(null)} />
       )}
       </div>
       );
