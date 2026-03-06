@@ -957,7 +957,7 @@ export default function DriverPayroll() {
     // Check periods backwards starting from the one before today
     // If today is in the first period, we might need to check the previous year, 
     // but for now we'll just check within the current year's periods
-    const startCheckIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : allPeriods.length - 1;
+    const startCheckIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : (todayPeriodIdx === 0 ? 0 : allPeriods.length - 1);
     
     // Only check if we have a valid index
     if (startCheckIdx >= 0 && startCheckIdx < allPeriods.length) {
