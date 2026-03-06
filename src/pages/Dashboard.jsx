@@ -139,13 +139,13 @@ function Dashboard() {
     
     // If after 8:00 AM and this is first open of the day (saved date is before today), use today
     if (isAfter8AM && savedDate) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const todayStr = getEdmDate();
+      const today = new Date(todayStr + 'T00:00:00');
       savedDate.setHours(0, 0, 0, 0);
       
       if (savedDate < today) {
         console.log(`📅 [Dashboard Init] After 8AM and first open today - using today's date`);
-        return new Date();
+        return new Date(todayStr + 'T00:00:00');
       }
     }
 
