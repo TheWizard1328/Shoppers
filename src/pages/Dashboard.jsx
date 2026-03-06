@@ -2346,15 +2346,15 @@ function Dashboard() {
       }
     }, 90000);
     
-    // Then run on interval every 60 seconds
+    // Then run on interval every 60 seconds (plus 5‑min auto pull for dispatchers)
+    let __pullTick = 0;
     const interval = setInterval(() => {
       runPeriodicSmartRefresh();
-      if (smartRefreshManager?.checkHeartbeatAndSync) {
-        smartRefreshManager.checkHeartbeatAndSync();
+      if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();
+      if (isDispatcher && (++__pullTick % 5 === 0) && !(showDeliveryForm||showPatientForm||showOptimizationSettings||showAIAssistant)) {
+        window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: 'dispatcher_auto_5min' } }));
       }
     }, 60000);
-
-    console.log('✅ [Dashboard] Periodic refresh interval set - will run every 15 seconds');
 
     return () => {
       console.log('🛑 [Dashboard] Clearing periodic refresh interval');
