@@ -1790,6 +1790,8 @@ export default function StopCard({
                                   toast.error(`Failed to start: ${error.message}`);
                                 } finally {
                                   driverLocationPoller.resume();
+                                  // Resume smart refresh after start flow completes
+                                  smartRefreshManager.resume();
                                   fabControlEvents.reactivateFAB(true);
                                   setIsStarting(false);
                                   setIsEntityUpdating(false);
