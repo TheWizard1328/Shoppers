@@ -96,9 +96,8 @@ const calculateAllPeriods = (year, payPeriodType) => {
           weekNum++;
         }
         
-        weekStart = new Date(weekEnd);
-        weekStart.setDate(weekStart.getDate() + 1);
-        weekStart.setHours(0, 0, 0, 0);
+        weekStart = new Date(weekStart);
+        weekStart.setDate(weekStart.getDate() + 7);
       }
       break;
     }
@@ -135,9 +134,8 @@ const calculateAllPeriods = (year, payPeriodType) => {
           periodNum++;
         }
         
-        biweekStart = new Date(biweekEnd);
-        biweekStart.setDate(biweekStart.getDate() + 1);
-        biweekStart.setHours(0, 0, 0, 0);
+        biweekStart = new Date(biweekStart);
+        biweekStart.setDate(biweekStart.getDate() + 14);
       }
       break;
     }
