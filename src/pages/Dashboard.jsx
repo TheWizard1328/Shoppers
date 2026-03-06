@@ -246,7 +246,7 @@ function Dashboard() {
   const [snapshotData, setSnapshotData] = useState(null);
   const [pullToSyncKey, setPullToSyncKey] = useState(0);
   const [cardsReadyForFAB, setCardsReadyForFAB] = useState(false);
-  const [isLoadingPayrollStats, setIsLoadingPayrollStats] = useState(false);
+  const [isLoadingPayrollStats, setIsLoadingPayrollStats] = useState(false); // dashboard-disabled: always false
 
   // CRITICAL: Declare isPrimaryDevice early (before useEffects that need it)
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
