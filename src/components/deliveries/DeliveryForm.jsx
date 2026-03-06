@@ -3463,7 +3463,7 @@ export default function DeliveryForm({
         // NOTE: updateDeliveryLocal already notifies mutation listeners immediately after local save
         // The Layout component subscribes to these mutations and updates state instantly
       } else {
-        await onSave(dataToSave);
+        await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
 
       // Send message if driver changed (from active driver to new driver)
