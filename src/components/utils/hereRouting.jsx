@@ -6,7 +6,7 @@ const memoryCache = new Map();
 const USE_ENTITY_LOOKUP = true;
 
 let polylineSubscribed = false;
-const ensurePolylineSubscription = () => {
+export const ensurePolylineSubscription = () => {
   if (polylineSubscribed) return;
   polylineSubscribed = true;
   try {
