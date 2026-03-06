@@ -365,7 +365,26 @@ export default function DeliveryFormView({
                   {/* Barcode Scanner */}
                   {(!delivery ? !isPickupMode : true) && (
                     <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <BarcodeScanner barcodeValues={formData.barcode_values || []} onChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))} disabled={isSaving} />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-2 p-2 rounded-md border bg-white" style={{ borderColor: 'var(--border-slate-200)' }}>
+                          <BarcodeScanner
+                            title="Receipt Barcodes"
+                            placeholder="Scan receipt barcode..."
+                            barcodeValues={formData.receipt_barcode_values || []}
+                            onChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
+                            disabled={isSaving}
+                          />
+                        </div>
+                        <div className="space-y-2 p-2 rounded-md border bg-white" style={{ borderColor: 'var(--border-slate-200)' }}>
+                          <BarcodeScanner
+                            title="Rx Barcodes"
+                            placeholder="Scan Rx barcode..."
+                            barcodeValues={formData.barcode_values || []}
+                            onChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
+                            disabled={isSaving}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 
