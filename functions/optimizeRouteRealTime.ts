@@ -78,15 +78,19 @@ Deno.serve(async (req) => {
         currentMinutes = parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
       } else {
         const now = new Date();
-        let mountainHours = now.getUTCHours() - 7;
-        if (mountainHours < 0) mountainHours += 24;
-        currentMinutes = mountainHours * 60 + now.getUTCMinutes();
+        const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', hour: 'numeric', minute: 'numeric', hour12: false });
+        const parts = formatter.formatToParts(now);
+        const h = parseInt(parts.find(p => p.type === 'hour').value, 10);
+        const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
+        currentMinutes = (h === 24 ? 0 : h) * 60 + m;
       }
     } else {
       const now = new Date();
-      let mountainHours = now.getUTCHours() - 7;
-      if (mountainHours < 0) mountainHours += 24;
-      currentMinutes = mountainHours * 60 + now.getUTCMinutes();
+      const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', hour: 'numeric', minute: 'numeric', hour12: false });
+      const parts = formatter.formatToParts(now);
+      const h = parseInt(parts.find(p => p.type === 'hour').value, 10);
+      const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
+      currentMinutes = (h === 24 ? 0 : h) * 60 + m;
     }
 
     console.log(`🔄 Optimizing route for driver ${driverId} on ${deliveryDate}`);
