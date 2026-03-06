@@ -800,8 +800,8 @@ export default function DriverPayroll() {
         // Only check if we have a valid index
         if (startCheckIdx >= 0 && startCheckIdx < periods.length) {
           for (let i = startCheckIdx; i >= 0; i--) {
-            const startStr = periods[i].start.toISOString().split('T')[0];
-            const endStr = periods[i].end.toISOString().split('T')[0];
+            const startStr = toLocalYMD(periods[i].start);
+            const endStr = toLocalYMD(periods[i].end);
 
           // Apply city/driver filters
           const filtered = offlinePayrolls.filter(r => {
