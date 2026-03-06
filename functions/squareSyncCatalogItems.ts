@@ -41,6 +41,27 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'No Square locations configured' }, { status: 400 });
     }
 
+    // Single-flight + TTL lock (10 minutes)
+    try {
+      const lockKey = 'square:catalog:lock';
+      const now = Date.now();
+      let existing = null;
+      try {
+        const locks = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: lockKey }, '-updated_date', 1);
+        existing = Array.isArray(locks) ? locks[0] : null;
+      } catch (_) {}
+      const expiresAt = existing?.setting_value?.expires_at ? new Date(existing.setting_value.expires_at).getTime() : 0;
+      if (expiresAt && expiresAt > now) {
+        return Response.json({ success: true, lock_active: true, next_allowed_at: existing.setting_value.expires_at });
+      }
+      const newExpires = new Date(now + 10 * 60 * 1000).toISOString();
+      if (existing) {
+        await base44.asServiceRole.entities.AppSettings.update(existing.id, { setting_value: { ...(existing.setting_value || {}), owner: user.id, expires_at: newExpires }, description: 'Square catalog sync lock (10m)' });
+      } else {
+        await base44.asServiceRole.entities.AppSettings.create({ setting_key: lockKey, setting_value: { owner: user.id, created_at: new Date(now).toISOString(), expires_at: newExpires }, description: 'Square catalog sync lock (10m)' });
+      }
+    } catch (_) {}
+
     // Fetch catalog items from Square (limit to 500 items max to prevent timeout)
     const catalogItems = [];
     let cursor = null;
