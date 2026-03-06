@@ -404,7 +404,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   };
 
   return (
-    <div className="space-y-3" onClick={() => { if (isMobile && !showCamera) { try { hiddenInputRef.current?.focus(); } catch {} } }}>
+    <div className="space-y-3" onClick={(e) => { if (isMobile && !showCamera && e.target?.tagName !== 'INPUT') { try { hiddenInputRef.current?.focus(); } catch {} } }}>
       <div className="flex items-center gap-2">
         <Barcode className="w-4 h-4 text-emerald-600" />
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
