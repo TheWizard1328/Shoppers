@@ -17,6 +17,33 @@ export const ensurePolylineSubscription = () => {
         } else if (event.data) {
           const rec = event.data;
           await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]);
+          // Offline de-dup for same segment (keep latest by updated_date/last_generated_at)
+          try {
+            const rounded = (n) => Number(Number(n).toFixed(5));
+            const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date,', rec.delivery_date);
+          } catch(_) {}
+          try {
+            const rounded = (n) => Number(Number(n).toFixed(5));
+            const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', rec.delivery_date);
+            const same = (rows || []).filter(r => r.driver_id === rec.driver_id &&
+              Number(r.segment_origin_lat)?.toFixed(5) === rounded(rec.segment_origin_lat).toFixed(5) &&
+              Number(r.segment_origin_lon)?.toFixed(5) === rounded(rec.segment_origin_lon).toFixed(5) &&
+              Number(r.segment_dest_lat)?.toFixed(5) === rounded(rec.segment_dest_lat).toFixed(5) &&
+              Number(r.segment_dest_lon)?.toFixed(5) === rounded(rec.segment_dest_lon).toFixed(5)
+            );
+            if (same.length > 1) {
+              const pick = same.reduce((best, cur) => {
+                const bt = new Date(best.updated_date || best.last_generated_at || 0).getTime();
+                const ct = new Date(cur.updated_date || cur.last_generated_at || 0).getTime();
+                return ct > bt ? cur : best;
+              });
+              for (const row of same) {
+                if (row.id !== pick.id) {
+                  await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id);
+                }
+              }
+            }
+          } catch(_) {}
           // Invalidate caches for this segment
           const key = rec && rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null
             ? `here_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
@@ -369,31 +396,61 @@ const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => 
 const deliveryDateSafe = deliveryDate || todayStr;
         const encoded = encodeGooglePolyline(coords);
         if (encoded && typeof encoded === 'string') {
-          const existing = await base44.entities.DriverRoutePolyline.filter({
+          const matches = await base44.entities.DriverRoutePolyline.filter({
             driver_id: driverId,
             delivery_date: deliveryDateSafe,
             segment_origin_lat: rounded(fromStop.latitude),
             segment_origin_lon: rounded(fromStop.longitude),
             segment_dest_lat: rounded(toStop.latitude),
             segment_dest_lon: rounded(toStop.longitude)
-          }, '-updated_date', 1);
-          if (Array.isArray(existing) && existing.length) {
-            const updated = await base44.entities.DriverRoutePolyline.update(existing[0].id, {
+          }, '-updated_date');
+
+          if (Array.isArray(matches) && matches.length) {
+            // Pick canonical record (prefer most recent timestamp)
+            const canonical = matches.reduce((best, cur) => {
+              const bt = new Date(best.updated_date || best.last_generated_at || 0).getTime();
+              const ct = new Date(cur.updated_date || cur.last_generated_at || 0).getTime();
+              return ct > bt ? cur : best;
+            });
+
+            // Update canonical with fresh data
+            const updated = await base44.entities.DriverRoutePolyline.update(canonical.id, {
               encoded_polyline: encoded,
               last_generated_at: new Date().toISOString(),
               estimated_distance_km: res?.data?.estimated_distance_km,
               estimated_duration_minutes: res?.data?.estimated_duration_minutes
             });
-            // Sync to offline DB as well
-            const offlineRec = {
-              ...(existing[0] || {}),
-              ...(updated || {}),
-              encoded_polyline: encoded,
+
+            // Try to remove server-side duplicates (best-effort)
+            for (const m of matches) {
+              if (m.id !== canonical.id) {
+                try { await base44.entities.DriverRoutePolyline.delete(m.id); } catch(_) {}
+              }
+            }
+
+            // Save canonical offline and clean offline duplicates
+            const offlineRec = { ...(canonical || {}), ...(updated || {}), encoded_polyline: encoded,
               last_generated_at: new Date().toISOString(),
               estimated_distance_km: res?.data?.estimated_distance_km,
-              estimated_duration_minutes: res?.data?.estimated_duration_minutes
-            };
+              estimated_duration_minutes: res?.data?.estimated_duration_minutes };
             await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [offlineRec]);
+            try {
+              const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDateSafe);
+              const same = (rows || []).filter(r => r.driver_id === driverId &&
+                Number(r.segment_origin_lat)?.toFixed(5) === rounded(fromStop.latitude).toFixed(5) &&
+                Number(r.segment_origin_lon)?.toFixed(5) === rounded(fromStop.longitude).toFixed(5) &&
+                Number(r.segment_dest_lat)?.toFixed(5) === rounded(toStop.latitude).toFixed(5) &&
+                Number(r.segment_dest_lon)?.toFixed(5) === rounded(toStop.longitude).toFixed(5)
+              );
+              if (same.length > 1) {
+                const pick = same.reduce((best, cur) => {
+                  const bt = new Date(best.updated_date || best.last_generated_at || 0).getTime();
+                  const ct = new Date(cur.updated_date || cur.last_generated_at || 0).getTime();
+                  return ct > bt ? cur : best;
+                });
+                for (const row of same) { if (row.id !== pick.id) { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id); } }
+              }
+            } catch(_) {}
           } else {
             const created = await base44.entities.DriverRoutePolyline.create({
               driver_id: driverId,
@@ -407,9 +464,30 @@ const deliveryDateSafe = deliveryDate || todayStr;
               estimated_distance_km: res?.data?.estimated_distance_km,
               estimated_duration_minutes: res?.data?.estimated_duration_minutes
             });
-            // Save created record offline
             if (created) {
               await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [created]);
+              // Post-create double-check for accidental duplicates and remove them
+              try {
+                const again = await base44.entities.DriverRoutePolyline.filter({
+                  driver_id: driverId,
+                  delivery_date: deliveryDateSafe,
+                  segment_origin_lat: rounded(fromStop.latitude),
+                  segment_origin_lon: rounded(fromStop.longitude),
+                  segment_dest_lat: rounded(toStop.latitude),
+                  segment_dest_lon: rounded(toStop.longitude)
+                }, '-updated_date');
+                for (const m of again || []) { if (m.id !== created.id) { try { await base44.entities.DriverRoutePolyline.delete(m.id); } catch(_) {} } }
+                const rows2 = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDateSafe);
+                const same2 = (rows2 || []).filter(r => r.driver_id === driverId &&
+                  Number(r.segment_origin_lat)?.toFixed(5) === rounded(fromStop.latitude).toFixed(5) &&
+                  Number(r.segment_origin_lon)?.toFixed(5) === rounded(fromStop.longitude).toFixed(5) &&
+                  Number(r.segment_dest_lat)?.toFixed(5) === rounded(toStop.latitude).toFixed(5) &&
+                  Number(r.segment_dest_lon)?.toFixed(5) === rounded(toStop.longitude).toFixed(5)
+                );
+                if (same2.length > 1) {
+                  for (const row of same2) { if (row.id !== created.id) { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id); } }
+                }
+              } catch(_) {}
             }
           }
         }
