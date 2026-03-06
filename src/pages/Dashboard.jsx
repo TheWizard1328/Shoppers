@@ -87,6 +87,7 @@ import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
 import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
 import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
+import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
 
@@ -8569,17 +8570,9 @@ function Dashboard() {
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
         {/* Polyline API hits badge - App Owner only - fixed position */}
-        {currentUser && isAppOwner(currentUser) &&
-        <div
-          className="absolute left-4 z-[140]"
-          style={{
-            bottom: `${(deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0) + 15}px`
-          }}>
-            <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
-              🛣️ {dailyPolylineCount ?? '...'}
-            </div>
-          </div>
-        }
+        {currentUser && isAppOwner(currentUser) && (
+          <ApiUsageBadge currentUser={currentUser} stopCardsHeight={(deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0)} />
+        )}
 
         {/* Offline Sync Indicator - separate when stats card is in upper left corner */}
         {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
