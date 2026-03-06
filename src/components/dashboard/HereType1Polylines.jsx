@@ -345,7 +345,7 @@ export default function HereType1Polylines({
     const originLat = Number(lastCompleted.latitude);
     const originLon = Number(lastCompleted.longitude);
 
-    const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${nextStop.latitude.toFixed(5)}_${nextStop.longitude.toFixed(5)}`;
+    const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(nextStop.latitude).toFixed(5)}_${Number(nextStop.longitude).toFixed(5)}`;
     let coords = cache[key];
     if (!coords) {
       try {
@@ -356,15 +356,30 @@ export default function HereType1Polylines({
         }
       } catch (_) {}
     }
+    
+    let fallbackLat = originLat;
+    let fallbackLon = originLon;
+
+    if (currentDriverMarker && currentDriverMarker.driver?.id === driverId && currentDriverMarker.latitude && currentDriverMarker.longitude) {
+      fallbackLat = currentDriverMarker.latitude;
+      fallbackLon = currentDriverMarker.longitude;
+    } else {
+      const liveLoc = driverLocations.find(l => l.id === driverId);
+      if (liveLoc && liveLoc.latitude && liveLoc.longitude) {
+        fallbackLat = liveLoc.latitude;
+        fallbackLon = liveLoc.longitude;
+      }
+    }
+
     // Show dashed fallback immediately; HERE polyline will hydrate when ready
     lines.push(
       <Polyline
         key={`type1-next-${driverId}`}
         positions={coords || [
-          [originLat, originLon],
-          [nextStop.latitude, nextStop.longitude],
+          [Number(fallbackLat), Number(fallbackLon)],
+          [Number(nextStop.latitude), Number(nextStop.longitude)],
         ]}
-        pathOptions={{ color: coords ? "#2563eb" : "#94a3b8", weight: 5, opacity: coords ? 0.9 : 0.35, dashArray: coords ? "" : "6,6", lineJoin: "round", lineCap: "round" }}
+        pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
         pane="overlayPane"
       />
     );
