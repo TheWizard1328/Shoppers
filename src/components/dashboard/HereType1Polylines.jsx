@@ -332,6 +332,7 @@ export default function HereType1Polylines({
 
   // Render last-completed -> next-stop using HERE (fallback straight)
   driverStops.forEach((stops, driverId) => {
+    if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
     if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
     const completedSorted = [...stops.complete].sort((a, b) => {
       const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
