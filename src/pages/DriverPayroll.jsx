@@ -1103,9 +1103,7 @@ export default function DriverPayroll() {
             <div className="flex items-center gap-3">
               <DollarSign className="w-8 h-8 text-emerald-600" />
               <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
-              {showUpdated && (
-                <span className="ml-2 text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">Updated</span>
-              )}
+
             </div>
             
             {/* Mobile/Tablet Portrait: Show Refresh and Share buttons next to title */}
@@ -1229,6 +1227,9 @@ export default function DriverPayroll() {
                   ))}
                 </SelectContent>
               </Select>
+              {showUpdated && (
+                <span className="ml-2 text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">Updated</span>
+              )}
               </div>
 
             {/* Icon Buttons - Far Right (Desktop only) */}
