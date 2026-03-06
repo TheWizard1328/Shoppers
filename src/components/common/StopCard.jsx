@@ -1573,7 +1573,18 @@ export default function StopCard({
 
                                     if (incompleteDeliveries.length > 0) {
                                       const nextStop = incompleteDeliveries[0];
+                                      // Set locally for instant UI
                                       await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                                      // Also enforce atomically on the server (clears any other flags)
+                                      try {
+                                        await base44.functions.invoke('setNextDeliveryFlag', {
+                                          driverId: delivery.driver_id,
+                                          deliveryDate: delivery.delivery_date,
+                                          targetDeliveryId: nextStop.id
+                                        });
+                                      } catch (e) {
+                                        console.warn('[NextFlag] Server ensure failed (UI already updated locally):', e?.message || e);
+                                      }
                                     } else {
                                       // CRITICAL: This is the FINAL stop - activate FAB phase 1 and show route summary
                                       // Activate FAB phase 1
