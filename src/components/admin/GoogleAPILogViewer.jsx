@@ -487,6 +487,7 @@ export default function GoogleAPILogViewer() {
                   <SelectContent>
                     <SelectItem value="all">All Types</SelectItem>
                     <SelectItem value="Directions">Directions</SelectItem>
+                    <SelectItem value="Directions (HERE)">Directions (HERE)</SelectItem>
                     <SelectItem value="Distance Matrix">Distance Matrix</SelectItem>
                     <SelectItem value="Places Autocomplete">Places Autocomplete</SelectItem>
                     <SelectItem value="Place Details">Place Details</SelectItem>
