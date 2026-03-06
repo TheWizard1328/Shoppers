@@ -218,7 +218,7 @@ export default function HereType2Polylines({
     for (let i = 0; i < stops.length - 1; i++) {
       const a = stops[i];
       const b = stops[i + 1];
-      const key = `here_${a.latitude.toFixed(5)}_${a.longitude.toFixed(5)}_${b.latitude.toFixed(5)}_${b.longitude.toFixed(5)}`;
+      const key = `here_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
       let coords = cache[key];
       if (!coords) {
         try {
@@ -233,7 +233,7 @@ export default function HereType2Polylines({
       lines.push(
         <Polyline
           key={`type2-here-${driverId}-${i}`}
-          positions={coords || [[a.latitude, a.longitude], [b.latitude, b.longitude]]}
+          positions={coords || [[Number(a.latitude), Number(a.longitude)], [Number(b.latitude), Number(b.longitude)]]}
           pathOptions={{
             color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#6366F1"), driverId) : "#94a3b8",
             weight: 5,
