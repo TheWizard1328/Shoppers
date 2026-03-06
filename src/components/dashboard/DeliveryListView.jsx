@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { format } from 'date-fns';
+import { format, differenceInMinutes } from 'date-fns';
 import { CheckCircle, Clock, Package, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import StopDetailsPanel from '../deliveries/StopDetailsPanel';
@@ -253,10 +253,23 @@ const DeliveryListView = ({
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
     
     if (finishedStatuses.includes(delivery.status) && delivery.actual_delivery_time) {
+      const at = new Date(delivery.actual_delivery_time);
+      const arr = delivery.arrival_time ? new Date(delivery.arrival_time) : null;
+      let minutesOnSite = null;
+      if (!isNaN(at.getTime()) && arr && !isNaN(arr.getTime())) {
+        try {
+          minutesOnSite = Math.max(0, differenceInMinutes(at, arr));
+        } catch {}
+      }
       return (
-        <div className="flex items-center gap-1 text-green-700">
-          <CheckCircle className="w-3.5 h-3.5" />
-          <span className="font-medium">{format(new Date(delivery.actual_delivery_time), 'HH:mm')}</span>
+        <div className="flex flex-col items-center text-green-700 leading-tight">
+          <div className="flex items-center gap-1">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span className="font-medium">{format(at, 'HH:mm')}</span>
+          </div>
+          {minutesOnSite !== null && (
+            <span className="text-[11px] text-slate-500">{minutesOnSite} min</span>
+          )}
         </div>
       );
     }
