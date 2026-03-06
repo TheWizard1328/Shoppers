@@ -2294,7 +2294,7 @@ return polylines.length > 0 ? polylines : null;
          />
 
         {/* TYPE 1 POLYLINES (HERE): next leg + home */}
-        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={currentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={isAllDriversMode || selectedDriverId === 'all' || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} /></>) }
+        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (<><HereType1Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={currentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} driverLocations={driverLocationMarkers} /><HereType2Polylines isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={isAllDriversMode || selectedDriverId === 'all' || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} /></>) }
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
         {driverHomeMarkers.map((home) => {
