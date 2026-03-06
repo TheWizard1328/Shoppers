@@ -333,7 +333,7 @@ export default function HereType1Polylines({
       return bt - at;
     });
     const lastCompleted = completedSorted[0];
-    // Fallback to first incomplete stop if isNextDelivery is not set
+    // Fallback to first active (non-pending) incomplete stop if isNextDelivery is not set
     const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
     if (!lastCompleted || !nextStop) return;
     const originLat = Number(lastCompleted.latitude);
