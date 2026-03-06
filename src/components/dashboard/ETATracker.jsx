@@ -20,14 +20,18 @@ export default function ETATracker({
   const intervalRef = useRef(null);
   const lastLocationRef = useRef(null);
   const lastUpdateTimeRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const lastInvokeRef = useRef(0);
+  const COOLDOWN_MS = 7000;
 
   useEffect(() => {
     // CRITICAL: Only run on driver's mobile device
     const isMobile = isMobileDevice();
     const isDriver = currentUser && userHasRole(currentUser, 'driver');
     const isCurrentDriver = currentUser && currentUser.id === selectedDriverId;
+    const isPrimary = typeof window !== 'undefined' ? window.__isPrimaryDevice === true : false;
 
-    if (!isMobile || !isDriver || !isCurrentDriver) {
+    if (!isMobile || !isDriver || !isCurrentDriver || !isPrimary) {
       // Only log once when first skipping, not on every render
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -84,6 +88,10 @@ export default function ETATracker({
     };
 
     const updateETAs = async () => {
+      const now = Date.now();
+      if (inFlightRef.current || (now - lastInvokeRef.current) < COOLDOWN_MS) return;
+      inFlightRef.current = true;
+      lastInvokeRef.current = now;
       try {
         // CRITICAL: Skip ETA updates if no in-transit deliveries
         // This preserves pickup order based on delivery_time_start until route actually starts
@@ -160,11 +168,24 @@ export default function ETATracker({
         }
       } catch (error) {
         console.error('❌ [ETATracker] Error updating ETAs:', error);
+        try {
+          const status = error?.response?.status || error?.status;
+          const msg = error?.message || '';
+          if (status === 429 || /429|rate limit/i.test(msg)) {
+            window._setRateLimitError?.(true);
+          }
+        } catch {}
+      } finally {
+        inFlightRef.current = false;
       }
     };
 
     // Listen for events that should trigger ETA updates
     const handleETAUpdateEvent = () => {
+      const now = Date.now();
+      if ((now - lastInvokeRef.current) < COOLDOWN_MS) {
+        return; // debounce rapid successive events
+      }
       console.log('🔔 [ETATracker] Event received - updating ETAs');
       updateETAs();
     };
