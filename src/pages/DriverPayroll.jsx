@@ -169,6 +169,8 @@ const calculateAllPeriods = (year, payPeriodType) => {
 
 // Helper: Find current period index based on today's date
 const findCurrentPeriodIndex = (periods, today) => {
+  if (!periods || periods.length === 0) return 0;
+  
   const t = new Date(today);
   t.setHours(0, 0, 0, 0);
   const todayStr = toLocalYMD(t);
@@ -194,6 +196,8 @@ const findCurrentPeriodIndex = (periods, today) => {
       return i;
     }
   }
+  
+  // If today is before all periods, return the first one
   return 0;
 };
 
