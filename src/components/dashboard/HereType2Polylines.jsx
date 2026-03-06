@@ -225,47 +225,7 @@ export default function HereType2Polylines({
     });
   }, [isViewingCurrentDate, driverIncomplete, refreshToken]);
 
-  // Additionally, prefetch for pending-only sequences (no 'en_route'/'in_transit') to seed polylines
-  useEffect(() => {
-    if (!isViewingCurrentDate || optimizing) return;
-    try {
-      const byDriverAll = new Map();
-      const allStops = [...pickupMarkers, ...deliveryMarkers]
-        .filter(s => s && !Number.isNaN(Number(s.latitude)) && !Number.isNaN(Number(s.longitude)))
-        .sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0));
-      const scopedAllStops = (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all')
-        ? allStops.filter(s => s.driver_id === selectedDriverId)
-        : allStops;
-      scopedAllStops.forEach(s => {
-        if (!byDriverAll.has(s.driver_id)) byDriverAll.set(s.driver_id, []);
-        byDriverAll.get(s.driver_id).push(s);
-      });
-      byDriverAll.forEach((stops, driverId) => {
-        const active = driverIncomplete.get(driverId);
-        if (active && active.length) return;
-        const nonFinished = stops.filter(s => !FINISHED.includes(s.status));
-        const limit = Math.min(Math.max(0, nonFinished.length - 1), 3);
-        for (let i = 0; i < limit; i++) {
-          const a = nonFinished[i];
-          const b = nonFinished[i + 1];
-          const key = `here_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
-          if (cache[key]) continue;
-          setTimeout(() => {
-            getHerePolyline(
-              driverId,
-              { latitude: Number(a.latitude), longitude: Number(a.longitude) },
-              { latitude: Number(b.latitude), longitude: Number(b.longitude) },
-              a.delivery_date
-            ).then((coords) => {
-              if (Array.isArray(coords) && coords.length > 1) {
-                setCache((p) => ({ ...p, [key]: coords }));
-              }
-            });
-          }, Math.min(600, i * 120 + Math.floor(Math.random() * 120)));
-        }
-      });
-    } catch (_) {}
-  }, [isViewingCurrentDate, optimizing, pickupMarkers, deliveryMarkers, multiDriverMode, selectedDriverId, driverIncomplete, refreshToken]);
+  // Pending-only prefetch removed per requirement: do not include pending stops in Type 2 polylines
 
   /* always render polylines on any date; previously gated by current date */
 
@@ -312,64 +272,7 @@ export default function HereType2Polylines({
     }
   });
 
-  // Fallback: if a driver has only pending stops (no in_transit/en_route), draw dashed grey between stops
-  try {
-    const byDriverAll = new Map();
-    const allStops = [...pickupMarkers, ...deliveryMarkers]
-      .filter(s => s && !Number.isNaN(Number(s.latitude)) && !Number.isNaN(Number(s.longitude)))
-      .sort((a,b)=> (a.stop_order || 0) - (b.stop_order || 0));
-    const scopedAllStops = (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all')
-      ? allStops.filter(s => s.driver_id === selectedDriverId)
-      : allStops;
-    scopedAllStops.forEach(s => {
-      if (!byDriverAll.has(s.driver_id)) byDriverAll.set(s.driver_id, []);
-      byDriverAll.get(s.driver_id).push(s);
-    });
-    byDriverAll.forEach((stops, driverId) => {
-      const active = driverIncomplete.get(driverId);
-      if (active && active.length) return; // already handled above
-      const nonFinished = stops.filter(s => !FINISHED.includes(s.status));
-      if (nonFinished.length < 2) return;
-      
-      // If we have no active stops in driverIncomplete, but we DO have nonFinished stops,
-      // it means they are ALL pending OR we somehow missed them.
-      // Let's draw the dashed lines for them so the route is visible!
-      for (let i = 0; i < nonFinished.length - 1; i++) {
-        const a = nonFinished[i];
-        const b = nonFinished[i+1];
-        const key = `here_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
-        
-        let coords = cache[key];
-        if (!coords) {
-          try {
-            const cached = localStorage.getItem(key);
-            if (cached) {
-              const c = JSON.parse(cached);
-              if (Array.isArray(c) && c.length > 1) coords = c;
-            }
-          } catch (_) {}
-        }
-        
-        // Always show dashed fallback immediately
-        lines.push(
-          <Polyline
-            key={`type2-pending-fallback-${driverId}-${i}`}
-            positions={coords || makeFallback(a, b)}
-            pathOptions={{ 
-              color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#A855F7"), driverId) : '#94a3b8', 
-              weight: 5, 
-              opacity: coords ? 0.6 : 0.35, 
-              dashArray: '6,6', 
-              lineJoin: 'round', 
-              lineCap: 'round' 
-            }}
-            pane="overlayPane"
-          />
-        );
-      }
-    });
-  } catch (_) {}
-
+  // Pending-only fallback rendering removed per requirement: do not include pending stops in Type 2 polylines
   // Preserve last non-empty set to prevent blanking on date flips/loading
   useEffect(() => { if (lines.length) setLastNonEmptyLines(lines); }, [lines.length, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
   return lines.length ? <>{lines}</> : (lastNonEmptyLines.length ? <>{lastNonEmptyLines}</> : null);
