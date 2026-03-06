@@ -3445,7 +3445,7 @@ export default function DeliveryForm({
           delivery_date: formData.delivery_date
         });
         
-        const updatedDelivery = await updateDeliveryLocal(delivery.id, dataToSave);
+        const updatedDelivery = await updateDeliveryLocal(delivery.id, { ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
         console.log('✅ [DeliveryForm] Delivery updated - UI should update immediately via mutation notification'); if ((formData.status==='completed'||formData.status==='failed')&&formData.patient_id){ try{ const __todayLocal=format(new Date(),'yyyy-MM-dd'); updatePatientLocal(formData.patient_id,{ last_delivery_date: __todayLocal }); console.log('🗓️ [DeliveryForm] Updated patient last_delivery_date to',__todayLocal);}catch(e){} }
         
         // CRITICAL: Force stats refresh AND deliveries update after any delivery update
