@@ -460,22 +460,18 @@ function Dashboard() {
       console.log(`📡 [Real-time Patient] ${event.type} event:`, event.data?.full_name || event.id);
       
       if (event.type === 'create') {
-        // Add new patient to offline DB and context
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]).catch(console.error);
-          // Refresh data to update context
-          refreshData?.();
+          window.dispatchEvent(new CustomEvent('patientsUpdated', { detail: { patients: [event.data], source: 'realtime' } }));
         }
       } else if (event.type === 'update') {
-        // Update patient in offline DB and context
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]).catch(console.error);
-          refreshData?.();
+          window.dispatchEvent(new CustomEvent('patientsUpdated', { detail: { patients: [event.data], source: 'realtime' } }));
         }
       } else if (event.type === 'delete') {
-        // Remove patient from offline DB
         offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, event.id).catch(console.error);
-        refreshData?.();
+        window.dispatchEvent(new CustomEvent('patientsUpdated', { detail: { deletedId: event.id, source: 'realtime' } }));
       }
     });
 

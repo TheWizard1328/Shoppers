@@ -6,6 +6,10 @@
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 
+// Simple in-module throttle to prevent rapid repeated GPS updates
+let _gpsUpdateInFlight = false;
+let _gpsUpdateLastAt = 0;
+
 // Haversine distance in KM (rounded to 2 decimals)
 const haversineKm = (lat1, lon1, lat2, lon2) => {
   const toRad = (v) => (v * Math.PI) / 180;
@@ -51,6 +55,13 @@ const getFreshDeviceLocation = () => {
  * @returns {Promise<{success:boolean, message:string, distance?:number}>}
  */
 export const updatePatientGPS = async ({ patientId, storeId, stores }) => {
+  const now = Date.now();
+  if (_gpsUpdateInFlight || now - _gpsUpdateLastAt < 4000) {
+    toast("Please wait... GPS update in progress");
+    return { success: false, message: "GPS update already in progress" };
+  }
+  _gpsUpdateInFlight = true;
+  _gpsUpdateLastAt = now;
   try {
     if (!patientId) throw new Error("Missing patientId");
     if (!storeId) throw new Error("Select a store before updating GPS");
@@ -76,9 +87,14 @@ export const updatePatientGPS = async ({ patientId, storeId, stores }) => {
       description: `Location saved. Distance from store: ${distanceKm} km`,
     });
 
+    _gpsUpdateInFlight = false;
     return { success: true, message: "GPS updated", distance: distanceKm };
   } catch (error) {
+    if (error?.response?.status === 429 || (error?.message && /429|rate limit/i.test(error.message))) {
+      try { window._setRateLimitError?.(true); } catch {}
+    }
     toast.error("Failed to Update GPS", { description: error.message || "Could not update location" });
+    _gpsUpdateInFlight = false;
     return { success: false, message: error.message || "Failed to update GPS" };
   }
 };
