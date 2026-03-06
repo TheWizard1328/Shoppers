@@ -82,7 +82,7 @@ function MiniBarcode({ value }) {
   return <svg ref={svgRef} className="h-10 w-full" aria-hidden="true" />;
 }
 
-export default function BarcodeScanner({ barcodeValues = [], onChange, disabled = false, title = "Tx Barcodes", placeholder = "Scan or type barcode value...", onSelectBarcode = () => {} }) {
+export default function BarcodeScanner({ barcodeValues = [], onChange, disabled = false, title = "Tx Barcodes", placeholder = "Scan or type barcode value...", onSelectBarcode = () => {}, twoPerRow = false, silentEntry = false }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
@@ -211,9 +211,11 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         addBarcode(scannerBufferRef.current);
         scannerBufferRef.current = '';
         scannerModeRef.current = false;
+        setTimeout(() => { try { hiddenInputRef.current?.focus(); } catch {} }, 0);
         return;
       }
       addBarcode(manualInput);
+      setTimeout(() => { try { hiddenInputRef.current?.focus(); } catch {} }, 0);
       return;
     }
 
@@ -402,7 +404,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   };
 
   return (
-    <div className="space-y-3" onClick={(e) => { if (isMobile && !showCamera && disabled) { try { hiddenInputRef.current?.focus(); } catch {} } }}>
+    <div className="space-y-3" onClick={() => { if (isMobile && !showCamera) { try { hiddenInputRef.current?.focus(); } catch {} } }}>
       <div className="flex items-center gap-2">
         <Barcode className="w-4 h-4 text-emerald-600" />
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -428,6 +430,8 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           className="flex-1 h-9 text-sm font-mono"
           disabled={disabled}
           autoComplete="off"
+          inputMode={isMobile && silentEntry ? 'none' : undefined}
+          readOnly={isMobile && silentEntry}
         />
 
         {/* Keep hidden input on mobile to capture fast BT scanner keystrokes */}
@@ -519,7 +523,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       {/* Barcode grid */}
       {barcodeValues.length > 0 && (
         <div className="space-y-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className={twoPerRow ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 md:grid-cols-2 gap-2"}>
             {barcodeValues.map((val, idx) => (
               <div
                 key={idx}
