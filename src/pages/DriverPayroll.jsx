@@ -27,34 +27,12 @@ const toLocalYMD = (d) => {
   return `${y}-${m}-${da}`;
 };
 
-// Helper: Determine which year a period belongs to based on majority of days
-const getPeriodYear = (start, end) => {
-  const startYear = start.getFullYear();
-  const endYear = end.getFullYear();
-  
-  if (startYear === endYear) return startYear;
-  
-  // Crosses year boundary, count days in each year
-  let daysInStartYear = 0;
-  let daysInEndYear = 0;
-  
-  let current = new Date(start);
-  // Set hours to 12 to avoid daylight saving time issues when adding days
-  current.setHours(12, 0, 0, 0);
-  
-  const endCompare = new Date(end);
-  endCompare.setHours(12, 0, 0, 0);
-  
-  while (current <= endCompare) {
-    if (current.getFullYear() === startYear) {
-      daysInStartYear++;
-    } else {
-      daysInEndYear++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-  
-  return daysInStartYear >= daysInEndYear ? startYear : endYear;
+// Helper: Get first Monday of a given year
+const getFirstMondayOfYear = (year) => {
+  const jan1 = new Date(year, 0, 1);
+  const dayOfWeek = jan1.getDay();
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : (dayOfWeek === 1 ? 0 : 8 - dayOfWeek);
+  return new Date(year, 0, 1 + daysUntilMonday);
 };
 
 // Helper: Calculate all pay periods for a given year and pay period type
@@ -63,78 +41,63 @@ const calculateAllPeriods = (year, payPeriodType) => {
   
   switch (payPeriodType) {
     case 'weekly': {
-      // Start from late December of previous year to catch periods that belong to current year
-      let weekStart = new Date(year - 1, 11, 20);
-      weekStart.setHours(0, 0, 0, 0);
-      // Adjust to Monday
-      const dayOfWeek = weekStart.getDay();
-      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      weekStart.setDate(weekStart.getDate() + daysToMonday);
-      
+      const firstMonday = getFirstMondayOfYear(year);
+      // Add prior year period if Jan 1 is before first Monday
+      const jan1 = new Date(year, 0, 1);
+      if (jan1 < firstMonday) {
+        periods.push({
+          year,
+          start: jan1,
+          end: new Date(firstMonday.getTime() - 86400000), // day before first Monday
+          label: `Prior Year Period`,
+          isPriorYear: true
+        });
+      }
+      // Generate weekly periods
+      let weekStart = new Date(firstMonday);
       let weekNum = 1;
-      
-      // Generate periods until we hit the next year's periods
-      while (true) {
+      const yearEnd = new Date(year, 11, 31);
+      while (weekStart <= yearEnd) {
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
-        
-        const periodYear = getPeriodYear(weekStart, weekEnd);
-        
-        if (periodYear > year) {
-          break; // We've moved into the next year's periods
-        }
-        
-        if (periodYear === year) {
-          periods.push({
-            year,
-            start: new Date(weekStart),
-            end: new Date(weekEnd),
-            label: `Week ${weekNum}`,
-            weekNum
-          });
-          weekNum++;
-        }
-        
-        weekStart = new Date(weekStart);
+        periods.push({
+          year,
+          start: new Date(weekStart),
+          end: weekEnd > yearEnd ? yearEnd : weekEnd,
+          label: `Week ${weekNum}`,
+          weekNum
+        });
+        weekNum++;
         weekStart.setDate(weekStart.getDate() + 7);
       }
       break;
     }
     case 'biweekly': {
-      // Start from late December of previous year
-      let biweekStart = new Date(year - 1, 11, 15);
-      biweekStart.setHours(0, 0, 0, 0);
-      // Adjust to Monday
-      const dayOfWeek = biweekStart.getDay();
-      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      biweekStart.setDate(biweekStart.getDate() + daysToMonday);
-      
+      const firstMonday = getFirstMondayOfYear(year);
+      const jan1 = new Date(year, 0, 1);
+      if (jan1 < firstMonday) {
+        periods.push({
+          year,
+          start: jan1,
+          end: new Date(firstMonday.getTime() - 86400000),
+          label: `Prior Year Period`,
+          isPriorYear: true
+        });
+      }
+      let biweekStart = new Date(firstMonday);
       let periodNum = 1;
-      
-      while (true) {
+      const yearEnd = new Date(year, 11, 31);
+      while (biweekStart <= yearEnd) {
         const biweekEnd = new Date(biweekStart);
         biweekEnd.setDate(biweekStart.getDate() + 13);
-        biweekEnd.setHours(23, 59, 59, 999);
-        
-        const periodYear = getPeriodYear(biweekStart, biweekEnd);
-        
-        if (periodYear > year) {
-          break;
-        }
-        
-        if (periodYear === year) {
-          periods.push({
-            year,
-            start: new Date(biweekStart),
-            end: new Date(biweekEnd),
-            label: `Period ${periodNum}`,
-            periodNum
-          });
-          periodNum++;
-        }
-        
-        biweekStart = new Date(biweekStart);
+        periods.push({
+          year,
+          start: new Date(biweekStart),
+          end: biweekEnd > yearEnd ? yearEnd : biweekEnd,
+          label: `Period ${periodNum}`,
+          periodNum
+        });
+        periodNum++;
         biweekStart.setDate(biweekStart.getDate() + 14);
       }
       break;
@@ -181,8 +144,6 @@ const calculateAllPeriods = (year, payPeriodType) => {
 
 // Helper: Find current period index based on today's date
 const findCurrentPeriodIndex = (periods, today) => {
-  if (!periods || periods.length === 0) return 0;
-  
   const t = new Date(today);
   t.setHours(0, 0, 0, 0);
   const todayStr = toLocalYMD(t);
@@ -208,8 +169,6 @@ const findCurrentPeriodIndex = (periods, today) => {
       return i;
     }
   }
-  
-  // If today is before all periods, return the first one
   return 0;
 };
 
@@ -747,44 +706,10 @@ export default function DriverPayroll() {
       }
 
       // Step 2: Compute periods for determined pay cycle and find the right period index
-      const today = new Date();
-      let year = today.getFullYear();
-      
-      // Check if today falls into a period that belongs to the previous year
-      // (e.g. Dec 30, 2024 is in Week 1 of 2025, but Jan 2, 2025 might be in Week 52 of 2024)
-      if (determinedPayCycle === 'weekly' || determinedPayCycle === 'biweekly') {
-        const testPeriods = calculateAllPeriods(year, determinedPayCycle);
-        const firstPeriodStart = testPeriods[0]?.start;
-        
-        // Ensure we compare dates correctly by setting hours to 0
-        const todayDateOnly = new Date(today);
-        todayDateOnly.setHours(0, 0, 0, 0);
-        
-        if (firstPeriodStart) {
-          const firstPeriodStartDateOnly = new Date(firstPeriodStart);
-          firstPeriodStartDateOnly.setHours(0, 0, 0, 0);
-          if (todayDateOnly < firstPeriodStartDateOnly) {
-            year = year - 1;
-          }
-        }
-        
-        if (testPeriods.length > 0) {
-          // Also check if today is AFTER the last period of the current year
-          const lastPeriodEnd = testPeriods[testPeriods.length - 1]?.end;
-          
-          if (lastPeriodEnd) {
-            const lastPeriodEndDateOnly = new Date(lastPeriodEnd);
-            lastPeriodEndDateOnly.setHours(0, 0, 0, 0);
-            
-            if (todayDateOnly > lastPeriodEndDateOnly) {
-              year = year + 1;
-            }
-          }
-        }
-      }
-      
+      const year = new Date().getFullYear();
       const periods = calculateAllPeriods(year, determinedPayCycle);
       let determinedPeriodIndex = 0;
+      const today = new Date();
 
       // Find today's period first (date-only comparison to avoid time-of-day issues)
       let todayIdx = -1;
@@ -798,18 +723,10 @@ export default function DriverPayroll() {
       // Step 3: Read offline Payroll records to check ONLY previous cycle completeness (admin_finalized or paid) respecting filters
       try {
         const offlinePayrolls = await offlineDB.getAll('payroll_records') || [];
-        
-        // Find the most recent period that has unfinalized records
-        let foundUnfinalizedPeriodIndex = -1;
-        
-        // Check periods backwards starting from the one before today
-        const startCheckIdx = todayIdx > 0 ? todayIdx - 1 : (todayIdx === 0 ? 0 : periods.length - 1);
-        
-        // Only check if we have a valid index
-        if (startCheckIdx >= 0 && startCheckIdx < periods.length) {
-          for (let i = startCheckIdx; i >= 0; i--) {
-            const startStr = toLocalYMD(periods[i].start);
-            const endStr = toLocalYMD(periods[i].end);
+        const prevIdx = todayIdx > 0 ? todayIdx - 1 : -1;
+        if (prevIdx >= 0) {
+          const startStr = periods[prevIdx].start.toISOString().split('T')[0];
+          const endStr = periods[prevIdx].end.toISOString().split('T')[0];
 
           // Apply city/driver filters
           const filtered = offlinePayrolls.filter(r => {
@@ -819,22 +736,14 @@ export default function DriverPayroll() {
             return matchPeriod && matchCity && matchDriver;
           });
 
-          if (filtered.length > 0) {
-            const allFinalized = filtered.every(r =>
-              r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
-            );
-            
-            if (!allFinalized) {
-              foundUnfinalizedPeriodIndex = i;
-              console.log(`✅ [DriverPayroll Init] Found unfinalized period: ${periods[i].label}`);
-              break; // Found the most recent unfinalized period
-            }
-          }
-        }
-        }
+          // If no records or any not finalized (not admin_finalized or paid), show previous
+          const allFinalized = filtered.length > 0 && filtered.every(r =>
+            r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+          );
 
-        if (foundUnfinalizedPeriodIndex !== -1) {
-          determinedPeriodIndex = foundUnfinalizedPeriodIndex;
+          determinedPeriodIndex = allFinalized ? (todayIdx !== -1 ? todayIdx : determinedPeriodIndex) : prevIdx;
+
+          console.log(`✅ [DriverPayroll Init] Offline previous ${periods[prevIdx].label} finalized? ${allFinalized}`);
         } else if (todayIdx !== -1) {
           determinedPeriodIndex = todayIdx;
         }
@@ -891,48 +800,8 @@ export default function DriverPayroll() {
      if (!hasInitialized || !payPeriod) return;
      // Do not auto-reset period index if user is navigating manually
      if (isManualChangeRef.current) return;
-     
-     // Check if today falls into a different year's periods
-     const today = new Date();
-     let targetYear = selectedYear;
-     
-     if (payPeriod === 'weekly' || payPeriod === 'biweekly') {
-       const testPeriods = calculateAllPeriods(selectedYear, payPeriod);
-       const firstPeriodStart = testPeriods[0]?.start;
-       const lastPeriodEnd = testPeriods[testPeriods.length - 1]?.end;
-       
-       // Ensure we compare dates correctly by setting hours to 0
-       const todayDateOnly = new Date(today);
-       todayDateOnly.setHours(0, 0, 0, 0);
-       
-       if (firstPeriodStart) {
-         const firstPeriodStartDateOnly = new Date(firstPeriodStart);
-         firstPeriodStartDateOnly.setHours(0, 0, 0, 0);
-         if (todayDateOnly < firstPeriodStartDateOnly) {
-           targetYear = selectedYear - 1;
-         }
-       }
-       
-       if (lastPeriodEnd) {
-         const lastPeriodEndDateOnly = new Date(lastPeriodEnd);
-         lastPeriodEndDateOnly.setHours(0, 0, 0, 0);
-         if (todayDateOnly > lastPeriodEndDateOnly) {
-           targetYear = selectedYear + 1;
-         }
-       }
-     }
-     
-     // If the current year doesn't contain today's period, update the year
-     if (targetYear !== selectedYear) {
-       setSelectedYear(targetYear);
-       return; // The year change will trigger a re-render and this effect will run again
-     }
-     
-     // Don't auto-reset if we've already selected a period based on unfinalized records
-     if (periodSelectionDoneWithRecordsRef.current) return;
-     
      const periods = calculateAllPeriods(selectedYear, payPeriod);
-     const idx = findCurrentPeriodIndex(periods, today);
+     const idx = findCurrentPeriodIndex(periods, new Date());
      if (idx !== selectedPeriodIndex) {
        setSelectedPeriodIndex(idx);
      }
@@ -957,52 +826,36 @@ export default function DriverPayroll() {
       if (todayStr >= startStr && todayStr <= endStr) { todayPeriodIdx = i; break; }
     }
 
+    const prevIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : -1;
+
     let targetIdx = todayPeriodIdx !== -1 ? todayPeriodIdx : 0;
 
-    // Find the most recent period that has unfinalized records
-    let foundUnfinalizedPeriodIndex = -1;
-    
-    // Check periods backwards starting from the one before today
-    // If today is in the first period, we might need to check the previous year, 
-    // but for now we'll just check within the current year's periods
-    const startCheckIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : (todayPeriodIdx === 0 ? 0 : allPeriods.length - 1);
-    
-    // Only check if we have a valid index
-    if (startCheckIdx >= 0 && startCheckIdx < allPeriods.length) {
-      for (let i = startCheckIdx; i >= 0; i--) {
-        const startStr = toLocalYMD(allPeriods[i].start);
-        const endStr = toLocalYMD(allPeriods[i].end);
+    if (prevIdx >= 0) {
+      const startStr = allPeriods[prevIdx].start.toISOString().split('T')[0];
+      const endStr = allPeriods[prevIdx].end.toISOString().split('T')[0];
 
-        const filtered = allRecords.filter(r => {
-          const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
-          const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
-          const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
-          return matchPeriod && matchCity && matchDriver;
-        });
+      const filtered = allRecords.filter(r => {
+        const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
+        const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
+        const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
+        return matchPeriod && matchCity && matchDriver;
+      });
 
-        if (filtered.length > 0) {
-          const allFinalized = filtered.every(r =>
-            r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
-          );
-          
-          if (!allFinalized) {
-            foundUnfinalizedPeriodIndex = i;
-            console.log(`✅ [DriverPayroll] Live: Found unfinalized period: ${allPeriods[i].label}`);
-            break; // Found the most recent unfinalized period
-          }
-        }
+      const allFinalized = filtered.length > 0 && filtered.every(r =>
+        r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+      );
+
+      if (!allFinalized) {
+        targetIdx = prevIdx;
       }
-    }
-
-    if (foundUnfinalizedPeriodIndex !== -1) {
-      targetIdx = foundUnfinalizedPeriodIndex;
+      console.log(`✅ [DriverPayroll] Live: previous ${allPeriods[prevIdx].label} finalized? ${allFinalized} — selecting ${allPeriods[targetIdx]?.label}`);
     }
 
     if (targetIdx !== selectedPeriodIndex) {
       setSelectedPeriodIndex(targetIdx);
     }
     periodSelectionDoneWithRecordsRef.current = true;
-  }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData, selectedCityId, selectedDriverId, selectedPeriodIndex]);
+  }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData, selectedPeriodIndex]);
 
   // Subscribe to real-time websocket updates
   useEffect(() => {
