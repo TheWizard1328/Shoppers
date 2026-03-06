@@ -755,20 +755,30 @@ export default function DriverPayroll() {
       if (determinedPayCycle === 'weekly' || determinedPayCycle === 'biweekly') {
         const testPeriods = calculateAllPeriods(year, determinedPayCycle);
         const firstPeriodStart = testPeriods[0]?.start;
-        if (firstPeriodStart && today < firstPeriodStart) {
-          year = year - 1;
-        } else if (testPeriods.length > 0) {
+        
+        // Ensure we compare dates correctly by setting hours to 0
+        const todayDateOnly = new Date(today);
+        todayDateOnly.setHours(0, 0, 0, 0);
+        
+        if (firstPeriodStart) {
+          const firstPeriodStartDateOnly = new Date(firstPeriodStart);
+          firstPeriodStartDateOnly.setHours(0, 0, 0, 0);
+          if (todayDateOnly < firstPeriodStartDateOnly) {
+            year = year - 1;
+          }
+        }
+        
+        if (testPeriods.length > 0) {
           // Also check if today is AFTER the last period of the current year
           const lastPeriodEnd = testPeriods[testPeriods.length - 1]?.end;
           
-          // Ensure we compare dates correctly by setting hours to 0
-          const todayDateOnly = new Date(today);
-          todayDateOnly.setHours(0, 0, 0, 0);
-          const lastPeriodEndDateOnly = new Date(lastPeriodEnd);
-          lastPeriodEndDateOnly.setHours(0, 0, 0, 0);
-          
-          if (todayDateOnly > lastPeriodEndDateOnly) {
-            year = year + 1;
+          if (lastPeriodEnd) {
+            const lastPeriodEndDateOnly = new Date(lastPeriodEnd);
+            lastPeriodEndDateOnly.setHours(0, 0, 0, 0);
+            
+            if (todayDateOnly > lastPeriodEndDateOnly) {
+              year = year + 1;
+            }
           }
         }
       }
