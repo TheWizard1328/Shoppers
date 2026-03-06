@@ -394,7 +394,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Barcode className="w-4 h-4 text-emerald-600" />
-        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+        <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
          {title}
         </Label>
         {barcodeValues.length > 0 && (

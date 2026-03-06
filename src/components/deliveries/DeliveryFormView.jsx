@@ -366,7 +366,7 @@ export default function DeliveryFormView({
                   {(!delivery ? !isPickupMode : true) && (
                     <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="space-y-2 p-2 rounded-md border bg-white" style={{ borderColor: 'var(--border-slate-200)' }}>
+                        <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
                           <BarcodeScanner
                             title="Receipt Barcodes"
                             placeholder="Scan receipt barcode..."
@@ -375,7 +375,7 @@ export default function DeliveryFormView({
                             disabled={isSaving}
                           />
                         </div>
-                        <div className="space-y-2 p-2 rounded-md border bg-white" style={{ borderColor: 'var(--border-slate-200)' }}>
+                        <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
                           <BarcodeScanner
                             title="Rx Barcodes"
                             placeholder="Scan Rx barcode..."
@@ -421,7 +421,7 @@ export default function DeliveryFormView({
                   )}
 
                   {/* Store / Status / Time - using extracted component */}
-                  <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
                     <DeliveryStatusAndTiming
                       formData={formData} setFormData={setFormData}
                       delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
