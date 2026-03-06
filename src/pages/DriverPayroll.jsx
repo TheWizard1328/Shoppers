@@ -914,28 +914,33 @@ export default function DriverPayroll() {
     let foundUnfinalizedPeriodIndex = -1;
     
     // Check periods backwards starting from the one before today
+    // If today is in the first period, we might need to check the previous year, 
+    // but for now we'll just check within the current year's periods
     const startCheckIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : allPeriods.length - 1;
     
-    for (let i = startCheckIdx; i >= 0; i--) {
-      const startStr = allPeriods[i].start.toISOString().split('T')[0];
-      const endStr = allPeriods[i].end.toISOString().split('T')[0];
+    // Only check if we have a valid index
+    if (startCheckIdx >= 0 && startCheckIdx < allPeriods.length) {
+      for (let i = startCheckIdx; i >= 0; i--) {
+        const startStr = allPeriods[i].start.toISOString().split('T')[0];
+        const endStr = allPeriods[i].end.toISOString().split('T')[0];
 
-      const filtered = allRecords.filter(r => {
-        const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
-        const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
-        const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
-        return matchPeriod && matchCity && matchDriver;
-      });
+        const filtered = allRecords.filter(r => {
+          const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
+          const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
+          const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
+          return matchPeriod && matchCity && matchDriver;
+        });
 
-      if (filtered.length > 0) {
-        const allFinalized = filtered.every(r =>
-          r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
-        );
-        
-        if (!allFinalized) {
-          foundUnfinalizedPeriodIndex = i;
-          console.log(`✅ [DriverPayroll] Live: Found unfinalized period: ${allPeriods[i].label}`);
-          break; // Found the most recent unfinalized period
+        if (filtered.length > 0) {
+          const allFinalized = filtered.every(r =>
+            r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+          );
+          
+          if (!allFinalized) {
+            foundUnfinalizedPeriodIndex = i;
+            console.log(`✅ [DriverPayroll] Live: Found unfinalized period: ${allPeriods[i].label}`);
+            break; // Found the most recent unfinalized period
+          }
         }
       }
     }
