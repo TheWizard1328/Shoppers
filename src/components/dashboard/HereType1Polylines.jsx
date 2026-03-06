@@ -78,6 +78,7 @@ export default function HereType1Polylines({
   };
   const [optimizing, setOptimizing] = useState(false);
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
+  useEffect(() => { setLastNonEmptyLines([]); }, [selectedDriverId, showAll]);
   const requestTimesRef = useRef({});
 
   const driverStops = useMemo(() => {
@@ -207,8 +208,8 @@ export default function HereType1Polylines({
 
   // Prefetch last-completed -> home (for completed routes)
   useEffect(() => {
-    if (!isViewingCurrentDate || optimizing) return;
-    driversWithCompleteRoute.forEach((driverId) => {
+     if (!isViewingCurrentDate) return;
+     driversWithCompleteRoute.forEach((driverId) => {
       const all = driverStops.get(driverId) || { complete: [] };
       const completedSorted = [...(all.complete || [])].sort((a, b) => {
         const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
@@ -419,5 +420,5 @@ export default function HereType1Polylines({
   // Preserve last non-empty set to avoid flicker during data refresh/date toggles
   useEffect(() => { if (lines.length) setLastNonEmptyLines(lines); }, [lines.length, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
 
-  return lines.length ? <>{lines}</> : (lastNonEmptyLines.length ? <>{lastNonEmptyLines}</> : null);
+  return lines.length ? <>{lines}</> : ((showAll && lastNonEmptyLines.length) ? <>{lastNonEmptyLines}</> : null);
 }
