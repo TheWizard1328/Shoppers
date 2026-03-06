@@ -481,6 +481,8 @@ export default function DriverPayroll() {
 
     // Avoid the "no data -> jump previous" effect right after a cycle change
     triedPreviousPeriodRef.current = true;
+    // Also prevent the live-records auto-selection from overriding our choice
+    periodSelectionDoneWithRecordsRef.current = true;
 
     // Batch all state updates together in a single synchronous block
     React.startTransition(() => {
