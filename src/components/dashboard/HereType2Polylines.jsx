@@ -225,7 +225,7 @@ export default function HereType2Polylines({
     });
   }, [isViewingCurrentDate, driverIncomplete, refreshToken]);
 
-  // Pending-only prefetch removed per requirement: do not include pending stops in Type 2 polylines
+
 
   /* always render polylines on any date; previously gated by current date */
 
@@ -272,7 +272,7 @@ export default function HereType2Polylines({
     }
   });
 
-  // Pending-only fallback rendering removed per requirement: do not include pending stops in Type 2 polylines
+
   // Preserve last non-empty set to prevent blanking on date flips/loading
   useEffect(() => { if (lines.length) setLastNonEmptyLines(lines); }, [lines.length, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
   return lines.length ? <>{lines}</> : (lastNonEmptyLines.length ? <>{lastNonEmptyLines}</> : null);

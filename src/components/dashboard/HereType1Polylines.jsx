@@ -91,7 +91,7 @@ export default function HereType1Polylines({
       if (!m || !m.driver_id || Number.isNaN(Number(m.latitude)) || Number.isNaN(Number(m.longitude))) return;
       if (!map.has(m.driver_id)) map.set(m.driver_id, { complete: [], incomplete: [] });
       if (FINISHED.includes(m.status)) map.get(m.driver_id).complete.push(m);
-      else if (m.status === 'in_transit' || m.status === 'en_route') map.get(m.driver_id).incomplete.push(m);
+      else if (m.status === "in_transit" || m.status === "en_route") map.get(m.driver_id).incomplete.push(m);
     });
     
     // Sort incomplete stops by stop_order to ensure we find the true "next" stop
@@ -285,9 +285,8 @@ export default function HereType1Polylines({
     // Let's check if we have a current driver marker. If so, we should draw from there instead of home!
     
     if (!hasCompleted && hasIncomplete) {
-      // Fallback to first active stop (exclude pending) if isNextDelivery is not set
+      // Fallback to first incomplete stop if isNextDelivery is not set
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
-      if (!next) return;
       
       // Always use static Home as origin for Type 1 pre-route
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
@@ -295,7 +294,7 @@ export default function HereType1Polylines({
       const originLon = home && typeof home.longitude === 'number' ? home.longitude : undefined;
 
       if (
-        originLat !== undefined && originLon !== undefined &&
+        next && originLat !== undefined && originLon !== undefined &&
         next.latitude !== undefined && next.longitude !== undefined
       ) {
         const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(next.latitude).toFixed(5)}_${Number(next.longitude).toFixed(5)}`;
@@ -333,7 +332,7 @@ export default function HereType1Polylines({
       return bt - at;
     });
     const lastCompleted = completedSorted[0];
-    // Fallback to first active (non-pending) incomplete stop if isNextDelivery is not set
+    // Fallback to first incomplete stop if isNextDelivery is not set
     const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
     if (!lastCompleted || !nextStop) return;
     const originLat = Number(lastCompleted.latitude);
