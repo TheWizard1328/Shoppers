@@ -879,13 +879,17 @@ export default function DriverPayroll() {
       if (todayStr >= startStr && todayStr <= endStr) { todayPeriodIdx = i; break; }
     }
 
-    const prevIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : -1;
-
     let targetIdx = todayPeriodIdx !== -1 ? todayPeriodIdx : 0;
 
-    if (prevIdx >= 0) {
-      const startStr = allPeriods[prevIdx].start.toISOString().split('T')[0];
-      const endStr = allPeriods[prevIdx].end.toISOString().split('T')[0];
+    // Find the most recent period that has unfinalized records
+    let foundUnfinalizedPeriodIndex = -1;
+    
+    // Check periods backwards starting from the one before today
+    const startCheckIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : allPeriods.length - 1;
+    
+    for (let i = startCheckIdx; i >= 0; i--) {
+      const startStr = allPeriods[i].start.toISOString().split('T')[0];
+      const endStr = allPeriods[i].end.toISOString().split('T')[0];
 
       const filtered = allRecords.filter(r => {
         const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
@@ -894,14 +898,21 @@ export default function DriverPayroll() {
         return matchPeriod && matchCity && matchDriver;
       });
 
-      const allFinalized = filtered.length > 0 && filtered.every(r =>
-        r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
-      );
-
-      if (!allFinalized) {
-        targetIdx = prevIdx;
+      if (filtered.length > 0) {
+        const allFinalized = filtered.every(r =>
+          r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+        );
+        
+        if (!allFinalized) {
+          foundUnfinalizedPeriodIndex = i;
+          console.log(`✅ [DriverPayroll] Live: Found unfinalized period: ${allPeriods[i].label}`);
+          break; // Found the most recent unfinalized period
+        }
       }
-      console.log(`✅ [DriverPayroll] Live: previous ${allPeriods[prevIdx].label} finalized? ${allFinalized} — selecting ${allPeriods[targetIdx]?.label}`);
+    }
+
+    if (foundUnfinalizedPeriodIndex !== -1) {
+      targetIdx = foundUnfinalizedPeriodIndex;
     }
 
     if (targetIdx !== selectedPeriodIndex) {
