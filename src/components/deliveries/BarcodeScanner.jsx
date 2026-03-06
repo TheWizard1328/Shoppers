@@ -424,7 +424,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           ref={inputRef}
           type="text"
           value={manualInput}
-          onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
+          onChange={(e) => { /* silent input mode: do not echo scanner text */ if (!scannerModeRef.current) setManualInput(e.target.value); }}
           onKeyDown={handleInputKeyDown}
           onFocus={() => { try { hiddenInputRef.current?.blur(); } catch {} }}
           placeholder={placeholder}
