@@ -220,23 +220,9 @@ export default function HereType1Polylines({
       // Fallback to first incomplete stop if isNextDelivery is not set
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       
-      let originLat, originLon;
-      if (currentDriverMarker && currentDriverMarker.driver?.id === driverId && currentDriverMarker.latitude && currentDriverMarker.longitude) {
-        originLat = currentDriverMarker.latitude;
-        originLon = currentDriverMarker.longitude;
-      } else {
-        const liveLoc = driverLocations.find(l => l.id === driverId);
-        if (liveLoc && liveLoc.latitude && liveLoc.longitude) {
-          originLat = liveLoc.latitude;
-          originLon = liveLoc.longitude;
-        } else {
-          const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-          if (home && typeof home.latitude === 'number' && typeof home.longitude === 'number') {
-            originLat = home.latitude;
-            originLon = home.longitude;
-          }
-        }
-      }
+      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+      const originLat = home && typeof home.latitude === 'number' ? home.latitude : undefined;
+      const originLon = home && typeof home.longitude === 'number' ? home.longitude : undefined;
 
       if (!next || originLat === undefined || originLon === undefined) return;
       
@@ -277,28 +263,10 @@ export default function HereType1Polylines({
       // Fallback to first incomplete stop if isNextDelivery is not set
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       
-      // If we have a live driver marker for this driver, use it instead of home!
-      let originLat, originLon;
-      let isLive = false;
-      
-      if (currentDriverMarker && currentDriverMarker.driver?.id === driverId && currentDriverMarker.latitude && currentDriverMarker.longitude) {
-        originLat = currentDriverMarker.latitude;
-        originLon = currentDriverMarker.longitude;
-        isLive = true;
-      } else {
-        const liveLoc = driverLocations.find(l => l.id === driverId);
-        if (liveLoc && liveLoc.latitude && liveLoc.longitude) {
-          originLat = liveLoc.latitude;
-          originLon = liveLoc.longitude;
-          isLive = true;
-        } else {
-          const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-          if (home && typeof home.latitude === 'number' && typeof home.longitude === 'number') {
-            originLat = home.latitude;
-            originLon = home.longitude;
-          }
-        }
-      }
+      // Always use static Home as origin for Type 1 pre-route
+      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+      const originLat = home && typeof home.latitude === 'number' ? home.latitude : undefined;
+      const originLon = home && typeof home.longitude === 'number' ? home.longitude : undefined;
 
       if (
         next && originLat !== undefined && originLon !== undefined &&
@@ -357,19 +325,9 @@ export default function HereType1Polylines({
       } catch (_) {}
     }
     
-    let fallbackLat = originLat;
-    let fallbackLon = originLon;
-
-    if (currentDriverMarker && currentDriverMarker.driver?.id === driverId && currentDriverMarker.latitude && currentDriverMarker.longitude) {
-      fallbackLat = currentDriverMarker.latitude;
-      fallbackLon = currentDriverMarker.longitude;
-    } else {
-      const liveLoc = driverLocations.find(l => l.id === driverId);
-      if (liveLoc && liveLoc.latitude && liveLoc.longitude) {
-        fallbackLat = liveLoc.latitude;
-        fallbackLon = liveLoc.longitude;
-      }
-    }
+    // Always use static last-completed stop as origin for Type 1 segment
+    const fallbackLat = originLat;
+    const fallbackLon = originLon;
 
     // Show dashed fallback immediately; HERE polyline will hydrate when ready
     lines.push(
