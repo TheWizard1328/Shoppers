@@ -1919,15 +1919,6 @@ export default function Patients() {
                 </div>
                 <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Select a store to view and manage patients</p>
               </div>
-              {/* Import button - ONLY for users with import access and not on mobile */}
-              {showImportButton && !isMobile &&
-            <div className="flex justify-end md:justify-start">
-                  <Button onClick={() => setShowPatientImport(true)} variant="outline" className="hidden md:inline-flex bg-yellow-200 px-4 py-2 text-sm font-medium rounded-md items-center justify-center whitespace-nowrap ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input hover:bg-accent hover:text-accent-foreground h-10 gap-2">
-                    <Upload className="w-4 h-4" />
-                    Import Patients
-                  </Button>
-                </div>
-            }
             </div>
           </div>
         </div>
