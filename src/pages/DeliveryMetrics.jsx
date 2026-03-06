@@ -509,6 +509,8 @@ export default function DeliveryMetrics() {
     let stopCount = 0;
     let onTimeDeliveries = 0;
     let totalDeliveriesWithTimeWindow = 0;
+    let totalTimeAtStops = 0;
+    let stopsWithTimeAtStop = 0;
 
     routeGroups.forEach((routeDeliveries) => {
       const sortedRoute = [...routeDeliveries].sort((a, b) =>
@@ -556,6 +558,16 @@ export default function DeliveryMetrics() {
             onTimeDeliveries++;
           }
         }
+
+        if (currentDelivery.status === 'completed' && currentDelivery.arrival_time && currentDelivery.actual_delivery_time) {
+          const arrivalTime = new Date(currentDelivery.arrival_time);
+          const actualTime = new Date(currentDelivery.actual_delivery_time);
+          const timeAtStop = (actualTime - arrivalTime) / (1000 * 60);
+          if (timeAtStop >= 0 && timeAtStop < 120) { // sanity check, less than 120 mins
+            totalTimeAtStops += timeAtStop;
+            stopsWithTimeAtStop++;
+          }
+        }
       }
     });
 
@@ -576,6 +588,8 @@ export default function DeliveryMetrics() {
     let prevStopCount = 0;
     let prevOnTimeDeliveries = 0;
     let prevTotalDeliveriesWithTimeWindow = 0;
+    let prevTotalTimeAtStops = 0;
+    let prevStopsWithTimeAtStop = 0;
 
     prevRouteGroups.forEach((routeDeliveries) => {
       const sortedRoute = [...routeDeliveries].sort((a, b) =>
@@ -623,6 +637,16 @@ export default function DeliveryMetrics() {
             prevOnTimeDeliveries++;
           }
         }
+
+        if (currentDelivery.status === 'completed' && currentDelivery.arrival_time && currentDelivery.actual_delivery_time) {
+          const arrivalTime = new Date(currentDelivery.arrival_time);
+          const actualTime = new Date(currentDelivery.actual_delivery_time);
+          const timeAtStop = (actualTime - arrivalTime) / (1000 * 60);
+          if (timeAtStop >= 0 && timeAtStop < 120) {
+            prevTotalTimeAtStops += timeAtStop;
+            prevStopsWithTimeAtStop++;
+          }
+        }
       }
     });
 
@@ -631,12 +655,14 @@ export default function DeliveryMetrics() {
     const onTimeRate = totalDeliveriesWithTimeWindow > 0 ?
     (onTimeDeliveries / totalDeliveriesWithTimeWindow * 100).toFixed(1) :
     0;
+    const avgTimeAtStops = stopsWithTimeAtStop > 0 ? Math.round(totalTimeAtStops / stopsWithTimeAtStop) : 0;
 
     const prevAvgDistance = prevStopCount > 0 ? (prevTotalDistance / prevStopCount).toFixed(2) : 0;
     const prevAvgTimeBetweenStops = prevStopCount > 0 ? Math.round(prevTotalTimeBetweenStops / prevStopCount) : 0;
     const prevOnTimeRate = prevTotalDeliveriesWithTimeWindow > 0 ?
     (prevOnTimeDeliveries / prevTotalDeliveriesWithTimeWindow * 100).toFixed(1) :
     0;
+    const prevAvgTimeAtStops = prevStopsWithTimeAtStop > 0 ? Math.round(prevTotalTimeAtStops / prevStopsWithTimeAtStop) : 0;
 
     const uniqueDays = new Set(relevantDeliveries.map((d) => d.delivery_date)).size;
     const avgDeliveriesPerDay = uniqueDays > 0 ? (totalDeliveries / uniqueDays).toFixed(1) : 0;
@@ -855,6 +881,7 @@ export default function DeliveryMetrics() {
       totalDistance: totalDistance.toFixed(2),
       avgDeliveriesPerDay,
       onTimeRate,
+      avgTimeAtStops,
       statusCounts,
       dailyData: currentPeriodDailyData, // This will be the merged weekly data OR date-based current data
       prevDailyData: previousPeriodDailyData, // This will be empty for weekly, or date-based previous data for others
@@ -868,6 +895,7 @@ export default function DeliveryMetrics() {
       prevAvgDistance,
       prevAvgTimeBetweenStops,
       prevOnTimeRate,
+      prevAvgTimeAtStops,
       prevAvgDeliveriesPerDay,
       prevTotalDistance: prevTotalDistance.toFixed(2)
     };
@@ -1028,12 +1056,12 @@ export default function DeliveryMetrics() {
             previousValue={showComparison ? `${metrics.prevAvgTimeBetweenStops}` : null} />
 
           <MetricCard
-            title="On-Time Delivery"
-            value={`${metrics.onTimeRate}%`}
-            subtitle="Of completed deliveries"
+            title="Avg Time at Stops"
+            value={`${metrics.avgTimeAtStops} min`}
+            subtitle="Arrival to completion"
             icon={Target}
             color="orange"
-            previousValue={showComparison ? `${metrics.prevOnTimeRate}` : null} />
+            previousValue={showComparison ? `${metrics.prevAvgTimeAtStops}` : null} />
 
         </div>
 
