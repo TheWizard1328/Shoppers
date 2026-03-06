@@ -3010,8 +3010,8 @@ export default function AdminUtilities() {
       // Driver filter will be applied client-side after mergedUsers is ready
       
       const deliveries = Object.keys(filter).length > 0 
-        ? await Delivery.filter(filter, '-created_date', 5000)
-        : await Delivery.list('-created_date', 5000);
+        ? await Delivery.filter(filter, '-created_date', 1000)
+        : await Delivery.list('-created_date', 1000);
         
       return deliveries;
     },
@@ -3271,7 +3271,7 @@ export default function AdminUtilities() {
         
         switch (activeDataTab) {
           case 'deliveries':
-            await refetchDeliveries();
+            if (manualLoadTriggered) { await refetchDeliveries(); }
             break;
           case 'patients':
             await refetchPatients();
@@ -3292,7 +3292,7 @@ export default function AdminUtilities() {
     };
 
     // Poll every 30 seconds (less aggressive since this is admin view)
-    refreshIntervalRef.current = setInterval(performRefresh, 30000);
+    refreshIntervalRef.current = setInterval(performRefresh, 120000);
 
     return () => {
       if (refreshIntervalRef.current) {
