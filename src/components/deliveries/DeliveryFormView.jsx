@@ -407,7 +407,7 @@ export default function DeliveryFormView({
                              onChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
                              onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
                              disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
-                             silentEntry={!(isMobileDevice && (delivery || editingStagedId))}
+                             silentEntry={true}
                            />
                         </div>
                         <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
@@ -419,7 +419,7 @@ export default function DeliveryFormView({
                               onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
                               disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
                               twoPerRow
-                              silentEntry={!(isMobileDevice && (delivery || editingStagedId))}
+                              silentEntry={true}
                             />
                         </div>
                       </div>
