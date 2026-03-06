@@ -84,7 +84,7 @@ export default function HereType2Polylines({
   };
   const hashId = (s) => Array.from(String(s)).reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0)|0,0);
   const mapBlueToNonBlue = (hex, id) => {
-    if (!multiDriverMode) return hex;
+    // Always avoid blue for Type 2 (regardless of multiDriverMode)
     if (!isBlueHex(hex)) return hex;
     const palette = ['#8A2BE2', '#EC4899', '#F59E0B', '#A855F7', '#F43F5E', '#FF7F50', '#A0522D']; // no blues
     const idx = Math.abs(hashId(id || 'x')) % palette.length;
@@ -235,7 +235,7 @@ export default function HereType2Polylines({
           key={`type2-here-${driverId}-${i}`}
           positions={coords || [[Number(a.latitude), Number(a.longitude)], [Number(b.latitude), Number(b.longitude)]]}
           pathOptions={{
-            color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#6366F1"), driverId) : "#94a3b8",
+            color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#A855F7"), driverId) : "#94a3b8",
             weight: 5,
             opacity: coords ? (() => {
               if (totalLegs <= 1) return 0.85; // single leg
@@ -297,7 +297,7 @@ export default function HereType2Polylines({
             key={`type2-pending-fallback-${driverId}-${i}`}
             positions={coords || [[Number(a.latitude), Number(a.longitude)], [Number(b.latitude), Number(b.longitude)]]}
             pathOptions={{ 
-              color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#6366F1"), driverId) : '#94a3b8', 
+              color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#A855F7"), driverId) : '#94a3b8', 
               weight: 5, 
               opacity: coords ? 0.6 : 0.35, 
               dashArray: '6,6', 
