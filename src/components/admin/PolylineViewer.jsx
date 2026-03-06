@@ -94,7 +94,21 @@ export default function PolylineViewer({ users = [] }) {
               () => base44.entities.DriverRoutePolyline.list('-delivery_date', 250),
               'Routes: DriverRoutePolyline.list'
             );
-            setPolylines(polylinesData || []);
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+            const todays = (polylinesData || []).filter(p => p?.delivery_date === today);
+            const stale = (polylinesData || []).filter(p => p?.delivery_date && p.delivery_date !== today);
+            if (stale.length) {
+              try {
+                const { offlineDB } = await import('../utils/offlineDatabase');
+                // Best-effort purge of non-today records from both online and offline + local caches
+                await Promise.all(stale.map(async (rec) => {
+                  try { clearLocalCachesForPolyline(rec); } catch (_) {}
+                  try { await base44.entities.DriverRoutePolyline.delete(rec.id); } catch (_) {}
+                  try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, rec.id); } catch (_) {}
+                }));
+              } catch (_) {}
+            }
+            setPolylines(todays);
           } else {
             const { offlineDB } = await import('../utils/offlineDatabase');
             const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
