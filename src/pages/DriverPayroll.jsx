@@ -879,10 +879,24 @@ export default function DriverPayroll() {
        const firstPeriodStart = testPeriods[0]?.start;
        const lastPeriodEnd = testPeriods[testPeriods.length - 1]?.end;
        
-       if (firstPeriodStart && today < firstPeriodStart) {
-         targetYear = selectedYear - 1;
-       } else if (lastPeriodEnd && today > lastPeriodEnd) {
-         targetYear = selectedYear + 1;
+       // Ensure we compare dates correctly by setting hours to 0
+       const todayDateOnly = new Date(today);
+       todayDateOnly.setHours(0, 0, 0, 0);
+       
+       if (firstPeriodStart) {
+         const firstPeriodStartDateOnly = new Date(firstPeriodStart);
+         firstPeriodStartDateOnly.setHours(0, 0, 0, 0);
+         if (todayDateOnly < firstPeriodStartDateOnly) {
+           targetYear = selectedYear - 1;
+         }
+       }
+       
+       if (lastPeriodEnd) {
+         const lastPeriodEndDateOnly = new Date(lastPeriodEnd);
+         lastPeriodEndDateOnly.setHours(0, 0, 0, 0);
+         if (todayDateOnly > lastPeriodEndDateOnly) {
+           targetYear = selectedYear + 1;
+         }
        }
      }
      
