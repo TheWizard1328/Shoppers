@@ -302,9 +302,9 @@ export default function HereType1Polylines({
 
       if (
         next && originLat !== undefined && originLon !== undefined &&
-        typeof next.latitude === 'number' && typeof next.longitude === 'number'
+        next.latitude !== undefined && next.longitude !== undefined
       ) {
-        const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
+        const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(next.latitude).toFixed(5)}_${Number(next.longitude).toFixed(5)}`;
         let coords = cache[key];
         if (!coords) {
           try {
@@ -321,8 +321,8 @@ export default function HereType1Polylines({
         lines.push(
           <Polyline
             key={`type1-pre-home-${driverId}`}
-            positions={coords || [[originLat, originLon], [next.latitude, next.longitude]]}
-            pathOptions={{ color: coords ? "#2563eb" : '#2563eb', weight: 5, opacity: coords ? 0.9 : 0.6, dashArray: coords ? '' : '10, 5', lineJoin: 'round', lineCap: 'round' }}
+            positions={coords || [[Number(originLat), Number(originLon)], [Number(next.latitude), Number(next.longitude)]]}
+            pathOptions={{ color: coords ? "#2563eb" : '#3b82f6', weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
             pane="overlayPane"
           />
         );
