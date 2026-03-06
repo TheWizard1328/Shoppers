@@ -378,7 +378,6 @@ export default function PolylineViewer({ users = [] }) {
                   variant={dataSource === 'offline' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => setDataSource('offline')}
-                  disabled={viewMode !== 'polylines'}
                   className="h-8"
                 >
                   Offline
