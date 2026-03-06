@@ -735,10 +735,21 @@ export default function DriverPayroll() {
       }
 
       // Step 2: Compute periods for determined pay cycle and find the right period index
-      const year = new Date().getFullYear();
+      const today = new Date();
+      let year = today.getFullYear();
+      
+      // Check if today falls into a period that belongs to the previous year
+      // (e.g. Dec 30, 2024 is in Week 1 of 2025, but Jan 2, 2025 might be in Week 52 of 2024)
+      if (determinedPayCycle === 'weekly' || determinedPayCycle === 'biweekly') {
+        const testPeriods = calculateAllPeriods(year, determinedPayCycle);
+        const firstPeriodStart = testPeriods[0]?.start;
+        if (firstPeriodStart && today < firstPeriodStart) {
+          year = year - 1;
+        }
+      }
+      
       const periods = calculateAllPeriods(year, determinedPayCycle);
       let determinedPeriodIndex = 0;
-      const today = new Date();
 
       // Find today's period first (date-only comparison to avoid time-of-day issues)
       let todayIdx = -1;
