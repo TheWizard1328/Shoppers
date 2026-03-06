@@ -617,49 +617,7 @@ function Dashboard() {
     };
     
     // CRITICAL: Listen for manual refresh payroll stats trigger from SmartRefreshIndicator
-    const handleRefreshPayrollStatsAfterSync = async () => {
-      const shouldFetch = (isDriver && selectedDriverId === currentUser?.id) || (isAdmin && selectedDriverId && selectedDriverId !== 'all');
-      if (!shouldFetch) { return; }
-
-      const MIN_INTERVAL = 30000;
-      const now = Date.now();
-      const last = window.__lastPayrollFetchAt || 0;
-      if (window.__payrollInFlight || (now - last) < MIN_INTERVAL) { return; }
-
-      const inProgress = !!sessionStorage.getItem('driver_status_change_in_progress');
-      const delay = inProgress ? 1500 : 0;
-
-      setTimeout(async () => {
-        if (window.__payrollInFlight) return;
-        window.__payrollInFlight = true;
-        setIsLoadingPayrollStats(true);
-        try {
-          const targetDriverId = isAdmin ? selectedDriverId : currentUser.id;
-          const response = await base44.functions.invoke('getDriverPayrollStats', {
-            driverId: targetDriverId,
-            deliveryDate: format(selectedDate, 'yyyy-MM-dd')
-          });
-          const data = response?.data || response;
-          if (data?.success) {
-            setPerformanceStats({
-              totalPay: data.totalPay || 0,
-              totalKm: data.totalKm || 0,
-              totalExtraKm: data.totalExtraKm || 0,
-              totalTimeOnDuty: data.totalTimeOnDuty || '00:00',
-              extraKmLimit: data.extraKmLimit || 0
-            });
-          } else {
-            setPerformanceStats(null);
-          }
-        } catch (_) {
-          setPerformanceStats(null);
-        } finally {
-          setIsLoadingPayrollStats(false);
-          window.__payrollInFlight = false;
-          window.__lastPayrollFetchAt = Date.now();
-        }
-      }, delay);
-    };
+    const handleRefreshPayrollStatsAfterSync = async () => { return; };
 
     // CRITICAL: Listen for live travel_dist updates
     const handleTravelDistUpdate = (event) => {
@@ -773,47 +731,10 @@ function Dashboard() {
 
   // Fetch payroll stats with debounce/throttle to avoid 429s
   useEffect(() => {
-    const shouldFetch = (isDriver && selectedDriverId === currentUser?.id) || (isAdmin && selectedDriverId && selectedDriverId !== 'all');
-    if (!shouldFetch) { setPerformanceStats(null); setIsLoadingPayrollStats(false); return; }
-
-    const MIN_INTERVAL = 30000; // 10s
-    const now = Date.now();
-    const last = window.__lastPayrollFetchAt || 0;
-    const inProgress = !!sessionStorage.getItem('driver_status_change_in_progress');
-    const delay = Math.max(0, (last + MIN_INTERVAL) - now) + (inProgress ? 1500 : 0);
-
-    const timer = setTimeout(async () => {
-      if (window.__payrollInFlight) return;
-      window.__payrollInFlight = true;
-      setIsLoadingPayrollStats(true);
-      try {
-        const targetDriverId = isAdmin ? selectedDriverId : currentUser.id;
-        const response = await base44.functions.invoke('getDriverPayrollStats', {
-          driverId: targetDriverId,
-          deliveryDate: format(selectedDate, 'yyyy-MM-dd')
-        });
-        const data = response?.data || response;
-        if (data?.success) {
-          setPerformanceStats({
-            totalPay: data.totalPay || 0,
-            totalKm: data.totalKm || 0,
-            totalExtraKm: data.totalExtraKm || 0,
-            totalTimeOnDuty: data.totalTimeOnDuty || '00:00',
-            extraKmLimit: data.extraKmLimit || 0
-          });
-        } else {
-          setPerformanceStats(null);
-        }
-      } catch (_) {
-        setPerformanceStats(null);
-      } finally {
-        setIsLoadingPayrollStats(false);
-        window.__payrollInFlight = false;
-        window.__lastPayrollFetchAt = Date.now();
-      }
-    }, delay);
-
-    return () => clearTimeout(timer);
+    // Disabled on Dashboard to prevent API rate limits; see DriverPayroll page for stats
+    setPerformanceStats(null);
+    setIsLoadingPayrollStats(false);
+    return;
   }, [isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate]);
 
   // Track dynamically measured heights for map padding
