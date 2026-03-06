@@ -27,12 +27,28 @@ const toLocalYMD = (d) => {
   return `${y}-${m}-${da}`;
 };
 
-// Helper: Get first Monday of a given year
-const getFirstMondayOfYear = (year) => {
-  const jan1 = new Date(year, 0, 1);
-  const dayOfWeek = jan1.getDay();
-  const daysUntilMonday = dayOfWeek === 0 ? 1 : (dayOfWeek === 1 ? 0 : 8 - dayOfWeek);
-  return new Date(year, 0, 1 + daysUntilMonday);
+// Helper: Determine which year a period belongs to based on majority of days
+const getPeriodYear = (start, end) => {
+  const startYear = start.getFullYear();
+  const endYear = end.getFullYear();
+  
+  if (startYear === endYear) return startYear;
+  
+  // Crosses year boundary, count days in each year
+  let daysInStartYear = 0;
+  let daysInEndYear = 0;
+  
+  let current = new Date(start);
+  while (current <= end) {
+    if (current.getFullYear() === startYear) {
+      daysInStartYear++;
+    } else {
+      daysInEndYear++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  
+  return daysInStartYear >= daysInEndYear ? startYear : endYear;
 };
 
 // Helper: Calculate all pay periods for a given year and pay period type
@@ -41,63 +57,72 @@ const calculateAllPeriods = (year, payPeriodType) => {
   
   switch (payPeriodType) {
     case 'weekly': {
-      const firstMonday = getFirstMondayOfYear(year);
-      // Add prior year period if Jan 1 is before first Monday
-      const jan1 = new Date(year, 0, 1);
-      if (jan1 < firstMonday) {
-        periods.push({
-          year,
-          start: jan1,
-          end: new Date(firstMonday.getTime() - 86400000), // day before first Monday
-          label: `Prior Year Period`,
-          isPriorYear: true
-        });
-      }
-      // Generate weekly periods
-      let weekStart = new Date(firstMonday);
+      // Start from late December of previous year to catch periods that belong to current year
+      let weekStart = new Date(year - 1, 11, 20);
+      // Adjust to Monday
+      const dayOfWeek = weekStart.getDay();
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      weekStart.setDate(weekStart.getDate() + daysToMonday);
+      
       let weekNum = 1;
-      const yearEnd = new Date(year, 11, 31);
-      while (weekStart <= yearEnd) {
+      
+      // Generate periods until we hit the next year's periods
+      while (true) {
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 6);
-        periods.push({
-          year,
-          start: new Date(weekStart),
-          end: weekEnd > yearEnd ? yearEnd : weekEnd,
-          label: `Week ${weekNum}`,
-          weekNum
-        });
-        weekNum++;
+        
+        const periodYear = getPeriodYear(weekStart, weekEnd);
+        
+        if (periodYear > year) {
+          break; // We've moved into the next year's periods
+        }
+        
+        if (periodYear === year) {
+          periods.push({
+            year,
+            start: new Date(weekStart),
+            end: new Date(weekEnd),
+            label: `Week ${weekNum}`,
+            weekNum
+          });
+          weekNum++;
+        }
+        
         weekStart.setDate(weekStart.getDate() + 7);
       }
       break;
     }
     case 'biweekly': {
-      const firstMonday = getFirstMondayOfYear(year);
-      const jan1 = new Date(year, 0, 1);
-      if (jan1 < firstMonday) {
-        periods.push({
-          year,
-          start: jan1,
-          end: new Date(firstMonday.getTime() - 86400000),
-          label: `Prior Year Period`,
-          isPriorYear: true
-        });
-      }
-      let biweekStart = new Date(firstMonday);
+      // Start from late December of previous year
+      let biweekStart = new Date(year - 1, 11, 15);
+      // Adjust to Monday
+      const dayOfWeek = biweekStart.getDay();
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      biweekStart.setDate(biweekStart.getDate() + daysToMonday);
+      
       let periodNum = 1;
-      const yearEnd = new Date(year, 11, 31);
-      while (biweekStart <= yearEnd) {
+      
+      while (true) {
         const biweekEnd = new Date(biweekStart);
         biweekEnd.setDate(biweekStart.getDate() + 13);
-        periods.push({
-          year,
-          start: new Date(biweekStart),
-          end: biweekEnd > yearEnd ? yearEnd : biweekEnd,
-          label: `Period ${periodNum}`,
-          periodNum
-        });
-        periodNum++;
+        
+        const periodYear = getPeriodYear(biweekStart, biweekEnd);
+        
+        if (periodYear > year) {
+          break;
+        }
+        
+        if (periodYear === year) {
+          periods.push({
+            year,
+            start: new Date(biweekStart),
+            end: new Date(biweekEnd),
+            label: `Period ${periodNum}`,
+            periodNum
+          });
+          periodNum++;
+        }
+        
         biweekStart.setDate(biweekStart.getDate() + 14);
       }
       break;
