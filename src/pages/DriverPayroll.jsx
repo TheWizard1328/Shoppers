@@ -463,7 +463,24 @@ export default function DriverPayroll() {
     // Helper to choose correct index like initial load: prefer previous unfinalized, else current/closest
     const decideIndex = async () => {
       const today = new Date();
-      const idxClose = findCurrentPeriodIndex(nextPeriods, today);
+      const todayStr = toLocalYMD(today);
+      // Robust index detection using local date strings
+      let idxClose = -1;
+      for (let i = 0; i < nextPeriods.length; i++) {
+        const s = toLocalYMD(nextPeriods[i].start);
+        const e = toLocalYMD(nextPeriods[i].end);
+        if (todayStr >= s && todayStr <= e) { idxClose = i; break; }
+      }
+      if (idxClose === -1) {
+        // choose closest past period if not in range
+        let lastPastIdx = -1;
+        let lastPastEnd = '0000-00-00';
+        for (let i = 0; i < nextPeriods.length; i++) {
+          const e = toLocalYMD(nextPeriods[i].end);
+          if (e < todayStr && e > lastPastEnd) { lastPastIdx = i; lastPastEnd = e; }
+        }
+        idxClose = lastPastIdx !== -1 ? lastPastIdx : 0;
+      }
       let targetIdx = idxClose;
 
       try {
@@ -488,10 +505,10 @@ export default function DriverPayroll() {
             const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
             return matchPeriod && matchCity && matchDriver;
           });
-          const allFinalized = filtered.length > 0 && filtered.every(r =>
+          const anyUnfinalized = filtered.length > 0 && !filtered.every(r =>
             r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
           );
-          targetIdx = allFinalized ? idxClose : prevIdx;
+          targetIdx = anyUnfinalized ? prevIdx : idxClose;
         }
       } catch (e) {
         // keep idxClose when offline read fails
@@ -810,7 +827,22 @@ export default function DriverPayroll() {
 
       // Determine the closest relevant index for today within this year's periods
       const todayStr = toLocalYMD(today);
-      const idxClose = findCurrentPeriodIndex(periods, today);
+      // Robust index detection using local date strings
+      let idxClose = -1;
+      for (let i = 0; i < periods.length; i++) {
+        const s = toLocalYMD(periods[i].start);
+        const e = toLocalYMD(periods[i].end);
+        if (todayStr >= s && todayStr <= e) { idxClose = i; break; }
+      }
+      if (idxClose === -1) {
+        let lastPastIdx = -1;
+        let lastPastEnd = '0000-00-00';
+        for (let i = 0; i < periods.length; i++) {
+          const e = toLocalYMD(periods[i].end);
+          if (e < todayStr && e > lastPastEnd) { lastPastIdx = i; lastPastEnd = e; }
+        }
+        idxClose = lastPastIdx !== -1 ? lastPastIdx : 0;
+      }
       let isInRange = false;
       if (periods[idxClose]) {
         const s = toLocalYMD(periods[idxClose].start);
@@ -901,7 +933,23 @@ export default function DriverPayroll() {
 
      // Use the already-computed periods list for the selectedYear (weekly/biweekly are classification-filtered)
      const periods = allPeriods;
-     const idx = findCurrentPeriodIndex(periods, new Date());
+     // Robust index detection using local date strings
+     const today = new Date();
+     const todayStr = toLocalYMD(today);
+     let idx = -1;
+     for (let i = 0; i < periods.length; i++) {
+       const s = toLocalYMD(periods[i].start);
+       const e = toLocalYMD(periods[i].end);
+       if (todayStr >= s && todayStr <= e) { idx = i; break; }
+     }
+     if (idx === -1) {
+       let lastPastIdx = -1; let lastPastEnd = '0000-00-00';
+       for (let i = 0; i < periods.length; i++) {
+         const e = toLocalYMD(periods[i].end);
+         if (e < todayStr && e > lastPastEnd) { lastPastIdx = i; lastPastEnd = e; }
+       }
+       idx = lastPastIdx !== -1 ? lastPastIdx : 0;
+     }
      if (idx !== selectedPeriodIndex) setSelectedPeriodIndex(idx);
    }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex, allPeriods]);
   
