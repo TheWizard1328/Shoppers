@@ -28,6 +28,13 @@ export const ensurePolylineSubscription = () => {
         } else if (event.data) {
           const rec = event.data;
           await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]);
+          // Also clear any stale localStorage key for the same segment before re-saving
+          try {
+            if (rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null) {
+              const key = `here_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`;
+              try { localStorage.removeItem(`${key}:fail_until`); } catch (_) {}
+            }
+          } catch (_) {}
           // Offline de-dup for same segment (keep latest by updated_date/last_generated_at)
           try {
             const rounded = (n) => Number(Number(n).toFixed(5));
