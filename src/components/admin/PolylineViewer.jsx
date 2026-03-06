@@ -432,6 +432,9 @@ export default function PolylineViewer({ users = [] }) {
                     />
                     <h3 className="font-semibold text-sm">
                       {viewMode === 'polylines' ? `Polyline Records (${filteredPolylines.length})` : `Breadcrumb Records (${filteredBreadcrumbs.length})`}
+                   {viewMode === 'polylines' && polylines.length === 0 && (
+                     <span className="ml-2 text-xs text-slate-500">(No online data — switch to Offline to manage cached records)</span>
+                   )}
                     </h3>
                   </div>
                 </div>
