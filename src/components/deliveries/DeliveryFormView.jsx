@@ -21,6 +21,7 @@ import BarcodeScanner from './BarcodeScanner';
 import PatientMatchPopup from './PatientMatchPopup';
 import DeliveryPatientSearch from './DeliveryPatientSearch';
 import DeliveryRecurringOptions from './DeliveryRecurringOptions';
+import LargeBarcodePreview from './LargeBarcodePreview';
 import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
@@ -387,6 +388,15 @@ export default function DeliveryFormView({
                           />
                         </div>
                       </div>
+
+                      {formData._preview_barcode && (
+                        <div className="mt-2 p-2 rounded-md border bg-card border-emerald-300/60 dark:bg-slate-900/40 dark:border-emerald-700">
+                          <LargeBarcodePreview
+                            value={formData._preview_barcode}
+                            onClose={() => setFormData(prev => ({ ...prev, _preview_barcode: null }))}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
