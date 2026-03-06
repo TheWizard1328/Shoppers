@@ -4,6 +4,23 @@ import { getHerePolyline } from "../utils/hereRouting";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
+// Helper: create a visible fallback line even when two consecutive stops share the same coordinates
+const samePoint = (a, b) => (
+  Math.abs(Number(a?.latitude) - Number(b?.latitude)) < 1e-5 &&
+  Math.abs(Number(a?.longitude) - Number(b?.longitude)) < 1e-5
+);
+const makeFallback = (a, b) => {
+  if (!a || !b) return [];
+  const A = [Number(a.latitude), Number(a.longitude)];
+  const B = [Number(b.latitude), Number(b.longitude)];
+  if (!isFinite(A[0]) || !isFinite(A[1]) || !isFinite(B[0]) || !isFinite(B[1])) return [];
+  if (samePoint(a, b)) {
+    // Tiny jitter so a zero-length segment is still visible on the map
+    return [A, [A[0] + 0.0003, A[1] + 0.0003]];
+  }
+  return [A, B];
+};
+
 export default function HereType2Polylines({
   isViewingCurrentDate,
   deliveryMarkers = [],
@@ -233,7 +250,7 @@ export default function HereType2Polylines({
       lines.push(
         <Polyline
           key={`type2-here-${driverId}-${i}`}
-          positions={coords || [[Number(a.latitude), Number(a.longitude)], [Number(b.latitude), Number(b.longitude)]]}
+          positions={coords || makeFallback(a, b)}
           pathOptions={{
             color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#A855F7"), driverId) : "#94a3b8",
             weight: 5,
@@ -295,7 +312,7 @@ export default function HereType2Polylines({
         lines.push(
           <Polyline
             key={`type2-pending-fallback-${driverId}-${i}`}
-            positions={coords || [[Number(a.latitude), Number(a.longitude)], [Number(b.latitude), Number(b.longitude)]]}
+            positions={coords || makeFallback(a, b)}
             pathOptions={{ 
               color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#A855F7"), driverId) : '#94a3b8', 
               weight: 5, 
