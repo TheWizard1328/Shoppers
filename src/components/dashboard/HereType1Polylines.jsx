@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
-import { getHerePolyline } from "../utils/hereRouting";
+import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRouting";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
@@ -16,6 +16,11 @@ export default function HereType1Polylines({
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
+
+  // Ensure DriverRoutePolyline subscription is active to hydrate offline DB immediately
+  useEffect(() => {
+    ensurePolylineSubscription();
+  }, []);
 
   // Offline polyline hydration helper
   const round5 = (n) => Number(n.toFixed(5));
