@@ -795,7 +795,7 @@ export default function DriverPayroll() {
         let foundUnfinalizedPeriodIndex = -1;
         
         // Check periods backwards starting from the one before today
-        const startCheckIdx = todayIdx > 0 ? todayIdx - 1 : periods.length - 1;
+        const startCheckIdx = todayIdx > 0 ? todayIdx - 1 : (todayIdx === 0 ? 0 : periods.length - 1);
         
         // Only check if we have a valid index
         if (startCheckIdx >= 0 && startCheckIdx < periods.length) {
