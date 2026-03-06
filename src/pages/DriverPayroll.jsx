@@ -869,11 +869,11 @@ export default function DriverPayroll() {
           });
 
           // If previous (or closest past) period has any unfinalized, select it; otherwise keep current/closest
-          const allFinalized = filtered.length > 0 && filtered.every(r =>
+          const anyUnfinalized = filtered.length > 0 && !filtered.every(r =>
             r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
           );
 
-          targetIdx = allFinalized ? targetIdx : prevIdx;
+          targetIdx = anyUnfinalized ? prevIdx : idxClose;
           console.log(`✅ [DriverPayroll Init] Checked ${periods[prevIdx].label} finalized? ${allFinalized}`);
         }
 
@@ -1105,6 +1105,7 @@ export default function DriverPayroll() {
   // Auto-select previous period if current has no data
   useEffect(() => {
     if (!hasInitialized || payrollRecords.length > 0) return;
+    if (isManualChangeRef.current) return;
     if (selectedPeriodIndex === 0) return; // Can't go back further
     if (triedPreviousPeriodRef.current) return; // Already tried going back
     
@@ -1116,7 +1117,7 @@ export default function DriverPayroll() {
   // Reset the flag when period is manually changed
   useEffect(() => {
     triedPreviousPeriodRef.current = false;
-  }, [selectedYear, payPeriod]);
+  }, [selectedYear]);
 
   // Conditional rendering without early return to maintain hook order
   return !currentUser ? (
