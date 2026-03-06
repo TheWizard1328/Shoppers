@@ -3,7 +3,7 @@ import { offlineDB } from './offlineDatabase';
 
 const fetchingKeys = new Set();
 const memoryCache = new Map();
-const USE_ENTITY_LOOKUP = true;
+const USE_ENTITY_LOOKUP = true; // keep entity lookup enabled for instant hydration across devices
 
 let polylineSubscribed = false;
 export const ensurePolylineSubscription = () => {
