@@ -276,6 +276,16 @@ export default function SquareManagement() {
                 console.log('⏰ [SquareManagement] Offline cache fresh (<10m); skipping API refresh');
                 return;
               }
+              // TTL check: refresh only if offline cache is older than 10 minutes
+              const statusNow = await getSquareCODSyncStatus();
+              const tenMinAgo = Date.now() - 10 * 60 * 1000;
+              const lastCatalog = statusNow?.catalog?.lastSync ? new Date(statusNow.catalog.lastSync).getTime() : 0;
+              const lastTx = statusNow?.transactions?.lastSync ? new Date(statusNow.transactions.lastSync).getTime() : 0;
+              const fresh = lastCatalog > tenMinAgo && lastTx > tenMinAgo;
+              if (fresh) {
+                console.log('⏰ [SquareManagement] Offline cache fresh (<10m); skipping API refresh');
+                return;
+              }
               const [catalogResponse, paymentsResponse] = await Promise.all([
                 base44.functions.invoke('squareSyncCatalogItems', {}),
                 base44.functions.invoke('squareFetchPayments', { 
@@ -542,16 +552,26 @@ export default function SquareManagement() {
       }
 
       if (deletedCount > 0) {
-        // Refresh catalog after deletion
+        // Refresh catalog after deletion with 10m throttle lock (local + backend)
         try {
-          const refreshResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
-          const refreshData = refreshResponse?.data || refreshResponse;
-          
-          if (refreshData.success) {
-            const updatedItems = refreshData.items || [];
-            setCatalogItems(updatedItems);
-            console.log(`✓ Auto-delete complete: removed ${deletedCount} paid items, ${updatedItems.length} remaining`);
-            toast.success(`Automatically removed ${deletedCount} paid COD ${deletedCount === 1 ? 'item' : 'items'}`);
+          const lockKey = 'square_catalog_refresh_lock_until';
+          const now = Date.now();
+          const until = Number(localStorage.getItem(lockKey) || 0);
+          if (now < until) {
+            console.log('⏰ [SquareManagement] Refresh locked; skipping immediate catalog refresh');
+          } else {
+            localStorage.setItem(lockKey, String(now + 10 * 60 * 1000));
+            const refreshResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
+            const refreshData = refreshResponse?.data || refreshResponse;
+            
+            if (refreshData?.success) {
+              const updatedItems = refreshData.items || [];
+              setCatalogItems(updatedItems);
+              console.log(`✓ Auto-delete complete: removed ${deletedCount} paid items, ${updatedItems.length} remaining`);
+              toast.success(`Automatically removed ${deletedCount} paid COD ${deletedCount === 1 ? 'item' : 'items'}`);
+            } else if (refreshData?.lock_active) {
+              console.log('⏰ [SquareManagement] Backend lock active; will rely on scheduled/TTL refresh');
+            }
           }
         } catch (err) {
           console.warn('Failed to refresh catalog after auto-delete:', err);
