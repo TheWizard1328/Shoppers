@@ -1,6 +1,5 @@
-// Dashboard.js - Delivery Management Dashboard
-
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+const getEdmDate = () => { const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); return `${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`; };
 import { flushSync } from "react-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
