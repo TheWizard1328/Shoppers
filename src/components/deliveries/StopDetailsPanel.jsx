@@ -35,6 +35,7 @@ import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
 import SignatureCapture from "../common/SignatureCapture";
 import PhotoCapture from "../common/PhotoCapture";
 import ImageViewer from "../common/ImageViewer";
+import BarcodeThumb from "./BarcodeThumb";
 import { base44 } from "@/api/base44Client";
 
 const statusConfig = {
@@ -395,6 +396,49 @@ export default function StopDetailsPanel({
             )}
           </CardContent>
         </Card>
+
+        {/* Barcode Thumbnails */}
+        {(delivery?.receipt_barcode_values?.length > 0 || delivery?.barcode_values?.length > 0) && (
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                Barcodes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {delivery?.receipt_barcode_values?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
+                    Receipt Barcodes ({delivery.receipt_barcode_values.length})
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {delivery.receipt_barcode_values.map((val, idx) => (
+                      <div key={`rb-${idx}`} className="border rounded-md p-2 bg-white dark:bg-slate-800" style={{ borderColor: 'var(--border-slate-200)' }}>
+                        <BarcodeThumb value={val} />
+                        <p className="mt-1 text-[11px] text-center text-slate-500 break-all">{val}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {delivery?.barcode_values?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
+                    Rx Barcodes ({delivery.barcode_values.length})
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {delivery.barcode_values.map((val, idx) => (
+                      <div key={`rx-${idx}`} className="border rounded-md p-2 bg-white dark:bg-slate-800" style={{ borderColor: 'var(--border-slate-200)' }}>
+                        <BarcodeThumb value={val} />
+                        <p className="mt-1 text-[11px] text-center text-slate-500 break-all">{val}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Images & Signatures Card */}
         <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
