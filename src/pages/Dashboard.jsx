@@ -6999,22 +6999,7 @@ function Dashboard() {
           }).catch((error) => console.warn('⚠️ ETA update failed:', error));
         }
         
-        // CRITICAL: Refresh payroll stats after status change (only for current driver viewing own route)
-        if (isDriver && currentUser?.id && driverId === currentUser.id && selectedDriverId === currentUser.id) {
-          base44.functions.invoke('getDriverPayrollStats', {
-            driverId: currentUser.id,
-            deliveryDate: deliveryDate
-          }).then((response) => {
-            const data = response?.data || response;
-            if (data?.success) {
-              setPerformanceStats({
-                totalPay: data.totalPay || 0,
-                totalKm: data.totalKm || 0,
-                totalTimeOnDuty: data.totalTimeOnDuty || 0
-              });
-            }
-          }).catch((error) => console.warn('⚠️ Payroll stats refresh failed:', error));
-        }
+        // Payroll stats fetch disabled on Dashboard to avoid rate limits; handled only on DriverPayroll page.
 
         console.log('✅ [STATUS] Background tasks started');
       }
@@ -8069,9 +8054,8 @@ function Dashboard() {
                 // Force stats refresh
                 window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                 
-                // CRITICAL: Refresh payroll stats for selected driver
-                window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
-                
+                // Payroll stats refresh disabled on Dashboard.
+
                 console.log('✅ [Dashboard] Pull to sync UI update complete - all markers refreshed');
               }}
             />
