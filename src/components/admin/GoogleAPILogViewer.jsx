@@ -11,6 +11,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const apiTypeIcons = {
   'Directions': Navigation,
+  'Directions (HERE)': Navigation,
   'Distance Matrix': MapPin,
   'Places Autocomplete': Search,
   'Place Details': Info,
@@ -19,6 +20,7 @@ const apiTypeIcons = {
 
 const apiTypeColors = {
   'Directions': 'bg-blue-100 text-blue-800',
+  'Directions (HERE)': 'bg-indigo-100 text-indigo-800',
   'Distance Matrix': 'bg-purple-100 text-purple-800',
   'Places Autocomplete': 'bg-green-100 text-green-800',
   'Place Details': 'bg-yellow-100 text-yellow-800',
