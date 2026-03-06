@@ -276,16 +276,6 @@ export default function SquareManagement() {
                 console.log('⏰ [SquareManagement] Offline cache fresh (<10m); skipping API refresh');
                 return;
               }
-              // TTL check: refresh only if offline cache is older than 10 minutes
-              const statusNow = await getSquareCODSyncStatus();
-              const tenMinAgo = Date.now() - 10 * 60 * 1000;
-              const lastCatalog = statusNow?.catalog?.lastSync ? new Date(statusNow.catalog.lastSync).getTime() : 0;
-              const lastTx = statusNow?.transactions?.lastSync ? new Date(statusNow.transactions.lastSync).getTime() : 0;
-              const fresh = lastCatalog > tenMinAgo && lastTx > tenMinAgo;
-              if (fresh) {
-                console.log('⏰ [SquareManagement] Offline cache fresh (<10m); skipping API refresh');
-                return;
-              }
               const [catalogResponse, paymentsResponse] = await Promise.all([
                 base44.functions.invoke('squareSyncCatalogItems', {}),
                 base44.functions.invoke('squareFetchPayments', { 
