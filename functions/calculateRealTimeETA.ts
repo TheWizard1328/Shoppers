@@ -278,10 +278,8 @@ Deno.serve(async (req) => {
             travelMinutes: travelMinutes,
             serviceMinutes: serviceTime,
             stopOrder: delivery.stop_order,
-            distanceMeters: leg.distance?.value || 0,
-            trafficDelay: leg.duration_in_traffic?.value 
-              ? (leg.duration_in_traffic.value - leg.duration.value) / 60
-              : 0
+            distanceMeters: section.summary.length || 0,
+            trafficDelay: 0 // HERE API summary doesn't separate traffic delay by default
           });
         }
         
