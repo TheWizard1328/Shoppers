@@ -429,17 +429,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           disabled={disabled}
           autoComplete="off"
         />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-9 px-3 flex-shrink-0"
-          onClick={handleAdd}
-          disabled={disabled || !manualInput.trim()}
-          title="Add barcode"
-        >
-          <Plus className="w-4 h-4" />
-        </Button>
+
         {/* Keep hidden input on mobile to capture fast BT scanner keystrokes */}
         {isMobile && (
           <input

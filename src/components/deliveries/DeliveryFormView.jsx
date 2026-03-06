@@ -406,7 +406,7 @@ export default function DeliveryFormView({
                             barcodeValues={formData.receipt_barcode_values || []}
                             onChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
                             onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
-                            disabled={isSaving}
+                            disabled={isSaving || (!delivery && !selectedPatient)}
                           />
                         </div>
                         <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
@@ -416,7 +416,7 @@ export default function DeliveryFormView({
                             barcodeValues={formData.barcode_values || []}
                             onChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
                             onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
-                            disabled={isSaving}
+                            disabled={isSaving || (!delivery && !selectedPatient)}
                           />
                         </div>
                       </div>
