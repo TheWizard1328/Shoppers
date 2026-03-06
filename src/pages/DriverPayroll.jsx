@@ -776,9 +776,11 @@ export default function DriverPayroll() {
         // Check periods backwards starting from the one before today
         const startCheckIdx = todayIdx > 0 ? todayIdx - 1 : periods.length - 1;
         
-        for (let i = startCheckIdx; i >= 0; i--) {
-          const startStr = periods[i].start.toISOString().split('T')[0];
-          const endStr = periods[i].end.toISOString().split('T')[0];
+        // Only check if we have a valid index
+        if (startCheckIdx >= 0 && startCheckIdx < periods.length) {
+          for (let i = startCheckIdx; i >= 0; i--) {
+            const startStr = periods[i].start.toISOString().split('T')[0];
+            const endStr = periods[i].end.toISOString().split('T')[0];
 
           // Apply city/driver filters
           const filtered = offlinePayrolls.filter(r => {
