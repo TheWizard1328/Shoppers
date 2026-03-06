@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
     }
 
     // Build waypoints for ONE API call with all incomplete stops
-    const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    const hereApiKey = Deno.env.get('HERE_API_KEY');
     const etaUpdates = [];
     const waypoints = [];
     const deliveriesWithCoords = [];
@@ -167,13 +167,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build waypoints string (all stops except the last one)
-    const waypointsStr = deliveriesWithCoords
-      .slice(0, -1)
-      .map(d => `${d.lat},${d.lng}`)
-      .join('|');
-
     const lastStop = deliveriesWithCoords[deliveriesWithCoords.length - 1];
+
+    // Build HERE API waypoints
+    let hereWaypoints = `origin=${driverLocation.lat},${driverLocation.lng}&destination=${lastStop.lat},${lastStop.lng}`;
+    deliveriesWithCoords.slice(0, -1).forEach((d) => {
+      hereWaypoints += `&via=${d.lat},${d.lng}`;
+    });
 
     // ONE API call for the entire route
     try {
@@ -184,11 +184,11 @@ Deno.serve(async (req) => {
       
       await base44.asServiceRole.entities.GoogleAPILog.create({
         timestamp: new Date().toISOString(),
-        api_type: 'Directions',
-        purpose: `Calculating real-time ETAs for driver ${driverAppUser.user_name || driverId}`,
+        api_type: 'Directions (HERE)',
+        purpose: `Calculating real-time ETAs for driver ${driverAppUser?.user_name || driverId}`,
         function_name: 'calculateRealTimeETA',
         user_id: user.id,
-        user_name: userAppUser?.user_name || user.full_name,
+        user_name: driverAppUser?.user_name || user.full_name,
         metadata: {
           driver_id: driverId,
           delivery_date: deliveryDate,
@@ -196,18 +196,12 @@ Deno.serve(async (req) => {
         }
       });
 
-      const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
-        `origin=${driverLocation.lat},${driverLocation.lng}&` +
-        `destination=${lastStop.lat},${lastStop.lng}&` +
-        (waypointsStr ? `waypoints=optimize:false|${waypointsStr}&` : '') +
-        `departure_time=now&` +
-        `traffic_model=best_guess&` +
-        `key=${googleMapsKey}`;
+      const directionsUrl = `https://router.hereapi.com/v8/routes?${hereWaypoints}&return=summary&transportMode=car&routingMode=fast&apiKey=${hereApiKey}`;
 
       const directionsResponse = await fetch(directionsUrl);
       const directionsData = await directionsResponse.json();
 
-      if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
+      if (directionsData.routes && directionsData.routes.length > 0) {
         const route = directionsData.routes[0];
         
         // CRITICAL: Use device's local time passed from frontend
@@ -228,12 +222,12 @@ Deno.serve(async (req) => {
           console.warn(`⚠️ No device time provided, using Edmonton time as fallback`);
         }
 
-        // Process each leg of the route - calculate actual clock time ETAs
-        for (let i = 0; i < route.legs.length; i++) {
-          const leg = route.legs[i];
+        // Process each section of the route - calculate actual clock time ETAs
+        for (let i = 0; i < route.sections.length; i++) {
+          const section = route.sections[i];
           const delivery = deliveriesWithCoords[i].delivery;
 
-          const durationSeconds = leg.duration_in_traffic?.value || leg.duration?.value || 0;
+          const durationSeconds = section.summary.duration || 0;
           const travelMinutes = Math.ceil(durationSeconds / 60);
           const serviceTime = delivery.extra_time || 5;
           
