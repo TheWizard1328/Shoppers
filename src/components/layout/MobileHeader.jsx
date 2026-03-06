@@ -27,13 +27,9 @@ export default function MobileHeader({
   isTabletPortrait,
   currentUser,
   realUser,
-  adminImportEnabled,
-  onAdminImportToggle,
   themePreference,
   onThemeChange,
   cities,
-  onPatientImportClick,
-  onDeliveryImportClick,
   onInviteQRClick,
   onCurrentUserUpdate
 }) {
@@ -123,13 +119,9 @@ export default function MobileHeader({
                 currentUser={currentUser}
                 realUser={realUser}
                 isAppOwner={isAppOwner(currentUser)}
-                adminImportEnabled={adminImportEnabled}
-                onAdminImportToggle={onAdminImportToggle}
                 themePreference={themePreference}
                 onThemeChange={onThemeChange}
                 cities={cities}
-                onPatientImportClick={onPatientImportClick}
-                onDeliveryImportClick={onDeliveryImportClick}
                 isMobile={true}
               />
             </DropdownMenu>
