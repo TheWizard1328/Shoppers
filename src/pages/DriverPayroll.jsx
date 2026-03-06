@@ -39,7 +39,13 @@ const getPeriodYear = (start, end) => {
   let daysInEndYear = 0;
   
   let current = new Date(start);
-  while (current <= end) {
+  // Set hours to 12 to avoid daylight saving time issues when adding days
+  current.setHours(12, 0, 0, 0);
+  
+  const endCompare = new Date(end);
+  endCompare.setHours(12, 0, 0, 0);
+  
+  while (current <= endCompare) {
     if (current.getFullYear() === startYear) {
       daysInStartYear++;
     } else {
