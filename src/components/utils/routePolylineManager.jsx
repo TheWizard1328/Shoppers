@@ -71,30 +71,61 @@ const hasCoordinatesChanged = (oldLat, oldLon, newLat, newLon) => {
  * @returns {Promise<Object>} Route data with encoded polyline
  */
 const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleApiKey) => {
-  console.log('🗺️ [RoutePolyline] Fetching route from Google Directions API via backend:', {
+  console.log('🗺️ [RoutePolyline] Fetching route from HERE via backend:', {
     origin: `${startLat.toFixed(6)},${startLon.toFixed(6)}`,
     destination: `${endLat.toFixed(6)},${endLon.toFixed(6)}`
   });
 
   try {
-    const response = await base44.functions.invoke('getGoogleDirections', {
-      origin_lat: startLat,
-      origin_lon: startLon,
-      dest_lat: endLat,
-      dest_lon: endLon
+    const response = await base44.functions.invoke('getHereDirections', {
+      origin: { lat: startLat, lng: startLon },
+      destination: { lat: endLat, lng: endLon }
     });
 
     if (!response.data) {
       throw new Error('No data returned from backend function');
     }
 
+    const coords = Array.isArray(response.data.coordinates) ? response.data.coordinates : [];
+    if (!coords.length) {
+      throw new Error('No coordinates returned from HERE');
+    }
+
+    // Inline Google polyline encoder to store a compact string (no Google APIs used)
+    const encodeSigned = (value) => {
+      let sgn = value << 1;
+      if (value < 0) sgn = ~sgn;
+      let encoded = '';
+      while (sgn >= 0x20) {
+        encoded += String.fromCharCode((0x20 | (sgn & 0x1f)) + 63);
+        sgn >>= 5;
+      }
+      encoded += String.fromCharCode(sgn + 63);
+      return encoded;
+    };
+    const encodePolyline = (points) => {
+      let lastLat = 0, lastLng = 0;
+      let out = '';
+      for (const [lat, lng] of points) {
+        const latE5 = Math.round(lat * 1e5);
+        const lngE5 = Math.round(lng * 1e5);
+        out += encodeSigned(latE5 - lastLat);
+        out += encodeSigned(lngE5 - lastLng);
+        lastLat = latE5; lastLng = lngE5;
+      }
+      return out;
+    };
+
+    const normalized = coords.map(p => [p.lat ?? p.latitude, p.lng ?? p.longitude]);
+    const encoded = encodePolyline(normalized);
+
     return {
-      encoded_polyline: response.data.encoded_polyline,
-      distance_km: response.data.distance_km,
-      duration_seconds: response.data.duration_seconds
+      encoded_polyline: encoded,
+      distance_km: response.data.estimated_distance_km,
+      duration_seconds: (response.data.estimated_duration_minutes || 0) * 60
     };
   } catch (error) {
-    console.error('❌ [RoutePolyline] Error fetching Google Directions:', error);
+    console.error('❌ [RoutePolyline] Error fetching HERE route:', error);
     throw error;
   }
 };
