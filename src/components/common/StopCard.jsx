@@ -1709,8 +1709,10 @@ export default function StopCard({
                                 setIsEntityUpdating(true);
                                 
                                 fabControlEvents.deactivateFAB();
-                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                driverLocationPoller.pause();
+                                                                 const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                                                 driverLocationPoller.pause();
+                                                                 // Pause smart refresh to prevent UI clearing during start flow
+                                                                 smartRefreshManager.pause();
 
                                 try {
                                   // Get all driver deliveries
