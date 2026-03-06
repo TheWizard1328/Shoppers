@@ -86,8 +86,8 @@ import { getActiveDriversForCity, getAvailableDrivers } from './components/utils
 import DeviceRegistration from './components/devices/DeviceRegistration';
 // Removed: getCitiesWithinRadius - no longer using geographic filtering
 import { getUserAgentInfo, isMobileDeviceForTheme } from './components/utils/deviceUtils';
-import PatientImport from './components/patients/PatientImport';
-  import RouteImport from './components/deliveries/RouteImport';
+
+
   import DriverStatusToggle from './components/layout/DriverStatusToggle';
   import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
   import { loadUserSettings, saveSetting, clearSettingsCache, getDeviceType, getDeviceIdentifier } from './components/utils/userSettingsManager';
@@ -3383,30 +3383,7 @@ export default function Layout({ children, currentPageName }) {
         }} />
       }
 
-      {showPatientImport &&
-      <PatientImport
-        onClose={() => {
-          setShowPatientImport(false);
-          setIsFormOverlayOpen(false);
-        }}
-        onImportStart={() => {
-          setIsFormOverlayOpen(true);
-        }}
-        onImportComplete={async () => {
-          setShowPatientImport(false);
-          setIsFormOverlayOpen(false);
-          invalidate('Patient');
-          const freshPatients = await getData('Patient', null, null, true);
-          setPatients(freshPatients);
 
-          // CRITICAL: Dispatch events for active page to refresh
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          window.dispatchEvent(new CustomEvent('patientsUpdated', {
-            detail: { triggeredBy: 'patientImportComplete' }
-          }));
-        }} />
-
-      }
 
       {showMessaging &&
       <MessagingPanel
@@ -3452,44 +3429,7 @@ export default function Layout({ children, currentPageName }) {
                    <WebSocketDiagnosticsCard />
                    }
 
-                  {showDeliveryImport &&
-      <RouteImport
-        onCancel={() => {
-          setShowDeliveryImport(false);
-          setIsFormOverlayOpen(false);
-          // Clean up global callback
-          if (typeof window !== 'undefined') {
-            delete window.__routeImportStartCallback;
-          }
-        }}
-        onImportStart={() => {
-          setIsFormOverlayOpen(true);
-        }}
-        onImportComplete={async () => {
-          setShowDeliveryImport(false);
-          setIsFormOverlayOpen(false);
-          if (typeof window !== 'undefined') {
-            delete window.__routeImportStartCallback;
-          }
-          invalidate('Delivery');
-          invalidate('Patient');
-          await triggerFullDataLoadRef.current(true);
 
-          // CRITICAL: Dispatch events for active page to refresh
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          window.dispatchEvent(new CustomEvent('deliveriesImported', {
-            detail: { source: 'routeImport', deliveries: [] }
-          }));
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { triggeredBy: 'routeImportComplete' }
-          }));
-        }}
-        stores={stores}
-        allUsers={users}
-        currentUser={currentUser}
-        allDeliveries={deliveries} />
-
-      }
 
 
 

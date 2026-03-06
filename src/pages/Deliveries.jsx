@@ -4296,17 +4296,7 @@ export default function DeliveriesPage() {
 
           </motion.div>
         }
-        {
-        
-          onImportComplete={handleImportComplete}
-          onCancel={() => setShowImportModal(false)}
-          patients={allPatients || []}
-          stores={stores || []}
-          drivers={(allUsers || []).filter((u) => userHasRole(u, 'driver')) || []}
-          allUsers={allUsers}
-          currentUser={currentUser} />
 
-        }
         <RouteMapView
           isOpen={showRouteMap}
           onClose={() => setShowRouteMap(false)}
