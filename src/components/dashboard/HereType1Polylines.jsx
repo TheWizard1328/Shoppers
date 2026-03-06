@@ -195,14 +195,14 @@ export default function HereType1Polylines({
       const lastCompleted = completedSorted[0];
       const home = driverHomeMarkers.find((h) => h.driverId === driverId);
       if (!lastCompleted || !home) return;
-      const key = `here_${lastCompleted.latitude.toFixed(5)}_${lastCompleted.longitude.toFixed(5)}_${home.latitude.toFixed(5)}_${home.longitude.toFixed(5)}`;
+      const key = `here_${Number(lastCompleted.latitude).toFixed(5)}_${Number(lastCompleted.longitude).toFixed(5)}_${Number(home.latitude).toFixed(5)}_${Number(home.longitude).toFixed(5)}`;
       if (cache[key]) return;
       (async () => {
-        const ok = await hydrateFromOffline(key, driverId, lastCompleted, home, lastCompleted.delivery_date);
+        const ok = await hydrateFromOffline(key, driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date);
         if (ok) return;
         const d2 = Math.floor(Math.random() * 150);
         setTimeout(() => {
-          getHerePolyline(driverId, { latitude: lastCompleted.latitude, longitude: lastCompleted.longitude }, { latitude: home.latitude, longitude: home.longitude }, lastCompleted.delivery_date).then((coords) => {
+          getHerePolyline(driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date).then((coords) => {
             if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
           });
         }, d2);
