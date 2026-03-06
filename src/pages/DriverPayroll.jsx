@@ -859,8 +859,31 @@ export default function DriverPayroll() {
      if (!hasInitialized || !payPeriod) return;
      // Do not auto-reset period index if user is navigating manually
      if (isManualChangeRef.current) return;
+     
+     // Check if today falls into a different year's periods
+     const today = new Date();
+     let targetYear = selectedYear;
+     
+     if (payPeriod === 'weekly' || payPeriod === 'biweekly') {
+       const testPeriods = calculateAllPeriods(selectedYear, payPeriod);
+       const firstPeriodStart = testPeriods[0]?.start;
+       const lastPeriodEnd = testPeriods[testPeriods.length - 1]?.end;
+       
+       if (firstPeriodStart && today < firstPeriodStart) {
+         targetYear = selectedYear - 1;
+       } else if (lastPeriodEnd && today > lastPeriodEnd) {
+         targetYear = selectedYear + 1;
+       }
+     }
+     
+     // If the current year doesn't contain today's period, update the year
+     if (targetYear !== selectedYear) {
+       setSelectedYear(targetYear);
+       return; // The year change will trigger a re-render and this effect will run again
+     }
+     
      const periods = calculateAllPeriods(selectedYear, payPeriod);
-     const idx = findCurrentPeriodIndex(periods, new Date());
+     const idx = findCurrentPeriodIndex(periods, today);
      if (idx !== selectedPeriodIndex) {
        setSelectedPeriodIndex(idx);
      }
