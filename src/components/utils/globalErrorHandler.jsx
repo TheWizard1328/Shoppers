@@ -54,3 +54,61 @@ export const safeExecute = (fn, fallback = null) => {
 })();
 
 console.log('Bootstrap loaded: optimistic Patient GPS updates enabled on this device');
+
+// Patch: After assign-all / accept-all functions complete, refresh deliveries on this device immediately
+(function patchFunctionsInvokeForBulkOps() {
+  try {
+    if (typeof window === 'undefined') return;
+    if (window.__rx_functions_invoke_patched__) return;
+    if (!base44?.functions?.invoke) return;
+
+    window.__rx_functions_invoke_patched__ = true;
+    const originalInvoke = base44.functions.invoke.bind(base44.functions);
+
+    base44.functions.invoke = async (functionName, payload = {}) => {
+      const result = await originalInvoke(functionName, payload);
+
+      // Heuristic: detect bulk ops like "assign all" or "accept all"
+      try {
+        const name = String(functionName || '').toLowerCase();
+        const isBulkAssignOrAccept = /(assign.?all|accept.?all)/i.test(name);
+
+        if (isBulkAssignOrAccept) {
+          // Determine selected date from global filters if available
+          let selectedDateStr = null;
+          try {
+            const gfMod = await import('./globalFilters');
+            const { globalFilters } = gfMod;
+            const sel = globalFilters?.getSelectedDate?.();
+            if (sel instanceof Date) {
+              selectedDateStr = sel.toISOString().slice(0, 10);
+            } else if (typeof sel === 'string' && sel) {
+              selectedDateStr = sel;
+            }
+          } catch {}
+
+          if (!selectedDateStr) {
+            const now = new Date();
+            selectedDateStr = now.toISOString().slice(0, 10);
+          }
+
+          // Fetch fresh deliveries for the date and broadcast an IMMEDIATE UI update
+          let freshDeliveries = [];
+          try {
+            freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          } catch {}
+
+          try {
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { immediate: true, freshDeliveries, deliveryDate: selectedDateStr }
+            }));
+          } catch {}
+        }
+      } catch {}
+
+      return result;
+    };
+  } catch (e) {
+    // Silent failure: do not break app if patching fails
+  }
+})();
