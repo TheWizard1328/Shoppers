@@ -8662,7 +8662,6 @@ function Dashboard() {
             showLegend={false}
             areCardsVisible={areCardsVisible}
             onLegendInteraction={handleCardInteraction}
-            googleApiKey={googleApiKey}
             onDriverRoutesCalculated={setDriverRoutes}
             onMapInteraction={handleMapInteraction} mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked}
             onDoubleTap={handleMapViewCycle}
