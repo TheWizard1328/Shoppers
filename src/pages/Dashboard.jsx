@@ -2825,10 +2825,9 @@ function Dashboard() {
             deliveriesToMap = allDateDeliveries;
           }
         } else {
-          // Single driver mode - show only that driver's deliveries
-          deliveriesToMap = deliveriesWithStopOrder;
+          // Single driver mode - fallback to full deliveries if filtered view is temporarily empty (race condition)
+          deliveriesToMap = deliveriesWithStopOrder.length > 0 ? deliveriesWithStopOrder : deliveries.filter(d => d && d.delivery_date === selectedDateStr && d.driver_id === selectedDriverId);
         }
-
         let coordsAdded = 0;
 
         if (deliveriesToMap && Array.isArray(deliveriesToMap)) {
