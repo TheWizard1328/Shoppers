@@ -1,3 +1,4 @@
+
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1053,48 +1054,7 @@ export default function DeliveryForm({
     }
 
     if (!patient._isNew) {
-      try {
-        // Calculate recurring_weekly_x4_day from weekly days
-        let weeklyX4Day = undefined;
-        if (updatedFormData.recurring_weekly_x4) {
-          if (updatedFormData.recurring_weekly_mon) weeklyX4Day = 'mon';
-          else if (updatedFormData.recurring_weekly_tue) weeklyX4Day = 'tue';
-          else if (updatedFormData.recurring_weekly_wed) weeklyX4Day = 'wed';
-          else if (updatedFormData.recurring_weekly_thu) weeklyX4Day = 'thu';
-          else if (updatedFormData.recurring_weekly_fri) weeklyX4Day = 'fri';
-          else if (updatedFormData.recurring_weekly_sat) weeklyX4Day = 'sat';
-          else if (updatedFormData.recurring_weekly_sun) weeklyX4Day = 'sun';
-        }
-
-        await updatePatientLocal(patient.id, {
-          full_name: updatedFormData.patient_name,
-          phone: updatedFormData.patient_phone,
-          unit_number: updatedFormData.unit_number,
-          notes: updatedFormData.delivery_instructions,
-          mailbox_ok: updatedFormData.mailbox_ok,
-          call_upon_arrival: updatedFormData.call_upon_arrival,
-          ring_bell: updatedFormData.ring_bell,
-          dont_ring_bell: updatedFormData.dont_ring_bell,
-          back_door: updatedFormData.back_door,
-          signature_needed: updatedFormData.signature_needed,
-          recurring: updatedFormData.recurring,
-          recurring_daily: updatedFormData.recurring_daily,
-          recurring_weekly_mon: updatedFormData.recurring_weekly_mon,
-          recurring_weekly_tue: updatedFormData.recurring_weekly_tue,
-          recurring_weekly_wed: updatedFormData.recurring_weekly_wed,
-          recurring_weekly_thu: updatedFormData.recurring_weekly_thu,
-          recurring_weekly_fri: updatedFormData.recurring_weekly_fri,
-          recurring_weekly_sat: updatedFormData.recurring_weekly_sat,
-          recurring_weekly_sun: updatedFormData.recurring_weekly_sun,
-          recurring_biweekly: updatedFormData.recurring_biweekly,
-          recurring_weekly_x4: updatedFormData.recurring_weekly_x4,
-          recurring_weekly_x4_day: weeklyX4Day,
-          recurring_monthly: updatedFormData.recurring_monthly,
-          recurring_bimonthly: updatedFormData.recurring_bimonthly
-        });
-      } catch (error) {
-        console.error('Failed to update patient:', error);
-      }
+      try { await updatePatientLocal(patient.id, buildPatientUpdatePayload(updatedFormData)); } catch (error) { console.error('Failed to update patient:', error); }
     }
 
     // Use existing distance_from_store if available, otherwise calculate
@@ -1935,44 +1895,7 @@ export default function DeliveryForm({
 
     if (formData.patient_id && !isNewPatient) {
       try {
-        // Calculate recurring_weekly_x4_day from weekly days
-        let weeklyX4Day = undefined;
-        if (formData.recurring_weekly_x4) {
-          if (formData.recurring_weekly_mon) weeklyX4Day = 'mon';
-          else if (formData.recurring_weekly_tue) weeklyX4Day = 'tue';
-          else if (formData.recurring_weekly_wed) weeklyX4Day = 'wed';
-          else if (formData.recurring_weekly_thu) weeklyX4Day = 'thu';
-          else if (formData.recurring_weekly_fri) weeklyX4Day = 'fri';
-          else if (formData.recurring_weekly_sat) weeklyX4Day = 'sat';
-          else if (formData.recurring_weekly_sun) weeklyX4Day = 'sun';
-        }
-
-        await updatePatientLocal(formData.patient_id, {
-          full_name: formData.patient_name,
-          phone: formData.patient_phone,
-          unit_number: formData.unit_number,
-          notes: formData.delivery_instructions,
-          mailbox_ok: formData.mailbox_ok,
-          call_upon_arrival: formData.call_upon_arrival,
-          ring_bell: formData.ring_bell,
-          dont_ring_bell: formData.dont_ring_bell,
-          back_door: formData.back_door,
-          signature_needed: formData.signature_needed,
-          recurring: formData.recurring,
-          recurring_daily: formData.recurring_daily,
-          recurring_weekly_mon: formData.recurring_weekly_mon,
-          recurring_weekly_tue: formData.recurring_weekly_tue,
-          recurring_weekly_wed: formData.recurring_weekly_wed,
-          recurring_weekly_thu: formData.recurring_weekly_thu,
-          recurring_weekly_fri: formData.recurring_weekly_fri,
-          recurring_weekly_sat: formData.recurring_weekly_sat,
-          recurring_weekly_sun: formData.recurring_weekly_sun,
-          recurring_biweekly: formData.recurring_biweekly,
-          recurring_weekly_x4: formData.recurring_weekly_x4,
-          recurring_weekly_x4_day: weeklyX4Day,
-          recurring_monthly: formData.recurring_monthly,
-          recurring_bimonthly: formData.recurring_bimonthly
-        });
+        await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
       } catch (error) {
         console.error('Failed to update patient:', error);
         setError('Failed to update patient data. Delivery will still be staged.');
@@ -2211,44 +2134,7 @@ export default function DeliveryForm({
 
     if (formData.patient_id) {
       try {
-        // Calculate recurring_weekly_x4_day from weekly days
-        let weeklyX4Day = undefined;
-        if (formData.recurring_weekly_x4) {
-          if (formData.recurring_weekly_mon) weeklyX4Day = 'mon';
-          else if (formData.recurring_weekly_tue) weeklyX4Day = 'tue';
-          else if (formData.recurring_weekly_wed) weeklyX4Day = 'wed';
-          else if (formData.recurring_weekly_thu) weeklyX4Day = 'thu';
-          else if (formData.recurring_weekly_fri) weeklyX4Day = 'fri';
-          else if (formData.recurring_weekly_sat) weeklyX4Day = 'sat';
-          else if (formData.recurring_weekly_sun) weeklyX4Day = 'sun';
-        }
-
-        await updatePatientLocal(formData.patient_id, {
-          full_name: formData.patient_name,
-          phone: formData.patient_phone,
-          unit_number: formData.unit_number,
-          notes: formData.delivery_instructions,
-          mailbox_ok: formData.mailbox_ok,
-          call_upon_arrival: formData.call_upon_arrival,
-          ring_bell: formData.ring_bell,
-          dont_ring_bell: formData.dont_ring_bell,
-          back_door: formData.back_door,
-          signature_needed: formData.signature_needed,
-          recurring: formData.recurring,
-          recurring_daily: formData.recurring_daily,
-          recurring_weekly_mon: formData.recurring_weekly_mon,
-          recurring_weekly_tue: formData.recurring_weekly_tue,
-          recurring_weekly_wed: formData.recurring_weekly_wed,
-          recurring_weekly_thu: formData.recurring_weekly_thu,
-          recurring_weekly_fri: formData.recurring_weekly_fri,
-          recurring_weekly_sat: formData.recurring_weekly_sat,
-          recurring_weekly_sun: formData.recurring_weekly_sun,
-          recurring_biweekly: formData.recurring_biweekly,
-          recurring_weekly_x4: formData.recurring_weekly_x4,
-          recurring_weekly_x4_day: weeklyX4Day,
-          recurring_monthly: formData.recurring_monthly,
-          recurring_bimonthly: formData.recurring_bimonthly
-        });
+        await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
       } catch (error) {
         console.error('Failed to update patient:', error);
         setError('Failed to update patient data. Delivery will still be updated.');
@@ -2646,7 +2532,7 @@ export default function DeliveryForm({
 
       // Re-assign sequential TR#s: abbreviation + (pickupTR + index + 1)
       existingDeliveriesInGroup.forEach((delivery, index) => {
-        const correctTR = `${storeAbbrev}${effectivePickupTR + index + 1}`;
+        const correctTR = `${storeAbbrev}${effectivePickupTR + existingDeliveries.length + index + 1}`; // Account for new deliveries added
         if (delivery.tracking_number !== correctTR) {
           console.log(`[AddToRoute] 🔧 Fixing existing TR#: ${delivery.patient_name} from ${delivery.tracking_number} to ${correctTR}`);
           existingDeliveriesToUpdate.push({
