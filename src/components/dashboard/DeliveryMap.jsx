@@ -1147,19 +1147,8 @@ export default function DeliveryMap({
       };
     }).filter(Boolean);
 
-    // CRITICAL: Only update cache if we have valid markers
-    if (markers.length > 0) {
-      console.log(`✅ [DeliveryMap] driverLocationMarkers: ${markers.length} markers calculated`);
-      prevDriverLocationMarkersRef.current = markers;
-      return markers;
-    } else if (prevDriverLocationMarkersRef.current.length > 0) {
-      // No new markers but we had markers before - preserve them
-      console.warn(`⚠️ [DeliveryMap] No new markers calculated - preserving ${prevDriverLocationMarkersRef.current.length} previous markers`);
-      return prevDriverLocationMarkersRef.current;
-    } else {
-      // No markers at all
-      return [];
-    }
+    if (markers.length > 0) { prevDriverLocationMarkersRef.current = markers; return markers; }
+    return prevDriverLocationMarkersRef.current;
   // CRITICAL: Include polylineRenderKey to force refresh when locations update
   }, [
     selectedDate, // CRITICAL: Must recalculate when date changes to filter past dates
