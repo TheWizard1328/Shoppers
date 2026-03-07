@@ -366,20 +366,8 @@ export default function DeliveryMap({
       }
     };
 
-    // NEW: Listen for delivery updates to force complete route recalculation
-    const handleDeliveriesUpdate = (event) => {
-      // CRITICAL: Clear cached routes to force full recalculation
-      prevDriverRoutesRef.current = [];
-      // Force re-render and reset fanning in a single pass to avoid ghost clusters
-      setRouteRenderKey(prev => prev + 1); setPolylineRenderKey(prev => prev + 1); setFannedLocationKey(null);
-    };
-
-    // NEW: Listen for route optimization completion to refresh map
-    const handleRouteOptimizationComplete = (event) => {
-      prevDriverRoutesRef.current = [];
-      // Force re-render and reset fanning to ensure clean marker remount
-      setRouteRenderKey(prev => prev + 1); setPolylineRenderKey(prev => prev + 1); setFannedLocationKey(null);
-    };
+    const handleDeliveriesUpdate = () => { prevDriverRoutesRef.current = []; setRouteRenderKey(p=>p+1); setPolylineRenderKey(p=>p+1); setFannedLocationKey(null); };
+    const handleRouteOptimizationComplete = handleDeliveriesUpdate;
 
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdate);
