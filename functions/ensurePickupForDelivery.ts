@@ -139,7 +139,9 @@ Deno.serve(async (req) => {
             driver_id: driverId
         }, '-created_date', 150);
 
-        const isIncomplete = (p) => !p.patient_id && !['completed','cancelled','returned'].includes(p.status);
+        // A pickup is reusable only if it has no patient (is a pickup) AND is not yet en_route/completed/cancelled
+        // Once a pickup is en_route, the driver is already heading to the store — new deliveries need a fresh pickup
+        const isIncomplete = (p) => !p.patient_id && !['en_route','completed','cancelled','returned'].includes(p.status);
 
         // Focus selection ONLY on this store
         const storePickups = allPickups.filter(p => p.store_id === storeId);
