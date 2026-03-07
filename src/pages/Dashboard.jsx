@@ -594,14 +594,11 @@ function Dashboard() {
 
 
 
-  // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
-    const handlePerformanceStatsUpdate = (event) => {
-      setPerformanceStats(event.detail);
-    };
-
-    const handleDeliveryStatsUpdate = (event) => {
-      setDeliveryStats(event.detail);
+    const handlePerformanceStatsUpdate = e => setPerformanceStats(e.detail);
+    const handleDeliveryStatsUpdate = e => {
+      setDeliveryStats(e.detail);
+      if (e.detail?.performanceStats) setPerformanceStats(e.detail.performanceStats);
     };
     
     // CRITICAL: Listen for smart refresh AppUser updates to refresh currentUser for toggles
