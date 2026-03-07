@@ -313,53 +313,22 @@ export default function DeliveryMap({
 
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
 
-  // CRITICAL: Load AppUser data for ALL drivers with deliveries on selected date
-  // This ensures Type 1 polylines for other drivers can access fresh location data
   useEffect(() => {
-    const loadAllDriverAppUsers = async () => {
-      if (!selectedDate || safeDeliveries.length === 0) return;
-
+    if (!selectedDate || safeDeliveries.length === 0) return;
+    (async () => {
       try {
-        // Get all unique driver IDs from deliveries (including other drivers)
-        const uniqueDriverIds = new Set(
-          [...safeDeliveries, ...otherDriverDeliveries]
-            .filter(d => d && d.driver_id)
-            .map(d => d.driver_id)
-        );
-
-        if (uniqueDriverIds.size === 0) return;
-
-        console.log(`📥 [DeliveryMap] Loading AppUser data for ${uniqueDriverIds.size} drivers with deliveries...`);
-
-        // Fetch AppUser for each driver ID
+        const uniqueDriverIds = new Set([...safeDeliveries, ...otherDriverDeliveries].filter(d=>d?.driver_id).map(d=>d.driver_id));
+        if (!uniqueDriverIds.size) return;
         const { offlineDB } = await import('./../../components/utils/offlineDatabase');
         const allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-
-        if (!allAppUsers || allAppUsers.length === 0) {
-          console.warn(`⚠️ [DeliveryMap] No AppUsers in offline DB - Type 1 polylines may use stale data`);
-          return;
-        }
-
-        // Merge with existing realtimeAppUsers - add any missing drivers
+        if (!allAppUsers?.length) return;
         setRealtimeAppUsers(prev => {
           const existingMap = new Map(prev.map(u => [u.id, u]));
-          
-          allAppUsers.forEach(appUser => {
-            if (uniqueDriverIds.has(appUser.id) && !existingMap.has(appUser.id)) {
-              existingMap.set(appUser.id, appUser);
-            }
-          });
-
-          const merged = Array.from(existingMap.values());
-          console.log(`✅ [DeliveryMap] Loaded AppUsers for all delivery drivers: ${merged.length} total`);
-          return merged;
+          allAppUsers.forEach(au => { if (uniqueDriverIds.has(au.id) && !existingMap.has(au.id)) existingMap.set(au.id, au); });
+          return Array.from(existingMap.values());
         });
-      } catch (error) {
-        console.error('❌ [DeliveryMap] Failed to load all driver AppUsers:', error);
-      }
-    };
-
-    loadAllDriverAppUsers();
+      } catch (e) {}
+    })();
   }, [selectedDate, safeDeliveries.length, otherDriverDeliveries.length]);
 
   // CRITICAL: Listen for deliveriesImported AND deliveriesUpdated events to refresh other drivers' markers
