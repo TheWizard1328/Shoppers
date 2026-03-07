@@ -110,10 +110,20 @@ export default function SquareManagement() {
 
       const finalCatalogItems = catalogData.items || catalogData.catalogItems || [];
       const sold = paymentsData.soldCatalogItems || [];
+      // Also include sold items from the catalog sync response
+      const catalogSold = catalogData.soldCatalogItems || [];
+      const allSold = [...sold, ...catalogSold];
+      // Deduplicate by location_id|name|amount
+      const soldDedup = [];
+      const soldKeys = new Set();
+      for (const s of allSold) {
+        const key = `${s.location_id}|${(s.item_name || '').toLowerCase()}|${Math.round((Number(s.amount) || 0) * 100)}`;
+        if (!soldKeys.has(key)) { soldKeys.add(key); soldDedup.push(s); }
+      }
 
       setCatalogItems(finalCatalogItems);
-      setSoldCatalogItems(sold);
-      setAllTransactions(sold);
+      setSoldCatalogItems(soldDedup);
+      setAllTransactions(soldDedup);
       setLocationIds(catalogData.locationIds || locationIds);
 
       await Promise.all([
