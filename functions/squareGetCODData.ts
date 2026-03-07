@@ -131,21 +131,20 @@ Deno.serve(async (req) => {
       }
     });
 
-    // Merge catalog items with transaction data
-    const mergedItems = catalogItems
-      .filter(item => !soldCatalogIds.has(item.catalog_object_id))
-      .map(item => {
-        const existingTx = transactionMap.get(item.catalog_object_id);
-        return {
-          ...item,
-          transaction_id: existingTx?.id || null,
-          delivery_id: existingTx?.delivery_id || null,
-          patient_id: existingTx?.patient_id || null,
-          store_id: existingTx?.store_id || null,
-          status: existingTx?.status || 'active',
-          created_date: existingTx?.created_date || item.updated_at
-        };
-      });
+    // Merge catalog items with transaction data — keep ALL items (don't filter sold)
+    const mergedItems = catalogItems.map(item => {
+      const existingTx = transactionMap.get(item.catalog_object_id);
+      return {
+        ...item,
+        transaction_id: existingTx?.id || null,
+        delivery_id: existingTx?.delivery_id || null,
+        patient_id: existingTx?.patient_id || null,
+        store_id: existingTx?.store_id || null,
+        status: existingTx?.status || 'active',
+        created_date: existingTx?.created_date || item.updated_at,
+        is_sold: soldCatalogIds.has(item.catalog_object_id)
+      };
+    });
 
     return Response.json({
       success: true,
