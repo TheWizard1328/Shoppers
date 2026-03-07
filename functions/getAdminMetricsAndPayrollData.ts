@@ -466,7 +466,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         dailyStoreEntry.extra_km += calculateExtraKm(delivery, patients);
       }
 
-      if (store.pays_app_fees && appFeeRate > 0) {
+      if (wasPayingOnDeliveryDate && appFeeRate > 0) {
         storesPayingFeesSet.add(store.id);
         if (isBillableDelivery(delivery)) {
           if (!storeMonthlyFees.has(store.id)) storeMonthlyFees.set(store.id, Array(12).fill(0));
