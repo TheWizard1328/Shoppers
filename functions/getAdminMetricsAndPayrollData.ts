@@ -289,14 +289,19 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   const appUserMap = new Map(appUsers.map(au => [au.user_id, au]));
 
   // Helper: Check if store was paying fees on a specific date using app_fee_history
+  // Pre-sort histories once per store for efficiency (avoids re-sorting per delivery)
+  const sortedHistoryCache = new Map();
   const wasPayingFeesOnDate = (store, dateStr) => {
     if (!store) return false;
     if (!store.app_fee_history || store.app_fee_history.length === 0) {
       return store.pays_app_fees || false;
     }
-    const sortedHistory = [...store.app_fee_history].sort((a, b) => 
-      new Date(a.effective_date) - new Date(b.effective_date)
-    );
+    if (!sortedHistoryCache.has(store.id)) {
+      sortedHistoryCache.set(store.id, [...store.app_fee_history].sort((a, b) => 
+        a.effective_date.localeCompare(b.effective_date)
+      ));
+    }
+    const sortedHistory = sortedHistoryCache.get(store.id);
     let payingFees = false;
     for (const entry of sortedHistory) {
       if (entry.effective_date <= dateStr) {
