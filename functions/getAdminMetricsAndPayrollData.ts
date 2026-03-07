@@ -425,7 +425,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
             storeDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
             metrics.driverDataByStore[delivery.store_id].push(storeDriverEntry);
           }
-          if (store?.pays_app_fees) storeDriverEntry.billable++;
+          if (wasPayingOnDeliveryDate) storeDriverEntry.billable++;
           else storeDriverEntry.nonBillable++;
         }
       }
