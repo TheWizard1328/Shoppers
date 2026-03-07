@@ -193,7 +193,7 @@ export default function StopCardCODCollection({
 
                     if (incompleteDeliveries.length > 0) {
                       await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
-                      invalidate('Delivery');
+                      window._suppressAutoCenterUntil = Date.now() + 1500;
                       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                       setTimeout(() => {
                         const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
@@ -206,9 +206,12 @@ export default function StopCardCODCollection({
                       }));
                     }
 
-                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                      detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                    }));
+                    setTimeout(() => {
+                      if ((window._suppressAutoCenterUntil || 0) > Date.now()) return;
+                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                        detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                      }));
+                    }, 300);
 
                     if (onSelectionChange) {
                       onSelectionChange(delivery.id, false);
