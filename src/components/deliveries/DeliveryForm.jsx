@@ -2024,12 +2024,12 @@ export default function DeliveryForm({
         if (reusable) { puid = existingPickup.stop_id; }
       }
       if (!puid) {
-        try {
-          const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: store.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, ampmDeliveries: timeSlot, allowCreateIfMissing: true });
-          puid = r.data?.puid || getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
-        } catch {
-          puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
-        }
+        // CRITICAL: Calculate PUID locally first for instant UI response
+        puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
+        // Fire-and-forget: ensure pickup exists on backend (don't block the Add button)
+        base44.functions.invoke('ensurePickupForDelivery', { storeId: store.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, ampmDeliveries: timeSlot, allowCreateIfMissing: true })
+          .then(r => { if (r.data?.puid) console.log(`✅ [handleAddToStaging] Pickup ensured (bg): ${r.data.puid}`); })
+          .catch(err => console.warn('⚠️ [handleAddToStaging] ensurePickup bg failed:', err?.message));
       }
     }
 
