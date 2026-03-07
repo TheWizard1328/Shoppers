@@ -1357,7 +1357,6 @@ function Dashboard() {
       return filteredDrivers;
     }
 
-    console.log(`   - Default: showing all ${driversSource.length} drivers`);
     return driversSource;
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
