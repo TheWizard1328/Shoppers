@@ -1955,31 +1955,17 @@ function Dashboard() {
           if (isMobile && newLocation.latitude && newLocation.longitude) {
             const now = Date.now();
 
-            // PHASE 2 LOCKED: Continuous re-centering (every location update)
-            // CRITICAL: Only re-center if FAB is locked - user pan/zoom unlocks FAB via handleMapInteraction
-            // CRITICAL: Use ref to get current lock state (closure captures stale state)
-            if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current && nextStopCoordinates) {
-
-              const bounds = [
-              [newLocation.latitude, newLocation.longitude],
-              [nextStopCoordinates.lat, nextStopCoordinates.lon]];
-
-              const padding = getMapPadding();
-
-              // CRITICAL: Mark as programmatic move to prevent zoom indicator
-              window._lastProgrammaticMapMove = Date.now();
-
-              setShouldFitBounds({
-                bounds,
-                options: {
-                  ...padding,
-                  maxZoom: 17.5,
-                  animate: true,
-                  duration: 0.5
+            // PHASE 2 LOCKED: Auto-scroll to next delivery card (every location update)
+            // NOTE: Map re-centering is intentionally removed here - it fought with the FAB positioning.
+            // The FAB handles the initial center on Phase 2 activation; GPS updates only scroll the card.
+            if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current) {
+              const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+              if (nextCard) {
+                const cardEl = document.getElementById(`stop-card-${nextCard.id}`);
+                if (cardEl) {
+                  cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                 }
-              });
-              setMapCenter(null);
-              setMapZoom(null);
+              }
               return; // Skip proximity snap logic below
             }
 
