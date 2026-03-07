@@ -1688,40 +1688,6 @@ function Dashboard() {
 
         phaseBeforeBreakRef.current = null;
       } else if (event.type === 'DATA_READY') {
-        // DATA_READY fires on every smart refresh - do NOT reposition map
-        // Map positioning is handled only on initial load (Render Sequence Effect 8)
-
-        // CRITICAL: Handle timer logic based on phase - ONLY set timer for Phase 1
-        if (mapViewPhase === 2 || mapViewPhase === 3) {
-          // Phase 2 & 3 - NO timer at all, stay locked permanently
-          // CRITICAL: Clear any existing timers to prevent accidental unlock
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-            mapLockTimeoutRef.current = null;
-          }
-          mapLockExpiresAtRef.current = null;
-
-        } else if (mapViewPhase === 1) {
-          // Phase 1 - Clear any existing timers first, then set new timer
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-            mapLockTimeoutRef.current = null;
-          }
-          mapLockExpiresAtRef.current = null;
-
-          const lockDuration = 500;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-
-          mapLockTimeoutRef.current = window.setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-              console.log(`⏰ [FAB] Phase 1 auto-unlocked after data ready`);
-            }
-          }, lockDuration);
-        }
       } else if (event.type === 'DONE_BUTTON_CLICKED') {
         // CRITICAL: Done button was clicked - activate Phase 1 for 500ms
         console.log('🎯 [FAB] Done button clicked - activating Phase 1 for 500ms');
