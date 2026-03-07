@@ -685,7 +685,7 @@ export default function SquareManagement() {
     }
 
     // Filter out sold items (only keep non-collected items)
-    items = items.filter(item => !hasBeenSoldInSquare(item));
+    items = items.filter(item => !item.is_sold && !hasBeenSoldInSquare(item));
 
     // Sort: by driver (sort_order), then item name, then store
     return items.sort((a, b) => {
