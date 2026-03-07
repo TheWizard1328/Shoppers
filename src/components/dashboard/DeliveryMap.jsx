@@ -1373,20 +1373,9 @@ export default function DeliveryMap({
       }
     });
 
-    // CRITICAL: Only update if home markers actually changed to prevent blinking
-    const newKey = homeMarkers.map(m => `${m.id}:${m.latitude}:${m.longitude}`).join('|');
-    const prevKey = prevDriverHomeMarkersRef.current.map(m => `${m.id}:${m.latitude}:${m.longitude}`).join('|');
-    
-    if (newKey === prevKey && prevDriverHomeMarkersRef.current.length > 0) {
-      return prevDriverHomeMarkersRef.current;
-    }
-    
-    // CRITICAL: If new markers are empty but we had markers before, preserve them
-    // This handles the case where deliveries briefly become empty during refresh
-    if (homeMarkers.length === 0 && prevDriverHomeMarkersRef.current.length > 0) {
-      return prevDriverHomeMarkersRef.current;
-    }
-    
+    const newKey = homeMarkers.map(m=>`${m.id}:${m.latitude}:${m.longitude}`).join('|');
+    if (newKey === prevDriverHomeMarkersRef.current.map(m=>`${m.id}:${m.latitude}:${m.longitude}`).join('|') && prevDriverHomeMarkersRef.current.length > 0) return prevDriverHomeMarkersRef.current;
+    if (homeMarkers.length === 0 && prevDriverHomeMarkersRef.current.length > 0) return prevDriverHomeMarkersRef.current;
     prevDriverHomeMarkersRef.current = homeMarkers;
     return homeMarkers;
   // CRITICAL: Use minimal, stable dependencies to prevent blinking
