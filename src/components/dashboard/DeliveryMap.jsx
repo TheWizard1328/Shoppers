@@ -18,6 +18,11 @@ import DriverLocationMarkers from './DriverLocationMarkers';
 import MapController from './MapController';
 import HereType1Polylines from './HereType1Polylines';
 import HereType2Polylines from './HereType2Polylines';
+import PickupMarkers from './PickupMarkers';
+import DeliveryMarkers from './DeliveryMarkers';
+import HomeMarkers from './HomeMarkers';
+import MapBreadcrumbs from './MapBreadcrumbs';
+import { createSimpleCircleIcon, createStoreIcon, createDeliveryIcon, createLiveLocationDot, createHomeIcon } from './MapIcons';
 
 // Fix for default icon issue with Webpack
 delete L.Icon.Default.prototype._getIconUrl;
