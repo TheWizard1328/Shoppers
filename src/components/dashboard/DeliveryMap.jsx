@@ -1257,11 +1257,7 @@ export default function DeliveryMap({
       return [];
     }
 
-    // CRITICAL: If safeUsers is empty, preserve previous markers
-    if (!safeUsers || safeUsers.length === 0) {
-      console.warn(`⚠️ [DeliveryMap] safeUsers empty in driverHomeMarkers - preserving ${prevDriverHomeMarkersRef.current.length} previous markers`);
-      return prevDriverHomeMarkersRef.current;
-    }
+    if (!safeUsers?.length) return prevDriverHomeMarkersRef.current;
 
     // CRITICAL: Dispatchers should not see home locations
     if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
