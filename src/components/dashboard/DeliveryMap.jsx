@@ -252,117 +252,25 @@ export default function DeliveryMap({
     const handleDriverLocationUpdate = (event) => {
       const { appUsers, singleUpdate, mergeMode } = event.detail;
 
-      // CRITICAL: Handle merge mode - merge single driver update with existing realtimeAppUsers
-      if (mergeMode === 'merge' && appUsers && appUsers.length > 0) {
-        console.log(`🔀 [DeliveryMap] Merge mode - combining ${appUsers.length} updated drivers with existing`);
-        
-        setRealtimeAppUsers(prev => {
-          if (!prev || prev.length === 0) {
-            console.warn(`⚠️ [DeliveryMap] Merge mode but realtimeAppUsers empty - using updated data as-is`);
-            return appUsers;
-          }
-          
-          // Create map of updated drivers
-          const updatedMap = new Map();
-          appUsers.forEach(au => {
-            if (au?.user_id || au?.id) {
-              updatedMap.set(au.user_id || au.id, au);
-            }
-          });
-          
-          // Merge: replace updated drivers, keep others
-          const merged = prev.map(u => {
-            const userId = u?.user_id || u?.id;
-            if (userId && updatedMap.has(userId)) {
-              return updatedMap.get(userId);
-            }
-            return u;
-          });
-          
-          // Add any new drivers not in existing list
-          appUsers.forEach(au => {
-            const userId = au?.user_id || au?.id;
-            if (userId && !prev.some(u => (u?.user_id || u?.id) === userId)) {
-              merged.push(au);
-            }
-          });
-          
-          console.log(`✅ [DeliveryMap] Merged: ${appUsers.length} updated + ${prev.length - appUsers.length} existing = ${merged.length} total`);
-          return merged;
-        });
-        
-        // CRITICAL: Force polyline re-render
-        setPolylineRenderKey(prev => prev + 1);
-        setRouteRenderKey(prev => prev + 1);
-        return;
-      }
+      const mergeUsers = (prev, updates) => {
+        if (!prev?.length) return updates;
+        const map = new Map(updates.map(u => [u?.id || u?.user_id, u]));
+        const merged = prev.map(u => { const k = u?.id || u?.user_id; return k && map.has(k) ? map.get(k) : u; });
+        updates.forEach(u => { const k = u?.id || u?.user_id; if (k && !prev.some(p => (p?.id || p?.user_id) === k)) merged.push(u); });
+        return merged;
+      };
 
-      // CRITICAL: Handle single driver updates (from status toggle, locationTracker, etc.)
-      // singleUpdate is a boolean flag; the actual updated user is in appUsers[0]
-      if (singleUpdate && appUsers && appUsers.length === 1) {
-        const updatedUser = appUsers[0];
-        console.log(`🔄 [DeliveryMap] Single AppUser update:`, updatedUser?.user_name || updatedUser?.id);
+      if ((mergeMode === 'merge' || singleUpdate || (appUsers?.length > 0)) && appUsers?.length > 0) {
         setRealtimeAppUsers(prev => {
-          // CRITICAL: Don't update if prev is empty - preserve data
-          if (!prev || prev.length === 0) {
-            console.warn(`⚠️ [DeliveryMap] Skipping single update - realtimeAppUsers is empty`);
-            return prev;
+          if (singleUpdate && appUsers.length === 1) {
+            const u = appUsers[0];
+            return prev?.length ? prev.map(p => (p?.id === u?.id || p?.id === u?.user_id) ? { ...p, ...u } : p) : prev;
           }
-          // Match by id OR user_id (locationTracker uses AppUser.id, not User.id)
-          return prev.map(u => 
-            (u?.id === updatedUser?.id || u?.id === updatedUser?.user_id) ? { ...u, ...updatedUser } : u
-          );
+          return mergeUsers(prev, appUsers);
         });
-        // CRITICAL: Force polyline re-render when driver location changes
-        setPolylineRenderKey(prev => prev + 1);
-        // CRITICAL: Force delivery marker refresh to update status colors
-        setRouteRenderKey(prev => prev + 1);
+        setPolylineRenderKey(p => p + 1);
+        setRouteRenderKey(p => p + 1);
         return;
-      }
-
-      // CRITICAL: Handle bulk updates (from smart refresh or other events) - merge with existing
-      if (appUsers && appUsers.length > 0) {
-        console.log(`🔄 [DeliveryMap] Bulk AppUser update: ${appUsers.length} users`);
-        
-        setRealtimeAppUsers(prev => {
-          if (!prev || prev.length === 0) {
-            console.log(`📥 [DeliveryMap] No existing drivers - using ${appUsers.length} updated drivers`);
-            return appUsers;
-          }
-          
-          // Create map of updated drivers for efficient lookup
-          const updatedMap = new Map();
-          appUsers.forEach(au => {
-            const userId = au?.id || au?.user_id;
-            if (userId) {
-              updatedMap.set(userId, au);
-            }
-          });
-          
-          // Merge: update existing drivers, keep ones not in update
-          const merged = prev.map(u => {
-            const userId = u?.id || u?.user_id;
-            return userId && updatedMap.has(userId) ? updatedMap.get(userId) : u;
-          });
-          
-          // Add any new drivers not in existing list
-          appUsers.forEach(au => {
-            const userId = au?.id || au?.user_id;
-            if (userId && !prev.some(u => (u?.id || u?.user_id) === userId)) {
-              merged.push(au);
-            }
-          });
-          
-          console.log(`✅ [DeliveryMap] Merged: ${appUsers.length} updated + ${prev.filter(u => !updatedMap.has(u?.id || u?.user_id)).length} existing = ${merged.length} total`);
-          return merged;
-        });
-        // CRITICAL: Force polyline re-render when driver locations change
-        setPolylineRenderKey(prev => prev + 1);
-        // CRITICAL: Force delivery marker refresh to update status colors
-        setRouteRenderKey(prev => prev + 1);
-      } else if (appUsers && Array.isArray(appUsers) && appUsers.length === 0) {
-        // CRITICAL: Only log warning if this is actually an empty array, not undefined
-        console.log(`⚠️ [DeliveryMap] Received empty appUsers array - preserving existing ${realtimeAppUsers.length} users`);
       }
     };
 
