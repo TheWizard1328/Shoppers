@@ -349,24 +349,32 @@ export default function SquareManagement() {
           const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
           const catalogItemsData = catalogData?.items || [];
-          const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
+          const soldFromPaymentsInit = paymentsData?.soldCatalogItems || [];
+          const soldFromCatalogInit = catalogData?.soldCatalogItems || [];
+          const allSoldInit = [...soldFromPaymentsInit, ...soldFromCatalogInit];
+          const soldDedupInit = [];
+          const soldKeysInit = new Set();
+          for (const s of allSoldInit) {
+            const key = `${s.location_id}|${(s.item_name || '').toLowerCase()}|${Math.round((Number(s.amount) || 0) * 100)}`;
+            if (!soldKeysInit.has(key)) { soldKeysInit.add(key); soldDedupInit.push(s); }
+          }
 
-          console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldCatalogItemsData.length} transactions`);
+          console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldDedupInit.length} transactions`);
 
           // Save to offline database
           await Promise.all([
             saveCatalogItemsOffline(catalogItemsData),
-            savePaymentTransactionsOffline(soldCatalogItemsData)
+            savePaymentTransactionsOffline(soldDedupInit)
           ]);
 
           // Update UI
           setCatalogItems(catalogItemsData);
-          setSoldCatalogItems(soldCatalogItemsData);
-          setAllTransactions(soldCatalogItemsData);
+          setSoldCatalogItems(soldDedupInit);
+          setAllTransactions(soldDedupInit);
 
           const fourteenDaysAgoTx = new Date();
           fourteenDaysAgoTx.setDate(fourteenDaysAgoTx.getDate() - 14);
-          const recentPayments = soldCatalogItemsData
+          const recentPayments = soldDedupInit
             .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
             .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
 
