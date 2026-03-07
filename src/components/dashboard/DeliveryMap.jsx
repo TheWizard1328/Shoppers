@@ -179,28 +179,13 @@ export default function DeliveryMap({
   const safeStores = Array.isArray(stores) ? stores : [];
   const safeDriverLocations = Array.isArray(driverLocations) ? driverLocations : [];
   
-  // CRITICAL: Use previous cached users if current is empty to prevent flickering
   const prevSafeUsersRef = useRef([]);
   const safeUsers = (() => {
     if (Array.isArray(realtimeAppUsers) && realtimeAppUsers.length > 0) {
-      // Log first few users to debug "Unknown" issue
-      console.log(`✅ [DeliveryMap] safeUsers updated with ${realtimeAppUsers.length} users:`, 
-        realtimeAppUsers.slice(0, 3).map(u => ({
-          id: u?.id?.slice(-4),
-          name: u?.user_name || u?.full_name || 'NO NAME',
-          lat: u?.current_latitude?.toFixed(5),
-          lon: u?.current_longitude?.toFixed(5)
-        }))
-      );
       prevSafeUsersRef.current = realtimeAppUsers;
       return realtimeAppUsers;
-    } else if (prevSafeUsersRef.current.length > 0) {
-      console.warn(`⚠️ [DeliveryMap] realtimeAppUsers empty - preserving ${prevSafeUsersRef.current.length} cached users`);
-      return prevSafeUsersRef.current;
-    } else {
-      console.error(`❌ [DeliveryMap] No users available - both current and cache are empty!`);
-      return [];
     }
+    return prevSafeUsersRef.current;
   })();
 
   // CRITICAL: Initialize realtimeAppUsers from offline DB on mount
