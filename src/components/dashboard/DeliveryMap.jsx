@@ -924,8 +924,8 @@ export default function DeliveryMap({
         [marker.latitude, marker.longitude]
       ]);
 
-      // Center map with more bottom padding to push the marker into the upper portion of the visible area
-      // This ensures the popup balloon opens above the marker with room, and stop cards sit below
+      // Large top padding pushes marker toward the bottom of the visible area
+      // Small bottom padding keeps it just above the stop cards
       const panOptions = {
         paddingTopLeft: [60, dynamicTopPadding],
         paddingBottomRight: [60, dynamicBottomPadding],
