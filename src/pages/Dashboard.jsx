@@ -3982,11 +3982,8 @@ function Dashboard() {
         
         // CRITICAL: Protect from smart refresh overwrite
         priorityDeliveries.forEach(d => {
-          if (d?.id) {
-            smartRefreshManager.registerPendingUpdate(d.id, d.driver_id, dateStr);
-          }
+          if (d?.id) smartRefreshManager.registerPendingUpdate(d.id, d.driver_id, dateStr);
         });
-        console.log(`🔒 [Date Change] Protected ${priorityDeliveries.length} deliveries from smart refresh`);
       }
 
       // STEP 4: CRITICAL - Load fresh appUsers and process through poller
