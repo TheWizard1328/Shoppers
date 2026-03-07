@@ -3853,7 +3853,7 @@ function Dashboard() {
     };
     
     const handleSmartRefreshRestartedEvent = () => {
-      const updates=(event&&event.detail&&event.detail.updates)||null;const targetDriverId=(selectedDriverId&&selectedDriverId!=='all')?selectedDriverId:currentUser?.id;if(targetDriverId&&updates?.deliveries&&!updates.deliveries.some(d=>d?.driver_id===targetDriverId))return;
+      if((window._suppressAutoCenterUntil||0)>Date.now()) return; const updates=(event&&event.detail&&event.detail.updates)||null;const targetDriverId=(selectedDriverId&&selectedDriverId!=='all')?selectedDriverId:currentUser?.id;if(targetDriverId&&updates?.deliveries&&!updates.deliveries.some(d=>d?.driver_id===targetDriverId))return;
 
       // Auto-center to next delivery card
       setTimeout(() => {
