@@ -142,48 +142,53 @@ Deno.serve(async (req) => {
         // Focus selection ONLY on this store
         const storePickups = allPickups.filter(p => p.store_id === storeId && !p.patient_id);
 
-        // 1) Prefer an en_route pickup for THIS STORE that matches the primary slot
-        //    Driver is already heading there — assign new delivery to this pickup
-        let enRoutePickup = storePickups.find(p => p.status === 'en_route' && (p.ampm_deliveries || 'AM') === primarySlot);
-        if (!enRoutePickup) {
-            enRoutePickup = storePickups.find(p => p.status === 'en_route');
-        }
-        if (enRoutePickup) {
-            console.log(`✅ Using existing en_route pickup for store ${storeId}: ${enRoutePickup.id}, PUID: ${enRoutePickup.stop_id}`);
-            return Response.json({ puid: enRoutePickup.stop_id, pickupId: enRoutePickup.id, isNew: false, pickup: enRoutePickup });
-        }
+        // If skipReuseCheck is true (driver has 0 existing stops), skip all reuse logic and go straight to creation
+        if (!skipReuseCheck) {
+            // 1) Prefer an en_route pickup for THIS STORE that matches the primary slot
+            //    Driver is already heading there — assign new delivery to this pickup
+            let enRoutePickup = storePickups.find(p => p.status === 'en_route' && (p.ampm_deliveries || 'AM') === primarySlot);
+            if (!enRoutePickup) {
+                enRoutePickup = storePickups.find(p => p.status === 'en_route');
+            }
+            if (enRoutePickup) {
+                console.log(`✅ Using existing en_route pickup for store ${storeId}: ${enRoutePickup.id}, PUID: ${enRoutePickup.stop_id}`);
+                return Response.json({ puid: enRoutePickup.stop_id, pickupId: enRoutePickup.id, isNew: false, pickup: enRoutePickup });
+            }
 
-        // 2) Check for a pickup completed within the last 60 minutes — driver already picked up from this store recently
-        //    Assign new delivery to that pickup's PUID but flag that the delivery should be set to in_transit
-        const nowMs = Date.now();
-        const recentCompletedPickup = storePickups
-            .filter(p => p.status === 'completed' && (p.ampm_deliveries || 'AM') === primarySlot)
-            .sort((a, b) => new Date(b.actual_delivery_time || b.updated_date || 0) - new Date(a.actual_delivery_time || a.updated_date || 0))
-            .find(p => {
-                const completedAt = new Date(p.actual_delivery_time || p.updated_date || 0).getTime();
-                return completedAt > 0 && (nowMs - completedAt) < 60 * 60 * 1000; // within 60 minutes
-            });
+            // 2) Check for a pickup completed within the last 60 minutes — driver already picked up from this store recently
+            //    Assign new delivery to that pickup's PUID but flag that the delivery should be set to in_transit
+            const nowMs = Date.now();
+            const recentCompletedPickup = storePickups
+                .filter(p => p.status === 'completed' && (p.ampm_deliveries || 'AM') === primarySlot)
+                .sort((a, b) => new Date(b.actual_delivery_time || b.updated_date || 0) - new Date(a.actual_delivery_time || a.updated_date || 0))
+                .find(p => {
+                    const completedAt = new Date(p.actual_delivery_time || p.updated_date || 0).getTime();
+                    return completedAt > 0 && (nowMs - completedAt) < 60 * 60 * 1000; // within 60 minutes
+                });
 
-        if (recentCompletedPickup) {
-            console.log(`✅ Using recently completed pickup (within 60min) for store ${storeId}: ${recentCompletedPickup.id}, PUID: ${recentCompletedPickup.stop_id} — delivery should be in_transit`);
-            return Response.json({ 
-                puid: recentCompletedPickup.stop_id, 
-                pickupId: recentCompletedPickup.id, 
-                isNew: false, 
-                pickup: recentCompletedPickup,
-                deliveryStatus: 'in_transit'
-            });
-        }
+            if (recentCompletedPickup) {
+                console.log(`✅ Using recently completed pickup (within 60min) for store ${storeId}: ${recentCompletedPickup.id}, PUID: ${recentCompletedPickup.stop_id} — delivery should be in_transit`);
+                return Response.json({ 
+                    puid: recentCompletedPickup.stop_id, 
+                    pickupId: recentCompletedPickup.id, 
+                    isNew: false, 
+                    pickup: recentCompletedPickup,
+                    deliveryStatus: 'in_transit'
+                });
+            }
 
-        // 3) Check for any pending/other incomplete pickup for THIS STORE
-        const isIncomplete = (p) => !['en_route','completed','cancelled','returned'].includes(p.status);
-        let targetPickup = storePickups.find(p => isIncomplete(p) && (p.ampm_deliveries || 'AM') === primarySlot);
-        if (!targetPickup) {
-            targetPickup = storePickups.find(p => isIncomplete(p));
-        }
-        if (targetPickup) {
-            console.log(`✅ Using existing incomplete pickup for store ${storeId}: ${targetPickup.id}, PUID: ${targetPickup.stop_id}`);
-            return Response.json({ puid: targetPickup.stop_id, pickupId: targetPickup.id, isNew: false, pickup: targetPickup });
+            // 3) Check for any pending/other incomplete pickup for THIS STORE
+            const isIncomplete = (p) => !['en_route','completed','cancelled','returned'].includes(p.status);
+            let targetPickup = storePickups.find(p => isIncomplete(p) && (p.ampm_deliveries || 'AM') === primarySlot);
+            if (!targetPickup) {
+                targetPickup = storePickups.find(p => isIncomplete(p));
+            }
+            if (targetPickup) {
+                console.log(`✅ Using existing incomplete pickup for store ${storeId}: ${targetPickup.id}, PUID: ${targetPickup.stop_id}`);
+                return Response.json({ puid: targetPickup.stop_id, pickupId: targetPickup.id, isNew: false, pickup: targetPickup });
+            }
+        } else {
+            console.log(`🆕 Skipping reuse check — driver has no existing stops, creating fresh pickup`);
         }
 
         // Policy: Only auto-create a new pickup when this is the FIRST staged delivery for the driver on this date
