@@ -116,8 +116,8 @@ Deno.serve(async (req) => {
     }
     console.log(`📋 [Step 1] Found ${codDeliveries.length} deliveries with CODs`);
 
-    // ======== STEP 2: Get Square transactions (payments) for last 7 days ========
-    console.log('💳 [Step 2] Fetching Square transactions...');
+    // ======== STEP 2: Get Square transactions (payments) for last 14 days ========
+    console.log('💳 [Step 2] Fetching Square transactions (expanding line items by quantity)...');
     const soldItems = [];
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
