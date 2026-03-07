@@ -3962,20 +3962,13 @@ function Dashboard() {
 
       if (dataSource === 'online') {
         // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
-        console.log(`🌐 [Date Change - ONLINE MODE] Fetching ALL drivers for ${dateStr}`);
         priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        // Update offline DB in background (don't wait)
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
       } else {
-        // OFFLINE MODE: Load ALL deliveries for the date from offline DB first; fallback to API
         priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-
         if (!priorityDeliveries || priorityDeliveries.length === 0) {
-          console.log('📥 [Date Change] Offline DB empty - fetching ALL from API');
           priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
-        } else {
-          console.log(`📦 [Date Change] Using ${priorityDeliveries.length} deliveries from offline DB`);
         }
       }
 
