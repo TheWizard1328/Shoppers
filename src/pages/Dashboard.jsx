@@ -1290,6 +1290,12 @@ function Dashboard() {
 
   // Filter drivers based on role - NEVER based on deliveries (except dispatcher)
   const driversList = useMemo(() => {
+    console.log('🔍 [DriversList] Building driver list...');
+    console.log(`   - appUsers count: ${appUsers?.length || 0}`);
+    console.log(`   - drivers prop count: ${drivers?.length || 0}`);
+    console.log(`   - currentUser role: ${currentUser?.app_roles?.join(', ') || 'none'}`);
+    
+    // CRITICAL: Build drivers from AppUsers ONLY (most reliable source)
     const driversSource = (appUsers || [])
       .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active')
       .map((au) => ({
@@ -1310,7 +1316,11 @@ function Dashboard() {
         return nameA.localeCompare(nameB);
       });
 
+    console.log(`✅ [DriversList] Found ${driversSource.length} active drivers from AppUsers`);
+
+    // ADMIN/DRIVER: Show ALL drivers (no filtering)
     if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) {
+      console.log(`   - Role: ${currentUser?.app_roles?.join('/')}, showing ALL ${driversSource.length} drivers`);
       return driversSource;
     }
 
@@ -1329,6 +1339,8 @@ function Dashboard() {
       const isSunday = dayOfWeek === 0;
       const isWeekday = !isSaturday && !isSunday;
       
+      console.log(`   - Selected day: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]}`);
+      
       // Add drivers assigned to store slots for THIS DAY ONLY
       dispatcherStores.forEach(store => {
         if (isSaturday) {
@@ -1344,6 +1356,8 @@ function Dashboard() {
         }
       });
       
+      console.log(`   - Found ${assignedDriverIds.size} drivers assigned to slots for this day`);
+      
       // CRITICAL: Also add drivers who have ANY deliveries/pickups for dispatcher's stores on selected date
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       const driversWithDeliveries = deliveries
@@ -1354,9 +1368,11 @@ function Dashboard() {
       driversWithDeliveries?.forEach(driverId => assignedDriverIds.add(driverId));
       
       const filteredDrivers = driversSource.filter(d => assignedDriverIds.has(d.id));
+      console.log(`   - Role: dispatcher, showing ${filteredDrivers.length}/${driversSource.length} drivers (${assignedDriverIds.size - driversWithDeliveries?.length || 0} scheduled + ${driversWithDeliveries?.length || 0} with deliveries)`);
       return filteredDrivers;
     }
 
+    console.log(`   - Default: showing all ${driversSource.length} drivers`);
     return driversSource;
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
@@ -3904,8 +3920,11 @@ function Dashboard() {
     if (driversWithDeliveries.size === 1) {
       // Only 1 driver with stops - select that driver
       newDriverSelection = Array.from(driversWithDeliveries)[0];
+      console.log(`📊 [Dispatcher Auto-Select] 1 driver with stops - selecting ${newDriverSelection}`);
     } else {
+      // 0 or multiple drivers - select "All Drivers"
       newDriverSelection = 'all';
+      console.log(`📊 [Dispatcher Auto-Select] ${driversWithDeliveries.size} drivers with stops - selecting All Drivers`);
     }
     
     // Only update if selection should change
@@ -3922,14 +3941,21 @@ function Dashboard() {
   useEffect(() => {
     // Reset flag when driver/date changes
     setCardsReadyForFAB(false);
+    console.log('🔄 [FAB Position] Reset - waiting for cards to be measured...');
   }, [selectedDriverId, selectedDate]);
 
+  // CRITICAL: Enable FAB repositioning once stop cards are measured
   useEffect(() => {
     if (stopCardsBaseHeight > 0 && !cardsReadyForFAB) {
+      console.log(`📏 [FAB Position] Cards measured (${stopCardsBaseHeight}px) - moving FABs`);
       setCardsReadyForFAB(true);
     } else if (deliveriesWithStopOrder.length === 0 && !cardsReadyForFAB) {
+      // No cards to render - enable immediately
+      console.log('📏 [FAB Position] No cards to render - FABs stay at bottom');
       setCardsReadyForFAB(true);
     } else if (isAllDriversMode && !isDispatcher && !cardsReadyForFAB) {
+      // All Drivers mode (non-dispatcher) - cards are hidden, FABs stay at bottom
+      console.log('📏 [FAB Position] All Drivers mode (non-dispatcher) - no cards rendered, FABs stay at bottom');
       setCardsReadyForFAB(true);
     }
   }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB, isAllDriversMode, isDispatcher]);
@@ -3962,13 +3988,20 @@ function Dashboard() {
 
       if (dataSource === 'online') {
         // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
+        console.log(`🌐 [Date Change - ONLINE MODE] Fetching ALL drivers for ${dateStr}`);
         priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+        // Update offline DB in background (don't wait)
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
       } else {
+        // OFFLINE MODE: Load ALL deliveries for the date from offline DB first; fallback to API
         priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+
         if (!priorityDeliveries || priorityDeliveries.length === 0) {
+          console.log('📥 [Date Change] Offline DB empty - fetching ALL from API');
           priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
+        } else {
+          console.log(`📦 [Date Change] Using ${priorityDeliveries.length} deliveries from offline DB`);
         }
       }
 
@@ -3982,20 +4015,53 @@ function Dashboard() {
         
         // CRITICAL: Protect from smart refresh overwrite
         priorityDeliveries.forEach(d => {
-          if (d?.id) smartRefreshManager.registerPendingUpdate(d.id, d.driver_id, dateStr);
+          if (d?.id) {
+            smartRefreshManager.registerPendingUpdate(d.id, d.driver_id, dateStr);
+          }
         });
+        console.log(`🔒 [Date Change] Protected ${priorityDeliveries.length} deliveries from smart refresh`);
       }
 
+      // STEP 4: CRITICAL - Load fresh appUsers and process through poller
+      console.log('📍 [Date Change] Loading fresh appUsers and processing locations...');
       let freshAppUsers = appUsers;
+      
+      // Try to load from offline DB first, fallback to current appUsers if empty
       try {
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        if (offlineAppUsers && offlineAppUsers.length > 0) freshAppUsers = offlineAppUsers;
-      } catch (dbError) {}
+        if (offlineAppUsers && offlineAppUsers.length > 0) {
+          freshAppUsers = offlineAppUsers;
+          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from offline DB`);
+        } else {
+          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from context (offline DB empty)`);
+        }
+      } catch (dbError) {
+        console.warn('⚠️ [Date Change] Failed to load appUsers from offline DB, using context:', dbError.message);
+      }
       
+      // CRITICAL: Use fresh appUsers from offline DB, fallback to context, but ALWAYS pass valid data
       const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
+      
       if (appUsersToProcess && appUsersToProcess.length > 0) {
-        driverLocationPoller.processLocationData(currentUser, priorityDeliveries, drivers, stores, appUsersToProcess, new Date(dateStr + 'T00:00:00'), true, 'Dashboard', showAllDriverMarkers);
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: appUsersToProcess, forceAll: true } }));
+        driverLocationPoller.processLocationData(
+          currentUser, 
+          priorityDeliveries, 
+          drivers, 
+          stores, 
+          appUsersToProcess, 
+          new Date(dateStr + 'T00:00:00'), 
+          true,
+          'Dashboard',
+          showAllDriverMarkers
+        );
+        
+        // Dispatch location update event
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: appUsersToProcess, forceAll: true }
+        }));
+        console.log(`✅ [Date Change] Driver locations processed (${appUsersToProcess.length} users from ${freshAppUsers && freshAppUsers.length > 0 ? 'offline DB' : 'context'})`);
+      } else {
+        console.warn('⚠️ [Date Change] No appUsers available from offline DB or context - skipping location processing');
       }
 
       // STEP 5: Dispatch event to force map and stop cards to re-render
@@ -4030,6 +4096,7 @@ function Dashboard() {
             const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
             if (cardElement) {
               cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+              console.log('📍 [Date Change] Auto-centered to next delivery card');
             }
           }
         }, 300);
