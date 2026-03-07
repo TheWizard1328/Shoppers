@@ -1,25 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-// Determine enabled slots and assigned driver for a specific date
-function getAssignedSlotsForStoreOnDate(store, driverId, dateStr) {
-  const d = new Date(dateStr.replace(/-/g, '/'));
-  const dow = d.getDay(); // 0=Sun..6=Sat
-  const slots = [];
-
-  if (dow >= 1 && dow <= 5) {
-    if (store?.weekday_am_enabled && store?.weekday_am_driver_id === driverId) slots.push('AM');
-    if (store?.weekday_pm_enabled && store?.weekday_pm_driver_id === driverId) slots.push('PM');
-  } else if (dow === 6) {
-    if (store?.saturday_am_enabled && store?.saturday_am_driver_id === driverId) slots.push('AM');
-    if (store?.saturday_pm_enabled && store?.saturday_pm_driver_id === driverId) slots.push('PM');
-  } else {
-    if (store?.sunday_am_enabled && store?.sunday_am_driver_id === driverId) slots.push('AM');
-    if (store?.sunday_pm_enabled && store?.sunday_pm_driver_id === driverId) slots.push('PM');
-  }
-
-  return slots;
-}
-
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -27,16 +7,26 @@ Deno.serve(async (req) => {
     // Read payload (supports both direct invocation and automation event payload)
     const body = await req.json().catch(() => ({}));
 
-    // Detect if called by automation (entity event)
+    // Detect if called by automation (entity event on Delivery create)
     const isAutomation = !!body?.event && !!body?.event?.entity_name;
 
     let driverId = body?.driverId || null;
     let deliveryDate = body?.deliveryDate || null;
+    let storeId = body?.storeId || null;
+    let ampmDeliveries = body?.ampmDeliveries || null;
 
     if (isAutomation) {
       const created = body?.data || null;
       driverId = driverId || created?.driver_id || null;
       deliveryDate = deliveryDate || created?.delivery_date || null;
+      storeId = storeId || created?.store_id || null;
+      ampmDeliveries = ampmDeliveries || created?.ampm_deliveries || null;
+
+      // Skip if this IS a pickup (no patient_id means it's a pickup itself)
+      if (created && !created.patient_id) {
+        console.log('⏭️ [ensureDefaultPickups] Skipping — this delivery IS a pickup (no patient_id)');
+        return Response.json({ ensured: 0, message: 'Skipped: delivery is a pickup' });
+      }
     }
 
     if (!driverId || !deliveryDate) {
@@ -52,44 +42,30 @@ Deno.serve(async (req) => {
       api = base44.asServiceRole;
     }
 
-    // Fetch stores (active preferred)
-    const stores = await api.entities.Store.filter({}, '-updated_date', 1000);
+    // If we have a specific storeId (from automation or direct call), ensure pickup for just that store
+    if (storeId) {
+      console.log(`🔍 [ensureDefaultPickups] Ensuring pickup for store=${storeId}, date=${deliveryDate}, driver=${driverId}, ampm=${ampmDeliveries}`);
 
-    // Build list of (storeId, slot) where this driver is assigned for the date
-    const targets = [];
-    for (const store of stores) {
-      if (!store || store.status === 'inactive') continue;
-      const slots = getAssignedSlotsForStoreOnDate(store, driverId, deliveryDate);
-      for (const slot of slots) {
-        targets.push({ storeId: store.id, slot });
-      }
+      const result = await api.functions.invoke('ensurePickupForDelivery', {
+        storeId,
+        deliveryDate,
+        driverId,
+        ampmDeliveries: ampmDeliveries || null,
+        allowCreateIfMissing: true,
+      }).then(r => r?.data || r).catch((e) => ({ error: String(e) }));
+
+      const ensured = result && (result.pickupId || result.puid) ? 1 : 0;
+      console.log(`✅ [ensureDefaultPickups] Result: ensured=${ensured}, isNew=${result?.isNew}, pickupId=${result?.pickupId}`);
+      return Response.json({ ensured, details: [result] });
     }
 
-    if (targets.length === 0) {
-      return Response.json({ ensured: 0, message: 'No default pickups required for this driver/date' });
-    }
+    // Fallback: no specific storeId — this shouldn't normally happen from automation
+    // but kept for backwards compatibility with manual invocations
+    console.log('⚠️ [ensureDefaultPickups] No storeId provided, skipping');
+    return Response.json({ ensured: 0, message: 'No storeId provided' });
 
-    // Ensure a pickup exists for each assigned (store, slot) — but ONLY when starting a brand new route
-    // For safety, require an explicit flag to avoid recreating on every add
-    if (!body?.isNewRouteStart) {
-      return Response.json({ ensured: 0, message: 'Skipped: not a new route start' });
-    }
-
-    const results = await Promise.all(
-      targets.map(({ storeId, slot }) =>
-        api.functions.invoke('ensurePickupForDelivery', {
-          storeId,
-          deliveryDate,
-          driverId,
-          ampmDeliveries: slot,
-        }).then(r => r?.data || r).catch((e) => ({ error: String(e) }))
-      )
-    );
-
-    const createdOrFound = results.filter(r => r && (r.pickupId || r.puid || r.skipAutoCreate)).length;
-
-    return Response.json({ ensured: createdOrFound, details: results });
   } catch (error) {
+    console.error('❌ [ensureDefaultPickups] Error:', error.message);
     return Response.json({ error: error.message || 'Failed to ensure default pickups' }, { status: 500 });
   }
 });
