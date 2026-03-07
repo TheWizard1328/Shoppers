@@ -1,5 +1,5 @@
 // Lightweight page data reloader used by Layout
-// Purpose: prevent dynamic import failures and provide a safe, fast way to prep page-scoped data
+// Provides a safe, fast way to prep page-scoped data from offline DB
 
 import { format } from 'date-fns';
 
