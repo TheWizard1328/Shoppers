@@ -415,7 +415,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           dailyDriverEntry = { day: dayOfMonth, billable: 0, nonBillable: 0 };
           metrics.dailyDriverData[monthIndex + 1][delivery.driver_id].push(dailyDriverEntry);
         }
-        if (store?.pays_app_fees) dailyDriverEntry.billable++;
+        if (wasPayingOnDeliveryDate) dailyDriverEntry.billable++;
         else dailyDriverEntry.nonBillable++;
 
         if (delivery.store_id) {
