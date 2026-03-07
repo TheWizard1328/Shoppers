@@ -188,39 +188,18 @@ export default function DeliveryMap({
     return prevSafeUsersRef.current;
   })();
 
-  // CRITICAL: Initialize realtimeAppUsers from offline DB on mount
-  // This ensures we ALWAYS have AppUser data regardless of parent prop
   useEffect(() => {
-    const loadAppUsersFromOfflineDB = async () => {
+    (async () => {
       try {
         const { offlineDB } = await import('./../../components/utils/offlineDatabase');
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        
-        if (offlineAppUsers && offlineAppUsers.length > 0) {
-          console.log(`✅ [DeliveryMap] Loaded ${offlineAppUsers.length} AppUsers from offline DB on mount`);
-          setRealtimeAppUsers(offlineAppUsers);
-        } else {
-          console.warn(`⚠️ [DeliveryMap] No AppUsers in offline DB - will use prop when available`);
-        }
-      } catch (error) {
-        console.error('❌ [DeliveryMap] Failed to load AppUsers from offline DB:', error);
-      }
-    };
-    
-    // Load immediately on mount
-    loadAppUsersFromOfflineDB();
-  }, []); // Empty deps - only run on mount
+        if (offlineAppUsers?.length > 0) setRealtimeAppUsers(offlineAppUsers);
+      } catch (e) {}
+    })();
+  }, []);
 
-  // CRITICAL: Update from users prop OR listen to WebSocket events
-  // Don't clear realtimeAppUsers when users becomes temporarily empty during refresh
   useEffect(() => {
-    if (users && users.length > 0) {
-      console.log(`✅ [DeliveryMap] Updating realtimeAppUsers with ${users.length} users from prop`);
-      setRealtimeAppUsers(users);
-    } else if (users && users.length === 0 && realtimeAppUsers.length > 0) {
-      // Don't clear - preserve existing data during temporary empty state
-      console.warn(`⚠️ [DeliveryMap] users prop is empty but realtimeAppUsers has ${realtimeAppUsers.length} - preserving existing data`);
-    }
+    if (users?.length > 0) setRealtimeAppUsers(users);
   }, [users]);
 
   // State to force re-render of driverRoutes when deliveries update
