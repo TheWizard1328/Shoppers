@@ -157,13 +157,27 @@ Deno.serve(async (req) => {
 
             // 2) Check for a pickup completed within the last 60 minutes — driver already picked up from this store recently
             //    Assign new delivery to that pickup's PUID but flag that the delivery should be set to in_transit
-            const nowMs = Date.now();
+            //    IMPORTANT: actual_delivery_time is stored as LOCAL time (America/Edmonton) without timezone offset.
+            //    We must compare it against the current local time, not UTC Date.now().
+            const nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Edmonton' }));
+            const nowLocalMs = nowLocal.getTime();
             const recentCompletedPickup = storePickups
                 .filter(p => p.status === 'completed' && (p.ampm_deliveries || 'AM') === primarySlot)
                 .sort((a, b) => new Date(b.actual_delivery_time || b.updated_date || 0) - new Date(a.actual_delivery_time || a.updated_date || 0))
                 .find(p => {
-                    const completedAt = new Date(p.actual_delivery_time || p.updated_date || 0).getTime();
-                    return completedAt > 0 && (nowMs - completedAt) < 60 * 60 * 1000; // within 60 minutes
+                    // actual_delivery_time is local time string (e.g., "2026-03-07T11:05:00")
+                    // updated_date is ISO with timezone — parse both and use the local comparison
+                    let completedAtMs = 0;
+                    if (p.actual_delivery_time) {
+                        // Local time string — parse as-is (will be interpreted as local on comparison)
+                        completedAtMs = new Date(p.actual_delivery_time).getTime();
+                    } else if (p.updated_date) {
+                        // updated_date is UTC ISO — convert to local for fair comparison
+                        completedAtMs = new Date(new Date(p.updated_date).toLocaleString('en-US', { timeZone: 'America/Edmonton' })).getTime();
+                    }
+                    const diffMinutes = (nowLocalMs - completedAtMs) / (60 * 1000);
+                    console.log(`  🕐 Completed pickup ${p.id}: completedAt=${p.actual_delivery_time || p.updated_date}, diffMinutes=${diffMinutes.toFixed(1)}`);
+                    return completedAtMs > 0 && diffMinutes >= 0 && diffMinutes < 60;
                 });
 
             if (recentCompletedPickup) {
