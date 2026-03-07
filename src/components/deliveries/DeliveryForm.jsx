@@ -1,4 +1,3 @@
-
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1945,12 +1944,12 @@ export default function DeliveryForm({
 
     const newStagedDelivery = {
       ...formData,
-      time_window_start: patient?.time_window_start || '',
-      time_window_end: patient?.time_window_end || '',
+      time_window_start: formData.time_window_start || patient?.time_window_start || '',
+      time_window_end: formData.time_window_end || patient?.time_window_end || '',
       cod_total_amount_required: codAmount,
       puid: puid || '',
       ampm_deliveries: timeSlot,
-      status: 'Staged',
+      status: formData.status || 'Staged',
       _tempId: Date.now() + Math.random(),
       patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
       store_name: store.name,
