@@ -39,29 +39,16 @@ import {
 import DeliveryFormStaged from './DeliveryFormStaged';
 import BarcodeScanner from './BarcodeScanner';
 import { checkPayrollLock } from '../utils/payrollLockManager';
+import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
     <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
-    <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>
-      {label}
-    </Label>
+    <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label>
   </div>
 );
 
-
-const statusColorMap = {
-  'Staged': 'text-purple-700 bg-purple-100 border-purple-200',
-  'pending': 'text-slate-500 bg-slate-100 border-slate-200',
-  'Ready For Pickup': 'text-amber-700 bg-amber-100 border-amber-200',
-  'in_transit': 'text-blue-700 bg-blue-100 border-blue-100',
-  'completed': 'text-emerald-700 bg-emerald-100 border-emerald-200',
-  'failed': 'text-red-700 bg-red-100 border-red-200',
-  'cancelled': 'text-red-700 bg-red-100 border-red-200',
-  'en_route': 'text-blue-700 bg-blue-100 border-blue-100',
-  'returned': 'text-red-700 bg-red-100 border-red-200'
-};
-
+const statusColorMap = { 'Staged': 'text-purple-700 bg-purple-100 border-purple-200', 'pending': 'text-slate-500 bg-slate-100 border-slate-200', 'Ready For Pickup': 'text-amber-700 bg-amber-100 border-amber-200', 'in_transit': 'text-blue-700 bg-blue-100 border-blue-100', 'completed': 'text-emerald-700 bg-emerald-100 border-emerald-200', 'failed': 'text-red-700 bg-red-100 border-red-200', 'cancelled': 'text-red-700 bg-red-100 border-red-200', 'en_route': 'text-blue-700 bg-blue-100 border-blue-100', 'returned': 'text-red-700 bg-red-100 border-red-200' };
 const getStatusColorClass = (status) => statusColorMap[status] || 'text-slate-700 bg-slate-100 border-slate-200';
 
 const userHasRole = (user, role) => {
