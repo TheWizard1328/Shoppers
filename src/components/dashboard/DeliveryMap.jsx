@@ -906,18 +906,17 @@ export default function DeliveryMap({
       // Calculate dynamic top padding for stats card (actual measured height)
       const statsCard = document.querySelector('[data-stats-card]');
       const statsCardHeight = statsCard ? statsCard.getBoundingClientRect().height : 0;
-      // Keep top padding minimal — just enough to clear stats card
-      const dynamicTopPadding = statsCardHeight + 20;
+      // Large top padding pushes the marker DOWN on screen (toward lower half)
+      // This leaves room above for the popup balloon to open
+      const dynamicTopPadding = statsCardHeight + 250;
 
-      // Calculate dynamic bottom padding — this is where stop cards and popup balloon live
-      // More bottom padding pushes the marker UPWARD on screen (toward top half)
+      // Keep bottom padding minimal — just enough to clear stop cards
       const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
       let stopCardsActualHeight = 0;
       if (stopCardsFullContainer) {
         stopCardsActualHeight = stopCardsFullContainer.getBoundingClientRect().height;
       }
-      // Push marker above center: large bottom padding = stop cards + popup space + generous buffer
-      const dynamicBottomPadding = stopCardsActualHeight + 200;
+      const dynamicBottomPadding = stopCardsActualHeight + 20;
 
       // Create a small bounds box centered on the marker
       const markerBounds = L.latLngBounds([
