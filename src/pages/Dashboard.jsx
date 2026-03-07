@@ -4342,29 +4342,8 @@ function Dashboard() {
       setSelectedCardId(null);
       setHighlightedCardId(null);
 
-      // Restore previous map state (center, zoom, and bounds) and reactivate FAB
-      setTimeout(() => {
-        if (previousMapState) {
-          // CRITICAL: Restore all saved map state properties
-          if (previousMapState.center) {
-            setMapCenter(previousMapState.center);
-          }
-          if (previousMapState.zoom) {
-            setMapZoom(previousMapState.zoom);
-          }
-          if (previousMapState.shouldFitBounds) {
-            setShouldFitBounds(previousMapState.shouldFitBounds);
-          }
-          setPreviousMapState(null);
-        }
-
-        setIsMapViewLocked(true);
-        setMapViewTrigger((prev) => prev + 1);
-
-        setTimeout(() => {
-          setIsMapViewLocked(false);
-        }, 100);
-      }, 300);
+      // Clear previous map state without triggering any repositioning
+      setPreviousMapState(null);
 
       // Scroll to card with isNextDelivery=true
       setTimeout(() => {
