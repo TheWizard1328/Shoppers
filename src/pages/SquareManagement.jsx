@@ -777,7 +777,7 @@ export default function SquareManagement() {
 
           {/* Sync Status Indicator */}
           {syncStatus && (
-            <div className="mb-6 md:mb-8">
+            <div className="mb-2">
               <SyncStatusIndicator 
                 syncStatus={syncStatus}
                 isSyncing={isSyncing}
@@ -785,6 +785,15 @@ export default function SquareManagement() {
               />
             </div>
           )}
+
+          {/* Background Sync Progress Bar */}
+          {bgSyncProgress.stage !== 'idle' && (
+            <div className="mb-6 md:mb-8">
+              <BackgroundSyncProgressBar progress={bgSyncProgress} />
+            </div>
+          )}
+
+          {!syncStatus && bgSyncProgress.stage === 'idle' && <div className="mb-4" />}
 
           {lastCleanup && (
             <div className="mb-6 md:mb-8">
