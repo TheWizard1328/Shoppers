@@ -155,8 +155,7 @@ function Dashboard() {
   
   // Track if this is initial page load (not refresh)
   const isInitialPageLoadRef = useRef(true);
-  // Driver selection state - initialized from globalFilters, then overridden by user settings
-  const [selectedDriverId, setSelectedDriverId] = useState('all');
+  const [selectedDriverId, setSelectedDriverId] = useState(() => { const p = new URLSearchParams(window.location.search).get('driver'); return p || 'all'; });
   const [isExpanded, setIsExpanded] = useState(false);
   const [showRoutes, setShowRoutes] = useState(() => {
     const saved = localStorage.getItem('rxdeliver_show_routes');
