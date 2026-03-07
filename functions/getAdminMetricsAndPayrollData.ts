@@ -359,9 +359,12 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const dayOfMonth = date.getDate();
     const store = delivery.store_id ? storeMap.get(delivery.store_id) : null;
 
+    // CRITICAL: Check fee status using app_fee_history effective dates, not just current flag
+    const wasPayingOnDeliveryDate = store ? wasPayingFeesOnDate(store, delivery.delivery_date) : false;
+
     if (isBillableDelivery(delivery)) {
       metrics.monthlyData[monthIndex].total++;
-      if (store?.pays_app_fees) {
+      if (wasPayingOnDeliveryDate) {
         metrics.monthlyData[monthIndex].billable++;
         metrics.yearTotals.billable++;
       } else {
@@ -372,13 +375,13 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (!metrics.dailyDeliveryData[monthIndex + 1]) metrics.dailyDeliveryData[monthIndex + 1] = [];
       let dailyEntry = metrics.dailyDeliveryData[monthIndex + 1].find(d => d.day === dayOfMonth);
       if (dailyEntry) {
-        if (store?.pays_app_fees) dailyEntry.billable++;
+        if (wasPayingOnDeliveryDate) dailyEntry.billable++;
         else dailyEntry.nonBillable++;
       } else {
         metrics.dailyDeliveryData[monthIndex + 1].push({
           day: dayOfMonth,
-          billable: store?.pays_app_fees ? 1 : 0,
-          nonBillable: store?.pays_app_fees ? 0 : 1,
+          billable: wasPayingOnDeliveryDate ? 1 : 0,
+          nonBillable: wasPayingOnDeliveryDate ? 0 : 1,
         });
       }
 
