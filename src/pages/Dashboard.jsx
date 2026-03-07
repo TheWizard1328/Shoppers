@@ -7793,8 +7793,8 @@ function Dashboard() {
                 // CRITICAL: Process driver locations through poller to update ALL markers
                 console.log('📍 [Pull to Sync] Processing driver locations through poller for marker updates...');
                 
-                // Fallback to context appUsers if pull-to-sync didn't return any
-                const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
+                // CRITICAL: Filter junk offline DB records (user_id=undefined) before processing — fallback to context
+                const appUsersToProcess = ((freshAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined').length > 0) ? freshAppUsers.filter(u => u?.user_id && u.user_id !== 'undefined') : appUsers;
                 
                 if (appUsersToProcess && appUsersToProcess.length > 0) {
                   driverLocationPoller.processLocationData(
