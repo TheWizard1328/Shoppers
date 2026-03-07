@@ -8,7 +8,6 @@ import MapSection from "@/components/dashboard/MapSection";
 import StopCardsSection from "@/components/dashboard/StopCardsSection";
 import FABControls from "@/components/dashboard/FABControls";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
-import PerformanceStatsBridge from "@/components/dashboard/PerformanceStatsBridge";
 
 export default function DashboardView({
   // User & roles
@@ -160,9 +159,6 @@ export default function DashboardView({
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
-
-      {/* Performance stats bridge: calls getDeliveryStats and surfaces performanceStats */}
-      <PerformanceStatsBridge currentUser={currentUser} selectedDriverId={selectedDriverId} />
 
       {isSnapshotModeActive && isAppOwner(currentUser) &&
         <div className="absolute left-0 top-0 bottom-0 z-[250]">
