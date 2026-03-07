@@ -38,7 +38,7 @@ export default function StopCardsSection({
       </AnimatePresence>
 
       <div
-        className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
+        className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-none"
         style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
         onWheel={e => { e.currentTarget.scrollLeft += e.deltaY; }}
         onTouchStart={() => {}}
