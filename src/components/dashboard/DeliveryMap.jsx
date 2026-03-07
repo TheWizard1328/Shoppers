@@ -1327,11 +1327,7 @@ export default function DeliveryMap({
       // RULE 3: Hide home marker if some stops are complete and some are incomplete (mid-route)
     });
 
-    // CRITICAL: If no drivers found but we have cached markers, preserve them during refresh
-    // This prevents flickering when deliveries array briefly becomes empty during smart refresh
-    if (driversToShowHome.size === 0 && prevDriverHomeMarkersRef.current.length > 0) {
-      return prevDriverHomeMarkersRef.current;
-    }
+    if (driversToShowHome.size === 0 && prevDriverHomeMarkersRef.current.length > 0) return prevDriverHomeMarkersRef.current;
 
     const homeMarkers = [];
     driversToShowHome.forEach((driverId) => {
