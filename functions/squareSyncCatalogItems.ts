@@ -456,6 +456,65 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ======== STEP 6: Sync SquareTransaction entity to match active catalog items ========
+    console.log('💾 [Step 6] Syncing SquareTransaction entity with active catalog items...');
+
+    try {
+      // Get all existing pending SquareTransaction records
+      const existingTxs = await base44.asServiceRole.entities.SquareTransaction.filter({ status: 'pending' });
+      const existingByCatalogId = new Map();
+      for (const tx of existingTxs) {
+        if (tx.square_catalog_object_id) {
+          existingByCatalogId.set(tx.square_catalog_object_id, tx);
+        }
+      }
+
+      // Build set of active catalog object IDs
+      const activeCatalogIds = new Set(finalItems.map(fi => fi.catalog_object_id));
+
+      // Delete SquareTransaction records that are no longer in the catalog
+      let deletedTxCount = 0;
+      for (const tx of existingTxs) {
+        if (tx.square_catalog_object_id && !activeCatalogIds.has(tx.square_catalog_object_id)) {
+          await base44.asServiceRole.entities.SquareTransaction.delete(tx.id);
+          deletedTxCount++;
+        }
+      }
+
+      // Create/update SquareTransaction records for active catalog items
+      let createdTxCount = 0;
+      let updatedTxCount = 0;
+      for (const item of finalItems) {
+        const existing = existingByCatalogId.get(item.catalog_object_id);
+        const txData = {
+          square_catalog_object_id: item.catalog_object_id,
+          item_name: item.name,
+          amount: item.price_dollars,
+          amount_cents: item.price_cents,
+          type: 'collection',
+          status: 'pending',
+          delivery_id: item.delivery_id || existing?.delivery_id || item.catalog_object_id,
+          location_id: item.location_id,
+          store_id: item.store_id || existing?.store_id || null
+        };
+
+        if (existing) {
+          // Update if name or amount changed
+          if (existing.item_name !== item.name || existing.amount !== item.price_dollars || existing.location_id !== item.location_id) {
+            await base44.asServiceRole.entities.SquareTransaction.update(existing.id, txData);
+            updatedTxCount++;
+          }
+        } else {
+          await base44.asServiceRole.entities.SquareTransaction.create(txData);
+          createdTxCount++;
+        }
+      }
+
+      console.log(`💾 [Step 6] SquareTransaction sync: +${createdTxCount} created, ~${updatedTxCount} updated, -${deletedTxCount} removed`);
+    } catch (txSyncError) {
+      console.warn('⚠️ [Step 6] SquareTransaction sync failed (non-fatal):', txSyncError.message);
+    }
+
     return Response.json({
       success: true,
       itemCount: finalItems.length,
