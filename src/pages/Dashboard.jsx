@@ -1329,8 +1329,6 @@ function Dashboard() {
       const isSunday = dayOfWeek === 0;
       const isWeekday = !isSaturday && !isSunday;
       
-      console.log(`   - Selected day: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]}`);
-      
       // Add drivers assigned to store slots for THIS DAY ONLY
       dispatcherStores.forEach(store => {
         if (isSaturday) {
