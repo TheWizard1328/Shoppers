@@ -157,8 +157,10 @@ export default function PullToSync({
          (async () => {
            console.log(`👥 [Pull to Sync] Preserving AppUsers from offline DB (RLS-protected API)...`);
            const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-           console.log(`✅ [Pull to Sync] Using ${existingAppUsers?.length || 0} existing AppUsers from offline DB`);
-           return existingAppUsers || [];
+           // CRITICAL: Filter junk records that have undefined user_id (corrupted offline DB entries)
+           const validAppUsers = (existingAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined');
+           console.log(`✅ [Pull to Sync] Using ${validAppUsers.length}/${existingAppUsers?.length || 0} valid AppUsers from offline DB`);
+           return validAppUsers;
          })().catch((error) => {
            console.warn('⚠️ [Pull to Sync] AppUsers sync failed:', error.message);
            return [];
