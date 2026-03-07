@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
             driver_id: driverId,
             dispatcher_id: store?.dispatcher_id || null,
             ampm_deliveries: chosenSlot,
-            status: 'pending',
+            status: 'en_route',
             delivery_time_start,
             delivery_time_end,
             tracking_number: trackingNumber
