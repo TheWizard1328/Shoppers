@@ -26,8 +26,13 @@ Deno.serve(async (req) => {
         const ev = body.event;
         const delivery = body.data || await base44.entities.Delivery.get(ev.entity_id);
         if (delivery) {
-          const hasCard = Array.isArray(delivery.cod_payments) && delivery.cod_payments.some(p => p && (p.type === 'Debit' || p.type === 'Credit'));
-          const shouldDelete = delivery.status === 'failed' || (delivery.status === 'completed' && hasCard);
+          const hasCod = Number(delivery.cod_total_amount_required || 0) > 0;
+          // Delete catalog item for: failed, cancelled, or ANY completed delivery with COD
+          const shouldDelete = hasCod && (
+            delivery.status === 'failed' || 
+            delivery.status === 'cancelled' || 
+            delivery.status === 'completed'
+          );
           if (shouldDelete) {
             const stores = await base44.entities.Store.filter({ id: delivery.store_id });
             const store = stores?.[0];
