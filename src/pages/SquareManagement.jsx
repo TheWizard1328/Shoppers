@@ -408,81 +408,8 @@ export default function SquareManagement() {
     });
   };
 
-  // Auto-delete paid catalog items (runs whenever transactions update)
-  useEffect(() => {
-    if (catalogItems.length === 0 || soldCatalogItems.length === 0) {
-      return; // Nothing to clean up
-    }
-
-    const deletePaidItems = async () => {
-      const MAX_DELETE = 8;
-      const itemsToDelete = catalogItems.filter(item => hasBeenSoldInSquare(item) || item.is_sold).slice(0, MAX_DELETE);
-      
-      if (itemsToDelete.length === 0) {
-        return; // No paid items to delete
-      }
-
-      console.log(`🗑️ [SquareManagement] Auto-deleting ${itemsToDelete.length} paid catalog items...`);
-      
-      let deletedCount = 0;
-      for (const item of itemsToDelete) {
-        try {
-          const normalizedItemName = normalizeName(item.name);
-          const itemPriceCents = item.price_cents || Math.round((item.price_dollars || 0) * 100);
-          const relatedPayment = soldCatalogItems.find(p => {
-            const normalizedPaymentName = normalizeName(p.item_name);
-            const paymentPriceCents = Math.round((Number(p.amount) || 0) * 100);
-            return p.location_id === item.location_id &&
-              normalizedPaymentName === normalizedItemName &&
-              Math.abs(paymentPriceCents - itemPriceCents) < 2;
-          });
-          
-          await base44.functions.invoke('squareDeleteCodItem', {
-            catalogObjectId: item.catalog_object_id,
-            transactionId: relatedPayment?.square_transaction_id || null,
-            reason: 'auto_delete_paid'
-          });
-          
-          deletedCount++;
-          console.log(`✓ Auto-deleted paid item: ${item.name}`);
-          await new Promise(resolve => setTimeout(resolve, 700)); // Rate limiting (reduced burst)
-        } catch (err) {
-          console.warn(`Failed to auto-delete paid item ${item.name}:`, err);
-        }
-      }
-
-      if (deletedCount > 0) {
-        // Refresh catalog after deletion with 10m throttle lock (local + backend)
-        try {
-          const lockKey = 'square_catalog_refresh_lock_until';
-          const now = Date.now();
-          const until = Number(localStorage.getItem(lockKey) || 0);
-          if (now < until) {
-            console.log('⏰ [SquareManagement] Refresh locked; skipping immediate catalog refresh');
-          } else {
-            localStorage.setItem(lockKey, String(now + 10 * 60 * 1000));
-            const refreshResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
-            const refreshData = refreshResponse?.data || refreshResponse;
-            
-            if (refreshData?.success) {
-              const updatedItems = refreshData.items || [];
-              setCatalogItems(updatedItems);
-              console.log(`✓ Auto-delete complete: removed ${deletedCount} paid items, ${updatedItems.length} remaining`);
-              toast.success(`Automatically removed ${deletedCount} paid COD ${deletedCount === 1 ? 'item' : 'items'}`);
-            } else if (refreshData?.lock_active) {
-              console.log('⏰ [SquareManagement] Backend lock active; will rely on scheduled/TTL refresh');
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to refresh catalog after auto-delete:', err);
-        }
-      }
-    };
-
-    // Debounce the delete operation to avoid rapid successive calls
-    const timeoutId = setTimeout(deletePaidItems, 500);
-    return () => clearTimeout(timeoutId);
-  }, [soldCatalogItems]);
+  // NOTE: Auto-deletion of paid catalog items is handled by the backend (squareSyncCatalogItems)
+  // No frontend auto-delete needed — the backend already removes sold items from the catalog
 
   const confirmDelete = async () => {
     if (!itemToDelete) return;
