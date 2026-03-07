@@ -547,7 +547,7 @@ export default function SquareManagement() {
 
     const deletePaidItems = async () => {
       const MAX_DELETE = 8;
-      const itemsToDelete = catalogItems.filter(item => hasBeenSoldInSquare(item)).slice(0, MAX_DELETE);
+      const itemsToDelete = catalogItems.filter(item => hasBeenSoldInSquare(item) || item.is_sold).slice(0, MAX_DELETE);
       
       if (itemsToDelete.length === 0) {
         return; // No paid items to delete
@@ -558,11 +558,15 @@ export default function SquareManagement() {
       let deletedCount = 0;
       for (const item of itemsToDelete) {
         try {
-          const relatedPayment = soldCatalogItems.find(p => 
-            p.location_id === item.location_id &&
-            p.item_name === item.name &&
-            Math.abs(p.amount - (item.price_dollars || 0)) < 0.01
-          );
+          const normalizedItemName = normalizeName(item.name);
+          const itemPriceCents = item.price_cents || Math.round((item.price_dollars || 0) * 100);
+          const relatedPayment = soldCatalogItems.find(p => {
+            const normalizedPaymentName = normalizeName(p.item_name);
+            const paymentPriceCents = Math.round((Number(p.amount) || 0) * 100);
+            return p.location_id === item.location_id &&
+              normalizedPaymentName === normalizedItemName &&
+              Math.abs(paymentPriceCents - itemPriceCents) < 2;
+          });
           
           await base44.functions.invoke('squareDeleteCodItem', {
             catalogObjectId: item.catalog_object_id,
