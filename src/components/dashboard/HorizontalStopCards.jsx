@@ -394,7 +394,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
           <div 
             key={card.id} 
             id={`stop-card-${card.id}`} 
-            className="flex-shrink-0" 
+            className="flex-shrink-0 pointer-events-auto" 
             style={{ 
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal'
