@@ -2043,9 +2043,9 @@ function Dashboard() {
                     lastProximitySnapTimeRef.current = Date.now();
 
                     // Scroll to the associated card (map re-centering removed - was causing oscillation)
-                    const cardElement = document.getElementById(`stop-card-${delivery.id}`);
-                    if (cardElement) {
-                      cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    const nearbyCardElement = document.getElementById(`stop-card-${delivery.id}`);
+                    if (nearbyCardElement) {
+                      nearbyCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                     }
 
                     break; // Only zoom to first nearby stop
