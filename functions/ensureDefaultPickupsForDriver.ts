@@ -55,7 +55,38 @@ Deno.serve(async (req) => {
       }).then(r => r?.data || r).catch((e) => ({ error: String(e) }));
 
       const ensured = result && (result.pickupId || result.puid) ? 1 : 0;
-      console.log(`✅ [ensureDefaultPickups] Result: ensured=${ensured}, isNew=${result?.isNew}, pickupId=${result?.pickupId}`);
+      console.log(`✅ [ensureDefaultPickups] Result: ensured=${ensured}, isNew=${result?.isNew}, pickupId=${result?.pickupId}, deliveryStatus=${result?.deliveryStatus}`);
+
+      // If the pickup was recently completed, update the new delivery's PUID and set status to in_transit
+      if (isAutomation && result?.puid && result?.deliveryStatus === 'in_transit') {
+        const deliveryId = body?.event?.entity_id;
+        if (deliveryId) {
+          try {
+            await base44.asServiceRole.entities.Delivery.update(deliveryId, {
+              puid: result.puid,
+              status: 'in_transit'
+            });
+            console.log(`📦 [ensureDefaultPickups] Set delivery ${deliveryId} to in_transit with PUID=${result.puid} (pickup already completed)`);
+          } catch (updateErr) {
+            console.warn(`⚠️ [ensureDefaultPickups] Failed to update delivery status: ${updateErr.message}`);
+          }
+        }
+      }
+      // For en_route or new pickups, assign the PUID to the delivery
+      else if (isAutomation && result?.puid) {
+        const deliveryId = body?.event?.entity_id;
+        if (deliveryId) {
+          try {
+            await base44.asServiceRole.entities.Delivery.update(deliveryId, {
+              puid: result.puid
+            });
+            console.log(`📦 [ensureDefaultPickups] Assigned PUID=${result.puid} to delivery ${deliveryId}`);
+          } catch (updateErr) {
+            console.warn(`⚠️ [ensureDefaultPickups] Failed to assign PUID: ${updateErr.message}`);
+          }
+        }
+      }
+
       return Response.json({ ensured, details: [result] });
     }
 
