@@ -45,13 +45,13 @@ Deno.serve(async (req) => {
     // If we have a specific storeId (from automation or direct call), ensure pickup for just that store
     if (storeId) {
       // FIRST: Check if the driver has ANY existing stops for this date
-      // If 0 stops, this is the very first delivery — skip reuse logic and just create the pickup directly
+      // If 0 stops (besides the one that just triggered this), skip reuse logic and create pickup directly
       const existingStops = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: deliveryDate,
         driver_id: driverId
-      }, '-created_date', 1);
+      }, '-created_date', 5);
 
-      // The only stop that exists is the delivery that just triggered this automation
+      // The delivery that just triggered this automation is included in the results,
       // so if count <= 1, the driver had no prior stops — go straight to create
       const driverHasExistingStops = existingStops.length > 1;
 
