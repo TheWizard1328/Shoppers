@@ -100,6 +100,7 @@ export default function MapController({
       setVisibleBounds(bounds);
     },
     moveend: () => {
+      if ((window._suppressAutoCenterUntil || 0) > Date.now()) { return; }
       const center = mapInstance.getCenter();
       const newCenter = [center.lat, center.lng];
       
