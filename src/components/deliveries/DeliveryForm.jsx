@@ -1,3 +1,4 @@
+
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -3173,49 +3174,9 @@ export default function DeliveryForm({
         if (patientChanged) {
           try {
             console.log('🔄 [DeliveryForm] Syncing patient-specific changes to Patient entity:', formData.patient_id);
-            
-            // Calculate recurring_weekly_x4_day from weekly days
-            let weeklyX4Day = undefined;
-            if (formData.recurring_weekly_x4) {
-              if (formData.recurring_weekly_mon) weeklyX4Day = 'mon';
-              else if (formData.recurring_weekly_tue) weeklyX4Day = 'tue';
-              else if (formData.recurring_weekly_wed) weeklyX4Day = 'wed';
-              else if (formData.recurring_weekly_thu) weeklyX4Day = 'thu';
-              else if (formData.recurring_weekly_fri) weeklyX4Day = 'fri';
-              else if (formData.recurring_weekly_sat) weeklyX4Day = 'sat';
-              else if (formData.recurring_weekly_sun) weeklyX4Day = 'sun';
-            }
-
-            await updatePatientLocal(formData.patient_id, {
-              full_name: formData.patient_name,
-              phone: formData.patient_phone,
-              unit_number: formData.unit_number,
-              notes: formData.delivery_instructions,
-              mailbox_ok: formData.mailbox_ok,
-              call_upon_arrival: formData.call_upon_arrival,
-              ring_bell: formData.ring_bell,
-              dont_ring_bell: formData.dont_ring_bell,
-              back_door: formData.back_door,
-              signature_needed: formData.signature_needed,
-              recurring: formData.recurring,
-              recurring_daily: formData.recurring_daily,
-              recurring_weekly_mon: formData.recurring_weekly_mon,
-              recurring_weekly_tue: formData.recurring_weekly_tue,
-              recurring_weekly_wed: formData.recurring_weekly_wed,
-              recurring_weekly_thu: formData.recurring_weekly_thu,
-              recurring_weekly_fri: formData.recurring_weekly_fri,
-              recurring_weekly_sat: formData.recurring_weekly_sat,
-              recurring_weekly_sun: formData.recurring_weekly_sun,
-              recurring_biweekly: formData.recurring_biweekly,
-              recurring_weekly_x4: formData.recurring_weekly_x4,
-              recurring_weekly_x4_day: weeklyX4Day,
-              recurring_monthly: formData.recurring_monthly,
-              recurring_bimonthly: formData.recurring_bimonthly
-            });
+            await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
             console.log('✅ [DeliveryForm] Patient entity updated');
-          } catch (error) {
-            console.error('❌ [DeliveryForm] Failed to sync patient changes:', error);
-          }
+          } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
         }
       }
 
