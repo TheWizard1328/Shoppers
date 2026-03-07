@@ -3849,7 +3849,7 @@ function Dashboard() {
       }, 300);
 
       // CRITICAL: Use unified FAB reactivation logic
-      reactivateFAB('Smart Refresh Complete');
+      // reactivateFAB('Smart Refresh Complete');
     };
     
     const handleSmartRefreshRestartedEvent = () => {
@@ -7312,7 +7312,6 @@ function Dashboard() {
 
       // STEP 6: Clear and recalculate blue polyline
       console.log('🔵 [START] Step 7: Updating blue polyline...');
-      setCurrentToNextPolyline(null);
 
       try {
         const driver = users.find((u) => u && u.id === driverId);
