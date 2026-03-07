@@ -161,17 +161,29 @@ Deno.serve(async (req) => {
             if (!order?.line_items) continue;
 
             for (const lineItem of order.line_items) {
-              soldItems.push({
-                catalog_object_id: lineItem.catalog_object_id || null,
-                location_id: payment.location_id,
-                payment_id: payment.id,
-                square_transaction_id: payment.id,
-                order_id: payment.order_id,
-                item_name: lineItem.name,
-                amount: lineItem.base_price_money?.amount ? lineItem.base_price_money.amount / 100 : 0,
-                payment_date: payment.created_at,
-                payment_method: payment.payment_source_type || 'UNKNOWN'
-              });
+              // Each line item may have quantity > 1, meaning multiple catalog items sold in one transaction
+              const quantity = parseInt(lineItem.quantity || '1', 10);
+              const unitPriceCents = lineItem.base_price_money?.amount || 0;
+              const variationCatalogId = lineItem.catalog_object_id || null;
+              // Also check catalog_version and variation data for deeper matching
+              const itemName = lineItem.name || 'Unknown';
+
+              // Emit one sold record per unit quantity so the soldLookup correctly counts each sold item
+              for (let q = 0; q < quantity; q++) {
+                soldItems.push({
+                  catalog_object_id: variationCatalogId,
+                  location_id: payment.location_id,
+                  payment_id: payment.id,
+                  square_transaction_id: payment.id,
+                  order_id: payment.order_id,
+                  item_name: itemName,
+                  amount: unitPriceCents / 100,
+                  amount_cents: unitPriceCents,
+                  payment_date: payment.created_at,
+                  payment_method: payment.payment_source_type || 'UNKNOWN',
+                  quantity_index: q // track which unit this is within the line item
+                });
+              }
             }
           } catch (e) {
             console.warn(`Order fetch failed: ${e.message}`);
