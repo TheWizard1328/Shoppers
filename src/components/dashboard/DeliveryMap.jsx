@@ -919,30 +919,19 @@ export default function DeliveryMap({
       }
       const dynamicBottomPadding = stopCardsActualHeight + 20;
 
-      // Create a small bounds box centered on the marker
-      const markerBounds = L.latLngBounds([
-        [marker.latitude, marker.longitude],
-        [marker.latitude, marker.longitude]
-      ]);
+      // Calculate vertical offset to push marker into lower portion of visible area
+      // We offset the center point UPWARD so the marker ends up below center
+      const mapSize = map.getSize();
+      const totalVerticalPadding = dynamicTopPadding + dynamicBottomPadding;
+      const visibleHeight = mapSize.y - totalVerticalPadding;
+      // Shift center up by ~30% of visible height so marker sits in lower third
+      const offsetPixels = visibleHeight * 0.3;
+      const markerPoint = map.project([marker.latitude, marker.longitude], targetZoom);
+      const offsetCenter = map.unproject([markerPoint.x, markerPoint.y - offsetPixels], targetZoom);
 
-      // Large top padding pushes marker toward the bottom of the visible area
-      // Small bottom padding keeps it just above the stop cards
-      const panOptions = {
-        paddingTopLeft: [60, dynamicTopPadding],
-        paddingBottomRight: [60, dynamicBottomPadding],
-        animate: true,
-        duration: 0.6,
-        maxZoom: targetZoom
-      };
-
-        (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(markerBounds, panOptions);
-      
-      // Set the zoom to target zoom level
-      setTimeout(() => {
-        if (map && map.getZoom && map._loaded && map._mapPane && map._mapPane._leaflet_pos && map.getZoom() < targetZoom) {
-          map.setZoom(targetZoom, { animate: true, duration: 0.3 });
-        }
-      }, 600);
+      if (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) {
+        map.setView(offsetCenter, targetZoom, { animate: true, duration: 0.6 });
+      }
       
       // Get marker element and open popup immediately
       const markerElement = markerRefs.current[`${markerType}-${marker.id}`];
