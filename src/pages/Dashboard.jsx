@@ -4030,7 +4030,6 @@ function Dashboard() {
             const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
             if (cardElement) {
               cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              console.log('📍 [Date Change] Auto-centered to next delivery card');
             }
           }
         }, 300);
