@@ -1724,7 +1724,6 @@ export default function DeliveryMap({
   return (
     <div className="absolute inset-0">
       <MapContainer
-        key={`delivery-map-container-${routeRenderKey}`}
         center={center || [53.5461, -113.4938]}
         zoom={zoom || (safeDeliveries.length === 0 ? 11 : 12)}
         maxZoom={18}
