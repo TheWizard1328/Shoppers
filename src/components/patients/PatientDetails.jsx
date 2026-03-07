@@ -14,7 +14,8 @@ import {
   ExternalLink,
   XCircle,
   FileText,
-  Users } from
+  Users,
+  Eye } from
 "lucide-react";
 import { format } from "date-fns";
 
