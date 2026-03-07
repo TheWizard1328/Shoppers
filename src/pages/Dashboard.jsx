@@ -1344,8 +1344,6 @@ function Dashboard() {
         }
       });
       
-      console.log(`   - Found ${assignedDriverIds.size} drivers assigned to slots for this day`);
-      
       // CRITICAL: Also add drivers who have ANY deliveries/pickups for dispatcher's stores on selected date
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       const driversWithDeliveries = deliveries
