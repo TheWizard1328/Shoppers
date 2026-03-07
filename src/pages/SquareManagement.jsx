@@ -197,9 +197,11 @@ export default function SquareManagement() {
         setLocationIds(syncedLocationIds);
 
         // INSTANT LOAD: Read SquareTransaction entity (pending = active catalog items)
+        let hasEntityData = false;
         try {
           const pendingTxs = await base44.entities.SquareTransaction.filter({ status: 'pending' });
           if (pendingTxs && pendingTxs.length > 0) {
+            hasEntityData = true;
             // Convert SquareTransaction records to catalog item format for display
             const txAsItems = pendingTxs.map(tx => ({
               catalog_object_id: tx.square_catalog_object_id || tx.id,
@@ -229,19 +231,12 @@ export default function SquareManagement() {
           console.warn('⚠️ [SquareManagement] Failed to load SquareTransaction entity:', txErr.message);
         }
 
-        // Also try offline cache as secondary fallback (if entity load failed)
-        let hasEntityData = false;
-        try {
-          const pendingCheck = await base44.entities.SquareTransaction.filter({ status: 'pending' });
-          hasEntityData = pendingCheck && pendingCheck.length > 0;
-        } catch (_) {}
-
+        // Offline cache fallback if entity load returned nothing
         if (!hasEntityData) {
           const [offlineCatalog, offlinePayments] = await Promise.all([
             getCatalogItemsOffline(),
             getPaymentTransactionsOffline()
           ]);
-
           if (offlineCatalog.length > 0) {
             setCatalogItems(offlineCatalog);
             setSoldCatalogItems(offlinePayments);
