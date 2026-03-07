@@ -2022,22 +2022,11 @@ export default function Layout({ children, currentPageName }) {
     if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
 
     const reloadPageData = async () => {
-      console.log(`🔄 [Layout] Page changed to ${currentPageName} - reloading data from offline DB...`);
-      
-      const { pageDataReloader } = await import('./components/utils/pageDataReloader');
-      
-      const filters = {
-        selectedDate: globalFilters.getSelectedDate(),
-        selectedCityId: globalFilters.getSelectedCityId(),
-        selectedDriverId: globalFilters.getSelectedDriverId(),
-        currentUser: currentUser
-      };
-      
-      // Note: pageDataReloader returns page-filtered data, but we keep global state as full monthly dataset
-      // Individual pages filter data locally, so no need to update global state here
-      const reloadedData = await pageDataReloader.reloadPageData(currentPageName, filters);
-      
-      console.log(`✅ [Layout] Page data ready for ${currentPageName}`);
+      try {
+        const mod = await import('./components/utils/pageDataReloader');
+        const filters = { selectedDate: globalFilters.getSelectedDate(), selectedCityId: globalFilters.getSelectedCityId(), selectedDriverId: globalFilters.getSelectedDriverId(), currentUser };
+        await mod.pageDataReloader.reloadPageData(currentPageName, filters);
+      } catch (_) { /* non-critical — pages filter data locally */ }
     };
 
     reloadPageData();
