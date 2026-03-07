@@ -3844,22 +3844,7 @@ function Dashboard() {
     };
     
     const handleSmartRefreshRestartedEvent = () => {
-      if((window._suppressAutoCenterUntil||0)>Date.now()) return; const updates=(event&&event.detail&&event.detail.updates)||null;const targetDriverId=(selectedDriverId&&selectedDriverId!=='all')?selectedDriverId:currentUser?.id;if(targetDriverId&&updates?.deliveries&&!updates.deliveries.some(d=>d?.driver_id===targetDriverId))return;
-
-      // Auto-center to next delivery card
-      setTimeout(() => {
-        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-        if (nextCard) {
-          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('📍 [Smart Refresh Restarted] Auto-centered to next delivery card');
-          }
-        }
-      }, 300);
-
-      // CRITICAL: Use unified FAB reactivation logic
-      reactivateFAB('Smart Refresh Restarted');
+      // No map repositioning on smart refresh restart - user controls map manually
     };
 
     window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
