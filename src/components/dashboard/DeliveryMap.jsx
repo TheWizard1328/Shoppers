@@ -58,6 +58,8 @@ const ZOOM_LEVELS = {
 // Shared finished statuses array
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
+import { createSimpleCircleIcon, createStoreIcon, createDeliveryIcon, createLiveLocationDot, createHomeIcon } from './MapIcons';
+
 // Generate consistent driver color based on driver's sort_order
 // EXPORT this function so it can be imported by Dashboard.jsx
 export const getDriverColor = (driver) => {
@@ -313,53 +315,22 @@ export default function DeliveryMap({
 
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
 
-  // CRITICAL: Load AppUser data for ALL drivers with deliveries on selected date
-  // This ensures Type 1 polylines for other drivers can access fresh location data
   useEffect(() => {
-    const loadAllDriverAppUsers = async () => {
-      if (!selectedDate || safeDeliveries.length === 0) return;
-
+    if (!selectedDate || !safeDeliveries.length) return;
+    (async () => {
       try {
-        // Get all unique driver IDs from deliveries (including other drivers)
-        const uniqueDriverIds = new Set(
-          [...safeDeliveries, ...otherDriverDeliveries]
-            .filter(d => d && d.driver_id)
-            .map(d => d.driver_id)
-        );
-
-        if (uniqueDriverIds.size === 0) return;
-
-        console.log(`📥 [DeliveryMap] Loading AppUser data for ${uniqueDriverIds.size} drivers with deliveries...`);
-
-        // Fetch AppUser for each driver ID
+        const ids = new Set([...safeDeliveries,...otherDriverDeliveries].filter(d=>d?.driver_id).map(d=>d.driver_id));
+        if (!ids.size) return;
         const { offlineDB } = await import('./../../components/utils/offlineDatabase');
-        const allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-
-        if (!allAppUsers || allAppUsers.length === 0) {
-          console.warn(`⚠️ [DeliveryMap] No AppUsers in offline DB - Type 1 polylines may use stale data`);
-          return;
-        }
-
-        // Merge with existing realtimeAppUsers - add any missing drivers
+        const all = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        if (!all?.length) return;
         setRealtimeAppUsers(prev => {
-          const existingMap = new Map(prev.map(u => [u.id, u]));
-          
-          allAppUsers.forEach(appUser => {
-            if (uniqueDriverIds.has(appUser.id) && !existingMap.has(appUser.id)) {
-              existingMap.set(appUser.id, appUser);
-            }
-          });
-
-          const merged = Array.from(existingMap.values());
-          console.log(`✅ [DeliveryMap] Loaded AppUsers for all delivery drivers: ${merged.length} total`);
-          return merged;
+          const m = new Map(prev.map(u=>[u.id,u]));
+          all.forEach(u => { if (ids.has(u.id) && !m.has(u.id)) m.set(u.id,u); });
+          return Array.from(m.values());
         });
-      } catch (error) {
-        console.error('❌ [DeliveryMap] Failed to load all driver AppUsers:', error);
-      }
-    };
-
-    loadAllDriverAppUsers();
+      } catch (e) {}
+    })();
   }, [selectedDate, safeDeliveries.length, otherDriverDeliveries.length]);
 
   // CRITICAL: Listen for deliveriesImported AND deliveriesUpdated events to refresh other drivers' markers
@@ -1371,20 +1342,9 @@ export default function DeliveryMap({
       }
     });
 
-    // CRITICAL: Only update if home markers actually changed to prevent blinking
-    const newKey = homeMarkers.map(m => `${m.id}:${m.latitude}:${m.longitude}`).join('|');
-    const prevKey = prevDriverHomeMarkersRef.current.map(m => `${m.id}:${m.latitude}:${m.longitude}`).join('|');
-    
-    if (newKey === prevKey && prevDriverHomeMarkersRef.current.length > 0) {
-      return prevDriverHomeMarkersRef.current;
-    }
-    
-    // CRITICAL: If new markers are empty but we had markers before, preserve them
-    // This handles the case where deliveries briefly become empty during refresh
-    if (homeMarkers.length === 0 && prevDriverHomeMarkersRef.current.length > 0) {
-      return prevDriverHomeMarkersRef.current;
-    }
-    
+    const newKey = homeMarkers.map(m=>`${m.id}:${m.latitude}:${m.longitude}`).join('|');
+    if (newKey === prevDriverHomeMarkersRef.current.map(m=>`${m.id}:${m.latitude}:${m.longitude}`).join('|') && prevDriverHomeMarkersRef.current.length > 0) return prevDriverHomeMarkersRef.current;
+    if (homeMarkers.length === 0 && prevDriverHomeMarkersRef.current.length > 0) return prevDriverHomeMarkersRef.current;
     prevDriverHomeMarkersRef.current = homeMarkers;
     return homeMarkers;
   // CRITICAL: Use minimal, stable dependencies to prevent blinking
