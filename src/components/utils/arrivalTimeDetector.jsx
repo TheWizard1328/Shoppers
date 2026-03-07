@@ -43,7 +43,49 @@ class ArrivalTimeDetector {
   }
 
   /**
-   * Process location update and detect arrivals
+   * Refresh the offline data cache if stale or driver/date changed.
+   * CRITICAL: Reads from IndexedDB only — zero live API calls.
+   */
+  async _refreshCacheIfNeeded(driverId, deliveryDate) {
+    const now = Date.now();
+    const driverOrDateChanged = driverId !== this._lastDriverId || deliveryDate !== this._lastDeliveryDate;
+    const cacheExpired = (now - this._lastCacheTime) > this._cacheMaxAge;
+
+    if (!driverOrDateChanged && !cacheExpired && this._cachedDeliveries) {
+      return; // Cache still fresh
+    }
+
+    try {
+      const { offlineDB } = await import('./offlineDatabase');
+
+      // Load deliveries for this driver+date from offline DB
+      const allDeliveriesForDate = await offlineDB.getByIndex(
+        offlineDB.STORES.DELIVERIES,
+        'delivery_date',
+        deliveryDate
+      );
+      this._cachedDeliveries = (allDeliveriesForDate || []).filter(d => d && d.driver_id === driverId);
+
+      // Load all patients and stores from offline DB
+      this._cachedPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      this._cachedStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+
+      // Load AppUser for driver status check from offline DB
+      const allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      this._cachedAppUser = (allAppUsers || []).find(u => u && u.user_id === driverId) || null;
+
+      this._lastCacheTime = now;
+      this._lastDriverId = driverId;
+      this._lastDeliveryDate = deliveryDate;
+    } catch (error) {
+      console.warn('⚠️ [ArrivalDetector] Failed to refresh offline cache:', error.message);
+    }
+  }
+
+  /**
+   * Process location update and detect arrivals.
+   * Uses only offline DB for coordinate lookups — the only network call is
+   * Delivery.update when an arrival is confirmed after 30+ seconds stationary.
    */
   async processLocationUpdate(latitude, longitude, driverId, deliveryDate) {
     if (!latitude || !longitude || !driverId || !deliveryDate) {
@@ -51,29 +93,27 @@ class ArrivalTimeDetector {
     }
 
     try {
-      const allowedStatuses = ['en_route','in_transit'];
-      // Verify driver is active (avoid recording when off duty)
-      const appUsers = await base44.entities.AppUser.filter({ user_id: driverId });
-      const appUser = appUsers?.[0];
-      const activeDriverStates = ['on_duty','on_break','online'];
+      // CRITICAL: Refresh cache from offline DB only (no live API calls)
+      await this._refreshCacheIfNeeded(driverId, deliveryDate);
+
+      const allowedStatuses = ['en_route', 'in_transit'];
+
+      // Check driver status from cached offline data
+      const appUser = this._cachedAppUser;
+      const activeDriverStates = ['on_duty', 'on_break', 'online'];
       if (appUser && !activeDriverStates.includes(appUser.driver_status)) {
         this.resetStationary();
         return;
       }
-      // Fetch driver's deliveries for the day
-      const deliveries = await base44.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      });
 
-      if (!deliveries || deliveries.length === 0) {
+      const deliveries = this._cachedDeliveries || [];
+      if (deliveries.length === 0) {
         this.resetStationary();
         return;
       }
 
-      // Get patients and stores for location lookup
-      const patients = await base44.entities.Patient.list();
-      const stores = await base44.entities.Store.list();
+      const patients = this._cachedPatients || [];
+      const stores = this._cachedStores || [];
 
       // 1) PICKUPS-ONLY RULE
       // Eligible pickups: store pickups (no patient_id), non-finished, and both arrival_time & actual_delivery_time empty
