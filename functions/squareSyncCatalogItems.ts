@@ -12,23 +12,49 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
-
     if (!accessToken) {
       return Response.json({ error: 'Square credentials not configured' }, { status: 500 });
     }
 
-    // Get all SquareLocationConfigs to get all location IDs
+    // Parse optional body params
+    let body = {};
+    try { body = await req.json(); } catch {}
+    const skipLock = body?.skipLock === true;
+
+    // Get all SquareLocationConfigs
     const locationConfigs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' });
     const locationIds = locationConfigs.map(lc => lc.square_location_id).filter(Boolean);
-
-    // Also include the default location if set
     const defaultLocationId = Deno.env.get('SQUARE_LOCATION_ID');
     if (defaultLocationId && !locationIds.includes(defaultLocationId)) {
       locationIds.push(defaultLocationId);
     }
+    if (locationIds.length === 0) {
+      return Response.json({ error: 'No Square locations configured' }, { status: 400 });
+    }
 
-    // Build store abbreviation → locationId map
+    // TTL lock (5 minutes) — prevents concurrent runs
+    if (!skipLock) {
+      try {
+        const lockKey = 'square:catalog:lock';
+        const now = Date.now();
+        const locks = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: lockKey }, '-updated_date', 1);
+        const existing = Array.isArray(locks) ? locks[0] : null;
+        const expiresAt = existing?.setting_value?.expires_at ? new Date(existing.setting_value.expires_at).getTime() : 0;
+        if (expiresAt && expiresAt > now) {
+          return Response.json({ success: true, lock_active: true, next_allowed_at: existing.setting_value.expires_at });
+        }
+        const newExpires = new Date(now + 5 * 60 * 1000).toISOString();
+        if (existing) {
+          await base44.asServiceRole.entities.AppSettings.update(existing.id, { setting_value: { owner: user.id, expires_at: newExpires } });
+        } else {
+          await base44.asServiceRole.entities.AppSettings.create({ setting_key: lockKey, setting_value: { owner: user.id, expires_at: newExpires } });
+        }
+      } catch (_) {}
+    }
+
+    // Load stores and build abbreviation → locationId map
     const stores = await base44.asServiceRole.entities.Store.list();
+    const storeById = new Map((stores || []).map(s => [s.id, s]));
     const storeAbbrToLocId = new Map();
     for (const s of stores || []) {
       const cfg = locationConfigs.find(lc => lc.id === s.square_location_config_id);
@@ -37,218 +63,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (locationIds.length === 0) {
-      return Response.json({ error: 'No Square locations configured' }, { status: 400 });
-    }
-
-    // Single-flight + TTL lock (10 minutes)
-    try {
-      const lockKey = 'square:catalog:lock';
-      const now = Date.now();
-      let existing = null;
-      try {
-        const locks = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: lockKey }, '-updated_date', 1);
-        existing = Array.isArray(locks) ? locks[0] : null;
-      } catch (_) {}
-      const expiresAt = existing?.setting_value?.expires_at ? new Date(existing.setting_value.expires_at).getTime() : 0;
-      if (expiresAt && expiresAt > now) {
-        return Response.json({ success: true, lock_active: true, next_allowed_at: existing.setting_value.expires_at });
-      }
-      const newExpires = new Date(now + 10 * 60 * 1000).toISOString();
-      if (existing) {
-        await base44.asServiceRole.entities.AppSettings.update(existing.id, { setting_value: { ...(existing.setting_value || {}), owner: user.id, expires_at: newExpires }, description: 'Square catalog sync lock (10m)' });
-      } else {
-        await base44.asServiceRole.entities.AppSettings.create({ setting_key: lockKey, setting_value: { owner: user.id, created_at: new Date(now).toISOString(), expires_at: newExpires }, description: 'Square catalog sync lock (10m)' });
-      }
-    } catch (_) {}
-
-    // Fetch catalog items from Square (limit to 500 items max to prevent timeout)
-    const catalogItems = [];
-    let cursor = null;
-    let fetchedCount = 0;
-    const MAX_ITEMS = 500;
-
-    do {
-      const searchBody = {
-        object_types: ['ITEM'],
-        include_related_objects: true,
-        limit: 100
-      };
-
-      if (cursor) {
-        searchBody.cursor = cursor;
-      }
-
-      const searchResponse = await fetch(`${SQUARE_BASE_URL}/catalog/search`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Square-Version': '2024-01-18'
-        },
-        body: JSON.stringify(searchBody)
-      });
-
-      if (!searchResponse.ok) {
-        const errorData = await searchResponse.json();
-        console.error('Square search error:', errorData);
-        return Response.json({ error: 'Failed to fetch from Square', details: errorData }, { status: 500 });
-      }
-
-      const searchData = await searchResponse.json();
-      
-      if (searchData.objects) {
-        for (const item of searchData.objects) {
-          if (item.type === 'ITEM' && item.item_data) {
-            const itemVariations = item.item_data.variations || [];
-            for (const variation of itemVariations) {
-              const presentAtLocations = variation.present_at_location_ids || item.present_at_location_ids || [];
-              
-              const isAtOurLocation = locationIds.some(locId => 
-                presentAtLocations.includes(locId) || 
-                item.present_at_all_locations === true
-              );
-
-              if (isAtOurLocation) {
-                let priceCents = 0;
-                if (variation.item_variation_data?.price_money) {
-                  priceCents = variation.item_variation_data.price_money.amount || 0;
-                }
-
-                // Prefer location inferred from item name store abbreviation
-                const abbrMatch = (item.item_data.name || '').match(/\(([^)]+)\)/);
-                const inferredLocId = abbrMatch ? storeAbbrToLocId.get(abbrMatch[1]) : null;
-
-                let locationId = null;
-                if (inferredLocId && (item.present_at_all_locations === true || presentAtLocations.includes(inferredLocId))) {
-                  locationId = inferredLocId;
-                } else if (item.present_at_all_locations) {
-                  locationId = locationIds[0];
-                } else {
-                  locationId = presentAtLocations.find(locId => locationIds.includes(locId)) || inferredLocId || locationIds[0];
-                }
-
-                catalogItems.push({
-                  catalog_object_id: item.id,
-                  variation_id: variation.id,
-                  name: item.item_data.name || 'Unknown',
-                  description: item.item_data.description || '',
-                  price_cents: priceCents,
-                  price_dollars: priceCents / 100,
-                  location_id: locationId,
-                  present_at_locations: presentAtLocations,
-                  present_at_all: item.present_at_all_locations || false,
-                  updated_at: item.updated_at,
-                  version: item.version
-                });
-                fetchedCount++;
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      cursor = searchData.cursor;
-      
-      // Stop if we've hit the limit to prevent timeouts
-      if (fetchedCount >= MAX_ITEMS) {
-        console.warn(`Reached max items limit (${MAX_ITEMS}), stopping fetch`);
-        break;
-      }
-    } while (cursor);
-
-    // Deduplicate catalog items by catalog_object_id
-    const seenIds = new Set();
-    const dedupedCatalogItems = [];
-    for (const ci of catalogItems) {
-      if (!seenIds.has(ci.catalog_object_id)) {
-        seenIds.add(ci.catalog_object_id);
-        dedupedCatalogItems.push(ci);
-      }
-    }
-    console.log(`📦 [SquareSync] Catalog items: ${catalogItems.length} → ${dedupedCatalogItems.length} after dedupe`);
-
-    // Get our existing transactions to match up and identify sold items
-    const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-created_date', 500);
-    const transactionMap = new Map();
-    const soldCatalogIds = new Set();
-    
-    existingTransactions.forEach(tx => {
-      if (tx.square_catalog_object_id) {
-        transactionMap.set(tx.square_catalog_object_id, tx);
-        // Mark items with completed or refunded status as sold
-        if (tx.status === 'completed' || tx.status === 'refunded') {
-          soldCatalogIds.add(tx.square_catalog_object_id);
-        }
-      }
-    });
-
-    // Merge catalog items with our transaction data — keep ALL items (don't filter sold)
-    const mergedItems = dedupedCatalogItems.map(item => {
-      const existingTx = transactionMap.get(item.catalog_object_id);
-      return {
-        ...item,
-        transaction_id: existingTx?.id || null,
-        delivery_id: existingTx?.delivery_id || null,
-        patient_id: existingTx?.patient_id || null,
-        store_id: existingTx?.store_id || null,
-        status: existingTx?.status || 'active',
-        created_date: existingTx?.created_date || item.updated_at,
-        is_sold: soldCatalogIds.has(item.catalog_object_id)
-      };
-    });
-
-    // Build quick lookup for existing catalog items by location|normalized_name|price
     const normalizeName = (n) => {
       const s = (n || '').trim();
       const noAmt = s.replace(/\s-\s\$\d+(?:\.\d{2})?$/, '');
       const unified = noAmt.replace(/^(\d{2})-(\d{2})/, '$1/$2');
       return unified.toLowerCase();
     };
-    const catalogLookup = new Set(
-      dedupedCatalogItems.map(ci => `${ci.location_id}|${normalizeName(ci.name)}|${ci.price_cents || Math.round((ci.price_dollars || 0) * 100)}`)
-    );
 
-    // Fetch recent sold items via existing function (last 7 days)
-    let soldCatalogItems = [];
-    try {
-      const fpRes = await base44.asServiceRole.functions.invoke('squareFetchPayments', { locationIds, daysBack: 7, maxPerLocation: 100, throttleMs: 150 });
-      const fpData = fpRes?.data || fpRes;
-      soldCatalogItems = fpData?.soldCatalogItems || [];
-    } catch (e) {
-      console.warn('squareFetchPayments invoke failed:', e.message);
-    }
-
-    // Build sold lookup by location|name+amount
-    const soldLookup = new Set(
-      soldCatalogItems.map(si => `${si.location_id}|${normalizeName(si.item_name)}|${Math.round((Number(si.amount) || 0) * 100)}`)
-    );
-
-    // Helper to format item name per spec [MM]/[DD](StoreAbbrev)-Patient Name
     const formatItemName = (deliveryDate, storeAbbreviation, patientName) => {
       const d = new Date(`${deliveryDate}T00:00:00`);
       const m = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
-      const abbr = storeAbbreviation || 'XX';
-      return `${m}/${day}(${abbr})-${patientName || 'Unknown'}`;
+      return `${m}/${day}(${storeAbbreviation || 'XX'})-${patientName || 'Unknown'}`;
     };
 
-    // Map stores by id for quick lookup
-    const storeById = new Map((stores || []).map(s => [s.id, s]));
-
-    // Gather deliveries in the past 7 days that have COD
-    const createdItems = [];
-    const deletedItems = [];
+    // ======== STEP 1: Get all deliveries with CODs for last 7 days (any status) ========
+    console.log('📋 [Step 1] Loading deliveries with CODs for last 7 days...');
+    const codDeliveries = [];
     const today = new Date();
     for (let i = 0; i < 7; i++) {
       const d = new Date();
       d.setDate(today.getDate() - i);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const dateStr = `${y}-${m}-${day}`;
-
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const dayDeliveries = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: dateStr });
       for (const del of dayDeliveries) {
         const codRequired = Number(del.cod_total_amount_required || 0);
@@ -259,110 +95,327 @@ Deno.serve(async (req) => {
 
         const store = storeById.get(del.store_id);
         const storeAbbr = store?.abbreviation || 'XX';
-
-        // Derive Square location ID from store config
         let locId = null;
         if (store?.square_location_config_id) {
-          try {
-            const cfg = await base44.asServiceRole.entities.SquareLocationConfig.get(store.square_location_config_id);
-            locId = cfg?.square_location_id || null;
-          } catch {}
+          const cfg = locationConfigs.find(lc => lc.id === store.square_location_config_id);
+          locId = cfg?.square_location_id || null;
         }
-        if (!locId) {
-          const defLoc = Deno.env.get('SQUARE_LOCATION_ID');
-          if (defLoc) locId = defLoc;
-        }
+        if (!locId) locId = defaultLocationId;
         if (!locId) continue;
 
-        const itemName = formatItemName(del.delivery_date, storeAbbr, del.patient_name || del.patient_id || 'Unknown');
-        const priceCents = Math.round(codAmount * 100);
-        const normalizedName = normalizeName(itemName);
-        const key = `${locId}|${normalizedName}|${priceCents}`;
+        codDeliveries.push({
+          ...del,
+          _codAmount: codAmount,
+          _storeAbbr: storeAbbr,
+          _locId: locId,
+          _itemName: formatItemName(del.delivery_date, storeAbbr, del.patient_name || del.patient_id || 'Unknown'),
+          _priceCents: Math.round(codAmount * 100),
+          _paymentsArr: paymentsArr
+        });
+      }
+    }
+    console.log(`📋 [Step 1] Found ${codDeliveries.length} deliveries with CODs`);
 
-        // Detect Debit/Credit from both sources (array + legacy field)
-        const hasDCInArray = paymentsArr.some(p => (p?.type === 'Debit' || p?.type === 'Credit'));
-        const hasDCInLegacy = (del.cod_payment_type === 'Debit' || del.cod_payment_type === 'Credit');
-        const isDebitOrCredit = hasDCInArray || hasDCInLegacy;
+    // ======== STEP 2: Get Square transactions (payments) for last 7 days ========
+    console.log('💳 [Step 2] Fetching Square transactions...');
+    const soldItems = [];
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-        const existsInCatalog = catalogLookup.has(key);
-        const existsInSales = soldLookup.has(key);
+    for (const locationId of locationIds) {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 7);
+      const queryParams = new URLSearchParams({
+        location_id: locationId,
+        begin_time: startDate.toISOString(),
+        end_time: new Date().toISOString(),
+        sort_order: 'DESC',
+        limit: '100'
+      });
 
-        // DELETE conditions: item exists in Square catalog AND one of:
-        // 1. Delivery is failed/cancelled → always delete
-        // 2. Delivery is completed with Debit/Credit payment AND matching sold item exists → delete (card processed at terminal and confirmed sold)
-        // 3. Item confirmed sold in Square (existsInSales) → delete (already collected)
-        const shouldDelete = existsInCatalog && (
-          ['failed', 'cancelled'].includes(del.status) ||
-          (del.status === 'completed' && isDebitOrCredit && existsInSales) ||
-          existsInSales
-        );
+      try {
+        const paymentsRes = await fetch(`${SQUARE_BASE_URL}/payments?${queryParams.toString()}`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Square-Version': '2024-01-18' }
+        });
 
-        if (shouldDelete) {
-          const matches = dedupedCatalogItems.filter(ci =>
-            ci.location_id === locId &&
-            normalizeName(ci.name) === normalizedName &&
-            (ci.price_cents || Math.round((ci.price_dollars || 0) * 100)) === priceCents
-          );
-          for (const ci of matches) {
-            try {
-              await base44.asServiceRole.functions.invoke('squareDeleteCodItem', {
-                catalogObjectId: ci.catalog_object_id,
-                deliveryId: del.id,
-                reason: del.status === 'failed' ? 'failed' : (existsInSales ? 'sold_in_square' : 'debit_or_credit')
-              });
-              deletedItems.push({
-                delivery_id: del.id,
-                item_name: ci.name,
-                catalog_object_id: ci.catalog_object_id,
-                location_id: ci.location_id,
-                reason: del.status === 'failed' ? 'failed' : (existsInSales ? 'sold_in_square' : 'debit_or_credit')
-              });
-              catalogLookup.delete(key);
-            } catch (e) {
-              console.warn('Failed to delete Square COD item for delivery', del.id, e.message);
-            }
-          }
+        if (!paymentsRes.ok) {
+          console.warn(`Failed payments fetch for ${locationId}: ${paymentsRes.status}`);
           continue;
         }
 
-        // CREATE conditions: delivery is NOT failed/cancelled AND item doesn't exist in catalog or sales
-        // Allow completed deliveries as a backup for mistakenly deleted items
-        const allowCreate = !['failed', 'cancelled'].includes(del.status);
-        // Don't create for Debit/Credit — those are processed at the terminal
-        if (isDebitOrCredit) continue;
+        const paymentsData = await paymentsRes.json();
+        const payments = (paymentsData.payments || []).filter(p => p.status === 'COMPLETED');
 
-        const hasPendingTx = existingTransactions.some(tx => tx.delivery_id === del.id && tx.status === 'pending');
-        if (allowCreate && !existsInCatalog && !existsInSales && !hasPendingTx) {
+        for (const payment of payments) {
+          if (!payment.order_id) continue;
+          await sleep(120);
+
           try {
-            const createRes = await base44.asServiceRole.functions.invoke('squareCreateCodItem', {
-              deliveryId: del.id,
-              patientName: del.patient_name || del.patient_id || 'Unknown',
-              storeAbbreviation: storeAbbr,
-              codAmount,
-              deliveryDate: del.delivery_date,
-              storeId: del.store_id
+            const orderRes = await fetch(`${SQUARE_BASE_URL}/orders/${payment.order_id}`, {
+              method: 'GET',
+              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'Square-Version': '2024-01-18' }
             });
-            const result = createRes?.data || createRes;
-            createdItems.push({
-              delivery_id: del.id,
-              item_name: result?.itemName || itemName,
-              amount: codAmount,
-              location_id: locId,
-              catalog_object_id: result?.catalogObjectId || null
-            });
-            catalogLookup.add(key);
+            if (!orderRes.ok) continue;
+            const orderData = await orderRes.json();
+            const order = orderData.order;
+            if (!order?.line_items) continue;
+
+            for (const lineItem of order.line_items) {
+              soldItems.push({
+                catalog_object_id: lineItem.catalog_object_id || null,
+                location_id: payment.location_id,
+                payment_id: payment.id,
+                square_transaction_id: payment.id,
+                order_id: payment.order_id,
+                item_name: lineItem.name,
+                amount: lineItem.base_price_money?.amount ? lineItem.base_price_money.amount / 100 : 0,
+                payment_date: payment.created_at,
+                payment_method: payment.payment_source_type || 'UNKNOWN'
+              });
+            }
           } catch (e) {
-            console.warn('Failed to create Square COD item for delivery', del.id, e.message);
+            console.warn(`Order fetch failed: ${e.message}`);
           }
+        }
+      } catch (e) {
+        console.warn(`Payments fetch failed for ${locationId}: ${e.message}`);
+      }
+    }
+    console.log(`💳 [Step 2] Found ${soldItems.length} sold items across all locations`);
+
+    // Build sold lookup: location|normalizedName|priceCents
+    const soldLookup = new Set(
+      soldItems.map(si => `${si.location_id}|${normalizeName(si.item_name)}|${Math.round((Number(si.amount) || 0) * 100)}`)
+    );
+
+    // ======== STEP 3: Get all Square catalog items ========
+    console.log('📦 [Step 3] Fetching Square catalog items...');
+    const catalogItems = [];
+    let cursor = null;
+    do {
+      const searchBody = { object_types: ['ITEM'], include_related_objects: true, limit: 100 };
+      if (cursor) searchBody.cursor = cursor;
+
+      const searchRes = await fetch(`${SQUARE_BASE_URL}/catalog/search`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'Square-Version': '2024-01-18' },
+        body: JSON.stringify(searchBody)
+      });
+
+      if (!searchRes.ok) break;
+      const searchData = await searchRes.json();
+
+      if (searchData.objects) {
+        for (const item of searchData.objects) {
+          if (item.type !== 'ITEM' || !item.item_data) continue;
+          const itemVariations = item.item_data.variations || [];
+          for (const variation of itemVariations) {
+            const presentAtLocations = variation.present_at_location_ids || item.present_at_location_ids || [];
+            const isAtOurLocation = locationIds.some(locId => presentAtLocations.includes(locId) || item.present_at_all_locations === true);
+            if (!isAtOurLocation) continue;
+
+            let priceCents = 0;
+            if (variation.item_variation_data?.price_money) {
+              priceCents = variation.item_variation_data.price_money.amount || 0;
+            }
+
+            const abbrMatch = (item.item_data.name || '').match(/\(([^)]+)\)/);
+            const inferredLocId = abbrMatch ? storeAbbrToLocId.get(abbrMatch[1]) : null;
+            let locationId = null;
+            if (inferredLocId && (item.present_at_all_locations === true || presentAtLocations.includes(inferredLocId))) {
+              locationId = inferredLocId;
+            } else if (item.present_at_all_locations) {
+              locationId = locationIds[0];
+            } else {
+              locationId = presentAtLocations.find(locId => locationIds.includes(locId)) || inferredLocId || locationIds[0];
+            }
+
+            catalogItems.push({
+              catalog_object_id: item.id,
+              variation_id: variation.id,
+              name: item.item_data.name || 'Unknown',
+              description: item.item_data.description || '',
+              price_cents: priceCents,
+              price_dollars: priceCents / 100,
+              location_id: locationId,
+              present_at_locations: presentAtLocations,
+              present_at_all: item.present_at_all_locations || false,
+              updated_at: item.updated_at,
+              version: item.version
+            });
+            break; // one variation per item
+          }
+        }
+      }
+      cursor = searchData.cursor;
+    } while (cursor);
+
+    // Deduplicate
+    const seenIds = new Set();
+    const dedupedCatalogItems = [];
+    for (const ci of catalogItems) {
+      if (!seenIds.has(ci.catalog_object_id)) {
+        seenIds.add(ci.catalog_object_id);
+        dedupedCatalogItems.push(ci);
+      }
+    }
+    console.log(`📦 [Step 3] Found ${dedupedCatalogItems.length} catalog items (after dedupe)`);
+
+    // Build catalog lookup: location|normalizedName|priceCents
+    const catalogLookup = new Set(
+      dedupedCatalogItems.map(ci => `${ci.location_id}|${normalizeName(ci.name)}|${ci.price_cents}`)
+    );
+
+    // ======== STEP 4: Delete catalog items that have matching transactions ========
+    console.log('🗑️ [Step 4] Checking for catalog items to delete (matched transactions)...');
+    const deletedItems = [];
+
+    for (const ci of dedupedCatalogItems) {
+      const key = `${ci.location_id}|${normalizeName(ci.name)}|${ci.price_cents}`;
+      if (soldLookup.has(key)) {
+        // This catalog item has a matching transaction — delete it
+        try {
+          await fetch(`${SQUARE_BASE_URL}/catalog/object/${ci.catalog_object_id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Square-Version': '2024-01-18' }
+          });
+          deletedItems.push({ catalog_object_id: ci.catalog_object_id, name: ci.name, reason: 'matched_transaction' });
+          catalogLookup.delete(key);
+          console.log(`  🗑️ Deleted: ${ci.name} (matched sold transaction)`);
+          await sleep(300);
+        } catch (e) {
+          console.warn(`  Failed to delete ${ci.name}: ${e.message}`);
+        }
+      }
+    }
+
+    // Also delete catalog items for failed/cancelled deliveries
+    for (const del of codDeliveries) {
+      if (del.status !== 'failed' && del.status !== 'cancelled') continue;
+      const key = `${del._locId}|${normalizeName(del._itemName)}|${del._priceCents}`;
+      if (!catalogLookup.has(key)) continue;
+
+      const matchingCi = dedupedCatalogItems.find(ci =>
+        ci.location_id === del._locId &&
+        normalizeName(ci.name) === normalizeName(del._itemName) &&
+        ci.price_cents === del._priceCents
+      );
+      if (!matchingCi) continue;
+
+      try {
+        await fetch(`${SQUARE_BASE_URL}/catalog/object/${matchingCi.catalog_object_id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Square-Version': '2024-01-18' }
+        });
+        deletedItems.push({ catalog_object_id: matchingCi.catalog_object_id, name: matchingCi.name, reason: del.status });
+        catalogLookup.delete(key);
+        console.log(`  🗑️ Deleted: ${matchingCi.name} (delivery ${del.status})`);
+        await sleep(300);
+      } catch (e) {
+        console.warn(`  Failed to delete for ${del.status} delivery: ${e.message}`);
+      }
+    }
+
+    console.log(`🗑️ [Step 4] Deleted ${deletedItems.length} catalog items`);
+
+    // ======== STEP 5: Create catalog items for deliveries missing from catalog ========
+    console.log('➕ [Step 5] Creating missing catalog items...');
+    const createdItems = [];
+
+    for (const del of codDeliveries) {
+      // Skip failed/cancelled
+      if (del.status === 'failed' || del.status === 'cancelled') continue;
+
+      // Skip Debit/Credit payments (processed at terminal)
+      const hasDC = del._paymentsArr.some(p => p?.type === 'Debit' || p?.type === 'Credit');
+      const hasDCLegacy = del.cod_payment_type === 'Debit' || del.cod_payment_type === 'Credit';
+      if (hasDC || hasDCLegacy) continue;
+
+      const key = `${del._locId}|${normalizeName(del._itemName)}|${del._priceCents}`;
+
+      // Skip if already exists in catalog
+      if (catalogLookup.has(key)) continue;
+
+      // Skip if already sold in Square
+      if (soldLookup.has(key)) continue;
+
+      // Create the catalog item
+      try {
+        const createRes = await base44.asServiceRole.functions.invoke('squareCreateCodItem', {
+          deliveryId: del.id,
+          patientName: del.patient_name || del.patient_id || 'Unknown',
+          storeAbbreviation: del._storeAbbr,
+          codAmount: del._codAmount,
+          deliveryDate: del.delivery_date,
+          storeId: del.store_id
+        });
+        const result = createRes?.data || createRes;
+        createdItems.push({
+          delivery_id: del.id,
+          item_name: result?.itemName || del._itemName,
+          amount: del._codAmount,
+          location_id: del._locId,
+          catalog_object_id: result?.catalogObjectId || null
+        });
+        catalogLookup.add(key);
+        console.log(`  ➕ Created: ${del._itemName} ($${del._codAmount})`);
+        await sleep(300);
+      } catch (e) {
+        console.warn(`  Failed to create for delivery ${del.id}: ${e.message}`);
+      }
+    }
+
+    console.log(`➕ [Step 5] Created ${createdItems.length} catalog items`);
+
+    // Build final items list (remaining catalog items after deletions)
+    const deletedIds = new Set(deletedItems.map(d => d.catalog_object_id));
+    const finalItems = dedupedCatalogItems
+      .filter(ci => !deletedIds.has(ci.catalog_object_id))
+      .map(ci => ({
+        ...ci,
+        transaction_id: null,
+        delivery_id: null,
+        patient_id: null,
+        store_id: null,
+        status: 'active',
+        created_date: ci.updated_at,
+        is_sold: false
+      }));
+
+    // If we created new items, re-fetch catalog to get their real IDs
+    if (createdItems.length > 0) {
+      // Add created items to the final list with temporary data
+      for (const created of createdItems) {
+        if (created.catalog_object_id) {
+          finalItems.push({
+            catalog_object_id: created.catalog_object_id,
+            variation_id: null,
+            name: created.item_name,
+            description: '',
+            price_cents: Math.round(created.amount * 100),
+            price_dollars: created.amount,
+            location_id: created.location_id,
+            present_at_locations: [created.location_id],
+            present_at_all: false,
+            updated_at: new Date().toISOString(),
+            version: 0,
+            transaction_id: null,
+            delivery_id: created.delivery_id,
+            patient_id: null,
+            store_id: null,
+            status: 'active',
+            created_date: new Date().toISOString(),
+            is_sold: false
+          });
         }
       }
     }
 
     return Response.json({
       success: true,
-      itemCount: mergedItems.length,
-      items: mergedItems,
-      soldCatalogItems,
+      itemCount: finalItems.length,
+      items: finalItems,
+      soldCatalogItems: soldItems,
       locationIds,
       createdCount: createdItems.length,
       createdItems,
