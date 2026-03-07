@@ -2042,26 +2042,11 @@ function Dashboard() {
                     // Record the snap time (prevents any snaps for 60 seconds)
                     lastProximitySnapTimeRef.current = Date.now();
 
-                    // Center map on the nearby marker
-                    const padding = getMapPadding();
-                    setShouldFitBounds({
-                      bounds: [[stopLat, stopLon]],
-                      options: {
-                        ...padding,
-                        maxZoom: 17,
-                        animate: true
-                      }
-                    });
-                    setMapCenter(null);
-                    setMapZoom(null);
-
-                    // Scroll to the associated card
-                    setTimeout(() => {
-                      const cardElement = document.getElementById(`stop-card-${delivery.id}`);
-                      if (cardElement) {
-                        cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                      }
-                    }, 300);
+                    // Scroll to the associated card (map re-centering removed - was causing oscillation)
+                    const cardElement = document.getElementById(`stop-card-${delivery.id}`);
+                    if (cardElement) {
+                      cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    }
 
                     break; // Only zoom to first nearby stop
                   }
