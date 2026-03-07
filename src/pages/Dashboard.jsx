@@ -1688,14 +1688,8 @@ function Dashboard() {
 
         phaseBeforeBreakRef.current = null;
       } else if (event.type === 'DATA_READY') {
-        // CRITICAL: Data has fully loaded - reactivate FAB with current phase
-        console.log(`🔄 [FAB] Data ready - reactivating Phase ${mapViewPhase}`);
-
-        // Lock FAB and trigger map view
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
+        // DATA_READY fires on every smart refresh - do NOT reposition map
+        // Map positioning is handled only on initial load (Render Sequence Effect 8)
 
         // CRITICAL: Handle timer logic based on phase - ONLY set timer for Phase 1
         if (mapViewPhase === 2 || mapViewPhase === 3) {
