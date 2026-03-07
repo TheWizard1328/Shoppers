@@ -184,35 +184,33 @@ Deno.serve(async (req) => {
       }
     });
 
-    // Merge catalog items with our transaction data
-    const mergedItems = catalogItems
-      .filter(item => !soldCatalogIds.has(item.catalog_object_id))
-      .map(item => {
-        const existingTx = transactionMap.get(item.catalog_object_id);
-        return {
-          ...item,
-          transaction_id: existingTx?.id || null,
-          delivery_id: existingTx?.delivery_id || null,
-          patient_id: existingTx?.patient_id || null,
-          store_id: existingTx?.store_id || null,
-          status: existingTx?.status || 'active',
-          created_date: existingTx?.created_date || item.updated_at
-        };
-      });
+    // Merge catalog items with our transaction data — keep ALL items (don't filter sold)
+    const mergedItems = dedupedCatalogItems.map(item => {
+      const existingTx = transactionMap.get(item.catalog_object_id);
+      return {
+        ...item,
+        transaction_id: existingTx?.id || null,
+        delivery_id: existingTx?.delivery_id || null,
+        patient_id: existingTx?.patient_id || null,
+        store_id: existingTx?.store_id || null,
+        status: existingTx?.status || 'active',
+        created_date: existingTx?.created_date || item.updated_at,
+        is_sold: soldCatalogIds.has(item.catalog_object_id)
+      };
+    });
 
     // Build quick lookup for existing catalog items by location|normalized_name|price
     const normalizeName = (n) => {
       const s = (n || '').trim();
       const noAmt = s.replace(/\s-\s\$\d+(?:\.\d{2})?$/, '');
-      const unified = noAmt.replace(/^(\d{2})-(\d{2})/, '$1/$2'); // keep legacy normalize
-
+      const unified = noAmt.replace(/^(\d{2})-(\d{2})/, '$1/$2');
       return unified.toLowerCase();
     };
     const catalogLookup = new Set(
       dedupedCatalogItems.map(ci => `${ci.location_id}|${normalizeName(ci.name)}|${ci.price_cents || Math.round((ci.price_dollars || 0) * 100)}`)
     );
 
-    // Fetch recent sold items via existing function (last 7 days) — include all line items even without catalog IDs
+    // Fetch recent sold items via existing function (last 7 days)
     let soldCatalogItems = [];
     try {
       const fpRes = await base44.asServiceRole.functions.invoke('squareFetchPayments', { locationIds, daysBack: 2, maxPerLocation: 10, throttleMs: 150 });
@@ -221,12 +219,13 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.warn('squareFetchPayments invoke failed:', e.message);
     }
-    // Build sold lookup by location|name+amount to support orders with multiple items of same name but different prices
+
+    // Build sold lookup by location|name+amount
     const soldLookup = new Set(
       soldCatalogItems.map(si => `${si.location_id}|${normalizeName(si.item_name)}|${Math.round((Number(si.amount) || 0) * 100)}`)
     );
 
-    // Helper to format item name per spec [MM]/[DD](StoreAbbrev)-Patient Name (no amount)
+    // Helper to format item name per spec [MM]/[DD](StoreAbbrev)-Patient Name
     const formatItemName = (deliveryDate, storeAbbreviation, patientName) => {
       const d = new Date(`${deliveryDate}T00:00:00`);
       const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -234,7 +233,6 @@ Deno.serve(async (req) => {
       const abbr = storeAbbreviation || 'XX';
       return `${m}/${day}(${abbr})-${patientName || 'Unknown'}`;
     };
-
 
     // Map stores by id for quick lookup
     const storeById = new Map((stores || []).map(s => [s.id, s]));
@@ -258,12 +256,11 @@ Deno.serve(async (req) => {
         const codFromPayments = paymentsArr.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
         const codAmount = codRequired > 0 ? codRequired : (codFromPayments > 0 ? codFromPayments : 0);
         if (codAmount <= 0) continue;
-        const allowCreate = !['completed','failed','cancelled'].includes(del.status);
 
         const store = storeById.get(del.store_id);
         const storeAbbr = store?.abbreviation || 'XX';
 
-        // Derive Square location ID from store config or fallback to default env location
+        // Derive Square location ID from store config
         let locId = null;
         if (store?.square_location_config_id) {
           try {
@@ -275,13 +272,12 @@ Deno.serve(async (req) => {
           const defLoc = Deno.env.get('SQUARE_LOCATION_ID');
           if (defLoc) locId = defLoc;
         }
-        if (!locId) continue; // Skip if we cannot determine location
+        if (!locId) continue;
 
         const itemName = formatItemName(del.delivery_date, storeAbbr, del.patient_name || del.patient_id || 'Unknown');
         const priceCents = Math.round(codAmount * 100);
         const normalizedName = normalizeName(itemName);
         const key = `${locId}|${normalizedName}|${priceCents}`;
-        const soldKey = `${locId}|${normalizedName}|${priceCents}`;
 
         // Detect Debit/Credit from both sources (array + legacy field)
         const hasDCInArray = paymentsArr.some(p => (p?.type === 'Debit' || p?.type === 'Credit'));
@@ -289,41 +285,53 @@ Deno.serve(async (req) => {
         const isDebitOrCredit = hasDCInArray || hasDCInLegacy;
 
         const existsInCatalog = catalogLookup.has(key);
-        const existsInSales = soldLookup.has(soldKey);
+        const existsInSales = soldLookup.has(key);
 
-        if (isDebitOrCredit) {
-          // For Debit/Credit deliveries: delete matching catalog item(s) and skip creation
-          if (existsInCatalog) {
-            const matches = dedupedCatalogItems.filter(ci =>
-              ci.location_id === locId &&
-              normalizeName(ci.name) === normalizedName &&
-              (ci.price_cents || Math.round((ci.price_dollars || 0) * 100)) === priceCents
-            );
-            for (const ci of matches) {
-              try {
-                await base44.asServiceRole.functions.invoke('squareDeleteCodItem', {
-                  catalogObjectId: ci.catalog_object_id,
-                  deliveryId: del.id,
-                  reason: 'debit_or_credit'
-                });
-                deletedItems.push({
-                  delivery_id: del.id,
-                  item_name: ci.name,
-                  catalog_object_id: ci.catalog_object_id,
-                  location_id: ci.location_id
-                });
-                catalogLookup.delete(key);
-              } catch (e) {
-                console.warn('Failed to delete Square COD item for delivery', del.id, e.message);
-              }
+        // DELETE conditions: item exists in Square catalog AND one of:
+        // 1. Delivery is failed/cancelled → always delete
+        // 2. Delivery is completed with Debit/Credit payment → delete (card processed at terminal)
+        // 3. Item confirmed sold in Square (existsInSales) → delete (already collected)
+        const shouldDelete = existsInCatalog && (
+          ['failed', 'cancelled'].includes(del.status) ||
+          (del.status === 'completed' && isDebitOrCredit) ||
+          existsInSales
+        );
+
+        if (shouldDelete) {
+          const matches = dedupedCatalogItems.filter(ci =>
+            ci.location_id === locId &&
+            normalizeName(ci.name) === normalizedName &&
+            (ci.price_cents || Math.round((ci.price_dollars || 0) * 100)) === priceCents
+          );
+          for (const ci of matches) {
+            try {
+              await base44.asServiceRole.functions.invoke('squareDeleteCodItem', {
+                catalogObjectId: ci.catalog_object_id,
+                deliveryId: del.id,
+                reason: del.status === 'failed' ? 'failed' : (existsInSales ? 'sold_in_square' : 'debit_or_credit')
+              });
+              deletedItems.push({
+                delivery_id: del.id,
+                item_name: ci.name,
+                catalog_object_id: ci.catalog_object_id,
+                location_id: ci.location_id,
+                reason: del.status === 'failed' ? 'failed' : (existsInSales ? 'sold_in_square' : 'debit_or_credit')
+              });
+              catalogLookup.delete(key);
+            } catch (e) {
+              console.warn('Failed to delete Square COD item for delivery', del.id, e.message);
             }
           }
-          continue; // Do not create catalog items for Debit/Credit
+          continue;
         }
+
+        // CREATE conditions: delivery is NOT completed/failed/cancelled AND item doesn't exist in catalog or sales
+        const allowCreate = !['completed', 'failed', 'cancelled'].includes(del.status);
+        // Don't create for Debit/Credit — those are processed at the terminal
+        if (isDebitOrCredit) continue;
 
         const hasPendingTx = existingTransactions.some(tx => tx.delivery_id === del.id && tx.status === 'pending');
         if (allowCreate && !existsInCatalog && !existsInSales && !hasPendingTx) {
-          // Create missing catalog item via existing function
           try {
             const createRes = await base44.asServiceRole.functions.invoke('squareCreateCodItem', {
               deliveryId: del.id,
@@ -341,7 +349,6 @@ Deno.serve(async (req) => {
               location_id: locId,
               catalog_object_id: result?.catalogObjectId || null
             });
-            // Update lookup so we don't attempt duplicates within this run
             catalogLookup.add(key);
           } catch (e) {
             console.warn('Failed to create Square COD item for delivery', del.id, e.message);
@@ -354,6 +361,7 @@ Deno.serve(async (req) => {
       success: true,
       itemCount: mergedItems.length,
       items: mergedItems,
+      soldCatalogItems,
       locationIds,
       createdCount: createdItems.length,
       createdItems,
