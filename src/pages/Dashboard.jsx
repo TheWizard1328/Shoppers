@@ -3920,11 +3920,8 @@ function Dashboard() {
     if (driversWithDeliveries.size === 1) {
       // Only 1 driver with stops - select that driver
       newDriverSelection = Array.from(driversWithDeliveries)[0];
-      console.log(`📊 [Dispatcher Auto-Select] 1 driver with stops - selecting ${newDriverSelection}`);
     } else {
-      // 0 or multiple drivers - select "All Drivers"
       newDriverSelection = 'all';
-      console.log(`📊 [Dispatcher Auto-Select] ${driversWithDeliveries.size} drivers with stops - selecting All Drivers`);
     }
     
     // Only update if selection should change
