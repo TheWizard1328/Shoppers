@@ -339,26 +339,71 @@ Deno.serve(async (req) => {
       // Skip if already sold in Square
       if (soldLookup.has(key)) continue;
 
-      // Create the catalog item
+      // Create the catalog item directly via Square API (not via function invoke)
+      const locationId = del._locId;
       try {
-        const createRes = await base44.asServiceRole.functions.invoke('squareCreateCodItem', {
-          deliveryId: del.id,
-          patientName: del.patient_name || del.patient_id || 'Unknown',
-          storeAbbreviation: del._storeAbbr,
-          codAmount: del._codAmount,
-          deliveryDate: del.delivery_date,
-          storeId: del.store_id
+        const upsertRes = await fetch(`${SQUARE_BASE_URL}/catalog/object`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'Square-Version': '2024-01-18'
+          },
+          body: JSON.stringify({
+            idempotency_key: `sync-create-${del.id}-${del._priceCents}-${locationId}`,
+            object: {
+              type: 'ITEM',
+              id: `#${del.id}`,
+              present_at_all_locations: false,
+              present_at_location_ids: [locationId],
+              item_data: {
+                name: del._itemName,
+                description: `COD for ${del.patient_name || 'Unknown'} | Delivery ${del.id}`,
+                variations: [{
+                  type: 'ITEM_VARIATION',
+                  id: `#${del.id}-var`,
+                  present_at_all_locations: false,
+                  present_at_location_ids: [locationId],
+                  item_variation_data: {
+                    name: 'Regular',
+                    pricing_type: 'FIXED_PRICING',
+                    price_money: {
+                      amount: del._priceCents,
+                      currency: 'CAD'
+                    },
+                    location_overrides: [{
+                      location_id: locationId,
+                      pricing_type: 'FIXED_PRICING',
+                      price_money: {
+                        amount: del._priceCents,
+                        currency: 'CAD'
+                      }
+                    }]
+                  }
+                }]
+              }
+            }
+          })
         });
-        const result = createRes?.data || createRes;
+
+        const upsertData = await upsertRes.json();
+
+        if (upsertData.errors) {
+          console.warn(`  ⚠️ Square API error for ${del._itemName}:`, JSON.stringify(upsertData.errors));
+          continue;
+        }
+
+        const catalogObjectId = upsertData.catalog_object?.id;
+        console.log(`  ➕ Created: ${del._itemName} ($${del._codAmount}) → ${catalogObjectId} @ location ${locationId}`);
+
         createdItems.push({
           delivery_id: del.id,
-          item_name: result?.itemName || del._itemName,
+          item_name: del._itemName,
           amount: del._codAmount,
-          location_id: del._locId,
-          catalog_object_id: result?.catalogObjectId || null
+          location_id: locationId,
+          catalog_object_id: catalogObjectId || null
         });
         catalogLookup.add(key);
-        console.log(`  ➕ Created: ${del._itemName} ($${del._codAmount})`);
         await sleep(300);
       } catch (e) {
         console.warn(`  Failed to create for delivery ${del.id}: ${e.message}`);
