@@ -196,173 +196,62 @@ export default function SquareManagement() {
         const syncedLocationIds = configs.map(c => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
-        // CRITICAL: Load from offline DB first, fallback to API
-        console.log('📦 [SquareManagement] Checking offline database for Square data...');
+        // OFFLINE-FIRST: Show cached data instantly, then refresh from API
         const [offlineCatalog, offlinePayments] = await Promise.all([
           getCatalogItemsOffline(),
           getPaymentTransactionsOffline()
         ]);
 
-        if (offlineCatalog.length > 0 || offlinePayments.length > 0) {
-          console.log(`📦 [SquareManagement] Using offline data: ${offlineCatalog.length} catalog items, ${offlinePayments.length} payments`);
-          
-          // Use offline data immediately for instant UI
+        if (offlineCatalog.length > 0) {
           setCatalogItems(offlineCatalog);
           setSoldCatalogItems(offlinePayments);
           setAllTransactions(offlinePayments);
-          
-          const fourteenDaysAgoTx = new Date();
-          fourteenDaysAgoTx.setDate(fourteenDaysAgoTx.getDate() - 14);
-          const recentPayments = offlinePayments
-            .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
-            .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
-          
-          setRecentTransactions(recentPayments);
           setIsLoading(false);
-          
-          // Load sync status from offline
           await loadSyncStatus();
-          
-          // Background: Always refresh from API to ensure data is current and missing items get created
-          console.log('🔄 [SquareManagement] Background: Refreshing Square data from API...');
-          setTimeout(async () => {
-            try {
-              setBgSyncProgress({ stage: 'starting' });
-
-              // Step 1: Run COD cleanup scan
-              setBgSyncProgress({ stage: 'cleanup' });
-              await base44.functions.invoke('syncSquareCods', {});
-
-              // Step 2: Sync catalog items (also creates missing Cash COD items)
-              setBgSyncProgress({ stage: 'catalog_sync' });
-              const catalogResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
-              const catalogData = catalogResponse?.data || catalogResponse || {};
-              const catalogItemsData = catalogData?.items || [];
-              const soldFromCatalog = catalogData?.soldCatalogItems || [];
-
-              setBgSyncProgress({ stage: 'payments_sync', detail: `${catalogItemsData.length} catalog items` });
-
-              // Step 3: Fetch recent payments
-              const paymentsResponse = await base44.functions.invoke('squareFetchPayments', { 
-                locationIds: syncedLocationIds, 
-                daysBack: 7,
-                maxPerLocation: 100,
-                throttleMs: 200 
-              });
-              const paymentsData = paymentsResponse?.data || paymentsResponse || {};
-              const soldFromPayments = paymentsData?.soldCatalogItems || [];
-
-              const allSoldRaw = [...soldFromPayments, ...soldFromCatalog];
-              const soldDedupBg = [];
-              const soldKeysBg = new Set();
-              for (const s of allSoldRaw) {
-                const key = `${s.location_id}|${(s.item_name || '').toLowerCase()}|${Math.round((Number(s.amount) || 0) * 100)}`;
-                if (!soldKeysBg.has(key)) { soldKeysBg.add(key); soldDedupBg.push(s); }
-              }
-
-              // Step 4: Save to offline DB
-              setBgSyncProgress({ stage: 'saving_offline', detail: `${soldDedupBg.length} transactions` });
-              await Promise.all([
-                saveCatalogItemsOffline(catalogItemsData),
-                savePaymentTransactionsOffline(soldDedupBg)
-              ]);
-
-              // Update UI with fresh data
-              setCatalogItems(catalogItemsData);
-              setSoldCatalogItems(soldDedupBg);
-              setAllTransactions(soldDedupBg);
-              
-              const recentPaymentsFresh = soldDedupBg
-                .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
-                .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
-              setRecentTransactions(recentPaymentsFresh);
-              
-              await loadSyncStatus();
-
-              const created = catalogData?.createdCount || 0;
-              const deleted = catalogData?.deletedCount || 0;
-              const detailParts = [
-                `${catalogItemsData.length} items`,
-                created > 0 ? `+${created} created` : null,
-                deleted > 0 ? `-${deleted} deleted` : null,
-              ].filter(Boolean).join(', ');
-
-              setBgSyncProgress({ stage: 'complete', detail: detailParts });
-              console.log('✅ [SquareManagement] Background refresh complete');
-              
-              // Auto-hide after 5 seconds
-              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
-            } catch (bgError) {
-              console.warn('⚠️ [SquareManagement] Background refresh failed:', bgError.message);
-              setBgSyncProgress({ stage: 'error', error: bgError.message, lastPercent: 30 });
-              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
-            }
-          }, 1500);
-        } else {
-          // No offline data - fetch from API with progress
-          console.log('📥 [SquareManagement] No offline data - fetching from API...');
-          setBgSyncProgress({ stage: 'starting' });
-
-          setBgSyncProgress({ stage: 'cleanup' });
-          await base44.functions.invoke('syncSquareCods', {});
-
-          setBgSyncProgress({ stage: 'catalog_sync' });
-          const catalogResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
-          const catalogData = catalogResponse?.data || catalogResponse || {};
-          const catalogItemsData = catalogData?.items || [];
-          const soldFromCatalogInit = catalogData?.soldCatalogItems || [];
-
-          setBgSyncProgress({ stage: 'payments_sync', detail: `${catalogItemsData.length} catalog items` });
-          const paymentsResponse = await base44.functions.invoke('squareFetchPayments', { 
-            locationIds: syncedLocationIds, 
-            daysBack: 7,
-            maxPerLocation: 100,
-            throttleMs: 200 
-          });
-          const paymentsData = paymentsResponse?.data || paymentsResponse || {};
-          const soldFromPaymentsInit = paymentsData?.soldCatalogItems || [];
-
-          const allSoldInit = [...soldFromPaymentsInit, ...soldFromCatalogInit];
-          const soldDedupInit = [];
-          const soldKeysInit = new Set();
-          for (const s of allSoldInit) {
-            const key = `${s.location_id}|${(s.item_name || '').toLowerCase()}|${Math.round((Number(s.amount) || 0) * 100)}`;
-            if (!soldKeysInit.has(key)) { soldKeysInit.add(key); soldDedupInit.push(s); }
-          }
-
-          console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldDedupInit.length} transactions`);
-
-          setBgSyncProgress({ stage: 'saving_offline', detail: `${soldDedupInit.length} transactions` });
-          await Promise.all([
-            saveCatalogItemsOffline(catalogItemsData),
-            savePaymentTransactionsOffline(soldDedupInit)
-          ]);
-
-          setCatalogItems(catalogItemsData);
-          setSoldCatalogItems(soldDedupInit);
-          setAllTransactions(soldDedupInit);
-
-          const fourteenDaysAgoTx = new Date();
-          fourteenDaysAgoTx.setDate(fourteenDaysAgoTx.getDate() - 14);
-          const recentPayments = soldDedupInit
-            .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
-            .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
-
-          setRecentTransactions(recentPayments);
-          setIsLoading(false);
-          
-          await loadSyncStatus();
-
-          const created = catalogData?.createdCount || 0;
-          const deleted = catalogData?.deletedCount || 0;
-          const detailParts = [
-            `${catalogItemsData.length} items`,
-            created > 0 ? `+${created} created` : null,
-            deleted > 0 ? `-${deleted} deleted` : null,
-          ].filter(Boolean).join(', ');
-          setBgSyncProgress({ stage: 'complete', detail: detailParts });
-          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
         }
+
+        // Always fetch fresh data from API (single call does everything)
+        setBgSyncProgress({ stage: 'catalog_sync' });
+        try {
+          const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
+          const data = response?.data || response || {};
+
+          if (data.success) {
+            const items = data.items || [];
+            const sold = data.soldCatalogItems || [];
+
+            setCatalogItems(items);
+            setSoldCatalogItems(sold);
+            setAllTransactions(sold);
+            setLocationIds(data.locationIds || syncedLocationIds);
+
+            await Promise.all([
+              saveCatalogItemsOffline(items),
+              savePaymentTransactionsOffline(sold)
+            ]);
+
+            await loadSyncStatus();
+
+            const detailParts = [
+              `${items.length} items`,
+              data.createdCount > 0 ? `+${data.createdCount} created` : null,
+              data.deletedCount > 0 ? `-${data.deletedCount} deleted` : null,
+            ].filter(Boolean).join(', ');
+
+            setBgSyncProgress({ stage: 'complete', detail: detailParts });
+            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
+          } else if (data.lock_active) {
+            // Lock active — keep offline data as-is
+            setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (sync locked)' });
+            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
+          }
+        } catch (bgError) {
+          console.warn('⚠️ [SquareManagement] API refresh failed:', bgError.message);
+          setBgSyncProgress({ stage: 'error', error: bgError.message });
+          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
+        }
+
+        setIsLoading(false);
       } catch (err) {
         console.error('Failed to load COD data:', err);
         setIsLoading(false);
