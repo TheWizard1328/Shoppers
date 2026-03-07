@@ -3834,7 +3834,7 @@ function Dashboard() {
         return;
       }
 
-      console.log('🔄 [Smart Refresh Complete] Data updated - reactivating FAB');
+      const _aff=new Set((updates?.deliveries||[]).map(d=>d?.driver_id).filter(Boolean)); const _same=_aff.size===0||_aff.has(currentUser?.id)||(selectedDriverId&&selectedDriverId!=='all'&&_aff.has(selectedDriverId)); if(!_same){ return; }
 
       // Auto-center to next delivery card
       setTimeout(() => {
@@ -3878,7 +3878,7 @@ function Dashboard() {
       window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
       window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
     };
-  }, [mapViewPhase, deliveriesWithStopOrder, selectedCardId]);
+  }, [mapViewPhase, deliveriesWithStopOrder, selectedCardId, currentUser, selectedDriverId]);
 
   // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
