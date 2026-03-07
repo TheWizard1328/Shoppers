@@ -44,7 +44,22 @@ Deno.serve(async (req) => {
 
     // If we have a specific storeId (from automation or direct call), ensure pickup for just that store
     if (storeId) {
-      console.log(`🔍 [ensureDefaultPickups] Ensuring pickup for store=${storeId}, date=${deliveryDate}, driver=${driverId}, ampm=${ampmDeliveries}`);
+      // FIRST: Check if the driver has ANY existing stops for this date
+      // If 0 stops, this is the very first delivery — skip reuse logic and just create the pickup directly
+      const existingStops = await base44.asServiceRole.entities.Delivery.filter({
+        delivery_date: deliveryDate,
+        driver_id: driverId
+      }, '-created_date', 1);
+
+      // The only stop that exists is the delivery that just triggered this automation
+      // so if count <= 1, the driver had no prior stops — go straight to create
+      const driverHasExistingStops = existingStops.length > 1;
+
+      if (!driverHasExistingStops) {
+        console.log(`🆕 [ensureDefaultPickups] Driver has no existing stops for ${deliveryDate} — creating pickup directly (skip reuse check)`);
+      } else {
+        console.log(`🔍 [ensureDefaultPickups] Driver has ${existingStops.length} existing stops — checking for reusable pickup`);
+      }
 
       const result = await api.functions.invoke('ensurePickupForDelivery', {
         storeId,
