@@ -3502,21 +3502,18 @@ function Dashboard() {
     fabControlEvents.notifyDataReady();
 
     // CRITICAL: Use double-rAF + buffer to ensure DOM is fully painted before FAB fires
-    // This waits for actual browser layout+paint cycles, more reliable than a fixed timeout
     requestAnimationFrame(() => { requestAnimationFrame(() => { setTimeout(() => {
-      if (deliveriesWithStopOrder.length === 0) {
-        setMapViewPhase(1);
-        setIsMapViewLocked(true);
-        setInitialMapViewApplied(true);
+      // CRITICAL: Check BOTH filtered view AND full deliveries array to avoid stale closure clearing markers
+      const _dateCheck = format(selectedDate, 'yyyy-MM-dd');
+      const _hasFullData = selectedDriverId && selectedDriverId !== 'all' ? deliveries.some(d => d && d.delivery_date === _dateCheck && d.driver_id === selectedDriverId) : deliveries.some(d => d && d.delivery_date === _dateCheck);
+      if (deliveriesWithStopOrder.length === 0 && !_hasFullData) {
+        setMapViewPhase(1); setIsMapViewLocked(true); setInitialMapViewApplied(true);
         setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
         if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
-        mapLockExpiresAtRef.current = null;
-        setMapViewTrigger((prev) => prev + 1);
+        mapLockExpiresAtRef.current = null; setMapViewTrigger((prev) => prev + 1);
         console.log('🔵 [FAB Initial] No deliveries - Phase 1 locked');
         return;
       }
-
-      // CASE 2: Has deliveries - apply saved phase
       const phaseToApply = savedFabPhaseRef.current;
 
       // For phase 2, require nextStop coordinates
