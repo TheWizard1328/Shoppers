@@ -289,11 +289,11 @@ Deno.serve(async (req) => {
 
         // DELETE conditions: item exists in Square catalog AND one of:
         // 1. Delivery is failed/cancelled → always delete
-        // 2. Delivery is completed with Debit/Credit payment → delete (card processed at terminal)
+        // 2. Delivery is completed with Debit/Credit payment AND matching sold item exists → delete (card processed at terminal and confirmed sold)
         // 3. Item confirmed sold in Square (existsInSales) → delete (already collected)
         const shouldDelete = existsInCatalog && (
           ['failed', 'cancelled'].includes(del.status) ||
-          (del.status === 'completed' && isDebitOrCredit) ||
+          (del.status === 'completed' && isDebitOrCredit && existsInSales) ||
           existsInSales
         );
 
