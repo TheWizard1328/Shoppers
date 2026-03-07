@@ -7500,9 +7500,8 @@ function Dashboard() {
         // Force complete UI re-render
         setForceRender((prev) => prev + 1);
         
-        // CRITICAL: Validate freshAppUsers — offline DB may return junk records with no user_id
-        // Fallback to existing context appUsers which are always valid
-        const validAppUsers = (freshAppUsers || []).filter(u => u?.user_id && u?.user_name);
+        // CRITICAL: Validate freshAppUsers — offline DB may return junk records with user_id=undefined
+        const validAppUsers = (freshAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined');
         const appUsersForPoller = validAppUsers.length > 0 ? validAppUsers : appUsers;
         
         if (appUsersForPoller && appUsersForPoller.length > 0) {
