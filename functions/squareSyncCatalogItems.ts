@@ -78,10 +78,10 @@ Deno.serve(async (req) => {
     };
 
     // ======== STEP 1: Get all deliveries with CODs for last 7 days (any status) ========
-    console.log('📋 [Step 1] Loading deliveries with CODs for last 7 days...');
+    console.log('📋 [Step 1] Loading deliveries with CODs for last 14 days...');
     const codDeliveries = [];
     const today = new Date();
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 14; i++) {
       const d = new Date();
       d.setDate(today.getDate() - i);
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
 
     for (const locationId of locationIds) {
       const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 7);
+      startDate.setDate(startDate.getDate() - 14);
       const queryParams = new URLSearchParams({
         location_id: locationId,
         begin_time: startDate.toISOString(),
