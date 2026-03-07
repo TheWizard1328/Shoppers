@@ -3986,22 +3986,11 @@ function Dashboard() {
         });
       }
 
-      // STEP 4: CRITICAL - Load fresh appUsers and process through poller
-      console.log('📍 [Date Change] Loading fresh appUsers and processing locations...');
       let freshAppUsers = appUsers;
-      
-      // Try to load from offline DB first, fallback to current appUsers if empty
       try {
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        if (offlineAppUsers && offlineAppUsers.length > 0) {
-          freshAppUsers = offlineAppUsers;
-          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from offline DB`);
-        } else {
-          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from context (offline DB empty)`);
-        }
-      } catch (dbError) {
-        console.warn('⚠️ [Date Change] Failed to load appUsers from offline DB, using context:', dbError.message);
-      }
+        if (offlineAppUsers && offlineAppUsers.length > 0) freshAppUsers = offlineAppUsers;
+      } catch (dbError) {}
       
       // CRITICAL: Use fresh appUsers from offline DB, fallback to context, but ALWAYS pass valid data
       const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
