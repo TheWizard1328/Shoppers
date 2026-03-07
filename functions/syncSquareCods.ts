@@ -27,11 +27,11 @@ Deno.serve(async (req) => {
         const delivery = body.data || await base44.entities.Delivery.get(ev.entity_id);
         if (delivery) {
           const hasCod = Number(delivery.cod_total_amount_required || 0) > 0;
-          // Delete catalog item for: failed, cancelled, or ANY completed delivery with COD
+          // Delete catalog item for: failed or cancelled deliveries only
+          // Completed deliveries are handled by squareSyncCatalogItems which checks soldCatalogItems
           const shouldDelete = hasCod && (
             delivery.status === 'failed' || 
-            delivery.status === 'cancelled' || 
-            delivery.status === 'completed'
+            delivery.status === 'cancelled'
           );
           if (shouldDelete) {
             const stores = await base44.entities.Store.filter({ id: delivery.store_id });
