@@ -325,8 +325,9 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // CREATE conditions: delivery is NOT completed/failed/cancelled AND item doesn't exist in catalog or sales
-        const allowCreate = !['completed', 'failed', 'cancelled'].includes(del.status);
+        // CREATE conditions: delivery is NOT failed/cancelled AND item doesn't exist in catalog or sales
+        // Allow completed deliveries as a backup for mistakenly deleted items
+        const allowCreate = !['failed', 'cancelled'].includes(del.status);
         // Don't create for Debit/Credit — those are processed at the terminal
         if (isDebitOrCredit) continue;
 
