@@ -555,8 +555,8 @@ export default function DeliveryFormView({
                     <Edit2 className="w-4 h-4" />Update
                   </Button>
                 ) : buttonState === 'add' ? (
-                  <Button type="button" size="sm" onClick={handleAddToStaging} className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || !isFormValid || isPatientFormOpen || requiresDriverSelection} title={requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
-                    <Plus className="w-4 h-4" />Add
+                  <Button type="button" size="sm" onClick={async () => { if (isAdding) return; setIsAdding(true); try { await handleAddToStaging(); } finally { setIsAdding(false); } }} className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || isAdding || !isFormValid || isPatientFormOpen || requiresDriverSelection} title={requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
+                    {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}{isAdding ? 'Adding...' : 'Add'}
                   </Button>
                 ) : (
                   <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); setFormData(prev => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null })); if (formData?.driver_id && formData?.delivery_date) {
