@@ -274,36 +274,35 @@ export default function SquareManagement() {
           // Load sync status from offline
           await loadSyncStatus();
           
-          // Background: Refresh from API to ensure data is up to date
+          // Background: Always refresh from API to ensure data is current and missing items get created
           console.log('🔄 [SquareManagement] Background: Refreshing Square data from API...');
           setTimeout(async () => {
             try {
-              // TTL check: refresh only if offline cache is older than 10 minutes
-              const statusNow = await getSquareCODSyncStatus();
-              const tenMinAgo = Date.now() - 10 * 60 * 1000;
-              const lastCatalog = statusNow?.catalog?.lastSync ? new Date(statusNow.catalog.lastSync).getTime() : 0;
-              const lastTx = statusNow?.transactions?.lastSync ? new Date(statusNow.transactions.lastSync).getTime() : 0;
-              const fresh = lastCatalog > tenMinAgo && lastTx > tenMinAgo;
-              if (fresh) {
-                console.log('⏰ [SquareManagement] Offline cache fresh (<10m); skipping API refresh');
-                return;
-              }
-              const [catalogResponse, paymentsResponse] = await Promise.all([
-                base44.functions.invoke('squareSyncCatalogItems', {}),
-                base44.functions.invoke('squareFetchPayments', { 
-                  locationIds: syncedLocationIds, 
-                  daysBack: 7,
-                  maxPerLocation: 12,
-                  throttleMs: 200 
-                })
-              ]);
+              setBgSyncProgress({ stage: 'starting' });
 
+              // Step 1: Run COD cleanup scan
+              setBgSyncProgress({ stage: 'cleanup' });
+              await base44.functions.invoke('syncSquareCods', {});
+
+              // Step 2: Sync catalog items (also creates missing Cash COD items)
+              setBgSyncProgress({ stage: 'catalog_sync' });
+              const catalogResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
               const catalogData = catalogResponse?.data || catalogResponse || {};
-              const paymentsData = paymentsResponse?.data || paymentsResponse || {};
-
               const catalogItemsData = catalogData?.items || [];
-              const soldFromPayments = paymentsData?.soldCatalogItems || [];
               const soldFromCatalog = catalogData?.soldCatalogItems || [];
+
+              setBgSyncProgress({ stage: 'payments_sync', detail: `${catalogItemsData.length} catalog items` });
+
+              // Step 3: Fetch recent payments
+              const paymentsResponse = await base44.functions.invoke('squareFetchPayments', { 
+                locationIds: syncedLocationIds, 
+                daysBack: 7,
+                maxPerLocation: 12,
+                throttleMs: 200 
+              });
+              const paymentsData = paymentsResponse?.data || paymentsResponse || {};
+              const soldFromPayments = paymentsData?.soldCatalogItems || [];
+
               const allSoldRaw = [...soldFromPayments, ...soldFromCatalog];
               const soldDedupBg = [];
               const soldKeysBg = new Set();
@@ -312,7 +311,8 @@ export default function SquareManagement() {
                 if (!soldKeysBg.has(key)) { soldKeysBg.add(key); soldDedupBg.push(s); }
               }
 
-              // Save to offline DB
+              // Step 4: Save to offline DB
+              setBgSyncProgress({ stage: 'saving_offline', detail: `${soldDedupBg.length} transactions` });
               await Promise.all([
                 saveCatalogItemsOffline(catalogItemsData),
                 savePaymentTransactionsOffline(soldDedupBg)
@@ -329,11 +329,26 @@ export default function SquareManagement() {
               setRecentTransactions(recentPaymentsFresh);
               
               await loadSyncStatus();
+
+              const created = catalogData?.createdCount || 0;
+              const deleted = catalogData?.deletedCount || 0;
+              const detailParts = [
+                `${catalogItemsData.length} items`,
+                created > 0 ? `+${created} created` : null,
+                deleted > 0 ? `-${deleted} deleted` : null,
+              ].filter(Boolean).join(', ');
+
+              setBgSyncProgress({ stage: 'complete', detail: detailParts });
               console.log('✅ [SquareManagement] Background refresh complete');
+              
+              // Auto-hide after 5 seconds
+              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
             } catch (bgError) {
-              console.warn('⚠️ [SquareManagement] Background refresh failed (non-critical):', bgError.message);
+              console.warn('⚠️ [SquareManagement] Background refresh failed:', bgError.message);
+              setBgSyncProgress({ stage: 'error', error: bgError.message, lastPercent: 30 });
+              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
             }
-          }, 2000);
+          }, 1500);
         } else {
           // No offline data - fetch from API
           console.log('📥 [SquareManagement] No offline data - fetching from API...');
