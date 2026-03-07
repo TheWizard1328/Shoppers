@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
         driverId,
         ampmDeliveries: ampmDeliveries || null,
         allowCreateIfMissing: true,
+        skipReuseCheck: !driverHasExistingStops,
       }).then(r => r?.data || r).catch((e) => ({ error: String(e) }));
 
       const ensured = result && (result.pickupId || result.puid) ? 1 : 0;
