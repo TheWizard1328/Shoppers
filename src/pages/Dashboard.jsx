@@ -6826,11 +6826,8 @@ function Dashboard() {
 
       // STEP 7: Re-lock FAB if needed (instant)
       if (currentPhase === 2) {
+        // Keep Phase 2 locked but DO NOT trigger a map render to avoid flicker/recenter
         setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
           mapLockTimeoutRef.current = null;
