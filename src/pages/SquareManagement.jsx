@@ -229,18 +229,26 @@ export default function SquareManagement() {
           console.warn('⚠️ [SquareManagement] Failed to load SquareTransaction entity:', txErr.message);
         }
 
-        // Also try offline cache as secondary fallback
-        const [offlineCatalog, offlinePayments] = await Promise.all([
-          getCatalogItemsOffline(),
-          getPaymentTransactionsOffline()
-        ]);
+        // Also try offline cache as secondary fallback (if entity load failed)
+        let hasEntityData = false;
+        try {
+          const pendingCheck = await base44.entities.SquareTransaction.filter({ status: 'pending' });
+          hasEntityData = pendingCheck && pendingCheck.length > 0;
+        } catch (_) {}
 
-        if (catalogItems.length === 0 && offlineCatalog.length > 0) {
-          setCatalogItems(offlineCatalog);
-          setSoldCatalogItems(offlinePayments);
-          setAllTransactions(offlinePayments);
-          setIsLoading(false);
-          await loadSyncStatus();
+        if (!hasEntityData) {
+          const [offlineCatalog, offlinePayments] = await Promise.all([
+            getCatalogItemsOffline(),
+            getPaymentTransactionsOffline()
+          ]);
+
+          if (offlineCatalog.length > 0) {
+            setCatalogItems(offlineCatalog);
+            setSoldCatalogItems(offlinePayments);
+            setAllTransactions(offlinePayments);
+            setIsLoading(false);
+            await loadSyncStatus();
+          }
         }
 
         // Always fetch fresh data from API (single call does everything)
