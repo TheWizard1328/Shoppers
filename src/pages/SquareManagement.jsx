@@ -65,100 +65,49 @@ export default function SquareManagement() {
   const syncFromSquare = async () => {
     setIsSyncing(true);
     setError(null);
-
-    // Pause smart refresh during full cleanup
-    smartRefreshManager.pause();
-    console.log('⏸️ [SquareManagement] Paused smart refresh for Square sync');
+    setBgSyncProgress({ stage: 'catalog_sync' });
 
     try {
-      // Start fresh: clear offline cache
       await clearSquareCODOfflineData();
 
-      // Single unified cleanup: run syncSquareCods in scan mode
-      console.log('🧹 Running unified Square COD cleanup (scan mode)...');
-      const cleanupRes = await base44.functions.invoke('syncSquareCods', {});
-      const cleanupData = cleanupRes?.data || cleanupRes || {};
-      if (!cleanupData.success) throw new Error(cleanupData.error || 'Square COD cleanup failed');
+      // Single call does everything: fetch deliveries, transactions, catalog, delete matched, create missing
+      const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
+      const data = response?.data || response || {};
 
-      // Aggregate results for UI
-      const results = Array.isArray(cleanupData.results) ? cleanupData.results : [];
-      const counts = {
-        delete: { total: 0, ok: 0, failed: 0, skipped: 0 },
-        upsert: { total: 0, ok: 0, failed: 0, skipped: 0 },
-      };
-      for (const r of results) {
-        if (!counts[r.action]) continue;
-        counts[r.action].total += 1;
-        if (r.status === 'ok' || r.status === 'completed') counts[r.action].ok += 1;
-        else if (r.status === 'failed') counts[r.action].failed += 1;
-        else counts[r.action].skipped += 1;
-      }
-      setLastCleanup({
-        processed: cleanupData.processed || results.length,
-        startedAt: cleanupData.startedAt,
-        finishedAt: cleanupData.finishedAt,
-        counts,
-      });
+      if (!data.success) throw new Error(data.error || 'Sync failed');
 
-      // Refresh data for UI after cleanup
-      console.log('🔄 Refreshing catalog and recent payments after cleanup...');
-      const [catalogRes, paymentsRes] = await Promise.allSettled([
-        base44.functions.invoke('squareSyncCatalogItems', {}),
-        base44.functions.invoke('squareFetchPayments', { locationIds, daysBack: 7, maxPerLocation: 100, throttleMs: 200 }),
-      ]);
+      const items = data.items || [];
+      const sold = data.soldCatalogItems || [];
 
-      const catalogData = catalogRes.status === 'fulfilled' ? (catalogRes.value?.data || catalogRes.value || {}) : {};
-      const paymentsData = paymentsRes.status === 'fulfilled' ? (paymentsRes.value?.data || paymentsRes.value || {}) : {};
-
-      const finalCatalogItems = catalogData.items || catalogData.catalogItems || [];
-      const sold = paymentsData.soldCatalogItems || [];
-      // Also include sold items from the catalog sync response
-      const catalogSold = catalogData.soldCatalogItems || [];
-      const allSold = [...sold, ...catalogSold];
-      // Deduplicate by location_id|name|amount
-      const soldDedup = [];
-      const soldKeys = new Set();
-      for (const s of allSold) {
-        const key = `${s.location_id}|${(s.item_name || '').toLowerCase()}|${Math.round((Number(s.amount) || 0) * 100)}`;
-        if (!soldKeys.has(key)) { soldKeys.add(key); soldDedup.push(s); }
-      }
-
-      setCatalogItems(finalCatalogItems);
-      setSoldCatalogItems(soldDedup);
-      setAllTransactions(soldDedup);
-      setLocationIds(catalogData.locationIds || locationIds);
+      setCatalogItems(items);
+      setSoldCatalogItems(sold);
+      setAllTransactions(sold);
+      setLocationIds(data.locationIds || locationIds);
 
       await Promise.all([
-        saveCatalogItemsOffline(finalCatalogItems),
+        saveCatalogItemsOffline(items),
         savePaymentTransactionsOffline(sold),
       ]);
 
-      const delOk = counts['delete'].ok || 0;
-      const upOk = counts['upsert'].ok || 0;
-      const failures = (counts['delete'].failed || 0) + (counts['upsert'].failed || 0);
-      const msgParts = [];
-      if (delOk) msgParts.push(`deleted ${delOk}`);
-      if (upOk) msgParts.push(`upserted ${upOk}`);
-      if (failures) msgParts.push(`failed ${failures}`);
-      toast.success(`Square COD cleanup: ${msgParts.join(' • ') || 'done'}`);
+      const parts = [];
+      parts.push(`${items.length} active items`);
+      if (data.createdCount > 0) parts.push(`+${data.createdCount} created`);
+      if (data.deletedCount > 0) parts.push(`-${data.deletedCount} deleted`);
+      toast.success(`Square COD sync: ${parts.join(', ')}`);
 
-      console.log('✅ Unified cleanup + refresh complete');
+      setBgSyncProgress({ stage: 'complete', detail: parts.join(', ') });
+      setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
     } catch (err) {
       console.error('Sync error:', err);
       setError(err.message);
       toast.error('Failed to sync: ' + err.message);
+      setBgSyncProgress({ stage: 'error', error: err.message });
+      setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
     } finally {
       setIsSyncing(false);
       setIsLoading(false);
-
-      // Update sync status indicator
       const updatedSyncStatus = await getSquareCODSyncStatus();
       setSyncStatus(updatedSyncStatus);
-
-      // Resume smart refresh
-      smartRefreshManager.resume();
-      smartRefreshManager.restart();
-      console.log('▶️ [SquareManagement] Resumed and restarted smart refresh after Square sync');
     }
   };
 
