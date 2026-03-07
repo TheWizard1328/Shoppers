@@ -350,24 +350,29 @@ export default function SquareManagement() {
             }
           }, 1500);
         } else {
-          // No offline data - fetch from API
+          // No offline data - fetch from API with progress
           console.log('📥 [SquareManagement] No offline data - fetching from API...');
-          const [catalogResponse, paymentsResponse] = await Promise.all([
-            base44.functions.invoke('squareSyncCatalogItems', {}),
-            base44.functions.invoke('squareFetchPayments', { 
-              locationIds: syncedLocationIds, 
-              daysBack: 7,
-              maxPerLocation: 12,
-              throttleMs: 200 
-            })
-          ]);
+          setBgSyncProgress({ stage: 'starting' });
 
+          setBgSyncProgress({ stage: 'cleanup' });
+          await base44.functions.invoke('syncSquareCods', {});
+
+          setBgSyncProgress({ stage: 'catalog_sync' });
+          const catalogResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
           const catalogData = catalogResponse?.data || catalogResponse || {};
-          const paymentsData = paymentsResponse?.data || paymentsResponse || {};
-
           const catalogItemsData = catalogData?.items || [];
-          const soldFromPaymentsInit = paymentsData?.soldCatalogItems || [];
           const soldFromCatalogInit = catalogData?.soldCatalogItems || [];
+
+          setBgSyncProgress({ stage: 'payments_sync', detail: `${catalogItemsData.length} catalog items` });
+          const paymentsResponse = await base44.functions.invoke('squareFetchPayments', { 
+            locationIds: syncedLocationIds, 
+            daysBack: 7,
+            maxPerLocation: 12,
+            throttleMs: 200 
+          });
+          const paymentsData = paymentsResponse?.data || paymentsResponse || {};
+          const soldFromPaymentsInit = paymentsData?.soldCatalogItems || [];
+
           const allSoldInit = [...soldFromPaymentsInit, ...soldFromCatalogInit];
           const soldDedupInit = [];
           const soldKeysInit = new Set();
@@ -378,13 +383,12 @@ export default function SquareManagement() {
 
           console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldDedupInit.length} transactions`);
 
-          // Save to offline database
+          setBgSyncProgress({ stage: 'saving_offline', detail: `${soldDedupInit.length} transactions` });
           await Promise.all([
             saveCatalogItemsOffline(catalogItemsData),
             savePaymentTransactionsOffline(soldDedupInit)
           ]);
 
-          // Update UI
           setCatalogItems(catalogItemsData);
           setSoldCatalogItems(soldDedupInit);
           setAllTransactions(soldDedupInit);
@@ -399,6 +403,16 @@ export default function SquareManagement() {
           setIsLoading(false);
           
           await loadSyncStatus();
+
+          const created = catalogData?.createdCount || 0;
+          const deleted = catalogData?.deletedCount || 0;
+          const detailParts = [
+            `${catalogItemsData.length} items`,
+            created > 0 ? `+${created} created` : null,
+            deleted > 0 ? `-${deleted} deleted` : null,
+          ].filter(Boolean).join(', ');
+          setBgSyncProgress({ stage: 'complete', detail: detailParts });
+          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
         }
       } catch (err) {
         console.error('Failed to load COD data:', err);
