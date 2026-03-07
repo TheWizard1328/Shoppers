@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
     // Fetch recent sold items via existing function (last 7 days)
     let soldCatalogItems = [];
     try {
-      const fpRes = await base44.asServiceRole.functions.invoke('squareFetchPayments', { locationIds, daysBack: 2, maxPerLocation: 10, throttleMs: 150 });
+      const fpRes = await base44.asServiceRole.functions.invoke('squareFetchPayments', { locationIds, daysBack: 7, maxPerLocation: 50, throttleMs: 150 });
       const fpData = fpRes?.data || fpRes;
       soldCatalogItems = fpData?.soldCatalogItems || [];
     } catch (e) {
