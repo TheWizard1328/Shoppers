@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { base44 } from '@/api/base44Client';
+import { globalFilters } from '@/components/utils/globalFilters';
 
 /**
  * Lightweight toast that appears when offline DB reconciliation updates data.
