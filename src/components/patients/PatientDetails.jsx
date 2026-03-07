@@ -99,11 +99,20 @@ const RecentDeliveries = ({ deliveries, patient }) => {
                       )}
                     </div>
                   </div>
-                  {delivery.delivery_notes && (
-                    <div className="text-xs pt-2 border-t" style={{ color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-300)' }}>
-                      <span className="font-medium">Notes:</span> {delivery.delivery_notes}
-                    </div>
-                  )}
+                  <div className={`flex items-center justify-between ${delivery.delivery_notes ? 'pt-2 border-t' : ''}`} style={{ borderColor: 'var(--border-slate-300)' }}>
+                    {delivery.delivery_notes && (
+                      <div className="text-xs flex-1 mr-2" style={{ color: 'var(--text-slate-600)' }}>
+                        <span className="font-medium">Notes:</span> {delivery.delivery_notes}
+                      </div>
+                    )}
+                    <Link
+                      to={createPageUrl(`Dashboard?date=${delivery.delivery_date}&driver=${delivery.driver_id || ''}`)}
+                      className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium shrink-0"
+                    >
+                      <Eye className="w-3 h-3" />
+                      View
+                    </Link>
+                  </div>
                 </div>
               );
             })}
