@@ -3,6 +3,9 @@ import { base44 } from "@/api/base44Client";
 /**
  * Detects when driver arrives at delivery/pickup locations (geofence detection)
  * Saves arrival_time when driver stays within 100m for 30+ seconds
+ *
+ * CRITICAL: All location lookups use offline DB only - NO live API calls on GPS pings.
+ * The only API call is the final Delivery.update when an arrival is confirmed.
  */
 class ArrivalTimeDetector {
   constructor() {
@@ -12,6 +15,16 @@ class ArrivalTimeDetector {
     this.minStationaryDuration = 30000; // 30 seconds in ms
     this.geofenceRadius = 100; // meters
     this.arrivalTimesRecorded = new Set(); // Track recorded arrivals to avoid duplicates
+
+    // Cached offline data - refreshed at most once per minute
+    this._cachedDeliveries = null;
+    this._cachedPatients = null;
+    this._cachedStores = null;
+    this._cachedAppUser = null;
+    this._lastCacheTime = 0;
+    this._cacheMaxAge = 60000; // 1 minute
+    this._lastDriverId = null;
+    this._lastDeliveryDate = null;
   }
 
   /**
