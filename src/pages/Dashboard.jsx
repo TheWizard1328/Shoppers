@@ -7812,7 +7812,7 @@ function Dashboard() {
                   console.warn('⚠️ [Pull to Sync] No appUsers available from sync or context - cannot process locations');
                 }
                 
-                const validSyncAppUsers = freshAppUsers?.length > 0 && freshAppUsers[0]?.user_id ? freshAppUsers : appUsers;
+                const validSyncAppUsers = ((freshAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined').length > 0) ? freshAppUsers.filter(u => u?.user_id && u.user_id !== 'undefined') : appUsers;
                 window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: validSyncAppUsers, forceAll: true } }));
                 
                 // Force map update based on selection mode
