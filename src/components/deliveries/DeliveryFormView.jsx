@@ -93,8 +93,6 @@ export default function DeliveryFormView({
   buttonState, cancelButtonState, isFormValid, hasChanges, isPatientFormOpen,
   closeOnSave, onCancel,
 }) {
-  const [isAdding, setIsAdding] = React.useState(false);
-
   const stagedCount = {
     new: sortedStagedDeliveries.filter(s => !s.id).length,
     pending: sortedStagedDeliveries.filter(s => s.id).length,
