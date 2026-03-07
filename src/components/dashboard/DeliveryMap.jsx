@@ -2047,142 +2047,25 @@ export default function DeliveryMap({
 
 
 
-        {/* TYPE 2 & 3 POLYLINES: Colored lines connecting stops in stop_order sequence (Type 2 drawn via HERE below) */}
-        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (() => {
-           // CRITICAL: Return cached polylines if safeUsers is empty
-           if (!safeUsers || safeUsers.length === 0) {
-             console.warn(`⚠️ [DeliveryMap] safeUsers empty in Type 2/3 polylines - proceeding with default colors`);
-           }
-           
-           const finishedStatuses = ['completed', 'failed', 'cancelled'];
-           const polylines = [];
-           
-           // Helper: Calculate time difference between two stops in minutes
-           const getTimeDifferenceMinutes = (stop1, stop2) => {
-             // For completed stops, use actual_delivery_time
-             const time1 = stop1.actual_delivery_time 
-               ? new Date(stop1.actual_delivery_time)
-               : stop1.delivery_time_eta 
-                 ? new Date(`2000-01-01T${stop1.delivery_time_eta}:00`)
-                 : stop1.delivery_time_start 
-                   ? new Date(`2000-01-01T${stop1.delivery_time_start}:00`)
-                   : null;
-             
-             const time2 = stop2.actual_delivery_time 
-               ? new Date(stop2.actual_delivery_time)
-               : stop2.delivery_time_eta 
-                 ? new Date(`2000-01-01T${stop2.delivery_time_eta}:00`)
-                 : stop2.delivery_time_start 
-                   ? new Date(`2000-01-01T${stop2.delivery_time_start}:00`)
-                   : null;
-             
-             if (!time1 || !time2) return 0;
-             
-             return Math.abs(time2 - time1) / (1000 * 60); // Convert to minutes
-           };
-
-           driverRoutes.forEach(route => {
-             if (!route.driverId) return;
-
-             // CRITICAL: Use route.color for this driver's unique color
-             const driverPolylineColor = ((isAllDriversMode || selectedDriverId === 'all') ? (function(hex, id){ const palette=['#8A2BE2','#EC4899','#F59E0B','#A855F7','#F43F5E','#FF7F50','#A0522D']; if(!hex||hex[0]!=='#'||hex.length<7) return hex||'#607D8B'; const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16); const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min; if(d===0) return hex; let h; switch(max){ case r: h=(g-b)/d+(g<b?6:0); break; case g: h=(b-r)/d+2; break; default: h=(r-g)/d+4; } h=h*60; if(h>=180&&h<=250){ let x=0; for(const c of String(id||'')) x=((x<<5)-x)+c.charCodeAt(0)|0; const idx=Math.abs(x)%palette.length; return palette[idx]; } return hex; })(route.color, route.driverId) : route.color);
-
-             // CRITICAL: deliveryMarkers and pickupMarkers ALREADY include other drivers when showOtherDriverDeliveries is true
-             // No need to merge otherDriverDeliveries again - just filter by driver ID
-             const sourceDeliveries = deliveryMarkers.filter(d => d && d.driver_id === route.driverId);
-             const sourcePickups = pickupMarkers.filter(p => p && p.driver_id === route.driverId);
-            
-            const allDriverStops = [...sourcePickups, ...sourceDeliveries]
-              .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-            
-            if (allDriverStops.length < 2) return;
-            
-            // Check if route is completed
-            const isRouteCompleted = allDriverStops.every(s => finishedStatuses.includes(s.status));
-            
-            // TYPE 3: For completed routes, show all stops connected (ANY DATE)
-            if (isRouteCompleted) {
-              for (let i = 0; i < allDriverStops.length - 1; i++) {
-                const stop1 = allDriverStops[i];
-                const stop2 = allDriverStops[i + 1];
-                
-                if (!stop1 || !stop2) continue;
-                
-                // CRITICAL: Validate coordinates
-                if (typeof stop1.latitude !== 'number' || typeof stop1.longitude !== 'number' ||
-                    typeof stop2.latitude !== 'number' || typeof stop2.longitude !== 'number' ||
-                    isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
-                    isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
-                  console.warn('[DeliveryMap] Skipping TYPE 3 polyline with invalid coordinates');
-                  continue;
-                }
-                
-                // CRITICAL: Skip polyline if time gap > 90 minutes
-                const timeDiffMinutes = getTimeDifferenceMinutes(stop1, stop2);
-                if (timeDiffMinutes > 90) {
-                  console.log(`⏭️ [TYPE 3] Skipping polyline - ${timeDiffMinutes.toFixed(0)} min gap exceeds 90 min threshold`);
-                  continue;
-                }
-                
-                const isAM = stop2.ampm_deliveries === 'AM';
-                const dashArray = isAM ? '10, 5' : '2, 8';
-                
-                // FADE: Segment is highlighted if either endpoint is the highlighted stop
-                // CRITICAL: Don't fade segments for the selected driver's complete route
-                const isSegmentHighlighted = highlightedDeliveryId &&
-                  (stop1.id === highlightedDeliveryId || stop2.id === highlightedDeliveryId);
-                const isSelectedDriverRoute = selectedDriverId && selectedDriverId !== 'all' && route.driverId === selectedDriverId;
-                const type3Opacity = isSelectedDriverRoute ? 0.7 : isSegmentHighlighted ? 0.85 : 0.2;
-                
-                polylines.push(
-                  <Polyline
-                    key={`type3-${route.driverId}-${i}-${polylineRenderKey}-${highlightedDeliveryId || 'none'}`}
-                    positions={[
-                      [stop1.latitude, stop1.longitude],
-                      [stop2.latitude, stop2.longitude]
-                    ]}
-                    pathOptions={{
-                      color: driverPolylineColor,
-                      weight: 4,
-                      opacity: type3Opacity,
-                      dashArray: dashArray,
-                      lineJoin: 'round',
-                      lineCap: 'round'
-                    }}
-                    pane="overlayPane"
-                  />
-                );
-              }
-            } else if (isViewingCurrentDate) {
-              // TYPE 2: For active routes, only show on CURRENT DATE
-              // We now render HERE-based Type 2 polylines separately; hide straight placeholders
-              // (keep minimal logic for timing checks but do not draw straight lines)
-              
-              const incompleteStops = allDriverStops.filter(s => !finishedStatuses.includes(s.status) && s.status !== 'pending');
-              if (incompleteStops.length <= 1) return;
-              // No straight lines here; HERE Type 2 polylines are rendered below
-            }
+        {/* TYPE 3 POLYLINES: Completed routes - dashed lines between all stops */}
+        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && driverRoutes.map(route => {
+          if (!route.driverId) return null;
+          const fin = ['completed','failed','cancelled'];
+          const color = ((isAllDriversMode || selectedDriverId === 'all') ? (function(hex,id){const p=['#8A2BE2','#EC4899','#F59E0B','#A855F7','#F43F5E','#FF7F50','#A0522D'];if(!hex||hex[0]!=='#'||hex.length<7)return hex||'#607D8B';const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;if(d===0)return hex;let h;switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4;}h*=60;if(h>=180&&h<=250){let x=0;for(const c of String(id||''))x=((x<<5)-x)+c.charCodeAt(0)|0;return p[Math.abs(x)%p.length];}return hex;})(route.color,route.driverId) : route.color);
+          const stops = [...pickupMarkers.filter(p=>p&&p.driver_id===route.driverId),...deliveryMarkers.filter(d=>d&&d.driver_id===route.driverId)].sort((a,b)=>(a.stop_order||0)-(b.stop_order||0));
+          if (stops.length < 2) return null;
+          if (!stops.every(s=>fin.includes(s.status))) return null; // TYPE 3 only for completed
+          return stops.slice(0,-1).map((s1,i)=>{
+            const s2=stops[i+1];
+            if (!s1||!s2||[s1.latitude,s1.longitude,s2.latitude,s2.longitude].some(v=>typeof v!=='number'||isNaN(v))) return null;
+            const t1=s1.actual_delivery_time?new Date(s1.actual_delivery_time):s1.delivery_time_eta?new Date(`2000-01-01T${s1.delivery_time_eta}:00`):s1.delivery_time_start?new Date(`2000-01-01T${s1.delivery_time_start}:00`):null;
+            const t2=s2.actual_delivery_time?new Date(s2.actual_delivery_time):s2.delivery_time_eta?new Date(`2000-01-01T${s2.delivery_time_eta}:00`):s2.delivery_time_start?new Date(`2000-01-01T${s2.delivery_time_start}:00`):null;
+            if(t1&&t2&&Math.abs(t2-t1)/60000>90) return null;
+            const isSelRoute=selectedDriverId&&selectedDriverId!=='all'&&route.driverId===selectedDriverId;
+            const isHighSeg=highlightedDeliveryId&&(s1.id===highlightedDeliveryId||s2.id===highlightedDeliveryId);
+            return <Polyline key={`t3-${route.driverId}-${i}-${polylineRenderKey}-${highlightedDeliveryId||'none'}`} positions={[[s1.latitude,s1.longitude],[s2.latitude,s2.longitude]]} pathOptions={{color,weight:4,opacity:isSelRoute?0.7:isHighSeg?0.85:0.2,dashArray:s2.ampm_deliveries==='AM'?'10, 5':'2, 8',lineJoin:'round',lineCap:'round'}} pane="overlayPane"/>;
           });
-
-          // CRITICAL: Type 1 polyline for drivers with complete routes (to home) - ONLY CURRENT DATE
-          if (isViewingCurrentDate) {
-            // Helper to get driver name (defined in parent scope)
-            const getDriverNameComplete = (driverId) => {
-              const driver = safeUsers.find(u => u && u.id === driverId);
-              return driver ? (driver.user_name || driver.full_name || `Driver-${driverId}`) : `Unknown-${driverId}`;
-            };
-            
-            console.log('🔵 [Type1Poly-Complete] Processing driversWithCompleteRoute:', Array.from(driversWithCompleteRoute).map(id => getDriverNameComplete(id)));
-            
-            // Handled by HereType1Polylines component
-            driversWithCompleteRoute.forEach(() => {});
-            
-            console.log(`🔵 [Type1Poly-Complete] Total polylines to HOME: ${polylines.filter(p => p.key?.includes('type1-home')).length}`);
-          }
-
-console.log(`🔵 [Type1Poly] FINAL: Returning ${polylines.length} total Type 1 polylines`);
-return polylines.length > 0 ? polylines : null;
-})()}
+        })}
 
 
 
