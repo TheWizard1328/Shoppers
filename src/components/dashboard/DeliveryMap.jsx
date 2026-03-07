@@ -854,8 +854,9 @@ export default function DeliveryMap({
         }
         
         // Center on original cluster location with dynamic padding
+        // Large top padding pushes cluster markers toward the lower portion of the screen
         const fitOptions = { 
-          paddingTopLeft: [80, 80],
+          paddingTopLeft: [80, 350],
           paddingBottomRight: [80, dynamicBottomPadding],
           maxZoom: 14,
           animate: true,
@@ -908,7 +909,7 @@ export default function DeliveryMap({
       const statsCardHeight = statsCard ? statsCard.getBoundingClientRect().height : 0;
       // Large top padding pushes the marker DOWN on screen (toward lower half)
       // This leaves room above for the popup balloon to open
-      const dynamicTopPadding = statsCardHeight + 250;
+      const dynamicTopPadding = statsCardHeight + 350;
 
       // Keep bottom padding minimal — just enough to clear stop cards
       const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
