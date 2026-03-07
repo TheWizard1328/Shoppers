@@ -399,7 +399,7 @@ Deno.serve(async (req) => {
       if (catalogLookup.has(key)) continue;
 
       // Skip if already sold in Square
-      if (soldLookup.has(key)) continue;
+      if (isSold(del._locId, del._itemName, del._priceCents, null)) continue;
 
       // Create the catalog item directly via Square API (not via function invoke)
       const locationId = del._locId;
