@@ -1911,108 +1911,25 @@ export default function DeliveryMap({
 
   // Handle dynamic map center and zoom changes - ONLY when shouldFitBounds is explicitly set
   useEffect(() => {
-    if (!map) {
-      return;
-    }
-
-    // SAFETY: Ensure map is fully loaded before attempting operations
-    if (!map.getCenter || !map._loaded) {
-      return;
-    }
-
-    // CRITICAL: Verify map panes exist before operations
-    if (!map._panes || !map._mapPane) {
-      console.warn('[DeliveryMap] Map panes not initialized, skipping bounds fit');
-      return;
-    }
-
-    // CRITICAL: Only apply map changes when shouldFitBounds is explicitly set
-    // This prevents auto-centering when other props changes
-    if (!shouldFitBounds) {
-      return;
-    }
-
-    // CRITICAL: Verify map pane element exists (prevents _leaflet_pos error during unmount/zoom transitions)
+    if (!map || !map.getCenter || !map._loaded || !map._panes || !map._mapPane || !shouldFitBounds) return;
     try {
-      if (!map._mapPane || !map._mapPane._leaflet_pos) {
-        console.warn('[DeliveryMap] Map pane position not available yet, skipping bounds fit');
-        return;
-      }
-    } catch (e) {
-      return;
-    }
-
+      if (!map._mapPane._leaflet_pos) return;
+    } catch (e) { return; }
     try {
       const bounds = L.latLngBounds(shouldFitBounds.bounds);
-      
-      // CRITICAL: Mark this as a programmatic zoom BEFORE calling fitBounds
-      // Use a ref that persists across the entire zoom operation (zoomstart -> zoomend)
-      // Access the MapController's ref through a closure
       if (map._leaflet_events?.zoomstart) {
-        // Store flag globally on map instance so MapController can access it
-        if (!map._isProgrammaticZoom) {
-          Object.defineProperty(map, '_isProgrammaticZoom', {
-            value: { current: false },
-            writable: true,
-            configurable: true
-          });
-        }
+        if (!map._isProgrammaticZoom) Object.defineProperty(map, '_isProgrammaticZoom', { value: { current: false }, writable: true, configurable: true });
         map._isProgrammaticZoom.current = true;
       }
-      
-      // Adjust padding to bias center in Phase 2 without a second pan
-      const optionsFromDashboard = shouldFitBounds.options || {};
-      let paddingTopLeft = optionsFromDashboard.paddingTopLeft || [60, 60];
-      let paddingBottomRight = optionsFromDashboard.paddingBottomRight || [60, 60];
-
-      const modifiedOptions = { 
-        ...optionsFromDashboard,
-        paddingTopLeft,
-        paddingBottomRight,
-        animate: true,
-        duration: 0.8 // Smooth 800ms animation
-      };
-
-      // Mark programmatic move so MapController doesn't treat it as user interaction
+      const opts = shouldFitBounds.options || {};
       try { window._lastProgrammaticMapMove = Date.now(); } catch (_) {}
-      (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(bounds, modifiedOptions);
-
-      if (onBoundsFitted && typeof onBoundsFitted === 'function') {
-        onBoundsFitted();
-      }
-    } catch (error) {
-      console.warn('[DeliveryMap] Error during bounds fit:', error);
-    }
+      map._mapPane._leaflet_pos && map.fitBounds(bounds, { ...opts, paddingTopLeft: opts.paddingTopLeft || [60,60], paddingBottomRight: opts.paddingBottomRight || [60,60], animate: true, duration: 0.8 });
+      if (onBoundsFitted) onBoundsFitted();
+    } catch (error) { console.warn('[DeliveryMap] Error during bounds fit:', error); }
   }, [map, shouldFitBounds, stopCardsHeight, onBoundsFitted]);
 
-  // Handle marker drag end
-  const handleMarkerDragEnd = useCallback((markerId, event, type) => {
-    try {
-      const newLatLng = event.target.getLatLng();
-    } catch (error) {}
-  }, []);
-
-  // Track popup visibility timeouts for driver location markers
+  const handleMarkerDragEnd = useCallback((markerId, event, type) => { try { event.target.getLatLng(); } catch (e) {} }, []);
   const popupTimeoutsRef = useRef({});
-  
-  const handleDriverLocationPopupHover = (locationId, isHovering) => {
-    if (isHovering) {
-      // Clear timeout when hovering over popup
-      if (popupTimeoutsRef.current[locationId]) {
-        clearTimeout(popupTimeoutsRef.current[locationId]);
-        popupTimeoutsRef.current[locationId] = null;
-      }
-    } else {
-      // Set 2-second delay before closing when leaving popup
-      popupTimeoutsRef.current[locationId] = setTimeout(() => {
-        const markers = document.querySelectorAll(`[data-driver-location-id="${locationId}"] .leaflet-popup`);
-        markers.forEach(m => {
-          const closeBtn = m.querySelector('.leaflet-popup-close-button');
-          if (closeBtn) closeBtn.click();
-        });
-      }, 2000);
-    }
-  };
 
 
 
