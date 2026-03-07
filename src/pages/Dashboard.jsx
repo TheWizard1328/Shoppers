@@ -725,13 +725,9 @@ function Dashboard() {
     checkPrimaryDevice();
   }, [currentUser?.id]);
 
-  // Fetch payroll stats with debounce/throttle to avoid 429s
-  useEffect(() => {
-    // Disabled on Dashboard to prevent API rate limits; see DriverPayroll page for stats
-    setPerformanceStats(null);
-    setIsLoadingPayrollStats(false);
-    return;
-  }, [isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate]);
+  // Fetch performance stats from getDeliveryStats (server-cached, no extra DB calls)
+  useEffect(() => { if (!currentUser?.id||!isDataLoaded) { setPerformanceStats(null); setIsLoadingPayrollStats(false); return; } const ok=(isDriver&&selectedDriverId===currentUser?.id)||(isAdmin&&selectedDriverId&&selectedDriverId!=='all'); if(!ok){setPerformanceStats(null);setIsLoadingPayrollStats(false);return;} let c=false; const f=async()=>{setIsLoadingPayrollStats(true);try{const{getDeliveryStats}=await import('@/functions/getDeliveryStats');const r=await getDeliveryStats({selectedDate:format(selectedDate,'yyyy-MM-dd'),driverId:selectedDriverId});const d=r?.data||r;if(!c&&d?.performanceStats)setPerformanceStats(d.performanceStats);}catch(e){if(!c)setPerformanceStats(null);}finally{if(!c)setIsLoadingPayrollStats(false);}};f();const h=()=>{if(!c)f();};window.addEventListener('refreshDeliveryStats',h);return()=>{c=true;window.removeEventListener('refreshDeliveryStats',h);};
+  }, [isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate, isDataLoaded]);
 
   // Track dynamically measured heights for map padding
   // CRITICAL: Start at 0, will be measured once cards render
