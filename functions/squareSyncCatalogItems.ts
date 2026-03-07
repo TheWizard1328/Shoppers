@@ -195,10 +195,59 @@ Deno.serve(async (req) => {
     }
     console.log(`💳 [Step 2] Found ${soldItems.length} sold items across all locations`);
 
-    // Build sold lookup: location|normalizedName|priceCents
-    const soldLookup = new Set(
-      soldItems.map(si => `${si.location_id}|${normalizeName(si.item_name)}|${Math.round((Number(si.amount) || 0) * 100)}`)
-    );
+    // Build sold lookup as a Map with counts (to handle multiple units of the same item)
+    // Key: location|normalizedName|priceCents → count of how many were sold
+    const soldCountMap = new Map();
+    // Also build a direct catalog_object_id lookup for variation-level matching
+    const soldByCatalogObjId = new Map();
+
+    for (const si of soldItems) {
+      const nameKey = `${si.location_id}|${normalizeName(si.item_name)}|${Math.round((Number(si.amount) || 0) * 100)}`;
+      soldCountMap.set(nameKey, (soldCountMap.get(nameKey) || 0) + 1);
+
+      // Track by catalog_object_id (variation ID) for direct matching
+      if (si.catalog_object_id) {
+        const cidKey = `${si.location_id}|${si.catalog_object_id}`;
+        soldByCatalogObjId.set(cidKey, (soldByCatalogObjId.get(cidKey) || 0) + 1);
+      }
+    }
+
+    console.log(`💳 [Step 2] Built sold lookup: ${soldCountMap.size} unique name keys, ${soldByCatalogObjId.size} unique catalog ID keys`);
+
+    // Helper to check if an item has been sold (decrements count to handle duplicates)
+    const checkAndConsumeSold = (locationId, name, priceCents, variationId) => {
+      // First try direct variation ID match (most reliable)
+      if (variationId) {
+        const cidKey = `${locationId}|${variationId}`;
+        const cidCount = soldByCatalogObjId.get(cidKey) || 0;
+        if (cidCount > 0) {
+          soldByCatalogObjId.set(cidKey, cidCount - 1);
+          // Also decrement the name-based count to stay in sync
+          const nameKey = `${locationId}|${normalizeName(name)}|${priceCents}`;
+          const nameCount = soldCountMap.get(nameKey) || 0;
+          if (nameCount > 0) soldCountMap.set(nameKey, nameCount - 1);
+          return true;
+        }
+      }
+      // Fall back to name+price matching
+      const nameKey = `${locationId}|${normalizeName(name)}|${priceCents}`;
+      const nameCount = soldCountMap.get(nameKey) || 0;
+      if (nameCount > 0) {
+        soldCountMap.set(nameKey, nameCount - 1);
+        return true;
+      }
+      return false;
+    };
+
+    // Non-consuming check for Step 5 (skip creation if already sold)
+    const isSold = (locationId, name, priceCents, variationId) => {
+      if (variationId) {
+        const cidKey = `${locationId}|${variationId}`;
+        if ((soldByCatalogObjId.get(cidKey) || 0) > 0) return true;
+      }
+      const nameKey = `${locationId}|${normalizeName(name)}|${priceCents}`;
+      return (soldCountMap.get(nameKey) || 0) > 0;
+    };
 
     // ======== STEP 3: Get all Square catalog items ========
     console.log('📦 [Step 3] Fetching Square catalog items...');
