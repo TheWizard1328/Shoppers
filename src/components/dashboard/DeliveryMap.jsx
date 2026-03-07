@@ -906,17 +906,18 @@ export default function DeliveryMap({
       // Calculate dynamic top padding for stats card (actual measured height)
       const statsCard = document.querySelector('[data-stats-card]');
       const statsCardHeight = statsCard ? statsCard.getBoundingClientRect().height : 0;
-      const dynamicTopPadding = statsCardHeight + 40; // Increased buffer to prevent centering too high
+      // Keep top padding minimal — just enough to clear stats card
+      const dynamicTopPadding = statsCardHeight + 20;
 
-      // Calculate dynamic bottom padding for message balloon
-      const messageBalloonsHeight = 120; // Approximate height of popup balloon + padding
+      // Calculate dynamic bottom padding — this is where stop cards and popup balloon live
+      // More bottom padding pushes the marker UPWARD on screen (toward top half)
       const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
-      let dynamicBottomPadding = messageBalloonsHeight + 20; // Add buffer
-
+      let stopCardsActualHeight = 0;
       if (stopCardsFullContainer) {
-        const actualHeight = stopCardsFullContainer.getBoundingClientRect().height;
-        dynamicBottomPadding = Math.max(actualHeight + messageBalloonsHeight + 20, messageBalloonsHeight + 20);
+        stopCardsActualHeight = stopCardsFullContainer.getBoundingClientRect().height;
       }
+      // Push marker above center: large bottom padding = stop cards + popup space + generous buffer
+      const dynamicBottomPadding = stopCardsActualHeight + 200;
 
       // Create a small bounds box centered on the marker
       const markerBounds = L.latLngBounds([
@@ -924,10 +925,10 @@ export default function DeliveryMap({
         [marker.latitude, marker.longitude]
       ]);
 
-      // Center map with proper zoom and offset to show balloon fully
-      // Using uneven padding to keep marker high on screen with space below for cards
+      // Center map with more bottom padding to push the marker into the upper portion of the visible area
+      // This ensures the popup balloon opens above the marker with room, and stop cards sit below
       const panOptions = {
-        paddingTopLeft: [60, dynamicTopPadding + 50],
+        paddingTopLeft: [60, dynamicTopPadding],
         paddingBottomRight: [60, dynamicBottomPadding],
         animate: true,
         duration: 0.6,
