@@ -332,9 +332,10 @@ Deno.serve(async (req) => {
     const deletedItems = [];
 
     for (const ci of dedupedCatalogItems) {
-      const key = `${ci.location_id}|${normalizeName(ci.name)}|${ci.price_cents}`;
-      if (soldLookup.has(key)) {
+      // Check by variation_id first (direct match), then by name+price
+      if (checkAndConsumeSold(ci.location_id, ci.name, ci.price_cents, ci.variation_id)) {
         // This catalog item has a matching transaction — delete it
+        const key = `${ci.location_id}|${normalizeName(ci.name)}|${ci.price_cents}`;
         try {
           await fetch(`${SQUARE_BASE_URL}/catalog/object/${ci.catalog_object_id}`, {
             method: 'DELETE',
@@ -342,7 +343,7 @@ Deno.serve(async (req) => {
           });
           deletedItems.push({ catalog_object_id: ci.catalog_object_id, name: ci.name, reason: 'matched_transaction' });
           catalogLookup.delete(key);
-          console.log(`  🗑️ Deleted: ${ci.name} (matched sold transaction)`);
+          console.log(`  🗑️ Deleted: ${ci.name} (matched sold transaction via ID or name+price)`);
           await sleep(300);
         } catch (e) {
           console.warn(`  Failed to delete ${ci.name}: ${e.message}`);
