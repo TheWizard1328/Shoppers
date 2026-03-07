@@ -196,13 +196,46 @@ export default function SquareManagement() {
         const syncedLocationIds = configs.map(c => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
-        // OFFLINE-FIRST: Show cached data instantly, then refresh from API
+        // INSTANT LOAD: Read SquareTransaction entity (pending = active catalog items)
+        try {
+          const pendingTxs = await base44.entities.SquareTransaction.filter({ status: 'pending' });
+          if (pendingTxs && pendingTxs.length > 0) {
+            // Convert SquareTransaction records to catalog item format for display
+            const txAsItems = pendingTxs.map(tx => ({
+              catalog_object_id: tx.square_catalog_object_id || tx.id,
+              variation_id: null,
+              name: tx.item_name,
+              description: '',
+              price_cents: tx.amount_cents || Math.round((tx.amount || 0) * 100),
+              price_dollars: tx.amount || 0,
+              location_id: tx.location_id || '',
+              present_at_locations: tx.location_id ? [tx.location_id] : [],
+              present_at_all: false,
+              updated_at: tx.updated_date,
+              version: 0,
+              transaction_id: tx.id,
+              delivery_id: tx.delivery_id,
+              patient_id: tx.patient_id,
+              store_id: tx.store_id,
+              status: 'active',
+              created_date: tx.created_date,
+              is_sold: false
+            }));
+            setCatalogItems(txAsItems);
+            setIsLoading(false);
+            await loadSyncStatus();
+          }
+        } catch (txErr) {
+          console.warn('⚠️ [SquareManagement] Failed to load SquareTransaction entity:', txErr.message);
+        }
+
+        // Also try offline cache as secondary fallback
         const [offlineCatalog, offlinePayments] = await Promise.all([
           getCatalogItemsOffline(),
           getPaymentTransactionsOffline()
         ]);
 
-        if (offlineCatalog.length > 0) {
+        if (catalogItems.length === 0 && offlineCatalog.length > 0) {
           setCatalogItems(offlineCatalog);
           setSoldCatalogItems(offlinePayments);
           setAllTransactions(offlinePayments);
