@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
         }
 
         const body = await req.json().catch(() => ({}));
-        const { storeId, deliveryDate, driverId, ampmDeliveries: requestedAmpm = null, allowCreateIfMissing = false } = body || {};
+        const { storeId, deliveryDate, driverId, ampmDeliveries: requestedAmpm = null, allowCreateIfMissing = false, skipReuseCheck = false } = body || {};
 
         if (!storeId || !deliveryDate || !driverId) {
             return Response.json({ error: 'Missing required parameters: storeId, deliveryDate, driverId' }, { status: 400 });
