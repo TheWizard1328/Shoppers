@@ -15,16 +15,21 @@ function usePerformanceStatsBridge() {
   useEffect(() => {
     let inFlight = false;
     let lastKey = '';
+    let lastFetchTime = 0;
+    const MIN_INTERVAL_MS = 10000; // 10 second throttle
 
     const fetchStats = async () => {
       if (inFlight) return;
+      const now = Date.now();
       const selectedDate = globalFilters.getSelectedDate();
       const driverId = globalFilters.getSelectedDriverId();
       const key = `${selectedDate}|${driverId}`;
-      if (key === lastKey) return;
+      // Allow refetch if key changed OR enough time has passed
+      if (key === lastKey && (now - lastFetchTime) < MIN_INTERVAL_MS) return;
 
       inFlight = true;
       lastKey = key;
+      lastFetchTime = now;
       try {
         const response = await base44.functions.invoke('getDeliveryStats', {
           selectedDate,
