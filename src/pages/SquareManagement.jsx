@@ -300,20 +300,28 @@ export default function SquareManagement() {
               const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
               const catalogItemsData = catalogData?.items || [];
-              const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
+              const soldFromPayments = paymentsData?.soldCatalogItems || [];
+              const soldFromCatalog = catalogData?.soldCatalogItems || [];
+              const allSoldRaw = [...soldFromPayments, ...soldFromCatalog];
+              const soldDedupBg = [];
+              const soldKeysBg = new Set();
+              for (const s of allSoldRaw) {
+                const key = `${s.location_id}|${(s.item_name || '').toLowerCase()}|${Math.round((Number(s.amount) || 0) * 100)}`;
+                if (!soldKeysBg.has(key)) { soldKeysBg.add(key); soldDedupBg.push(s); }
+              }
 
               // Save to offline DB
               await Promise.all([
                 saveCatalogItemsOffline(catalogItemsData),
-                savePaymentTransactionsOffline(soldCatalogItemsData)
+                savePaymentTransactionsOffline(soldDedupBg)
               ]);
 
               // Update UI with fresh data
               setCatalogItems(catalogItemsData);
-              setSoldCatalogItems(soldCatalogItemsData);
-              setAllTransactions(soldCatalogItemsData);
+              setSoldCatalogItems(soldDedupBg);
+              setAllTransactions(soldDedupBg);
               
-              const recentPaymentsFresh = soldCatalogItemsData
+              const recentPaymentsFresh = soldDedupBg
                 .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
                 .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
               setRecentTransactions(recentPaymentsFresh);
