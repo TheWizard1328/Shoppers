@@ -297,7 +297,7 @@ export default function SquareManagement() {
               const paymentsResponse = await base44.functions.invoke('squareFetchPayments', { 
                 locationIds: syncedLocationIds, 
                 daysBack: 7,
-                maxPerLocation: 12,
+                maxPerLocation: 100,
                 throttleMs: 200 
               });
               const paymentsData = paymentsResponse?.data || paymentsResponse || {};
