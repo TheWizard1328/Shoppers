@@ -90,7 +90,7 @@ import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
 import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
-
+import { getDeliveryStats as fetchDeliveryStatsFn } from "@/functions/getDeliveryStats";
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";
 
 function Dashboard() {
