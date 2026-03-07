@@ -695,7 +695,7 @@ function Dashboard() {
 
   // Unified FAB reactivation: Phase 1 never reactivates; Phase 2/3 stay locked and trigger map update
   const reactivateFAB = useCallback((source = 'unknown') => {
-    if (mapViewPhaseRef.current === 1) return;
+    if (mapViewPhaseRef.current === 1 || (userHasRole(currentUser, 'driver') && isPrimaryDevice === true && (source === 'Smart Refresh Complete' || source === 'Smart Refresh Restarted'))) return;
     lastProgrammaticMapMoveRef.current = Date.now();
     window._lastProgrammaticMapMove = Date.now();
     setMapViewTrigger((prev) => prev + 1);
