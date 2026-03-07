@@ -1310,11 +1310,7 @@ function Dashboard() {
         return nameA.localeCompare(nameB);
       });
 
-    console.log(`✅ [DriversList] Found ${driversSource.length} active drivers from AppUsers`);
-
-    // ADMIN/DRIVER: Show ALL drivers (no filtering)
     if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) {
-      console.log(`   - Role: ${currentUser?.app_roles?.join('/')}, showing ALL ${driversSource.length} drivers`);
       return driversSource;
     }
 
