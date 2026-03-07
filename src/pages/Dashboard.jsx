@@ -5652,26 +5652,7 @@ function Dashboard() {
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       
       // CRITICAL: Refresh payroll stats if viewing own route
-      if (isDriver && currentUser?.id && selectedDriverId === currentUser.id) {
-        setTimeout(async () => {
-          try {
-            const response = await base44.functions.invoke('getDriverPayrollStats', {
-              driverId: currentUser.id,
-              deliveryDate: format(selectedDate, 'yyyy-MM-dd')
-            });
-            const data = response?.data || response;
-            if (data?.success) {
-              setPerformanceStats({
-                totalPay: data.totalPay || 0,
-                totalKm: data.totalKm || 0,
-                totalTimeOnDuty: data.totalTimeOnDuty || 0
-              });
-            }
-          } catch (error) {
-            console.warn('⚠️ [Payroll Stats Refresh] Failed:', error.message);
-          }
-        }, 1000);
-      }
+      // Disabled on Dashboard to prevent API rate limits; see DriverPayroll page for stats
 
       hasAutoSelectedRef.current = false; // Reset to allow auto-selection after saving
 
