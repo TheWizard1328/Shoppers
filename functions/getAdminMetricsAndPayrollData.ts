@@ -394,7 +394,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           annualDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
           metrics.driverData.push(annualDriverEntry);
         }
-        if (store?.pays_app_fees) annualDriverEntry.billable++;
+        if (wasPayingOnDeliveryDate) annualDriverEntry.billable++;
         else annualDriverEntry.nonBillable++;
 
         if (!metrics.driverDataByMonth[monthIndex + 1]) metrics.driverDataByMonth[monthIndex + 1] = [];
@@ -403,7 +403,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           monthlyDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
           metrics.driverDataByMonth[monthIndex + 1].push(monthlyDriverEntry);
         }
-        if (store?.pays_app_fees) monthlyDriverEntry.billable++;
+        if (wasPayingOnDeliveryDate) monthlyDriverEntry.billable++;
         else monthlyDriverEntry.nonBillable++;
 
         if (!metrics.dailyDriverData[monthIndex + 1]) metrics.dailyDriverData[monthIndex + 1] = {};
