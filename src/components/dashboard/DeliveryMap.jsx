@@ -3305,69 +3305,7 @@ return polylines.length > 0 ? polylines : null;
         })}
 
         {/* Breadcrumb Trails - Historical and Current */}
-        {showBreadcrumbs && (() => {
-          const breadcrumbCircles = [];
-          
-          // Process historical breadcrumbs from DeliveryBreadcrumbs entity
-          if (breadcrumbsData.historical && breadcrumbsData.historical.length > 0) {
-            breadcrumbsData.historical.forEach((trail, trailIdx) => {
-              if (!trail || !trail.breadcrumbs || !Array.isArray(trail.breadcrumbs)) return;
-              
-              // Get driver for this trail to use their polyline color
-              const trailDriver = safeUsers.find(u => u && u.id === trail.driver_id);
-              const breadcrumbColor = trailDriver ? getDriverColor(trailDriver) : '#607D8B';
-              
-              // Each breadcrumb is [lat, lng, timestamp_ms]
-              trail.breadcrumbs.forEach(([lat, lng, timestamp], idx) => {
-                if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
-                  return;
-                }
-                
-                breadcrumbCircles.push(
-                  <Circle
-                    key={`historical-breadcrumb-${trail.id}-${idx}`}
-                    center={[lat, lng]}
-                    radius={4} // Medium size dots - adjust if needed
-                    pathOptions={{
-                      color: breadcrumbColor,
-                      fillColor: breadcrumbColor,
-                      fillOpacity: 0.6,
-                      weight: 1,
-                      opacity: 0.8
-                    }}
-                  />
-                );
-              });
-            });
-          }
-          
-          // Process current/real-time breadcrumbs from offline database
-          if (breadcrumbsData.current && breadcrumbsData.current.length > 0) {
-            const currentBreadcrumbColor = '#3B82F6'; // Blue for current tracking
-            
-            breadcrumbsData.current.forEach((breadcrumb, idx) => {
-              // Current breadcrumbs have structure: {driver_id, delivery_date, lat, lng, timestamp, accuracy}
-              if (!breadcrumb || typeof breadcrumb.lat !== 'number' || typeof breadcrumb.lng !== 'number') return;
-              
-              breadcrumbCircles.push(
-                <Circle
-                  key={`current-breadcrumb-${idx}`}
-                  center={[breadcrumb.lat, breadcrumb.lng]}
-                  radius={5} // Slightly larger for real-time tracking
-                  pathOptions={{
-                    color: currentBreadcrumbColor,
-                    fillColor: currentBreadcrumbColor,
-                    fillOpacity: 0.8,
-                    weight: 1.5,
-                    opacity: 1
-                  }}
-                />
-              );
-            });
-          }
-          
-          return breadcrumbCircles.length > 0 ? breadcrumbCircles : null;
-        })()}
+        {showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} safeUsers={safeUsers} />}
       </MapContainer>
 
       {/* Map Crosshair Overlay - Always visible, non-interactive */}
