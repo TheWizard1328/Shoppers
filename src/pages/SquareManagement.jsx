@@ -104,7 +104,7 @@ export default function SquareManagement() {
       console.log('🔄 Refreshing catalog and recent payments after cleanup...');
       const [catalogRes, paymentsRes] = await Promise.allSettled([
         base44.functions.invoke('squareSyncCatalogItems', {}),
-        base44.functions.invoke('squareFetchPayments', { locationIds, daysBack: 7, maxPerLocation: 12, throttleMs: 200 }),
+        base44.functions.invoke('squareFetchPayments', { locationIds, daysBack: 7, maxPerLocation: 100, throttleMs: 200 }),
       ]);
 
       const catalogData = catalogRes.status === 'fulfilled' ? (catalogRes.value?.data || catalogRes.value || {}) : {};
