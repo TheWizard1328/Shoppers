@@ -381,21 +381,9 @@ Deno.serve(async (req) => {
           if (!d || !d.store_id || !d.delivery_date || !(d.cod_total_amount_required > 0)) continue;
           const storeAbbr = storeMap[d.store_id] || 'ST';
           const patientName = d.patient_name || 'COD';
-          // Delete catalog items for: failed, cancelled, or completed deliveries
-          // Completed deliveries have been collected (cash/debit/credit) — all should be cleaned up
+          // Delete catalog items for: failed or cancelled deliveries only
+          // Completed deliveries are handled by squareSyncCatalogItems which checks soldCatalogItems before deleting
           if (d.status === 'failed' || d.status === 'cancelled') {
-            scanDeletions.push({
-              deliveryId: d.id,
-              patientName,
-              storeAbbreviation: storeAbbr,
-              codAmount: d.cod_total_amount_required,
-              deliveryDate: d.delivery_date,
-              storeId: d.store_id
-            });
-          } else if (d.status === 'completed') {
-            // All completed deliveries with COD should have their catalog item removed
-            // Cash: driver collected cash, item no longer needed in Square
-            // Debit/Credit: processed at terminal, item no longer needed
             scanDeletions.push({
               deliveryId: d.id,
               patientName,
