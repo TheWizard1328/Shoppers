@@ -3992,29 +3992,10 @@ function Dashboard() {
         if (offlineAppUsers && offlineAppUsers.length > 0) freshAppUsers = offlineAppUsers;
       } catch (dbError) {}
       
-      // CRITICAL: Use fresh appUsers from offline DB, fallback to context, but ALWAYS pass valid data
       const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
-      
       if (appUsersToProcess && appUsersToProcess.length > 0) {
-        driverLocationPoller.processLocationData(
-          currentUser, 
-          priorityDeliveries, 
-          drivers, 
-          stores, 
-          appUsersToProcess, 
-          new Date(dateStr + 'T00:00:00'), 
-          true,
-          'Dashboard',
-          showAllDriverMarkers
-        );
-        
-        // Dispatch location update event
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: appUsersToProcess, forceAll: true }
-        }));
-        console.log(`✅ [Date Change] Driver locations processed (${appUsersToProcess.length} users from ${freshAppUsers && freshAppUsers.length > 0 ? 'offline DB' : 'context'})`);
-      } else {
-        console.warn('⚠️ [Date Change] No appUsers available from offline DB or context - skipping location processing');
+        driverLocationPoller.processLocationData(currentUser, priorityDeliveries, drivers, stores, appUsersToProcess, new Date(dateStr + 'T00:00:00'), true, 'Dashboard', showAllDriverMarkers);
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: appUsersToProcess, forceAll: true } }));
       }
 
       // STEP 5: Dispatch event to force map and stop cards to re-render
