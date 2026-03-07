@@ -8,6 +8,7 @@ import MapSection from "@/components/dashboard/MapSection";
 import StopCardsSection from "@/components/dashboard/StopCardsSection";
 import FABControls from "@/components/dashboard/FABControls";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
+import PerformanceStatsBridge from "@/components/dashboard/PerformanceStatsBridge";
 
 export default function DashboardView({
   // User & roles
