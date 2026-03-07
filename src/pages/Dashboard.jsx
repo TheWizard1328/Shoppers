@@ -1290,12 +1290,6 @@ function Dashboard() {
 
   // Filter drivers based on role - NEVER based on deliveries (except dispatcher)
   const driversList = useMemo(() => {
-    console.log('🔍 [DriversList] Building driver list...');
-    console.log(`   - appUsers count: ${appUsers?.length || 0}`);
-    console.log(`   - drivers prop count: ${drivers?.length || 0}`);
-    console.log(`   - currentUser role: ${currentUser?.app_roles?.join(', ') || 'none'}`);
-    
-    // CRITICAL: Build drivers from AppUsers ONLY (most reliable source)
     const driversSource = (appUsers || [])
       .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active')
       .map((au) => ({
