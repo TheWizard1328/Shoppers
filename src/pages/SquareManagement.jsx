@@ -492,13 +492,24 @@ export default function SquareManagement() {
     return { status: 'cash', payments: [] };
   };
 
+  // Normalize item name for comparison (must match backend normalization)
+  const normalizeName = (n) => {
+    const s = (n || '').trim();
+    const noAmt = s.replace(/\s-\s\$\d+(?:\.\d{2})?$/, '');
+    const unified = noAmt.replace(/^(\d{2})-(\d{2})/, '$1/$2');
+    return unified.toLowerCase();
+  };
+
   // Check if catalog item has been sold in Square transactions
   const hasBeenSoldInSquare = (catalogItem) => {
+    const normalizedCatalogName = normalizeName(catalogItem.name);
+    const catalogPriceCents = catalogItem.price_cents || Math.round((catalogItem.price_dollars || 0) * 100);
     return soldCatalogItems.some(payment => {
-      // Match on location_id, item_name, and amount
+      const normalizedPaymentName = normalizeName(payment.item_name);
+      const paymentPriceCents = Math.round((Number(payment.amount) || 0) * 100);
       return payment.location_id === catalogItem.location_id &&
-             payment.item_name === catalogItem.name &&
-             Math.abs(payment.amount - (catalogItem.price_dollars || 0)) < 0.01; // Float comparison tolerance
+             normalizedPaymentName === normalizedCatalogName &&
+             Math.abs(paymentPriceCents - catalogPriceCents) < 2; // 1 cent tolerance for rounding
     });
   };
 
