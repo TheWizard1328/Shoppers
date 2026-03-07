@@ -1016,11 +1016,7 @@ export default function DeliveryMap({
       return [];
     }
 
-    // CRITICAL: If safeUsers is empty, preserve previous markers to prevent flickering
-    if (!safeUsers || safeUsers.length === 0) {
-      console.warn(`⚠️ [DeliveryMap] safeUsers is empty - preserving ${prevDriverLocationMarkersRef.current.length} previous markers`);
-      return prevDriverLocationMarkersRef.current;
-    }
+      if (!safeUsers?.length) return prevDriverLocationMarkersRef.current;
 
     const isCurrentUserAdmin = currentUser && userHasRole(currentUser, 'admin');
     const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
