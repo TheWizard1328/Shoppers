@@ -1354,7 +1354,6 @@ function Dashboard() {
       driversWithDeliveries?.forEach(driverId => assignedDriverIds.add(driverId));
       
       const filteredDrivers = driversSource.filter(d => assignedDriverIds.has(d.id));
-      console.log(`   - Role: dispatcher, showing ${filteredDrivers.length}/${driversSource.length} drivers (${assignedDriverIds.size - driversWithDeliveries?.length || 0} scheduled + ${driversWithDeliveries?.length || 0} with deliveries)`);
       return filteredDrivers;
     }
 
