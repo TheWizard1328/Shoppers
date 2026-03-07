@@ -1962,18 +1962,9 @@ function Dashboard() {
           };
           setDriverLocation(newLocation);
 
-          // CRITICAL: Reactivate FAB if Phase 2 is active (desktop only)
-          if (mapViewPhaseRef.current === 2 && nextStopCoordinates) {
-            console.log('📍 [Desktop Phase 2] Driver location updated - reactivating FAB');
-
-            // CRITICAL: Clear any existing timers FIRST
-            if (mapLockTimeoutRef.current) {
-              clearTimeout(mapLockTimeoutRef.current);
-              mapLockTimeoutRef.current = null;
-            }
-            mapLockExpiresAtRef.current = null;
-
-            setIsMapViewLocked(true);
+          // CRITICAL: Reactivate FAB if Phase 2 is active AND FAB is locked (desktop only)
+          // Only re-center if FAB is currently locked - prevents auto-pan on passive location updates
+          if (mapViewPhaseRef.current === 2 && nextStopCoordinates && isMapViewLockedRef.current) {
             lastProgrammaticMapMoveRef.current = Date.now();
             window._lastProgrammaticMapMove = Date.now();
             setMapViewTrigger((prev) => prev + 1);
