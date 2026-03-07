@@ -8,8 +8,55 @@ import { globalFilters } from '@/components/utils/globalFilters';
  * Lightweight toast that appears when offline DB reconciliation updates data.
  * Fires on the custom 'offlineDBReconciled' event and auto-dismisses after 5s.
  */
+// ── Performance Stats Bridge ─────────────────────────────────────────────────
+// Calls getDeliveryStats on every refreshDeliveryStats event and dispatches
+// performanceStatsUpdated with the result so Dashboard can show live payroll stats.
+function usePerformanceStatsBridge() {
+  useEffect(() => {
+    let inFlight = false;
+    let lastKey = '';
+
+    const fetchStats = async () => {
+      if (inFlight) return;
+      const selectedDate = globalFilters.getSelectedDate();
+      const driverId = globalFilters.getSelectedDriverId();
+      const key = `${selectedDate}|${driverId}`;
+      if (key === lastKey) return;
+
+      inFlight = true;
+      lastKey = key;
+      try {
+        const response = await base44.functions.invoke('getDeliveryStats', {
+          selectedDate,
+          driverId: driverId === 'all' ? undefined : driverId,
+        });
+        const data = response?.data || response;
+        if (!data) return;
+
+        window.dispatchEvent(new CustomEvent('deliveryStatsUpdated', { detail: data }));
+
+        if (data.performanceStats) {
+          window.dispatchEvent(new CustomEvent('performanceStatsUpdated', { detail: data.performanceStats }));
+        }
+      } catch (_e) {
+        // Silently ignore errors (rate limits, auth, etc.)
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    window.addEventListener('refreshDeliveryStats', fetchStats);
+    // Initial fetch
+    fetchStats();
+    return () => window.removeEventListener('refreshDeliveryStats', fetchStats);
+  }, []);
+}
+
 export default function ReconcileToast() {
   const [toasts, setToasts] = useState([]);
+
+  // Mount the performance stats bridge inside this already-rendered Dashboard component
+  usePerformanceStatsBridge();
 
   useEffect(() => {
     const handler = (e) => {
