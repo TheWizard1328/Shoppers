@@ -515,8 +515,8 @@ export default function DeliveryFormView({
                   )}
                 </div>
 
-                {/* Desktop Staged Panel */}
-                {!delivery && !useMobileLayout && <DeliveryStagedPanelDesktop {...stagedPanelProps} />}
+                {/* Desktop Staged Panel - hidden in pickup mode */}
+                {!delivery && !useMobileLayout && !isPickupMode && <DeliveryStagedPanelDesktop {...stagedPanelProps} />}
               </div>
             </div>
 
