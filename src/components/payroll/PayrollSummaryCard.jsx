@@ -226,30 +226,11 @@ export default function PayrollSummaryCard({
       const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
 
       return {
-        driver: { ...driver, id: driverId }, // Ensure consistent id
-        payRate,
-        extraKmRate,
-        extraKmLimit,
-        oversizedRate,
-        totalDeliveries: deliveryCount,
-        totalBasePay: basePay,
-        totalExtraKm: totalExtraKm,
-        totalExtraKmPay: extraKmPay,
-        oversizedCount: oversizedCount,
-        totalOversizedPay: oversizedPay,
-        failedCount: failedCount,
-        returnsCount: returnsCount,
-        storeReturnCount: storeReturnCount,
-        grandTotal: totalPay,
-        // New fields
-        gstHstEnabled,
-        taxRate,
-        taxAmount,
-        provinceCode,
-        deductions: totalDeductions,
-        deductionsArray,
-        grossPay,
-        appFeePercentage
+        driver: { ...driver, id: driverId }, payRate, extraKmRate, extraKmLimit, oversizedRate,
+        totalDeliveries: deliveryCount, totalBasePay: basePay, totalExtraKm, totalExtraKmPay: extraKmPay,
+        oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, failedCount, returnsCount,
+        storeReturnCount, grandTotal: totalPay, gstHstEnabled, taxRate, taxAmount, provinceCode,
+        deductions: totalDeductions, deductionsArray, grossPay, appFeePercentage
       };
     });
   }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
