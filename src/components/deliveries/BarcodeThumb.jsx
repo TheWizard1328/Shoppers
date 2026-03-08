@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
 
-export default function BarcodeThumb({ value }) {
+export default function BarcodeThumb({ value, height = 40, className = "w-full h-10" }) {
   const svgRef = useRef(null);
 
   useEffect(() => {
@@ -11,12 +11,12 @@ export default function BarcodeThumb({ value }) {
         format: 'CODE128',
         lineColor: '#111827',
         width: 1.5,
-        height: 40,
+        height: height,
         displayValue: false,
         margin: 0,
       });
     } catch {}
-  }, [value]);
+  }, [value, height]);
 
-  return <svg ref={svgRef} className="w-full h-10" aria-hidden="true" />;
+  return <svg ref={svgRef} className={className} aria-hidden="true" />;
 }

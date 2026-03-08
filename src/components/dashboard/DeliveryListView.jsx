@@ -4,6 +4,7 @@ import { format, differenceInMinutes } from 'date-fns';
 import { CheckCircle, Clock, Package, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import StopDetailsPanel from '../deliveries/StopDetailsPanel';
+import BarcodeThumb from '../deliveries/BarcodeThumb';
 
 // Memoized row component to prevent re-renders
 const DeliveryRow = memo(({ 
@@ -95,6 +96,25 @@ const DeliveryRow = memo(({
               </div>
             ) : (
               <span className="text-slate-400 text-sm">—</span>
+            )}
+
+            {/* Receipt barcodes thumbnail */}
+            {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 && (
+              <div className="flex items-center gap-1">
+                <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={24} className="w-full h-6" />
+                </div>
+                <span className="text-[10px] text-slate-600">x{delivery.receipt_barcode_values.length}</span>
+              </div>
+            )}
+            {/* Rx barcodes thumbnail */}
+            {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 && (
+              <div className="flex items-center gap-1">
+                <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <BarcodeThumb value={delivery.barcode_values[0]} height={24} className="w-full h-6" />
+                </div>
+                <span className="text-[10px] text-slate-600">x{delivery.barcode_values.length}</span>
+              </div>
             )}
           </div>
           <div>{getCODDisplay(delivery)}</div>
