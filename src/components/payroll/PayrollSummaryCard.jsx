@@ -2006,24 +2006,12 @@ export default function PayrollSummaryCard({
                   </div>
               </div>
 
-              {/* Mobile View - only show on phones and tablets in portrait */}
               <div style={{
                 display: (() => {
                   if (typeof window === 'undefined') return 'none';
                   const ua = navigator.userAgent;
-                  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
-                  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-
-                  // Phones always show mobile
-                  if (isPhone) return 'block';
-
-                  // Tablets: portrait = show, landscape = hide
-                  if (isTabletDevice) {
-                    const isPortrait = window.innerWidth < window.innerHeight;
-                    return isPortrait ? 'block' : 'none';
-                  }
-
-                  // Desktop: hide if width >= 768px
+                  if (/Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return 'block';
+                  if (/iPad|Android(?!.*Mobile)/i.test(ua)) return window.innerWidth < window.innerHeight ? 'block' : 'none';
                   return window.innerWidth < 768 ? 'block' : 'none';
                 })()
               }} className="px-4">
