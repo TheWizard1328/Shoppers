@@ -290,44 +290,18 @@ export default function PayrollSummaryCard({
   // Auto-create missing Payroll records - ONLY when period changes
   useEffect(() => {
     if (!periodStartStr || !periodEndStr || !payrollData || payrollData.length === 0) return;
-
-    // CRITICAL: Skip if we've already processed this exact period OR if auto-create is in progress
     const currentPeriodKey = `${periodStartStr}-${periodEndStr}`;
-    if (lastAutoCreatePeriodRef.current === currentPeriodKey || autoCreateInProgressRef.current) {
-      return;
-    }
-
-    // Mark IMMEDIATELY to prevent concurrent auto-creates
+    if (lastAutoCreatePeriodRef.current === currentPeriodKey || autoCreateInProgressRef.current) return;
     lastAutoCreatePeriodRef.current = currentPeriodKey;
     autoCreateInProgressRef.current = true;
-
     const autoCreateMissingRecords = async () => {
       try {
-        // Fetch latest records from API to ensure we have current state
-        const latestRecords = await base44.entities.Payroll.filter({
-          pay_period_start: periodStartStr,
-          pay_period_end: periodEndStr
-        });
-
-        // Get drivers with deliveries in this pay period
-        const driversWithDeliveries = payrollData.
-        filter((data) => data.totalDeliveries > 0).
-        map((data) => data.driver.id);
-
-        if (driversWithDeliveries.length === 0) {
-          console.log('ℹ️ [Payroll] No drivers with deliveries - skipping auto-create');
-          return;
-        }
-
-        // Check which drivers already have records (from latest API data)
+        const latestRecords = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr });
+        const driversWithDeliveries = payrollData.filter((data) => data.totalDeliveries > 0).map((data) => data.driver.id);
+        if (driversWithDeliveries.length === 0) return;
         const existingDriverIds = new Set(latestRecords.map((r) => r.driver_id));
         const driversNeedingRecords = driversWithDeliveries.filter((driverId) => !existingDriverIds.has(driverId));
-
-        if (driversNeedingRecords.length === 0) {
-          console.log('ℹ️ [Payroll] All drivers already have records for this period');
-          return;
-        }
-
+        if (driversNeedingRecords.length === 0) return;
         console.log(`🔄 [Payroll] Auto-creating ${driversNeedingRecords.length} records`);
 
         // Create records for missing drivers
