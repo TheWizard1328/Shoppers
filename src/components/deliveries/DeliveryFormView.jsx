@@ -386,7 +386,8 @@ export default function DeliveryFormView({
               <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
-                  {/* Notes */}
+                  {/* Notes - for new pickups, notes are in top rows; show here for deliveries and editing existing pickups */}
+                  {!(isPickupMode && !delivery) && (
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     {!isPickupMode ? (
                       <div className="flex gap-3">
@@ -406,6 +407,7 @@ export default function DeliveryFormView({
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* Delivery Options & COD */}
                   {!isPickupMode && (
