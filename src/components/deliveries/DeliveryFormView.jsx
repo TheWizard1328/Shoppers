@@ -520,8 +520,8 @@ export default function DeliveryFormView({
               </div>
             </div>
 
-            {/* Mobile Staged Panel */}
-            {!delivery && useMobileLayout && <DeliveryStagedPanelMobile {...stagedPanelProps} show={showStagedPanel} onClose={() => setShowStagedPanel(false)} />}
+            {/* Mobile Staged Panel - hidden in pickup mode */}
+            {!delivery && useMobileLayout && !isPickupMode && <DeliveryStagedPanelMobile {...stagedPanelProps} show={showStagedPanel} onClose={() => setShowStagedPanel(false)} />}
           </CardContent>
 
           {/* Footer */}
