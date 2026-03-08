@@ -800,12 +800,9 @@ export default function DeliveriesPage() {
     }
 
     // Dispatchers with only 1 driver: auto-select that driver
-    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
-      if (uniqueDriversForDispatcher && uniqueDriversForDispatcher.count === 1 && driverFilter === 'all') {
-        const singleDriverId = uniqueDriversForDispatcher.driverIds[0];
-        console.log('👔 [Deliveries] Dispatcher has only 1 driver, auto-selecting:', singleDriverId);
-        setDriverFilter(singleDriverId);
-      }
+    if (userHasRole(currentUser,'dispatcher') && !userHasRole(currentUser,'admin') && driverFilter === 'all') {
+      const firstId = uniqueDriversForDispatcher?.driverIds?.[0];
+      if (firstId) { console.log('👔 [Deliveries] Dispatcher auto-selecting first driver:', firstId); setDriverFilter(firstId); }
     }
   }, [currentUser, hasAccess, driverFilter, uniqueDriversForDispatcher]);
 
@@ -2757,56 +2754,17 @@ export default function DeliveriesPage() {
 
   const handleDriverChange = useCallback((driverId) => {
     try {
-      const driverDeliveries = (effectiveDeliveries || []).filter((d) =>
-      d.driver_id && (d.driver_id === driverId || d.driver_id === (effectiveDrivers || []).find((dr) => dr.id === driverId)?.appUserId) ||
-      !d.driver_id && d.driver_name && (d.driver_name === (effectiveDrivers || []).find((dr) => dr.id === driverId)?.full_name || d.driver_name === (effectiveDrivers || []).find((dr) => dr.id === driverId)?.user_name)
-      );
-
-      let targetDate = new Date();
-      targetDate.setHours(0, 0, 0, 0);
-
-      if (driverDeliveries.length > 0) {
-        const latest = [...driverDeliveries].sort(
-          (a, b) => new Date(b.delivery_date.replace(/-/g, '/')) - new Date(a.delivery_date.replace(/-/g, '/'))
-        )[0];
-        if (latest?.delivery_date) {
-          const [y, m, d] = latest.delivery_date.split('-').map(Number);
-          if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-            targetDate = new Date(y, m - 1, d);
-            targetDate.setHours(0, 0, 0, 0);
-          }
-        }
-      }
-
-      if (isNaN(targetDate.getTime())) {
-        console.error('[handleDriverChange] Invalid target date');
-        return;
-      }
-
-      const targetYear = targetDate.getFullYear();
-      const targetMonth = targetDate.getMonth();
-
-      console.log('🎯 [handleDriverChange] Updating filters:', {
-        driver: driverId,
-        year: targetYear,
-        month: targetMonth + 1
-      });
-
+      // Keep current date; only change driver + URL
       setDriverFilter(driverId);
-      setSelectedDate(targetDate);
-      setSelectedYear(targetYear);
-      setSelectedMonth(targetMonth);
-
-      // CRITICAL: Only use year/month/driver in URL, no date param
       updateUrl({
         driver: driverId,
-        year: targetYear.toString(),
-        month: (targetMonth + 1).toString()
+        year: (selectedYear || new Date().getFullYear()).toString(),
+        month: ((selectedMonth ?? new Date().getMonth()) + 1).toString()
       });
     } catch (error) {
       console.error('[handleDriverChange] Error:', error);
     }
-  }, [effectiveDrivers, effectiveDeliveries, updateUrl]);
+  }, [updateUrl, selectedYear, selectedMonth]);
 
 
 
@@ -4157,20 +4115,8 @@ export default function DeliveriesPage() {
                                 <SelectValue placeholder="Driver" />
                               </SelectTrigger>
                               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                                {sortUsers((effectiveDrivers || []).filter((d) => userHasRole(d, 'driver'))).map((driver) => {
-                            const duplicateNames = (effectiveDrivers || []).filter((d) =>
-                            getDriverDisplayName(d) === getDriverDisplayName(driver)
-                            );
-                            const displayName = duplicateNames.length > 1 ?
-                            `${getDriverDisplayName(driver)} (${driver.id.slice(-4)})` :
-                            getDriverDisplayName(driver);
-
-                            return (
-                              <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
-                                      {displayName}
-                                    </SelectItem>);
-
-                          })}
+                                <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
+                                {sortUsers((effectiveDrivers||[]).filter(d=>userHasRole(d,'driver')&&(()=>{const S=selectedDate?format(selectedDate,'yyyy-MM-dd'):null;if(!S)return true;const disp=userHasRole(currentUser,'dispatcher')&&!userHasRole(currentUser,'admin');const ss=disp?new Set(currentUser.store_ids||[]):null;const ok=(effectiveDeliveries||[]).some(del=>del&&del.delivery_date===S&&(!ss||!del.store_id||ss.has(del.store_id))&&((del.driver_id&&(del.driver_id===d.id||del.driver_id===d.appUserId))||(del.driver_name&&(del.driver_name===d.full_name||del.driver_name===d.user_name))));return ok||(driverFilter!=='all'&&d.id===driverFilter);})())).map((driver)=>{const dup=(effectiveDrivers||[]).filter(x=>getDriverDisplayName(x)===getDriverDisplayName(driver));const name=dup.length>1?`${getDriverDisplayName(driver)} (${driver.id.slice(-4)})`:getDriverDisplayName(driver);return (<SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>{name}</SelectItem>);})
                               </SelectContent>
                             </Select>
                           </div>
