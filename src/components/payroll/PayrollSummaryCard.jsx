@@ -602,25 +602,14 @@ export default function PayrollSummaryCard({
     return ytdMap;
   }, [payrollData, payrollRecords, currentPeriod, appUsers, cities]);
 
-  // Load app fees per delivery setting, Extra_App_Fee_Percentage, and Other_App_Fee_Percentage
+  // Load app fees per delivery setting
   useEffect(() => {
-    const loadAppFeesSetting = async () => {
-      try {
-        const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-        if (settings?.[0]?.setting_value?.app_fees_per_delivery) {
-          setAppFeesPerDelivery(parseFloat(settings[0].setting_value.app_fees_per_delivery));
-        }
-        if (settings?.[0]?.setting_value?.Extra_App_Fee_Percentage !== undefined) {
-          setExtraAppFeePercent(parseFloat(settings[0].setting_value.Extra_App_Fee_Percentage));
-        }
-        if (settings?.[0]?.setting_value?.Other_App_Fee_Percentage !== undefined) {
-          setOtherAppFeePercent(parseFloat(settings[0].setting_value.Other_App_Fee_Percentage));
-        }
-      } catch (error) {
-        console.warn('Failed to load app fees setting:', error);
-      }
-    };
-    loadAppFeesSetting();
+    base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }).then((settings) => {
+      const sv = settings?.[0]?.setting_value;
+      if (sv?.app_fees_per_delivery) setAppFeesPerDelivery(parseFloat(sv.app_fees_per_delivery));
+      if (sv?.Extra_App_Fee_Percentage !== undefined) setExtraAppFeePercent(parseFloat(sv.Extra_App_Fee_Percentage));
+      if (sv?.Other_App_Fee_Percentage !== undefined) setOtherAppFeePercent(parseFloat(sv.Other_App_Fee_Percentage));
+    }).catch(() => {});
   }, []);
 
   // Calculate sum of all NON-App Owner drivers' app fee percentages
