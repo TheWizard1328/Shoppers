@@ -463,14 +463,7 @@ export default function PayrollSummaryCard({
     return false;
   }, [currentPeriod?.end, cities, currentUser, selectedCityId]);
 
-  // Check if admin has finalized
-  const isAdminFinalized = useMemo(() => {
-    if (driversWithDeliveriesIds.length === 0) return false;
-    return driversWithDeliveriesIds.every((driverId) => {
-      const record = getDriverPayrollRecord(driverId);
-      return record?.status === 'admin_finalized' || record?.status === 'paid';
-    });
-  }, [driversWithDeliveriesIds, payrollRecords]);
+  const isAdminFinalized = useMemo(() => driversWithDeliveriesIds.length > 0 && driversWithDeliveriesIds.every((id) => { const r = getDriverPayrollRecord(id); return r?.status === 'admin_finalized' || r?.status === 'paid'; }), [driversWithDeliveriesIds, payrollRecords]);
 
   // Calculate YTD data from payroll records
   const ytdDataByDriver = useMemo(() => {
