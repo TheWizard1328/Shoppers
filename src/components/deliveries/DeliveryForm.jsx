@@ -4066,7 +4066,7 @@ export default function DeliveryForm({
   return (
     <DeliveryFormView
       formRef={formRef} useMobileLayout={useMobileLayout} isMobileDevice={isMobileDevice} useFullscreen={useFullscreen}
-      delivery={delivery} formData={formData} setFormData={setFormData} isPickupMode={isPickupMode} setIsPickupMode={setIsPickupMode}
+      delivery={delivery} formData={formData} setFormData={setFormData} isPickupMode={isPickupMode} setIsPickupMode={setIsPickupMode} isInterStoreMode={isInterStoreMode} setIsInterStoreMode={setIsInterStoreMode}
       isSaving={isSaving} error={error} isPayrollLocked={isPayrollLocked} payrollLockMessage={payrollLockMessage} isFormLockedByPayroll={isFormLockedByPayroll}
       isFormDisabled={isFormDisabled} isCompletionStatus={isCompletionStatus}
       patientSearch={patientSearch} setPatientSearch={setPatientSearch} selectedPatient={selectedPatient} filteredPatients={filteredPatients}
