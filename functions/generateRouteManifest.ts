@@ -102,6 +102,11 @@ Deno.serve(async (req) => {
     const pageHeight = doc.internal.pageSize.getHeight();
     const thumbSize = 12; // thumbnail size in mm
 
+    // Alignment helpers
+    doc.setLineWidth(0.2);
+    doc.setLineHeightFactor(1.2);
+    const snap = (n: number) => Math.round(n * 2) / 2;
+
     // Header
     const title = manifestType === 'pre-route' ? `Pre-Route (${ampm || 'AM'})` : 'Post-Route (All)';
     doc.setFontSize(16);
