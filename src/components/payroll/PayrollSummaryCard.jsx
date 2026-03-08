@@ -584,64 +584,22 @@ export default function PayrollSummaryCard({
   // Handle screenshot capture for sharing
   const handleCaptureScreenshot = async () => {
     if (!contentRef.current) return;
-
     setIsCapturingScreenshot(true);
     try {
-      // Temporarily hide control elements
       const controlsElement = document.getElementById('payroll-controls');
-      if (controlsElement) {
-        controlsElement.style.display = 'none';
-      }
-
-      // Determine if user can see App Fee % (AppOwner or the driver themselves)
+      if (controlsElement) controlsElement.style.display = 'none';
       const userCanSeeAppFee = isAppOwner(currentUser) || isDriver && selectedDriverId === currentUser?.id;
-
-      // Hide App Fee % rows if user doesn't have permission
       const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
-      appFeeRows.forEach((row) => {
-        if (!userCanSeeAppFee) {
-          row.style.display = 'none';
-        }
-      });
-
-      // Hide App Fee % YTD rows if user doesn't have permission
       const appFeeYtdRows = document.querySelectorAll('[data-app-fee-ytd-row="true"]');
-      appFeeYtdRows.forEach((row) => {
-        if (!userCanSeeAppFee) {
-          row.style.display = 'none';
-        }
-      });
-
-      // Capture the content
-      const canvas = await html2canvas(contentRef.current, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-        useCORS: true,
-        logging: false
-      });
-
-      const imageUrl = canvas.toDataURL('image/png');
-      setScreenshotDataUrl(imageUrl);
+      if (!userCanSeeAppFee) { appFeeRows.forEach((r) => r.style.display = 'none'); appFeeYtdRows.forEach((r) => r.style.display = 'none'); }
+      const canvas = await html2canvas(contentRef.current, { backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false });
+      setScreenshotDataUrl(canvas.toDataURL('image/png'));
       setShowScreenshotModal(true);
-
-      // Show controls again
-      if (controlsElement) {
-        controlsElement.style.display = 'flex';
-      }
-
-      // Show App Fee % rows again
-      appFeeRows.forEach((row) => {
-        row.style.display = '';
-      });
-
-      appFeeYtdRows.forEach((row) => {
-        row.style.display = '';
-      });
-    } catch (error) {
-      console.error('Failed to capture screenshot:', error);
-    } finally {
-      setIsCapturingScreenshot(false);
-    }
+      if (controlsElement) controlsElement.style.display = 'flex';
+      appFeeRows.forEach((r) => r.style.display = '');
+      appFeeYtdRows.forEach((r) => r.style.display = '');
+    } catch (error) { console.error('Failed to capture screenshot:', error); }
+    finally { setIsCapturingScreenshot(false); }
   };
 
   // Export to PDF (extracted to payrollPdfExport.js)
