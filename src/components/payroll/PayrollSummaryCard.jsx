@@ -464,7 +464,6 @@ export default function PayrollSummaryCard({
       const existingRecord = getDriverPayrollRecord(driverData.driver.id);
       const edit = driverEdits[driverData.driver.id] || {};
       const finalizeAppFeeAmount = countBillableDeliveries(driverData.driver.id) * (edit.appFeePercent || 0) / 100;
-
       const payrollRecord = { driver_id: driverData.driver.id, city_id: selectedCityId || null,
         pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
         total_deliveries: driverData.totalDeliveries, total_extra_km: driverData.totalExtraKm,
@@ -476,49 +475,13 @@ export default function PayrollSummaryCard({
         extra_km_rate: driverData.extraKmRate, extra_km_limit: driverData.extraKmLimit,
         oversized_item_rate: driverData.oversizedRate, gst_hst_enabled: driverData.gstHstEnabled,
         status: 'driver_finalized', driver_finalized_at: new Date().toISOString() };
-
-      let savedRecord;
-      if (existingRecord) {
-        savedRecord = await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord));
-        console.log('✅ [Payroll] Updated existing record:', existingRecord.id, savedRecord);
-      } else {
-        savedRecord = await base44.entities.Payroll.create(roundPayrollData(payrollRecord));
-        console.log('✅ [Payroll] Created new record:', savedRecord);
-      }
-
-      // Send notification to admins (excluding self if admin-driver)
-      try {
-        await notifyDriverConfirmedPayroll({
-          driver: currentUser,
-          periodLabel: currentPeriod?.label || 'this period',
-          appUsers,
-          excludeUserId: isAdmin ? currentUser?.id : null // Don't notify self if admin-driver
-        });
-      } catch (notifyError) {
-        console.warn('Failed to send notification:', notifyError);
-      }
-
-      // Refresh records - use external refresh if available for real-time sync
-      if (refreshPayrollRecords) {
-        await refreshPayrollRecords();
-      } else {
-        const records = await base44.entities.Payroll.filter({
-          pay_period_start: periodStartStr,
-          pay_period_end: periodEndStr
-        });
-        console.log('📥 [Payroll] Refreshed records after driver finalize:', records?.length);
-        setPayrollRecords(records || []);
-        if (onPayrollRecordsChange) {
-          onPayrollRecordsChange(records || []);
-        }
-      }
-    } catch (error) {
-      console.error('❌ [Payroll] Failed to finalize payroll:', error);
-      alert('Failed to save payroll confirmation. Please try again.');
-    } finally {
-      setIsFinalizing(false);
-      setShowConfirmDialog(false);
-    }
+      if (existingRecord) await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord));
+      else await base44.entities.Payroll.create(roundPayrollData(payrollRecord));
+      try { await notifyDriverConfirmedPayroll({ driver: currentUser, periodLabel: currentPeriod?.label || 'this period', appUsers, excludeUserId: isAdmin ? currentUser?.id : null }); } catch (e) { /* ignore */ }
+      if (refreshPayrollRecords) await refreshPayrollRecords();
+      else { const records = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr }); setPayrollRecords(records || []); if (onPayrollRecordsChange) onPayrollRecordsChange(records || []); }
+    } catch (error) { console.error('❌ [Payroll] Failed to finalize:', error); alert('Failed to save payroll confirmation.'); }
+    finally { setIsFinalizing(false); setShowConfirmDialog(false); }
   };
 
   // Handle admin finalization (all drivers)
