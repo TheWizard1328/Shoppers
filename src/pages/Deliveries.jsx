@@ -1027,67 +1027,19 @@ export default function DeliveriesPage() {
   }, [currentUser, allPatients, effectiveDeliveries]);
 
   const effectiveDrivers = useMemo(() => {
-    if (!currentUser || !allUsers || !Array.isArray(allUsers)) {
-      console.log('❌ [Deliveries] effectiveDrivers: No data available', {
-        hasCurrentUser: !!currentUser,
-        hasAllUsers: !!allUsers,
-        isArray: Array.isArray(allUsers),
-        allUsersLength: allUsers?.length
-      });
-      return [];
-    }
-
-    console.log('🔍 [Deliveries] Building effectiveDrivers list...');
-    console.log('📊 [Deliveries] Total allUsers:', allUsers.length);
-
-    let driversOnly = allUsers.filter((u) => {
-      if (!u) {
-        return false;
-      }
-
-      const hasDriverRole = userHasRole(u, 'driver') || userHasRole(u, 'admin') || userHasRole(u, 'dispatcher');
-
-      if (!hasDriverRole) {
-        console.log('❌ [Deliveries] Excluding (no driver/admin/dispatcher role):', u.user_name || u.full_name, 'roles:', u.app_roles);
-        return false;
-      }
-
-      console.log('✅ [Deliveries] Including user with driver role:', u.user_name || u.full_name, 'roles:', u.app_roles);
-      return true;
-    });
-
-    console.log('📊 [Deliveries] After role filtering:', driversOnly.length, 'drivers remaining');
-
+    if (!currentUser || !allUsers || !Array.isArray(allUsers)) return [];
+    let driversOnly = allUsers.filter((u) => u && (userHasRole(u, 'driver') || userHasRole(u, 'admin') || userHasRole(u, 'dispatcher')));
     if (userHasRole(currentUser, 'admin')) {
-      // CRITICAL: Include specific driver from URL even if inactive (for duplicate driver cleanup)
-      const filtered = driversOnly.filter((u) => u && (u.status === 'active' || isDriverOverviewMode || u.id === driverFilter));
-      console.log('👑 [Deliveries] Admin view - filtered drivers:', filtered.length);
-      return filtered;
+      return driversOnly.filter((u) => u && (u.status === 'active' || isDriverOverviewMode || u.id === driverFilter));
     }
-
     if (userHasRole(currentUser, 'dispatcher')) {
-      // CRITICAL: Include specific driver from URL even if inactive (for duplicate driver cleanup)
-      let filteredDrivers = driversOnly.filter((u) => u && (u.status === 'active' || isDriverOverviewMode || u.id === driverFilter));
-      if (currentUser.city_id) {
-        const beforeCityFilter = filteredDrivers.length;
-        filteredDrivers = filteredDrivers.filter((d) => d && d.city_id === currentUser.city_id);
-        console.log('📍 [Deliveries] Dispatcher city filter:', {
-          before: beforeCityFilter,
-          after: filteredDrivers.length,
-          cityId: currentUser.city_id
-        });
-      }
-      console.log('👔 [Deliveries] Dispatcher view - filtered:', filteredDrivers.length);
-      return filteredDrivers;
-    }
-
-    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
-      const filtered = driversOnly.filter((d) => d.id === currentUser.id);
-      console.log('🚗 [Deliveries] Driver view - own account only:', filtered.length);
+      let filtered = driversOnly.filter((u) => u && (u.status === 'active' || isDriverOverviewMode || u.id === driverFilter));
+      if (currentUser.city_id) filtered = filtered.filter((d) => d && d.city_id === currentUser.city_id);
       return filtered;
     }
-
-    console.log('⚠️ [Deliveries] No matching role, returning empty array');
+    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
+      return driversOnly.filter((d) => d.id === currentUser.id);
+    }
     return [];
   }, [currentUser, allUsers, isDriverOverviewMode]);
 
