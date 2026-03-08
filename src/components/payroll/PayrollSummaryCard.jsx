@@ -513,8 +513,18 @@ export default function PayrollSummaryCard({
     syncPayrollRecordsWithLiveData(payrollData, getDriverPayrollRecord, (updated) => {
       if (updated.length > 0) {
         console.log(`✅ [PayrollSync] Auto-synced ${updated.length} records`);
-        // Refresh records to pick up the updated values
-        if (refreshPayrollRecords) refreshPayrollRecords();
+        // Update local payrollRecords state with the synced values
+        setPayrollRecords((prev) => {
+          const updatedMap = {};
+          updated.forEach((u) => { updatedMap[u.recordId] = u.updates; });
+          return prev.map((r) => updatedMap[r.id] ? { ...r, ...updatedMap[r.id] } : r);
+        });
+        if (onPayrollRecordsChange) {
+          onPayrollRecordsChange(payrollRecords.map((r) => {
+            const u = updated.find((u) => u.recordId === r.id);
+            return u ? { ...r, ...u.updates } : r;
+          }));
+        }
       }
     });
   }, [payrollData, payrollRecords, periodStartStr, periodEndStr]);
