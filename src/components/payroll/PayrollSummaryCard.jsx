@@ -463,42 +463,7 @@ export default function PayrollSummaryCard({
     try {
       const existingRecord = getDriverPayrollRecord(driverData.driver.id);
       const edit = driverEdits[driverData.driver.id] || {};
-
-      // Calculate app fee amount for finalization
-      let finalizeAppFeeDeliveries = 0;
-      deliveries.forEach((d) => {
-        if (!d || d.driver_id !== driverData.driver.id) return;
-        const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-        const periodStart = new Date(periodStartStr + 'T00:00:00');
-        const periodEnd = new Date(periodEndStr + 'T00:00:00');
-        if (deliveryDate < periodStart || deliveryDate > periodEnd) return;
-
-        const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-        if (!validStatus) return;
-        if (!d.patient_id && !d.after_hours_pickup) return;
-
-        const store = stores.find((s) => s?.id === d.store_id);
-        if (!store) return;
-
-        let paysAppFees = store.pays_app_fees || false;
-        if (store.app_fee_history && store.app_fee_history.length > 0) {
-          const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-          new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-          );
-          const applicableEntry = sortedHistory.find((entry) =>
-          new Date(entry.effective_date) <= deliveryDate
-          );
-          if (applicableEntry) {
-            paysAppFees = applicableEntry.pays_app_fees;
-          }
-        }
-
-        if (paysAppFees) {
-          finalizeAppFeeDeliveries++;
-        }
-      });
-
-      const finalizeAppFeeAmount = finalizeAppFeeDeliveries * (edit.appFeePercent || 0) / 100;
+      const finalizeAppFeeAmount = countBillableDeliveries(driverData.driver.id) * (edit.appFeePercent || 0) / 100;
 
       const payrollRecord = { driver_id: driverData.driver.id, city_id: selectedCityId || null,
         pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
