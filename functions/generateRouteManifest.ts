@@ -121,23 +121,28 @@ Deno.serve(async (req) => {
 
     let y = 36;
 
-    // Column positions (no Type column, added Sig + Photos)
+    // Column positions (updated order: Stop, TR#, Time, Name/Store, Notes, Receipts, Rx, Sig, Photos)
     const colStop = 14;
     const colTR = 26;
-    const colName = 40;
-    const colTime = 108;
-    const colNotes = 126;
-    const colSig = 162;
-    const colPhotos = 176;
+    const colTime = 40;
+    const colName = 58;
+    const rightMargin = pageWidth - 10;
+    const colPhotos = rightMargin - thumbSize;
+    const colSig = colPhotos - (thumbSize + 2);
+    const colRx = colSig - (thumbSize + 2);
+    const colReceipts = colRx - (thumbSize + 2);
+    const colNotes = colReceipts - 36;
 
     const addHeader = () => {
       doc.setFontSize(9);
       doc.setFont(undefined, 'bold');
       doc.text('Stop', colStop, y);
       doc.text('TR#', colTR, y);
-      doc.text('Name / Store', colName, y);
       doc.text('Time', colTime, y);
+      doc.text('Name / Store', colName, y);
       doc.text('Notes', colNotes, y);
+      doc.text('Receipts', colReceipts, y);
+      doc.text('Rx', colRx, y);
       doc.text('Sig', colSig, y);
       doc.text('Photos', colPhotos, y);
       doc.setFont(undefined, 'normal');
@@ -150,6 +155,31 @@ Deno.serve(async (req) => {
 
     addHeader();
 
+    // Draw a small thumbnail with a count badge (for Receipts and Rx)
+    function drawMiniThumb(x: number, y: number, label: string, count: number) {
+      try {
+        // base box
+        doc.setDrawColor(200);
+        doc.setFillColor(250, 250, 250);
+        doc.rect(x, y, thumbSize, thumbSize, 'FD');
+        // center label
+        doc.setFontSize(7);
+        const labelX = x + thumbSize / 2;
+        const labelY = y + thumbSize / 2 + 2.2; // visual center tweak
+        doc.text(label, labelX, labelY, { align: 'center' } as any);
+        // count badge
+        const badgeW = Math.min(10, Math.max(7, (String(count).length + 1) * 2.5));
+        const bx = x + thumbSize - badgeW - 0.5;
+        const by = y + thumbSize - 4.5;
+        doc.setFillColor(30);
+        doc.rect(bx, by, badgeW, 4, 'F');
+        doc.setTextColor(255);
+        doc.setFontSize(6);
+        doc.text(`x${count}`, bx + badgeW / 2, by + 3, { align: 'center' } as any);
+        doc.setTextColor(0);
+      } catch {}
+    }
+
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
       const images = allImages[i];
@@ -159,13 +189,17 @@ Deno.serve(async (req) => {
       const name = isPickup ? (d?.delivery_notes || 'Store Pickup') : (d?.patient_name || '');
       const notes = d?.delivery_instructions || d?.delivery_notes || '';
       
-      const nameLines = doc.splitTextToSize(name, 64);
-      const notesLines = doc.splitTextToSize(notes, 32);
+      const nameWrapWidth = Math.max(30, colNotes - colName - 2);
+      const notesWrapWidth = Math.max(20, colReceipts - colNotes - 2);
+      const nameLines = doc.splitTextToSize(name, nameWrapWidth);
+      const notesLines = doc.splitTextToSize(notes, notesWrapWidth);
       const nameDims = doc.getTextDimensions(nameLines as any);
       const notesDims = doc.getTextDimensions(notesLines as any);
       const textHeight = Math.max(nameDims.h, notesDims.h) + cellPadding;
-      
-      const hasImages = images.signature || images.photos.length > 0;
+
+      const receiptsCount = Array.isArray(d?.receipt_barcode_values) ? d.receipt_barcode_values.length : 0;
+      const rxCount = Array.isArray(d?.barcode_values) ? d.barcode_values.length : 0;
+      const hasImages = images.signature || images.photos.length > 0 || receiptsCount > 0 || rxCount > 0;
       const rowHeight = hasImages ? Math.max(textHeight, thumbSize) : textHeight;
 
       // Check if we need a new page (use snapped coordinates)
