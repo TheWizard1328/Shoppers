@@ -311,10 +311,7 @@ export default function PayrollSummaryCard({
           pay_period_end: { $gte: yearStart, $lte: periodEnd }
         });
 
-        console.log(`📥 [Payroll] Fetched ${records?.length || 0} total payroll records from ${yearStart} to ${periodEnd}`);
-        records?.forEach((r) => {
-          console.log(`   - Driver: ${r.driver_id}, Period: ${r.pay_period_start} to ${r.pay_period_end}, Gross: $${r.net_pay}`);
-        });
+        console.log(`📥 [Payroll] Fetched ${records?.length || 0} records (${yearStart} to ${periodEnd})`);
 
         setPayrollRecords(records || []);
         if (onPayrollRecordsChange) {
