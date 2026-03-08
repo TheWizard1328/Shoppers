@@ -518,23 +518,8 @@ export default function PayrollSummaryCard({
     }).catch(() => {});
   }, []);
 
-  // Calculate sum of all NON-App Owner drivers' app fee percentages
-  const sumAllDriversAppFeePercent = useMemo(() => {
-    return driversWithDeliveries.reduce((sum, d) => {
-      // Exclude App Owner from this sum
-      if (d.driver.id === currentUser?.id && isAppOwner(currentUser)) return sum;
-      return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
-    }, 0);
-  }, [driversWithDeliveries, driverEdits, currentUser]);
-
-  // Calculate App Owner's app fee % = 100% - Sum of all OTHER drivers - Other App Fee %
-  // (sumAllDriversAppFeePercent already excludes App Owner)
-  const appOwnerAppFeePercent = useMemo(() => {
-    return Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent);
-  }, [sumAllDriversAppFeePercent, otherAppFeePercent]);
-
-  // YTD grand totals across all displayed drivers (calculated AFTER ytdDataByDriver)
-  // CRITICAL: ytdDataByDriver already includes current period data, so just sum the YTD values directly
+  const sumAllDriversAppFeePercent = useMemo(() => driversWithDeliveries.reduce((sum, d) => d.driver.id === currentUser?.id && isAppOwner(currentUser) ? sum : sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0), [driversWithDeliveries, driverEdits, currentUser]);
+  const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
   const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
