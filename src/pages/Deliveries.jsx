@@ -832,38 +832,16 @@ export default function DeliveriesPage() {
 
 
   useEffect(() => {
-    if (!isDriverOverviewMode || !dataLoaded || !hasAccess) return;
-    if (!availableOverviewYears || availableOverviewYears.length === 0) return;
-
-    if (yearAutoSelectDone.current) {
-      return;
-    }
-
+    if (!isDriverOverviewMode || !dataLoaded || !hasAccess || !availableOverviewYears?.length || yearAutoSelectDone.current) return;
     const params = new URLSearchParams(location.search);
     const yearParam = params.get('overviewYear');
-
     if (yearParam) {
-      console.log('📅 [Deliveries] URL has year param:', yearParam);
-      if (yearParam === 'all') {
-        setSelectedOverviewYear('all');
-      } else {
-        setSelectedOverviewYear(yearParam);
-      }
-      yearAutoSelectDone.current = true;
-      yearManuallySelected.current = true;
-      return;
+      setSelectedOverviewYear(yearParam === 'all' ? 'all' : yearParam);
+      yearAutoSelectDone.current = true; yearManuallySelected.current = true; return;
     }
-
     const currentYear = new Date().getFullYear();
-    const targetYear = availableOverviewYears.includes(currentYear) ?
-    currentYear.toString() :
-    availableOverviewYears[0]?.toString();
-
-    if (targetYear) {
-      console.log('📅 [Deliveries] Auto-selecting year:', targetYear);
-      setSelectedOverviewYear(targetYear);
-    }
-
+    const targetYear = availableOverviewYears.includes(currentYear) ? currentYear.toString() : availableOverviewYears[0]?.toString();
+    if (targetYear) setSelectedOverviewYear(targetYear);
     yearAutoSelectDone.current = true;
   }, [isDriverOverviewMode, dataLoaded, hasAccess, availableOverviewYears.length, location.search]);
 
