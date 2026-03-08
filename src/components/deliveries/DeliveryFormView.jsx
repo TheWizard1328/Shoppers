@@ -198,30 +198,12 @@ export default function DeliveryFormView({
           <CardContent className={`p-4 flex-1 relative overflow-hidden ${isFormLockedByPayroll ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="space-y-3 h-full flex flex-col">
 
-              {/* Row 1: Patient Search / Pickup Location / Date / Driver */}
-              <div className={`flex gap-3 ${useMobileLayout ? 'flex-col' : ''} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
-                {!delivery && !isPickupMode && (
-                  <div className={`relative ${useMobileLayout ? 'w-full' : 'flex-[2]'}`}>
-                    <DeliveryPatientSearch
-                      patientSearch={patientSearch} setPatientSearch={setPatientSearch}
-                      selectedPatient={selectedPatient} filteredPatients={filteredPatients}
-                      highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
-                      selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
-                      isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
-                      formData={formData} stores={stores} currentUser={currentUser}
-                      patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
-                      onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
-                      onStartCamera={() => { setShowCameraOverlay(true); startCamera(); }}
-                      onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
-                      onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
-                      handleSearchKeyDown={handleSearchKeyDown}
-                    />
-                  </div>
-                )}
-
-                <div className={`flex gap-3 ${useMobileLayout ? 'flex-row' : 'contents'}`}>
-                  {isPickupMode && !delivery && (
-                    <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+              {/* Pickup mode: Row 1 = Location + Date, Row 2 = Driver + Options */}
+              {isPickupMode && !delivery && (
+                <>
+                  {/* Row 1: Pickup Location + Date */}
+                  <div className="flex gap-3">
+                    <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
                       <Select value={selectedPickupOption} onValueChange={(value) => {
                         setSelectedPickupOption(value);
@@ -243,8 +225,62 @@ export default function DeliveryFormView({
                         </SelectContent>
                       </Select>
                     </div>
-                  )}
+                    <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                      <Input type="date" value={formData.delivery_date} onChange={e => setFormData(prev => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                    </div>
+                  </div>
+                  {/* Row 2: Driver + Pickup Options */}
+                  <div className="flex gap-3">
+                    <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver</Label>
+                      <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
+                        const newDriverId = driverId === 'all' ? '' : driverId;
+                        const driver = driverId === 'all' ? null : allDrivers.find(d => d.id === driverId);
+                        const newDriverName = driver ? getDriverNameForStorage(driver) : '';
+                        setFormData(prev => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
+                        setForceOpenDriverSelect(false);
+                      }} disabled={isSaving}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                        <SelectContent className="z-[999999]">
+                          <SelectItem value="all">All Drivers</SelectItem>
+                          {allDrivers.map(driver => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Options</Label>
+                      <div className="pt-1">
+                        <CheckboxField id="after_hours_pickup" label="After Hours Pickup" checked={formData.after_hours_pickup} onChange={c => setFormData(p => ({ ...p, after_hours_pickup: c }))} disabled={isSaving} />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
 
+              {/* Delivery mode: Patient Search / Date / Driver row */}
+              {!(isPickupMode && !delivery) && (
+              <div className={`flex gap-3 ${useMobileLayout ? 'flex-col' : ''} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
+                {!delivery && !isPickupMode && (
+                  <div className={`relative ${useMobileLayout ? 'w-full' : 'flex-[2]'}`}>
+                    <DeliveryPatientSearch
+                      patientSearch={patientSearch} setPatientSearch={setPatientSearch}
+                      selectedPatient={selectedPatient} filteredPatients={filteredPatients}
+                      highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
+                      selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
+                      isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
+                      formData={formData} stores={stores} currentUser={currentUser}
+                      patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
+                      onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
+                      onStartCamera={() => { setShowCameraOverlay(true); startCamera(); }}
+                      onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
+                      onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
+                      handleSearchKeyDown={handleSearchKeyDown}
+                    />
+                  </div>
+                )}
+
+                <div className={`flex gap-3 ${useMobileLayout ? 'flex-row' : 'contents'}`}>
                   <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                     <Input type="date" value={formData.delivery_date} onChange={e => setFormData(prev => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
@@ -272,6 +308,7 @@ export default function DeliveryFormView({
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Delivery Identifiers (AppOwner only) */}
               {isAppOwner(currentUser) && delivery && (
