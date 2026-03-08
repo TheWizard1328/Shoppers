@@ -285,53 +285,25 @@ export default function PayrollSummaryCard({
 
   // Use external payroll records if provided, otherwise fetch locally with 15-sec refresh
   useEffect(() => {
-    if (externalPayrollRecords) {
-      setPayrollRecords(externalPayrollRecords);
-      setIsLoadingRecords(false);
-      return;
-    }
-
+    if (externalPayrollRecords) { setPayrollRecords(externalPayrollRecords); setIsLoadingRecords(false); return; }
     if (!currentPeriod) return;
-
     const fetchPayrollRecords = async (force = false) => {
       const now = Date.now();
-      // Check cache: only fetch if 15 seconds have passed or forced
       if (!force && now - lastFetchRef.current.timestamp < 15000) return;
-
       setIsLoadingRecords(true);
       try {
-        // CRITICAL: Fetch ALL payroll records from Jan 1 to current period end (inclusive)
-        // This ensures we get all prior periods + current period for YTD calculations
         const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
         const periodEnd = currentPeriod.end.toISOString().split('T')[0];
-
-        console.log(`📥 [Payroll] Fetching records ${yearStart} to ${periodEnd}`);
-
-        const records = await base44.entities.Payroll.filter({
-          pay_period_end: { $gte: yearStart, $lte: periodEnd }
-        });
-
+        const records = await base44.entities.Payroll.filter({ pay_period_end: { $gte: yearStart, $lte: periodEnd } });
         console.log(`📥 [Payroll] Fetched ${records?.length || 0} records (${yearStart} to ${periodEnd})`);
-
         setPayrollRecords(records || []);
-        if (onPayrollRecordsChange) {
-          onPayrollRecordsChange(records || []);
-        }
+        if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);
         lastFetchRef.current.timestamp = now;
-      } catch (error) {
-        console.error('Failed to fetch payroll records:', error);
-      } finally {
-        setIsLoadingRecords(false);
-      }
+      } catch (error) { console.error('Failed to fetch payroll records:', error); }
+      finally { setIsLoadingRecords(false); }
     };
-
-    // Initial fetch - FORCE fetch when period changes
-    console.log(`🔄 [Payroll] Period changed - forcing YTD records fetch`);
     fetchPayrollRecords(true);
-
-    // 15-second refresh cycle (matching app refresh pattern)
     const interval = setInterval(() => fetchPayrollRecords(), 15000);
-
     return () => clearInterval(interval);
   }, [currentPeriod, externalPayrollRecords, periodStartStr, periodEndStr]);
 
