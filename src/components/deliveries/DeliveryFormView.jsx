@@ -541,8 +541,8 @@ export default function DeliveryFormView({
                     </div>
                   )}
 
-                  {/* Pickup Options */}
-                  {isPickupMode && (
+                  {/* Pickup Options - shown inline in Row 2 for new pickups, standalone for edit */}
+                  {isPickupMode && delivery && (
                     <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Options</Label>
                       <div className="space-y-3">
