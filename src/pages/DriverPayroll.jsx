@@ -717,7 +717,7 @@ export default function DriverPayroll() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchPayroll]);
+  }, [fetchPayroll, refreshPayrollRecords]);
 
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
