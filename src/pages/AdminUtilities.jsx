@@ -3720,8 +3720,7 @@ export default function AdminUtilities() {
             await Delivery.delete(delivery.id);
             successCount++;
           } catch (error) {
-            console.error(`Failed to delete ${delivery.id}:`, error);
-            failCount++;
+            if (error?.response?.status === 404 || String(error?.message||'').includes('404') || String(error?.message||'').toLowerCase().includes('not found')) { try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (_) {} successCount++; } else { console.error(`Failed to delete ${delivery.id}:`, error); failCount++; }
           }
           await new Promise(resolve => setTimeout(resolve, 100)); // Paced to reduce rate limits
         }
@@ -3819,14 +3818,14 @@ export default function AdminUtilities() {
             setOfflineDeliveries(prev => prev.filter(d => d.id !== delivery.id));
           } else {
             // ONLINE MODE: Delete ONLY from backend
-            await Delivery.delete(delivery.id);
+            await Delivery.delete(delivery.id); try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (_) {}
           }
           
           successCount++;
         } catch (error) {
           // CRITICAL: Ignore 404 errors in online mode (already deleted)
           if (!isOfflineMode && error?.response?.status === 404) {
-            console.log(`Delivery ${delivery.id} already deleted (404) - counting as success`);
+            console.log(`Delivery ${delivery.id} already deleted (404) - counting as success`); try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (_) {}
             successCount++;
           } else {
             console.error(`Failed to delete delivery ${delivery.id}:`, error);
@@ -3900,7 +3899,7 @@ export default function AdminUtilities() {
           } catch (error) {
             // CRITICAL: Ignore 404 errors in online mode (already deleted)
             if (!isOfflineMode && error?.response?.status === 404) {
-              console.log(`Delivery ${d.id} already deleted (404) - counting as success`);
+              console.log(`Delivery ${d.id} already deleted (404) - counting as success`); try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id); } catch (_) {}
               setBulkDelete(prev => ({
                 ...prev,
                 processed: prev.processed + 1,
@@ -4355,7 +4354,7 @@ export default function AdminUtilities() {
             if (entityType === 'patients') {
               await Patient.delete(entity.id);
             } else if (entityType === 'deliveries') {
-              await Delivery.delete(entity.id);
+              await Delivery.delete(entity.id); try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id); } catch (_) {}
             } else if (entityType === 'stores') {
               await Store.delete(entity.id);
             } else if (entityType === 'users') {
@@ -4393,7 +4392,7 @@ export default function AdminUtilities() {
           
           // CRITICAL: Ignore 404 errors for offline mode (record already gone)
           if (isOfflineMode || error?.response?.status === 404) {
-            alert(`✅ Successfully deleted "${entityName}"`);
+            try { const { offlineDB } = await import('../components/utils/offlineDatabase'); if (entityType === 'deliveries') { await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id); } if (entityType === 'patients') { await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, entity.id); } } catch (_) {} alert(`✅ Successfully deleted "${entityName}"`);
             return;
           }
           
