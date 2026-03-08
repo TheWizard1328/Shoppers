@@ -640,31 +640,17 @@ export default function PayrollSummaryCard({
 
       const finalizeAppFeeAmount = finalizeAppFeeDeliveries * (edit.appFeePercent || 0) / 100;
 
-      const payrollRecord = {
-        driver_id: driverData.driver.id,
-        city_id: selectedCityId || null,
-        pay_period_start: periodStartStr,
-        pay_period_end: periodEndStr,
-        pay_period_type: payPeriod,
-        total_deliveries: driverData.totalDeliveries,
-        total_extra_km: driverData.totalExtraKm,
-        total_oversized_deliveries: driverData.oversizedCount,
-        gross_pay: driverData.grossPay,
-        net_pay: driverData.grandTotal,
-        total_deductions: driverData.deductions,
-        deductions: driverData.deductionsArray,
-        bonus_pay: edit.bonusPay || 0,
-        app_fee_percentage: edit.appFeePercent || 0,
-        app_fee_amount: finalizeAppFeeAmount,
-        tax_amount: driverData.taxAmount,
-        pay_rate_per_delivery: driverData.payRate,
-        extra_km_rate: driverData.extraKmRate,
-        extra_km_limit: driverData.extraKmLimit,
-        oversized_item_rate: driverData.oversizedRate,
-        gst_hst_enabled: driverData.gstHstEnabled,
-        status: 'driver_finalized',
-        driver_finalized_at: new Date().toISOString()
-      };
+      const payrollRecord = { driver_id: driverData.driver.id, city_id: selectedCityId || null,
+        pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
+        total_deliveries: driverData.totalDeliveries, total_extra_km: driverData.totalExtraKm,
+        total_oversized_deliveries: driverData.oversizedCount, total_after_hours_deliveries: driverData.afterHoursCount || 0,
+        gross_pay: driverData.grossPay, net_pay: driverData.grandTotal,
+        total_deductions: driverData.deductions, deductions: driverData.deductionsArray,
+        bonus_pay: edit.bonusPay || 0, app_fee_percentage: edit.appFeePercent || 0, app_fee_amount: finalizeAppFeeAmount,
+        tax_amount: driverData.taxAmount, pay_rate_per_delivery: driverData.payRate,
+        extra_km_rate: driverData.extraKmRate, extra_km_limit: driverData.extraKmLimit,
+        oversized_item_rate: driverData.oversizedRate, gst_hst_enabled: driverData.gstHstEnabled,
+        status: 'driver_finalized', driver_finalized_at: new Date().toISOString() };
 
       let savedRecord;
       if (existingRecord) {
