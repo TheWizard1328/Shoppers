@@ -187,10 +187,10 @@ export default function DeliveryFormView({
                 </div>
                 {!delivery && (
                   <div className="flex gap-2 ml-4">
-                    <Button type="button" size="sm" onClick={() => setIsPickupMode(false)} className="disabled:opacity-50 bg-emerald-600 text-white px-3 text-xs !text-white font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors h-8 hover:bg-emerald-700">
+                    <Button type="button" size="sm" onClick={() => setIsPickupMode(false)} className={!isPickupMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={isPickupMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
                       Add Delivery
                     </Button>
-                    <Button type="button" size="sm" onClick={() => setIsPickupMode(true)} className={isPickupMode ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""} style={!isPickupMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
+                    <Button type="button" size="sm" onClick={() => setIsPickupMode(true)} className={isPickupMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={!isPickupMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
                       Add Pickup
                     </Button>
                   </div>
