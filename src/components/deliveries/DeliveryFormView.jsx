@@ -223,7 +223,18 @@ export default function DeliveryFormView({
                         const storeId = sel?._originalStoreId || value;
                         const timeSlot = sel?._timeSlot || null;
                         const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                        setFormData(prev => ({ ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '' }));
+                        // Auto-select default driver for this store/slot/date
+                        const defaultDriverId = getDefaultDriverForStoreSlot(storeId, timeSlot || 'AM', formData.delivery_date);
+                        const defaultDriver = defaultDriverId ? allDrivers.find(d => d.id === defaultDriverId) : null;
+                        setFormData(prev => ({
+                          ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '',
+                          driver_id: defaultDriver ? defaultDriverId : prev.driver_id,
+                          driver_name: defaultDriver ? getDriverNameForStorage(defaultDriver) : prev.driver_name,
+                        }));
+                        // If no default driver, open the driver dropdown
+                        if (!defaultDriver) {
+                          setTimeout(() => setForceOpenDriverSelect(true), 150);
+                        }
                       }} disabled={isSaving}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
                         <SelectContent className="z-[999999]">
