@@ -527,7 +527,7 @@ export default function DeliveryFormView({
           {/* Footer */}
           <CardFooter className="border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between w-full gap-4">
-              {!delivery && useMobileLayout && (
+              {!delivery && useMobileLayout && !isPickupMode && (
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowStagedPanel(!showStagedPanel)} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <Package className="w-4 h-4" />
                   Deliveries: (S: {stagedCount.new} P: {stagedCount.pending})
