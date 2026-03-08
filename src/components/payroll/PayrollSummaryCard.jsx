@@ -156,14 +156,9 @@ export default function PayrollSummaryCard({
     });
   }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
 
-  // Last fetch timestamp to detect real changes
   const lastFetchRef = React.useRef({ timestamp: 0 });
-
-  // Track last period we auto-created for to prevent duplicates on effect reruns
   const lastAutoCreatePeriodRef = React.useRef(null);
   const autoCreateInProgressRef = React.useRef(false);
-
-  // Track if initial YTD calculation has run
   const initialYtdCalculationDone = React.useRef(false);
 
   // Calculate YTD values whenever period changes
@@ -171,40 +166,30 @@ export default function PayrollSummaryCard({
     if (!currentPeriod) return;
     if (periodStartStr && periodEndStr) initialYtdCalculationDone.current = false;
     if (initialYtdCalculationDone.current) return;
-    const calculateInitialYtd = async () => {
-      try {
-        initialYtdCalculationDone.current = true;
-        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
-        const periodEnd = currentPeriod.end.toISOString().split('T')[0];
-        const records = await base44.entities.Payroll.filter({ pay_period_end: { $gte: yearStart, $lte: periodEnd } });
-        setPayrollRecords(records || []);
-        if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);
-      } catch (error) { console.error('❌ [Payroll] YTD calculation failed:', error); }
-    };
-    calculateInitialYtd();
+    initialYtdCalculationDone.current = true;
+    const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+    const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+    base44.entities.Payroll.filter({ pay_period_end: { $gte: yearStart, $lte: periodEnd } }).then((records) => { setPayrollRecords(records || []); if (onPayrollRecordsChange) onPayrollRecordsChange(records || []); }).catch(() => {});
   }, [currentPeriod, periodStartStr, periodEndStr]);
 
-  // Use external payroll records if provided, otherwise fetch locally with 15-sec refresh
+  // Fetch payroll records (external or local with 15-sec refresh)
   useEffect(() => {
     if (externalPayrollRecords) { setPayrollRecords(externalPayrollRecords); setIsLoadingRecords(false); return; }
     if (!currentPeriod) return;
-    const fetchPayrollRecords = async (force = false) => {
+    const fetch = async (force = false) => {
       const now = Date.now();
       if (!force && now - lastFetchRef.current.timestamp < 15000) return;
       setIsLoadingRecords(true);
       try {
-        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
-        const periodEnd = currentPeriod.end.toISOString().split('T')[0];
-        const records = await base44.entities.Payroll.filter({ pay_period_end: { $gte: yearStart, $lte: periodEnd } });
-        console.log(`📥 [Payroll] Fetched ${records?.length || 0} records (${yearStart} to ${periodEnd})`);
-        setPayrollRecords(records || []);
-        if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);
+        const ys = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+        const pe = currentPeriod.end.toISOString().split('T')[0];
+        const records = await base44.entities.Payroll.filter({ pay_period_end: { $gte: ys, $lte: pe } });
+        setPayrollRecords(records || []); if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);
         lastFetchRef.current.timestamp = now;
-      } catch (error) { console.error('Failed to fetch payroll records:', error); }
-      finally { setIsLoadingRecords(false); }
+      } catch (e) { /* ignore */ } finally { setIsLoadingRecords(false); }
     };
-    fetchPayrollRecords(true);
-    const interval = setInterval(() => fetchPayrollRecords(), 15000);
+    fetch(true);
+    const interval = setInterval(() => fetch(), 15000);
     return () => clearInterval(interval);
   }, [currentPeriod, externalPayrollRecords, periodStartStr, periodEndStr]);
 
