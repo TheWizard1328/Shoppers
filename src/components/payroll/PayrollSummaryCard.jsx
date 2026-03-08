@@ -896,36 +896,18 @@ export default function PayrollSummaryCard({
         </Dialog>
         }
 
-      {false &&
-        <Dialog open={false} onOpenChange={() => {}}>
-       <DialogContent>
-                 <tbody>
-                   {driversWithDeliveries.map((driver, idx) => {
-
-                        return (
-                          <tr key={driver.driver.id} style={{ borderBottom: '1px solid var(--border-slate-200)', background: isCurrentUser ? 'var(--bg-blue-50)' : idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
-                         <td className="px-2 py-1.5 truncate text-left">
-                           {driver.driver.user_name || driver.driver.full_name}
-                           {isAppOwnerRow && <span className="text-xs font-semibold text-blue-600 ml-1">(App Owner)</span>}
-                         </td>
-                         <td className="text-right px-1 py-1.5">
-                           <span className="text-[11px] font-medium">{driverAppFeePercent.toFixed(2)}%</span>
-                         </td>
-                         <td className="text-right px-1 py-1.5">
-                           <AppFeeAllDriversDialog
-                             open={appFeeOverlayAllDriversId === 'all' && isAppOwner(currentUser)} onClose={() => setAppFeeOverlayAllDriversId(null)}
-                             driversWithDeliveries={driversWithDeliveries} driverEdits={driverEdits} setDriverEdits={setDriverEdits}
-                             currentUser={currentUser} otherAppFeePercent={otherAppFeePercent} setOtherAppFeePercent={setOtherAppFeePercent}
-                             sumAllDriversAppFeePercent={sumAllDriversAppFeePercent} calculateAppFeeAmount={calculateAppFeeAmount}
-                             totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery}
-                             appFeesPerDelivery={appFeesPerDelivery} extraAppFeePercent={extraAppFeePercent} getDriverPayrollRecord={getDriverPayrollRecord} />
-                           <AppFeeSingleDriverDialog
-                             open={!!appFeeOverlayDriverId && !!driverEdits[appFeeOverlayDriverId]} driverId={appFeeOverlayDriverId}
-                             onClose={() => setAppFeeOverlayDriverId(null)} driverEdits={driverEdits} setDriverEdits={setDriverEdits}
-                             payrollData={payrollData} calculateAppFeeAmount={calculateAppFeeAmount}
-                             totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery} savePayrollChanges={savePayrollChanges} />
-
-      {/* Admin Confirmation Dialog - but NOT for admin-drivers viewing their own payroll */}
+      <AppFeeAllDriversDialog
+        open={appFeeOverlayAllDriversId === 'all' && isAppOwner(currentUser)} onClose={() => setAppFeeOverlayAllDriversId(null)}
+        driversWithDeliveries={driversWithDeliveries} driverEdits={driverEdits} setDriverEdits={setDriverEdits}
+        currentUser={currentUser} otherAppFeePercent={otherAppFeePercent} setOtherAppFeePercent={setOtherAppFeePercent}
+        sumAllDriversAppFeePercent={sumAllDriversAppFeePercent} calculateAppFeeAmount={calculateAppFeeAmount}
+        totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery}
+        appFeesPerDelivery={appFeesPerDelivery} extraAppFeePercent={extraAppFeePercent} getDriverPayrollRecord={getDriverPayrollRecord} />
+      <AppFeeSingleDriverDialog
+        open={!!appFeeOverlayDriverId && !!driverEdits[appFeeOverlayDriverId]} driverId={appFeeOverlayDriverId}
+        onClose={() => setAppFeeOverlayDriverId(null)} driverEdits={driverEdits} setDriverEdits={setDriverEdits}
+        payrollData={payrollData} calculateAppFeeAmount={calculateAppFeeAmount}
+        totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery} savePayrollChanges={savePayrollChanges} />
       <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <DialogHeader>
