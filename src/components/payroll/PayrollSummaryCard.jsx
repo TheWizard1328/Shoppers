@@ -568,49 +568,15 @@ export default function PayrollSummaryCard({
   // Check if finalization is allowed (6pm local time on last day of pay period, or after)
   const canFinalize = useMemo(() => {
     if (!currentPeriod?.end || !cities || !currentUser) return false;
-
-    // Get user's city to determine timezone
-    const userCityId = currentUser.city_id || selectedCityId;
-    const userCity = cities.find((c) => c && c.id === userCityId);
-
-    // Map provinces to timezones (Canadian provinces)
-    const PROVINCE_TIMEZONES = {
-      'AB': 'America/Edmonton', // Alberta - MST
-      'BC': 'America/Vancouver', // BC - PST
-      'SK': 'America/Regina', // Saskatchewan - CST (no DST)
-      'MB': 'America/Winnipeg', // Manitoba - CST
-      'ON': 'America/Toronto', // Ontario - EST
-      'QC': 'America/Montreal', // Quebec - EST
-      'NB': 'America/Moncton', // New Brunswick - AST
-      'NS': 'America/Halifax', // Nova Scotia - AST
-      'PE': 'America/Halifax', // PEI - AST
-      'NL': 'America/St_Johns', // Newfoundland - NST
-      'YT': 'America/Whitehorse', // Yukon - PST
-      'NT': 'America/Yellowknife', // Northwest Territories - MST
-      'NU': 'America/Iqaluit' // Nunavut - EST
-    };
-
-    const provinceCode = userCity?.province_state?.toUpperCase()?.substring(0, 2);
-    const timezone = provinceCode && PROVINCE_TIMEZONES[provinceCode] || 'America/Edmonton';
-
-    // Get current time in city's timezone
-    const nowInCityTime = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-    const todayInCityTime = new Date(nowInCityTime);
-    todayInCityTime.setHours(0, 0, 0, 0);
-
-    const periodEnd = new Date(currentPeriod.end);
-    periodEnd.setHours(0, 0, 0, 0);
-
-    // If today is AFTER the pay period end, allow finalization
-    if (todayInCityTime > periodEnd) return true;
-
-    // If today IS the pay period end date, check if time is >= 6pm (18:00)
-    if (todayInCityTime.getTime() === periodEnd.getTime()) {
-      const currentHour = nowInCityTime.getHours();
-      return currentHour >= 18;
-    }
-
-    // Before pay period end - not allowed
+    const userCity = cities.find((c) => c && c.id === (currentUser.city_id || selectedCityId));
+    const TZ = { 'AB': 'America/Edmonton', 'BC': 'America/Vancouver', 'SK': 'America/Regina', 'MB': 'America/Winnipeg', 'ON': 'America/Toronto', 'QC': 'America/Montreal', 'NB': 'America/Moncton', 'NS': 'America/Halifax', 'PE': 'America/Halifax', 'NL': 'America/St_Johns', 'YT': 'America/Whitehorse', 'NT': 'America/Yellowknife', 'NU': 'America/Iqaluit' };
+    const pc = userCity?.province_state?.toUpperCase()?.substring(0, 2);
+    const tz = pc && TZ[pc] || 'America/Edmonton';
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
+    const today = new Date(now); today.setHours(0, 0, 0, 0);
+    const pe = new Date(currentPeriod.end); pe.setHours(0, 0, 0, 0);
+    if (today > pe) return true;
+    if (today.getTime() === pe.getTime()) return now.getHours() >= 18;
     return false;
   }, [currentPeriod?.end, cities, currentUser, selectedCityId]);
 
