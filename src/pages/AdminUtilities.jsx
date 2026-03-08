@@ -3671,7 +3671,7 @@ export default function AdminUtilities() {
       }
     } catch (error) {
       console.error('Error during bulk patient delete:', error);
-      setBulkDelete(prev => ({ ...prev, running: false }));
+      setBulkDelete(prev => ({ ...prev, running: false, open: false }));
     }
   }, [dataViewMode.patients, queryClient, refetchPatients, refreshData]);
 
@@ -3754,7 +3754,7 @@ export default function AdminUtilities() {
       console.log(`✅ [AdminUtilities] Batch delete complete: ${successCount} deleted, ${failCount} failed`);
     } catch (error) {
       console.error('Error during batch delivery delete:', error);
-      setBulkDelete(prev => ({ ...prev, running: false }));
+      setBulkDelete(prev => ({ ...prev, running: false, open: false }));
     }
   }, [queryClient, refetchDeliveries, refreshData]);
 
@@ -3940,7 +3940,7 @@ export default function AdminUtilities() {
       }
     } catch (error) {
       console.error('Error during bulk delivery delete:', error);
-      setBulkDelete(prev => ({ ...prev, running: false }));
+      setBulkDelete(prev => ({ ...prev, running: false, open: false }));
     }
   }, [dataViewMode.deliveries, queryClient, refetchDeliveries, refreshData]);
 
@@ -4019,7 +4019,7 @@ export default function AdminUtilities() {
       await new Promise(r => setTimeout(r, 100));
     }
 
-    setBulkDelete(prev => ({ ...prev, running: false }));
+    setBulkDelete(prev => ({ ...prev, running: false, open: false }));
     await refetchStores();
     await refreshData();
   }, [refetchStores, refreshData]);
@@ -4062,7 +4062,7 @@ export default function AdminUtilities() {
       await new Promise(r => setTimeout(r, 100));
     }
 
-    setBulkDelete(prev => ({ ...prev, running: false }));
+    setBulkDelete(prev => ({ ...prev, running: false, open: false }));
     await refetchAppUsers();
     await refreshData();
   }, [refetchAppUsers, refreshData]);
@@ -4105,7 +4105,7 @@ export default function AdminUtilities() {
       await new Promise(r => setTimeout(r, 100));
     }
 
-    setBulkDelete(prev => ({ ...prev, running: false }));
+    setBulkDelete(prev => ({ ...prev, running: false, open: false }));
     await refetchCities();
     await refreshData();
   }, [refetchCities, refreshData]);
