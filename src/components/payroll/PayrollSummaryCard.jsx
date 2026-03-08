@@ -896,15 +896,11 @@ export default function PayrollSummaryCard({
         </Dialog>
         }
 
-      {false && appFeeOverlayAllDriversId === 'all' &&
+      {false &&
         <Dialog open={false} onOpenChange={() => {}}>
        <DialogContent>
                  <tbody>
                    {driversWithDeliveries.map((driver, idx) => {
-                        const driverAppFeePercent = 0;
-                        const driverAppFeeAmount = 0;
-                        const isCurrentUser = false;
-                        const isAppOwnerRow = false;
 
                         return (
                           <tr key={driver.driver.id} style={{ borderBottom: '1px solid var(--border-slate-200)', background: isCurrentUser ? 'var(--bg-blue-50)' : idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
