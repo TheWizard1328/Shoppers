@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename=route-${manifestType}-${deliveryDate}.pdf`
+        'Content-Disposition': `attachment; filename=${manifestType}-${deliveryDate}.pdf`
       }
     });
   } catch (error) {
