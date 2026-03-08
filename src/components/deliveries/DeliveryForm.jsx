@@ -3117,46 +3117,31 @@ export default function DeliveryForm({
         }
       }
 
-      // CRITICAL: Resort completed/failed/cancelled deliveries and update stop order after status change
+      // CRITICAL: Resort completed/failed/cancelled deliveries, update stop order, and set next isNextDelivery flag
       if (delivery && formData.driver_id && formData.delivery_date && statusChangedToCompletion) {
         try {
           const { base44 } = await import('@/api/base44Client');
-          
-          // Get all deliveries for this driver/date
-          const driverDeliveries = allDeliveries.filter(d => 
-            d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date
-          );
-          
-          // Get completed/failed/cancelled deliveries (including the one just updated)
-          const completedDeliveries = driverDeliveries.filter(d => 
-            ['completed', 'failed', 'cancelled'].includes(d.id === delivery.id ? formData.status : d.status)
-          );
-          
-          // Sort by actual_delivery_time (earliest first)
+          const driverDeliveries = allDeliveries.filter(d => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date);
+          const completedDeliveries = driverDeliveries.filter(d => ['completed', 'failed', 'cancelled'].includes(d.id === delivery.id ? formData.status : d.status));
           completedDeliveries.sort((a, b) => {
-            const timeA = a.id === delivery.id && dataToSave.actual_delivery_time 
-              ? new Date(dataToSave.actual_delivery_time).getTime()
-              : a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-            const timeB = b.id === delivery.id && dataToSave.actual_delivery_time 
-              ? new Date(dataToSave.actual_delivery_time).getTime()
-              : b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+            const timeA = a.id === delivery.id && dataToSave.actual_delivery_time ? new Date(dataToSave.actual_delivery_time).getTime() : a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+            const timeB = b.id === delivery.id && dataToSave.actual_delivery_time ? new Date(dataToSave.actual_delivery_time).getTime() : b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
             return timeA - timeB;
           });
-          
-          // Update stop_order for all completed/failed/cancelled deliveries
           let stopOrder = 1;
-          const updatePromises = completedDeliveries.map(d => {
+          await Promise.all(completedDeliveries.map(d => {
             const newStopOrder = stopOrder++;
-            if (d.stop_order !== newStopOrder) {
-              return base44.entities.Delivery.update(d.id, { stop_order: newStopOrder });
-            }
-            return Promise.resolve();
-          });
-          
-          await Promise.all(updatePromises);
-        } catch (error) {
-          console.error('❌ [DeliveryForm] Resort failed:', error);
-        }
+            return d.stop_order !== newStopOrder ? base44.entities.Delivery.update(d.id, { stop_order: newStopOrder }) : Promise.resolve();
+          }));
+          // CRITICAL: Find next incomplete delivery and set isNextDelivery flag
+          const COMPLETION_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+          const incompleteDeliveries = driverDeliveries.filter(d => d.id !== delivery.id && !COMPLETION_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+          if (incompleteDeliveries.length > 0) {
+            try {
+              await base44.functions.invoke('setNextDeliveryFlag', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, targetDeliveryId: incompleteDeliveries[0].id });
+            } catch (e) { console.warn('[DeliveryForm] setNextDeliveryFlag failed:', e?.message); }
+          }
+        } catch (error) { console.error('❌ [DeliveryForm] Resort failed:', error); }
       }
       
       // CRITICAL: Update ETAs for all incomplete stops if delivery time windows changed
