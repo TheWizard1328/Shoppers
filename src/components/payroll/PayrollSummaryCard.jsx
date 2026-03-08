@@ -158,7 +158,7 @@ export default function PayrollSummaryCard({
       const payrollRecord = payrollRecords.find((r) => r.driver_id === driverId);
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
 
-      // Count failed and returns (cancelled with after_hours_pickup excluded from returns)
+      const afterHoursCount = periodDeliveries.filter((d) => d.after_hours_pickup).length;
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.filter((d) => d.status === 'cancelled' && !d.after_hours_pickup).length;
 
