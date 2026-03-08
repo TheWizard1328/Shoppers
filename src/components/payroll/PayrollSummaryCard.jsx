@@ -21,7 +21,7 @@ import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../uti
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
 import PayrollMobileCard from './PayrollMobileCard'; import LeftStatsAndNotes from './LeftStatsAndNotes';
 import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
-
+import { exportPayrollPdf } from './payrollPdfExport';
 
 // GST/HST rates by province (Canada)
 const PROVINCE_TAX_RATES = {
