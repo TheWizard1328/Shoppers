@@ -19,25 +19,11 @@ import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
 import PayrollMobileCard from './PayrollMobileCard'; import LeftStatsAndNotes from './LeftStatsAndNotes';
+import { AppFeeAllDriversDialog, AppFeeSingleDriverDialog } from './AppFeeDialogs';
 import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { exportPayrollPdf } from './payrollPdfExport';
 
-// GST/HST rates by province (Canada)
-const PROVINCE_TAX_RATES = {
-  'AB': 0.05, // Alberta - GST only
-  'BC': 0.05, // BC - GST only (PST separate)
-  'SK': 0.05, // Saskatchewan - GST only
-  'MB': 0.05, // Manitoba - GST only
-  'ON': 0.13, // Ontario - HST
-  'QC': 0.05, // Quebec - GST only (QST separate)
-  'NB': 0.15, // New Brunswick - HST
-  'NS': 0.15, // Nova Scotia - HST
-  'PE': 0.15, // PEI - HST
-  'NL': 0.15, // Newfoundland - HST
-  'YT': 0.05, // Yukon - GST only
-  'NT': 0.05, // Northwest Territories - GST only
-  'NU': 0.05 // Nunavut - GST only
-};
+const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
 export default function PayrollSummaryCard({
   deliveries,
