@@ -438,38 +438,15 @@ export default function PayrollSummaryCard({
     return rounded;
   };
 
-  // Grand totals across all displayed drivers (only those with deliveries)
   const driversWithDeliveries = useMemo(() => payrollData.filter((d) => d.totalDeliveries > 0), [payrollData]);
   const grandTotalAllDrivers = driversWithDeliveries.reduce((sum, d) => sum + d.grandTotal, 0);
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + d.deductions, 0);
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
-
-  // Count finalized drivers for admin view
-  const driversWithDeliveriesIds = useMemo(() => {
-    return driversWithDeliveries.map((d) => d.driver.id);
-  }, [driversWithDeliveries]);
-
-  const finalizedDriversCount = useMemo(() => {
-    return driversWithDeliveriesIds.filter((driverId) => {
-      const record = getDriverPayrollRecord(driverId);
-      return record?.status === 'driver_finalized' ||
-      record?.status === 'admin_finalized' ||
-      record?.status === 'paid';
-    }).length;
-  }, [driversWithDeliveriesIds, payrollRecords]);
-
+  const driversWithDeliveriesIds = useMemo(() => driversWithDeliveries.map((d) => d.driver.id), [driversWithDeliveries]);
+  const finalizedDriversCount = useMemo(() => driversWithDeliveriesIds.filter((id) => { const r = getDriverPayrollRecord(id); return r?.status === 'driver_finalized' || r?.status === 'admin_finalized' || r?.status === 'paid'; }).length, [driversWithDeliveriesIds, payrollRecords]);
   const allDriversFinalized = finalizedDriversCount === driversWithDeliveriesIds.length && driversWithDeliveriesIds.length > 0;
-
-  // Check if current pay period includes the last day of the month (for AppFee% editing)
-  const isPeriodEndOfMonth = useMemo(() => {
-    if (!currentPeriod?.end) return false;
-    const periodEndDate = new Date(currentPeriod.end);
-    const nextDay = new Date(periodEndDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-    // If next day is in a different month, current period ends on last day of month
-    return nextDay.getMonth() !== periodEndDate.getMonth();
-  }, [currentPeriod?.end]);
+  const isPeriodEndOfMonth = useMemo(() => { if (!currentPeriod?.end) return false; const d = new Date(currentPeriod.end); const n = new Date(d); n.setDate(n.getDate() + 1); return n.getMonth() !== d.getMonth(); }, [currentPeriod?.end]);
 
   // Check if finalization is allowed (6pm local time on last day of pay period, or after)
   const canFinalize = useMemo(() => {
