@@ -360,21 +360,12 @@ export default function PayrollSummaryCard({
           })
         );
 
-        console.log(`✅ [Payroll] Created ${newRecords.length} records`);
-
-        // Update local state with fresh API data
         const allRecords = [...latestRecords, ...newRecords];
         setPayrollRecords(allRecords);
-        if (onPayrollRecordsChange) {
-          onPayrollRecordsChange(allRecords);
-        }
-      } catch (error) {
-        console.error('❌ [Payroll] Failed to auto-create payroll records:', error);
-      } finally {
-        autoCreateInProgressRef.current = false;
-      }
+        if (onPayrollRecordsChange) onPayrollRecordsChange(allRecords);
+      } catch (error) { console.error('❌ [Payroll] Auto-create failed:', error); }
+      finally { autoCreateInProgressRef.current = false; }
     };
-
     autoCreateMissingRecords();
   }, [periodStartStr, periodEndStr]);
 
