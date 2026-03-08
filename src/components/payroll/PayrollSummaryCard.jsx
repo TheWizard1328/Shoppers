@@ -1417,23 +1417,11 @@ export default function PayrollSummaryCard({
               data.driver.id === currentUser?.id;
               const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
 
-              // Mobile view - check for tablets in portrait mode
               const shouldShowMobile = (() => {
                 if (typeof window === 'undefined') return false;
                 const ua = navigator.userAgent;
-                const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
-                const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-
-                // Phones always use mobile layout
-                if (isPhone) return true;
-
-                // Tablets: portrait = mobile, landscape = desktop
-                if (isTabletDevice) {
-                  const isPortrait = window.innerWidth < window.innerHeight;
-                  return isPortrait;
-                }
-
-                // Desktop/other: use breakpoint
+                if (/Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
+                if (/iPad|Android(?!.*Mobile)/i.test(ua)) return window.innerWidth < window.innerHeight;
                 return window.innerWidth < 768;
               })();
 
