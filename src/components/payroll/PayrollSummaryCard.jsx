@@ -387,56 +387,37 @@ export default function PayrollSummaryCard({
 
 
 
+  // Count billable deliveries for app fee calculation
+  const countBillableDeliveries = useCallback((driverId) => {
+    let count = 0;
+    deliveries.forEach((d) => {
+      if (!d || (driverId && d.driver_id !== driverId)) return;
+      const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+      if (deliveryDate < new Date(periodStartStr + 'T00:00:00') || deliveryDate > new Date(periodEndStr + 'T00:00:00')) return;
+      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+      if (!validStatus) return;
+      if (!d.patient_id && !d.after_hours_pickup) return;
+      const store = stores.find((s) => s?.id === d.store_id);
+      if (!store) return;
+      let paysAppFees = store.pays_app_fees || false;
+      if (store.app_fee_history?.length > 0) {
+        const sorted = [...store.app_fee_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+        const entry = sorted.find((e) => new Date(e.effective_date) <= deliveryDate);
+        if (entry) paysAppFees = entry.pays_app_fees;
+      }
+      if (paysAppFees) count++;
+    });
+    return count;
+  }, [deliveries, stores, periodStartStr, periodEndStr]);
+
   // Handle immediate save to Payroll entity and offline DB
   const savePayrollChanges = async (driverId, updates) => {
     try {
-      // Get or create payroll record
       let existingRecord = getDriverPayrollRecord(driverId);
-
-      // If no record exists, create it first with current data
       if (!existingRecord) {
-        console.log('ℹ️ [Payroll] No existing record - creating new record for driver:', driverId);
         const driverData = payrollData.find((d) => d.driver.id === driverId);
-        if (!driverData) {
-          console.warn('⚠️ [Payroll] No driver data found for:', driverId);
-          return;
-        }
-
-        // Calculate app fee amount for this period
-        let saveAppFeeDeliveries = 0;
-        deliveries.forEach((d) => {
-          if (!d || d.driver_id !== driverId) return;
-          const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-          const periodStart = new Date(periodStartStr + 'T00:00:00');
-          const periodEnd = new Date(periodEndStr + 'T00:00:00');
-          if (deliveryDate < periodStart || deliveryDate > periodEnd) return;
-
-          const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-          if (!validStatus) return;
-          if (!d.patient_id && !d.after_hours_pickup) return;
-
-          const store = stores.find((s) => s?.id === d.store_id);
-          if (!store) return;
-
-          let paysAppFees = store.pays_app_fees || false;
-          if (store.app_fee_history && store.app_fee_history.length > 0) {
-            const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-            );
-            const applicableEntry = sortedHistory.find((entry) =>
-            new Date(entry.effective_date) <= deliveryDate
-            );
-            if (applicableEntry) {
-              paysAppFees = applicableEntry.pays_app_fees;
-            }
-          }
-
-          if (paysAppFees) {
-            saveAppFeeDeliveries++;
-          }
-        });
-
-        const saveAppFeeAmount = saveAppFeeDeliveries * (driverData.appFeePercentage || 0) / 100;
+        if (!driverData) return;
+        const saveAppFeeAmount = countBillableDeliveries(driverId) * (driverData.appFeePercentage || 0) / 100;
 
         const newRecordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
           pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
