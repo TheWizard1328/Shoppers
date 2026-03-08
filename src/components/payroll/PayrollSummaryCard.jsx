@@ -525,60 +525,17 @@ export default function PayrollSummaryCard({
   const handleAdminFinalize = async () => {
     setIsFinalizing(true);
     try {
-      const driversWithDeliveries = payrollData.filter((d) => d.totalDeliveries > 0);
-
-      for (const driverData of driversWithDeliveries) {
-        const existingRecord = getDriverPayrollRecord(driverData.driver.id);
-
-        if (existingRecord) {
-          await base44.entities.Payroll.update(existingRecord.id, {
-            status: 'admin_finalized',
-            admin_finalized_at: new Date().toISOString(),
-            admin_finalized_by: currentUser?.id
-          });
-        }
+      const dwdList = payrollData.filter((d) => d.totalDeliveries > 0);
+      for (const dd of dwdList) {
+        const rec = getDriverPayrollRecord(dd.driver.id);
+        if (rec) await base44.entities.Payroll.update(rec.id, { status: 'admin_finalized', admin_finalized_at: new Date().toISOString(), admin_finalized_by: currentUser?.id });
       }
-
-      // Send notification to all drivers
-      await notifyAdminApprovedPayroll({
-        admin: currentUser,
-        periodLabel: currentPeriod?.label || 'this period',
-        driversWithDeliveries,
-        appUsers
-      });
-
-      // Refresh records - use external refresh if available for real-time sync
-      if (refreshPayrollRecords) {
-        await refreshPayrollRecords();
-      } else {
-        const records = await base44.entities.Payroll.filter({
-          pay_period_start: periodStartStr,
-          pay_period_end: periodEndStr
-        });
-        setPayrollRecords(records || []);
-        if (onPayrollRecordsChange) {
-          onPayrollRecordsChange(records || []);
-        }
-      }
-
-      if (onFinalizePayroll) {
-        onFinalizePayroll({
-          period: currentPeriod,
-          payrollData: driversWithDeliveries,
-          grandTotals: {
-            Gross: grandTotalAllDrivers,
-            tax: grandTotalTax,
-            deductions: grandTotalDeductions,
-            Net: grandTotalGross
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Failed to admin finalize payroll:', error);
-    } finally {
-      setIsFinalizing(false);
-      setShowConfirmDialog(false);
-    }
+      await notifyAdminApprovedPayroll({ admin: currentUser, periodLabel: currentPeriod?.label || 'this period', driversWithDeliveries: dwdList, appUsers });
+      if (refreshPayrollRecords) { await refreshPayrollRecords(); }
+      else { const records = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr }); setPayrollRecords(records || []); if (onPayrollRecordsChange) onPayrollRecordsChange(records || []); }
+      if (onFinalizePayroll) onFinalizePayroll({ period: currentPeriod, payrollData: dwdList, grandTotals: { Gross: grandTotalAllDrivers, tax: grandTotalTax, deductions: grandTotalDeductions, Net: grandTotalGross } });
+    } catch (error) { console.error('Failed to admin finalize payroll:', error); }
+    finally { setIsFinalizing(false); setShowConfirmDialog(false); }
   };
 
   // Handle screenshot capture for sharing
