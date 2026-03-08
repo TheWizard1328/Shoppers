@@ -480,7 +480,7 @@ const DeliveryListView = ({
           )}
         </AnimatePresence>
 
-        {/* Slide-in Details Panel Overlay */
+        {/* Slide-in Details Panel Overlay */}
       <AnimatePresence>
         {selectedDeliveryId && selectedDelivery && (
           <>
