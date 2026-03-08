@@ -528,7 +528,7 @@ export default function PayrollSummaryCard({
           }));
         }
       }
-    });
+    }).finally(() => { syncInProgressRef.current = false; });
   }, [payrollData, payrollRecords, periodStartStr, periodEndStr]);
 
   // Guard clause AFTER all hooks
