@@ -503,13 +503,15 @@ export default function PayrollSummaryCard({
   }, [payrollData, payrollRecords, calculateAppFeeAmount]);
 
   // Auto-sync payroll entity records with live-calculated data whenever payrollData or records change
+  const syncInProgressRef = useRef(false);
   useEffect(() => {
     if (!payrollData || payrollData.length === 0 || !periodStartStr || !periodEndStr) return;
+    if (syncInProgressRef.current) return;
     const driversWithData = payrollData.filter((d) => d.totalDeliveries > 0);
     if (driversWithData.length === 0) return;
-    // Only sync if we have records to compare against
     const hasRecords = driversWithData.some((d) => getDriverPayrollRecord(d.driver.id));
     if (!hasRecords) return;
+    syncInProgressRef.current = true;
     syncPayrollRecordsWithLiveData(payrollData, getDriverPayrollRecord, (updated) => {
       if (updated.length > 0) {
         console.log(`✅ [PayrollSync] Auto-synced ${updated.length} records`);
