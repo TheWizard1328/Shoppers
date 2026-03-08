@@ -219,7 +219,7 @@ export default function DeliveryFormView({
                   </div>
                 )}
 
-                <div className={`flex gap-3 ${useMobileLayout ? (!delivery ? 'flex-col' : 'flex-row') : 'contents'}`}>
+                <div className={`flex gap-3 ${useMobileLayout ? 'flex-row' : 'contents'}`}>
                   {isPickupMode && !delivery && (
                     <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
