@@ -435,7 +435,8 @@ export default function DeliveryFormView({
                     </div>
                   )}
 
-                  {/* Store / Status / Time - using extracted component */}
+                  {/* Store / Status / Time - hidden for new pickups (store selected above, status always en_route) */}
+                  {!(isPickupMode && !delivery) && (
                   <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
                     <DeliveryStatusAndTiming
                       formData={formData} setFormData={setFormData}
@@ -446,6 +447,7 @@ export default function DeliveryFormView({
                       currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                     />
                   </div>
+                  )}
 
                   {/* Patient Name / Phone / Address / Unit */}
                   {!isPickupMode && (
