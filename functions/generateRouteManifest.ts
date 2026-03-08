@@ -137,10 +137,10 @@ Deno.serve(async (req) => {
       doc.text('Photos', colPhotos, y);
       doc.setFont(undefined, 'normal');
       // Draw header line
-      y += 1;
+      y = snap(y + 1);
       doc.setDrawColor(180);
       doc.line(colStop, y, pageWidth - 10, y);
-      y += 4;
+      y = snap(y + 4);
     };
 
     addHeader();
@@ -156,17 +156,21 @@ Deno.serve(async (req) => {
       
       const nameLines = doc.splitTextToSize(name, 64);
       const notesLines = doc.splitTextToSize(notes, 32);
-      const textRows = Math.max(nameLines.length, notesLines.length);
-      const textHeight = textRows * 4.5 + 2;
+      const nameDims = doc.getTextDimensions(nameLines as any);
+      const notesDims = doc.getTextDimensions(notesLines as any);
+      const textHeight = Math.max(nameDims.h, notesDims.h) + 2; // padding
       
       const hasImages = images.signature || images.photos.length > 0;
       const rowHeight = hasImages ? Math.max(textHeight, thumbSize + 2) : textHeight;
 
-      // Check if we need a new page
-      if (y + rowHeight > 280) { 
+      // Check if we need a new page (use snapped coordinates)
+      let rowTop = snap(y);
+      const contentBottom = pageHeight - 20;
+      if (rowTop + rowHeight > contentBottom) { 
         doc.addPage(); 
         y = 20; 
         addHeader(); 
+        rowTop = snap(y);
       }
 
       const stop = String(d?.stop_order || '');
@@ -181,20 +185,19 @@ Deno.serve(async (req) => {
       // Highlight pickups with light gray background
       if (isPickup) {
         doc.setFillColor(245, 245, 245);
-        doc.rect(colStop - 2, y - 3.5, pageWidth - 12, rowHeight, 'F');
+        doc.rect(colStop - 2, rowTop - 1, pageWidth - 12, rowHeight + 2, 'F');
       }
 
-      const rowTop = y;
-      doc.text(stop, colStop, y);
-      doc.text(tr, colTR, y);
-      doc.text(nameLines, colName, y);
-      doc.text(time, colTime, y);
-      doc.text(notesLines, colNotes, y);
+      doc.text(stop, colStop, rowTop, { baseline: 'top' } as any);
+      doc.text(tr, colTR, rowTop, { baseline: 'top' } as any);
+      doc.text(nameLines, colName, rowTop, { baseline: 'top' } as any);
+      doc.text(time, colTime, rowTop, { baseline: 'top' } as any);
+      doc.text(notesLines, colNotes, rowTop, { baseline: 'top' } as any);
 
       // Signature thumbnail
       if (images.signature) {
         try {
-          doc.addImage(images.signature.base64Data, images.signature.format, colSig, rowTop - 3, thumbSize, thumbSize);
+          doc.addImage(images.signature.base64Data, images.signature.format, colSig, rowTop, thumbSize, thumbSize);
         } catch {
           doc.setFontSize(7);
           doc.text('✓', colSig + 4, rowTop);
@@ -206,7 +209,7 @@ Deno.serve(async (req) => {
         let photoX = colPhotos;
         for (const photo of images.photos) {
           try {
-            doc.addImage(photo.base64Data, photo.format, photoX, rowTop - 3, thumbSize, thumbSize);
+            doc.addImage(photo.base64Data, photo.format, photoX, rowTop, thumbSize, thumbSize);
             photoX += thumbSize + 1;
           } catch {
             // Skip failed images
@@ -214,15 +217,16 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Draw subtle row separator
-      y = rowTop + rowHeight;
+      // Draw subtle row separator aligned to grid
+      y = snap(rowTop + rowHeight);
       doc.setDrawColor(230);
-      doc.line(colStop, y - 1, pageWidth - 10, y - 1);
+      doc.line(colStop, y, pageWidth - 10, y);
     }
 
     // Footer with count
-    y += 4;
-    if (y > 280) { doc.addPage(); y = 20; }
+    y = snap(y + 4);
+    const footerBottom = pageHeight - 20;
+    if (y > footerBottom) { doc.addPage(); y = 20; }
     doc.setFontSize(9);
     doc.text(`Total stops: ${items.length}`, 14, y);
 
