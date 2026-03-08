@@ -2585,9 +2585,6 @@ export default function DeliveriesPage() {
     return { pickups, deliveries: flatDeliveries, stopOrderMap };
   }, [activeDriver, activeDriverDeliveries.length, stores, effectivePatients, allPatients, selectedDate]);
 
-  // ProjectedDeliveryList and ProjectedPickupCard extracted to components/deliveries/ProjectedRouteCards.jsx
-
-
   const handleYearChange = useCallback((year) => {
     const newYear = parseInt(year);
     setSelectedYear(newYear);
