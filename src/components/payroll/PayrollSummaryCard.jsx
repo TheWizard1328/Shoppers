@@ -404,50 +404,20 @@ export default function PayrollSummaryCard({
         existingRecord = newRecord;
       }
 
-      // Recalculate totals if deductions or bonus changed
       const driverData = payrollData.find((d) => d.driver.id === driverId);
       let recalculatedUpdates = { ...updates };
-
       if (updates.deductions !== undefined || updates.bonus_pay !== undefined) {
-        const newDeductions = updates.total_deductions !== undefined ? updates.total_deductions : existingRecord.total_deductions || 0;
+        const newDed = updates.total_deductions !== undefined ? updates.total_deductions : existingRecord.total_deductions || 0;
         const newBonus = updates.bonus_pay !== undefined ? updates.bonus_pay : existingRecord.bonus_pay || 0;
-
-        // Recalculate gross_pay = net_pay + tax - deductions + bonus
-        const netPay = driverData?.grandTotal || existingRecord.net_pay || 0;
-        const taxAmount = driverData?.taxAmount || 0;
-        const newGrossPay = netPay + taxAmount - newDeductions + newBonus;
-
-        recalculatedUpdates.gross_pay = newGrossPay;
+        recalculatedUpdates.gross_pay = (driverData?.grandTotal || existingRecord.net_pay || 0) + (driverData?.taxAmount || 0) - newDed + newBonus;
       }
-
-      // Update existing record (round currency values)
       const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(recalculatedUpdates));
-      console.log('✅ [Payroll] Updated record for driver:', driverId, recalculatedUpdates);
-
-      // Update local state
       setPayrollRecords((prev) => prev.map((r) => r.id === existingRecord.id ? { ...r, ...updatedRecord } : r));
-      if (onPayrollRecordsChange) {
-        onPayrollRecordsChange(payrollRecords.map((r) => r.id === existingRecord.id ? { ...r, ...updatedRecord } : r));
-      }
-
-      // Sync to offline DB
-      try {
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        const syncData = { ...existingRecord, ...updatedRecord };
-        await offlineDB.save(offlineDB.STORES.PAYROLL, syncData);
-        console.log('💾 [Payroll] Synced to offline DB:', driverId);
-      } catch (offlineError) {
-        console.warn('⚠️ [Payroll] Failed to sync to offline DB:', offlineError);
-      }
-
-      // Force refresh after save to sync across devices
+      if (onPayrollRecordsChange) onPayrollRecordsChange(payrollRecords.map((r) => r.id === existingRecord.id ? { ...r, ...updatedRecord } : r));
+      try { const { offlineDB } = await import('../utils/offlineDatabase'); await offlineDB.save(offlineDB.STORES.PAYROLL, { ...existingRecord, ...updatedRecord }); } catch (e) { /* ignore */ }
       lastFetchRef.current.timestamp = 0;
-      if (refreshPayrollRecords) {
-        await refreshPayrollRecords();
-      }
-    } catch (error) {
-      console.error('❌ [Payroll] Failed to save changes:', error);
-    }
+      if (refreshPayrollRecords) await refreshPayrollRecords();
+    } catch (error) { console.error('❌ [Payroll] Failed to save changes:', error); }
   };
 
   // Handle bonus pay save and close
