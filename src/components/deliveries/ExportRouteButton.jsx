@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { userHasRole } from "../utils/userRoles";
 
 export default function ExportRouteButton({ currentUser, driverFilter, selectedDate, driverFilteredDeliveries }) {
-  const finishedStatuses = ['completed','failed','cancelled','returned'];
+  const finishedStatuses = ['completed','failed','cancelled','returned','picked_up'];
   const allDeliveries = driverFilteredDeliveries || [];
 
   // Dispatcher's store IDs
