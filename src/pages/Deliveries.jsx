@@ -3543,8 +3543,8 @@ export default function DeliveriesPage() {
                   <SelectValue placeholder="Select driver" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Drivers</SelectItem>
-                  {sortUsers((effectiveDrivers || []).filter((d) => userHasRole(d, 'driver'))).map((driver) => {
+                 <SelectItem value="all">All Drivers</SelectItem>
+                 {sortUsers((effectiveDrivers||[]).filter(d=>userHasRole(d,'driver')&&(()=>{const S=selectedDate?format(selectedDate,'yyyy-MM-dd'):null;if(!S)return true;const disp=userHasRole(currentUser,'dispatcher')&&!userHasRole(currentUser,'admin');const ss=disp?new Set(currentUser.store_ids||[]):null;const ok=(effectiveDeliveries||[]).some(del=>del&&del.delivery_date===S&&(!ss||!del.store_id||ss.has(del.store_id))&&((del.driver_id&&(del.driver_id===d.id||del.driver_id===d.appUserId))||(del.driver_name&&(del.driver_name===d.full_name||del.driver_name===d.user_name))));return ok||(driverFilter!=='all'&&d.id===driverFilter);})())).map((driver) => {
                   // Check if there are duplicate names
                   const duplicateNames = (effectiveDrivers || []).filter((d) =>
                   getDriverDisplayName(d) === getDriverDisplayName(driver)
