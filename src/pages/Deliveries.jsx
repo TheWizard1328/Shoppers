@@ -1047,8 +1047,6 @@ export default function DeliveriesPage() {
   useEffect(() => {
     if (!dataLoaded || !hasAccess || isLoadingData) return;
 
-    console.log('🔍 [Deliveries] Processing URL parameters and setting initial state');
-
     const params = new URLSearchParams(location.search);
     const driverParam = params.get("driver");
     const statusParam = params.get("status");
