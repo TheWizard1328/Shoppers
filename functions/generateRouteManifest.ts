@@ -107,6 +107,10 @@ Deno.serve(async (req) => {
     doc.setLineHeightFactor(1.2);
     const snap = (n: number) => Math.round(n * 2) / 2;
 
+    // Row sizing
+    const minRowHeight = 6; // mm, ensures consistent spacing for single-line rows
+    const cellPadding = 1;  // mm, extra breathing room inside each row
+
     // Header
     const title = manifestType === 'pre-route' ? `Pre-Route (${ampm || 'AM'})` : 'Post-Route (All)';
     doc.setFontSize(16);
@@ -158,10 +162,10 @@ Deno.serve(async (req) => {
       const notesLines = doc.splitTextToSize(notes, 32);
       const nameDims = doc.getTextDimensions(nameLines as any);
       const notesDims = doc.getTextDimensions(notesLines as any);
-      const textHeight = Math.max(nameDims.h, notesDims.h) + 2; // padding
+      const textHeight = Math.max(nameDims.h, notesDims.h) + cellPadding;
       
       const hasImages = images.signature || images.photos.length > 0;
-      const rowHeight = hasImages ? Math.max(textHeight, thumbSize + 2) : textHeight;
+      const rowHeight = hasImages ? Math.max(textHeight, thumbSize) : textHeight;
 
       // Check if we need a new page (use snapped coordinates)
       let rowTop = snap(y);
@@ -181,11 +185,12 @@ Deno.serve(async (req) => {
       const time = extractTime(rawTime);
 
       doc.setFontSize(9);
+      const rowBottom = snap(rowTop + Math.max(rowHeight, minRowHeight));
       
       // Highlight pickups with light gray background
       if (isPickup) {
         doc.setFillColor(245, 245, 245);
-        doc.rect(colStop - 2, rowTop - 1, pageWidth - 12, rowHeight + 2, 'F');
+        doc.rect(colStop - 2, rowTop, pageWidth - 12, rowBottom - rowTop, 'F');
       }
 
       doc.text(stop, colStop, rowTop, { baseline: 'top' } as any);
@@ -218,9 +223,9 @@ Deno.serve(async (req) => {
       }
 
       // Draw subtle row separator aligned to grid
-      y = snap(rowTop + rowHeight);
+      y = rowBottom;
       doc.setDrawColor(230);
-      doc.line(colStop, y, pageWidth - 10, y);
+      doc.line(colStop, rowBottom, pageWidth - 10, rowBottom);
     }
 
     // Footer with count
