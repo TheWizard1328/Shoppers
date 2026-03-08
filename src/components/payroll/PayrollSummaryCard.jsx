@@ -589,37 +589,16 @@ export default function PayrollSummaryCard({
     });
   }, [driversWithDeliveriesIds, payrollRecords]);
 
-  // Calculate YTD data from payroll records - sum stored values from all periods including current
-  // CRITICAL: Uses shared utility to ensure consistent calculations between mobile and desktop
+  // Calculate YTD data from payroll records
   const ytdDataByDriver = useMemo(() => {
     const ytdMap = {};
-
     payrollData.forEach((data) => {
-      const year = currentPeriod.start.getFullYear();
-      const yearStart = `${year}-01-01`;
-      const currentPeriodEnd = currentPeriod.end.toISOString().split('T')[0];
-
-      // CRITICAL: Include ONLY payroll records from Jan 1 to current period end (inclusive) for this driver
-      const ytdRecords = payrollRecords.filter((r) => {
-        if (!r || r.driver_id !== data.driver.id) return false;
-        const recordEnd = r.pay_period_end;
-        // Filter: recordEnd must be >= Jan 1 AND <= selected period end
-        return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
-      });
-
-      console.log(`📋 [YTD] ${data.driver.user_name}: ${ytdRecords.length} records (${yearStart} to ${currentPeriodEnd})`);
-
-      // Use shared utility to calculate YTD values
+      const yearStart = `${currentPeriod.start.getFullYear()}-01-01`;
+      const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+      const ytdRecords = payrollRecords.filter((r) => r && r.driver_id === data.driver.id && r.pay_period_end >= yearStart && r.pay_period_end <= periodEnd);
       const appUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
-      const ytdValues = calculateYtdPayroll(ytdRecords, data, cities, appUser);
-
-      const ytdNetTotal = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
-      const ytdGrossTotal = ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0);
-      const ytdAppFeeTotal = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
-
-      ytdMap[data.driver.id] = ytdValues;
+      ytdMap[data.driver.id] = calculateYtdPayroll(ytdRecords, data, cities, appUser);
     });
-
     return ytdMap;
   }, [payrollData, payrollRecords, currentPeriod, appUsers, cities]);
 
