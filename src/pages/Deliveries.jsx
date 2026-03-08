@@ -827,18 +827,16 @@ export default function DeliveriesPage() {
     });
   }, [hasAccess]);
 
-  // CRITICAL: Reload data when transitioning from Driver Overview to Route Management
+  // CRITICAL: Reload data on mode transition OR year/month change in Route Management
+  const prevYMRef = useRef({ y: selectedYear, m: selectedMonth });
   useEffect(() => {
     if (prevModeRef.current === null) return;
-
-    // Detect transition from Driver Overview to Route Management
-    const transitionedToRouteManagement = prevModeRef.current === true && isDriverOverviewMode === false;
-
-    if (transitionedToRouteManagement && driverFilter !== 'all') {
-      console.log('🔄 [Deliveries] Transitioned to Route Management - reloading month data for selected driver');
-      loadData(true).catch(() => {});
-    }
-  }, [isDriverOverviewMode, driverFilter, loadData]);
+    if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') { loadData(true).catch(() => {}); prevYMRef.current = { y: selectedYear, m: selectedMonth }; return; }
+    if (isDriverOverviewMode || !initialLoadDone.current) return;
+    if (prevYMRef.current.y === selectedYear && prevYMRef.current.m === selectedMonth) return;
+    prevYMRef.current = { y: selectedYear, m: selectedMonth };
+    loadData(true).catch(() => {});
+  }, [isDriverOverviewMode, driverFilter, loadData, selectedYear, selectedMonth]);
 
 
   const availableOverviewYears = useMemo(() => {
