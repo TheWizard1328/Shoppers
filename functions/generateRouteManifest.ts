@@ -231,8 +231,8 @@ Deno.serve(async (req) => {
 
       doc.text(stop, colStop, textY, { baseline: 'top' } as any);
       doc.text(tr, colTR, textY, { baseline: 'top' } as any);
-      doc.text(nameLines, colName, textY, { baseline: 'top' } as any);
       doc.text(time, colTime, textY, { baseline: 'top' } as any);
+      doc.text(nameLines, colName, textY, { baseline: 'top' } as any);
       doc.text(notesLines, colNotes, textY, { baseline: 'top' } as any);
 
       // Signature thumbnail
