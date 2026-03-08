@@ -183,7 +183,7 @@ const DeliveryRow = memo(({
               <span className="text-[11px] text-slate-600">x{delivery.receipt_barcode_values.length}</span>
             </button>
           ) : (
-            <span className="text-slate-400">—</span>
+            <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
           )}
         </div>
 
@@ -215,7 +215,7 @@ const DeliveryRow = memo(({
               onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }}
             />
           ) : (
-            <span className="text-slate-400">—</span>
+            <div className="w-8 h-8 rounded-sm border flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
           )}
         </div>
 
@@ -242,12 +242,12 @@ const DeliveryRow = memo(({
               )}
             </div>
           ) : (
-            <span className="text-slate-400">—</span>
+            <div className="w-8 h-8 rounded-md border flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
           )}
         </div>
 
         {/* COD */}
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center min-w-[90px]">
           {getCODDisplay(delivery)}
         </div>
       </div>
