@@ -64,9 +64,8 @@ import StopCard from "../components/common/StopCard";
 
 import ExportRouteButton from "../components/deliveries/ExportRouteButton";
 import DeliveryForm from "../components/deliveries/DeliveryForm";
-import DeliveryDetails from "../components/deliveries/DeliveryDetails";
-import PatientForm from "../components/patients/PatientForm";
 import DateListPanel from "../components/deliveries/DateListPanel";
+import { ProjectedPickupCard, ProjectedDeliveryList } from '../components/deliveries/ProjectedRouteCards';
 import { getData, invalidate } from '../components/utils/dataManager';
 
 import { getDriverDisplayName, getDriverNameForStorage, findDriverByName } from '../components/utils/driverUtils';
