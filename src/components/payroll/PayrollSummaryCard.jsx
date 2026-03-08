@@ -305,7 +305,7 @@ export default function PayrollSummaryCard({
         const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
         const periodEnd = currentPeriod.end.toISOString().split('T')[0];
 
-        console.log(`📥 [Payroll] Fetching records from ${yearStart} to ${periodEnd} (current period: ${periodStartStr} - ${periodEndStr})`);
+        console.log(`📥 [Payroll] Fetching records ${yearStart} to ${periodEnd}`);
 
         const records = await base44.entities.Payroll.filter({
           pay_period_end: { $gte: yearStart, $lte: periodEnd }
