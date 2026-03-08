@@ -409,32 +409,10 @@ export default function PayrollSummaryCard({
     });
   };
 
-  // Format currency
-  const formatCurrency = (amount, decimals = 2) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals
-    }).format(amount);
-  };
-
-  // Round currency values to 2 decimals before saving to Payroll entity
+  const formatCurrency = (amount, decimals = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(amount);
   const roundPayrollData = (data) => {
-    const currencyFields = [
-    'gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount',
-    'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate'];
-
     const rounded = { ...data };
-    currencyFields.forEach((field) => {
-      if (rounded[field] !== undefined && rounded[field] !== null) {
-        rounded[field] = Math.round(rounded[field] * 100) / 100;
-      }
-    });
-    // Also round total_extra_km to 2 decimals for precision
-    if (rounded.total_extra_km !== undefined && rounded.total_extra_km !== null) {
-      rounded.total_extra_km = Math.round(rounded.total_extra_km * 100) / 100;
-    }
+    ['gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount', 'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate', 'total_extra_km'].forEach((f) => { if (rounded[f] != null) rounded[f] = Math.round(rounded[f] * 100) / 100; });
     return rounded;
   };
 
