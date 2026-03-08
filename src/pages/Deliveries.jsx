@@ -374,7 +374,6 @@ export default function DeliveriesPage() {
         });
       }
 
-      const preFilterCount = mergedUsers.length;
       mergedUsers = mergedUsers.filter((u) => {
         const userNameLower = (u.user_name || '').toLowerCase();
         const storePatterns = [
