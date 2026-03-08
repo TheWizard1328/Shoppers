@@ -99,6 +99,7 @@ Deno.serve(async (req) => {
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     const thumbSize = 12; // thumbnail size in mm
 
     // Header
