@@ -1069,14 +1069,6 @@ export default function DeliveriesPage() {
       initialSelectedMonth = new Date().getMonth();
     }
 
-    console.log('📅 [Deliveries] Setting year/month from URL:', {
-      year: initialSelectedYear,
-      month: initialSelectedMonth,
-      monthParam,
-      hasMonthParam: !!monthParam,
-      isInitialLoad: isInitialPageLoadRef.current
-    });
-
     setSelectedYear(initialSelectedYear);
     setSelectedMonth(initialSelectedMonth);
 
