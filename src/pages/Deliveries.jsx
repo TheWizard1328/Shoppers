@@ -2756,57 +2756,10 @@ export default function DeliveriesPage() {
   }, 100), []);
 
   const handleDriverChange = useCallback((driverId) => {
-    try {
-      const driverDeliveries = (effectiveDeliveries || []).filter((d) =>
-      d.driver_id && (d.driver_id === driverId || d.driver_id === (effectiveDrivers || []).find((dr) => dr.id === driverId)?.appUserId) ||
-      !d.driver_id && d.driver_name && (d.driver_name === (effectiveDrivers || []).find((dr) => dr.id === driverId)?.full_name || d.driver_name === (effectiveDrivers || []).find((dr) => dr.id === driverId)?.user_name)
-      );
-
-      let targetDate = new Date();
-      targetDate.setHours(0, 0, 0, 0);
-
-      if (driverDeliveries.length > 0) {
-        const latest = [...driverDeliveries].sort(
-          (a, b) => new Date(b.delivery_date.replace(/-/g, '/')) - new Date(a.delivery_date.replace(/-/g, '/'))
-        )[0];
-        if (latest?.delivery_date) {
-          const [y, m, d] = latest.delivery_date.split('-').map(Number);
-          if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-            targetDate = new Date(y, m - 1, d);
-            targetDate.setHours(0, 0, 0, 0);
-          }
-        }
-      }
-
-      if (isNaN(targetDate.getTime())) {
-        console.error('[handleDriverChange] Invalid target date');
-        return;
-      }
-
-      const targetYear = targetDate.getFullYear();
-      const targetMonth = targetDate.getMonth();
-
-      console.log('🎯 [handleDriverChange] Updating filters:', {
-        driver: driverId,
-        year: targetYear,
-        month: targetMonth + 1
-      });
-
-      setDriverFilter(driverId);
-      setSelectedDate(targetDate);
-      setSelectedYear(targetYear);
-      setSelectedMonth(targetMonth);
-
-      // CRITICAL: Only use year/month/driver in URL, no date param
-      updateUrl({
-        driver: driverId,
-        year: targetYear.toString(),
-        month: (targetMonth + 1).toString()
-      });
-    } catch (error) {
-      console.error('[handleDriverChange] Error:', error);
-    }
-  }, [effectiveDrivers, effectiveDeliveries, updateUrl]);
+    console.log('🎯 [handleDriverChange] Switching to driver:', driverId, 'keeping current date');
+    setDriverFilter(driverId);
+    updateUrl({ driver: driverId, year: selectedYear.toString(), month: (selectedMonth + 1).toString() });
+  }, [updateUrl, selectedYear, selectedMonth]);
 
 
 
