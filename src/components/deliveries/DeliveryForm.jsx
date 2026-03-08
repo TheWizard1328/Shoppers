@@ -194,7 +194,7 @@ export default function DeliveryForm({
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedPickupOption, setSelectedPickupOption] = useState('');
-  const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode);
+  const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode); const [isInterStoreMode, setIsInterStoreMode] = useState(false);
   const [selectedStoreForPickup, setSelectedStoreForPickup] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
