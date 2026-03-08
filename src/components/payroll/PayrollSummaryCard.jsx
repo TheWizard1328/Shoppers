@@ -245,41 +245,21 @@ export default function PayrollSummaryCard({
   // Track if initial YTD calculation has run
   const initialYtdCalculationDone = React.useRef(false);
 
-  // CRITICAL: Calculate YTD values whenever period changes
+  // Calculate YTD values whenever period changes
   useEffect(() => {
     if (!currentPeriod) return;
-
-    // Reset flag when period changes to allow recalculation
-    if (periodStartStr && periodEndStr) {
-      initialYtdCalculationDone.current = false;
-    }
-
+    if (periodStartStr && periodEndStr) initialYtdCalculationDone.current = false;
     if (initialYtdCalculationDone.current) return;
-
     const calculateInitialYtd = async () => {
       try {
         initialYtdCalculationDone.current = true;
-
-        // Fetch all payroll records from year start to current period end
         const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
         const periodEnd = currentPeriod.end.toISOString().split('T')[0];
-
-        console.log(`🧮 [Payroll] YTD calculation - fetching from ${yearStart} to ${periodEnd}`);
-
-        const records = await base44.entities.Payroll.filter({
-          pay_period_end: { $gte: yearStart, $lte: periodEnd }
-        });
-
-        console.log(`✅ [Payroll] YTD fetch complete: ${records?.length || 0} records`);
+        const records = await base44.entities.Payroll.filter({ pay_period_end: { $gte: yearStart, $lte: periodEnd } });
         setPayrollRecords(records || []);
-        if (onPayrollRecordsChange) {
-          onPayrollRecordsChange(records || []);
-        }
-      } catch (error) {
-        console.error('❌ [Payroll] YTD calculation failed:', error);
-      }
+        if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);
+      } catch (error) { console.error('❌ [Payroll] YTD calculation failed:', error); }
     };
-
     calculateInitialYtd();
   }, [currentPeriod, periodStartStr, periodEndStr]);
 
