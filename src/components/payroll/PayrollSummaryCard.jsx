@@ -422,30 +422,16 @@ export default function PayrollSummaryCard({
 
             const periodAppFeeAmount = periodAppFeeDeliveries * (driverData?.appFeePercentage || 0) / 100;
 
-            const recordData = {
-              driver_id: driverId,
-              city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
-              pay_period_start: periodStartStr,
-              pay_period_end: periodEndStr,
-              pay_period_type: payPeriod,
-              total_deliveries: driverData?.totalDeliveries || 0,
-              total_extra_km: driverData?.totalExtraKm || 0,
-              total_oversized_deliveries: driverData?.oversizedCount || 0,
-              gross_pay: driverData?.grossPay || 0,
-              net_pay: driverData?.grandTotal || 0,
-              total_deductions: driverData?.deductions || 0,
-              deductions: driverData?.deductionsArray || [],
-              bonus_pay: 0,
-              app_fee_percentage: 0,
-              app_fee_amount: periodAppFeeAmount,
-              tax_amount: driverData?.taxAmount || 0,
-              pay_rate_per_delivery: driverData?.payRate || 0,
-              extra_km_rate: driverData?.extraKmRate || 0,
-              extra_km_limit: driverData?.extraKmLimit || 0,
-              oversized_item_rate: driverData?.oversizedRate || 0,
-              gst_hst_enabled: driverData?.gstHstEnabled || false,
-              status: 'draft'
-            };
+            const recordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
+              pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
+              total_deliveries: driverData?.totalDeliveries || 0, total_extra_km: driverData?.totalExtraKm || 0,
+              total_oversized_deliveries: driverData?.oversizedCount || 0, total_after_hours_deliveries: driverData?.afterHoursCount || 0,
+              gross_pay: driverData?.grossPay || 0, net_pay: driverData?.grandTotal || 0,
+              total_deductions: driverData?.deductions || 0, deductions: driverData?.deductionsArray || [],
+              bonus_pay: 0, app_fee_percentage: 0, app_fee_amount: periodAppFeeAmount,
+              tax_amount: driverData?.taxAmount || 0, pay_rate_per_delivery: driverData?.payRate || 0,
+              extra_km_rate: driverData?.extraKmRate || 0, extra_km_limit: driverData?.extraKmLimit || 0,
+              oversized_item_rate: driverData?.oversizedRate || 0, gst_hst_enabled: driverData?.gstHstEnabled || false, status: 'draft' };
 
             return base44.entities.Payroll.create(roundPayrollData(recordData));
           })
