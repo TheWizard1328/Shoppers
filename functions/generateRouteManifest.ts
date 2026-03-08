@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { driverId, deliveryDate, manifestType, ampm } = body || {};
+    const { driverId, deliveryDate, manifestType, ampm, storeIds } = body || {};
 
     if (!driverId || !deliveryDate || !manifestType) {
       return Response.json({ error: 'Missing parameters' }, { status: 400 });
@@ -23,6 +23,11 @@ Deno.serve(async (req) => {
 
     const finished = ['completed','failed','cancelled','returned'];
     let items = (deliveries || []).filter(Boolean);
+
+    // CRITICAL: If storeIds provided (dispatcher export), filter to only those stores
+    if (storeIds && Array.isArray(storeIds) && storeIds.length > 0) {
+      items = items.filter(d => d?.store_id && storeIds.includes(d.store_id));
+    }
 
     if (manifestType === 'pre-route') {
       const period = ampm === 'PM' ? 'PM' : 'AM';
