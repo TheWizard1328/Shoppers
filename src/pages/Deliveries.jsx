@@ -312,13 +312,7 @@ export default function DeliveriesPage() {
         }
       }
 
-      console.log('USER ROLE CHECK');
-      console.log('User:', user?.user_name || user?.full_name);
-      console.log('Platform role:', user?.role);
-      console.log('App role:', user?.app_roles?.[0]);
-      console.log('IS APP OWNER (dual admin):', isAppOwner(user));
-
-      const [storesData, appUsersData, citiesData] = await Promise.all([
+        const [storesData, appUsersData, citiesData] = await Promise.all([
       getData('Store', '-created_date', null, forceRefresh),
       getData('AppUser', '-created_date', null, forceRefresh),
       getData('City', '-created_date', null, forceRefresh)]);
