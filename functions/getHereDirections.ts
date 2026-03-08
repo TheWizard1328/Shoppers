@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import { decode } from 'npm:@here/flexible-polyline@2.1.0';
+
+// NOTE: We proxy to Google Directions to return a Google-encoded polyline that the client already knows how to decode.
+// This avoids extra deps and fixes 404s by guaranteeing this function exists under the expected name.
 
 Deno.serve(async (req) => {
   try {
@@ -11,16 +13,17 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const { origin, destination } = body || {};
-    if (!origin || !destination) {
+    if (!origin || !destination || origin.lat == null || origin.lng == null || destination.lat == null || destination.lng == null) {
       return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
     }
 
-    const apiKey = Deno.env.get('HERE_API_KEY');
-    if (!apiKey) {
-      return Response.json({ error: 'HERE_API_KEY secret is not set' }, { status: 500 });
+    // Prefer HERE when available in the future. For now, use Google to provide a polyline the frontend already decodes.
+    const googleKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    if (!googleKey) {
+      return Response.json({ error: 'GOOGLE_MAPS_API_KEY secret is not set' }, { status: 500 });
     }
 
-    const url = `https://router.hereapi.com/v8/routes?alternatives=0&transportMode=car&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&return=polyline,summary&apikey=${apiKey}`;
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&mode=driving&key=${googleKey}`;
 
     const controller = new AbortController();
     const to = setTimeout(() => controller.abort('timeout'), 8000);
@@ -29,51 +32,35 @@ Deno.serve(async (req) => {
 
     if (!resp.ok) {
       const text = await resp.text();
-      console.error('[HERE] routing error', { status: resp.status, details: text?.slice(0, 500) });
-      return Response.json({ error: 'HERE routing error', status: resp.status, details: text?.slice(0, 500) }, { status: 502 });
+      console.error('[Directions] provider error', { status: resp.status, details: text?.slice(0, 500) });
+      return Response.json({ error: 'Directions provider error', status: resp.status }, { status: 502 });
     }
 
     const data = await resp.json();
-    const sections = data?.routes?.[0]?.sections || [];
-    if (!sections.length) {
+    const route = Array.isArray(data?.routes) ? data.routes[0] : null;
+    if (!route) {
       return Response.json({ error: 'No route found' }, { status: 404 });
     }
 
-    const coordinates = [];
-    for (const sec of sections) {
-      const poly = sec?.polyline;
-      if (!poly) continue;
-      const decoded = decode(poly);
-      let pts = [];
-      if (Array.isArray(decoded?.polyline?.[0])) {
-        pts = decoded.polyline.map((p) => ({ lat: p[0], lng: p[1] }));
-      } else if (decoded?.polyline?.length) {
-        pts = decoded.polyline.map((p) => ({ lat: p.lat ?? p.latitude, lng: p.lng ?? p.longitude }));
-      }
-      if (pts.length) {
-        if (coordinates.length) {
-          const a = coordinates[coordinates.length - 1];
-          const b = pts[0];
-          if (a.lat === b.lat && a.lng === b.lng) {
-            pts = pts.slice(1);
-          }
-        }
-        coordinates.push(...pts);
-      }
+    // overview_polyline is Google-encoded; client handles decoding when `polyline` string is present
+    const polyline = route?.overview_polyline?.points || null;
+
+    // Aggregate distance/duration from legs (fallbacks to 0)
+    const legs = Array.isArray(route?.legs) ? route.legs : [];
+    const totalMeters = legs.reduce((s, l) => s + (l?.distance?.value || 0), 0);
+    const totalSeconds = legs.reduce((s, l) => s + (l?.duration?.value || 0), 0);
+    const estimated_distance_km = Math.round((totalMeters / 1000) * 10) / 10;
+    const estimated_duration_minutes = Math.round(totalSeconds / 60);
+
+    if (!polyline) {
+      // As a fallback, return straight segment coordinates if polyline missing (rare)
+      const coordinates = [ { lat: origin.lat, lng: origin.lng }, { lat: destination.lat, lng: destination.lng } ];
+      return Response.json({ coordinates, estimated_distance_km, estimated_duration_minutes });
     }
 
-    if (coordinates.length < 2) {
-      return Response.json({ error: 'Failed to decode polyline' }, { status: 500 });
-    }
-
-    const totalDistanceMeters = sections.reduce((sum, s) => sum + (s.summary?.length || 0), 0);
-    const totalDurationSeconds = sections.reduce((sum, s) => sum + (s.summary?.duration || 0), 0);
-    const estimated_distance_km = Math.round((totalDistanceMeters / 1000) * 10) / 10;
-    const estimated_duration_minutes = Math.round(totalDurationSeconds / 60);
-
-    return Response.json({ coordinates, estimated_distance_km, estimated_duration_minutes });
+    return Response.json({ polyline, estimated_distance_km, estimated_duration_minutes });
   } catch (err) {
-    console.error('[HERE] unexpected error', err?.message || err);
+    console.error('[getHereDirections] unexpected error', err?.message || err);
     return Response.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
 });
