@@ -16,6 +16,7 @@ const DeliveryRow = memo(({
   getStatusBadge,
   getTimeDisplay,
   getCODDisplay,
+  onOpenMedia,
   isMobile
 }) => {
   const isPickup = !delivery.patient_id;
@@ -123,7 +124,7 @@ const DeliveryRow = memo(({
     ) : (
       <div
         onClick={() => onSelect(delivery.id)}
-        className={`grid grid-cols-[120px_110px_120px_minmax(320px,1fr)_80px_110px_120px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
+        className={`grid grid-cols-[auto_auto_auto_minmax(300px,1fr)_minmax(160px,1fr)_90px_90px_90px_110px_auto] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
           isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
         } ${isSelected ? 'bg-slate-100' : ''}`}
         style={{ borderColor: 'var(--border-slate-200)' }}
@@ -159,22 +160,81 @@ const DeliveryRow = memo(({
           </div>
         </div>
 
+        {/* Notes column */}
+        <div className="flex flex-col min-w-0 text-xs text-slate-700">
+          <div className="truncate"><span className="text-slate-500">P:</span> {patient?.notes || '—'}</div>
+          <div className="truncate"><span className="text-slate-500">D:</span> {delivery.delivery_notes || '—'}</div>
+        </div>
+
+        {/* Receipts barcode */}
         <div className="flex items-center justify-center">
-          {delivery.signature_image_url ? (
-            <img src={delivery.signature_image_url} alt="Signature" className="w-8 h-8 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} />
+          {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 ? (
+            <button
+              className="flex items-center gap-1 cursor-zoom-in"
+              onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'barcode', value: delivery.receipt_barcode_values[0], title: 'Receipt Barcode' }); }}
+            >
+              <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={28} className="w-full h-7" />
+              </div>
+              <span className="text-[11px] text-slate-600">x{delivery.receipt_barcode_values.length}</span>
+            </button>
           ) : (
             <span className="text-slate-400">—</span>
           )}
         </div>
 
+        {/* Rx barcode */}
+        <div className="flex items-center justify-center">
+          {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 ? (
+            <button
+              className="flex items-center gap-1 cursor-zoom-in"
+              onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'barcode', value: delivery.barcode_values[0], title: 'Rx Barcode' }); }}
+            >
+              <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <BarcodeThumb value={delivery.barcode_values[0]} height={28} className="w-full h-7" />
+              </div>
+              <span className="text-[11px] text-slate-600">x{delivery.barcode_values.length}</span>
+            </button>
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </div>
+
+        {/* Signature */}
+        <div className="flex items-center justify-center">
+          {delivery.signature_image_url ? (
+            <img
+              src={delivery.signature_image_url}
+              alt="Signature"
+              className="w-8 h-8 rounded-sm object-cover border cursor-zoom-in"
+              style={{ borderColor: 'var(--border-slate-200)' }}
+              onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }}
+            />
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </div>
+
+        {/* Photos */}
         <div className="flex items-center justify-center">
           {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
             <div className="flex -space-x-2">
               {delivery.proof_photo_urls.slice(0,3).map((url, i) => (
-                <img key={i} src={url} alt={`POD ${i+1}`} className="w-8 h-8 rounded-md object-cover ring-2 ring-white" />
+                <img
+                  key={i}
+                  src={url}
+                  alt={`POD ${i+1}`}
+                  className="w-8 h-8 rounded-md object-cover ring-2 ring-white cursor-zoom-in"
+                  onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: url, title: `Photo ${i+1}` }); }}
+                />
               ))}
               {delivery.proof_photo_urls.length > 3 && (
-                <div className="w-8 h-8 rounded-md bg-slate-200 text-slate-700 text-[11px] flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 3}</div>
+                <div
+                  className="w-8 h-8 rounded-md bg-slate-200 text-slate-700 text-[11px] flex items-center justify-center ring-2 ring-white cursor-zoom-in"
+                  onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.proof_photo_urls[2], title: 'Photo' }); }}
+                >
+                  +{delivery.proof_photo_urls.length - 3}
+                </div>
               )}
             </div>
           ) : (
@@ -182,6 +242,7 @@ const DeliveryRow = memo(({
           )}
         </div>
 
+        {/* COD */}
         <div className="flex items-center justify-center">
           {getCODDisplay(delivery)}
         </div>
@@ -213,6 +274,7 @@ const DeliveryListView = ({
   isMobile
 }) => {
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
 
   // Memoize patient lookup map for O(1) access
   const patientMap = useMemo(() => {
@@ -311,6 +373,10 @@ const DeliveryListView = ({
     setSelectedDeliveryId(prev => prev === deliveryId ? null : deliveryId);
   }, []);
 
+  const handleOpenMedia = useCallback((payload) => {
+    setMediaPreview(payload);
+  }, []);
+
   const selectedDelivery = useMemo(() => 
     selectedDeliveryId ? deliveries.find(d => d?.id === selectedDeliveryId) : null
   , [selectedDeliveryId, deliveries]);
@@ -329,11 +395,14 @@ const DeliveryListView = ({
         {/* Table Header */}
         <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {!isMobile && (
-            <div className="grid grid-cols-[120px_110px_120px_minmax(320px,1fr)_80px_110px_120px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+            <div className="grid grid-cols-[auto_auto_auto_minmax(300px,1fr)_minmax(160px,1fr)_90px_90px_90px_110px_auto] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
               <div className="text-center">Stop/TR</div>
               <div className="text-center">Status</div>
               <div className="text-center">Time</div>
               <div className="text-left">Patient/Pickup</div>
+              <div className="text-left">Notes</div>
+              <div className="text-center">Receipts</div>
+              <div className="text-center">Rx</div>
               <div className="text-center">Signature</div>
               <div className="text-center">Photos</div>
               <div className="text-center">COD</div>
@@ -366,6 +435,7 @@ const DeliveryListView = ({
                   getStatusBadge={getStatusBadge}
                   getTimeDisplay={getTimeDisplay}
                   getCODDisplay={getCODDisplay}
+                  onOpenMedia={handleOpenMedia}
                   isMobile={isMobile}
                 />
               );
@@ -373,9 +443,44 @@ const DeliveryListView = ({
           </>
         )}
         </div>
-      </div>
+        </div>
 
-      {/* Slide-in Details Panel Overlay */}
+        {/* Centered media preview */}
+        <AnimatePresence>
+          {mediaPreview && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="fixed inset-0 bg-black/60 z-[300]"
+                onClick={() => setMediaPreview(null)}
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                className="fixed inset-0 z-[301] flex items-center justify-center p-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="rounded-lg shadow-xl p-3 bg-white dark:bg-slate-900 max-w-[90vw] max-h-[85vh] flex items-center justify-center">
+                  {mediaPreview.type === 'image' && (
+                    <img src={mediaPreview.src} alt={mediaPreview.title || 'Preview'} className="max-w-[85vw] max-h-[80vh] object-contain" />
+                  )}
+                  {mediaPreview.type === 'barcode' && (
+                    <div className="bg-white p-4 rounded-md border" style={{ borderColor: 'var(--border-slate-200)' }}>
+                      <BarcodeThumb value={mediaPreview.value} height={120} className="w-[360px] h-28" />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Slide-in Details Panel Overlay */
       <AnimatePresence>
         {selectedDeliveryId && selectedDelivery && (
           <>
