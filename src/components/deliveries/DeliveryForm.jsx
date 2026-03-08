@@ -3027,9 +3027,8 @@ export default function DeliveryForm({
       }
 
       // Check if status changed to a completion status (completed, cancelled, failed)
-      const statusChangedToCompletion = delivery &&
-      ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) &&
-      delivery.status !== formData.status;
+      const statusChangedToCompletion = delivery && ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) && delivery.status !== formData.status;
+      if (statusChangedToCompletion) dataToSave.isNextDelivery = false;
 
       // SQUARE INTEGRATION: Delete COD item when delivery is completed or failed
       if (statusChangedToCompletion && delivery?.id && (formData.status === 'completed' || formData.status === 'failed')) {
