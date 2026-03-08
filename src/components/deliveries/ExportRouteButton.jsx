@@ -93,7 +93,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `route-${type}${ampm ? `-${ampm}` : ''}-${dateStr}.pdf`;
+    a.download = `${type}${ampm ? `-${ampm}` : ''}-${dateStr}.pdf`;
     document.body.appendChild(a);
     a.click();
     a.remove();
