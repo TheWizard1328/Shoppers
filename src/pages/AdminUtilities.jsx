@@ -3702,7 +3702,7 @@ export default function AdminUtilities() {
       console.log(`🗑️ [AdminUtilities] Starting batch delete of ${count} duplicates...`);
       
       // Delete in batches of 50 (much faster than one-at-a-time)
-      const BATCH_SIZE = 50;
+      const BATCH_SIZE = 25;
       let successCount = 0;
       let failCount = 0;
       
