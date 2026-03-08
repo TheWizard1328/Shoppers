@@ -219,32 +219,75 @@ export default function DeliveryFormView({
                   </div>
                 )}
 
-                <div className={`flex gap-3 ${useMobileLayout ? 'flex-row' : 'contents'}`}>
-                  {isPickupMode && !delivery && (
-                    <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
-                      <Select value={selectedPickupOption} onValueChange={(value) => {
-                        setSelectedPickupOption(value);
-                        const sel = availableStores.find(s => s.id === value);
-                        const storeId = sel?._originalStoreId || value;
-                        const timeSlot = sel?._timeSlot || null;
-                        const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                        setFormData(prev => ({ ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '' }));
-                      }} disabled={isSaving}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
-                        <SelectContent className="z-[999999]">
-                          {availableStores.map(store => {
-                            const baseId = store._originalStoreId || store.id;
-                            const ts = store._timeSlot || null;
-                            const puid = getPickupStopIdForDelivery(baseId, formData.delivery_date, ts || 'AM', allDeliveries);
-                            const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
-                            return <SelectItem key={store.id} value={store.id}>{`${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`}</SelectItem>;
-                          })}
-                        </SelectContent>
-                      </Select>
+                {/* New Pickup layout: Row 1 = Location + Date, Row 2 = Driver + After Hours, Row 3 = Notes */}
+                {isPickupMode && !delivery && (
+                  <>
+                    {/* Pickup Row 1: Location + Date */}
+                    <div className="flex gap-3">
+                      <div className={`${useMobileLayout ? 'flex-1' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
+                        <Select value={selectedPickupOption} onValueChange={(value) => {
+                          setSelectedPickupOption(value);
+                          const sel = availableStores.find(s => s.id === value);
+                          const storeId = sel?._originalStoreId || value;
+                          const timeSlot = sel?._timeSlot || null;
+                          const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
+                          setFormData(prev => ({ ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '' }));
+                        }} disabled={isSaving}>
+                          <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
+                          <SelectContent className="z-[999999]">
+                            {availableStores.map(store => {
+                              const baseId = store._originalStoreId || store.id;
+                              const ts = store._timeSlot || null;
+                              const puid = getPickupStopIdForDelivery(baseId, formData.delivery_date, ts || 'AM', allDeliveries);
+                              const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
+                              return <SelectItem key={store.id} value={store.id}>{`${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`}</SelectItem>;
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className={`${useMobileLayout ? 'flex-1' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Date *</Label>
+                        <Input type="date" value={formData.delivery_date} onChange={e => setFormData(prev => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                      </div>
                     </div>
-                  )}
+                    {/* Pickup Row 2: Driver + After Hours */}
+                    <div className="flex gap-3 items-end">
+                      <div className={`flex-1 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver</Label>
+                        <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
+                          const newDriverId = driverId === 'all' ? '' : driverId;
+                          const driver = driverId === 'all' ? null : allDrivers.find(d => d.id === driverId);
+                          const newDriverName = driver ? getDriverNameForStorage(driver) : '';
+                          setFormData(prev => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
+                          if (editingStagedId) {
+                            setStagedDeliveries(prev => prev.map(s => s._tempId === editingStagedId ? { ...s, driver_id: newDriverId, driver_name: newDriverName } : s));
+                            setHasChanges(true);
+                          }
+                          setForceOpenDriverSelect(false);
+                        }} disabled={isSaving}>
+                          <SelectTrigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                          <SelectContent className="z-[999999]">
+                            <SelectItem value="all">All Drivers</SelectItem>
+                            {allDrivers.map(driver => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="p-3 rounded-lg border flex items-center h-[4.25rem]" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <CheckboxField id="after_hours_pickup_top" label="After Hours" checked={formData.after_hours_pickup} onChange={c => setFormData(p => ({ ...p, after_hours_pickup: c }))} disabled={isSaving} />
+                      </div>
+                    </div>
+                    {/* Pickup Row 3: Notes */}
+                    <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Notes</Label>
+                      <Textarea value={formData.delivery_notes} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Notes for this pickup..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                    </div>
+                  </>
+                )}
 
+                {/* Non-pickup: Date + Driver on same row */}
+                {!(isPickupMode && !delivery) && (
+                <div className={`flex gap-3 ${useMobileLayout ? 'flex-row' : 'contents'}`}>
                   <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                     <Input type="date" value={formData.delivery_date} onChange={e => setFormData(prev => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
@@ -271,6 +314,7 @@ export default function DeliveryFormView({
                     </Select>
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Delivery Identifiers (AppOwner only) */}
