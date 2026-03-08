@@ -3662,7 +3662,7 @@ export default function AdminUtilities() {
         }
       }
 
-      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
+      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "", open: false }));
       
       if (!isOfflineMode) {
         queryClient.invalidateQueries(['patients']);
@@ -3735,7 +3735,7 @@ export default function AdminUtilities() {
         console.log(`✅ [AdminUtilities] Batch ${Math.floor(i / BATCH_SIZE) + 1} complete: ${successCount} deleted, ${failCount} failed`);
       }
 
-      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
+      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "", open: false }));
       
       // Reload offline data if in offline mode
       if (dataViewMode.deliveries === 'offline') {
@@ -3925,7 +3925,7 @@ export default function AdminUtilities() {
         }
       }
 
-      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
+      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "", open: false }));
       
       // Reload offline data if in offline mode
       if (isOfflineMode) {
