@@ -328,7 +328,7 @@ export default function PayrollSummaryCard({
           return;
         }
 
-        console.log(`🔄 [Payroll] Auto-creating records for ${driversNeedingRecords.length} drivers`);
+        console.log(`🔄 [Payroll] Auto-creating ${driversNeedingRecords.length} records`);
 
         // Create records for missing drivers
         const newRecords = await Promise.all(
