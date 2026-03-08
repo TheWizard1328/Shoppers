@@ -88,6 +88,8 @@ import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
 import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
 import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
+import InlineDriverLegend from '@/components/dashboard/InlineDriverLegend';
+import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
 import { getDeliveryStats as fetchDeliveryStatsFn } from "@/functions/getDeliveryStats";
@@ -7806,6 +7808,16 @@ function Dashboard() {
                     </Button>
                   </div>
 
+                  {isMobile && (
+                    <div className="mt-2 w-full">
+                      <ExportRouteButton
+                        currentUser={currentUser}
+                        driverFilter={selectedDriverId}
+                        selectedDate={selectedDate}
+                        driverFilteredDeliveries={filteredDeliveries}
+                      />
+                    </div>
+                  )}
                   {/* Location Toggle - All driver devices */}
                   {shouldShowLocationToggle &&
                 <>
@@ -7861,37 +7873,9 @@ function Dashboard() {
           </motion.div>
 
           {/* Driver Legend - positioned directly below stats card */}
-          {isAllDriversMode && driverRoutes.length > 0 &&
-          <div className="backdrop-blur-sm rounded-lg shadow-lg border px-1 py-1" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
-          onMouseEnter={() => handleCardInteraction(true)}
-          onMouseLeave={() => handleCardInteraction(false)}>
-              <div className="flex flex-wrap gap-x-1 gap-y-1 items-center justify-center">
-                {[...driverRoutes].sort((a, b) => (a.driverName || '').localeCompare(b.driverName || '')).map((route) => {
-                  // CRITICAL: Use route color and driver name already calculated in DeliveryMap
-                  const displayName = route.driverName || 'Unknown';
-                  const routeColor = route.color;
-
-                  return (
-                    <div
-                      key={route.driverId}
-                      className="flex items-center gap-1.5">
-
-                        <div
-                        className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                        style={{ backgroundColor: routeColor }} />
-
-                        <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>
-                          {displayName}
-                        </span>
-                        <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                          ({route.totalStops})
-                        </span>
-                      </div>);
-
-                    })}
-              </div>
-            </div>
-          }
+          {isAllDriversMode && driverRoutes.length > 0 && (
+            <InlineDriverLegend driverRoutes={driverRoutes} onHover={handleCardInteraction} />
+          )}
         </div>
       </div>
 
