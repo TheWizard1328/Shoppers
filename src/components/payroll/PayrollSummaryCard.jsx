@@ -896,29 +896,9 @@ export default function PayrollSummaryCard({
         </Dialog>
         }
 
-      {/* App Owner Fee Manager Overlay Dialog */}
-      {appFeeOverlayAllDriversId === 'all' && isAppOwner(currentUser) &&
-        <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayAllDriversId(null)}>
-       <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-         <DialogHeader>
-           <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Owner App Fee</DialogTitle>
-         </DialogHeader>
-
-         <div className="space-y-3">
-           <p className="text-xs text-slate-600">Configure app fees for operational costs.</p>
-
-           {/* Drivers Breakdown Table */}
-           <div className="mt-4">
-             <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Driver App Fee Breakdown</h3>
-             <div className="border rounded" style={{ borderColor: 'var(--border-slate-200)', maxHeight: '350px', overflowY: 'auto' }}>
-               <table className="w-full text-xs border-collapse">
-                 <thead style={{ background: 'var(--bg-slate-100)', position: 'sticky', top: 0 }}>
-                   <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
-                     <th className="text-left px-2 py-1.5 font-semibold">Driver</th>
-                     <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '90px' }}>Fee %</th>
-                     <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '80px' }}>Fee $</th>
-                   </tr>
-                 </thead>
+      {appFeeOverlayAllDriversId === 'all' && isAppOwner(currentUser) && false &&
+        <Dialog open={true} onOpenChange={() => {}}>
+       <DialogContent>
                  <tbody>
                    {driversWithDeliveries.map((driver, idx) => {
                         const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
