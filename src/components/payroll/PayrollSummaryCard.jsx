@@ -661,27 +661,18 @@ export default function PayrollSummaryCard({
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
-    const driversWithDeliveries = payrollData.filter((d) => d.totalDeliveries > 0);
     const newEdits = {};
-
-    driversWithDeliveries.forEach((data) => {
-      const driverKey = data.driver.id;
-      const payrollRecord = getDriverPayrollRecord(driverKey);
-      const appFeePercent = payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : 0;
-      const appFeeAmount = payrollRecord?.app_fee_amount !== undefined ? payrollRecord.app_fee_amount : 0;
-
-      // CRITICAL: Load saved values from payroll record, keep full precision
-      newEdits[driverKey] = {
-        deductions: payrollRecord?.deductions || data.deductionsArray || [],
-        bonusPay: payrollRecord?.bonus_pay !== undefined ? payrollRecord.bonus_pay : 0,
-        appFeePercent: appFeePercent,
-        appFeeAmount: appFeeAmount,
-        showDeductionManager: false,
-        newDeductionName: '',
-        newDeductionAmount: ''
+    payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
+      const k = data.driver.id;
+      const pr = getDriverPayrollRecord(k);
+      newEdits[k] = {
+        deductions: pr?.deductions || data.deductionsArray || [],
+        bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
+        appFeePercent: pr?.app_fee_percentage ?? 0,
+        appFeeAmount: pr?.app_fee_amount ?? 0,
+        showDeductionManager: false, newDeductionName: '', newDeductionAmount: ''
       };
     });
-
     setDriverEdits(newEdits);
   }, [payrollData, payrollRecords, calculateAppFeeAmount]);
 
