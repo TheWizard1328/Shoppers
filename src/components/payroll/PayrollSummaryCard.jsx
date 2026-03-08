@@ -386,7 +386,7 @@ export default function PayrollSummaryCard({
           })
         );
 
-        console.log(`✅ [Payroll] Created ${newRecords.length} payroll records`);
+        console.log(`✅ [Payroll] Created ${newRecords.length} records`);
 
         // Update local state with fresh API data
         const allRecords = [...latestRecords, ...newRecords];
