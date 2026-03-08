@@ -3965,7 +3965,7 @@ export default function AdminUtilities() {
       description: `This will permanently delete ${count} selected deliveries. This action cannot be undone.`,
       confirmText: 'Delete Selected',
       variant: 'destructive',
-      onConfirm: () => performBulkDeleteDeliveriesBatch(deliveriesToDelete)
+      onConfirm: () => performBulkDeleteDeliveries(deliveriesToDelete)
     });
   }, [performBulkDeleteDeliveriesBatch]);
 
