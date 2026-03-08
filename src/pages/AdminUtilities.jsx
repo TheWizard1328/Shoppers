@@ -3683,7 +3683,7 @@ export default function AdminUtilities() {
       return;
     }
 
-    const count = deliveriesToDelete.length;
+    const isOfflineMode = dataViewMode.deliveries === 'offline', count = deliveriesToDelete.length;
 
     setBulkDelete({
       open: true,
