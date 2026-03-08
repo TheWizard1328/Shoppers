@@ -1,4 +1,3 @@
-
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -61,7 +60,7 @@ const userHasRole = (user, role) => {
 
 const sortStores = (stores) => {
   if (!stores) return [];
-  return [...stores].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  return [...stores].sort((a, b) => { const sA = a.sort_order ?? Infinity; const sB = b.sort_order ?? Infinity; return sA !== sB ? sA - sB : (a.name || '').localeCompare(b.name || ''); });
 };
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
