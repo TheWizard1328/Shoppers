@@ -396,11 +396,6 @@ export default function DeliveriesPage() {
         return !matchesStoreName;
       });
 
-      console.log('Filtered merged users:', {
-        beforeFilter: preFilterCount,
-        afterFilter: mergedUsers.length
-      });
-
       mergedUsers = mergedUsers.filter((u) => {
         const roles = Array.isArray(u.app_roles) ? u.app_roles : u.app_role ? [u.app_role] : [];
         const hasRole = roles.some((r) => r === 'driver' || r === 'admin' || r === 'dispatcher');
