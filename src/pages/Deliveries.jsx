@@ -822,29 +822,12 @@ export default function DeliveriesPage() {
 
 
   const availableOverviewYears = useMemo(() => {
-    console.log('🗓️ Calculating availableOverviewYears...');
-
-    if (!allDeliveries || !Array.isArray(allDeliveries) || allDeliveries.length === 0) {
-      console.log('⚠️ No allDeliveries, returning empty years');
-      return [];
-    }
-
-    console.log('📊 allDeliveries count for year calculation:', allDeliveries.length);
-
+    if (!allDeliveries || !Array.isArray(allDeliveries) || allDeliveries.length === 0) return [];
     const years = [...new Set(allDeliveries.map((d) => {
-      if (!d || !d.delivery_date) return null;
-      try {
-        return new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
-      } catch (error) {
-        console.warn('⚠️ Invalid delivery_date:', d.delivery_date);
-        return null;
-      }
+      if (!d?.delivery_date) return null;
+      try { return new Date(d.delivery_date.replace(/-/g, '/')).getFullYear(); } catch { return null; }
     }).filter(Boolean))];
-
-    const sortedYears = years.sort((a, b) => b - a);
-    console.log(`✅ Available overview years (from all deliveries):`, sortedYears);
-
-    return sortedYears;
+    return years.sort((a, b) => b - a);
   }, [allDeliveries.length]);
 
 
