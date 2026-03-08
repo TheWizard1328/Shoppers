@@ -162,8 +162,12 @@ const DeliveryRow = memo(({
 
         {/* Notes column */}
         <div className="flex flex-col min-w-0 text-xs text-slate-700">
-          <div className="truncate"><span className="text-slate-500">P:</span> {patient?.notes || '—'}</div>
-          <div className="truncate"><span className="text-slate-500">D:</span> {delivery.delivery_notes || '—'}</div>
+          {patient?.notes && (
+            <div className="truncate"><span className="text-slate-500">P:</span> {patient.notes}</div>
+          )}
+          {delivery?.delivery_notes && (
+            <div className="truncate"><span className="text-slate-500">D:</span> {delivery.delivery_notes}</div>
+          )}
         </div>
 
         {/* Receipts barcode */}
