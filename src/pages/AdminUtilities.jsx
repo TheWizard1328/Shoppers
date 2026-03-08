@@ -3717,7 +3717,7 @@ export default function AdminUtilities() {
         // Delete all in this batch with minimal delay
         for (const delivery of batch) {
           try {
-            await Delivery.delete(delivery.id);
+            if (dataViewMode.deliveries==='offline' || String(delivery.id||'').startsWith('temp_')) { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); setOfflineDeliveries(prev=>prev.filter(d=>d.id!==delivery.id)); } else { await Delivery.delete(delivery.id); }
             successCount++;
           } catch (error) {
             if (error?.response?.status === 404 || String(error?.message||'').includes('404') || String(error?.message||'').toLowerCase().includes('not found')) { try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (_) {} successCount++; } else { console.error(`Failed to delete ${delivery.id}:`, error); failCount++; }
