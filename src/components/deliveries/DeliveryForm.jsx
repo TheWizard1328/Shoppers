@@ -104,10 +104,8 @@ export default function DeliveryForm({
         const offlineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
         
         if (offlineStores && offlineStores.length > 0) {
-          console.log('✅ [DeliveryForm] Loaded fresh stores from offline DB:', offlineStores.length);
           setFreshStores(offlineStores);
         } else {
-          console.log('📦 [DeliveryForm] Using stores from props:', stores?.length || 0);
           setFreshStores(stores);
         }
       } catch (error) {
@@ -310,7 +308,6 @@ export default function DeliveryForm({
       if (currentUserDriver) {
         driverIdToSet = currentUser.id;
         driverNameToSet = getDriverNameForStorage(currentUserDriver);
-        console.log('🚗 [DeliveryForm] Setting driver (pure driver):', driverNameToSet);
       }
     } else if (isDispatcher && !isDriver && !isAdmin) {
       const dispatcherStoreIds = currentUser.store_ids || [];
@@ -381,8 +378,6 @@ export default function DeliveryForm({
       const { patientId, updates } = event.detail;
       if (patientId !== delivery.patient_id) return;
 
-      console.log('🔄 [DeliveryForm] Patient updated externally, refreshing form data:', patientId);
-      
       // Only update form fields that correspond to patient data
       setFormData(prev => ({
         ...prev,
@@ -425,22 +420,11 @@ export default function DeliveryForm({
         return;
       }
       
-      console.log('📝 [DeliveryForm] Loading delivery for edit (ONCE):', delivery.id);
       loadedDeliveryIdRef.current = delivery.id;
       
       isLoadingExistingDelivery.current = true;
       const patient = delivery.patient_id ? patients?.find((p) => p && p.id === delivery.patient_id) : null;
       
-      console.log('📝 [DeliveryForm] Loading delivery for edit:', {
-        id: delivery.id,
-        patient_name: delivery.patient_name,
-        puid: delivery.puid,
-        stop_id: delivery.stop_id,
-        store_id: delivery.store_id,
-        ampm_deliveries: delivery.ampm_deliveries,
-        isPickup: !delivery.patient_id
-      });
-
       // CRITICAL: If delivery has PUID, find parent pickup to get correct AM/PM slot
       let finalStoreId = delivery.store_id || "";
       let finalAmpm = delivery.ampm_deliveries || null;
@@ -450,7 +434,6 @@ export default function DeliveryForm({
         if (parentPickup) {
           finalStoreId = parentPickup.store_id || delivery.store_id;
           finalAmpm = parentPickup.ampm_deliveries || delivery.ampm_deliveries;
-          console.log(`📦 [LoadDelivery] Found parent pickup via PUID ${delivery.puid}: store=${finalStoreId}, AM/PM=${finalAmpm}`);
         }
       }
 
@@ -592,7 +575,6 @@ export default function DeliveryForm({
       if (patientToCheck && patientToCheck.store_id) {
         const patientStore = stores.find((s) => s && s.id === patientToCheck.store_id);
         relevantStores = patientStore ? [patientStore] : stores;
-        console.log(`🏪 [AvailableStores] Patient delivery mode - filtering to patient's store only: ${patientStore?.name}`);
       } else if (userHasRole(currentUser, 'dispatcher')) {
         // If no patient selected yet, show dispatcher's stores
         const dispatcherStoreIds = currentUser.store_ids || [];
@@ -809,11 +791,8 @@ export default function DeliveryForm({
     
     // CRITICAL: Stop predictions if explicitly stopped (Done button clicked)
     if (predictionsStopped.current) {
-      console.log('⏸️ [DeliveryForm] Predictions STOPPED - Done button clicked');
       return;
     }
-
-    console.log('🔄 [DeliveryForm] Fetching predictions...', { trigger: predictionTrigger });
 
     const fetchPredictions = async () => {
       setIsLoadingPredictions(true);
@@ -832,7 +811,6 @@ export default function DeliveryForm({
           } else {
             storeIdsToPredict = stores.map((s) => s.id);
           }
-          console.log('🔄 [DeliveryForm] Store IDs To Predict...', { storeIdsToPredict });
         } else if (userHasRole(currentUser, 'driver')) {
           const driverStores = stores.filter((store) => {
             const dateObj = new Date(formData.delivery_date + 'T00:00:00');
@@ -861,8 +839,6 @@ export default function DeliveryForm({
 
         const result = response?.data || response;
         if (result.predictions) {
-          console.log('[DeliveryForm] Received predictions from backend:', result.predictions.length);
-          
           // Map predictions to the format expected by UI
           const formattedPredictions = result.predictions.map(pred => ({
             patient_id: pred.patient_id,
@@ -895,8 +871,6 @@ export default function DeliveryForm({
   const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
     if (!patient) return;
     
-    console.log('[handlePatientSelect] patient:', patient.id);
-    
     // CRITICAL: Pause location poller during patient operations
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     driverLocationPoller.pause();
@@ -904,7 +878,6 @@ export default function DeliveryForm({
     // CRITICAL: Check if patient is already in staged list
     const alreadyStaged = stagedDeliveries.some(s => s.patient_id === patient.id);
     if (alreadyStaged) {
-      console.log('⏸️ [handlePatientSelect] Patient already staged, skipping:', patient.full_name);
       setPatientSearch('');
       setHighlightedPatientIndex(-1);
       driverLocationPoller.resume();
@@ -913,7 +886,6 @@ export default function DeliveryForm({
     
     // CRITICAL: Don't auto-load patient data if we're editing an existing delivery
     if (isLoadingExistingDelivery.current) {
-      console.log('⏸️ [handlePatientSelect] Blocked - editing existing delivery');
       driverLocationPoller.resume();
       return;
     }
@@ -995,7 +967,6 @@ export default function DeliveryForm({
       // If both AM & PM slots exist, set variant ID for UI display
       if (amDriverId && pmDriverId && deliveryAMPM) {
         storeVariantId = `${patient.store_id}_${deliveryAMPM}`;
-        console.log(`📦 [handlePatientSelect] Store has AM+PM drivers, setting variant: ${storeVariantId}`);
       }
     }
 
@@ -1079,9 +1050,6 @@ export default function DeliveryForm({
 
     if (!puid) {
       puid = getPickupStopIdForDelivery(patientStore.id, formData.delivery_date, timeSlot, allDeliveries);
-      console.log(`✅ [handlePatientSelect] Using calculated PUID: ${puid} (pickup will be created on Done)`);
-    } else {
-      console.log(`✅ [handlePatientSelect] Using PUID from staged pickup: ${puid}`);
     }
 
     const stagedDelivery = {
@@ -1103,8 +1071,6 @@ export default function DeliveryForm({
       latitude: patient.latitude,
       longitude: patient.longitude
     };
-    
-    console.log('[handlePatientSelect] staging patient');
     
     setStagedDeliveries((prev) => [...prev, stagedDelivery]);
 
@@ -1234,34 +1200,21 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      console.log('📸 [DeliveryForm] Starting camera scan...', { fileName: file.name, fileSize: file.size, fileType: file.type });
-
       // Compress image first
-      console.log('🗜️ [DeliveryForm] Compressing image...');
       const compressedFile = await compressImage(file);
-      console.log('✅ [DeliveryForm] Image compressed:', {
-        originalSize: file.size,
-        compressedSize: compressedFile.size,
-        reduction: `${((1 - compressedFile.size / file.size) * 100).toFixed(1)}%`
-      });
 
       // Get current selected city for admin filtering
       const { globalFilters } = await import('../utils/globalFilters');
       const selectedCityId = globalFilters.getSelectedCityId();
-      console.log('🏙️ [DeliveryForm] Selected city:', selectedCityId);
 
       // Upload the compressed image
-      console.log('📤 [DeliveryForm] Uploading compressed image...');
       const uploadResult = await base44.integrations.Core.UploadFile({ file: compressedFile });
-      console.log('✅ [DeliveryForm] Image uploaded:', uploadResult.file_url);
 
       // Now call the backend function with the file URL
-      console.log('📤 [DeliveryForm] Calling scanPrescriptionLabel function...');
       const response = await base44.functions.invoke('scanPrescriptionLabel', {
         fileUrl: uploadResult.file_url,
         selectedCityId: selectedCityId
       });
-      console.log('✅ [DeliveryForm] Response received:', response);
 
       const result = response?.data || response;
 
@@ -1274,21 +1227,17 @@ export default function DeliveryForm({
       // Check for exact matches first
       if (result.exactMatches && result.exactMatches.length === 1) {
         // Single exact match - populate form only (don't auto-add to staged)
-        console.log('✅ [DeliveryForm] Single exact match found - populating form only');
         await handlePatientSelect(result.exactMatches[0].patient, false);
       } else if (result.exactMatches && result.exactMatches.length > 1) {
         // Multiple exact matches - show popup with exact matches only
-        console.log('⚠️ [DeliveryForm] Multiple exact matches found - showing selection popup');
         setScanMatches(result.exactMatches);
         setShowMatchPopup(true);
       } else if (result.matches && result.matches.length > 0) {
         // No exact matches, but partial matches found - show popup
-        console.log('📋 [DeliveryForm] Partial matches found - showing selection popup');
         setScanMatches(result.matches);
         setShowMatchPopup(true);
       } else {
         // No matches at all - open new patient form with pre-filled data
-        console.log('➕ [DeliveryForm] No matches found - opening new patient form');
         if (onCreatePatient) {
           const newPatientData = {
             full_name: result.extractedData.patient_name,
@@ -1376,38 +1325,26 @@ export default function DeliveryForm({
       const file = new File([blob], "prescription_scan.jpg", { type: "image/jpeg" });
 
       try {
-        console.log('📸 [DeliveryForm] Starting camera scan from capture...');
-
         // Compress image
-        console.log('🗜️ [DeliveryForm] Compressing image...');
         const compressedFile = await compressImage(file);
-        console.log('✅ [DeliveryForm] Image compressed:', {
-          originalSize: file.size,
-          compressedSize: compressedFile.size,
-          reduction: `${((1 - compressedFile.size / file.size) * 100).toFixed(1)}%`
-        });
 
         // Convert to Base64
-        console.log('🔄 [DeliveryForm] Converting to Base64...');
         const reader = new FileReader();
         const base64Image = await new Promise((resolve, reject) => {
           reader.onloadend = () => resolve(reader.result);
           reader.onerror = reject;
           reader.readAsDataURL(compressedFile);
         });
-        console.log('✅ [DeliveryForm] Base64 conversion complete');
 
         // Get current selected city
         const { globalFilters } = await import('../utils/globalFilters');
         const selectedCityId = globalFilters.getSelectedCityId();
 
         // Call backend function
-        console.log('📤 [DeliveryForm] Calling scanPrescriptionLabel...');
         const response = await base44.functions.invoke('scanPrescriptionLabel', {
           base64Image: base64Image,
           selectedCityId: selectedCityId
         });
-        console.log('✅ [DeliveryForm] Response received:', response);
 
         const result = response?.data || response;
 
@@ -1419,18 +1356,14 @@ export default function DeliveryForm({
 
         // Handle matches
         if (result.exactMatches && result.exactMatches.length === 1) {
-          console.log('✅ [DeliveryForm] Single exact match - populating form only');
           await handlePatientSelect(result.exactMatches[0].patient, false);
         } else if (result.exactMatches && result.exactMatches.length > 1) {
-          console.log('⚠️ [DeliveryForm] Multiple exact matches - showing popup');
           setScanMatches(result.exactMatches);
           setShowMatchPopup(true);
         } else if (result.matches && result.matches.length > 0) {
-          console.log('📋 [DeliveryForm] Partial matches - showing popup');
           setScanMatches(result.matches);
           setShowMatchPopup(true);
         } else {
-          console.log('➕ [DeliveryForm] No matches - opening new patient form');
           if (onCreatePatient) {
             const newPatientData = {
               full_name: result.extractedData.patient_name,
@@ -1592,8 +1525,6 @@ export default function DeliveryForm({
     // CRITICAL: Get full patient data to ensure all fields are populated
     const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
     
-    if (isAppOwner(currentUser)) { console.log('DEBUG: Creating new address for patient:', fullPatient); }
-    
     setNewPatientMode('new_address');
     setSelectedPatient(null); // Clear selected patient since we're creating new
     setPatientSearch('');
@@ -1699,8 +1630,6 @@ export default function DeliveryForm({
   }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
 
   const handleStagedDeliveryClick = useCallback((staged) => {
-    console.log('[DeliveryForm] Click staged');
-
     // Hide staged panel on mobile when clicking a staged item
     if (isMobileDevice) {
       setShowStagedPanel(false);
@@ -1715,10 +1644,6 @@ export default function DeliveryForm({
       driver_name: staged.driver_name || '', // CRITICAL: Ensure driver_name is explicitly set from staged item
       cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0
     };
-    console.log('📦 formDataToSet.puid:', formDataToSet.puid);
-    console.log('📦 formDataToSet.store_id (before PUID lookup):', formDataToSet.store_id);
-    console.log('📦 formDataToSet.driver_id:', formDataToSet.driver_id);
-    console.log('📦 formDataToSet.driver_name:', formDataToSet.driver_name);
 
     // CRITICAL: If it's a patient delivery with PUID, find parent pickup to get correct store_id AND AM/PM slot
     if (staged.patient_id && staged.puid) {
@@ -1726,17 +1651,10 @@ export default function DeliveryForm({
       const parentPickup = allPossiblePickups.find((d) => d && !d.patient_id && d.stop_id === staged.puid);
 
       if (parentPickup) {
-        console.log(`📦 Found parent pickup via PUID ${staged.puid}:`, {
-          store_id: parentPickup.store_id,
-          ampm: parentPickup.ampm_deliveries
-        });
         formDataToSet.store_id = parentPickup.store_id || staged.store_id;
         formDataToSet.ampm_deliveries = parentPickup.ampm_deliveries || staged.ampm_deliveries;
       }
     }
-
-    console.log('📦 formDataToSet.store_id (after PUID lookup):', formDataToSet.store_id);
-    console.log('📦 formDataToSet.ampm_deliveries:', formDataToSet.ampm_deliveries);
 
     setFormData(formDataToSet);
     setSelectedPatient(null);
@@ -1752,7 +1670,6 @@ export default function DeliveryForm({
         const variantExists = availableStores.some((s) => s && s.id === variantId);
         if (variantExists) {
           matchingStoreId = variantId;
-          console.log('📦 Found variant store:', variantId);
         }
       }
 
@@ -1761,13 +1678,11 @@ export default function DeliveryForm({
         const baseExists = availableStores.some((s) => s && s.id === staged.store_id);
         if (baseExists) {
           matchingStoreId = staged.store_id;
-          console.log('📦 Using base store:', staged.store_id);
         }
       }
 
       if (matchingStoreId) {
         setSelectedPickupOption(matchingStoreId);
-        console.log('📦 Set selectedPickupOption to:', matchingStoreId);
       }
     }
 
@@ -1776,7 +1691,6 @@ export default function DeliveryForm({
       const patient = patients.find((p) => p && p.id === staged.patient_id);
       if (patient) {
         setSelectedPatient(patient);
-        console.log('📦 Set selected patient:', patient.full_name);
       }
     }
   }, [isPickupMode, stores, patients, availableStores, stagedDeliveries, allDeliveries]);
@@ -1825,12 +1739,9 @@ export default function DeliveryForm({
         // CRITICAL: Check if we already have a patient_id in formData (patient was already created)
         // This prevents duplicate creation when the form state was updated but patient lookup failed
         if (formData.patient_id) {
-          console.log('⏸️ [handleAddToStaging] Patient already has ID, skipping creation:', formData.patient_id);
           patient = { id: formData.patient_id, full_name: formData.patient_name };
           isNewPatient = false;
         } else {
-          console.log('➕ [handleAddToStaging] Creating new patient from Duplicate/New mode:', formData.patient_name);
-          
           try {
             // Create new patient with form data
             const newPatientData = {
@@ -1871,7 +1782,6 @@ export default function DeliveryForm({
             // Update formData with new patient_id
             setFormData(prev => ({ ...prev, patient_id: patient.id }));
             
-            console.log('✅ [handleAddToStaging] New patient created:', patient.id, patient.full_name);
           } catch (error) {
             console.error('Failed to create new patient:', error);
             setError('Failed to create new patient. Please try again.');
@@ -1924,7 +1834,6 @@ export default function DeliveryForm({
 
     if (stagedPickup) {
       puid = stagedPickup.puid || stagedPickup.stop_id;
-      console.log(`✅ [handleAddToStaging] Using PUID from staged pickup: ${puid}`);
     } else {
       const existingPickup = allDeliveries.find((d) =>
         d && !d.patient_id && d.store_id === store.id && d.delivery_date === formData.delivery_date && d.driver_id === formData.driver_id && (d.ampm_deliveries || 'AM') === timeSlot
@@ -1973,8 +1882,6 @@ export default function DeliveryForm({
 
       // Only auto-add pickups for non-special stores
       if (!isSpecialStore) {
-        console.log(`📦 [AutoAddPickups] Route has existing stops - creating additional pickups as needed`);
-        
         // Get the stores this driver is assigned to for the delivery date
         const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
         const dayOfWeek = selectedDate.getDay();
@@ -1994,7 +1901,6 @@ export default function DeliveryForm({
           return driverIds.includes(formData.driver_id);
         });
 
-        console.log(`📦 [AutoAddPickups] Driver ${formData.driver_id} assigned to ${driverAssignedStores.length} stores for ${formData.delivery_date}`);
         // Create all default pickups in parallel using ensurePickupForDelivery
         setTimeout(async () => {
             const pickupPromises = driverAssignedStores
@@ -2012,8 +1918,6 @@ export default function DeliveryForm({
 
                 if (!pickupExists) {
                   try {
-                    console.log(`📦 [AutoAddPickups] Creating en_route pickup for: ${assignedStore.name} [${assignedTimeSlot}]`);
-                    
                     const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
                       storeId: assignedStore.id,
                       deliveryDate: formData.delivery_date,
@@ -2022,14 +1926,11 @@ export default function DeliveryForm({
                     });
 
                     if (pickupResponse.data?.puid && pickupResponse.data?.pickup) {
-                      console.log(`✅ [AutoAddPickups] Created en_route pickup for ${assignedStore.name}: ${pickupResponse.data.puid}`);
                       return pickupResponse.data.pickup;
                     }
                   } catch (error) {
                     console.warn(`⚠️ [AutoAddPickups] Failed to create pickup for ${assignedStore.name}:`, error.message);
                   }
-                } else {
-                  console.log(`⏭️ [AutoAddPickups] Pickup already exists for ${assignedStore.name} [${assignedTimeSlot}]`);
                 }
                 return null;
               });
@@ -2045,11 +1946,8 @@ export default function DeliveryForm({
                 store_name: stores.find(s => s?.id === p.store_id)?.name,
                 store_abbreviation: stores.find(s => s?.id === p.store_id)?.abbreviation
               }))]);
-              console.log(`✅ [AutoAddPickups] Added ${newPickups.length} new pickups to staged list`);
             }
             
-            console.log(`✅ [AutoAddPickups] Pickup generation complete for driver's existing route`);
-
             // Trigger data refresh to show new pickups
             const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
             invalidate('Delivery');
@@ -2064,8 +1962,6 @@ export default function DeliveryForm({
             }));
         }, 100);
       }
-    } else if (isNewRouteWithZeroStops) {
-      console.log(`⏭️ [AutoAddPickups] SKIPPING auto-pickup creation - new route with 0 stops (isNewRouteWithZeroStops = true)`);
     }
 
     setHasChanges(true);
@@ -2175,14 +2071,7 @@ export default function DeliveryForm({
           : null
         };
 
-      console.log('📝 [DeliveryForm] Updated staged delivery:', {
-        _tempId: updatedStaged._tempId,
-        id: updatedStaged.id,
-        patient_name: updatedStaged.patient_name,
-        status: updatedStaged.status
-      });
-
-      return updatedStaged;
+          return updatedStaged;
     }));
 
     // CRITICAL: Clear form completely after updating staged
@@ -2217,19 +2106,7 @@ export default function DeliveryForm({
   }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
   const handleBatchSave = useCallback(async () => {
-    console.log('='.repeat(50));
-    console.log('[AddToRoute] 🎯 DeliveryForm: handleBatchSave initiated');
-    console.log('[AddToRoute] 📦 Staged deliveries count:', stagedDeliveries.length);
-    console.log('[AddToRoute] 📦 Staged deliveries:', stagedDeliveries.map((s) => ({
-      id: s.id,
-      _tempId: s._tempId,
-      patient_name: s.patient_name,
-      status: s.status,
-      hasId: !!s.id
-    })));
-
     // CRITICAL: Stop prediction manager COMPLETELY when Done button is clicked
-    console.log('⏸️ [DeliveryForm] Stopping delivery prediction manager PERMANENTLY...');
     predictionsStopped.current = true; // Block predictions permanently
     setIsLoadingPredictions(true); // Block predictions immediately
     setProjectedDeliveries([]); // Clear projections
@@ -2244,8 +2121,6 @@ export default function DeliveryForm({
 
     // CRITICAL: If only pending deletes (no staged items), close form FIRST then refresh
     if (stagedDeliveries.length === 0 && hasPendingDeletes) {
-      console.log('[AddToRoute] 🗑️ Processing pending deletes (Done button clicked)...');
-      
       // Clear state and close form IMMEDIATELY
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
@@ -2268,7 +2143,6 @@ export default function DeliveryForm({
           routePolylineManager?.resume?.();
           fabControlEvents.resumeFAB();
           
-          console.log('▶️ [AddToRoute Deletes] Resumed background operations');
         } catch (error) {
           console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
         }
@@ -2284,13 +2158,11 @@ export default function DeliveryForm({
           invalidateDeliveriesForDate(formData.delivery_date);
           
           if (formData.driver_id && formData.delivery_date) {
-            console.log('[AddToRoute] 🔄 Background: Forcing backend refresh after deletions...');
             const { base44 } = await import('@/api/base44Client');
             const freshDeliveries = await base44.entities.Delivery.filter({
               driver_id: formData.driver_id,
               delivery_date: formData.delivery_date
             });
-            console.log(`✅ [AddToRoute] Background: ${freshDeliveries.length} deliveries`);
           }
           
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -2305,7 +2177,6 @@ export default function DeliveryForm({
           const { fabControlEvents } = await import('../utils/fabControlEvents');
           fabControlEvents.notifyDataReady();
           
-          console.log('[AddToRoute] ✅ Background: UI refreshed and FAB activated');
         } catch (error) {
           console.error('[AddToRoute] ❌ Background refresh failed:', error);
         }
@@ -2321,7 +2192,6 @@ export default function DeliveryForm({
       if (staged.id) {
         const stillExists = allDeliveries?.some((d) => d && d.id === staged.id);
         if (!stillExists) {
-          console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${staged.id} (${staged.patient_name})`);
           return false;
         }
       }
@@ -2342,26 +2212,13 @@ export default function DeliveryForm({
       // Skip unedited completion-status items (completed, failed, cancelled)
       const completionStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       if (completionStatuses.includes(staged.status)) {
-        console.log(`[AddToRoute] ⏭️ Skipping unedited ${staged.status} delivery: ${staged.patient_name}`);
         return false;
       }
       // Process unedited pending/in_transit items (they need status transition to pending)
       return true;
     });
 
-    console.log('[AddToRoute] 🔍 Total staged:', validStagedDeliveries.length, '| New:', newDeliveries.length, '| Existing:', existingDeliveries.length);
-    console.log('[AddToRoute] 🔍 New deliveries to save:', newDeliveries.map((s) => ({
-      _tempId: s._tempId,
-      patient_name: s.patient_name
-    })));
-    console.log('[AddToRoute] 🔍 Existing deliveries to save:', existingDeliveries.map((s) => ({
-      id: s.id,
-      patient_name: s.patient_name,
-      status: s.status
-    })));
-
     if (newDeliveries.length === 0 && existingDeliveries.length === 0) {
-      console.log('[AddToRoute] ℹ️ No deliveries to save');
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       hasLoadedPending.current = false;
@@ -2408,7 +2265,6 @@ export default function DeliveryForm({
             abbreviation: storeAbbrev,
             deliveries: []
           };
-          console.log(`[AddToRoute] 🏪 Store ${store?.name} [${del.ampm_deliveries || 'AM'}] - Pickup TR: ${pickupTR}, Abbrev: ${storeAbbrev}`);
         }
         groups[groupKey].deliveries.push(del);
       });
@@ -2425,7 +2281,6 @@ export default function DeliveryForm({
         ).length || 0;
 
         groups[groupKey].existingCount = existingCount;
-        console.log(`[AddToRoute] 📊 Group ${groupKey}: ${existingCount} existing deliveries`);
       });
 
       // Assign sequential TR#s: abbreviation + (pickupTR + existing + index + 1)
@@ -2444,8 +2299,6 @@ export default function DeliveryForm({
         const indexInGroup = newDeliveriesInGroup.findIndex((d) => d._tempId === del._tempId);
         const trNumber = group.pickupTR + group.existingCount + indexInGroup + 1;
         const trString = `${group.abbreviation}${trNumber}`;
-
-        console.log(`[AddToRoute] 🔢 ${del.patient_name}: ${trString} (pickup: ${group.pickupTR}, existing: ${group.existingCount}, index: ${indexInGroup})`);
 
         return {
           ...del,
@@ -2466,7 +2319,6 @@ export default function DeliveryForm({
       );
       
       if (parentPickup && parentPickup.store_id) {
-        console.log(`📦 [BatchSave] Correcting store for ${del.patient_name}: ${del.store_id} → ${parentPickup.store_id} (via PUID ${del.puid})`);
         return {
           ...del,
           store_id: parentPickup.store_id,
@@ -2483,8 +2335,6 @@ export default function DeliveryForm({
     const affectedGroups = new Set(deliveriesWithCorrectStores.map((del) =>
     `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`
     ));
-
-    console.log('[AddToRoute] 🔄 Affected pickup groups:', Array.from(affectedGroups));
 
     // Collect existing deliveries that need TR# updates
     const existingDeliveriesToUpdate = [];
@@ -2512,9 +2362,6 @@ export default function DeliveryForm({
       if (existingPickup && existingPickup.tracking_number !== undefined && existingPickup.tracking_number !== null && existingPickup.tracking_number !== '') {
         const pickupTR = parseInt(existingPickup.tracking_number, 10);
         effectivePickupTR = isNaN(pickupTR) ? effectivePickupTR : pickupTR;
-        console.log(`[AddToRoute] 🔢 Using pickup TR# ${effectivePickupTR} for group ${groupKey} (raw: "${existingPickup.tracking_number}")`);
-      } else {
-        console.log(`[AddToRoute] 🏪 No pickup TR found for group ${groupKey}, using store base TR# ${effectivePickupTR}`);
       }
 
       // Get all existing deliveries for this group (already saved in DB)
@@ -2534,7 +2381,6 @@ export default function DeliveryForm({
       existingDeliveriesInGroup.forEach((delivery, index) => {
         const correctTR = `${storeAbbrev}${effectivePickupTR + existingDeliveries.length + index + 1}`; // Account for new deliveries added
         if (delivery.tracking_number !== correctTR) {
-          console.log(`[AddToRoute] 🔧 Fixing existing TR#: ${delivery.patient_name} from ${delivery.tracking_number} to ${correctTR}`);
           existingDeliveriesToUpdate.push({
             id: delivery.id,
             tracking_number: correctTR
@@ -2548,13 +2394,10 @@ export default function DeliveryForm({
 
     // CRITICAL: Set batch form saving flag to prevent SmartRefresh spam
     setBatchFormSaving(true);
-    console.log('🔒 [AddToRoute] Batch form saving ACTIVE - SmartRefresh restarts will be skipped');
-
     // CRITICAL: Pause SmartRefresh ONCE for the entire batch operation
     try {
       const { smartRefreshManager } = await import('../utils/smartRefreshManager');
       smartRefreshManager.pause();
-      console.log('⏸️ [AddToRoute] Paused SmartRefresh for batch operation');
     } catch (error) {
       console.warn('⚠️ [AddToRoute] Failed to pause SmartRefresh:', error);
     }
@@ -2562,13 +2405,11 @@ export default function DeliveryForm({
     try {
       // First, update existing deliveries with corrected TR#s (batched for speed)
       if (existingDeliveriesToUpdate.length > 0) {
-        console.log(`[AddToRoute] 📝 Updating ${existingDeliveriesToUpdate.length} existing deliveries with corrected TR#s...`);
         const { base44 } = await import('@/api/base44Client');
         const trUpdatePromises = existingDeliveriesToUpdate.map((update) =>
           base44.entities.Delivery.update(update.id, { tracking_number: update.tracking_number })
             .catch((error) => {
               if (error.message?.includes('not found') || error.response?.status === 404) {
-                console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${update.id}`);
                 return null;
               }
               const delivery = allDeliveries?.find((d) => d?.id === update.id);
@@ -2584,7 +2425,6 @@ export default function DeliveryForm({
 
       // Second, update existing deliveries (both pending and status-changed) - batched for speed
       if (existingDeliveries.length > 0) {
-        console.log(`[AddToRoute] 📝 Updating ${existingDeliveries.length} existing deliveries...`);
 
         // Check if any deliveries are completed for this driver/date
         const hasCompletedDeliveries = allDeliveries?.some((d) =>
@@ -2641,13 +2481,11 @@ export default function DeliveryForm({
 
           return updateDeliveryLocal(updated.id, updateData, { isBatchOperation: true, skipSmartRefresh: true })
             .then(() => {
-              console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name} to status ${updateData.status}`);
               return null;
             })
             .catch((error) => {
               // Skip deliveries that were deleted
               if (error.message?.includes('not found') || error.response?.status === 404) {
-                console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${updated.id} (${updated.patient_name})`);
                 return null;
               }
               const errorMessage = error.message?.replace(updated.id, updated.patient_name || 'Unknown Patient') || error.message;
@@ -2655,10 +2493,8 @@ export default function DeliveryForm({
             });
         });
 
-        console.log(`[AddToRoute] 🚀 Batching ${updatePromises.length} updates in parallel (bg)...`);
         Promise.allSettled(updatePromises)
           .then(() => {
-            console.log('[AddToRoute] ✅ All existing deliveries updated (bg)');
             (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(existingDeliveries.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});if(ids.length)console.log('🗓️ [BatchSave] Updated last_delivery_date for',ids.length,'patients');}catch(_){}})()
           })
           .catch(() => {});
@@ -2666,7 +2502,6 @@ export default function DeliveryForm({
 
       // CRITICAL: Create ALL default pickups ONLY for new routes (isNewRouteWithZeroStops = true)
       if (newDeliveries.length > 0 && isNewRouteWithZeroStops) {
-        console.log('📦 [DoneButton] NEW ROUTE - Creating all default pickups for assigned drivers...');
         
         // Group deliveries by driver_id
         const driverGroups = {};
@@ -2706,15 +2541,12 @@ export default function DeliveryForm({
             return driverIds.includes(driverId);
           });
           
-          console.log(`📦 [DoneButton] Creating pickups for driver ${driverId} - ${driverAssignedStores.length} assigned stores`);
-          
           // Create pickup for each assigned store (both AM and PM if applicable)
           const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
           
           for (const assignedStore of driverAssignedStores) {
             const isSpecialStore = specialStores.some(name => assignedStore.name?.includes(name));
             if (isSpecialStore) {
-              console.log(`⏭️ [DoneButton] Skipping special store: ${assignedStore.name}`);
               continue;
             }
             
@@ -2741,7 +2573,6 @@ export default function DeliveryForm({
                   ampmDeliveries: timeSlot
                 });
                 
-                console.log(`✅ [DoneButton] Pickup ensured for ${assignedStore.name} [${timeSlot}]: ${pickupResponse.data?.puid}`);
               } catch (error) {
                 console.warn(`⚠️ [DoneButton] Failed to ensure pickup for ${assignedStore.name} [${timeSlot}]:`, error.message);
               }
@@ -2749,14 +2580,10 @@ export default function DeliveryForm({
           }
         }
         
-        console.log('✅ [DoneButton] All default pickups created for new route');
-      } else if (newDeliveries.length > 0 && !isNewRouteWithZeroStops) {
-        console.log('⏭️ [DoneButton] EXISTING ROUTE - Skipping default pickup creation (pickups already exist)');
       }
       
       // Then save new deliveries OR trigger data refresh
       if (newDeliveries.length > 0) {
-        console.log('[AddToRoute] 📤 Calling Dashboard save handler with batch data...');
         // CRITICAL: Convert status before saving
         // - 'Staged' → 'pending' for regular deliveries
         // - 'Staged' → 'in_transit' for InterStore deliveries (patient with 'InterStore', '(ISP)', or '(ISD)' in name/notes/address)
@@ -2789,7 +2616,6 @@ export default function DeliveryForm({
           .filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit')
           .map(delivery => {
             const store = stores?.find(s => s && s.id === delivery.store_id);
-            console.log('💳 [Square] Creating COD item for in_transit delivery:', delivery.patient_name, 'Amount:', delivery.cod_total_amount_required);
             return base44.functions.invoke('squareCreateCodItem', {
               deliveryId: delivery.id || delivery._tempId,
               patientName: delivery.patient_name,
@@ -2799,7 +2625,6 @@ export default function DeliveryForm({
               storeId: delivery.store_id
             })
               .then(() => {
-                console.log('✅ [Square] COD item created for:', delivery.patient_name);
                 return null;
               })
               .catch(squareError => {
@@ -2813,27 +2638,22 @@ export default function DeliveryForm({
             .then(()=>console.log('✅ [Square] COD background tasks done'))
             .catch(()=>{});
         }
-        console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
 
       // CRITICAL: Resume SmartRefresh ONCE after all updates complete
       try {
         setBatchFormSaving(false); // Release batch flag FIRST
-        console.log('🔓 [AddToRoute] Batch form saving COMPLETE - SmartRefresh restarts re-enabled');
         
         const { smartRefreshManager } = await import('../utils/smartRefreshManager');
         smartRefreshManager.restart();
-        console.log('▶️ [AddToRoute] Resumed SmartRefresh after batch operation');
       } catch (error) {
         console.warn('⚠️ [AddToRoute] Failed to resume SmartRefresh:', error);
       }
 
       // CRITICAL: Always trigger data refresh if only updating existing deliveries
       if (existingDeliveries.length > 0 && newDeliveries.length === 0) {
-        console.log('[AddToRoute] 🔄 Updating existing deliveries only...');
         
         // Clear staged deliveries and close form FIRST
-        console.log('[AddToRoute] 🧹 Clearing staged deliveries and closing form...');
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
         setHasPendingDeletes(false);
@@ -2841,7 +2661,6 @@ export default function DeliveryForm({
         hasLoadedPending.current = false;
         predictionsStopped.current = false;
         setIsLoadingPredictions(true);
-        console.log('[AddToRoute] ✅ Staged deliveries cleared');
 
         // CRITICAL: Resume background operations before closing
         (async () => {
@@ -2856,7 +2675,6 @@ export default function DeliveryForm({
             routePolylineManager?.resume?.();
             fabControlEvents.resumeFAB();
             
-            console.log('▶️ [AddToRoute Updates] Resumed background operations');
           } catch (error) {
             console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
           }
@@ -2883,13 +2701,11 @@ export default function DeliveryForm({
             invalidateDeliveriesForDate(formData.delivery_date);
             
             if (formData.driver_id && formData.delivery_date) {
-              console.log('[AddToRoute] 🔄 Background: Forcing backend refresh...');
               const { base44 } = await import('@/api/base44Client');
               const freshDeliveries = await base44.entities.Delivery.filter({
                 driver_id: formData.driver_id,
                 delivery_date: formData.delivery_date
               });
-              console.log(`✅ [AddToRoute] Background: ${freshDeliveries.length} deliveries`);
             }
 
             const { fabControlEvents } = await import('../utils/fabControlEvents');
@@ -2897,7 +2713,6 @@ export default function DeliveryForm({
 
             // CRITICAL: Trigger done button event to activate FAB phase 1 for 500ms
             fabControlEvents.notifyDoneButtonClicked();
-            console.log('[AddToRoute] ✅ Background: UI refreshed, FAB activated, and done button event triggered');
           } catch (error) {
             console.error('[AddToRoute] ❌ Background refresh failed:', error);
           }
@@ -2907,7 +2722,6 @@ export default function DeliveryForm({
       }
 
       // CRITICAL: Force IMMEDIATE backend data fetch (don't wait for smart refresh cycle)
-      console.log('[AddToRoute] 🔄 Scheduling background data refresh...');
       setTimeout(async () => {
         try {
           const freshDeliveries = await base44.entities.Delivery.filter({
@@ -2925,7 +2739,6 @@ export default function DeliveryForm({
               freshDeliveries
             }
           }));
-          console.log(`✅ [AddToRoute] Background refresh complete - ${freshDeliveries.length} deliveries`);
         } catch (e) {
           console.warn('⚠️ [AddToRoute] Background refresh failed:', e);
         }
@@ -2933,7 +2746,6 @@ export default function DeliveryForm({
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
       // CRITICAL: Clear staged state AFTER dispatching event
-      console.log('[AddToRoute] 🧹 Clearing staged deliveries from state...');
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       setHasPendingDeletes(false);
@@ -2941,7 +2753,6 @@ export default function DeliveryForm({
       hasLoadedPending.current = false;
       predictionsStopped.current = false;
       setIsLoadingPredictions(true);
-      console.log('[AddToRoute] ✅ Staged deliveries cleared');
 
       // CRITICAL: Resume background operations before closing form
       (async () => {
@@ -2956,26 +2767,21 @@ export default function DeliveryForm({
           routePolylineManager?.resume?.();
           fabControlEvents.resumeFAB();
           
-          console.log('▶️ [AddToRoute] Resumed background operations before close');
         } catch (error) {
           console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
         }
       })();
 
       // Close form FIRST
-      console.log('[AddToRoute] 🚪 Closing form...');
       handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
 
       // CRITICAL: Wait for form to close, reload from offline DB, then update UI
       setTimeout(async () => {
         try {
-          console.log('[AddToRoute] ⏳ Form closed - starting data reload...');
-          
           // Load complete deliveries from offline DB
           const { offlineDB } = await import('../utils/offlineDatabase');
           const allDeliveriesOffline = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
           const completeDeliveries = allDeliveriesOffline.filter(d => d && d.delivery_date === formData.delivery_date);
-          console.log(`✅ [AddToRoute] Loaded ${completeDeliveries.length} deliveries from offline DB`);
           
           // Dispatch UI update with complete data
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -2999,7 +2805,6 @@ export default function DeliveryForm({
           fabControlEvents.notifyDataReady();
           fabControlEvents.notifyDoneButtonClicked();
           
-          console.log('[AddToRoute] ✅ UI updated with offline data, FAB activated');
         } catch (error) {
           console.error('[AddToRoute] ❌ Background reload failed:', error);
         }
@@ -3173,9 +2978,7 @@ export default function DeliveryForm({
 
         if (patientChanged) {
           try {
-            console.log('🔄 [DeliveryForm] Syncing patient-specific changes to Patient entity:', formData.patient_id);
             await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
-            console.log('✅ [DeliveryForm] Patient entity updated');
           } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
         }
       }
@@ -3186,7 +2989,6 @@ export default function DeliveryForm({
         // CRITICAL: Store as local time string WITHOUT UTC conversion
         // Format: "YYYY-MM-DDTHH:MM:00" (no 'Z' suffix = treated as local time)
         dataToSave.actual_delivery_time = `${dateStr}T${timeStr}:00`;
-        console.log('⏱️ [DeliveryForm] Saving actual_delivery_time as LOCAL:', dataToSave.actual_delivery_time);
       }
 
       // CRITICAL: Check if driver assignment changed
@@ -3199,7 +3001,6 @@ export default function DeliveryForm({
 
       // CRITICAL: If date changes, keep status as in_transit and set delivery_time_start to 10:00
       if (dateChanged) {
-        console.log('📅 [DeliveryForm] Date changed - keeping in_transit status and setting 10:00 AM start time');
         dataToSave.status = 'in_transit';
         dataToSave.time_window_start = '10:00';
       }
@@ -3215,7 +3016,6 @@ export default function DeliveryForm({
         setTimeout(() => {
           const store = stores?.find(s => s && s.id === formData.store_id);
           const codAmountDollars = formData.cod_total_amount_required / 100;
-          console.log('💳 [Square] (bg) Creating COD item for in_transit delivery:', delivery.id, 'Amount:', codAmountDollars);
           base44.functions.invoke('squareCreateCodItem', {
             deliveryId: delivery.id,
             patientName: formData.patient_name,
@@ -3235,7 +3035,6 @@ export default function DeliveryForm({
       // SQUARE INTEGRATION: Delete COD item when delivery is completed or failed
       if (statusChangedToCompletion && delivery?.id && (formData.status === 'completed' || formData.status === 'failed')) {
         setTimeout(() => {
-          console.log('💳 [Square] (bg) Deleting COD item for completed/failed delivery:', delivery.id);
           base44.functions.invoke('squareDeleteCodItem', {
             deliveryId: delivery.id,
             reason: formData.status
@@ -3249,7 +3048,6 @@ export default function DeliveryForm({
         (formData.cod_total_amount_required === 0 || !formData.cod_total_amount_required);
       
       if (codWasRemoved && delivery?.id) {
-        console.log('💳 [Square] (bg) Deleting COD item - COD was removed from delivery:', delivery.id);
         // CRITICAL: Clear cod_payments array when COD is removed
         dataToSave.cod_payments = [];
         dataToSave.cod_payment_type = 'No Payment';
@@ -3266,20 +3064,7 @@ export default function DeliveryForm({
       // CRITICAL: Save to both offline and online databases using local-first approach
       // offlineMutations handles: pausing smart refresh, saving to offline DB, syncing to backend, restarting smart refresh
       if (delivery?.id) {
-        console.log('📝 [DeliveryForm] Updating delivery via local-first mutation...');
-        console.log('📝 [DeliveryForm] Fields to save:', {
-          tracking_number: dataToSave.tracking_number,
-          stop_id: dataToSave.stop_id,
-          puid: dataToSave.puid,
-          paid_km_override: dataToSave.paid_km_override,
-          actual_delivery_time: dataToSave.actual_delivery_time,
-          status: dataToSave.status,
-          driver_id: formData.driver_id,
-          delivery_date: formData.delivery_date
-        });
-        
         const updatedDelivery = await updateDeliveryLocal(delivery.id, { ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
-        console.log('✅ [DeliveryForm] Delivery updated - UI should update immediately via mutation notification'); if ((formData.status==='completed'||formData.status==='failed')&&formData.patient_id){ try{ const __todayLocal=format(new Date(),'yyyy-MM-dd'); updatePatientLocal(formData.patient_id,{ last_delivery_date: __todayLocal }); console.log('🗓️ [DeliveryForm] Updated patient last_delivery_date to',__todayLocal);}catch(e){} }
         
         // CRITICAL: Force stats refresh AND deliveries update after any delivery update
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -3291,7 +3076,6 @@ export default function DeliveryForm({
             triggeredBy: 'deliveryFormUpdate'
           }
         }));
-        console.log('✅ [DeliveryForm] Triggered stats and deliveries refresh');
         
         // NOTE: updateDeliveryLocal already notifies mutation listeners immediately after local save
         // The Layout component subscribes to these mutations and updates state instantly
@@ -3311,7 +3095,6 @@ export default function DeliveryForm({
           receiverName: getDriverDisplayName(newDriver),
           content: messageContent
         });
-        console.log('✉️ [DeliveryForm] Sent driver reassignment message');
       }
 
 
@@ -3326,11 +3109,9 @@ export default function DeliveryForm({
             const driverAppUser = appUsers?.[0];
             
             if (driverAppUser && driverAppUser.driver_status === 'on_break') {
-              console.log('🔄 [DeliveryForm] Auto setting driver back to on_duty (completed next stop while on break)');
               await base44.entities.AppUser.update(driverAppUser.id, {
                 driver_status: 'on_duty'
               });
-              console.log('✅ [DeliveryForm] Driver auto-set to on_duty');
             }
           }
         } catch (error) {
@@ -3340,7 +3121,6 @@ export default function DeliveryForm({
 
       // CRITICAL: Resort completed/failed/cancelled deliveries and update stop order after status change
       if (delivery && formData.driver_id && formData.delivery_date && statusChangedToCompletion) {
-        console.log('🔄 [DeliveryForm] Resorting completed/failed/cancelled deliveries...');
         try {
           const { base44 } = await import('@/api/base44Client');
           
@@ -3370,14 +3150,12 @@ export default function DeliveryForm({
           const updatePromises = completedDeliveries.map(d => {
             const newStopOrder = stopOrder++;
             if (d.stop_order !== newStopOrder) {
-              console.log(`📝 [DeliveryForm] Updating stop_order for ${d.patient_name}: ${d.stop_order} → ${newStopOrder}`);
               return base44.entities.Delivery.update(d.id, { stop_order: newStopOrder });
             }
             return Promise.resolve();
           });
           
           await Promise.all(updatePromises);
-          console.log('✅ [DeliveryForm] Completed deliveries resorted and stop orders updated');
         } catch (error) {
           console.error('❌ [DeliveryForm] Resort failed:', error);
         }
@@ -3390,7 +3168,6 @@ export default function DeliveryForm({
       );
       
       if (timeWindowChanged && formData.driver_id && formData.delivery_date) {
-        console.log('⏱️ [DeliveryForm] Time windows changed - updating ETAs for all incomplete stops...');
         try {
           const incompleteStatuses = ['pending', 'in_transit', 'en_route'];
           const incompleteDeliveries = allDeliveries.filter(d =>
@@ -3415,7 +3192,6 @@ export default function DeliveryForm({
 
       // CRITICAL: Always reorder stops after any delivery update or status change
       if (delivery && formData.driver_id && formData.delivery_date) {
-        console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
         try {
           setTimeout(() => {
             reorderStops(formData.driver_id, formData.delivery_date, allDeliveries)
@@ -3429,13 +3205,11 @@ export default function DeliveryForm({
 
       // CRITICAL: Trigger patient update function when delivery is completed
       if (statusChangedToCompletion && delivery && formData.status === 'completed') {
-        console.log('🔄 [DeliveryForm] Triggering patient update after route completion...');
         try {
           await base44.functions.invoke('updatePatientsAfterRouteCompletion', {
             deliveryDate: formData.delivery_date,
             driverId: formData.driver_id
           });
-          console.log('✅ [DeliveryForm] Patient update complete');
         } catch (error) {
           console.error('❌ [DeliveryForm] Patient update failed:', error);
         }
@@ -3453,8 +3227,6 @@ export default function DeliveryForm({
         );
 
         if (relatedDeliveries.length > 0) {
-          console.log(`🔄 [DeliveryForm] Transitioning ${relatedDeliveries.length} pending deliveries to in_transit...`);
-          
           // CRITICAL: Update all pending deliveries in parallel and WAIT for all to complete
           const updatePromises = relatedDeliveries.map(relatedDelivery =>
             updateDeliveryLocal(relatedDelivery.id, { status: 'in_transit' })
@@ -3462,12 +3234,8 @@ export default function DeliveryForm({
           );
           await Promise.all(updatePromises);
           
-          console.log(`✅ [DeliveryForm] All ${relatedDeliveries.length} deliveries transitioned to in_transit`);
-          
           // CRITICAL: Wait 500ms for route optimization to complete and isNextDelivery to be set
-          console.log('⏳ [DeliveryForm] Waiting for route optimization to complete...');
           await new Promise(resolve => setTimeout(resolve, 500));
-          console.log('✅ [DeliveryForm] Route optimization complete');
         }
       }
 
@@ -3487,7 +3255,6 @@ export default function DeliveryForm({
           routePolylineManager?.resume?.();
           fabControlEvents.resumeFAB();
           
-          console.log('▶️ [DeliveryForm] Resumed background operations');
         } catch (error) {
           console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
         }
@@ -3552,7 +3319,6 @@ export default function DeliveryForm({
             routePolylineManager?.resume?.();
             fabControlEvents.resumeFAB();
             
-            console.log('▶️ [DeliveryForm Cancel] Resumed background operations');
           } catch (error) {
             console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
           }
@@ -3581,7 +3347,6 @@ export default function DeliveryForm({
           routePolylineManager?.resume?.();
           fabControlEvents.resumeFAB();
           
-          console.log('▶️ [DeliveryForm Cancel] Resumed background operations');
         } catch (error) {
           console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
         }
@@ -3666,7 +3431,6 @@ export default function DeliveryForm({
   }, []);
 
   useEffect(() => {
-    console.log('📝 [DeliveryForm] Setting isFormOverlayOpen = true');
     setIsFormOverlayOpen(true);
     
     // CRITICAL: Keep location tracking active but pause UI updates
@@ -3690,14 +3454,12 @@ export default function DeliveryForm({
         const { fabControlEvents } = await import('../utils/fabControlEvents');
         fabControlEvents.pauseFAB();
         
-        console.log('⏸️ [DeliveryForm] Paused: Polylines, FAB (Location tracking + SmartRefresh continue)');
       } catch (error) {
         console.warn('⚠️ [DeliveryForm] Failed to pause some managers:', error);
       }
     })();
     
     return () => {
-      console.log('📝 [DeliveryForm] Cleanup - setting isFormOverlayOpen = false');
       setIsFormOverlayOpen(false);
       
       // CRITICAL: Reset delivery ID ref to allow fresh load next time
@@ -3726,7 +3488,6 @@ export default function DeliveryForm({
             detail: { appUsers: null }
           }));
           
-          console.log('▶️ [DeliveryForm] Resumed: SmartRefresh, Polylines, FAB + Dashboard UI refreshed');
         } catch (error) {
           console.warn('⚠️ [DeliveryForm] Failed to resume some managers:', error);
         }
@@ -3830,10 +3591,6 @@ export default function DeliveryForm({
     const hasExistingStops = existingActiveStops.length > 0;
     setIsNewRouteWithZeroStops(!hasExistingStops);
     
-    console.log(`🚦 [DeliveryForm] Route flag check for driver ${formData.driver_id} on ${formData.delivery_date}:`, {
-      existingActiveStops: existingActiveStops.length,
-      isNewRouteWithZeroStops: !hasExistingStops
-    });
   }, [delivery, allDeliveries, formData.driver_id, formData.delivery_date]);
 
   // Update flag when first patient is added to staged
@@ -3842,7 +3599,6 @@ export default function DeliveryForm({
     
     // If we're adding the first patient and flag is currently true, set it to false
     if (isNewRouteWithZeroStops && stagedDeliveries.some(s => s.patient_id)) {
-      console.log('🚦 [DeliveryForm] First patient added - setting isNewRouteWithZeroStops to false');
       setIsNewRouteWithZeroStops(false);
     }
   }, [delivery, stagedDeliveries.length, isNewRouteWithZeroStops]);
@@ -3858,8 +3614,6 @@ export default function DeliveryForm({
     });
 
     if (deletedPendingDeliveries.length > 0) {
-      console.log('🗑️ [DeliveryForm] Detected deleted pending deliveries on other devices:', deletedPendingDeliveries.map((d) => d.patient_name));
-
       // Remove deleted pending deliveries from staged list
       setStagedDeliveries((prev) => prev.filter((staged) => !deletedPendingDeliveries.some((del) => del.id === staged.id)));
 
@@ -3875,7 +3629,6 @@ export default function DeliveryForm({
 
       // If editing one of the deleted deliveries, clear the form
       if (editingStagedId && deletedPendingDeliveries.some((d) => d._tempId === editingStagedId)) {
-        console.log('📝 [DeliveryForm] Clearing form - edited pending delivery was deleted');
         setEditingStagedId(null);
         handleClearForm();
       }
@@ -3886,34 +3639,18 @@ export default function DeliveryForm({
   useEffect(() => {
     // Skip if editing existing delivery
     if (delivery) {
-      console.log('⏸️ [DeliveryForm] Skipping auto-load - editing existing delivery');
       return;
     }
 
     // Skip if already loaded
     if (hasLoadedPending.current) {
-      console.log('⏸️ [DeliveryForm] Skipping auto-load - already loaded');
       return;
     }
 
     // Wait for all required data (driver_id NOT required)
     if (!allDeliveries || !suggestedDate || !currentUser || !patients || !stores) {
-      console.log('⏸️ [DeliveryForm] Waiting for data...', {
-        hasDeliveries: !!allDeliveries,
-        hasDate: !!suggestedDate,
-        hasUser: !!currentUser,
-        hasPatients: !!patients,
-        hasStores: !!stores
-      });
       return;
     }
-
-    console.log('🔄 [DeliveryForm] Auto-loading pending deliveries based on role...');
-    console.log('  - Date:', suggestedDate);
-    console.log('  - Total deliveries:', allDeliveries.length);
-    console.log('  - Current user:', currentUser.user_name || currentUser.full_name);
-    console.log('  - Current user roles:', currentUser.app_roles);
-    console.log('  - Current user store_ids:', currentUser.store_ids);
 
     // Filter pending deliveries based on user role
     let pendingDeliveries = allDeliveries.filter((d) =>
@@ -3923,44 +3660,22 @@ export default function DeliveryForm({
     d.patient_id // Only patient deliveries, not pickups
     );
 
-    console.log('  - Found pending deliveries for date (before role filter):', pendingDeliveries.length);
-    if (pendingDeliveries.length > 0) {
-      console.log('  - Pending deliveries:', pendingDeliveries.map((d) => ({
-        patient_name: d.patient_name,
-        driver_id: d.driver_id,
-        store_id: d.store_id
-      })));
-    }
-
     // Role-based filtering - ADMIN takes priority over other roles
     if (userHasRole(currentUser, 'admin')) {
       // Admins: all pending stops (no additional filtering)
-      console.log(`  - Admin mode: ${pendingDeliveries.length} pending stops (no filtering)`);
     } else if (userHasRole(currentUser, 'dispatcher')) {
       // Dispatchers: only pending stops for their stores
       const dispatcherStoreIds = currentUser.store_ids || [];
-      console.log(`  - Dispatcher mode: checking stores ${dispatcherStoreIds.join(', ')}`);
       pendingDeliveries = pendingDeliveries.filter((d) => dispatcherStoreIds.includes(d.store_id));
-      console.log(`  - Dispatcher mode: filtered to ${pendingDeliveries.length} pending stops for dispatcher stores`);
-      if (pendingDeliveries.length > 0) {
-        console.log('  - Dispatcher pending deliveries:', pendingDeliveries.map((d) => ({
-          patient_name: d.patient_name,
-          store_id: d.store_id
-        })));
-      }
     } else if (userHasRole(currentUser, 'driver')) {
       // Drivers (not admin/dispatcher): only their pending stops
       pendingDeliveries = pendingDeliveries.filter((d) => d.driver_id === currentUser.id);
-      console.log(`  - Driver mode: filtered to ${pendingDeliveries.length} pending stops for driver ${currentUser.id}`);
     }
 
     if (pendingDeliveries.length === 0) {
-      console.log('  - No pending deliveries to load after role filtering');
       hasLoadedPending.current = true;
       return;
     }
-
-    console.log('✅ [DeliveryForm] Found pending deliveries to auto-load:', pendingDeliveries.length);
 
     // Convert pending deliveries to staged format
     const newStagedItems = pendingDeliveries.map((delivery, index) => {
@@ -3977,7 +3692,6 @@ export default function DeliveryForm({
       if (parentPickup) {
         finalStoreId = parentPickup.store_id || delivery.store_id;
         timeSlot = parentPickup.ampm_deliveries || delivery.ampm_deliveries;
-        console.log(`📦 [AutoLoad] Delivery ${delivery.patient_name}: PUID=${puid} → store=${finalStoreId}, AM/PM=${timeSlot}`);
       }
     }
     
@@ -4019,16 +3733,9 @@ export default function DeliveryForm({
 
     // Force state update with timeout to ensure re-render
     setTimeout(() => {
-      console.log('💾 [DeliveryForm] Setting staged deliveries state with', newStagedItems.length, 'items');
-      console.log('💾 [DeliveryForm] Items:', newStagedItems.map((item) => ({
-        patient_name: item.patient_name,
-        _tempId: item._tempId,
-        id: item.id
-      })));
       setStagedDeliveries(newStagedItems);
       setHasChanges(false); // Done button stays disabled until user adds/edits something
       hasLoadedPending.current = true;
-      console.log(`✅ [DeliveryForm] Auto-loaded ${newStagedItems.length} pending deliveries to staged list`);
     }, 100);
   }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate]);
 
@@ -4045,7 +3752,6 @@ export default function DeliveryForm({
     // CRITICAL: Never auto-update PUID for existing deliveries with a PUID already set
     // This prevents the blinking issue where PUID gets recalculated and overwrites the correct value
     if (delivery && initialPuidRef.current) {
-      console.log('⏸️ [DeliveryForm] Preserving original PUID:', initialPuidRef.current);
       return; // Skip PUID recalculation entirely for deliveries with existing PUID
     }
     
@@ -4137,7 +3843,6 @@ export default function DeliveryForm({
 
     if (stagedPickup) {
       puid = stagedPickup.puid || stagedPickup.stop_id;
-      console.log(`✅ [confirmAddProjectedToStaged] Using PUID from staged pickup: ${puid}`);
     }
 
     // CRITICAL: Build staged item FIRST, then update both states atomically
