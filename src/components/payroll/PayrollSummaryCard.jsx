@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X, Save, Share2, Loader2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import ScreenshotShareModal from '../common/ScreenshotShareModal';
-import { jsPDF } from 'jspdf';
 import {
   Dialog,
   DialogContent,
