@@ -82,19 +82,10 @@ export default function PayrollSummaryCard({
   const periodStartStr = currentPeriod?.start ? currentPeriod.start.toISOString().split('T')[0] : null;
   const periodEndStr = currentPeriod?.end ? currentPeriod.end.toISOString().split('T')[0] : null;
 
-  // Calculate payroll for each driver for the current period - MOVED BEFORE OTHER EFFECTS
   const payrollData = useMemo(() => {
     if (!deliveries || !drivers || !appUsers || !currentPeriod) return [];
-
-    // Get drivers to calculate for
-    // Note: drivers come from payrollData.drivers which are AppUser records (user_id field)
-    const driversToCalc = selectedDriverId === 'all' ?
-    drivers.filter((d) => d && d.status === 'active') :
-    drivers.filter((d) => d && (d.id === selectedDriverId || d.user_id === selectedDriverId));
-
+    const driversToCalc = selectedDriverId === 'all' ? drivers.filter((d) => d && d.status === 'active') : drivers.filter((d) => d && (d.id === selectedDriverId || d.user_id === selectedDriverId));
     return driversToCalc.map((driver) => {
-      // Get AppUser data for pay rates
-      // driver IS the AppUser record, but also check by user_id for consistency
       const driverId = driver.user_id || driver.id;
       const appUser = appUsers.find((au) => au && (au.user_id === driverId || au.id === driver.id)) || driver;
       const payRate = appUser?.pay_rate_per_delivery || 0;
