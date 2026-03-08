@@ -10,6 +10,13 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const finishedStatuses = ['completed','failed','cancelled','returned','picked_up'];
   const allDeliveries = driverFilteredDeliveries || [];
 
+  const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
+
+  const dayDeliveries = useMemo(() => {
+    if (!dateStr) return [];
+    return allDeliveries.filter(d => d && d.delivery_date === dateStr);
+  }, [allDeliveries, dateStr]);
+
   // Dispatcher's store IDs
   const dispatcherStoreIds = useMemo(() => {
     if (!currentUser?.store_ids) return [];
@@ -21,18 +28,19 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const isDriver = userHasRole(currentUser, 'driver') && !isAdmin && !userHasRole(currentUser, 'dispatcher');
 
   // For dispatchers: filter to only their store's stops
-  const dispatcherStoreDeliveries = useMemo(() => {
-    if (!isDispatcherOnly || dispatcherStoreIds.length === 0) return allDeliveries;
-    return allDeliveries.filter(d => d && dispatcherStoreIds.includes(d.store_id));
-  }, [allDeliveries, isDispatcherOnly, dispatcherStoreIds]);
+  const dispatcherDayDeliveries = useMemo(() => {
+    const source = dayDeliveries;
+    if (!isDispatcherOnly || dispatcherStoreIds.length === 0) return source;
+    return source.filter(d => d && dispatcherStoreIds.includes(d.store_id));
+  }, [dayDeliveries, isDispatcherOnly, dispatcherStoreIds]);
 
-  // Route complete check (all stops finished)
-  const isRouteComplete = allDeliveries.length > 0 &&
-    allDeliveries.every(d => d && finishedStatuses.includes(d.status));
+  // Route complete check (all stops finished for selected date)
+  const isRouteComplete = dayDeliveries.length > 0 &&
+    dayDeliveries.every(d => d && finishedStatuses.includes(d.status));
 
   // Dispatcher: all of THEIR store's stops finished
-  const isDispatcherRouteComplete = dispatcherStoreDeliveries.length > 0 &&
-    dispatcherStoreDeliveries.every(d => d && finishedStatuses.includes(d.status));
+  const isDispatcherRouteComplete = dispatcherDayDeliveries.length > 0 &&
+    dispatcherDayDeliveries.every(d => d && finishedStatuses.includes(d.status));
 
   // Dispatcher AM/PM qualification logic:
   // A period qualifies if there's a pickup (no patient_id) for dispatcher's store
@@ -40,7 +48,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const getPeriodQualification = (period) => {
     if (!isDispatcherOnly) return false;
     // Find pickups for dispatcher's stores in this period that are en_route
-    const enRoutePickups = dispatcherStoreDeliveries.filter(d =>
+    const enRoutePickups = dispatcherDayDeliveries.filter(d =>
       d && !d.patient_id &&
       d.ampm_deliveries === period &&
       d.status === 'en_route'
@@ -49,7 +57,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
     // Check if there are pending stops attached to these pickups (matching puid = pickup's stop_id)
     const pickupStopIds = enRoutePickups.map(p => p.stop_id).filter(Boolean);
-    const hasPendingStops = dispatcherStoreDeliveries.some(d =>
+    const hasPendingStops = dispatcherDayDeliveries.some(d =>
       d && d.patient_id && d.status === 'pending' &&
       pickupStopIds.includes(d.puid)
     );
@@ -94,7 +102,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
   // === DRIVERS & ADMINS: Post-route only, enabled when route complete ===
   if (isDriver || isAdmin) {
-    const btnDisabled = !isRouteComplete || driverFilter === 'all' || allDeliveries.length === 0;
+    const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0;
     return (
       <Button
         onClick={() => handleExport('post-route')}
@@ -110,7 +118,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   // === DISPATCHERS ===
   if (isDispatcherOnly) {
     const noDriver = driverFilter === 'all';
-    const noStoreDeliveries = dispatcherStoreDeliveries.length === 0;
+    const noStoreDeliveries = dispatcherDayDeliveries.length === 0;
 
     // If all dispatcher's store stops are finished → post-route export
     if (isDispatcherRouteComplete) {
