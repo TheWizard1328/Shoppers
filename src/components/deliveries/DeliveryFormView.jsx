@@ -46,7 +46,7 @@ export default function DeliveryFormView({
   // Layout
   formRef, useMobileLayout, isMobileDevice, useFullscreen,
   // Core state
-  delivery, formData, setFormData, isPickupMode, setIsPickupMode,
+  delivery, formData, setFormData, isPickupMode, setIsPickupMode, isInterStoreMode, setIsInterStoreMode,
   isSaving, error, isPayrollLocked, payrollLockMessage, isFormLockedByPayroll,
   isFormDisabled, isCompletionStatus,
   // Patient search
