@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
     // Row sizing
     const minRowHeight = 6; // mm, ensures consistent spacing for single-line rows
     const cellPadding = 1;  // mm, extra breathing room inside each row
+    const textTopOffset = 0.5; // mm, small offset so text doesn't touch the top line
 
     // Header
     const title = manifestType === 'pre-route' ? `Pre-Route (${ampm || 'AM'})` : 'Post-Route (All)';
@@ -186,6 +187,7 @@ Deno.serve(async (req) => {
 
       doc.setFontSize(9);
       const rowBottom = snap(rowTop + Math.max(rowHeight, minRowHeight));
+      const textY = rowTop + textTopOffset;
       
       // Highlight pickups with light gray background
       if (isPickup) {
@@ -193,16 +195,16 @@ Deno.serve(async (req) => {
         doc.rect(colStop - 2, rowTop, pageWidth - 12, rowBottom - rowTop, 'F');
       }
 
-      doc.text(stop, colStop, rowTop, { baseline: 'top' } as any);
-      doc.text(tr, colTR, rowTop, { baseline: 'top' } as any);
-      doc.text(nameLines, colName, rowTop, { baseline: 'top' } as any);
-      doc.text(time, colTime, rowTop, { baseline: 'top' } as any);
-      doc.text(notesLines, colNotes, rowTop, { baseline: 'top' } as any);
+      doc.text(stop, colStop, textY, { baseline: 'top' } as any);
+      doc.text(tr, colTR, textY, { baseline: 'top' } as any);
+      doc.text(nameLines, colName, textY, { baseline: 'top' } as any);
+      doc.text(time, colTime, textY, { baseline: 'top' } as any);
+      doc.text(notesLines, colNotes, textY, { baseline: 'top' } as any);
 
       // Signature thumbnail
       if (images.signature) {
         try {
-          doc.addImage(images.signature.base64Data, images.signature.format, colSig, rowTop, thumbSize, thumbSize);
+          doc.addImage(images.signature.base64Data, images.signature.format, colSig, textY, thumbSize, thumbSize);
         } catch {
           doc.setFontSize(7);
           doc.text('✓', colSig + 4, rowTop);
@@ -214,7 +216,7 @@ Deno.serve(async (req) => {
         let photoX = colPhotos;
         for (const photo of images.photos) {
           try {
-            doc.addImage(photo.base64Data, photo.format, photoX, rowTop, thumbSize, thumbSize);
+            doc.addImage(photo.base64Data, photo.format, photoX, textY, thumbSize, thumbSize);
             photoX += thumbSize + 1;
           } catch {
             // Skip failed images
