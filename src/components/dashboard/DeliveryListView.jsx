@@ -467,7 +467,7 @@ const DeliveryListView = ({
                 exit={{ scale: 0.95, opacity: 0 }}
                 transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                 className="fixed inset-0 z-[301] flex items-center justify-center p-4"
-                onClick={(e) => e.stopPropagation()}
+                onClick={() => setMediaPreview(null)}
               >
                 <div className="rounded-lg shadow-xl p-3 bg-white dark:bg-slate-900 max-w-[90vw] max-h-[85vh] flex items-center justify-center">
                   {mediaPreview.type === 'image' && (
