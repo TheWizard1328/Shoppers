@@ -118,6 +118,18 @@ export default function DeliveryFormView({
     setForceOpenDriverSelect(requiresDriverSelection);
   }, [requiresDriverSelection]);
 
+  // Helper: get default driver ID for a store based on date and time slot
+  const getDefaultDriverForStoreSlot = (storeId, timeSlot, deliveryDate) => {
+    const store = stores?.find(s => s && s.id === storeId);
+    if (!store || !deliveryDate) return null;
+    const dateObj = new Date(deliveryDate + 'T00:00:00');
+    const day = dateObj.getDay(); // 0=Sun, 6=Sat
+    const slot = (timeSlot || 'AM').toLowerCase(); // 'am' or 'pm'
+    if (day === 0) return store[`sunday_${slot}_driver_id`] || null;
+    if (day === 6) return store[`saturday_${slot}_driver_id`] || null;
+    return store[`weekday_${slot}_driver_id`] || null;
+  };
+
   const stagedPanelProps = {
     sortedStagedDeliveries, sortedProjectedDeliveries, stores, patients,
     currentUser, editingStagedId, isMobileDevice, handleStagedDeliveryClick,
