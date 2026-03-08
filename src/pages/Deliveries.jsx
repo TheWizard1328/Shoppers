@@ -2849,275 +2849,89 @@ export default function DeliveriesPage() {
   }, [isDriverOverviewMode, selectedOverviewYear, selectedCityId, currentUser?.id]);
 
   const driverCards = useMemo(() => {
-    if (!isDriverOverviewMode) {
-      return [];
-    }
+    if (!isDriverOverviewMode) return [];
 
-    console.log('🎯 Building driver cards for overview mode');
-    console.log(`👤 Current user:`, currentUser?.user_name || currentUser?.full_name);
-    console.log(`👤 User roles:`, currentUser?.app_roles);
-    console.log(`📊 Total users in allUsers:`, allUsers?.length || 0);
-    console.log(`📊 Total users in effectiveDrivers:`, effectiveDrivers?.length || 0);
-    console.log(`📅 Selected overview year: ${selectedOverviewYear}`);
-    console.log(`📍 Selected City ID: ${selectedCityId}`);
-    console.log(`📊 Backend stats available: ${backendDriverStats ? 'YES' : 'NO'}`);
-
-    // CRITICAL: Always use allDeliveries for Driver Overview (never fall back to contextDeliveries which is date-filtered)
     const deliveriesToUse = allDeliveries?.length > 0 ? allDeliveries : [];
     const patientsToUse = allPatients?.length > 0 ? allPatients : contextPatients;
     const usersToUse = allUsers?.length > 0 ? allUsers : contextUsers;
 
-    console.log(`🔍 [DriverCards] Data sources selected:`, {
-      deliveries: deliveriesToUse.length,
-      deliveriesSource: allDeliveries?.length > 0 ? 'allDeliveries' : 'contextDeliveries',
-      patients: patientsToUse.length,
-      patientsSource: allPatients?.length > 0 ? 'allPatients' : 'contextPatients',
-      users: usersToUse.length,
-      usersSource: allUsers?.length > 0 ? 'allUsers' : 'contextUsers'
-    });
+    if (!deliveriesToUse?.length || !usersToUse?.length) return [];
 
-    if (!deliveriesToUse || !Array.isArray(deliveriesToUse)) {
-      console.warn('⚠️ No deliveries available');
-      return [];
-    }
-
-    if (!usersToUse || usersToUse.length === 0) {
-      console.warn('⚠️ No users available');
-      return [];
-    }
-
-    if (!patientsToUse || !Array.isArray(patientsToUse)) {
-      console.warn('⚠️ No patients available');
-    }
-
-    const yearFilteredDeliveries = selectedOverviewYear === 'all' ?
-    deliveriesToUse :
+    const yearFilteredDeliveries = selectedOverviewYear === 'all' ? deliveriesToUse :
     deliveriesToUse.filter((d) => {
-      if (!d || !d.delivery_date) return false;
-      try {
-        const deliveryYear = new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
-        return deliveryYear === parseInt(selectedOverviewYear, 10);
-      } catch (error) {
-        console.warn('⚠️ Invalid delivery_date during year filtering:', d.delivery_date);
-        return false;
-      }
+      if (!d?.delivery_date) return false;
+      try { return new Date(d.delivery_date.replace(/-/g, '/')).getFullYear() === parseInt(selectedOverviewYear, 10); }
+      catch { return false; }
     });
-
-    console.log(`📊 Year-filtered deliveries: ${yearFilteredDeliveries.length} of ${deliveriesToUse.length} total`);
-
-    if (yearFilteredDeliveries.length > 0) {
-      const dates = yearFilteredDeliveries.map((d) => d.delivery_date).filter(Boolean).sort();
-      console.log(`📊 Date range in yearFilteredDeliveries: ${dates[0]} to ${dates[dates.length - 1]}`);
-      console.log(`📊 Sample delivery dates:`, dates.slice(0, 5), '...', dates.slice(-5));
-    }
 
     const driverNamesInDeliveries = [...new Set(yearFilteredDeliveries.map((d) => (d.driver_name || '').toLowerCase().trim()).filter(Boolean))];
     const driverIdsInDeliveries = [...new Set(yearFilteredDeliveries.map((d) => d.driver_id).filter(Boolean))];
-    console.log(`📊 Unique driver names in deliveries:`, driverNamesInDeliveries);
-    console.log(`📊 Unique driver IDs in deliveries:`, driverIdsInDeliveries);
 
     const driversWithRoles = usersToUse.filter((u) => {
       if (!u) return false;
       const roles = Array.isArray(u.app_roles) ? u.app_roles : [];
-      const hasDriverRole = roles.includes('driver');
-      const isAdminDriver = roles.includes('admin') && roles.includes('driver');
-
-      if (hasDriverRole || isAdminDriver) {
-        console.log(`✅ Including driver ${u.user_name || u.full_name} (id: ${u.id}, appUserId: ${u.appUserId}) with roles: ${roles.join(', ')}, status: ${u.status}`);
-        return true;
-      }
-      return false;
+      return roles.includes('driver') || (roles.includes('admin') && roles.includes('driver'));
     });
-    console.log(`👥 Total drivers with driver role: ${driversWithRoles.length}`);
-
-    const deliveryDriverIds = [...new Set(deliveriesToUse.map((d) => d.driver_id).filter(Boolean))];
-    console.log(`📊 [Debug] Unique driver_ids in deliveries:`, deliveryDriverIds);
-    console.log(`📊 [Debug] Driver IDs from driversWithRoles:`, driversWithRoles.map((d) => ({ name: d.user_name, id: d.id, appUserId: d.appUserId })));
 
     let cityFilteredDrivers = driversWithRoles;
-
     if (userHasRole(currentUser, 'admin')) {
-      if (selectedCityId && selectedCityId !== 'all') {
-        cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === selectedCityId);
-        console.log(`👑 Admin - filtered to city ${selectedCityId}: ${cityFilteredDrivers.length} drivers`);
-      } else {
-        console.log('👑 Admin - showing all drivers from all cities');
-      }
+      if (selectedCityId && selectedCityId !== 'all') cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === selectedCityId);
     } else if (userHasRole(currentUser, 'dispatcher')) {
-      // CRITICAL: Dispatchers should only see drivers who have deliveries for their assigned stores
       const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-      console.log(`👔 Dispatcher store IDs:`, Array.from(dispatcherStoreIds));
-
-      // Find all driver IDs that have deliveries for the dispatcher's stores
       const driversWithStoreDeliveries = new Set();
       yearFilteredDeliveries.forEach((d) => {
-        if (d && d.store_id && dispatcherStoreIds.has(d.store_id)) {
-          if (d.driver_id) {
-            driversWithStoreDeliveries.add(d.driver_id);
-          }
-          if (d.driver_name) {
-            driversWithStoreDeliveries.add((d.driver_name || '').toLowerCase().trim());
-          }
+        if (d?.store_id && dispatcherStoreIds.has(d.store_id)) {
+          if (d.driver_id) driversWithStoreDeliveries.add(d.driver_id);
+          if (d.driver_name) driversWithStoreDeliveries.add((d.driver_name || '').toLowerCase().trim());
         }
       });
-      console.log(`👔 Drivers with deliveries for dispatcher's stores:`, Array.from(driversWithStoreDeliveries));
-
-      // Filter to only show drivers who have deliveries for dispatcher's stores
-      cityFilteredDrivers = driversWithRoles.filter((d) => {
-        if (!d) return false;
-        const driverIdMatch = driversWithStoreDeliveries.has(d.id) ||
-        d.appUserId && driversWithStoreDeliveries.has(d.appUserId);
-        const driverNameMatch = driversWithStoreDeliveries.has((d.full_name || '').toLowerCase().trim()) ||
-        driversWithStoreDeliveries.has((d.user_name || '').toLowerCase().trim());
-        return driverIdMatch || driverNameMatch;
-      });
-      console.log(`👔 Dispatcher - filtered to drivers with store deliveries: ${cityFilteredDrivers.length} drivers`);
-    } else if (userHasRole(currentUser, 'driver')) {
-      if (currentUser.city_id) {
-        cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === currentUser.city_id);
-        console.log(`📍 Filtered to user's city ${currentUser.city_id}: ${cityFilteredDrivers.length} drivers`);
-      }
+      cityFilteredDrivers = driversWithRoles.filter((d) => d && (driversWithStoreDeliveries.has(d.id) || (d.appUserId && driversWithStoreDeliveries.has(d.appUserId)) || driversWithStoreDeliveries.has((d.full_name || '').toLowerCase().trim()) || driversWithStoreDeliveries.has((d.user_name || '').toLowerCase().trim())));
+    } else if (userHasRole(currentUser, 'driver') && currentUser.city_id) {
+      cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === currentUser.city_id);
     }
 
     const driversWithDeliveries = cityFilteredDrivers.filter((u) => {
       if (!u) return false;
-
-      const userFullNameLower = (u.full_name || '').toLowerCase().trim();
-      const userUserNameLower = (u.user_name || '').toLowerCase().trim();
-
-      const hasDeliveries = driverIdsInDeliveries.includes(u.id) ||
-      u.appUserId && driverIdsInDeliveries.includes(u.appUserId) ||
-      driverNamesInDeliveries.includes(userFullNameLower) ||
-      driverNamesInDeliveries.includes(userUserNameLower);
-
-      if (!hasDeliveries) {
-        console.log(`   ⏭️ Skipping driver (no deliveries): ${u.user_name || u.full_name}`);
-        return false;
-      }
-
-      console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
-      return true;
+      return driverIdsInDeliveries.includes(u.id) || (u.appUserId && driverIdsInDeliveries.includes(u.appUserId)) || driverNamesInDeliveries.includes((u.full_name || '').toLowerCase().trim()) || driverNamesInDeliveries.includes((u.user_name || '').toLowerCase().trim());
     });
 
-    console.log(`✅ Found ${driversWithDeliveries.length} drivers to show (after city filter)`);
-
     let driversToShow = [];
-
     if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) {
       driversToShow = driversWithDeliveries;
-      console.log(`👑 Admin/Dispatcher - showing ${driversToShow.length} drivers`);
     } else if (userHasRole(currentUser, 'driver')) {
-      // Drivers can only see their own card
-      driversToShow = driversWithDeliveries.filter((d) =>
-      d.id === currentUser.id || d.appUserId === currentUser.id
-      );
-      console.log(`🚗 Driver - showing own card only: ${driversToShow.length} drivers`);
-    } else {
-      console.log(`❌ User has no valid role for driver overview`);
-      return [];
-    }
-
-
-    if (!driversToShow.length) {
-      console.log('❌ No drivers to show');
-      return [];
-    }
+      driversToShow = driversWithDeliveries.filter((d) => d.id === currentUser.id || d.appUserId === currentUser.id);
+    } else { return []; }
+    if (!driversToShow.length) return [];
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const dispatcherStoreIds = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ? new Set(currentUser.store_ids || []) : null;
 
-    // CRITICAL: For dispatchers, only count deliveries for their assigned stores
-    const dispatcherStoreIds = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ?
-    new Set(currentUser.store_ids || []) :
-    null;
-
-    // CRITICAL: Use backend stats if available, otherwise fall back to local calculation
     const cards = driversToShow.map((driver) => {
-      // Try to get stats from backend first
       const backendStats = backendDriverStats?.find((s) => s.driverId === driver.id || s.driverId === driver.appUserId);
-
       if (backendStats) {
-        console.log(`✅ Using backend stats for driver: ${driver.user_name || driver.full_name}`);
-        return {
-          driver: driver,
-          firstName: getDriverDisplayName(driver),
-          stats: {
-            totalStops: backendStats.totalStops,
-            pickups: backendStats.pickups,
-            completed: backendStats.completed,
-            failed: backendStats.failed,
-            returned: backendStats.returned,
-            completionRate: backendStats.completionRate
-          },
-          todayStats: backendStats.todayStats
-        };
+        return { driver, firstName: getDriverDisplayName(driver), stats: { totalStops: backendStats.totalStops, pickups: backendStats.pickups, completed: backendStats.completed, failed: backendStats.failed, returned: backendStats.returned, completionRate: backendStats.completionRate }, todayStats: backendStats.todayStats };
       }
-
-      // Fallback to local calculation if backend stats not available
-      console.log(`⚠️ Falling back to local calculation for driver: ${driver.user_name || driver.full_name}`);
 
       const driverDeliveries = yearFilteredDeliveries.filter((d) => {
         if (!d) return false;
-
-        // CRITICAL: For dispatchers, only include deliveries for their stores
-        if (dispatcherStoreIds && d.store_id && !dispatcherStoreIds.has(d.store_id)) {
-          return false;
-        }
-
-        if (d.driver_id) {
-          if (d.driver_id === driver.id || d.driver_id === driver.appUserId) {
-            return true;
-          }
-        }
-
+        if (dispatcherStoreIds && d.store_id && !dispatcherStoreIds.has(d.store_id)) return false;
+        if (d.driver_id && (d.driver_id === driver.id || d.driver_id === driver.appUserId)) return true;
         if (d.driver_name) {
-          const deliveryDriverName = (d.driver_name || '').toLowerCase().trim();
-          const driverFullName = (driver.full_name || '').toLowerCase().trim();
-          const driverUserName = (driver.user_name || '').toLowerCase().trim();
-
-          if (deliveryDriverName === driverFullName || deliveryDriverName === driverUserName) {
-            return true;
-          }
-
-          const driverFirstName = driverUserName.split(' ')[0];
-          if (driverFirstName && deliveryDriverName === driverFirstName) {
-            return true;
-          }
+          const dn = (d.driver_name || '').toLowerCase().trim();
+          if (dn === (driver.full_name || '').toLowerCase().trim() || dn === (driver.user_name || '').toLowerCase().trim()) return true;
+          const fn = (driver.user_name || '').toLowerCase().trim().split(' ')[0];
+          if (fn && dn === fn) return true;
         }
-
         return false;
       });
 
       const totalStops = driverDeliveries.length;
-
-      const pickups = driverDeliveries.filter((d) => {
-        const isPickup = !d.patient_id || d.patient_id === '';
-        return isPickup && (d.status === 'completed' || d.status === 'picked_up');
-      }).length;
-
-      const completed = driverDeliveries.filter((d) => {
-        const isDelivery = d.patient_id && d.patient_id !== '';
-        return isDelivery && d.status === 'completed';
-      }).length;
-
-      const returned = driverDeliveries.filter((d) => {
-        const patient = patientsToUse.find((p) => p && p.id === d.patient_id);
-        const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
-        const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-        return notesReturn || addressReturn;
-      }).length;
-
+      const pickups = driverDeliveries.filter((d) => (!d.patient_id || d.patient_id === '') && (d.status === 'completed' || d.status === 'picked_up')).length;
+      const completed = driverDeliveries.filter((d) => d.patient_id && d.patient_id !== '' && d.status === 'completed').length;
+      const isReturn = (del) => { if (!del) return false; const p = patientsToUse.find((pp) => pp?.id === del.patient_id); return (del.delivery_notes || '').toLowerCase().includes('return') || (p && (p.address || '').toLowerCase().includes('rtn')); };
+      const returned = driverDeliveries.filter(isReturn).length;
       const failed = driverDeliveries.filter((d) => d.status === 'failed').length;
-
       const todayDeliveries = driverDeliveries.filter((d) => d.delivery_date === todayStr);
-
-      const isReturn = (delivery) => {
-        if (!delivery) return false;
-        const patient = patientsToUse.find((p) => p && p.id === delivery.patient_id);
-        const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-        const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-        return notesReturn || addressReturn;
-      };
-
       const todayStats = {
         active: todayDeliveries.filter((d) => ['picked_up', 'in_transit', 'pending'].includes(d.status)).length,
         completed: todayDeliveries.filter((d) => d.status === 'completed' || d.status === 'delivered').length,
@@ -3125,33 +2939,11 @@ export default function DeliveriesPage() {
         returned: todayDeliveries.filter((d) => d.status === 'returned' || isReturn(d)).length,
         total: todayDeliveries.length
       };
-
-      const firstName = getDriverDisplayName(driver);
-
-      return {
-        driver: driver,
-        firstName: firstName,
-        stats: {
-          totalStops,
-          pickups,
-          completed,
-          failed,
-          returned,
-          completionRate: totalStops > 0 ? Math.round(completed / totalStops * 100) : 0
-        },
-        todayStats
-      };
+      return { driver, firstName: getDriverDisplayName(driver), stats: { totalStops, pickups, completed, failed, returned, completionRate: totalStops > 0 ? Math.round(completed / totalStops * 100) : 0 }, todayStats };
     });
 
-    // CRITICAL: Filter out drivers with 0 stops before sorting
     const cardsWithStops = cards.filter((c) => c.stats.totalStops > 0);
-
-    const sortedCards = sortUsers(cardsWithStops.map((c) => ({ ...c.driver, _cardData: c }))).map((driver) => driver._cardData);
-    console.log(`📋 Final sorted cards: ${sortedCards.length} cards (${cards.length - cardsWithStops.length} drivers hidden with 0 stops)`);
-    console.log(`📋 Display names:`, sortedCards.map((c) => c.firstName));
-    console.log(`📋 Card stats:`, sortedCards.map((c) => `${c.firstName}: ${c.stats.totalStops} stops`));
-
-    return sortedCards;
+    return sortUsers(cardsWithStops.map((c) => ({ ...c.driver, _cardData: c }))).map((d) => d._cardData);
   }, [
   isDriverOverviewMode,
   effectiveDeliveries,
