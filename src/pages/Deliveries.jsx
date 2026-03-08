@@ -2732,35 +2732,24 @@ export default function DeliveriesPage() {
   }, [selectedYear, updateUrl]);
 
   const handleDateSelect = useCallback((dateString) => {
-    if (!dateString) {
-      console.warn('[handleDateSelect] No date string provided');
-      return;
-    }
-
+    if (!dateString) return;
     try {
       const [year, month, day] = dateString.split('-').map(Number);
-
-      if (isNaN(year) || isNaN(month) || isNaN(day)) {
-        console.error('[handleDateSelect] Invalid date components:', { year, month, day });
-        return;
-      }
-
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return;
       const dateObj = new Date(year, month - 1, day);
       dateObj.setHours(0, 0, 0, 0);
-
-      if (isNaN(dateObj.getTime())) {
-        console.error('[handleDateSelect] Invalid date object created');
-        return;
-      }
-
-      console.log('📅 [handleDateSelect] Setting date:', dateString);
-
+      if (isNaN(dateObj.getTime())) return;
       setSelectedDate(dateObj);
-      // CRITICAL: Do NOT add date to URL - keep date selection local to page
+      // CRITICAL: Switch year/month if clicked date is in a different month so groupedDeliveries includes it
+      if (year !== selectedYear || (month - 1) !== selectedMonth) {
+        setSelectedYear(year);
+        setSelectedMonth(month - 1);
+        updateUrl({ year: year.toString(), month: month.toString() });
+      }
     } catch (error) {
       console.error('[handleDateSelect] Error:', error);
     }
-  }, []);
+  }, [selectedYear, selectedMonth, updateUrl]);
 
   const handleSearchChange = useMemo(() => debounce((value) => {
     setSearchTerm(value);
