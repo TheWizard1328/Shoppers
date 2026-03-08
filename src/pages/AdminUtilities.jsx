@@ -3723,7 +3723,7 @@ export default function AdminUtilities() {
             console.error(`Failed to delete ${delivery.id}:`, error);
             failCount++;
           }
-          await new Promise(resolve => setTimeout(resolve, 50)); // Minimal 50ms delay
+          await new Promise(resolve => setTimeout(resolve, 100)); // Paced to reduce rate limits
         }
         
         setBulkDelete(prev => ({
