@@ -125,7 +125,6 @@ function Dashboard() {
     const dateParam = urlParams.get('date');
 
     if (dateParam) {
-      console.log(`📅 [Dashboard Init] Using URL date: ${dateParam}`);
       return new Date(dateParam + 'T00:00:00');
     }
 
@@ -145,7 +144,6 @@ function Dashboard() {
       savedDate.setHours(0, 0, 0, 0);
       
       if (savedDate < today) {
-        console.log(`📅 [Dashboard Init] After 8AM and first open today - using today's date`);
         return new Date(todayStr + 'T00:00:00');
       }
     }
@@ -275,8 +273,6 @@ function Dashboard() {
     
     if (totalChanges === 0) return;
     
-    console.log(`📦 [Debounced Updates] Processing batch: ${creates.length} creates, ${updates.length} updates, ${deletes.length} deletes`);
-    
     // CRITICAL: Deduplicate allChanges by ID - keep last (most recent) occurrence per delivery
     // This prevents duplicates when the same event arrives via multiple subscription paths
     const changesMap = new Map();
@@ -297,8 +293,6 @@ function Dashboard() {
         
         // Merge changes with existing (no duplicates guaranteed by changesMap above)
         const mergedDeliveries = [...otherDeliveries, ...allChanges];
-        
-        console.log(`🔄 [Debounced Updates] Merging ${allChanges.length} deduped changes with ${otherDeliveries.length} existing = ${mergedDeliveries.length} total`);
         
         // Full replacement to ensure UI updates
         updateDeliveriesLocally(mergedDeliveries, true);
@@ -326,7 +320,6 @@ function Dashboard() {
     // Clear the batch
     pendingDeliveryUpdatesRef.current = { creates: [], updates: [], deletes: [] };
     
-    console.log(`✅ [Debounced Updates] Batch complete - ${totalChanges} deliveries synced across devices`);
   }, [updateDeliveriesLocally, deliveries]);
   
   const scheduleDeliveryUpdate = useCallback((type, data) => {
@@ -355,22 +348,17 @@ function Dashboard() {
   useEffect(() => {
     if (!currentUser || !isDataLoaded) return;
 
-    console.log('🔌 [Real-time] Subscribing to Patient, Delivery, and AppUser changes...');
-    
     // CRITICAL: Listen for immediate updates from Done button (includes fresh data)
     const handleImmediateDeliveryUpdate = async (event) => {
       const { immediate, freshDeliveries, deliveryDate, driverId } = event.detail || {};
       
       if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
-        console.log(`⚡ [Dashboard] IMMEDIATE update - ${freshDeliveries.length} deliveries from Done button`);
-        
         // Update UI immediately using flushSync for synchronous render
         if (updateDeliveriesLocally) {
           flushSync(() => {
             const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
             updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
           });
-          console.log('✅ [Dashboard] UI updated synchronously');
         }
         
         // Force refresh driver locations and markers
@@ -382,8 +370,6 @@ function Dashboard() {
         }));
         
         // CRITICAL: Trigger map re-render with Phase 1 for 500ms
-        console.log('🗺️ [Done Button] Activating Phase 1 for 500ms to show new markers');
-        
         setMapViewPhase(1);
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
@@ -404,11 +390,9 @@ function Dashboard() {
             setIsMapViewLocked(false);
             mapLockExpiresAtRef.current = null;
             mapLockTimeoutRef.current = null;
-            console.log('⏰ [Done Button] Phase 1 auto-unlocked after 500ms');
           }
         }, lockDuration);
         
-        console.log('✅ [Dashboard] Immediate update complete - map will refresh');
       }
     };
     
@@ -418,13 +402,9 @@ function Dashboard() {
       
       if (!importedDeliveries || !Array.isArray(importedDeliveries)) return;
       
-      console.log(`📡 [Dashboard] deliveriesImported event - ${importedDeliveries.length} deliveries from ${source}`);
-      
       // CRITICAL: ALWAYS merge imported deliveries with existing ones (never replace all)
       // This prevents clearing data for non-imported drivers
       if (updateDeliveriesLocally && deliveries) {
-        console.log(`🔄 [Dashboard] Merging ${importedDeliveries.length} imported deliveries with ${deliveries.length} existing`);
-        
         // Get IDs of imported deliveries
         const importedIds = new Set(importedDeliveries.map(d => d?.id).filter(Boolean));
         
@@ -433,8 +413,6 @@ function Dashboard() {
         
         // Merge imported with non-imported
         const mergedDeliveries = [...otherDeliveries, ...importedDeliveries];
-        
-        console.log(`✅ [Dashboard] Merged: ${otherDeliveries.length} preserved + ${importedDeliveries.length} imported = ${mergedDeliveries.length} total`);
         
         // Update UI with merged data
         updateDeliveriesLocally(mergedDeliveries, true);
@@ -447,7 +425,6 @@ function Dashboard() {
           }
         }));
         
-        console.log('✅ [Dashboard] UI updated with imported deliveries (merged with existing)');
       }
     };
     
@@ -456,8 +433,6 @@ function Dashboard() {
 
     // Subscribe to Patient entity changes
     const unsubscribePatients = base44.entities.Patient.subscribe((event) => {
-      console.log(`📡 [Real-time Patient] ${event.type} event:`, event.data?.full_name || event.id);
-      
       if (event.type === 'create') {
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]).catch(console.error);
@@ -476,8 +451,6 @@ function Dashboard() {
 
     // Subscribe to AppUser entity changes
     const unsubscribeAppUsers = base44.entities.AppUser.subscribe((event) => {
-      console.log(`📡 [Real-time AppUser] ${event.type} event:`, event.data?.user_name || event.id);
-      
       if (event.type === 'update') {
         // CRITICAL: Update offline DB and UI simultaneously
         if (event.data) {
@@ -489,11 +462,8 @@ function Dashboard() {
             updateAppUsersLocally([event.data], false);
           }
           
-          console.log(`✅ [Real-time AppUser Update] Updated offline DB + UI simultaneously`);
-          
           // CRITICAL: If this is the current user, refresh their data immediately
           if (event.data.user_id === currentUser?.id) {
-            console.log('🔄 [Real-time AppUser] Current user updated - refreshing UI');
             if (refreshUser) {
               refreshUser();
             }
@@ -514,7 +484,6 @@ function Dashboard() {
             detail: { appUsers: updatedAppUsers, singleUpdate: true, fromRealtime: true }
           }));
           
-          console.log(`📍 [Real-time AppUser] Dispatched location update with ${updatedAppUsers.length} total users (1 changed)`);
         }
       }
     });
@@ -525,8 +494,6 @@ function Dashboard() {
       
       if (!delivery || !fromRealtime) return; // Only process real-time events from cityFilteredRealtimeSync
       
-      console.log(`📡 [Dashboard] Received real-time deliveryUpdated - ${type}:`, delivery.patient_name || delivery.id);
-      
       // Schedule for debounced batch processing
       if (type === 'create' || type === 'update') {
         scheduleDeliveryUpdate(type === 'create' ? 'create' : 'update', delivery);
@@ -534,16 +501,12 @@ function Dashboard() {
         scheduleDeliveryUpdate('delete', delivery.id);
       }
       
-      console.log('✅ [Dashboard] deliveryUpdated scheduled for batch processing');
     };
     
     window.addEventListener('deliveryUpdated', handleDeliveryUpdated);
     
     // Subscribe to Delivery entity changes with debouncing
-    console.log('🔌 [Dashboard] Setting up Delivery subscription with debouncing...');
     const unsubscribeDeliveries = base44.entities.Delivery.subscribe((event) => {
-      console.log(`📡 [Real-time Delivery] ${event.type} event:`, event.data?.patient_name || event.id, 'driver:', event.data?.driver_id);
-      
       // Schedule update for debounced batch processing
       if (event.type === 'create' && event.data) {
         scheduleDeliveryUpdate('create', event.data);
@@ -555,8 +518,6 @@ function Dashboard() {
     });
 
     return () => {
-      console.log('🔌 [Real-time] Unsubscribing from Patient, Delivery, and AppUser changes');
-      
       // Clear debounce timer
       if (deliveryDebounceTimerRef.current) {
         clearTimeout(deliveryDebounceTimerRef.current);
@@ -578,15 +539,12 @@ function Dashboard() {
       window.removeEventListener('deliveryUpdated', handleDeliveryUpdated);
       if (unsubscribePatients) {
         unsubscribePatients();
-        console.log('✅ [Real-time] Unsubscribed from Patient');
       }
       if (unsubscribeDeliveries) {
         unsubscribeDeliveries();
-        console.log('✅ [Real-time] Unsubscribed from Delivery');
       }
       if (unsubscribeAppUsers) {
         unsubscribeAppUsers();
-        console.log('✅ [Real-time] Unsubscribed from AppUser');
       }
     };
   }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally, updateAppUsersLocally, refreshUser, deliveries, appUsers, selectedDate, isPrimaryDevice, refreshData, scheduleDeliveryUpdate, processBatchedDeliveryUpdates]);
@@ -606,7 +564,6 @@ function Dashboard() {
     // CRITICAL: Listen for smart refresh AppUser updates to refresh currentUser for toggles
     const handleRefreshCurrentUser = () => {
       if (refreshUser) {
-        console.log('🔄 [Dashboard] Smart refresh updated AppUsers - refreshing currentUser for toggles');
         refreshUser();
       }
     };
@@ -617,8 +574,6 @@ function Dashboard() {
     // CRITICAL: Listen for live travel_dist updates
     const handleTravelDistUpdate = (event) => {
       const { deliveryId, travel_dist, totalAccumulatedDistance, completedDistance, inProgressDistance } = event.detail;
-      console.log(`📏 [Dashboard] Live total distance: ${totalAccumulatedDistance.toFixed(3)} km (${completedDistance.toFixed(3)} completed + ${inProgressDistance.toFixed(3)} in-progress)`);
-
       // Update local deliveries state
       if (updateDeliveriesLocally) {
         const updatedDelivery = deliveries.find((d) => d?.id === deliveryId);
@@ -634,8 +589,6 @@ function Dashboard() {
     // CRITICAL: Listen for time on duty updates
     const handleTimeOnDutyUpdate = (event) => {
       const { totalMinutes, formattedTime } = event.detail;
-      console.log(`⏱️ [Dashboard] Time on duty: ${formattedTime}`);
-
       // CRITICAL: Store live time on duty to display on stats card
       setLiveTimeOnDuty(formattedTime);
     };
@@ -713,7 +666,6 @@ function Dashboard() {
         // If no device record found, treat as primary (default behavior)
         // Only non-primary if record explicitly has is_primary_tracker === false
         const isPrimary = device === null || device?.is_primary_tracker !== false;
-        console.log(`📱 [Primary Device Check] device=${device?.device_name || 'NOT FOUND'}, isPrimary=${isPrimary}`);
         setIsPrimaryDevice(isPrimary);
       } catch (error) {
         console.warn('⚠️ [Primary Device Check] Failed - defaulting to primary:', error.message);
@@ -725,7 +677,7 @@ function Dashboard() {
   }, [currentUser?.id]);
 
   // Fetch performance stats from getDeliveryStats (server-cached, no extra DB calls)
-  useEffect(() => { if (!currentUser?.id||!isDataLoaded) { setPerformanceStats(null); setIsLoadingPayrollStats(false); return; } const dId=(selectedDriverId&&selectedDriverId!=='all')?selectedDriverId:(isDriver?currentUser?.id:null); if(!dId){setPerformanceStats(null);setIsLoadingPayrollStats(false);return;} let c=false; const dateStr=format(selectedDate,'yyyy-MM-dd'); const f=async(showLoading=true)=>{if(showLoading)setIsLoadingPayrollStats(true);console.log(`💰 [PayStats] Fetching driver=${dId} date=${dateStr}`);try{const r=await fetchDeliveryStatsFn({selectedDate:dateStr,driverId:dId});const d=r?.data||r;console.log('💰 [PayStats] Result:',JSON.stringify(d?.performanceStats));if(!c){if(d?.performanceStats)setPerformanceStats(d.performanceStats);else setPerformanceStats(null);}}catch(e){console.error('❌ [PayStats] Error:',e);if(!c)setPerformanceStats(null);}finally{if(!c)setIsLoadingPayrollStats(false);}};f(true);const h=()=>{if(!c)f(false);};window.addEventListener('refreshDeliveryStats',h);return()=>{c=true;window.removeEventListener('refreshDeliveryStats',h);};
+  useEffect(() => { if (!currentUser?.id||!isDataLoaded) { setPerformanceStats(null); setIsLoadingPayrollStats(false); return; } const dId=(selectedDriverId&&selectedDriverId!=='all')?selectedDriverId:(isDriver?currentUser?.id:null); if(!dId){setPerformanceStats(null);setIsLoadingPayrollStats(false);return;} let c=false; const dateStr=format(selectedDate,'yyyy-MM-dd'); const f=async(showLoading=true)=>{if(showLoading)setIsLoadingPayrollStats(true);try{const r=await fetchDeliveryStatsFn({selectedDate:dateStr,driverId:dId});const d=r?.data||r;if(!c){if(d?.performanceStats)setPerformanceStats(d.performanceStats);else setPerformanceStats(null);}}catch(e){console.error('❌ [PayStats] Error:',e);if(!c)setPerformanceStats(null);}finally{if(!c)setIsLoadingPayrollStats(false);}};f(true);const h=()=>{if(!c)f(false);};window.addEventListener('refreshDeliveryStats',h);return()=>{c=true;window.removeEventListener('refreshDeliveryStats',h);};
   }, [isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate, isDataLoaded]);
 
   // Track dynamically measured heights for map padding
@@ -768,7 +720,6 @@ function Dashboard() {
       // Listen for auto-status updates
       const handleAutoStatusUpdate = (event) => {
         const { newStatus } = event.detail;
-        console.log(`📢 [Activity Monitor] ${currentUser.user_name} status auto-updated to ${newStatus}`);
         // Refresh user data to reflect new status
         if (refreshUser) {
           refreshUser();
@@ -794,7 +745,6 @@ function Dashboard() {
       // Set driver status in tracker
       const driverStatus = currentUser.driver_status || 'off_duty';
       locationTracker.setDriverStatus(driverStatus);
-      console.log(`📍 [Dashboard] Set locationTracker status to: ${driverStatus}`);
 
       // CRITICAL: Only start if this is a PRIMARY device
       if (!locationTracker.isTracking) {
@@ -803,18 +753,14 @@ function Dashboard() {
           const appUser = appUsers?.[0];
 
           if (appUser) {
-            console.log('🚀 [Dashboard] Auto-starting location tracking for mobile driver (PRIMARY DEVICE)');
             await locationTracker.startTracking({
               ...currentUser,
               appUserId: appUser.id
             }, format(selectedDate, 'yyyy-MM-dd'));
-            console.log('✅ [Dashboard] Location tracking started successfully');
 
             // CRITICAL: Also start live distance tracker
             if (!liveDistanceTracker.isTracking) {
               liveDistanceTracker.start(currentUser);
-              console.log('✅ [Dashboard] Live distance tracker started');
-
               // CRITICAL: Immediately poll for current stats on mount/refresh
               setTimeout(() => {
                 liveDistanceTracker.instantPoll();
@@ -846,13 +792,11 @@ function Dashboard() {
     const handleVisibilityChange = async () => {
       if (document.hidden) {
         wasHidden = true;
-        console.log('⏸️ [GPS Reinit] App went to background - GPS may pause');
         return;
       }
 
       // App came back to foreground
       if (wasHidden) {
-        console.log('🔄 [GPS Reinit] App returned to foreground - reinitializing GPS tracking...');
         wasHidden = false;
 
         try {
@@ -864,16 +808,10 @@ function Dashboard() {
             const shouldTrack = appUser.driver_status === 'on_duty' || appUser.driver_status === 'on_break';
 
             if (shouldTrack && !locationTracker.isTracking) {
-              console.log('🚀 [GPS Reinit] Restarting location tracker...');
               await locationTracker.restartTracking({
                 ...currentUser,
                 appUserId: appUser.id
               }, format(selectedDate, 'yyyy-MM-dd'));
-              console.log('✅ [GPS Reinit] Location tracking restarted successfully');
-            } else if (shouldTrack && locationTracker.isTracking) {
-              console.log('✅ [GPS Reinit] Location tracker already running');
-            } else {
-              console.log('⏭️ [GPS Reinit] Driver off_duty - not restarting GPS');
             }
           }
         } catch (error) {
@@ -899,7 +837,6 @@ function Dashboard() {
 
         // Load saved date from settings
         if (settings.selected_date) {
-          console.log('📅 [Dashboard Init] Using saved date from settings:', settings.selected_date);
           const savedDate = new Date(settings.selected_date + 'T00:00:00');
           setSelectedDate(savedDate);
           globalFilters.setSelectedDate(savedDate);
@@ -957,11 +894,9 @@ function Dashboard() {
             if (driversWithDeliveries.size === 1) {
               // Only 1 driver with stops - select that driver
               driverToSelect = Array.from(driversWithDeliveries)[0];
-              console.log(`📊 [Driver Selection] Dispatcher: 1 driver with stops - auto-selecting ${driverToSelect}`);
             } else {
               // 0 or multiple drivers - select "All Drivers"
               driverToSelect = 'all';
-              console.log(`📊 [Driver Selection] Dispatcher: ${driversWithDeliveries.size} drivers with stops - selecting All Drivers`);
             }
           } else if (userHasRole(currentUser, 'admin')) {
             // Admins - use saved or default
@@ -1290,11 +1225,6 @@ function Dashboard() {
 
   // Filter drivers based on role - NEVER based on deliveries (except dispatcher)
   const driversList = useMemo(() => {
-    console.log('🔍 [DriversList] Building driver list...');
-    console.log(`   - appUsers count: ${appUsers?.length || 0}`);
-    console.log(`   - drivers prop count: ${drivers?.length || 0}`);
-    console.log(`   - currentUser role: ${currentUser?.app_roles?.join(', ') || 'none'}`);
-    
     // CRITICAL: Build drivers from AppUsers ONLY (most reliable source)
     const driversSource = (appUsers || [])
       .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active')
@@ -1316,11 +1246,8 @@ function Dashboard() {
         return nameA.localeCompare(nameB);
       });
 
-    console.log(`✅ [DriversList] Found ${driversSource.length} active drivers from AppUsers`);
-
     // ADMIN/DRIVER: Show ALL drivers (no filtering)
     if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) {
-      console.log(`   - Role: ${currentUser?.app_roles?.join('/')}, showing ALL ${driversSource.length} drivers`);
       return driversSource;
     }
 
@@ -1339,8 +1266,6 @@ function Dashboard() {
       const isSunday = dayOfWeek === 0;
       const isWeekday = !isSaturday && !isSunday;
       
-      console.log(`   - Selected day: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]}`);
-      
       // Add drivers assigned to store slots for THIS DAY ONLY
       dispatcherStores.forEach(store => {
         if (isSaturday) {
@@ -1356,8 +1281,6 @@ function Dashboard() {
         }
       });
       
-      console.log(`   - Found ${assignedDriverIds.size} drivers assigned to slots for this day`);
-      
       // CRITICAL: Also add drivers who have ANY deliveries/pickups for dispatcher's stores on selected date
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       const driversWithDeliveries = deliveries
@@ -1368,11 +1291,9 @@ function Dashboard() {
       driversWithDeliveries?.forEach(driverId => assignedDriverIds.add(driverId));
       
       const filteredDrivers = driversSource.filter(d => assignedDriverIds.has(d.id));
-      console.log(`   - Role: dispatcher, showing ${filteredDrivers.length}/${driversSource.length} drivers (${assignedDriverIds.size - driversWithDeliveries?.length || 0} scheduled + ${driversWithDeliveries?.length || 0} with deliveries)`);
       return filteredDrivers;
     }
 
-    console.log(`   - Default: showing all ${driversSource.length} drivers`);
     return driversSource;
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
@@ -1628,7 +1549,6 @@ function Dashboard() {
     return unsubscribe;
   }, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {
-        console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1');
         // Save current phase for later restoration
         phaseBeforeBreakRef.current = event.previousPhase;
         // Clear any timers
@@ -1673,8 +1593,6 @@ function Dashboard() {
       } else if (event.type === 'DATA_READY') {
       } else if (event.type === 'DONE_BUTTON_CLICKED') {
         // CRITICAL: Done button was clicked - activate Phase 1 for 500ms
-        console.log('🎯 [FAB] Done button clicked - activating Phase 1 for 500ms');
-
         // Clear any existing timers
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
@@ -1699,7 +1617,6 @@ function Dashboard() {
             setIsMapViewLocked(false);
             mapLockExpiresAtRef.current = null;
             mapLockTimeoutRef.current = null;
-            console.log('⏰ [FAB] Phase 1 auto-unlocked after 500ms (Done button)');
           }
         }, lockDuration);
       }
@@ -1791,7 +1708,6 @@ function Dashboard() {
     const timer = setTimeout(() => {
       const height = element.offsetHeight;
       if (height > 0 && height !== stopCardsBaseHeight) {
-        console.log(`📏 [Stop Cards Base Height] Measured after collapse: ${height}px (previous: ${stopCardsBaseHeight}px)`);
         setStopCardsBaseHeight(height);
       }
     }, 400);
@@ -1811,7 +1727,6 @@ function Dashboard() {
         if (element && !selectedCardId) {
           const height = element.offsetHeight;
           if (height > 0 && height !== stopCardsBaseHeight) {
-            console.log(`📏 [Height Update] Stop cards base height changed: ${stopCardsBaseHeight}px → ${height}px`);
             setStopCardsBaseHeight(height);
           }
         }
@@ -1847,7 +1762,6 @@ function Dashboard() {
     } catch (error) {
       // CRITICAL: Silently fail on rate limits - this is non-essential data
       if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
-        console.log('⏰ [Polyline Count] Rate limited - keeping cached value');
         return;
       }
       console.warn('⚠️ [Polyline Count] Error fetching count:', error.message);
@@ -1868,7 +1782,6 @@ function Dashboard() {
     
     // Listen for smart refresh completion to update counter
     const handleSmartRefreshComplete = () => {
-      console.log('🔄 [Polyline Count] Smart refresh complete - updating counter');
       fetchPolylineCount();
     };
     
@@ -2120,8 +2033,6 @@ function Dashboard() {
       );
 
         if (updates) {
-          console.log('✅ [Periodic Refresh] Smart refresh completed with updates:', Object.keys(updates));
-          
           // Update local state with smart refresh results
           if (updates.deliveries && updateDeliveriesLocally) {
             updateDeliveriesLocally(updates.deliveries, true);
@@ -2148,7 +2059,6 @@ function Dashboard() {
       } catch (error) {
         // CRITICAL: Handle rate limits gracefully
         if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
-          console.log('⏰ [Periodic Refresh] Rate limited - skipping this cycle');
           return;
         }
         console.warn('⚠️ [Periodic Refresh] Error:', error.message);
@@ -2174,7 +2084,6 @@ function Dashboard() {
     }, 60000);
 
     return () => {
-      console.log('🛑 [Dashboard] Clearing periodic refresh interval');
       clearTimeout(initialDelay);
       clearInterval(interval);
     };
@@ -2191,17 +2100,12 @@ function Dashboard() {
       }
       
       if (!updatedAppUsers || !Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) {
-        console.log('⏭️ [Dashboard] Real-time location update - empty appUsers, skipping');
         return;
       }
-      
-      console.log(`📡 [Dashboard] Real-time location update - ${updatedAppUsers.length} drivers, fromRealtime: ${fromRealtime}, forceAll: ${forceAll}, mergeMode: ${mergeMode}`);
       
       // CRITICAL: If mergeMode='merge', merge this update with existing appUsers to preserve other drivers
       let appUsersToProcess = updatedAppUsers;
       if (mergeMode === 'merge' && appUsers && appUsers.length > 0) {
-        console.log('🔀 [Dashboard] Merge mode - combining updated driver with existing appUsers');
-        
         // Create a map of updated drivers by user_id
         const updatedMap = new Map();
         updatedAppUsers.forEach(au => {
@@ -2223,7 +2127,6 @@ function Dashboard() {
           }
         });
         
-        console.log(`✅ [Dashboard] Merged: ${updatedAppUsers.length} updated + ${appUsers.length - updatedAppUsers.length} existing = ${appUsersToProcess.length} total`);
       }
       
       // CRITICAL: Process through poller to update markers
@@ -2266,14 +2169,11 @@ function Dashboard() {
       const filteredLocations = shouldFilterSelf ?
       locations.filter((loc) => {
         if (loc._isSelf === true) {
-          console.log('🚫 [Dashboard] Hiding self shared marker on mobile (live GPS active)');
           return false;
         }
         return true;
       }) :
       locations;
-
-      console.log(`📍 [Dashboard] Poller updated allDriverLocations with ${filteredLocations.length} drivers`);
 
       setAllDriverLocations(filteredLocations);
     });
@@ -2359,7 +2259,6 @@ function Dashboard() {
     
     // CRITICAL: Listen for driver location changes to refresh polyline immediately
     const handleLocationChange = () => {
-      console.log('📍 [Polyline] Driver location changed - refreshing polyline');
       fetchPolyline();
     };
     window.addEventListener('driverLocationChanged', handleLocationChange);
@@ -2442,10 +2341,8 @@ function Dashboard() {
     
     // CRITICAL: Pause smart refresh when ANY form/overlay is open
     if (isAnyFormOpen) {
-      console.log('⏸️ [Dashboard] Form/overlay opened - pausing smart refresh');
       smartRefreshManager.pause();
     } else {
-      console.log('▶️ [Dashboard] All forms closed - resuming smart refresh');
       smartRefreshManager.resume();
     }
   }, [showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant, setIsFormOverlayOpen]);
@@ -2481,7 +2378,6 @@ function Dashboard() {
     // CLICKING UNLOCKED FAB (gray) → Re-activate current phase
     if (!isMapViewLocked) {
       newMapViewPhase = mapViewPhase;
-      console.log(`🔄 [FAB] Re-activating Phase ${newMapViewPhase} (was unlocked)`);
     } else {
       // CLICKING LOCKED FAB (blue) → Advance to next phase
       const nextPhase = mapViewPhase % 3 + 1;
@@ -2500,7 +2396,6 @@ function Dashboard() {
         // Skip phase 2 if no incomplete deliveries OR no next stop coordinates
         if (newMapViewPhase === 2 && (!hasIncompleteDeliveries || !nextStopCoordinates)) {
           newMapViewPhase = 3;
-          console.log('⏭️ [FAB] Skipping Phase 2 - no incomplete deliveries');
         }
         // Skip phase 3 if not on mobile AND no driver markers
         const hasDriverMarkers = allDriverLocations.length > 0 || (driverLocation?.latitude && driverLocation?.longitude);
@@ -2513,11 +2408,9 @@ function Dashboard() {
         }
       }
       
-      console.log(`➡️ [FAB] Advancing to Phase ${newMapViewPhase}`);
     }
 
     // CRITICAL: Set lock IMMEDIATELY and update phase
-    console.log(`🔒 [FAB Click] Locking FAB for Phase ${newMapViewPhase}`);
     setIsMapViewLocked(true);
     setMapViewPhase(newMapViewPhase);
 
@@ -2540,7 +2433,6 @@ function Dashboard() {
         const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
         if (cardElement) {
           cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          console.log(`📍 [FAB Click] Auto-centered to next delivery card (Phase ${newMapViewPhase})`);
         }
       } else {
         // Fallback: if no next delivery, center on first incomplete
@@ -2552,7 +2444,6 @@ function Dashboard() {
           const cardElement = document.getElementById(`stop-card-${firstIncomplete.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('📍 [FAB Click] Auto-centered to first incomplete card');
           }
         }
       }
@@ -2570,11 +2461,9 @@ function Dashboard() {
           setIsMapViewLocked(false);
           mapLockExpiresAtRef.current = null;
           mapLockTimeoutRef.current = null;
-          console.log(`⏰ [FAB] Phase 1 auto-unlocked after 3 seconds`);
         }
       }, lockDuration);
 
-      console.log(`🔵 [FAB] Phase 1 locked - will auto-unlock in 3 seconds`);
     } else if (newMapViewPhase === 2 || newMapViewPhase === 3) {
       // Phase 2 & 3 - NO timer, stay locked PERMANENTLY until FAB is clicked again
       // CRITICAL: Clear any existing timers to prevent accidental unlock
@@ -2584,7 +2473,6 @@ function Dashboard() {
       }
       mapLockExpiresAtRef.current = null;
 
-      console.log(`🔵 [FAB] Phase ${newMapViewPhase} locked PERMANENTLY - unlocks only when FAB is clicked to change phase`);
     }
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder]);
 
@@ -2609,8 +2497,6 @@ function Dashboard() {
 
     // Update last applied trigger FIRST
     lastAppliedTriggerRef.current = mapViewTrigger;
-
-    console.log(`🗺️ [Map Position Effect] Running for trigger ${mapViewTrigger}, phase ${mapViewPhase}`);
 
     // CRITICAL: Only skip phase 2 (driver+next-stop) if not a driver or no location.
     // Phase 3 CAN run for dispatchers (shows incomplete stops for their stores).
@@ -2643,15 +2529,6 @@ function Dashboard() {
         // CRITICAL: Treat "Show All" mode same as "All Drivers" mode for map bounds
         const shouldShowAllMarkersForBounds = selectedDriverId === 'all' || showAllDriverMarkers;
 
-        console.log(`🗺️ [Phase 1 FAB Click] Starting bounds calculation...`);
-        console.log(`   - Viewing today: ${isViewingToday}`);
-        console.log(`   - Is mobile: ${isMobile}`);
-        console.log(`   - Is driver: ${isDriver}`);
-        console.log(`   - Selected driver: ${selectedDriverId}`);
-        console.log(`   - Current user ID: ${currentUser?.id}`);
-        console.log(`   - Has live location: ${!!(driverLocation?.latitude && driverLocation?.longitude)}`);
-        console.log(`   - Show all mode: ${shouldShowAllMarkersForBounds}`);
-
         // 1. BLUE DOT: Include driver's live location when visible on mobile
         // CRITICAL: For admins viewing any driver OR drivers viewing themselves
         const shouldIncludeBlueDot =
@@ -2665,9 +2542,6 @@ function Dashboard() {
         if (shouldIncludeBlueDot) {
           allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
           hasDriverMarkers = true;
-          console.log(`✅ [Phase 1 - Blue Dot] INCLUDING live location: ${driverLocation.latitude.toFixed(6)}, ${driverLocation.longitude.toFixed(6)}`);
-        } else {
-          console.log(`🚫 [Phase 1 - Blue Dot] EXCLUDED - isMobile: ${isMobile}, isDriver: ${isDriver}, isViewingToday: ${isViewingToday}, hasLocation: ${!!(driverLocation?.latitude && driverLocation?.longitude)}, selectedDriverId: ${selectedDriverId}, currentUserId: ${currentUser?.id}`);
         }
 
         // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked OR when desktop OR dispatcher
@@ -2679,18 +2553,11 @@ function Dashboard() {
 
         if (isViewingToday && shouldIncludeSharedLocations) {
           let addedCount = 0;
-          console.log(`📍 [Phase 1 - Shared Markers] Processing ${allDriverLocations.length} from poller + ${mapDriverLocationMarkers.length} from map (shouldInclude: ${shouldIncludeSharedLocations})`);
           
           // CRITICAL: For dispatchers viewing a single driver, prioritize AppUser data directly
           if (isDispatcher && selectedDriverId && selectedDriverId !== 'all') {
             const assignedDriverAppUser = appUsers?.find(au => au?.user_id === selectedDriverId);
             if (assignedDriverAppUser?.current_latitude && assignedDriverAppUser?.current_longitude) {
-              console.log(`📍 [Phase 1 - Dispatcher] Including assigned driver's location from AppUser:`, {
-                driver: assignedDriverAppUser.user_name,
-                lat: assignedDriverAppUser.current_latitude.toFixed(6),
-                lng: assignedDriverAppUser.current_longitude.toFixed(6),
-                timestamp: assignedDriverAppUser.location_updated_at
-              });
               allCoordinates.push([assignedDriverAppUser.current_latitude, assignedDriverAppUser.current_longitude]);
               hasDriverMarkers = true;
               addedCount++;
@@ -2723,7 +2590,6 @@ function Dashboard() {
             // CRITICAL: Skip current user's shared marker if live location is available (prioritize GPS)
             const hasLiveLocation = driverLocation?.latitude && driverLocation?.longitude && location.driver_id === currentUser?.id;
             if (hasLiveLocation) {
-              console.log('🎯 [Phase 1] Using live GPS location instead of shared marker for current user');
               return;
             }
 
@@ -2735,7 +2601,6 @@ function Dashboard() {
             
             // CRITICAL: Skip if this is the assigned driver (already added above for dispatchers)
             if (isDispatcher && selectedDriverId && selectedDriverId !== 'all' && location.driver_id === selectedDriverId) {
-              console.log('⏭️ [Phase 1 - Dispatcher] Skipping duplicate - assigned driver already added from AppUser');
               return;
             }
 
@@ -2762,9 +2627,6 @@ function Dashboard() {
             addedCount++;
           });
           
-          console.log(`✅ [Phase 1 - Shared Markers] Added ${addedCount} shared driver locations to bounds`);
-        } else {
-          console.log(`🚫 [Phase 1 - Shared Markers] Skipped - isViewingToday: ${isViewingToday}, shouldIncludeSharedLocations: ${shouldIncludeSharedLocations}`);
         }
 
         // 3. HOME LOCATIONS: Use markers from DeliveryMap (already filtered and validated)
@@ -3035,7 +2897,6 @@ function Dashboard() {
             if (currentAppUser?.current_latitude && currentAppUser?.current_longitude) {
               driverLat = currentAppUser.current_latitude;
               driverLon = currentAppUser.current_longitude;
-              console.log(`📍 [Phase 2 - FAB] Using AppUser location: ${driverLat.toFixed(6)}, ${driverLon.toFixed(6)} (updated: ${currentAppUser.location_updated_at})`);
             }
             // Fallback: Use shared marker location
             else {
@@ -3179,8 +3040,6 @@ function Dashboard() {
           // CRITICAL: Get unique driver IDs from incomplete + pending deliveries
           const driversWithIncompleteOrPendingStops = new Set(incompleteAndPendingAllDrivers.map(d => d.driver_id).filter(Boolean));
           
-          console.log(`📍 [Phase 3 - Show All] ${incompleteAndPendingAllDrivers.length} incomplete+pending stops + ${driversWithIncompleteOrPendingStops.size} driver markers`);
-          
           // Add incomplete + pending stop coordinates
           incompleteAndPendingAllDrivers.forEach((delivery) => {
             if (delivery.patient_id) {
@@ -3225,8 +3084,6 @@ function Dashboard() {
             return true;
           });
           
-          console.log(`📍 [Phase 3 - Single Driver] ${incompleteAndPendingActiveDriver.length} incomplete+pending stops + driver marker`);
-          
           // Add incomplete + pending stop coordinates
           incompleteAndPendingActiveDriver.forEach((delivery) => {
             if (delivery.patient_id) {
@@ -3267,13 +3124,10 @@ function Dashboard() {
               const measuredHeight = stopCardsContainer.offsetHeight;
               if (measuredHeight > 0) {
                 bottomPadding = measuredHeight + 10;
-                console.log(`📏 [Phase 3 FAB Click] Cards visible - using measured height: ${measuredHeight}px`);
               }
             } else if (stopCardsBaseHeight > 0) {
               bottomPadding = stopCardsBaseHeight + 10;
             }
-          } else {
-            console.log(`📏 [Phase 3 FAB Click] No cards visible - using default padding: 25px`);
           }
           
           const padding = {
@@ -3298,8 +3152,6 @@ function Dashboard() {
           // CRITICAL: Consistent zoom calculation across all devices
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
           const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round(baseZoom * 10) / 10));
-          
-          console.log(`🗺️ [Phase 3 FAB Click] Zoom: ${phase3MaxZoom}, Padding: top=${topPadding}px, bottom=${bottomPadding}px`);
           
           setShouldFitBounds({
             bounds: allCoordinatesPhase3,
@@ -3328,7 +3180,6 @@ function Dashboard() {
     const stopCardsMeasured = hasDeliveries ? stopCardsBaseHeight > 0 : true;
 
     if (statsCardMeasured && stopCardsMeasured && !renderSequence.statsAndCards) {
-      console.log('✅ [Render Sequence 1] StatsCard & StopCards ready');
       setRenderSequence((prev) => ({ ...prev, statsAndCards: true }));
     }
   }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, stopCardsBaseHeight, renderSequence.statsAndCards]);
@@ -3340,7 +3191,6 @@ function Dashboard() {
 
     // CRITICAL: Wait for FABs to actually render before marking as ready
     const timer = setTimeout(() => {
-      console.log('✅ [Render Sequence 2] FABs ready');
       setRenderSequence((prev) => ({ ...prev, fabs: true }));
     }, 300); // Wait 300ms for FABs to mount and render
     
@@ -3361,7 +3211,6 @@ function Dashboard() {
     const hasRequiredData = hasDeliveries && hasPatients && hasStores || !hasDeliveries && hasStores;
 
     if (hasRequiredData) {
-      console.log(`✅ [Render Sequence 3] Map Markers ready (${deliveriesWithStopOrder.length} deliveries, ${patients.length} patients, ${stores.length} stores)`);
       setRenderSequence((prev) => ({ ...prev, mapMarkers: true }));
     }
   }, [renderSequence.fabs, renderSequence.mapMarkers, deliveriesWithStopOrder.length, patients.length, stores.length]);
@@ -3372,7 +3221,6 @@ function Dashboard() {
     if (renderSequence.routeLines) return;
 
     // Route lines are ready - they render after markers
-    console.log('✅ [Render Sequence 4] Route Lines ready');
     setRenderSequence((prev) => ({ ...prev, routeLines: true }));
   }, [renderSequence.mapMarkers, renderSequence.routeLines]);
 
@@ -3386,7 +3234,6 @@ function Dashboard() {
     const notDriverOrHasLocation = !isDriver || hasLocation;
 
     if (notDriverOrHasLocation) {
-      console.log('✅ [Render Sequence 5] Driver Live Location ready');
       setRenderSequence((prev) => ({ ...prev, driverLiveLocation: true }));
     }
   }, [renderSequence.routeLines, renderSequence.driverLiveLocation, driverLocation, isDriver]);
@@ -3403,14 +3250,12 @@ function Dashboard() {
     const hasSharedLocations = allDriverLocations.length > 0 || mapDriverMarkers.length > 0;
 
     if (hasSharedLocations) {
-      console.log(`✅ [Render Sequence 6] Shared Driver Locations ready (${allDriverLocations.length} from poller + ${mapDriverMarkers.length} from map)`);
       setRenderSequence((prev) => ({ ...prev, sharedLocations: true }));
       return;
     }
 
     // Reduce timeout to 500ms - markers should be available almost immediately
     const timer = setTimeout(() => {
-      console.log('⏱️ [Render Sequence 6] Timeout - proceeding without shared locations');
       setRenderSequence((prev) => ({ ...prev, sharedLocations: true }));
     }, 500);
 
@@ -3429,18 +3274,14 @@ function Dashboard() {
     const deliveriesToCheck = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
     const uniqueDrivers = new Set(deliveriesToCheck.map((d) => d?.driver_id).filter(Boolean));
 
-    console.log(`🔍 [Render Sequence 7] Checking: ${deliveriesToCheck.length} deliveries, ${uniqueDrivers.size} drivers for ${selectedDateStr}`);
-
     // CRITICAL: Mark ready when we have data (no artificial waiting)
     if (deliveriesToCheck.length > 0 && patients.length > 0 && stores.length > 0) {
-      console.log(`✅ [Render Sequence 7] Data ready - ${deliveriesToCheck.length} deliveries with patient/store data`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
       return;
     }
 
     // Timeout if no deliveries after 2 seconds
     const timer = setTimeout(() => {
-      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding (${deliveriesToCheck.length} deliveries)`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
     }, 2000);
 
@@ -3472,16 +3313,10 @@ function Dashboard() {
       return;
     }
 
-    console.log('✅ [Render Sequence 8] All rendered + cards measured - activating FAB');
-    console.log(`   deliveries: ${deliveries.length}, drivers: ${allDriverLocations.length}, stops: ${deliveriesWithStopOrder.length}`);
-
     // CRITICAL: Ensure we have ALL drivers' deliveries loaded when Show All is checked
     const shouldHaveAllDeliveries = selectedDriverId === 'all' || showAllDriverMarkers;
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     const deliveriesForDate = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
-
-    console.log(`   - shouldHaveAllDeliveries: ${shouldHaveAllDeliveries}`);
-    console.log(`   - deliveriesForDate count: ${deliveriesForDate.length}`);
 
     // CRITICAL: Notify fabControlEvents that initial data is ready
     // This allows other components to know when dashboard is fully loaded
@@ -3497,14 +3332,12 @@ function Dashboard() {
         setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
         if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
         mapLockExpiresAtRef.current = null; setMapViewTrigger((prev) => prev + 1);
-        console.log('🔵 [FAB Initial] No deliveries - Phase 1 locked');
         return;
       }
       const phaseToApply = savedFabPhaseRef.current;
 
       // For phase 2, require nextStop coordinates
       if (phaseToApply === 2 && !nextStopCoordinates) {
-        console.log('⚠️ [FAB Initial] Phase 2 requested but no next stop - using Phase 1');
         setMapViewPhase(1);
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
@@ -3519,7 +3352,6 @@ function Dashboard() {
             setIsMapViewLocked(false);
             mapLockExpiresAtRef.current = null;
             mapLockTimeoutRef.current = null;
-            console.log(`⏰ [FAB Initial] Phase 1 auto-unlocked after 3 seconds`);
           }
         }, lockDuration);
         return;
@@ -3527,7 +3359,6 @@ function Dashboard() {
 
       // For phase 3, require driver location (dispatchers can use phase 3 freely)
       if (phaseToApply === 3 && !isDriver && !isDispatcher) {
-        console.log('⚠️ [FAB Initial] Phase 3 requested but no driver location - using Phase 1');
         setMapViewPhase(1);
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
@@ -3542,7 +3373,6 @@ function Dashboard() {
             setIsMapViewLocked(false);
             mapLockExpiresAtRef.current = null;
             mapLockTimeoutRef.current = null;
-            console.log(`⏰ [FAB Initial] Phase 1 auto-unlocked after 3 seconds`);
           }
         }, lockDuration);
         return;
@@ -3551,13 +3381,11 @@ function Dashboard() {
       // CRITICAL: Check if we have a saved phase from previous session (higher priority)
       let finalPhase = phaseToApply;
       if (savedFabPhaseOnUnmount) {
-        console.log(`🗺️ [FAB Initial] Using saved phase ${savedFabPhaseOnUnmount} from previous session`);
         finalPhase = savedFabPhaseOnUnmount;
         sessionStorage.removeItem('rxdeliver_dashboard_fab_phase');
       }
 
       // Apply the phase
-      console.log(`🔵 [FAB Initial] Applying phase ${finalPhase}`);
       setMapViewPhase(finalPhase);
       setIsMapViewLocked(true);
       setInitialMapViewApplied(true);
@@ -3595,14 +3423,8 @@ function Dashboard() {
             setIsMapViewLocked(false);
             mapLockExpiresAtRef.current = null;
             mapLockTimeoutRef.current = null;
-            console.log(`⏰ [FAB Initial] Phase 1 auto-unlocked after ${lockDuration}ms`);
           }
         }, lockDuration);
-
-        console.log(`🔵 [FAB Initial] Phase 1 locked - will auto-unlock in ${lockDuration}ms`);
-      } else if (finalPhase === 2 || finalPhase === 3) {
-        // Phase 2 & 3 - NO timer, stay locked PERMANENTLY
-        console.log(`🔵 [FAB Initial] Phase ${finalPhase} locked PERMANENTLY - unlocks only on FAB click`);
       }
 
       // Scroll to card with isNextDelivery=true for all phases (helps user orient)
@@ -3613,7 +3435,6 @@ function Dashboard() {
           const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log(`📍 [FAB Initial] Scrolled to next delivery card for Phase ${phaseToApply}`);
           }
         }
       }, 500);
@@ -3678,14 +3499,12 @@ function Dashboard() {
     const remaining = twoMinutes - elapsed;
 
     if (remaining <= 0) {
-      console.log('⏰ [Auto-Collapse] Card has been expanded for 2+ minutes - collapsing');
       setSelectedCardId(null);
       cardExpandedAtRef.current = null;
       return;
     }
 
     const timer = setTimeout(() => {
-      console.log('⏰ [Auto-Collapse] 2 minutes elapsed - collapsing card');
       setSelectedCardId(null);
       cardExpandedAtRef.current = null;
     }, remaining);
@@ -3705,7 +3524,6 @@ function Dashboard() {
             const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
             if (cardElement) {
               cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              console.log('📍 [Smart Refresh - Dispatcher] Auto-centered to next delivery card');
             }
           }
         }, 300);
@@ -3738,7 +3556,6 @@ function Dashboard() {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('📍 [Smart Refresh Complete] Auto-centered to next delivery card');
           }
         }
       }, 300);
@@ -3920,11 +3737,9 @@ function Dashboard() {
     if (driversWithDeliveries.size === 1) {
       // Only 1 driver with stops - select that driver
       newDriverSelection = Array.from(driversWithDeliveries)[0];
-      console.log(`📊 [Dispatcher Auto-Select] 1 driver with stops - selecting ${newDriverSelection}`);
     } else {
       // 0 or multiple drivers - select "All Drivers"
       newDriverSelection = 'all';
-      console.log(`📊 [Dispatcher Auto-Select] ${driversWithDeliveries.size} drivers with stops - selecting All Drivers`);
     }
     
     // Only update if selection should change
@@ -3941,21 +3756,17 @@ function Dashboard() {
   useEffect(() => {
     // Reset flag when driver/date changes
     setCardsReadyForFAB(false);
-    console.log('🔄 [FAB Position] Reset - waiting for cards to be measured...');
   }, [selectedDriverId, selectedDate]);
 
   // CRITICAL: Enable FAB repositioning once stop cards are measured
   useEffect(() => {
     if (stopCardsBaseHeight > 0 && !cardsReadyForFAB) {
-      console.log(`📏 [FAB Position] Cards measured (${stopCardsBaseHeight}px) - moving FABs`);
       setCardsReadyForFAB(true);
     } else if (deliveriesWithStopOrder.length === 0 && !cardsReadyForFAB) {
       // No cards to render - enable immediately
-      console.log('📏 [FAB Position] No cards to render - FABs stay at bottom');
       setCardsReadyForFAB(true);
     } else if (isAllDriversMode && !isDispatcher && !cardsReadyForFAB) {
       // All Drivers mode (non-dispatcher) - cards are hidden, FABs stay at bottom
-      console.log('📏 [FAB Position] All Drivers mode (non-dispatcher) - no cards rendered, FABs stay at bottom');
       setCardsReadyForFAB(true);
     }
   }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB, isAllDriversMode, isDispatcher]);
@@ -3988,7 +3799,6 @@ function Dashboard() {
 
       if (dataSource === 'online') {
         // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
-        console.log(`🌐 [Date Change - ONLINE MODE] Fetching ALL drivers for ${dateStr}`);
         priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
         // Update offline DB in background (don't wait)
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
@@ -3997,11 +3807,8 @@ function Dashboard() {
         priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
         if (!priorityDeliveries || priorityDeliveries.length === 0) {
-          console.log('📥 [Date Change] Offline DB empty - fetching ALL from API');
           priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
-        } else {
-          console.log(`📦 [Date Change] Using ${priorityDeliveries.length} deliveries from offline DB`);
         }
       }
 
@@ -4019,11 +3826,9 @@ function Dashboard() {
             smartRefreshManager.registerPendingUpdate(d.id, d.driver_id, dateStr);
           }
         });
-        console.log(`🔒 [Date Change] Protected ${priorityDeliveries.length} deliveries from smart refresh`);
       }
 
       // STEP 4: CRITICAL - Load fresh appUsers and process through poller
-      console.log('📍 [Date Change] Loading fresh appUsers and processing locations...');
       let freshAppUsers = appUsers;
       
       // Try to load from offline DB first, fallback to current appUsers if empty
@@ -4031,9 +3836,6 @@ function Dashboard() {
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
         if (offlineAppUsers && offlineAppUsers.length > 0) {
           freshAppUsers = offlineAppUsers;
-          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from offline DB`);
-        } else {
-          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from context (offline DB empty)`);
         }
       } catch (dbError) {
         console.warn('⚠️ [Date Change] Failed to load appUsers from offline DB, using context:', dbError.message);
@@ -4059,7 +3861,6 @@ function Dashboard() {
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
           detail: { appUsers: appUsersToProcess, forceAll: true }
         }));
-        console.log(`✅ [Date Change] Driver locations processed (${appUsersToProcess.length} users from ${freshAppUsers && freshAppUsers.length > 0 ? 'offline DB' : 'context'})`);
       } else {
         console.warn('⚠️ [Date Change] No appUsers available from offline DB or context - skipping location processing');
       }
@@ -4096,7 +3897,6 @@ function Dashboard() {
             const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
             if (cardElement) {
               cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              console.log('📍 [Date Change] Auto-centered to next delivery card');
             }
           }
         }, 300);
@@ -4109,7 +3909,6 @@ function Dashboard() {
             mapLockTimeoutRef.current = null;
           }
           mapLockExpiresAtRef.current = null;
-          console.log(`🔵 [Date Change] Phase ${mapViewPhase} - NO TIMER - stays locked until FAB click`);
         } else if (mapViewPhase === 1) {
           // Phase 1 - Set 500ms unlock timer (auto-activation from date change)
           const lockDuration = 500;
@@ -4141,7 +3940,6 @@ function Dashboard() {
   const handleDriverChange = async (driverId) => {
     // CRITICAL: Prevent overlapping driver changes
     if (driverChangeInProgressRef.current) {
-      console.log('⚠️ [Driver Change] Already in progress - ignoring duplicate call');
       return;
     }
 
@@ -4158,7 +3956,6 @@ function Dashboard() {
 
       // CRITICAL: Uncheck "Show All" when switching to "All Drivers" mode to prevent duplicate markers
       if (driverId === 'all' && showAllDriverMarkers) {
-        console.log('📍 [Driver Change] Switching to All Drivers - unchecking Show All to prevent duplicate markers');
         setShowAllDriverMarkers(false);
         if (currentUser?.id) {
           saveSetting(currentUser.id, 'show_all_driver_markers', false);
@@ -4177,7 +3974,6 @@ function Dashboard() {
 
       if (dataSource === 'online') {
         // ONLINE MODE: Always fetch ALL deliveries for the date; UI filters by driver
-        console.log(`🌐 [Driver Change - ONLINE MODE] Fetching ALL drivers for ${dateStr}`);
         freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
         // Update offline DB in background
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
@@ -4186,11 +3982,8 @@ function Dashboard() {
         freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
         if (!freshDeliveries || freshDeliveries.length === 0) {
-          console.log(`📥 [Driver Change] Offline DB empty - fetching ALL from API`);
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        } else {
-          console.log(`📦 [Driver Change] Using ${freshDeliveries.length} deliveries from offline DB`);
         }
       }
 
@@ -4242,7 +4035,6 @@ function Dashboard() {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('📍 [Driver Change] Auto-centered to next delivery card');
           }
         }
       }, 300);
@@ -4373,7 +4165,6 @@ function Dashboard() {
           setTimeout(() => {
             const container = stopCardsContainerRef.current;
             const actualHeight = container?.offsetHeight || stopCardsBaseHeight || 0;
-            console.log(`🗺️ [Card Expand] Measured expanded height: ${actualHeight}px (base: ${stopCardsBaseHeight}px)`);
             
             const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
             const topPadding = statsCardCurrHeight + 25;
@@ -4462,7 +4253,6 @@ function Dashboard() {
         const cardElement = document.getElementById(`stop-card-${delivery.id}`);
         if (cardElement) {
           cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          console.log('📍 [Card Click] Auto-centered to expanded card');
         }
       }, 300);
     }
@@ -4687,7 +4477,6 @@ function Dashboard() {
               );
               
               if (!existingPickup) {
-                console.log(`📦 [Special Store] Creating on-demand pickup for ${deliveryStore.name} (${deliveryAmpm})`);
                 
                 // Determine pickup time based on AM/PM
                 const pickupTime = deliveryAmpm === 'AM' ? 
@@ -4732,8 +4521,6 @@ function Dashboard() {
             });
 
           }
-
-          console.log('📝 [AddToRoute] Saving pending deliveries - optimization will run when stops are started');
 
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew) continue;
@@ -5042,8 +4829,6 @@ function Dashboard() {
           // NOTE: Route optimizer is NOT run here - deliveries are saved as 'pending'.
           // Optimization runs when stops are transitioned to 'in_transit' status.
 
-          console.log('[AddToRoute] ✅ Deliveries created - skipping post-save operations (handled by background sync)');
-
         }
 
         invalidate('Delivery');
@@ -5060,8 +4845,6 @@ function Dashboard() {
         // CRITICAL: After batch save, check if we should optimize the route
         // Optimization runs once all transitioning stops are in_transit/en_route
         try {
-          console.log('🔍 [AddToRoute] Checking if route optimization should run...');
-
           // Get the driver from the first staged delivery
           const batchDriverId = stagedDeliveries[0]?.driver_id;
           if (batchDriverId) {
@@ -5083,8 +4866,6 @@ function Dashboard() {
             );
 
             if (allActive && hasIncompleteStops) {
-              console.log('✅ [AddToRoute] All stops transitioned to active - optimizing route...');
-
               const now = new Date();
               const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -5096,13 +4877,9 @@ function Dashboard() {
                 generatePolyline: true
               });
 
-              console.log('✅ [AddToRoute] Route optimization complete');
-
               // Refresh to show optimized stop orders and ETAs
               invalidateDeliveriesForDate(batchDeliveryDate);
               await refreshData();
-            } else {
-              console.log('⏭️ [AddToRoute] Not all stops active yet - skipping optimization');
             }
           }
         } catch (optimizeError) {
@@ -5667,10 +5444,8 @@ function Dashboard() {
       throw error;
     } finally {
       // Resume smart refresh and offline sync only
-      console.log('⏳ [SAVE] Waiting 1s before resuming...');
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      console.log('▶️ [SAVE] Resuming smart refresh and offline sync');
       resumeOfflineSync();
       smartRefreshManager.resume();
       
@@ -5684,7 +5459,6 @@ function Dashboard() {
       setOptimizationMessage('Re-optimizing route...');
 
       // CRITICAL: Pause smart refresh manager BEFORE optimization
-      console.log('⏸️ [FAB Reoptimize] Pausing smart refresh, offline sync, and mutations');
       setIsEntityUpdating(true);
       pauseOfflineMutations();
       pauseOfflineSync();
@@ -5733,7 +5507,6 @@ function Dashboard() {
       setTimeout(() => setOptimizationMessage(null), 5000);
     } finally {
       // CRITICAL: Resume smart refresh, offline sync, and mutations AFTER optimization
-      console.log('▶️ [FAB Reoptimize] Resuming smart refresh, offline sync, and mutations');
       resumeOfflineMutations();
       resumeOfflineSync();
       setIsEntityUpdating(false);
@@ -5864,7 +5637,6 @@ function Dashboard() {
 
   const handleSavePatient = async (patientData, shouldReturnPatient = false) => {
     // Pause ALL update systems
-    console.log('⏸️ [PATIENT SAVE] Pausing ALL update systems...');
     setIsEntityUpdating(true);
     pauseOfflineMutations();
     pauseOfflineSync();
@@ -5878,7 +5650,6 @@ function Dashboard() {
       // CRITICAL: Check if PatientForm already created the patient (patientData.id exists)
       if (patientData.id) {
         // Patient was already created in PatientForm - just use that data
-        console.log('✅ [Dashboard] Patient already created in PatientForm:', patientData.id);
         savedPatient = patientData;
       } else if (editingPatient && editingPatient.id) {
         // Updating existing patient
@@ -5892,7 +5663,6 @@ function Dashboard() {
       // CRITICAL: Ensure patient is in offline DB
       if (savedPatient.id) {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [savedPatient]);
-        console.log('✅ [Dashboard] Patient synced to offline DB');
       }
 
       invalidate('Patient');
@@ -5902,12 +5672,6 @@ function Dashboard() {
 
       // CRITICAL: Always call callback if it exists, regardless of edit mode
       if (patientFormCallback && savedPatient) {
-        console.log('📤 [Dashboard] Returning complete patient with location to DeliveryForm:', {
-          id: savedPatient.id,
-          latitude: savedPatient.latitude,
-          longitude: savedPatient.longitude,
-          distance_from_store: savedPatient.distance_from_store
-        });
         patientFormCallback(savedPatient);
       }
 
@@ -5919,10 +5683,8 @@ function Dashboard() {
       throw error;
     } finally {
       // Resume all systems
-      console.log('⏳ [PATIENT SAVE] Waiting 1s before resuming...');
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      console.log('▶️ [PATIENT SAVE] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
       smartRefreshManager.resume();
@@ -5932,19 +5694,14 @@ function Dashboard() {
   };
 
   const triggerPostDeleteOperations = async (driverId, deliveryDate) => {
-    console.log('⚙️ [DELETE] Starting background post-delete operations...');
     try {
       setIsEntityUpdating(true);
       pauseOfflineSync();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Recalculate stop orders for remaining deliveries
-      console.log('🔄 [DELETE] Recalculating stop orders...');
       await recalculateStopOrders(driverId, deliveryDate);
-      console.log('  ✅ Stop orders recalculated');
-
       // Re-optimize route and update ETAs
-      console.log('📡 [DELETE] Re-optimizing route and updating ETAs...');
       try {
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -5956,34 +5713,27 @@ function Dashboard() {
           deviceTime: now.toISOString(),
           generatePolyline: true
         });
-        console.log('  ✅ Route optimized');
 
         await base44.functions.invoke('calculateRealTimeETA', {
           driverId: driverId,
           deliveryDate: deliveryDate,
           currentLocalTime: localTimeString
         });
-        console.log('  ✅ ETAs updated');
 
       } catch (optimizeError) {
         console.warn('  ⚠️ Route optimization/ETA update failed:', optimizeError.message);
       }
 
       // Refresh data and update map
-      console.log('🔄 [DELETE] Refreshing data and updating map...');
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' }
       }));
-      console.log('  ✅ Data refreshed and map updated');
-      console.log('✅ [DELETE] Background operations complete');
-
     } catch (error) {
       console.error('❌ [DELETE] Background operations failed:', error);
     } finally {
-      console.log('▶️ [DELETE] Resuming smart refresh and offline sync');
       resumeOfflineSync();
       setIsEntityUpdating(false);
     }
@@ -6009,13 +5759,10 @@ function Dashboard() {
         );
         
         if (pendingDeliveriesForPickup.length > 0) {
-          console.log(`🗑️ [Delete Pickup] Found ${pendingDeliveriesForPickup.length} pending deliveries - deleting cascade`);
-          
           // Delete all pending deliveries first
           const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
           for (const pendingDelivery of pendingDeliveriesForPickup) {
             await deleteDeliveryLocal(pendingDelivery.id);
-            console.log(`  ✅ Deleted pending delivery: ${pendingDelivery.patient_name}`);
           }
         }
       }
@@ -6023,24 +5770,20 @@ function Dashboard() {
       // CRITICAL: Delete Square COD item if delivery has COD and is in_transit
       if (targetDelivery.status === 'in_transit' && targetDelivery.cod_total_amount_required > 0 && targetDelivery.patient_id) {
         try {
-          console.log('💳 [Delete] Deleting Square COD item for:', deliveryId);
           await base44.functions.invoke('squareDeleteCodItem', {
             deliveryId: deliveryId,
             reason: 'delivery_deleted'
           });
-          console.log('✅ [Delete] Square COD item deleted');
         } catch (squareError) {
           console.error('⚠️ [Delete] Failed to delete Square COD item:', squareError);
         }
       }
 
       // CRITICAL: Use deleteDeliveryLocal which handles UI update, offline DB, and backend sync
-      console.log('🗑️ [DELETE] Using deleteDeliveryLocal for complete deletion...');
       const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
 
       // Initiate deletion (returns promise)
       const deletionPromise = deleteDeliveryLocal(deliveryId);
-      console.log('  ✅ Delivery deletion initiated (UI will update immediately via mutations)');
 
       // Clear selection immediately - this closes the dialog
       if (selectedCardId === deliveryId) {
@@ -6067,7 +5810,6 @@ function Dashboard() {
   const handleRestartDelivery = async (deliveryId) => {
     try {
       // Pause ALL update systems
-      console.log('⏸️ [RESTART] Pausing ALL update systems...');
       setIsEntityUpdating(true);
       pauseOfflineMutations();
       pauseOfflineSync();
@@ -6113,7 +5855,6 @@ function Dashboard() {
       await recalculateStopOrders(driverId, deliveryDate);
 
       // Fetch fresh data and save to offline DB
-      console.log('🔄 [RESTART] Fetching fresh data...');
       invalidate('Delivery');
       const freshDeliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
@@ -6136,10 +5877,8 @@ function Dashboard() {
       alert('Failed to restart delivery. Please try again.');
     } finally {
       // Resume all systems
-      console.log('⏳ [RESTART] Waiting 1s before resuming...');
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      console.log('▶️ [RESTART] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
       smartRefreshManager.resume();
@@ -6149,19 +5888,11 @@ function Dashboard() {
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🚀 [STATUS] Starting status update');
-    console.log('   Delivery ID:', deliveryId);
-    console.log('   New Status:', newStatus);
-    console.log('   Extra Data:', extraData);
-    console.log('═══════════════════════════════════════════════════');
-
     // CRITICAL: Declare these outside try block so they're accessible in finally
     let driverId = null;
     let deliveryDate = null;
 
     // STEP 0: Pause smart refresh and offline sync only (NOT mutations - we bypass them)
-    console.log('⏸️ [STATUS] Pausing smart refresh and offline sync...');
     setIsEntityUpdating(true);
     pauseOfflineSync();
     smartRefreshManager.pause();
@@ -6174,7 +5905,6 @@ function Dashboard() {
 
     // CRITICAL: Unlock FAB if in Phase 2 (will be re-locked after status update)
     if (wasPhase2Locked) {
-      console.log('🔓 [STATUS] Phase 2 detected - unlocking FAB temporarily');
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
         mapLockTimeoutRef.current = null;
@@ -6195,8 +5925,6 @@ function Dashboard() {
         throw new Error('Delivery not found');
       }
       
-      console.log('✅ [STATUS] Found target delivery:', targetDelivery.patient_name || 'Pickup');
-
       // CRITICAL: Assign to outer scope variables
       driverId = targetDelivery.driver_id;
       deliveryDate = targetDelivery.delivery_date;
@@ -6268,7 +5996,6 @@ function Dashboard() {
                                targetDelivery.cod_payments.some(p => p?.amount > 0);
         
         if (!hasCODPayments) {
-          console.log(`💰 [COD Auto-fill] Setting Cash collection for $${targetDelivery.cod_total_amount_required}`);
           updateData.cod_payments = [
             {
               type: 'Cash',
@@ -6301,7 +6028,6 @@ function Dashboard() {
 
         if (completedStops.length === 0) {
           updateData.travel_dist = 0;
-          console.log('📏 [Travel Dist] First completed stop - travel_dist = 0 km');
         } else {
           const lastStop = completedStops[completedStops.length - 1];
           let lastLat, lastLon, currentLat, currentLon;
@@ -6329,7 +6055,6 @@ function Dashboard() {
           if (lastLat && lastLon && currentLat && currentLon) {
             const distance = calculateDistance(lastLat, lastLon, currentLat, currentLon);
             updateData.travel_dist = Math.round(distance * 100) / 100;
-            console.log(`📏 [Travel Dist] ${updateData.travel_dist} km`);
           } else {
             updateData.travel_dist = 0;
           }
@@ -6350,9 +6075,6 @@ function Dashboard() {
 
         if (isFirstStop || isLastStop) {
           currentTimeISO = roundCompletionTime(currentTimeISO);
-          console.log(`⏱️ [TIME ROUNDING] Applied to ${isFirstStop ? 'FIRST' : 'LAST'} stop`);
-        } else {
-          console.log(`⏱️ [TIME ROUNDING] Skipped - middle stop (${completedStopsCount} completed, ${incompleteStopsCount} remaining)`);
         }
 
         updateData.actual_delivery_time = currentTimeISO;
@@ -6393,17 +6115,10 @@ function Dashboard() {
         }
       }
 
-      console.log('📤 [STATUS] Calling updateDeliveryLocal with:', updateData);
       
       // STEP 2: Update delivery status DIRECTLY to database (bypass offline mutations)
       try {
-        console.log('💾 [STATUS] Updating database directly...');
-        console.log('📤 [STATUS] Update payload:', JSON.stringify(updateData, null, 2));
-        console.log('📍 [STATUS] Delivery ID:', deliveryId);
-        
         await base44.entities.Delivery.update(deliveryId, updateData);
-        console.log('✅ [STATUS] Database updated - WebSocket should broadcast now');
-        
         // CRITICAL: Trigger explicit delivery broadcast for real-time listeners
         window.dispatchEvent(new CustomEvent('deliveryUpdated', {
           detail: { 
@@ -6414,13 +6129,11 @@ function Dashboard() {
             source: 'statusUpdate'
           }
         }));
-        console.log('📡 [STATUS] Broadcast deliveryUpdated event for real-time sync');
         
         // Update offline DB using bulkSave (save method may not exist)
         const freshDelivery = await base44.entities.Delivery.filter({ id: deliveryId });
         if (freshDelivery && freshDelivery.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery[0]]);
-          console.log('✅ [STATUS] Offline DB updated');
         }
         
       } catch (updateError) {
@@ -6434,20 +6147,17 @@ function Dashboard() {
       }
       
       // STEP 3: Update UI state directly (no offline DB refresh to avoid timing issues)
-      console.log('🖥️ [STATUS] Updating UI state directly...');
       if (updateDeliveriesLocally) {
         // CRITICAL: Just update the single delivery that changed, don't wipe and replace all deliveries
         const updatedDelivery = deliveries.find(d => d?.id === deliveryId);
         if (updatedDelivery) {
           updateDeliveriesLocally([{ ...updatedDelivery, ...updateData }], false);
-          console.log('✅ [STATUS] UI state updated');
         } else {
           console.warn('⚠️ [STATUS] Delivery not found in deliveries array for UI update');
         }
       } else {
         console.warn('⚠️ [STATUS] updateDeliveriesLocally is not available');
       }
-      console.log('✅ [STATUS] UI state updated directly');
 
       // STEP 4: Update patient's last_delivery_date (background, non-blocking)
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
@@ -6495,8 +6205,6 @@ function Dashboard() {
               location_updated_at: nowISO
             });
 
-            console.log(`✅ [Status Update] Updated driver location to stop coordinates: ${stopLat.toFixed(6)}, ${stopLon.toFixed(6)}`);
-
             // Update offline DB
             const updatedAppUser = await base44.entities.AppUser.filter({ id: appUser.id });
             if (updatedAppUser && updatedAppUser.length > 0) {
@@ -6509,7 +6217,6 @@ function Dashboard() {
             }));
 
             // CRITICAL: Reset smart refresh and location poller timers to prevent immediate duplicate update
-            console.log('⏱️ [Status Update] Resetting smart refresh and location poller timers...');
             smartRefreshManager.resetTimers();
             driverLocationPoller.resetTimers();
           } catch (error) {
@@ -6564,8 +6271,6 @@ function Dashboard() {
       
       // CRITICAL: If this was the last stop, always flash Phase 1 for 500ms
       if (wasLastStop || wasLastDispatcherStop) {
-        console.log(`🎯 [Last Stop Complete] Switching from Phase ${currentPhase} to Phase 1 for 500ms`);
-        
         // Clear any existing timers
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
@@ -6595,7 +6300,6 @@ function Dashboard() {
             setIsMapViewLocked(false);
             mapLockExpiresAtRef.current = null;
             mapLockTimeoutRef.current = null;
-            console.log('⏰ [Last Stop Complete] Phase 1 auto-unlocked after 500ms');
           }
         }, lockDuration);
       }
@@ -6604,7 +6308,6 @@ function Dashboard() {
       if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id && driverId === currentUser?.id) {
         const summaryKey = `${driverId}_${deliveryDate}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
-          console.log('🎉 [STATUS] Route complete - preparing end of day sequence');
           hasShownSummaryRef.current.add(summaryKey);
           
           // STEP 1: Collapse all expanded cards immediately
@@ -6623,12 +6326,10 @@ function Dashboard() {
 
           // STEP 3: Stop location tracking
           if (locationTracker.isTracking) {
-            console.log('📍 [Route Complete] Stopping location tracker');
             locationTracker.stopTracking();
           }
 
           // STEP 4: Set driver status to off_duty and disable location tracking
-          console.log('📴 [Route Complete] Setting driver to off_duty and disabling location tracking');
           base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsersList) => {
             const appUser = appUsersList?.[0];
             if (appUser) {
@@ -6638,7 +6339,6 @@ function Dashboard() {
               });
             }
           }).then(() => {
-            console.log('✅ [Route Complete] Driver status updated to off_duty');
             // Refresh user to update UI
             if (refreshUser) {
               refreshUser();
@@ -6650,7 +6350,6 @@ function Dashboard() {
             const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
             setEndOfDayDriver(completedDriver);
             setShowEndOfDayStats(true);
-            console.log('🎉 [Route Complete] Showing end of day stats dialog');
           }, 800);
           
           // STEP 6: Unlock map after brief lock
@@ -6661,7 +6360,6 @@ function Dashboard() {
             if (horizontalStopCardsRef.current) {
               const newHeight = horizontalStopCardsRef.current.offsetHeight;
               if (newHeight > 0 && newHeight !== stopCardsBaseHeight) {
-                console.log(`📏 [Route Complete] Re-measured stop cards height: ${newHeight}px (was ${stopCardsBaseHeight}px)`);
                 setStopCardsBaseHeight(newHeight);
               }
             }
@@ -6677,7 +6375,6 @@ function Dashboard() {
             const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
             if (cardElement) {
               cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              console.log('📍 [STATUS] Auto-centered to next delivery card');
             }
           }
         }, 500);
@@ -6700,8 +6397,6 @@ function Dashboard() {
       }));
 
       // ========== BACKGROUND TASKS (NON-BLOCKING) ==========
-      console.log('🔄 [STATUS] Starting background sync tasks...');
-
       // Background: Update patient last_delivery_date
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
         base44.entities.Patient.update(targetDelivery.patient_id, {
@@ -6735,27 +6430,21 @@ function Dashboard() {
       }
 
       // STEP 9: Fetch fresh data and save to offline DB BEFORE any background tasks
-      console.log('🔄 [STATUS] Fetching fresh data...');
       const freshDeliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
       });
       
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-      console.log('   ✅ Saved fresh deliveries to offline DB');
-
       // Protect deliveries from smart refresh overwrite
       freshDeliveries.forEach(d => {
         if (d?.id) {
           smartRefreshManager.registerPendingUpdate(d.id, driverId, deliveryDate);
         }
       });
-      console.log('   ✅ Protected deliveries from smart refresh');
 
       // STEP 10: Background tasks (non-blocking, run after UI updates)
       if (driverId && deliveryDate) {
-        console.log('🔄 [STATUS] Starting background tasks...');
-        
         // Background: Recalculate stop orders (don't await)
         recalculateStopOrders(driverId, deliveryDate).catch((error) =>
           console.warn('⚠️ Stop order recalc failed:', error)
@@ -6774,8 +6463,6 @@ function Dashboard() {
         }
         
         // Payroll stats fetch disabled on Dashboard to avoid rate limits; handled only on DriverPayroll page.
-
-        console.log('✅ [STATUS] Background tasks started');
       }
 
     } catch (error) {
@@ -6796,14 +6483,12 @@ function Dashboard() {
       throw error;
     } finally {
       // CRITICAL: Resume immediately after database update
-      console.log('▶️ [STATUS] Resuming update systems');
       resumeOfflineSync();
       smartRefreshManager.resume();
       setIsEntityUpdating(false);
       
       // CRITICAL: Re-enable theme transitions
       document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
-      console.log('✅ [STATUS] Status update complete - all systems resumed');
     }
   };
 
@@ -6822,14 +6507,7 @@ function Dashboard() {
   };
 
   const handleCODUpdate = async (deliveryId, codPayments, skipAutoCenter = false) => {
-    console.log('═══════════════════════════════════════════════════');
-    console.log('💳 [COD Update] Starting');
-    console.log('   Delivery ID:', deliveryId);
-    console.log('   Payments:', codPayments);
-    console.log('═══════════════════════════════════════════════════');
-    
     // CRITICAL: Pause smart refresh to prevent overwrite
-    console.log('⏸️ [COD] Pausing smart refresh...');
     setIsEntityUpdating(true);
     await new Promise((resolve) => setTimeout(resolve, 100));
     
@@ -6840,32 +6518,22 @@ function Dashboard() {
         throw new Error('Delivery not found');
       }
       
-      console.log('✅ [COD] Found delivery:', delivery.patient_name || 'Pickup');
-      
       // CRITICAL: Only update cod_payments array - don't touch cod_total_amount_required
       const updateData = {
         cod_payments: codPayments
       };
       
-      console.log('📤 [COD] Update payload:', JSON.stringify(updateData, null, 2));
-      
       // CRITICAL: Use offline-first mutation system
-      console.log('💾 [COD] Updating via offline mutation system...');
       await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
-      console.log('✅ [COD] Offline mutation complete');
       
       // CRITICAL: Update UI state immediately with the changes
       if (updateDeliveriesLocally) {
         const updatedDelivery = { ...delivery, ...updateData };
         updateDeliveriesLocally([updatedDelivery], false);
-        console.log('✅ [COD] UI state updated');
       }
       
       // Protect from smart refresh overwrite
       smartRefreshManager.registerPendingUpdate(deliveryId, delivery.driver_id, delivery.delivery_date);
-      console.log('✅ [COD] Protected from smart refresh');
-      
-      console.log('✅ [COD Update] Complete');
       
     } catch (error) {
       console.error('═══════════════════════════════════════════════════');
@@ -6878,9 +6546,7 @@ function Dashboard() {
       throw error;
     } finally {
       // Resume smart refresh after 2 seconds
-      console.log('⏳ [COD] Waiting 2s before resuming...');
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      console.log('▶️ [COD] Resuming smart refresh');
       setIsEntityUpdating(false);
     }
   };
@@ -6888,7 +6554,6 @@ function Dashboard() {
   const handleCreateReturn = async ({ originalDelivery, returnPatient, store }) => {
     try {
       // Pause smart refresh and offline sync (NOT mutations - we need to create a delivery)
-      console.log('⏸️ [RETURN] Pausing update systems...');
       setIsEntityUpdating(true);
       pauseOfflineSync();
       smartRefreshManager.pause();
@@ -6965,7 +6630,6 @@ function Dashboard() {
       }
 
       // Fetch fresh data and save to offline DB
-      console.log('🔄 [RETURN] Fetching fresh data...');
       invalidateDeliveriesForDate(originalDelivery.delivery_date);
       invalidateDeliveriesForDate(currentDate);
       invalidate('Delivery');
@@ -6991,10 +6655,8 @@ function Dashboard() {
       throw error;
     } finally {
       // Resume all systems
-      console.log('⏳ [RETURN] Waiting 1s before resuming...');
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      console.log('▶️ [RETURN] Resuming update systems');
       resumeOfflineSync();
       smartRefreshManager.resume();
       
@@ -7003,12 +6665,7 @@ function Dashboard() {
   };
 
   const handleStartDelivery = async (deliveryId) => {
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🚀 [START] ========== STARTING DELIVERY ==========');
-    console.log('═══════════════════════════════════════════════════');
-
     // STEP 0: Pause ALL updates - smart refresh, mutations, offline sync
-    console.log('⏸️ [START] Step 0: Pausing ALL update systems...');
     setIsEntityUpdating(true);
     pauseOfflineMutations();
     pauseOfflineSync();
@@ -7032,11 +6689,7 @@ function Dashboard() {
       const isPickup = !deliveryFromUI.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
 
-      console.log(`📦 [START] Delivery: ${deliveryFromUI.patient_name || 'Pickup'} (${deliveryId})`);
-      console.log(`   Driver: ${driverId}, Date: ${deliveryDate}, New Status: ${newStatus}`);
-
       // STEP 1: Clear ALL isNextDelivery flags for this driver/date
-      console.log('🔄 [START] Step 1: Clearing all isNextDelivery flags...');
       const allDriverDeliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
@@ -7048,12 +6701,9 @@ function Dashboard() {
 
       if (resetPromises.length > 0) {
         await Promise.all(resetPromises);
-        console.log(`   ✅ Cleared ${resetPromises.length} isNextDelivery flags`);
       }
 
       // STEP 2: Set isNextDelivery=true on the selected delivery and update status
-      console.log('🎯 [START] Step 2: Setting isNextDelivery=true on selected delivery...');
-
       // CRITICAL: Calculate stop_order FIRST - this delivery becomes the next after completed stops
       const finishedStatusesStep2 = ['completed', 'failed', 'cancelled', 'returned'];
       const completedStopsStep2 = allDriverDeliveries.filter((d) => finishedStatusesStep2.includes(d.status));
@@ -7065,11 +6715,7 @@ function Dashboard() {
         stop_order: nextStopOrderStep2
       };
       
-      console.log('📤 [START] Update payload:', JSON.stringify(startUpdatePayload, null, 2));
-      
       await base44.entities.Delivery.update(deliveryId, startUpdatePayload);
-      console.log(`   ✅ isNextDelivery flag set, status updated, and stop_order set to ${nextStopOrderStep2}`);
-      
       // CRITICAL: Trigger explicit broadcast for real-time listeners on other devices
       window.dispatchEvent(new CustomEvent('deliveryUpdated', {
         detail: { 
@@ -7080,10 +6726,8 @@ function Dashboard() {
           source: 'startDelivery'
         }
       }));
-      console.log('📡 [START] Broadcast deliveryUpdated event for real-time sync');
 
       // STEP 3: Re-fetch deliveries to ensure we have the latest data with updated isNextDelivery flag
-      console.log('📊 [START] Step 3: Re-fetching deliveries to verify isNextDelivery persisted...');
       const refreshedDeliveriesAfterFlag = await base44.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
@@ -7094,8 +6738,6 @@ function Dashboard() {
       if (!verifyNext?.isNextDelivery) {
         console.error('❌ [START] isNextDelivery flag was lost! Re-applying...');
         await base44.entities.Delivery.update(deliveryId, { isNextDelivery: true });
-      } else {
-        console.log(`   ✅ Verified isNextDelivery=true on ${deliveryId}`);
       }
 
       // Recalculate stop orders for all incomplete stops
@@ -7119,10 +6761,8 @@ function Dashboard() {
           stop_order: startOrder + i
         });
       }
-      console.log(`   ✅ Updated stop_order for ${sortedIncomplete.length} incomplete stops`);
 
       // STEP 4: Optimize remaining stops AFTER starting this delivery
-      console.log('🔄 [START] Step 4: Optimizing remaining stops...');
       try {
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -7133,13 +6773,11 @@ function Dashboard() {
           currentLocalTime: localTimeString,
           deviceTime: now.toISOString()
         });
-        console.log('   ✅ Remaining stops optimized');
       } catch (optimizeError) {
         console.warn('   ⚠️ Route optimization failed:', optimizeError.message);
       }
 
       // STEP 5: Update UI immediately after optimization
-      console.log('🖥️ [START] Step 5: Updating UI immediately...');
       invalidateDeliveriesForDate(deliveryDate);
       const refreshedDeliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
@@ -7149,9 +6787,6 @@ function Dashboard() {
       // CRITICAL: Find which delivery is NOW marked as next (should be the one we just started)
       const newNextDelivery = refreshedDeliveries.find((d) => d.isNextDelivery === true);
       newNextDeliveryId = newNextDelivery?.id || deliveryId; // Use the refreshed next delivery ID
-
-      console.log(`   🎯 Original clicked ID: ${originalClickedId}`);
-      console.log(`   ✨ NEW next delivery ID: ${newNextDeliveryId}`);
 
       // Update context immediately
       if (updateDeliveriesLocally) {
@@ -7164,11 +6799,8 @@ function Dashboard() {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId, deliveryDate, triggeredBy: 'startDelivery' }
       }));
-      console.log(`   ✅ UI updated - new next delivery is: ${newNextDeliveryId}`);
 
       // STEP 6: Clear and recalculate blue polyline
-      console.log('🔵 [START] Step 7: Updating blue polyline...');
-
       try {
         const driver = users.find((u) => u && u.id === driverId);
         if (driver && driver.driver_status === 'on_duty' && driver.location_tracking_enabled === true) {
@@ -7186,7 +6818,6 @@ function Dashboard() {
               segment.destLon
             );
             setCurrentToNextPolyline(polyline);
-            console.log('   ✅ Blue polyline updated');
           }
         }
       } catch (polylineError) {
@@ -7194,7 +6825,6 @@ function Dashboard() {
       }
 
       // STEP 8: Update this delivery's ETA to current time + 5 minutes
-      console.log('⏱️ [START] Step 8: Setting delivery ETA...');
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const etaMinutes = currentMinutes + 5;
@@ -7204,15 +6834,8 @@ function Dashboard() {
         delivery_time_start: etaString,
         delivery_time_eta: etaString
       });
-      console.log(`   ✅ ETA set to ${etaString}`);
-
-      console.log('═══════════════════════════════════════════════════');
-      console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
-      console.log('═══════════════════════════════════════════════════');
 
       // STEP 10: Wait for UI to update, then scroll to next delivery card
-      console.log('📍 [START] Step 10: Scrolling to next card after optimization...');
-
       // Wait for optimization to complete and UI to update
       setTimeout(async () => {
         const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
@@ -7220,7 +6843,6 @@ function Dashboard() {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('   ✅ Scrolled to next delivery card');
           }
         }
       }, 800);
@@ -7244,7 +6866,6 @@ function Dashboard() {
       // This is now handled ONLY in handleStatusUpdate to ensure consistency
 
     } catch (error) {
-      console.log('');
       console.log('═══════════════════════════════════════════════════');
       console.error('❌❌❌ [START] === ERROR OCCURRED ===');
       console.error('Error type:', error.constructor.name);
@@ -7265,7 +6886,6 @@ function Dashboard() {
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
       // STEP 9: Fetch fresh data and save to offline DB BEFORE resuming
-      console.log('🔄 [START] Step 9: Fetching fresh data and saving to offline DB...');
       try {
         const finalRefreshedDeliveries = await base44.entities.Delivery.filter({
           driver_id: deliveriesWithStopOrder.find(d => d?.id === deliveryId)?.driver_id,
@@ -7274,7 +6894,6 @@ function Dashboard() {
 
         // Save to offline DB
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalRefreshedDeliveries);
-        console.log('   ✅ Saved fresh deliveries to offline DB');
 
         // Protect from smart refresh overwrite
         finalRefreshedDeliveries.forEach(d => {
@@ -7286,13 +6905,11 @@ function Dashboard() {
             );
           }
         });
-        console.log('   ✅ Protected deliveries from smart refresh');
 
         // Update UI incrementally to avoid clearing screen
         if (updateDeliveriesLocally) {
           updateDeliveriesLocally(finalRefreshedDeliveries, false);
         }
-        console.log('   ✅ UI updated incrementally');
 
         // Force map update
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -7308,17 +6925,14 @@ function Dashboard() {
       }
 
       // STEP 10: Wait longer for all writes and UI updates to complete
-      console.log('⏳ [START] Waiting 5s before resuming update systems...');
       await new Promise((resolve) => setTimeout(resolve, 5000));
       
       // Resume all systems
-      console.log('▶️ [START] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
       smartRefreshManager.resume();
       
       setIsEntityUpdating(false);
-      console.log('✅ [START] All systems resumed');
     }
   };
 
@@ -7335,7 +6949,6 @@ function Dashboard() {
       invalidate('Delivery');
       await refreshData();
 
-      console.log('✅ [AI Optimization] Route updated successfully');
     } catch (error) {
       console.error('❌ [AI Optimization] Error applying optimization:', error);
       throw error;
@@ -7345,8 +6958,6 @@ function Dashboard() {
   const handleQuickReorder = async (reorderUpdates) => {
     try {
       setIsEntityUpdating(true);
-
-      console.log('🔄 [Quick Reorder] Swapping stop orders:', reorderUpdates);
 
       // Update stop orders in parallel
       for (const update of reorderUpdates) {
@@ -7368,7 +6979,6 @@ function Dashboard() {
       invalidate('Delivery');
       await refreshData();
 
-      console.log('✅ [Quick Reorder] Complete');
     } catch (error) {
       console.error('❌ [Quick Reorder] Error:', error);
       alert('Failed to reorder stops. Please try again.');
@@ -7380,8 +6990,6 @@ function Dashboard() {
   const handleAddDelay = async (deliveryId, delayMinutes) => {
     try {
       setIsEntityUpdating(true);
-
-      console.log(`⏱️ [Add Delay] Adding ${delayMinutes} minutes to stop ${deliveryId}`);
 
       const delivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
       if (!delivery) return;
@@ -7414,7 +7022,6 @@ function Dashboard() {
       invalidate('Delivery');
       await refreshData();
 
-      console.log(`✅ [Add Delay] ${delayMinutes} minutes added to remaining stops`);
     } catch (error) {
       console.error('❌ [Add Delay] Error:', error);
       alert('Failed to add delay. Please try again.');
@@ -7463,11 +7070,6 @@ function Dashboard() {
         patients: freshPatients
       } = event.detail || {};
       
-      console.log('🔄 [Dashboard] Pull to sync data ready - forcing FULL UI update');
-      console.log(`   Deliveries: ${freshDeliveries?.length || 0}`);
-      console.log(`   AppUsers: ${freshAppUsers?.length || 0}`);
-      console.log(`   Patients: ${freshPatients?.length || 0}`);
-      
       try {
         setCurrentToNextPolyline(null);
         setDriverRoutes([]);
@@ -7481,8 +7083,6 @@ function Dashboard() {
             updateAppUsersLocally(freshAppUsers, true);
           }
         });
-        
-        console.log('✅ [Dashboard] State updated synchronously via flushSync');
         
         // Force complete UI re-render
         setForceRender((prev) => prev + 1);
@@ -7503,7 +7103,6 @@ function Dashboard() {
         setMapViewTrigger(prev => prev + 1);
         setTimeout(() => { setIsMapViewLocked(false); }, 500);
         
-        console.log('✅ [Dashboard] Full UI update complete from pull-to-sync');
         
       } catch (error) {
         console.error('❌ [Dashboard] Pull to sync update failed:', error);
@@ -7518,7 +7117,6 @@ function Dashboard() {
   useEffect(() => {
     const handleDataSourceChange = async (event) => {
       const { source } = event.detail || {};
-      console.log(`🔄 [Dashboard] Data source changed to: ${source}`);
       
       setIsEntityUpdating(true);
       
@@ -7527,25 +7125,19 @@ function Dashboard() {
         let freshDeliveries = [];
         
         if (source === 'online') {
-          console.log(`🌐 [Data Source Change - ONLINE] Fetching ALL drivers for ${selectedDateStr}`);
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
           // Update offline DB in background
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
         } else {
-          console.log(`📦 [Data Source Change - OFFLINE] Loading ALL drivers for ${selectedDateStr}`);
           freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
           
           if (!freshDeliveries || freshDeliveries.length === 0) {
-            console.log('📥 [Data Source Change] Offline DB empty - fetching from API as fallback');
             freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-          } else {
-            console.log(`✅ [Data Source Change - OFFLINE] Loaded ${freshDeliveries.length} from offline DB`);
           }
         }
         
         // Update context with fresh data
-        console.log(`📋 [Data Source Change] Updating dashboard UI with ${freshDeliveries.length} deliveries`);
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
         const allDeliveries = [...otherDateDeliveries, ...freshDeliveries];
         updateDeliveriesLocally(allDeliveries, true);
@@ -7626,11 +7218,9 @@ function Dashboard() {
     lastOfflineLoadDateRef.current = selectedDateStr;
     
     const loadOfflineDataFirst = async () => {
-      console.log(`📦 [Dashboard Mount - STEP 1] Loading data from offline DB for date ${selectedDateStr}...`);
       try {
         const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         const mountAppUsers = (await offlineDB.getAll(offlineDB.STORES.APP_USERS) || []).filter(u => u?.user_id && u.user_id !== 'undefined');
-        console.log(`📦 [STEP 1] ${mountDeliveries?.length || 0} deliveries, ${mountAppUsers.length} valid appUsers`);
         if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
@@ -7660,15 +7250,12 @@ function Dashboard() {
     hasTriggeredPrioritySyncRef.current = true;
     
     const backgroundPrioritySync = async () => {
-      console.log(`🔄 [Dashboard Mount - STEP 2] Starting background priority sync...`);
-      
       try {
         // Run priority sync in background to update offline DB (non-blocking for UI)
         const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');
         const cityId = globalFilters.getSelectedCityId();
         
         const syncResult = await performPrioritySyncBeforeRefresh(selectedDateStr, cityId, smartRefreshManager);
-        console.log(`✅ [Dashboard Mount - STEP 2] Background sync complete`);
         
         const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         
@@ -7680,14 +7267,12 @@ function Dashboard() {
         // CRITICAL: Do NOT re-process driver locations here — STEP 1 already did it
         // Re-processing from offline DB risks injecting junk records and clearing markers
         // WebSocket subscriptions will keep locations updated in real-time
-        console.log(`✅ [Dashboard Mount - STEP 2] Deliveries updated, skipping location reprocess (STEP 1 already handled)`);
         
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' }
         }));
         
         // CRITICAL: Trigger silent pull-to-sync after background sync completes
-        console.log('🔇 [Dashboard Mount - STEP 2] Triggering silent pull-to-sync for full refresh...');
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('triggerPullToSync', {
             detail: { silent: true, reason: 'initial_load' }
@@ -7696,7 +7281,6 @@ function Dashboard() {
         
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429')) {
-          console.log('⏰ [Dashboard Mount - STEP 2] Rate limited - using offline data');
           return;
         }
         console.warn('⚠️ [Dashboard Mount - STEP 2] Background sync failed:', error.message);
@@ -7767,8 +7351,6 @@ function Dashboard() {
             showAllDriverMarkers={showAllDriverMarkers}
             statsCardRef={statsCardRef}
             onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
-                console.log('🔄 [Dashboard] Pull to sync complete - updating UI...');
-                
                 // Update deliveries in context
                 if (updateDeliveriesLocally) {
                   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -7777,8 +7359,6 @@ function Dashboard() {
                 }
                 
                 // CRITICAL: Process driver locations through poller to update ALL markers
-                console.log('📍 [Pull to Sync] Processing driver locations through poller for marker updates...');
-                
                 // CRITICAL: Filter junk offline DB records (user_id=undefined) before processing — fallback to context
                 const appUsersToProcess = ((freshAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined').length > 0) ? freshAppUsers.filter(u => u?.user_id && u.user_id !== 'undefined') : appUsers;
                 
@@ -7794,7 +7374,6 @@ function Dashboard() {
                     'Dashboard', // currentPageName
                     showAllDriverMarkers
                   );
-                  console.log(`✅ [Pull to Sync] Location processing complete (${appUsersToProcess.length} users from ${freshAppUsers && freshAppUsers.length > 0 ? 'sync' : 'context'})`);
                 } else {
                   console.warn('⚠️ [Pull to Sync] No appUsers available from sync or context - cannot process locations');
                 }
@@ -7828,7 +7407,6 @@ function Dashboard() {
                 
                 // Payroll stats refresh disabled on Dashboard.
 
-                console.log('✅ [Dashboard] Pull to sync UI update complete - all markers refreshed');
               }}
             />
 
@@ -7867,12 +7445,9 @@ function Dashboard() {
                     inline={true}
                     onManualRefresh={async () => {
                       // CRITICAL: Just trigger offline sync button click instead of manual refresh
-                      console.log('🔄 [Manual Refresh] Triggering offline sync...');
-                      
                       const syncButton = document.querySelector('[data-offline-sync-button]');
                       if (syncButton) {
                         syncButton.click();
-                        console.log('✅ [Manual Refresh] Offline sync button clicked');
                       } else {
                         console.warn('⚠️ [Manual Refresh] Offline sync button not found');
                       }
@@ -8042,7 +7617,6 @@ function Dashboard() {
 
                         // CRITICAL: Respect data source preference when checking "Show All"
                         if (checked) {
-                          console.log(`📥 [Show All] Loading deliveries (mode: ${dataSource})...`);
                           setIsEntityUpdating(true);
 
                           try {
@@ -8050,22 +7624,16 @@ function Dashboard() {
                             let allDateDeliveries;
                             
                             if (dataSource === 'online') {
-                              console.log('🌐 [Show All - ONLINE MODE] Fetching from API');
                               allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
                               offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
                             } else {
                               allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
                               
                               if (!allDateDeliveries || allDateDeliveries.length === 0) {
-                                console.log('📥 [Show All] Offline DB empty - fetching from API');
                                 allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
                                 await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
-                              } else {
-                                console.log(`📦 [Show All] Using ${allDateDeliveries.length} from offline DB`);
                               }
                             }
-
-                            console.log(`✅ [Show All] Loaded ${allDateDeliveries.length} total deliveries`);
 
                             // Update context with full deliveries
                             if (updateDeliveriesLocally) {
@@ -8078,17 +7646,13 @@ function Dashboard() {
                             await new Promise((resolve) => setTimeout(resolve, 300));
 
                             // CRITICAL: Force refresh driver locations to update all markers
-                            console.log('📍 [Show All] Forcing driver location refresh to update markers...');
                             const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
                             if (locationUpdates?.hasChanges) {
-                              console.log('✅ [Show All] Driver locations refreshed');
-
                               // Process through poller to update markers
                               driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
                             }
 
                             // CRITICAL: Force refresh ALL AppUsers when Show All is checked
-                            console.log('📍 [Show All Checked] Force refreshing ALL driver locations...');
                             const showAllLocationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
                             const showAllLatestAppUsers = showAllLocationUpdates?.appUsers || appUsers;
                             
@@ -8104,8 +7668,6 @@ function Dashboard() {
                         }
 
                         // CRITICAL: Activate Phase 1 immediately when button is toggled
-                        console.log('🗺️ [Show All Button] Activating Phase 1');
-                        
                         // Clear any existing timers
                         if (mapLockTimeoutRef.current) {
                           clearTimeout(mapLockTimeoutRef.current);
@@ -8131,7 +7693,6 @@ function Dashboard() {
                             setIsMapViewLocked(false);
                             mapLockExpiresAtRef.current = null;
                             mapLockTimeoutRef.current = null;
-                            console.log('⏰ [Show All Button] Phase 1 auto-unlocked after 500ms');
                           }
                         }, lockDuration);
                           }}
@@ -8175,22 +7736,17 @@ function Dashboard() {
                                   currentBreadcrumbs = allCurrentBreadcrumbs
                                     .filter(b => b && b.delivery_date === selectedDateStr)
                                     .sort((a, b) => a.timestamp - b.timestamp);
-
-                                  console.log(`📍 [Breadcrumbs] Loaded ${currentBreadcrumbs.length} current breadcrumbs from offline DB`);
                                 } catch (offlineError) {
                                   console.warn('⚠️ [Breadcrumbs] Failed to load current breadcrumbs:', offlineError);
                                 }
 
                                 if (historicalBreadcrumbs.length === 0 && currentBreadcrumbs.length === 0) {
-                                  console.log('📍 [Breadcrumbs] No breadcrumb trails found for this date/driver');
                                   toast.info('No breadcrumb trails available', {
                                     description: 'GPS trails are saved after deliveries are completed with tracking enabled'
                                   });
                                   setShowBreadcrumbs(false);
                                   return;
                                 }
-
-                                console.log(`📍 [Breadcrumbs] Loaded ${historicalBreadcrumbs.length} historical + ${currentBreadcrumbs.length} current trails`);
 
                                 setBreadcrumbsData({
                                   historical: historicalBreadcrumbs,
@@ -8368,7 +7924,6 @@ function Dashboard() {
           currentUser={currentUser}
           isActive={!showDeliveryForm && !showPatientForm && !showOptimizationSettings}
           onRouteOptimized={(updates) => {
-            console.log('🔄 Route optimization updates:', updates);
           }} />
 
         }
@@ -8693,7 +8248,6 @@ function Dashboard() {
               setOptimizationMessage('Re-optimizing route...');
 
               // CRITICAL: Pause smart refresh manager BEFORE optimization
-              console.log('⏸️ [FAB Reoptimize] Pausing smart refresh, offline sync, and mutations');
               setIsEntityUpdating(true);
               pauseOfflineMutations();
               pauseOfflineSync();
@@ -8714,8 +8268,6 @@ function Dashboard() {
               const incompleteStops = deliveriesWithStopOrder.filter((d) =>
               d && !finishedStatuses.includes(d.status)
               );
-
-              console.log('🚀 [optimizeRemainingStops] incompleteStops.length', incompleteStops.length);
 
               if (incompleteStops.length > 0) {
                 const allCoordinates = [];
@@ -8804,7 +8356,6 @@ function Dashboard() {
                 setTimeout(() => setOptimizationMessage(null), 5000);
               } finally {
                 // CRITICAL: Resume smart refresh, offline sync, and mutations AFTER optimization
-                console.log('▶️ [FAB Reoptimize] Resuming smart refresh, offline sync, and mutations');
                 resumeOfflineMutations();
                 resumeOfflineSync();
                 setIsEntityUpdating(false);
