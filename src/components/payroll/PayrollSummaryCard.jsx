@@ -117,24 +117,11 @@ export default function PayrollSummaryCard({
       const deliveryCount = periodDeliveries.length;
       const basePay = deliveryCount * payRate;
 
-      // Calculate extra km pay
-      // Use patient's distance_from_store (or paid_km_override if set on delivery)
-      // Extra km = distance_from_store - extraKmLimit (only if positive)
-      let extraKmPay = 0;
-      let totalExtraKm = 0;
+      let extraKmPay = 0, totalExtraKm = 0;
       periodDeliveries.forEach((d) => {
-        // First check for paid_km_override on delivery, then get patient's distance_from_store
-        let distanceFromStore = d.paid_km_override || 0;
-        if (!distanceFromStore && d.patient_id && patients) {
-          const patient = patients.find((p) => p && p.id === d.patient_id);
-          distanceFromStore = patient?.distance_from_store || 0;
-        }
-
-        if (distanceFromStore > extraKmLimit && extraKmRate > 0) {
-          const extraKm = distanceFromStore - extraKmLimit;
-          totalExtraKm += extraKm;
-          extraKmPay += extraKm * extraKmRate;
-        }
+        let dist = d.paid_km_override || 0;
+        if (!dist && d.patient_id && patients) { dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0; }
+        if (dist > extraKmLimit && extraKmRate > 0) { const ek = dist - extraKmLimit; totalExtraKm += ek; extraKmPay += ek * extraKmRate; }
       });
 
       // Calculate oversized pay
