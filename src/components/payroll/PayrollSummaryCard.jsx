@@ -124,79 +124,35 @@ export default function PayrollSummaryCard({
         if (dist > extraKmLimit && extraKmRate > 0) { const ek = dist - extraKmLimit; totalExtraKm += ek; extraKmPay += ek * extraKmRate; }
       });
 
-      // Calculate oversized pay
       const oversizedCount = periodDeliveries.filter((d) => d.oversized).length;
       const oversizedPay = oversizedCount * oversizedRate;
-
-      // Get app fee percentage from AppUser or Payroll record
       const payrollRecord = payrollRecords.find((r) => r.driver_id === driverId);
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
-
       const afterHoursCount = periodDeliveries.filter((d) => d.after_hours_pickup).length;
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.filter((d) => d.status === 'cancelled' && !d.after_hours_pickup).length;
-
-      // Count returns: any delivery with store name and 'return' in patient_name or delivery_notes
       const storeReturnCount = deliveries.filter((d) => {
         if (!d || d.driver_id !== driverId) return false;
         const date = new Date(d.delivery_date + 'T00:00:00');
         if (date < currentPeriod.start || date > currentPeriod.end) return false;
-
-        const patientName = (d.patient_name || '').toLowerCase();
-        const deliveryNotes = (d.delivery_notes || '').toLowerCase();
-        const combined = patientName + ' ' + deliveryNotes;
-
-        // Check if store name exists and 'return' exists
-        const storeName = stores.find((s) => s && s.id === d.store_id)?.name || '';
-        const hasStoreName = storeName && combined.includes(storeName.toLowerCase());
-        const hasReturn = combined.includes('return');
-
-        return hasStoreName && hasReturn;
+        const combined = ((d.patient_name || '') + ' ' + (d.delivery_notes || '')).toLowerCase();
+        const sn = stores.find((s) => s?.id === d.store_id)?.name || '';
+        return sn && combined.includes(sn.toLowerCase()) && combined.includes('return');
       }).length;
-
       const totalPay = basePay + extraKmPay + oversizedPay;
-
-      // Calculate GST/HST if enabled for driver
       const gstHstEnabled = appUser?.gst_hst_enabled || false;
-      let taxAmount = 0;
-      let taxRate = 0;
-      let provinceCode = null;
-
+      let taxAmount = 0, taxRate = 0, provinceCode = null;
       if (gstHstEnabled && cities) {
-        // Get driver's city to determine province
-        const driverCityId = appUser?.city_id;
-        const driverCity = driverCityId ? cities.find((c) => c && c.id === driverCityId) : null;
-
+        const driverCity = appUser?.city_id ? cities.find((c) => c && c.id === appUser.city_id) : null;
         if (driverCity?.province_state) {
-          // Extract province code (handle full names and abbreviations)
-          const province = driverCity.province_state.toUpperCase();
-          // Check if it's already a 2-letter code
-          if (province.length === 2 && PROVINCE_TAX_RATES[province]) {
-            provinceCode = province;
-          } else {
-            // Map full names to codes
-            const provinceMap = {
-              'ALBERTA': 'AB', 'BRITISH COLUMBIA': 'BC', 'SASKATCHEWAN': 'SK',
-              'MANITOBA': 'MB', 'ONTARIO': 'ON', 'QUEBEC': 'QC',
-              'NEW BRUNSWICK': 'NB', 'NOVA SCOTIA': 'NS', 'PRINCE EDWARD ISLAND': 'PE',
-              'NEWFOUNDLAND': 'NL', 'NEWFOUNDLAND AND LABRADOR': 'NL',
-              'YUKON': 'YT', 'NORTHWEST TERRITORIES': 'NT', 'NUNAVUT': 'NU'
-            };
-            provinceCode = provinceMap[province] || null;
-          }
-
-          if (provinceCode && PROVINCE_TAX_RATES[provinceCode]) {
-            taxRate = PROVINCE_TAX_RATES[provinceCode];
-            taxAmount = totalPay * taxRate;
-          }
+          const prov = driverCity.province_state.toUpperCase();
+          const PM = { 'ALBERTA': 'AB', 'BRITISH COLUMBIA': 'BC', 'SASKATCHEWAN': 'SK', 'MANITOBA': 'MB', 'ONTARIO': 'ON', 'QUEBEC': 'QC', 'NEW BRUNSWICK': 'NB', 'NOVA SCOTIA': 'NS', 'PRINCE EDWARD ISLAND': 'PE', 'NEWFOUNDLAND': 'NL', 'NEWFOUNDLAND AND LABRADOR': 'NL', 'YUKON': 'YT', 'NORTHWEST TERRITORIES': 'NT', 'NUNAVUT': 'NU' };
+          provinceCode = prov.length === 2 && PROVINCE_TAX_RATES[prov] ? prov : PM[prov] || null;
+          if (provinceCode && PROVINCE_TAX_RATES[provinceCode]) { taxRate = PROVINCE_TAX_RATES[provinceCode]; taxAmount = totalPay * taxRate; }
         }
       }
-
-      // Deductions - only apply if there are deliveries (totalPay > 0)
       const deductionsArray = Array.isArray(appUser?.deductions) ? appUser.deductions : [];
       const totalDeductions = totalPay > 0 ? deductionsArray.reduce((sum, d) => sum + (d?.amount || 0), 0) : 0;
-
-      // Gross = Net + Tax - Deductions (only calculate if there's actual pay)
       const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
 
       return {
