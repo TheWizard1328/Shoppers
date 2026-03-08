@@ -332,11 +332,6 @@ export default function DeliveriesPage() {
         console.log('User is not admin, skipping User.list()');
       }
 
-      console.log('Filtering users from raw data:', {
-        totalAuthUsers: allAuthUsers.length,
-        totalAppUsers: (appUsersData || []).length
-      });
-
       let mergedUsers = [];
 
       if (allAuthUsers.length > 0) {
