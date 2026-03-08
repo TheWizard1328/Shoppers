@@ -1217,8 +1217,8 @@ export default function DeliveriesPage() {
       return filtered;
     }
 
-    const selectedDriver = (effectiveDrivers || []).find((d) => d.id === driverFilter);
-    if (!selectedDriver) return [];
+    const selectedDriver = (effectiveDrivers || []).find((d) => d.id === driverFilter || d.appUserId === driverFilter);
+    if (!selectedDriver) return filtered.filter((d) => d && d.driver_id === driverFilter);
 
     return filtered.filter((d) =>
     d.driver_id && (d.driver_id === selectedDriver.id || d.driver_id === selectedDriver.appUserId) ||
