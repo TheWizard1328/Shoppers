@@ -1069,6 +1069,7 @@ export default function DeliveryMap({
         id: driverId,
         user_id: driverId,
         driver_id: driverId,
+        driverId: driverId,
         latitude: user.current_latitude,
         longitude: user.current_longitude,
         location_updated_at: user.location_updated_at,
@@ -1151,7 +1152,9 @@ export default function DeliveryMap({
 
     return {
       ...locationData,
-      driver: currentUser
+      driver: currentUser,
+      driverId: currentUser.id,
+      driver_id: currentUser.id
     };
   }, [currentDriverLocation, currentUser, isMobile, selectedDate]);
 
