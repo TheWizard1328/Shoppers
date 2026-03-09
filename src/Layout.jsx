@@ -115,7 +115,7 @@ import { getCompanyBranding, applyBrandingStyles } from './components/utils/bran
 import OptimizationSpinner from './components/common/OptimizationSpinner';
 import WebSocketDiagnosticsCard from './components/layout/WebSocketDiagnosticsCard';
 import MobileBottomNav from './components/layout/MobileBottomNav';
-
+import SidebarUserFooter from './components/layout/SidebarUserFooter';
 
 
 // App version will be loaded from AppSettings
