@@ -128,10 +128,10 @@ Deno.serve(async (req) => {
     const colName = 60;
     const rightMargin = pageWidth - 12;
     const colPhotos = rightMargin - thumbSize;
-    const colSig = colPhotos - (thumbSize + 2);
-    const colRx = colSig - (thumbSize + 2);
-    const colReceipts = colRx - (thumbSize + 2);
-    const colNotes = colReceipts - 48;
+    const colSig = colPhotos - (thumbSize + rightGap);
+    const colRx = colSig - (thumbSize + rightGap);
+    const colReceipts = colRx - (thumbSize + rightGap);
+    const colNotes = colReceipts - 60; // widen notes area
 
     const addHeader = () => {
       doc.setFontSize(9);
