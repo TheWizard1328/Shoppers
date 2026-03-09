@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     });
     const allImages = await Promise.all(imagePromises);
 
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const thumbSize = 12; // thumbnail size in mm
