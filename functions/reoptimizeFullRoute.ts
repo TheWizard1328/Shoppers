@@ -427,6 +427,16 @@ Deno.serve(async (req) => {
       console.log(`🏠 [ReoptimizeFullRoute] Estimated home arrival: ${minutesToTime(homeArrivalMinutes)}`);
     }
 
+    try {
+      await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId,
+        deliveryDate
+      });
+      console.log('🧹 [ReoptimizeFullRoute] Polylines purged and regenerated');
+    } catch (polylineError) {
+      console.warn('[ReoptimizeFullRoute] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
+    }
+
     console.log(`🎉 [ReoptimizeFullRoute] Complete! Optimized ${updates.length} stops`);
 
     return Response.json({

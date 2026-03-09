@@ -51,6 +51,18 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
       }
     }
 
+    if (driverId && deliveryDate) {
+      try {
+        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+          driverId,
+          deliveryDate
+        });
+        console.log('✅ [DELETE Handler] Polylines purged and regenerated');
+      } catch (polylineError) {
+        console.warn('⚠️ [DELETE Handler] Polyline regeneration failed:', polylineError);
+      }
+    }
+
     console.log('🗑️ [DELETE Handler] Step 5: Forcing full data refresh...');
     await refreshData(true);
 

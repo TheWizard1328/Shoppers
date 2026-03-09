@@ -260,6 +260,16 @@ Deno.serve(async (req) => {
       }
     });
 
+    try {
+      await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId,
+        deliveryDate
+      });
+      console.log('🧹 [optimizeDriverRoute] Polylines purged and regenerated');
+    } catch (polylineError) {
+      console.warn('[optimizeDriverRoute] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
+    }
+
     console.log(`\n✅ Route optimization complete!`);
     console.log(`   Stops optimized: ${optimizedOrder.length}`);
     console.log(`   API calls: ${apiCalls}`);

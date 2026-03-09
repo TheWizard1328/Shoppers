@@ -10,9 +10,9 @@ export function clearHereCacheForSegment(from, to) {
   try {
     if (!from || !to) return;
     const key = `here_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
+    try { memoryCache.delete(key); } catch (_) {}
     try { localStorage.removeItem(key); } catch (_) {}
     try { localStorage.removeItem(`${key}:fail_until`); } catch (_) {}
-    // memoryCache is module-scoped; cannot clear externally, but a reload resets it
   } catch (_) {}
 }
 
@@ -24,6 +24,17 @@ export const ensurePolylineSubscription = () => {
     const unsubscribe = base44.entities.DriverRoutePolyline.subscribe(async (event) => {
       try {
         if (event.type === 'delete') {
+          let deletedRecord = null;
+          try {
+            const allRows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+            deletedRecord = (allRows || []).find((row) => row?.id === event.id) || null;
+          } catch (_) {}
+          if (deletedRecord?.segment_origin_lat != null && deletedRecord?.segment_origin_lon != null && deletedRecord?.segment_dest_lat != null && deletedRecord?.segment_dest_lon != null) {
+            clearHereCacheForSegment(
+              { latitude: deletedRecord.segment_origin_lat, longitude: deletedRecord.segment_origin_lon },
+              { latitude: deletedRecord.segment_dest_lat, longitude: deletedRecord.segment_dest_lon }
+            );
+          }
           await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, event.id);
         } else if (event.data) {
           const rec = event.data;

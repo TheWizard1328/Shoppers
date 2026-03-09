@@ -380,25 +380,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update polyline record
-    let polylineRecords = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    });
-    
-    let polylineRecord = polylineRecords?.[0];
-    if (!polylineRecord) {
-      polylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.create({
-        driver_id: driverId,
-        delivery_date: deliveryDate,
-        daily_generation_count: 0
+    try {
+      await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId,
+        deliveryDate
       });
+      console.log('🧹 [optimizeRouteRealTime] Polylines purged and regenerated');
+    } catch (polylineError) {
+      console.warn('[optimizeRouteRealTime] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
     }
-    
-    await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
-      daily_generation_count: (polylineRecord.daily_generation_count || 0) + totalApiCalls,
-      last_generated_at: new Date().toISOString()
-    });
 
     console.log(`\n✅ Route optimization complete - ${updates.length} stops updated, ${totalApiCalls} API calls`);
 
