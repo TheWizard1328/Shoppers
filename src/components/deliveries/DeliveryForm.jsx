@@ -2117,9 +2117,11 @@ export default function DeliveryForm({
       setIsLoadingPredictions(true);
       
       // CRITICAL: Resume background operations before closing
-      (await import('../utils/deliveryFormActionHelpers')).resumeDeliveryFormManagers().catch((error) => {
-        console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
-      });
+      import('../utils/deliveryFormActionHelpers')
+        .then(({ resumeDeliveryFormManagers }) => resumeDeliveryFormManagers())
+        .catch((error) => {
+          console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
+        });
       
       import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
       
@@ -2715,22 +2717,11 @@ export default function DeliveryForm({
       setIsLoadingPredictions(true);
 
       // CRITICAL: Resume background operations before closing form
-      (async () => {
-        try {
-          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-          const { routePolylineManager } = await import('../utils/routePolylineManager');
-          const { fabControlEvents } = await import('../utils/fabControlEvents');
-          
-          smartRefreshManager.resume();
-          driverLocationPoller.resume();
-          routePolylineManager?.resume?.();
-          fabControlEvents.resumeFAB();
-          
-        } catch (error) {
+      import('../utils/deliveryFormActionHelpers')
+        .then(({ resumeDeliveryFormManagers }) => resumeDeliveryFormManagers())
+        .catch((error) => {
           console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
-        }
-      })();
+        });
 
       // Close form FIRST
       import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
