@@ -223,8 +223,9 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     console.warn('[HERE][client] Failed to read HERE polyline from localStorage', e);
   }
 
-  if (fetchingKeys.has(cacheKey)) { 
-    console.debug('[HERE][client] Awaiting in-flight (poll)', { cacheKey });
+  // Early in-flight dedupe to prevent burst duplicates after cache purges
+  if (fetchingKeys.has(cacheKey)) {
+    console.debug('[HERE][client] Awaiting in-flight (early)', { cacheKey });
     return await new Promise((resolve) => {
       let waited = 0;
       const iv = setInterval(() => {
@@ -233,11 +234,15 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
           const cached = localStorage.getItem(cacheKey);
           if (cached) { clearInterval(iv); resolve(JSON.parse(cached)); return; }
         } catch (_) {}
-        if (!fetchingKeys.has(cacheKey) || waited > 5000) { clearInterval(iv); resolve(null); }
-        waited += 100;
-      }, 100);
+        if (!fetchingKeys.has(cacheKey) || waited > 6000) { clearInterval(iv); resolve(null); }
+        waited += 150;
+      }, 150);
     });
-  } // De-duplicate concurrent fetches
+  }
+  // Mark as in-flight before any DB/entity lookups to collapse concurrent callers
+  fetchingKeys.add(cacheKey);
+
+  // in-flight dedupe handled earlier above (no-op here)
 
   // Try offline DB cache before hitting network/entity (indexed by delivery_date for speed)
   try {
@@ -417,6 +422,8 @@ const deliveryDateSafe = deliveryDate || todayStr;
       ensurePolylineSubscription();
 
       // Persist to DriverRoutePolyline entity for future reuse
+      // Strong server-side de-dupe: re-check right before persisting to avoid burst duplicates
+
       try {
         const rounded = (n) => Number(n.toFixed(5));
         const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });

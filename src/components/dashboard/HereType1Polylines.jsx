@@ -440,5 +440,18 @@ export default function HereType1Polylines({
   // Preserve last non-empty set only in multi-driver showAll mode to prevent ghost lines on driver switch
   useEffect(() => { if (lines.length && showAll) setLastNonEmptyLines(lines); }, [lines.length, showAll, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
 
-  return isGrace ? null : (lines.length ? <>{lines}</> : ((showAll && lastNonEmptyLines.length) ? <>{lastNonEmptyLines}</> : null));
+  // Safety: dedupe by key at the very end to ensure no accidental duplicates sneak in
+  const uniqueLines = React.useMemo(() => {
+    const used = new Set();
+    return React.Children.toArray(lines).filter((child) => {
+      const k = child?.key;
+      if (!k) return true;
+      if (used.has(k)) return false;
+      used.add(k);
+      return true;
+    });
+  }, [lines]);
+
+
+  return isGrace ? null : (uniqueLines.length ? <>{uniqueLines}</> : ((showAll && lastNonEmptyLines.length) ? <>{lastNonEmptyLines}</> : null));
 }
