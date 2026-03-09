@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Users,
   Package,
+  MessageCircle,
   CreditCard,
   DollarSign,
   Settings,
@@ -26,6 +27,7 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
      navItems = [
        { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard },
        { name: 'Routes', page: 'Deliveries', icon: Package },
+       { name: 'Messages', action: 'messaging', icon: MessageCircle },
        { name: 'Square COD', page: 'SquareManagement', icon: CreditCard },
        { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign },
        { name: 'Settings', page: 'DeviceSettings', icon: Settings },
@@ -35,6 +37,7 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
        { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard },
        { name: 'Patients', page: 'Patients', icon: Users },
        { name: 'Routes', page: 'Deliveries', icon: Package },
+       { name: 'Messages', action: 'messaging', icon: MessageCircle },
        { name: 'Settings', page: 'DeviceSettings', icon: Settings },
      ];
    } else if (isAdmin) {
@@ -42,6 +45,7 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
        { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard },
        { name: 'Patients', page: 'Patients', icon: Users },
        { name: 'Routes', page: 'Deliveries', icon: Package },
+       { name: 'Messages', action: 'messaging', icon: MessageCircle },
        { name: 'Square COD', page: 'SquareManagement', icon: CreditCard },
        { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign },
        { name: 'Settings', page: 'DeviceSettings', icon: Settings },
@@ -85,17 +89,41 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
        >
          {navItems.map((item) => {
-           const isActive = currentPageName === item.page;
+           const isMessagingItem = item.action === 'messaging';
+           const isActive = !isMessagingItem && currentPageName === item.page;
            const Icon = item.icon;
+           const sharedProps = {
+             className: "flex flex-col items-center justify-center py-2 px-3 flex-shrink-0 transition-colors",
+             style: {
+               minWidth: `${100 / Math.min(navItems.length, 5)}vw`,
+               color: isActive ? '#10b981' : 'var(--text-slate-500)',
+             }
+           };
+
+           if (isMessagingItem) {
+             return (
+               <button
+                 key={item.name}
+                 type="button"
+                 {...sharedProps}
+                 onClick={() => window.dispatchEvent(new CustomEvent('openMessagingPanel'))}
+               >
+                 <Icon className="w-5 h-5 mb-0.5" style={{ color: 'var(--text-slate-500)' }} />
+                 <span
+                   className="text-xs font-medium truncate"
+                   style={{ color: 'var(--text-slate-500)', maxWidth: '80px' }}
+                 >
+                   {item.name}
+                 </span>
+               </button>
+             );
+           }
+
            return (
              <Link
                key={item.name}
                to={createPageUrl(item.page)}
-               className="flex flex-col items-center justify-center py-2 px-3 flex-shrink-0 transition-colors"
-               style={{
-                 minWidth: `${100 / Math.min(navItems.length, 5)}vw`,
-                 color: isActive ? '#10b981' : 'var(--text-slate-500)',
-               }}
+               {...sharedProps}
                onClick={() => {
                  const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
                  if (mainContent && currentPageName) {
