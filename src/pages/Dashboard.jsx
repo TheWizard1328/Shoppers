@@ -3732,14 +3732,11 @@ function Dashboard() {
       filter(Boolean)
     );
 
-    let newDriverSelection = null;
-    
-    if (driversWithDeliveries.size === 1) {
-      // Only 1 driver with stops - select that driver
-      newDriverSelection = Array.from(driversWithDeliveries)[0];
-    } else {
-      // 0 or multiple drivers - select "All Drivers"
-      newDriverSelection = 'all';
+    let newDriverSelection = selectedDriverId;
+    if (!selectedDriverId || selectedDriverId === 'all') {
+      newDriverSelection = driversWithDeliveries.size === 1
+        ? Array.from(driversWithDeliveries)[0]
+        : 'all';
     }
     
     // Only update if selection should change
