@@ -144,7 +144,7 @@ const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleA
  */
 const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = null, startLon = null, endLat = null, endLon = null) => {
   try {
-    const rounded = (n) => Number(n.toFixed(6));
+    const rounded = (n) => Number(n.toFixed(5));
     const recs = await base44.entities.DriverRoutePolyline.filter({
       driver_id: driverId,
       delivery_date,
@@ -177,7 +177,7 @@ const savePolyline = async ({
   estimatedDurationSeconds
 }) => {
   try {
-    const rounded = (n) => Number(n.toFixed(6));
+    const rounded = (n) => Number(n.toFixed(5));
     const exists = await base44.entities.DriverRoutePolyline.filter({
       driver_id: driverId,
       delivery_date,
@@ -197,7 +197,8 @@ const savePolyline = async ({
       segment_dest_lon: rounded(endLon),
       estimated_distance_km: estimatedDistanceKm,
       estimated_duration_minutes: Math.round((estimatedDurationSeconds || 0) / 60),
-      last_generated_at: new Date().toISOString()
+      last_generated_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + POLYLINE_CONFIG.EXPIRY_MINUTES * 60000).toISOString()
     };
 
     if (Array.isArray(exists) && exists.length) {
@@ -326,8 +327,8 @@ export const getCurrentToNextStopPolyline = async ({
     // Check if driver location has changed significantly
     if (existingPolyline && useDriverLocation && currentDriverLocation) {
       const distanceChanged = calculateDistanceBetweenCoords(
-        existingPolyline.segment_start_lat,
-        existingPolyline.segment_start_lon,
+        existingPolyline.segment_origin_lat,
+        existingPolyline.segment_origin_lon,
         currentDriverLocation.latitude,
         currentDriverLocation.longitude
       );
