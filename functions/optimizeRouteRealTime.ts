@@ -268,6 +268,7 @@ Deno.serve(async (req) => {
     let cumulativeTime = currentMinutes;
     const updates = [];
     let totalApiCalls = 0;
+    let assignedNextDeliveryStopOrder = null;
 
     for (let stageIdx = 0; stageIdx < stages.length; stageIdx++) {
       const stageStops = stages[stageIdx];
@@ -344,6 +345,9 @@ Deno.serve(async (req) => {
       for (let i = 0; i < optimizedStageStops.length; i++) {
         const stop = optimizedStageStops[i];
         stopOrderCounter++;
+        if (stop.isNextDelivery && assignedNextDeliveryStopOrder === null) {
+          assignedNextDeliveryStopOrder = stopOrderCounter;
+        }
 
         const travelMinutes = directionsLegs[i] ? Math.ceil(directionsLegs[i].duration / 60) : 5;
         cumulativeTime += travelMinutes;
@@ -401,6 +405,9 @@ Deno.serve(async (req) => {
     }
 
     console.log(`\n✅ Route optimization complete - ${updates.length} stops updated, ${totalApiCalls} API calls`);
+    if (assignedNextDeliveryStopOrder !== null) {
+      console.log(`🎯 [optimizeRouteRealTime] isNextDelivery assigned stop order ${assignedNextDeliveryStopOrder}`);
+    }
 
     // Ensure exactly one isNextDelivery is set for remaining incomplete stops
     try {

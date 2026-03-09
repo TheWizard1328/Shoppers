@@ -56,7 +56,11 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     if (isAPending && !isBPending) return 1;
     if (!isAPending && isBPending) return -1;
 
-    // Among non-pending incomplete, sort by ETA (then stop_order as fallback)
+    // CRITICAL: isNextDelivery must always be first active stop after finished stops
+    if (a.isNextDelivery === true && b.isNextDelivery !== true) return -1;
+    if (a.isNextDelivery !== true && b.isNextDelivery === true) return 1;
+
+    // Among remaining active stops, sort by ETA (then stop_order as fallback)
     const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
     const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
     
