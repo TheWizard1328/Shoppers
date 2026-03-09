@@ -45,29 +45,33 @@ Deno.serve(async (req) => {
       };
     }
     
-    // Get user's AppUser record for user_name
-    const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
-    const userAppUser = userAppUsers?.[0];
-    
-    // Log API call
-    await base44.asServiceRole.entities.GoogleAPILog.create({
-      timestamp: new Date().toISOString(),
-      api_type: 'Places Autocomplete',
-      purpose: 'Address autocomplete search',
-      function_name: 'googlePlacesAutocomplete',
-      user_id: user.id,
-      user_name: userAppUser?.user_name || user.full_name,
-      metadata: {
-        input: input,
-        has_location_bias: !!(latitude && longitude)
-      }
-    });
+    // Best-effort user lookup + logging only
+    let userAppUser = null;
+    try {
+      const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+      userAppUser = userAppUsers?.[0] || null;
+      await base44.asServiceRole.entities.GoogleAPILog.create({
+        timestamp: new Date().toISOString(),
+        api_type: 'Places Autocomplete',
+        purpose: 'Address autocomplete search',
+        function_name: 'googlePlacesAutocomplete',
+        user_id: user.id,
+        user_name: userAppUser?.user_name || user.full_name,
+        metadata: {
+          input: input,
+          has_location_bias: !!(latitude && longitude)
+        }
+      });
+    } catch (logError) {
+      console.warn('[googlePlacesAutocomplete] Non-fatal log error:', logError?.message || logError);
+    }
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text'
       },
       body: JSON.stringify(requestBody)
     });
