@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const thumbSize = 12; // thumbnail size in mm
+    const rightGap = 3; // spacing between right-side thumbnail columns (mm)
 
     // Alignment helpers
     doc.setLineWidth(0.2);
