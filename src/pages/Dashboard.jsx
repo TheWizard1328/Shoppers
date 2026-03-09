@@ -3756,7 +3756,7 @@ function Dashboard() {
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
     setIsEntityUpdating(true);
-
+    flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);});
     // Reset route summary tracking when date changes
     hasShownSummaryRef.current.clear();
 
@@ -3933,7 +3933,7 @@ function Dashboard() {
     lastAppliedTriggerRef.current = nextTrigger;
 
     try {
-      setIsExpanded(false);
+      flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);});
       setIsEntityUpdating(true);
 
       // CRITICAL: Uncheck "Show All" when switching to "All Drivers" mode to prevent duplicate markers
@@ -7595,7 +7595,7 @@ function Dashboard() {
                         }
 
                         // CRITICAL: Close stats card when checkbox is toggled
-                        setIsExpanded(false);
+                        flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);});
 
                         // CRITICAL: Respect data source preference when checking "Show All"
                         if (checked) {
