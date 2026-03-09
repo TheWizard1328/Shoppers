@@ -3143,22 +3143,9 @@ export default function DeliveryForm({
       }
       
       // CRITICAL: Resume background operations before closing
-      (async () => {
-        try {
-          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-          const { routePolylineManager } = await import('../utils/routePolylineManager');
-          const { fabControlEvents } = await import('../utils/fabControlEvents');
-          
-          smartRefreshManager.resume();
-          driverLocationPoller.resume();
-          routePolylineManager?.resume?.();
-          fabControlEvents.resumeFAB();
-          
-        } catch (error) {
-          console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
-        }
-      })();
+      resumeDeliveryFormManagers().catch((error) => {
+        console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
+      });
       
       handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
     }
