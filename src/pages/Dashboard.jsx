@@ -8201,109 +8201,32 @@ function Dashboard() {
             <Button
             onClick={async () => {
               if (isReoptimizing) return;
-
               setIsReoptimizing(true);
               setOptimizationMessage('Re-optimizing route...');
-
-              // CRITICAL: Pause smart refresh manager BEFORE optimization
               setIsEntityUpdating(true);
               pauseOfflineMutations();
               pauseOfflineSync();
               await new Promise((resolve) => setTimeout(resolve, 100));
-
-              // STEP 0: Unlock FAB if it's on phase 2 (permanently locked)
-              if (mapViewPhase === 2 && isMapViewLocked) {
-                if (mapLockTimeoutRef.current) {
-                  clearTimeout(mapLockTimeoutRef.current);
-                  mapLockTimeoutRef.current = null;
-                }
-                mapLockExpiresAtRef.current = null;
-                setIsMapViewLocked(false);
-              }
-
-              // STEP 1: Zoom out to show all incomplete/pending stops
-              const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-              const incompleteStops = deliveriesWithStopOrder.filter((d) =>
-              d && !finishedStatuses.includes(d.status)
-              );
-
-              if (incompleteStops.length > 0) {
-                const allCoordinates = [];
-
-                // Add driver's current location if available
-                if (driverLocation?.latitude && driverLocation?.longitude) {
-                  allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
-                }
-
-                // Add driver's home location
-                if (currentUser?.home_latitude && currentUser?.home_longitude) {
-                  allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
-                }
-
-                // Add all incomplete stop coordinates
-                incompleteStops.forEach((stop) => {
-                  if (stop.patient_id) {
-                    const patient = patients.find((p) => p && p.id === stop.patient_id);
-                    if (patient?.latitude && patient?.longitude) {
-                      allCoordinates.push([patient.latitude, patient.longitude]);
-                    }
-                  } else if (stop.store_id) {
-                    const store = stores.find((s) => s && s.id === stop.store_id);
-                    if (store?.latitude && store?.longitude) {
-                      allCoordinates.push([store.latitude, store.longitude]);
-                    }
-                  }
-                });
-
-                if (allCoordinates.length > 0) {
-                  const padding = getMapPadding();
-                  setShouldFitBounds({
-                    bounds: allCoordinates,
-                    options: {
-                      ...padding,
-                      maxZoom: 14,
-                      animate: true
-                    }
-                  });
-                  setMapCenter(null);
-                  setMapZoom(null);
-                }
-              }
-
               try {
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
                 const now = new Date();
                 const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-                const response = await base44.functions.invoke('optimizeRemainingStops', {
+                const response = await base44.functions.invoke('optimizeRouteRealTime', {
                   driverId: currentUser.id,
-                  deliveryDate: deliveryDate,
-                  currentLocalTime: currentLocalTime,
-                  deviceTime: now.toISOString()
+                  deliveryDate,
+                  currentLocalTime,
+                  deviceTime: now.toISOString(),
+                  generatePolyline: false
                 });
-
                 const data = response?.data || response;
-
                 if (data?.success) {
-                  setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
-
-                  // Refresh data to show new order
+                  setOptimizationMessage(`Route optimized! ${(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)} stops updated.`);
                   invalidateDeliveriesForDate(deliveryDate);
                   await refreshData();
-
-                  // CRITICAL: Force map to re-render route lines
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                    detail: { driverId: currentUser.id, deliveryDate: deliveryDate, triggeredBy: 'reoptimizeRoute' }
-                  }));
-
-                  // Trigger map view update
+                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: currentUser.id, deliveryDate, triggeredBy: 'reoptimizeRoute' } }));
                   setIsMapViewLocked(true);
                   setMapViewTrigger((prev) => prev + 1);
-
-                  setTimeout(() => {
-                    setOptimizationMessage(null);
-                    setIsMapViewLocked(false);
-                  }, 3000);
+                  setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
                 } else {
                   setOptimizationMessage(data?.error || 'Optimization failed');
                   setTimeout(() => setOptimizationMessage(null), 5000);
@@ -8313,12 +8236,10 @@ function Dashboard() {
                 setOptimizationMessage(`Error: ${error.message}`);
                 setTimeout(() => setOptimizationMessage(null), 5000);
               } finally {
-                // CRITICAL: Resume smart refresh, offline sync, and mutations AFTER optimization
                 resumeOfflineMutations();
                 resumeOfflineSync();
                 setIsEntityUpdating(false);
                 await new Promise((resolve) => setTimeout(resolve, 100));
-
                 setIsReoptimizing(false);
               }
             }}
