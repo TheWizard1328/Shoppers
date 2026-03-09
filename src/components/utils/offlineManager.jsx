@@ -499,6 +499,10 @@ class OfflineManager {
         return { conflict: false };
         
       case 'updateUserSettings':
+        if (!action.settingsId) {
+          console.warn('⚠️ [OfflineManager] Skipping stale updateUserSettings mutation with no settingsId');
+          return { conflict: false };
+        }
         await base44.entities.UserSettings.update(action.settingsId, action.data);
         return { conflict: false };
         
