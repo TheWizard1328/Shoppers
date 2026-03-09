@@ -428,7 +428,7 @@ export default function PolylineViewer({ users = [] }) {
           </div>
         ) : (
           <>
-            <div className="flex gap-3 mb-4">
+            <div className="flex gap-3 mb-4 hidden md:flex">
               <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
                 <Button
                   variant={viewMode === 'polylines' ? 'default' : 'ghost'}
