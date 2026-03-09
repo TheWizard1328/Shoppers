@@ -1254,6 +1254,12 @@ export default function DeliveryMap({
       // CRITICAL: Check if there are ANY unfinished pickups (including pending)
       // Home marker should NOT show until ALL pickups are complete/canceled/failed
       const unfinishedPickups = stops.pickups.filter(s => !finishedStatuses.includes(s.status));
+
+      // SHOW-ALL OVERRIDE: In show-all or all-drivers mode, always show other drivers' homes
+      if ((isShowAllMode) && driverId !== (currentUser?.id)) {
+        driversToShowHome.add(driverId);
+        return;
+      }
       
       // RULE 1: Pre-start visibility — show until first stop is completed (regardless of pending/in_transit)
       if (allStops.length > 0 && completedStops.length === 0) {
