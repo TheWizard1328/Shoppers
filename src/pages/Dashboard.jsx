@@ -3674,80 +3674,76 @@ function Dashboard() {
     }
   }, [isDataLoaded, deliveriesWithStopOrder, isLoadingUser, patients, stores, initialMapViewApplied, getMapPadding]);
 
-  // PHASE 4: Apply driver selection AFTER data is loaded
-  // Only for pure drivers who MUST see their own route (override settings)
+  // Unified initial driver selection per role rules
   useEffect(() => {
-    if (!currentUser || !isDataLoaded || !driversList.length || !userSettingsLoaded) {
-      return;
+    if (!currentUser || !isDataLoaded || !driversList.length || !userSettingsLoaded || !isFiltersReady) return;
+    if (hasSetInitialDriverDashboard.current) return;
+
+    const isAdmin = userHasRole(currentUser, 'admin');
+    const isDispatcherRole = userHasRole(currentUser, 'dispatcher');
+    const isDriverRole = userHasRole(currentUser, 'driver');
+
+    const driverExists = (id) => !!id && driversList.some((d) => d && d.id === id);
+
+    const saved = globalFilters.getSelectedDriverId();
+    const hasSaved = saved && saved !== 'all' && driverExists(saved);
+
+    const dayIdx = new Date(format(selectedDate, 'yyyy-MM-dd') + 'T00:00:00').getDay();
+    const isSat = dayIdx === 6;
+    const isSun = dayIdx === 0;
+
+    const getDispatcherDefaultDriverId = () => {
+      const dispatcherStoreIds = (currentUser?.store_ids || []).map(String);
+      const relevantStores = (stores || []).filter((s) => s && dispatcherStoreIds.includes(String(s.id)));
+      const ids = new Set();
+      for (const store of relevantStores) {
+        if (isSat) {
+          if (store.saturday_am_enabled && store.saturday_am_driver_id) ids.add(store.saturday_am_driver_id);
+          if (store.saturday_pm_enabled && store.saturday_pm_driver_id) ids.add(store.saturday_pm_driver_id);
+        } else if (isSun) {
+          if (store.sunday_am_enabled && store.sunday_am_driver_id) ids.add(store.sunday_am_driver_id);
+          if (store.sunday_pm_enabled && store.sunday_pm_driver_id) ids.add(store.sunday_pm_driver_id);
+        } else {
+          if (store.weekday_am_enabled && store.weekday_am_driver_id) ids.add(store.weekday_am_driver_id);
+          if (store.weekday_pm_enabled && store.weekday_pm_driver_id) ids.add(store.weekday_pm_driver_id);
+        }
+      }
+      const valid = Array.from(ids).filter(driverExists);
+      return valid.length === 1 ? valid[0] : null;
+    };
+
+    let selection = 'all';
+
+    // Admin + Driver: saved -> own -> all
+    if (isAdmin && isDriverRole) {
+      if (hasSaved) selection = saved;
+      else if (driverExists(currentUser.id)) selection = currentUser.id;
+      else selection = 'all';
     }
-
-    // Skip if already initialized from settings
-    if (hasSetInitialDriverDashboard.current) {
-      return;
+    // Pure Driver (not admin/dispatcher): always own
+    else if (isDriverRole && !isAdmin && !isDispatcherRole) {
+      selection = driverExists(currentUser.id) ? currentUser.id : 'all';
     }
-
-    const isPureDriver = userHasRole(currentUser, 'driver') &&
-    !userHasRole(currentUser, 'admin') &&
-    !userHasRole(currentUser, 'dispatcher');
-
-    if (isPureDriver) {
-      const isInDriversList = driversList.some((d) => d && d.id === currentUser.id);
-
-      if (isInDriversList) {
-        setSelectedDriverId(currentUser.id);
-        globalFilters.setSelectedDriverId(currentUser.id);
-      } else {
-        setSelectedDriverId('all');
-        globalFilters.setSelectedDriverId('all');
+    // Dispatcher (admin or not): saved -> default for day -> all
+    else if (isDispatcherRole) {
+      if (hasSaved) selection = saved;
+      else {
+        const defId = getDispatcherDefaultDriverId();
+        selection = defId || 'all';
       }
     }
+    // Admin only (not driver): saved -> all
+    else if (isAdmin) {
+      selection = hasSaved ? saved : 'all';
+    } else {
+      selection = 'all';
+    }
 
+    setSelectedDriverId(selection);
+    globalFilters.setSelectedDriverId(selection);
+    // Do not persist here; only user-initiated changes should save settings
     hasSetInitialDriverDashboard.current = true;
-  }, [currentUser, isDataLoaded, driversList, userSettingsLoaded]);
-
-  useEffect(() => {
-    const savedDriverId = globalFilters.getSelectedDriverId();
-
-    if (!window.__dashboardSyncing && savedDriverId && savedDriverId !== selectedDriverId) {
-      setSelectedDriverId(savedDriverId);
-    }
-  }, [selectedDriverId]); // Add selectedDriverId as dependency
-
-  // CRITICAL: Auto-update driver selection for dispatchers when date/deliveries change
-  useEffect(() => {
-    if (!currentUser || !isDispatcher || !userSettingsLoaded || !isDataLoaded || window.__dashboardSyncing) return;
-    
-    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    const dispatcherStoreIds = currentUser.store_ids || [];
-    
-    // Get drivers with at least 1 pickup or delivery for dispatcher's stores on selected date
-    const driversWithDeliveries = new Set(
-      deliveries?.
-      filter((d) => {
-        if (!d || d.delivery_date !== selectedDateStr) return false;
-        if (!dispatcherStoreIds.includes(d.store_id)) return false;
-        return true; // Include ALL deliveries/pickups
-      }).
-      map((d) => d.driver_id).
-      filter(Boolean)
-    );
-
-    let newDriverSelection = selectedDriverId;
-    if (!selectedDriverId || selectedDriverId === 'all') {
-      newDriverSelection = driversWithDeliveries.size === 1
-        ? Array.from(driversWithDeliveries)[0]
-        : 'all';
-    }
-    
-    // Only update if selection should change
-    if ((selectedDriverId === 'all' || !selectedDriverId) && newDriverSelection !== selectedDriverId) {
-      setSelectedDriverId(newDriverSelection);
-      globalFilters.setSelectedDriverId(newDriverSelection);
-      if (currentUser?.id) {
-        saveSetting(currentUser.id, 'selected_driver_id', newDriverSelection);
-      }
-    }
-  }, [isDispatcher, currentUser?.id, selectedDate, deliveries, userSettingsLoaded, isDataLoaded, selectedDriverId]);
+  }, [currentUser?.id, isDataLoaded, userSettingsLoaded, isFiltersReady, driversList, stores, selectedDate]);
 
   // CRITICAL: Reset cardsReadyForFAB when driver/date changes, then enable once cards are measured
   useEffect(() => {
