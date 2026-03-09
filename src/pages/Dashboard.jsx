@@ -1855,21 +1855,14 @@ function Dashboard() {
             // NOTE: Map re-centering is intentionally removed here - it fought with the FAB positioning.
             // The FAB handles the initial center on Phase 2 activation; GPS updates only scroll the card.
             if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current) {
+              const now = Date.now(); if (now - lastProgrammaticMapMoveRef.current > 1200) { lastProgrammaticMapMoveRef.current = now; window._lastProgrammaticMapMove = now; setMapViewTrigger((prev) => prev + 1); }
               const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-              if (nextCard) {
-                const cardEl = document.getElementById(`stop-card-${nextCard.id}`);
-                if (cardEl) {
-                  cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                }
-              }
-              return; // Skip proximity snap logic below
+              if (nextCard) { const cardEl = document.getElementById(`stop-card-${nextCard.id}`); if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }
+              return;
             }
 
-            // PHASE 3 LOCKED: NO continuous re-centering (unlike Phase 2)
-            // Phase 3 stays locked but does NOT re-zoom on GPS updates
-            // Only re-centers when FAB is manually clicked or data changes
             if (mapViewPhaseRef.current === 3 && isMapViewLockedRef.current) {
-              // Skip automatic re-centering - Phase 3 zooms ONCE when activated, then stays locked
+              const now = Date.now(); if (now - lastProgrammaticMapMoveRef.current > 1800) { lastProgrammaticMapMoveRef.current = now; window._lastProgrammaticMapMove = now; setMapViewTrigger((prev) => prev + 1); }
               return;
             }
 
