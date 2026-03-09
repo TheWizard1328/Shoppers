@@ -2101,7 +2101,7 @@ export default function DeliveryForm({
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
       hasLoadedPending.current = false; // Reset flag when closing without saves
       predictionsStopped.current = false; // Reset for next open
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel })); // Close form immediately
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();}); // Close form immediately
       return;
     }
 
@@ -2117,13 +2117,11 @@ export default function DeliveryForm({
       setIsLoadingPredictions(true);
       
       // CRITICAL: Resume background operations before closing
-      import('../utils/deliveryFormActionHelpers')
-        .then(({ resumeDeliveryFormManagers }) => resumeDeliveryFormManagers())
-        .catch((error) => {
-          console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
-        });
+      (await import('../utils/deliveryFormActionHelpers')).resumeDeliveryFormManagers().catch((error) => {
+        console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
+      });
       
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
       
       // Background refresh (non-blocking)
       setTimeout(async () => {
@@ -2199,7 +2197,7 @@ export default function DeliveryForm({
       hasLoadedPending.current = false;
       predictionsStopped.current = false; // Reset for next open
       setIsLoadingPredictions(true); // Keep predictions blocked
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
       return;
     }
 
@@ -2642,7 +2640,7 @@ export default function DeliveryForm({
           console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
         });
 
-        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel })); // Close form IMMEDIATELY
+        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();}); // Close form IMMEDIATELY
 
         // CRITICAL: Immediate UI refresh events
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -2717,14 +2715,25 @@ export default function DeliveryForm({
       setIsLoadingPredictions(true);
 
       // CRITICAL: Resume background operations before closing form
-      import('../utils/deliveryFormActionHelpers')
-        .then(({ resumeDeliveryFormManagers }) => resumeDeliveryFormManagers())
-        .catch((error) => {
+      (async () => {
+        try {
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+          const { routePolylineManager } = await import('../utils/routePolylineManager');
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          
+          smartRefreshManager.resume();
+          driverLocationPoller.resume();
+          routePolylineManager?.resume?.();
+          fabControlEvents.resumeFAB();
+          
+        } catch (error) {
           console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
-        });
+        }
+      })();
 
       // Close form FIRST
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
 
       // CRITICAL: Wait for form to close, reload from offline DB, then update UI
       setTimeout(async () => {
@@ -3176,7 +3185,7 @@ export default function DeliveryForm({
 
       // CRITICAL: Resume background operations AFTER closing form
       // CRITICAL: Always close form after successful update
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
       // Resume managers immediately (non-blocking)
       setTimeout(() => {
         import('../utils/deliveryFormActionHelpers')
@@ -3240,7 +3249,7 @@ export default function DeliveryForm({
           });
         (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
         
-        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
+        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
       }
     } else {
       // CRITICAL: Reset the auto-load flag when canceling without changes
@@ -3267,7 +3276,7 @@ export default function DeliveryForm({
         }
       })();
       
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
     }
   }, [stagedDeliveries, onCancel, delivery]);
 
