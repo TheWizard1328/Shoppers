@@ -139,23 +139,25 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     // Both AM and PM qualify → show dropdown
     if (qualifiedCount === 2) {
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-2" disabled={noDriver}>
-              <Download className="w-4 h-4" />
-              Export Route
-              <ChevronDown className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => handleExport('pre-route', 'AM')}>
-              Export AM
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport('pre-route', 'PM')}>
-              Export PM
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="w-full flex justify-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2 text-white bg-slate-900 hover:bg-slate-800" disabled={noDriver}>
+                <Download className="w-4 h-4" />
+                Export Route
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => handleExport('pre-route', 'AM')}>
+                Export AM
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('pre-route', 'PM')}>
+                Export PM
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       );
     }
 
