@@ -428,6 +428,16 @@ Deno.serve(async (req) => {
     }
 
     try {
+      await base44.asServiceRole.functions.invoke('recalculateTrackingNumbers', {
+        driverId,
+        deliveryDate
+      });
+      console.log('🔢 [ReoptimizeFullRoute] Tracking numbers recalculated');
+    } catch (trackingError) {
+      console.warn('[ReoptimizeFullRoute] recalculateTrackingNumbers failed (non-fatal):', trackingError?.message || trackingError);
+    }
+
+    try {
       await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
         deliveryDate
