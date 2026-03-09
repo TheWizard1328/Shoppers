@@ -40,6 +40,11 @@ import DeliveryFormStaged from './DeliveryFormStaged';
 import BarcodeScanner from './BarcodeScanner';
 import { checkPayrollLock } from '../utils/payrollLockManager';
 import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
+import {
+  getClearedDeliveryFormFields,
+  getDistanceFromStoreValue,
+  resumeDeliveryFormManagers
+} from '../utils/deliveryFormHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -61,18 +66,6 @@ const userHasRole = (user, role) => {
 const sortStores = (stores) => {
   if (!stores) return [];
   return [...stores].sort((a, b) => { const sA = a.sort_order ?? Infinity; const sB = b.sort_order ?? Infinity; return sA !== sB ? sA - sB : (a.name || '').localeCompare(b.name || ''); });
-};
-
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return null;
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
 };
 
 export default function DeliveryForm({
@@ -1028,12 +1021,7 @@ export default function DeliveryForm({
     }
 
     // Use existing distance_from_store if available, otherwise calculate
-    let distanceFromStore = patient.distance_from_store;
-    if (distanceFromStore === null || distanceFromStore === undefined) {
-      if (patient.latitude && patient.longitude && patientStore.latitude && patientStore.longitude) {
-        distanceFromStore = calculateDistance(patientStore.latitude, patientStore.longitude, patient.latitude, patient.longitude);
-      }
-    }
+    const distanceFromStore = getDistanceFromStoreValue(patient, patientStore);
 
     const timeSlot = getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries);
 
@@ -1087,45 +1075,7 @@ export default function DeliveryForm({
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     setEditingStagedId(null);
-    setFormData((prev) => ({
-      ...prev,
-      patient_id: '',
-      patient_name: '',
-      patient_phone: '',
-      unit_number: '',
-      delivery_instructions: '',
-      delivery_notes: '',
-      prescription_number: '',
-      cod_total_amount_required: 0,
-      cod_payments: [],
-      cod_payment_type: 'No Payment',
-      cod_amount: '',
-      mailbox_ok: false,
-      call_upon_arrival: false,
-      ring_bell: false,
-      dont_ring_bell: false,
-      back_door: false,
-      signature_needed: false,
-      fridge_item: false,
-      oversized: false,
-      no_charge: false,
-      store_id: '',
-      delivery_time_start: '', delivery_time_end: '',
-      time_window_start: '', time_window_end: '', barcode_values: [], receipt_barcode_values: [],
-      recurring: false,
-      recurring_daily: false,
-      recurring_weekly_mon: false,
-      recurring_weekly_tue: false,
-      recurring_weekly_wed: false,
-      recurring_weekly_thu: false,
-      recurring_weekly_fri: false,
-      recurring_weekly_sat: false,
-      recurring_weekly_sun: false,
-      recurring_biweekly: false,
-      recurring_weekly_x4: false,
-      recurring_monthly: false,
-      recurring_bimonthly: false
-    }));
+    setFormData((prev) => getClearedDeliveryFormFields(prev));
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
@@ -1812,12 +1762,7 @@ export default function DeliveryForm({
     }
 
     // Use existing distance_from_store if available, otherwise calculate
-    let distanceFromStore = patient?.distance_from_store;
-    if (distanceFromStore === null || distanceFromStore === undefined) {
-      if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
-        distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
-      }
-    }
+    const distanceFromStore = getDistanceFromStoreValue(patient, store);
 
     // Check for existing pickup for this store/driver/date
     let puid = null;
@@ -1978,21 +1923,7 @@ export default function DeliveryForm({
     setHighlightedPatientIndex(-1);
     setEditingStagedId(null);
     setNewPatientMode(null); // Reset new patient mode
-    setFormData((prev) => ({
-      ...prev, patient_id: '', patient_name: '', patient_phone: '',
-      unit_number: '', delivery_instructions: '', delivery_notes: '',
-      prescription_number: '', cod_total_amount_required: 0,
-      cod_payments: [], cod_payment_type: 'No Payment', cod_amount: '',
-      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-      dont_ring_bell: false, back_door: false, signature_needed: false, 
-      fridge_item: false, oversized: false, no_charge: false, store_id: '', delivery_time_start: '', delivery_time_end: '', time_window_start: '', time_window_end: '', barcode_values: [], receipt_barcode_values: [],
-      time_window_start: '', time_window_end: '',
-      recurring: false, recurring_daily: false,
-      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
-      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
-      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-      recurring_monthly: false, recurring_bimonthly: false
-    }));
+    setFormData((prev) => getClearedDeliveryFormFields(prev));
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
@@ -2037,12 +1968,7 @@ export default function DeliveryForm({
     }
 
     // Use existing distance_from_store if available, otherwise calculate
-    let distanceFromStore = patient?.distance_from_store;
-    if (distanceFromStore === null || distanceFromStore === undefined) {
-      if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
-        distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
-      }
-    }
+    const distanceFromStore = getDistanceFromStoreValue(patient, store);
 
     setStagedDeliveries((prev) => prev.map((staged) => {
       if (staged._tempId !== editingStagedId) return staged;
@@ -2081,21 +2007,7 @@ export default function DeliveryForm({
     setSelectedPatientIds(new Set());
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
-    setFormData((prev) => ({
-      ...prev, patient_id: '', patient_name: '', patient_phone: '',
-      unit_number: '', delivery_instructions: '', delivery_notes: '',
-      prescription_number: '', cod_total_amount_required: 0,
-      cod_payments: [], cod_payment_type: 'No Payment', cod_amount: '',
-      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-      dont_ring_bell: false, back_door: false, signature_needed: false, 
-      fridge_item: false, oversized: false, no_charge: false, store_id: '', delivery_time_start: '', delivery_time_end: '', time_window_start: '', time_window_end: '', barcode_values: [], receipt_barcode_values: [],
-      time_window_start: '', time_window_end: '',
-      recurring: false, recurring_daily: false,
-      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
-      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
-      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-      recurring_monthly: false, recurring_bimonthly: false
-    }));
+    setFormData((prev) => getClearedDeliveryFormFields(prev));
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
@@ -2662,22 +2574,9 @@ export default function DeliveryForm({
         setIsLoadingPredictions(true);
 
         // CRITICAL: Resume background operations before closing
-        (async () => {
-          try {
-            const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-            const { routePolylineManager } = await import('../utils/routePolylineManager');
-            const { fabControlEvents } = await import('../utils/fabControlEvents');
-            
-            smartRefreshManager.resume();
-            driverLocationPoller.resume();
-            routePolylineManager?.resume?.();
-            fabControlEvents.resumeFAB();
-            
-          } catch (error) {
-            console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
-          }
-        })();
+        resumeDeliveryFormManagers().catch((error) => {
+          console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
+        });
 
         handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel(); // Close form IMMEDIATELY
 
@@ -3226,21 +3125,10 @@ export default function DeliveryForm({
       // CRITICAL: Always close form after successful update
       handleClearForm(); base44.functions.invoke('cleanupStagedPickups', { driverId: formData.driver_id, deliveryDate: formData.delivery_date }).catch(()=>{}); onCancel();
       // Resume managers immediately (non-blocking)
-      setTimeout(async () => {
-        try {
-          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-          const { routePolylineManager } = await import('../utils/routePolylineManager');
-          const { fabControlEvents } = await import('../utils/fabControlEvents');
-          
-          smartRefreshManager.resume();
-          driverLocationPoller.resume();
-          routePolylineManager?.resume?.();
-          fabControlEvents.resumeFAB();
-          
-        } catch (error) {
+      setTimeout(() => {
+        resumeDeliveryFormManagers().catch((error) => {
           console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
-        }
+        });
       }, 0);
     } catch (error) {
       setError(error.message);
@@ -3449,32 +3337,14 @@ export default function DeliveryForm({
       loadedDeliveryIdRef.current = null;
       
       // CRITICAL: Resume all background operations and trigger Dashboard UI refresh
-      (async () => {
-        try {
-          // Resume smart refresh
-          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-          smartRefreshManager.resume();
-          
-          // Location poller is already running, no need to resume
-          
-          // Resume polyline manager
-          const { routePolylineManager } = await import('../utils/routePolylineManager');
-          routePolylineManager?.resume?.();
-          
-          // Resume FAB
-          const { fabControlEvents } = await import('../utils/fabControlEvents');
-          fabControlEvents.resumeFAB();
-          
-          // CRITICAL: Trigger immediate Dashboard UI refresh with current data
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: null }
-          }));
-          
-        } catch (error) {
-          console.warn('⚠️ [DeliveryForm] Failed to resume some managers:', error);
-        }
-      })();
+      resumeDeliveryFormManagers().then(() => {
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: null }
+        }));
+      }).catch((error) => {
+        console.warn('⚠️ [DeliveryForm] Failed to resume some managers:', error);
+      });
     };
   }, [setIsFormOverlayOpen]);
 
