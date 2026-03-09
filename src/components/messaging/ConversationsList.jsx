@@ -79,13 +79,13 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     // Subscribe to ALL message updates for this user (sent and received)
     const unsubscribe = base44.entities.Message.subscribe((event) => {
       if (event.type === 'create' || event.type === 'update') {
-        // Update messages if sender or receiver is current user
-        const isRelated = event.data?.receiver_id === currentUser.id || event.data?.sender_id === currentUser.id;
+        const messageData = event.data;
+        const isRelated = messageData?.receiver_id === currentUser.id || messageData?.sender_id === currentUser.id;
         if (!isRelated) return;
 
         setMessages(prev => {
-          const exists = prev.some(m => m.id === event.data.id);
-          return exists ? prev.map(m => m.id === event.data.id ? event.data : m) : [...prev, event.data];
+          const exists = prev.some(m => m.id === messageData.id);
+          return exists ? prev.map(m => m.id === messageData.id ? messageData : m) : [...prev, messageData];
         });
       }
     });
@@ -206,7 +206,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     if (!window.confirm('Delete this conversation? All messages will be removed.')) return;
     
     try {
-      await Promise.all(convMessages.map(msg => base44.entities.Message.delete(msg.id)));
+      await Promise.allSettled(convMessages.map(msg => base44.entities.Message.delete(msg.id)));
       setMessages(prev => prev.filter(m => m.conversation_id !== convId));
     } catch (error) {
       console.error('Error deleting conversation:', error);

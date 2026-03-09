@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
-import { parseLocalTimestamp, getLocalTimestamp } from '@/components/utils/localTimeHelper';
+import { parseLocalTimestamp } from '@/components/utils/localTimeHelper';
 
 export default function ChatWindow({
   currentUser,
@@ -76,7 +76,7 @@ export default function ChatWindow({
 
         // Mark as read if this message is for the current user and is unread
         if (event.data.receiver_id === currentUser?.id && !event.data.read) {
-          base44.entities.Message.update(event.data.id, { read: true });
+          base44.entities.Message.update(event.data.id, { read: true }).catch(() => {});
           if (onMessagesRead) {
             onMessagesRead(1);
           }
@@ -96,7 +96,7 @@ export default function ChatWindow({
 
     setIsSending(true);
     try {
-      await base44.entities.Message.create({
+      const createdMessage = await base44.entities.Message.create({
         sender_id: currentUser.id,
         sender_name: currentUser.user_name || currentUser.full_name,
         receiver_id: otherUserId,
@@ -104,16 +104,9 @@ export default function ChatWindow({
         conversation_id: conversationId,
         content: newMessage.trim(),
         read: false,
-        created_date: getLocalTimestamp()
       });
       setNewMessage('');
-
-      // Immediately fetch to show the new message
-      const updatedMessages = await base44.entities.Message.filter(
-        { conversation_id: conversationId },
-        'created_date'
-      );
-      setMessages(updatedMessages);
+      setMessages((prev) => [...prev, createdMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
