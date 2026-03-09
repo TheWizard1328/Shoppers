@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
     // Alignment helpers
     doc.setLineWidth(0.2);
     doc.setLineHeightFactor(1.2);
-    const snap = (n: number) => Math.round(n * 2) / 2;
+    const snap = (n) => Math.round(n * 2) / 2;
 
     // Row sizing
     const minRowHeight = 6; // mm, ensures consistent spacing for single-line rows
@@ -193,8 +193,8 @@ Deno.serve(async (req) => {
       const notesWrapWidth = Math.max(20, colReceipts - colNotes - 2);
       const nameLines = doc.splitTextToSize(name, nameWrapWidth);
       const notesLines = doc.splitTextToSize(notes, notesWrapWidth);
-      const nameDims = doc.getTextDimensions(nameLines as any);
-      const notesDims = doc.getTextDimensions(notesLines as any);
+      const nameDims = doc.getTextDimensions(nameLines);
+      const notesDims = doc.getTextDimensions(notesLines);
       const textHeight = Math.max(nameDims.h, notesDims.h) + cellPadding;
 
       const receiptsCount = Array.isArray(d?.receipt_barcode_values) ? d.receipt_barcode_values.length : 0;
@@ -229,11 +229,15 @@ Deno.serve(async (req) => {
         doc.rect(colStop - 2, rowTop, pageWidth - 12, rowBottom - rowTop, 'F');
       }
 
-      doc.text(stop, colStop, textY, { baseline: 'top' } as any);
-      doc.text(tr, colTR, textY, { baseline: 'top' } as any);
-      doc.text(time, colTime, textY, { baseline: 'top' } as any);
-      doc.text(nameLines, colName, textY, { baseline: 'top' } as any);
-      doc.text(notesLines, colNotes, textY, { baseline: 'top' } as any);
+      doc.text(stop, colStop, textY, { baseline: 'top' });
+      doc.text(tr, colTR, textY, { baseline: 'top' });
+      doc.text(time, colTime, textY, { baseline: 'top' });
+      doc.text(nameLines, colName, textY, { baseline: 'top' });
+      doc.text(notesLines, colNotes, textY, { baseline: 'top' });
+
+      // Barcode thumbnails (draw count boxes)
+      drawMiniThumb(colReceipts, textY, 'RCPT', receiptsCount);
+      drawMiniThumb(colRx, textY, 'RX', rxCount);
 
       // Signature thumbnail
       if (images.signature) {
