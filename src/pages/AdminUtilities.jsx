@@ -4425,10 +4425,10 @@ export default function AdminUtilities() {
   }
 
   return (
-    <div className="min-h-screen p-2 md:p-3" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="min-h-screen p-2 md:p-3" style={{ background: 'var(--bg-slate-50)', paddingBottom: 'calc(72px + env(safe-area-inset-bottom))' }}>
       <div className="max-w-full mx-auto space-y-4 md:space-y-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
-          <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
             <h1 className="text-xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
           </div>
           <SmartRefreshIndicator inline={true} onManualRefresh={handleRefreshAllData} />
