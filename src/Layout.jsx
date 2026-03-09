@@ -3841,126 +3841,28 @@ export default function Layout({ children, currentPageName }) {
                   }
                 </div>
 
-                <div className="border-t p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
-                    {currentUser ?
-                <div>
-                      <div className={`flex items-center gap-3 mb-3 p-3 rounded-lg ${
-                      impersonatingUser ? 'bg-yellow-50 border-2 border-yellow-300' : ''}`
-                      }>
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
-                      impersonatingUser ?
-                      'bg-gradient-to-br from-yellow-500 to-yellow-600' :
-                      userHasRole(currentUser, 'admin') ?
-                      'bg-gradient-to-br from-blue-500 to-blue-600' :
-                      userHasRole(currentUser, 'dispatcher') ?
-                      'bg-gradient-to-br from-red-500 to-red-600' :
-                      userHasRole(currentUser, 'driver') ?
-                      'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                      'bg-gradient-to-br from-gray-400 to-gray-500' // Added fallback gradient for roles not specifically colored
-                      }`
-                      }>
-                          <span className="text-white font-bold text-sm">
-                            {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {impersonatingUser &&
-                      <p className="text-xs font-semibold text-yellow-800 mb-1">
-                              Viewing As
-                            </p>
-                      }
-                          <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
-                            {getDriverDisplayName(currentUser)} {showWatermark && <>[{deviceType} - {os}]</>}
-                          </p>
-                          <p className="text-xs truncate capitalize" style={{ color: 'var(--text-slate-500)' }}>
-                            {formatRoles(currentUser)}
-                          </p>
-                          {currentUser.phone &&
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                              <Phone className="w-3 h-3" />
-                              <a
-                          href={`tel:${currentUser.phone}`}
-                          className="hover:text-slate-700 transition-colors">
-
-                                {formatPhoneNumber(currentUser.phone)}
-                              </a>
-                            </div>
-                      }
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                          <button
-                        onClick={() => {
-                          setShowMessaging(true);
-                          setUnreadMessageCount(0);
-                          setSidebarOpen(false); // Close sidebar when opening messages
-                        }}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
-                        title="Messages">
-
-                                <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
-                                {unreadMessageCount > 0 &&
-                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
-                                        {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-                                      </span>
-                        }
-                              </button>
-                          <button
-                        onClick={() => {
-                          setShowInviteQRModal(true);
-                          setSidebarOpen(false);
-                        }}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
-                        title="Generate Invite QR Code">
-
-                                <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
-                              </button>
-                        </div>
-                      </div>
-
-                      {impersonatingUser &&
-                  <Button
-                    onClick={handleStopImpersonating}
-                    variant="destructive"
-                    className="w-full gap-2 mb-3">
-                          <LogOut className="w-4 h-4" /> Stop Viewing As
-                        </Button>
-                  }
-
-                      {(impersonatingUser || userHasRole(realUser, 'admin')) &&
-                  <UserImpersonation
-                    users={users} // Pass Layout's local users state
-                    currentUser={currentUser}
-                    onImpersonate={handleImpersonate}
-                    onStopImpersonating={handleStopImpersonating}
-                    impersonatingUser={impersonatingUser} />
-
-
-                  }
-
-
-                    </div> :
-
-                <div className="space-y-2">
-                      <div className="text-sm text-slate-500 mb-2">Not logged in</div>
-                      <Button
-                    onClick={async () => {
-                      try {
-                        sessionStorage.clear();
-                        clearUserCache();
-                        const currentUrl = window.location.origin + window.location.pathname;
-                        await User.loginWithRedirect(currentUrl);
-                      } catch (error) {
-                        console.error('Login failed:', error);
-                        window.location.href = '/';
-                      }
-                    }}
-                    className="w-full gap-2 bg-emerald-500 hover:bg-emerald-600">
-
-                        Log In
-                      </Button>
-                    </div>
-                }
-                </div>
+                <SidebarUserFooter
+                  currentUser={currentUser}
+                  realUser={realUser}
+                  impersonatingUser={impersonatingUser}
+                  users={users}
+                  unreadMessageCount={unreadMessageCount}
+                  onOpenMessaging={() => { setShowMessaging(true); setUnreadMessageCount(0); setSidebarOpen(false); }}
+                  onOpenInviteQR={() => { setShowInviteQRModal(true); setSidebarOpen(false); }}
+                  onImpersonate={handleImpersonate}
+                  onStopImpersonating={handleStopImpersonating}
+                  stores={stores}
+                  filteredDeliveries={filteredDeliveries}
+                  impersonationArea={(impersonatingUser || userHasRole(realUser, 'admin')) ? (
+                    <UserImpersonation
+                      users={users}
+                      currentUser={currentUser}
+                      onImpersonate={handleImpersonate}
+                      onStopImpersonating={handleStopImpersonating}
+                      impersonatingUser={impersonatingUser}
+                    />
+                  ) : null}
+                />
                 </div>
                 }
 
