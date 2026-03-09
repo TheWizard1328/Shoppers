@@ -253,18 +253,19 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Proof photo thumbnails
+      // Proof photo thumbnails (pack leftwards to stay within right margin)
       if (images.photos.length > 0) {
         let photoX = colPhotos;
-        for (const photo of images.photos) {
+        for (let p = 0; p < images.photos.length; p++) {
+          const photo = images.photos[p];
           try {
             doc.addImage(photo.base64Data, photo.format, photoX, textY, thumbSize, thumbSize);
-            photoX += thumbSize + 1;
+            photoX -= (thumbSize + rightGap);
           } catch {
             // Fallback: draw empty box
             doc.setDrawColor(200);
             doc.rect(photoX, textY, thumbSize, thumbSize);
-            photoX += thumbSize + 1;
+            photoX -= (thumbSize + rightGap);
           }
         }
       }
