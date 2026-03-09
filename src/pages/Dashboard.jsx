@@ -2899,7 +2899,7 @@ function Dashboard() {
 
             const padding = getMapPadding();
 
-            setShouldFitBounds({ bounds, options: { ...padding, paddingBottomRight: [ (padding.paddingBottomRight?.[0] ?? 25), (padding.paddingBottomRight?.[1] ?? 25) + 100 ], maxZoom: 17.5, animate: true } });
+            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
             setMapCenter(null);
             setMapZoom(null);
           }
