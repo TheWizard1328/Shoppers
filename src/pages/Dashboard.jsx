@@ -6604,37 +6604,20 @@ function Dashboard() {
         console.warn('⚠️ [RETURN] Failed to send notification:', notifyError);
       }
 
-      // Fetch fresh data and save to offline DB
       invalidateDeliveriesForDate(originalDelivery.delivery_date);
       invalidateDeliveriesForDate(currentDate);
       invalidate('Delivery');
-      
-      const freshDeliveries = await base44.entities.Delivery.filter({
-        driver_id: originalDelivery.driver_id,
-        delivery_date: currentDate
-      });
-      
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-      
-      // Protect from smart refresh overwrite
-      freshDeliveries.forEach(d => {
-        if (d?.id) {
-          smartRefreshManager.registerPendingUpdate(d.id, originalDelivery.driver_id, currentDate);
-        }
-      });
-
-      await refreshData();
+      try { await forceRefreshDriverDeliveries(originalDelivery.driver_id, currentDate); } catch (_) {}
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } }));
+      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } }));
+      base44.functions.invoke('optimizeRouteRealTime', { driverId: originalDelivery.driver_id, deliveryDate: currentDate, currentLocalTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`, generatePolyline: false }).catch((e) => console.warn('⚠️ [CREATE RETURN] Background optimize failed:', e?.message || e)).finally(() => window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } })));
 
     } catch (error) {
       console.error('❌ [CREATE RETURN] Error:', error);
       throw error;
     } finally {
-      // Resume all systems
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
       resumeOfflineSync();
       smartRefreshManager.resume();
-      
       setIsEntityUpdating(false);
     }
   };
