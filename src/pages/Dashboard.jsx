@@ -906,8 +906,8 @@ function Dashboard() {
             driverToSelect = settings.selected_driver_id || 'all';
           }
         }
-        setSelectedDriverId(driverToSelect);
-        if (!selectedDriverId || selectedDriverId === 'all') globalFilters.setSelectedDriverId(driverToSelect);
+        if ((currentUser&&userHasRole(currentUser,'driver')&&!userHasRole(currentUser,'admin')&&!userHasRole(currentUser,'dispatcher'))||!selectedDriverId||selectedDriverId==='all'){setSelectedDriverId(driverToSelect);}
+        if ((currentUser&&userHasRole(currentUser,'driver')&&!userHasRole(currentUser,'admin')&&!userHasRole(currentUser,'dispatcher'))||!selectedDriverId||selectedDriverId==='all') globalFilters.setSelectedDriverId(driverToSelect);
 
       } catch (error) {
         console.error('❌ [Dashboard] Error loading user settings:', error);
