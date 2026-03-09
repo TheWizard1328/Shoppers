@@ -1244,7 +1244,8 @@ export default function DeliveryMap({
     // For each driver, determine if home marker should show
     stopsByDriver.forEach((stops, driverId) => {
       // CRITICAL: Hide other drivers' home markers when not in show-all or all-drivers mode
-      if (!isShowAllMode && driverId !== selectedDriverId) return;
+      // Admins/app owners bypass this to evaluate special visibility rules
+      if (!isShowAllMode && driverId !== selectedDriverId && !(isCurrentUserAdmin || isAppOwner(currentUser))) return;
       const allStops = [...stops.deliveries, ...stops.pickups];
       
       // Count incomplete stops (exclude pending)
@@ -1254,6 +1255,18 @@ export default function DeliveryMap({
       // CRITICAL: Check if there are ANY unfinished pickups (including pending)
       // Home marker should NOT show until ALL pickups are complete/canceled/failed
       const unfinishedPickups = stops.pickups.filter(s => !finishedStatuses.includes(s.status));
+
+      // Determine if any pickups are actively en route
+      const hasEnRoutePickups = stops.pickups.some((s) => s && s.status === 'en_route');
+
+      // ADMIN VISIBILITY: In single-driver view, admins can see other drivers' homes when route not started OR no pickups en_route
+      if ((isCurrentUserAdmin || isAppOwner(currentUser)) && driverId !== (currentUser?.id)) {
+        const routeNotStarted = (allStops.length > 0 && completedStops.length === 0);
+        if (routeNotStarted || !hasEnRoutePickups) {
+          driversToShowHome.add(driverId);
+          return;
+        }
+      }
 
       // SHOW-ALL OVERRIDE: In show-all or all-drivers mode, always show other drivers' homes
       if ((isShowAllMode) && driverId !== (currentUser?.id)) {
