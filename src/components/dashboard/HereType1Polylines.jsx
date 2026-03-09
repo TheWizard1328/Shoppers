@@ -250,7 +250,7 @@ export default function HereType1Polylines({
       const live = (currentDriverMarker && (currentDriverMarker.driverId === driverId || currentDriverMarker.driver_id === driverId))
         ? currentDriverMarker
         : (driverLocations || []).find((d) => d && (d.driverId === driverId || d.driver_id === driverId));
-      const origin = home || live;
+      const origin = live || home;
       const originLat = origin && !Number.isNaN(Number(origin.latitude)) ? Number(origin.latitude) : undefined;
       const originLon = origin && !Number.isNaN(Number(origin.longitude)) ? Number(origin.longitude) : undefined;
 
@@ -298,7 +298,7 @@ export default function HereType1Polylines({
       const live = (currentDriverMarker && (currentDriverMarker.driverId === driverId || currentDriverMarker.driver_id === driverId))
         ? currentDriverMarker
         : (driverLocations || []).find((d) => d && (d.driverId === driverId || d.driver_id === driverId));
-      const origin = home || live;
+      const origin = live || home;
       const originLat = origin && !Number.isNaN(Number(origin.latitude)) ? Number(origin.latitude) : undefined;
       const originLon = origin && !Number.isNaN(Number(origin.longitude)) ? Number(origin.longitude) : undefined;
 
