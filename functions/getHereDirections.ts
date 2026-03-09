@@ -1,16 +1,8 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-
 // NOTE: We proxy to Google Directions to return a Google-encoded polyline that the client already knows how to decode.
 // This avoids extra deps and fixes 404s by guaranteeing this function exists under the expected name.
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await req.json().catch(() => ({}));
     const { origin, destination } = body || {};
     if (!origin || !destination || origin.lat == null || origin.lng == null || destination.lat == null || destination.lng == null) {
@@ -23,12 +15,18 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'GOOGLE_MAPS_API_KEY secret is not set' }, { status: 500 });
     }
 
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&mode=driving&key=${googleKey}`;
+    const params = new URLSearchParams({
+      origin: `${origin.lat},${origin.lng}`,
+      destination: `${destination.lat},${destination.lng}`,
+      mode: 'driving',
+      key: googleKey,
+    });
+    const url = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
 
     const controller = new AbortController();
-    const to = setTimeout(() => controller.abort('timeout'), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     const resp = await fetch(url, { signal: controller.signal });
-    clearTimeout(to);
+    clearTimeout(timeoutId);
 
     if (!resp.ok) {
       const text = await resp.text();
@@ -37,6 +35,10 @@ Deno.serve(async (req) => {
     }
 
     const data = await resp.json();
+    if (data?.status && data.status !== 'OK') {
+      console.error('[Directions] provider payload error', { status: data.status, error_message: data.error_message || null });
+      return Response.json({ error: data.error_message || data.status || 'Directions provider error' }, { status: 502 });
+    }
     const route = Array.isArray(data?.routes) ? data.routes[0] : null;
     if (!route) {
       return Response.json({ error: 'No route found' }, { status: 404 });
@@ -60,7 +62,8 @@ Deno.serve(async (req) => {
 
     return Response.json({ polyline, estimated_distance_km, estimated_duration_minutes });
   } catch (err) {
+    const isAbort = err?.name === 'AbortError';
     console.error('[getHereDirections] unexpected error', err?.message || err);
-    return Response.json({ error: err?.message || 'Server error' }, { status: 500 });
+    return Response.json({ error: err?.message || 'Server error' }, { status: isAbort ? 504 : 500 });
   }
 });

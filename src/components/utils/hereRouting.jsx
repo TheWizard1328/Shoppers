@@ -3,7 +3,8 @@ import { offlineDB } from './offlineDatabase';
 
 const fetchingKeys = new Set();
 const memoryCache = new Map();
-const USE_ENTITY_LOOKUP = true; // keep entity lookup enabled for instant hydration across devices
+const USE_ENTITY_LOOKUP = false;
+const USE_CROSS_DEVICE_LOCK = false;
 
 // If the online entity has been purged, avoid rehydrating from stale localStorage keys
 export function clearHereCacheForSegment(from, to) {
@@ -339,72 +340,48 @@ const deliveryDateSafe = deliveryDate || todayStr;
   } catch (_) {}
   fetchingKeys.add(cacheKey);
 
-  // Cross-device soft lock: allow ANY device to generate, but only one writes while others wait and load from DB
   let __lockId = null;
-  try {
-    const lockKey = `polylock:${cacheKey}`;
-    const now = Date.now();
-    // Check existing lock
-    let existing = null;
+  if (USE_CROSS_DEVICE_LOCK) {
     try {
-      const locks = await base44.entities.AppSettings.filter({ setting_key: lockKey }, '-updated_date', 1);
-      existing = Array.isArray(locks) ? locks[0] : null;
-    } catch (_) {}
-    const existingExpires = existing?.setting_value?.expires_at ? new Date(existing.setting_value.expires_at).getTime() : 0;
-    const notExpired = existing && existingExpires > now;
+      const lockKey = `polylock:${cacheKey}`;
+      const now = Date.now();
+      let existing = null;
+      try {
+        const locks = await base44.entities.AppSettings.filter({ setting_key: lockKey }, '-updated_date', 1);
+        existing = Array.isArray(locks) ? locks[0] : null;
+      } catch (_) {}
+      const existingExpires = existing?.setting_value?.expires_at ? new Date(existing.setting_value.expires_at).getTime() : 0;
+      const notExpired = existing && existingExpires > now;
 
-    if (notExpired) {
-      // Another device is generating; wait/poll for up to 6s for coords to land in caches/entity
-      fetchingKeys.delete(cacheKey);
-      return await new Promise((resolve) => {
-        let waited = 0;
-        const iv = setInterval(async () => {
-          // Memory/localStorage first
-          if (memoryCache.has(cacheKey)) { clearInterval(iv); resolve(memoryCache.get(cacheKey)); return; }
-          try {
-            const cached = localStorage.getItem(cacheKey);
-            if (cached) { clearInterval(iv); resolve(JSON.parse(cached)); return; }
-          } catch (_) {}
-          // Entity lookup as final check
-          try {
-            const rounded = (n) => Number(n.toFixed(5));
-            const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
-const parts = formatter.formatToParts(new Date());
-const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
-const deliveryDateSafe = deliveryDate || todayStr;
-            const recs = await base44.entities.DriverRoutePolyline.filter({
-              driver_id: driverId,
-              delivery_date: deliveryDateSafe,
-              segment_origin_lat: rounded(fromStop.latitude),
-              segment_origin_lon: rounded(fromStop.longitude),
-              segment_dest_lat: rounded(toStop.latitude),
-              segment_dest_lon: rounded(toStop.longitude)
-            }, '-updated_date', 1);
-            const rec = Array.isArray(recs) ? recs[0] : null;
-            if (rec?.encoded_polyline) {
-              const coords = decodeGooglePolyline(rec.encoded_polyline);
-              if (coords?.length > 1) { clearInterval(iv); memoryCache.set(cacheKey, coords); try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch(_){} resolve(coords); return; }
-            }
-          } catch (_) {}
-          if (waited >= 6000) { clearInterval(iv); resolve(null); return; }
-          waited += 150;
-        }, 150);
-      });
-    }
-
-    // Acquire/refresh lock for ~12s window
-    try {
-      const me = await base44.auth.me().catch(()=>null);
-      const newExpires = new Date(now + 12000).toISOString();
-      if (existing) {
-        const updated = await base44.entities.AppSettings.update(existing.id, { setting_value: { ...(existing.setting_value || {}), owner: me?.id || 'anon', expires_at: newExpires }, description: 'HERE polyline generation lock' });
-        __lockId = existing.id;
-      } else {
-        const created = await base44.entities.AppSettings.create({ setting_key: lockKey, setting_value: { owner: me?.id || 'anon', created_at: new Date(now).toISOString(), expires_at: newExpires }, description: 'HERE polyline generation lock' });
-        __lockId = created?.id;
+      if (notExpired) {
+        fetchingKeys.delete(cacheKey);
+        return await new Promise((resolve) => {
+          let waited = 0;
+          const iv = setInterval(() => {
+            if (memoryCache.has(cacheKey)) { clearInterval(iv); resolve(memoryCache.get(cacheKey)); return; }
+            try {
+              const cached = localStorage.getItem(cacheKey);
+              if (cached) { clearInterval(iv); resolve(JSON.parse(cached)); return; }
+            } catch (_) {}
+            if (waited >= 6000) { clearInterval(iv); resolve(null); return; }
+            waited += 150;
+          }, 150);
+        });
       }
-    } catch (_) { /* proceed without lock if AppSettings not available */ }
-  } catch (_) { /* ignore lock errors */ }
+
+      try {
+        const me = await base44.auth.me().catch(()=>null);
+        const newExpires = new Date(now + 12000).toISOString();
+        if (existing) {
+          await base44.entities.AppSettings.update(existing.id, { setting_value: { ...(existing.setting_value || {}), owner: me?.id || 'anon', expires_at: newExpires }, description: 'HERE polyline generation lock' });
+          __lockId = existing.id;
+        } else {
+          const created = await base44.entities.AppSettings.create({ setting_key: lockKey, setting_value: { owner: me?.id || 'anon', created_at: new Date(now).toISOString(), expires_at: newExpires }, description: 'HERE polyline generation lock' });
+          __lockId = created?.id;
+        }
+      } catch (_) {}
+    } catch (_) {}
+  }
 
   try {
     console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
