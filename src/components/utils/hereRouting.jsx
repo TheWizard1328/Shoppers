@@ -240,7 +240,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     });
   }
   // Mark as in-flight before any DB/entity lookups to collapse concurrent callers
-  fetchingKeys.add(cacheKey);
+  if (!fetchingKeys.has(cacheKey)) fetchingKeys.add(cacheKey);
 
   // in-flight dedupe handled earlier above (no-op here)
 
