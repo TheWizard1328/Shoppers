@@ -39,6 +39,15 @@ import StopCardConfirmDialogs from './StopCardConfirmDialogs';
 import StopCardPOD from './StopCardPOD';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
 import { updatePatientGPS } from "../utils/patientGPSUpdater";
+import {
+  buildRetryDelivery,
+  clearNextDeliveryFlags,
+  getCurrentLocalTimeString,
+  getNextTrackingNumberInGroup,
+  refreshDriverRoute,
+  verifyDeliveryStillExists,
+  withPausedDriverLocationPoller
+} from "./stopCardActionHelpers";
 
 // Global statusConfig
 const statusConfig = {
@@ -864,6 +873,129 @@ export default function StopCard({
     setReturnPatient(null);
   };
 
+  const handleRetryDelivery = async () => {
+    fabControlEvents.deactivateFAB();
+    setIsRetrying(true);
+    setIsProcessingBackground(true);
+
+    try {
+      await withPausedDriverLocationPoller(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        await verifyDeliveryStillExists(delivery.id);
+        await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+        await ensureDriverOnline();
+
+        const nextTR = getNextTrackingNumberInGroup(
+          delivery.tracking_number,
+          allDeliveries,
+          delivery.driver_id,
+          delivery.delivery_date
+        );
+
+        await base44.entities.Delivery.create(buildRetryDelivery(delivery, nextTR));
+
+        try {
+          await base44.functions.invoke('optimizeRouteRealTime', {
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            currentLocalTime: getCurrentLocalTimeString(),
+            generatePolyline: false
+          });
+        } catch (optimizeError) {
+          console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
+        }
+
+        await refreshDriverRoute({
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          forceRefreshDriverDeliveries,
+          triggeredBy: 'retry'
+        });
+
+        if (userHasRole(currentUser, 'driver')) {
+          await notifyDriverRetry({
+            driver: currentUser,
+            patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+            delivery,
+            store,
+            appUsers
+          });
+        }
+      });
+    } finally {
+      setIsRetrying(false);
+      setIsProcessingBackground(false);
+      fabControlEvents.reactivateFAB(true);
+    }
+  };
+
+  const restartCurrentDelivery = async (shouldOptimize = false) => {
+    fabControlEvents.deactivateFAB();
+    setIsRestarting(true);
+    setIsEntityUpdating(true);
+    setIsProcessingBackground(true);
+
+    try {
+      await withPausedDriverLocationPoller(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        await verifyDeliveryStillExists(delivery.id);
+
+        const driverDeliveries = allDeliveries.filter((d) =>
+          d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+        );
+
+        await clearNextDeliveryFlags({
+          driverDeliveries,
+          currentDeliveryId: delivery.id,
+          updateDeliveryLocal
+        });
+
+        const newStatus = isPickup ? 'en_route' : 'in_transit';
+        await updateDeliveryLocal(delivery.id, {
+          status: newStatus,
+          isNextDelivery: true,
+          actual_delivery_time: null,
+          delivery_notes: ''
+        }, { skipSmartRefresh: true });
+
+        if (shouldOptimize) {
+          try {
+            await base44.functions.invoke('optimizeRouteRealTime', {
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date,
+              currentLocalTime: getCurrentLocalTimeString(),
+              generatePolyline: false
+            });
+          } catch (optimizeError) {
+            console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
+          }
+        }
+
+        await refreshDriverRoute({
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          forceRefreshDriverDeliveries,
+          triggeredBy: 'restart'
+        });
+
+        if (userHasRole(currentUser, 'driver')) {
+          await notifyDriverRetry({
+            driver: currentUser,
+            patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+            delivery,
+            store,
+            appUsers
+          });
+        }
+      });
+    } finally {
+      fabControlEvents.reactivateFAB(true);
+      setIsProcessingBackground(false);
+      setIsRestarting(false);
+      setIsEntityUpdating(false);
+    }
+  };
+
   // Determine if card should be faded
   // CRITICAL: Only fade finished stops on delivery date (not past dates or future)
   const shouldFade = useMemo(() => {
@@ -1252,96 +1384,7 @@ export default function StopCard({
                           <Button
                             onClick={async (e) => {
                               e.stopPropagation();
-
-                              fabControlEvents.deactivateFAB();
-                              setIsRetrying(true);
-                              setIsProcessingBackground(true);
-                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                              driverLocationPoller.pause();
-
-                              await new Promise((resolve) => setTimeout(resolve, 50));
-
-                              try {
-                                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                                if (!deliveryExists || deliveryExists.length === 0) {
-                                  console.warn('⚠️ [RETRY] Delivery no longer exists - aborting');
-                                  throw new Error('This delivery has been deleted. Please refresh the page.');
-                                }
-
-                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                await ensureDriverOnline();
-
-                                // Find next tracking number within the same group of 20
-                                const originalTR = parseInt(delivery.tracking_number, 10);
-                                const groupStart = Math.floor(originalTR / 20) * 20;
-                                const groupEnd = groupStart + 19;
-                                
-                                const driverDeliveries = allDeliveries.filter((d) =>
-                                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                                );
-                                const existingTRsInGroup = driverDeliveries
-                                  .map((d) => parseInt(d.tracking_number, 10))
-                                  .filter((tr) => !isNaN(tr) && tr >= groupStart && tr <= groupEnd);
-                                
-                                const nextTR = existingTRsInGroup.length > 0 ? Math.max(...existingTRsInGroup) + 1 : groupStart;
-
-                                // Create duplicate delivery
-                                const retryDelivery = {
-                                  ...delivery,
-                                  status: 'in_transit',
-                                  tracking_number: String(nextTR),
-                                  delivery_notes: '[Redelivered]',
-                                  actual_delivery_time: null,
-                                  isNextDelivery: false,
-                                  signature_image_url: null,
-                                  proof_photo_urls: [],
-                                  cod_payments: []
-                                };
-
-                                // Remove internal fields
-                                delete retryDelivery.id;
-                                delete retryDelivery.created_date;
-                                delete retryDelivery.updated_date;
-                                delete retryDelivery.created_by;
-
-                                const newDelivery = await base44.entities.Delivery.create(retryDelivery);
-                                try {
-                                  const now = new Date();
-                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                  await base44.functions.invoke('optimizeRouteRealTime', {
-                                    driverId: delivery.driver_id,
-                                    deliveryDate: delivery.delivery_date,
-                                    currentLocalTime: currentLocalTime,
-                                    generatePolyline: false
-                                  });
-
-                                  invalidate('Delivery');
-                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                } catch (optimizeError) {
-                                  console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
-                                }
-
-                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                  detail: { triggeredBy: 'retry', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                }));
-
-                                if (userHasRole(currentUser, 'driver')) {
-                                  await notifyDriverRetry({
-                                    driver: currentUser,
-                                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                    delivery,
-                                    store,
-                                    appUsers
-                                  });
-                                }
-                              } finally {
-                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                driverLocationPoller.resume();
-
-                                setIsRetrying(false);
-                                setIsProcessingBackground(false);
-                                fabControlEvents.reactivateFAB(true);
-                              }
+                              await handleRetryDelivery();
                             }}
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
@@ -1366,67 +1409,7 @@ export default function StopCard({
                           <Button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              fabControlEvents.deactivateFAB();
-                              setIsRestarting(true);
-                              setIsEntityUpdating(true);
-                              setIsProcessingBackground(true);
-                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                              driverLocationPoller.pause();
-
-                              await new Promise((resolve) => setTimeout(resolve, 100));
-
-                              try {
-                                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                                if (!deliveryExists || deliveryExists.length === 0) {
-                                  console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
-                                  throw new Error('This delivery has been deleted. Please refresh the page.');
-                                }
-
-                                const driverDeliveries = allDeliveries.filter((d) =>
-                                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                                );
-
-                                for (const d of driverDeliveries) {
-                                  if (d.isNextDelivery) {
-                                    await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
-                                  }
-                                }
-
-                                const newStatus = isPickup ? 'en_route' : 'in_transit';
-                                await updateDeliveryLocal(delivery.id, {
-                                  status: newStatus,
-                                  isNextDelivery: true,
-                                  actual_delivery_time: null,
-                                  delivery_notes: ''
-                                }, { skipSmartRefresh: true });
-
-                                try {
-                                  // No auto optimization on restart; just refresh data
-                                  invalidate('Delivery');
-                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                } catch (e) {}
-
-                                invalidate('Delivery');
-                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                  detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                }));
-
-                                if (userHasRole(currentUser, 'driver')) {
-                                  await notifyDriverRetry({
-                                    driver: currentUser,
-                                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                    delivery, store, appUsers
-                                  });
-                                }
-                              } finally {
-                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                driverLocationPoller.resume();
-
-                                fabControlEvents.reactivateFAB(true);
-                                setIsProcessingBackground(false);
-                              }
+                              await restartCurrentDelivery(false);
                             }}
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
@@ -1812,76 +1795,7 @@ export default function StopCard({
                         <Button
                           onClick={async (e) => {
                             e.stopPropagation();
-                            fabControlEvents.deactivateFAB();
-                            setIsRestarting(true);
-                            setIsEntityUpdating(true);
-                            setIsProcessingBackground(true);
-                            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                            driverLocationPoller.pause();
-
-                            await new Promise((resolve) => setTimeout(resolve, 100));
-
-                            try {
-                              const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                              if (!deliveryExists || deliveryExists.length === 0) {
-                                console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
-                                throw new Error('This delivery has been deleted. Please refresh the page.');
-                              }
-                              const driverDeliveries = allDeliveries.filter((d) =>
-                                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                              );
-
-                              for (const d of driverDeliveries) {
-                                if (d.isNextDelivery) {
-                                  await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
-                                }
-                              }
-
-                              const newStatus = isPickup ? 'en_route' : 'in_transit';
-                              await updateDeliveryLocal(delivery.id, {
-                                status: newStatus,
-                                isNextDelivery: true,
-                                actual_delivery_time: null,
-                                delivery_notes: ''
-                              }, { skipSmartRefresh: true });
-
-                              try {
-                                const now = new Date();
-                                const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                await base44.functions.invoke('optimizeRouteRealTime', {
-                                  driverId: delivery.driver_id,
-                                  deliveryDate: delivery.delivery_date,
-                                  currentLocalTime: currentLocalTime,
-                                  generatePolyline: false
-                                });
-                                invalidate('Delivery');
-                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                              } catch (optimizeError) {
-                                console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
-                              }
-
-                              invalidate('Delivery');
-                              await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                              }));
-
-                              if (userHasRole(currentUser, 'driver')) {
-                                await notifyDriverRetry({
-                                  driver: currentUser,
-                                  patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers
-                                });
-                              }
-                            } finally {
-                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                              driverLocationPoller.resume();
-
-                              fabControlEvents.reactivateFAB(true);
-                              setIsProcessingBackground(false);
-                              setIsRestarting(false);
-                              setIsEntityUpdating(false);
-                            }
+                            await restartCurrentDelivery(true);
                             }}
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
