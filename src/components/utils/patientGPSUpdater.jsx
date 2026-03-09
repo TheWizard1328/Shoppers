@@ -76,11 +76,23 @@ export const updatePatientGPS = async ({ patientId, storeId, stores }) => {
     const distanceKm = haversineKm(store.latitude, store.longitude, fresh.latitude, fresh.longitude);
 
     // 3) Update patient
-    await base44.entities.Patient.update(patientId, {
+    const updatedPatient = await base44.entities.Patient.update(patientId, {
       latitude: fresh.latitude,
       longitude: fresh.longitude,
       distance_from_store: distanceKm,
     });
+
+    try {
+      window.dispatchEvent(new CustomEvent('patientGpsUpdated', {
+        detail: {
+          patientId,
+          latitude: fresh.latitude,
+          longitude: fresh.longitude,
+          distance_from_store: distanceKm,
+          patient: updatedPatient,
+        }
+      }));
+    } catch {}
 
     // 4) Notify UI
     toast.success("Patient GPS Updated", {
@@ -88,7 +100,14 @@ export const updatePatientGPS = async ({ patientId, storeId, stores }) => {
     });
 
     _gpsUpdateInFlight = false;
-    return { success: true, message: "GPS updated", distance: distanceKm };
+    return {
+      success: true,
+      message: "GPS updated",
+      distance: distanceKm,
+      latitude: fresh.latitude,
+      longitude: fresh.longitude,
+      patient: updatedPatient,
+    };
   } catch (error) {
     if (error?.response?.status === 429 || (error?.message && /429|rate limit/i.test(error.message))) {
       try { window._setRateLimitError?.(true); } catch {}

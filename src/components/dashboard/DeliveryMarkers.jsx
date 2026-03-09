@@ -33,8 +33,29 @@ export default function DeliveryMarkers({
   safeUsers,
   stores,
 }) {
+  const [gpsOverrides, setGpsOverrides] = React.useState({});
+
+  React.useEffect(() => {
+    const handlePatientGpsUpdated = (event) => {
+      const patientId = event?.detail?.patientId;
+      const latitude = Number(event?.detail?.latitude);
+      const longitude = Number(event?.detail?.longitude);
+      if (!patientId || Number.isNaN(latitude) || Number.isNaN(longitude)) return;
+      setGpsOverrides((prev) => ({
+        ...prev,
+        [patientId]: { latitude, longitude }
+      }));
+    };
+
+    window.addEventListener('patientGpsUpdated', handlePatientGpsUpdated);
+    return () => window.removeEventListener('patientGpsUpdated', handlePatientGpsUpdated);
+  }, []);
+
   return deliveryMarkers.map((delivery) => {
-    const locationKey = `${delivery.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${delivery.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
+    const gpsOverride = delivery?.patient_id ? gpsOverrides[delivery.patient_id] : null;
+    const markerLatitude = gpsOverride?.latitude ?? delivery.latitude;
+    const markerLongitude = gpsOverride?.longitude ?? delivery.longitude;
+    const locationKey = `${markerLatitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${markerLongitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
     const isClustered = delivery.duplicateCount > 1;
     const isFanned = fannedLocationKey === locationKey;
     const isHighlighted = highlightedDeliveryId === delivery.id;
@@ -48,7 +69,7 @@ export default function DeliveryMarkers({
     const isDeliveryInProgressFade = isFinishedForFade && isSelectedDriverMarker && !isSelectedRouteComplete && isRouteInProgress;
     const isDeliveryHighlightedFinished = (isDeliveryFaded || isDeliveryInProgressFade) && (isHighlighted || isUserHoveringFaded);
 
-    let markerPosition = [delivery.latitude, delivery.longitude];
+    let markerPosition = [markerLatitude, markerLongitude];
     let dynamicZIndex;
     const isFinished = FINISHED_STATUSES.includes(delivery.status);
     const isNext = delivery.isNextInLine;
@@ -65,7 +86,7 @@ export default function DeliveryMarkers({
       const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       const clusterIndex = allMarkersAtLocation.findIndex(d => d && d.id === delivery.id);
-      markerPosition = calculateFannedPositionWrapperWrapper(delivery.latitude, delivery.longitude, clusterIndex, allMarkersAtLocation.length, delivery.stop_order);
+      markerPosition = calculateFannedPositionWrapperWrapper(markerLatitude, markerLongitude, clusterIndex, allMarkersAtLocation.length, delivery.stop_order);
       const incompleteMarkers = allMarkersAtLocation.filter(d => !FINISHED_STATUSES.includes(d.status));
       if (isFinished) dynamicZIndex = 2000 - allMarkersAtLocation.length - clusterIndex;
       else { const incIdx = incompleteMarkers.findIndex(d => d.id === delivery.id); dynamicZIndex = 3000 + (incompleteMarkers.length - incIdx); }
@@ -91,7 +112,7 @@ export default function DeliveryMarkers({
     };
 
     return [
-      isHighlighted && !isFanned && <Circle key={`delivery-halo-${delivery.id}`} center={[delivery.latitude, delivery.longitude]} radius={40} pathOptions={{ color: delivery.pinColor, fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />,
+      isHighlighted && !isFanned && <Circle key={`delivery-halo-${delivery.id}`} center={[markerLatitude, markerLongitude]} radius={40} pathOptions={{ color: delivery.pinColor, fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />,
       isHighlighted && !isFanned && delivery.store_id && (() => {
         const deliveryStore = stores.find(s => s?.id === delivery.store_id);
         if (!deliveryStore?.latitude || !deliveryStore?.longitude) return null;
