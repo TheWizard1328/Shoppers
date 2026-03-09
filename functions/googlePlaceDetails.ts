@@ -21,28 +21,31 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'API key not configured' }, { status: 500 });
     }
 
-    // Get user's AppUser record for user_name
-    const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
-    const userAppUser = userAppUsers?.[0];
-    
-    // Log API call
-    await base44.asServiceRole.entities.GoogleAPILog.create({
-      timestamp: new Date().toISOString(),
-      api_type: 'Place Details',
-      purpose: 'Fetching address details for place autocomplete',
-      function_name: 'googlePlaceDetails',
-      user_id: user.id,
-      user_name: userAppUser?.user_name || user.full_name,
-      metadata: {
-        place_id: place_id
-      }
-    });
+    // Best-effort user lookup + logging only
+    try {
+      const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+      const userAppUser = userAppUsers?.[0];
+      await base44.asServiceRole.entities.GoogleAPILog.create({
+        timestamp: new Date().toISOString(),
+        api_type: 'Place Details',
+        purpose: 'Fetching address details for place autocomplete',
+        function_name: 'googlePlaceDetails',
+        user_id: user.id,
+        user_name: userAppUser?.user_name || user.full_name,
+        metadata: {
+          place_id: place_id
+        }
+      });
+    } catch (logError) {
+      console.warn('[googlePlaceDetails] Non-fatal log error:', logError?.message || logError);
+    }
 
     // Call Google Places API (New) v1 to get full address details
-    const url = `https://places.googleapis.com/v1/places/${place_id}?key=${apiKey}`;
+    const url = `https://places.googleapis.com/v1/places/${place_id}`;
     
     const response = await fetch(url, {
       headers: {
+        'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask': 'addressComponents,formattedAddress,location'
       }
     });
