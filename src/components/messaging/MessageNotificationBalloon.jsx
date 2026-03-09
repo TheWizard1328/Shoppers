@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import UpdateAppPrompt from './UpdateAppPrompt';
+import { isAppUpdateBroadcast } from './updateBroadcastConfig';
 
 export default function MessageNotificationBalloon({ currentUser, onOpenConversation, onDismiss }) {
   const [notification, setNotification] = useState(null);
+  const [updatePromptMessage, setUpdatePromptMessage] = useState(null);
   const [lastSeenMessageId, setLastSeenMessageId] = useState(null);
   const autoDismissTimeoutRef = useRef(null);
 
@@ -19,21 +22,29 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
 
     // Subscribe to real-time message updates
     const unsubscribe = base44.entities.Message.subscribe((event) => {
-      // Only process new messages where current user is the receiver
       if (event.data?.receiver_id !== currentUser.id) return;
-      
+
+      if (event.type === 'create' && isAppUpdateBroadcast(event.data.content)) {
+        setUpdatePromptMessage(event.data.content);
+        setNotification(null);
+        if (autoDismissTimeoutRef.current) {
+          clearTimeout(autoDismissTimeoutRef.current);
+        }
+        return;
+      }
+
       if (event.type === 'create' || (event.type === 'update' && !event.data.read)) {
         const currentLastSeen = localStorage.getItem(`lastSeenMessageId_${currentUser.id}`);
-        
+
         if (event.data.id !== currentLastSeen) {
           setNotification(event.data);
           setLastSeenMessageId(event.data.id);
           localStorage.setItem(`lastSeenMessageId_${currentUser.id}`, event.data.id);
-          
+
           if (autoDismissTimeoutRef.current) {
             clearTimeout(autoDismissTimeoutRef.current);
           }
-          
+
           autoDismissTimeoutRef.current = setTimeout(() => {
             setNotification(null);
           }, 8000);
@@ -63,8 +74,24 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
     if (onDismiss) onDismiss();
   };
 
+  const handleUpdateApp = () => {
+    window.location.reload();
+  };
+
+  const handleCancelUpdatePrompt = () => {
+    setUpdatePromptMessage(null);
+  };
+
   return (
-    <AnimatePresence>
+    <>
+      {updatePromptMessage && (
+        <UpdateAppPrompt
+          message={updatePromptMessage}
+          onUpdate={handleUpdateApp}
+          onCancel={handleCancelUpdatePrompt}
+        />
+      )}
+      <AnimatePresence>
       {notification && (
         <motion.div
           initial={{ opacity: 0, y: -20, scale: 0.95 }}
@@ -119,5 +146,6 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
         </motion.div>
       )}
     </AnimatePresence>
+    </>
   );
 }

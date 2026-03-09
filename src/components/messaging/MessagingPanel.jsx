@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
 import ConversationsList from './ConversationsList';
 import ChatWindow from './ChatWindow';
-import { X } from 'lucide-react';
+import { Loader2, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isAppOwner } from '@/components/utils/userRoles';
+import { APP_UPDATE_BROADCAST_MESSAGE } from './updateBroadcastConfig';
 
 export default function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange }) {
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
+  const [isBroadcastingUpdate, setIsBroadcastingUpdate] = useState(false);
+  const [updateBroadcastSent, setUpdateBroadcastSent] = useState(false);
+  const canBroadcastUpdate = isAppOwner(currentUser);
   
   const handleMessagesRead = (count) => {
     // Immediately notify parent that messages were read
@@ -27,15 +33,59 @@ export default function MessagingPanel({ currentUser, users, onClose, initialCon
     setSelectedConversation(null);
   };
 
+  const handleBroadcastUpdate = async () => {
+    if (!currentUser?.id || isBroadcastingUpdate) return;
+
+    const recipients = (users || []).filter((user) => user?.id && user.id !== currentUser.id);
+    if (recipients.length === 0) return;
+
+    setIsBroadcastingUpdate(true);
+    setUpdateBroadcastSent(false);
+
+    const senderName = currentUser.user_name || currentUser.full_name || 'App Owner';
+
+    await Promise.allSettled(
+      recipients.map((user) =>
+        base44.entities.Message.create({
+          sender_id: currentUser.id,
+          sender_name: senderName,
+          receiver_id: user.id,
+          receiver_name: user.user_name || user.full_name || 'User',
+          conversation_id: [currentUser.id, user.id].sort().join('_'),
+          content: APP_UPDATE_BROADCAST_MESSAGE,
+          read: false,
+        })
+      )
+    );
+
+    setIsBroadcastingUpdate(false);
+    setUpdateBroadcastSent(true);
+    window.setTimeout(() => setUpdateBroadcastSent(false), 4000);
+  };
+
   return (
     <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4">
       <div className="rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)' }}>
         {/* Header */}
-        <div className="p-4 flex items-center justify-between" style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
+        <div className="p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Messages</h2>
-          <Button variant="ghost" size="icon" onClick={handleCloseMessaging}>
-            <X className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
-          </Button>
+          <div className="flex items-center gap-2">
+            {canBroadcastUpdate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBroadcastUpdate}
+                disabled={isBroadcastingUpdate}
+                className="gap-2"
+              >
+                {isBroadcastingUpdate ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {updateBroadcastSent ? 'Update Sent' : 'Broadcast Update'}
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={handleCloseMessaging}>
+              <X className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
+            </Button>
+          </div>
         </div>
 
         {/* Content */}
