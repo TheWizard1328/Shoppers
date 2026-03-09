@@ -124,7 +124,7 @@ const DeliveryRow = memo(({
     ) : (
       <div
         onClick={() => onSelect(delivery.id)}
-        className={`grid grid-cols-[120px_auto_90px_minmax(300px,1fr)_minmax(160px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-3 border-b cursor-pointer transition-colors ${
+        className={`grid grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-3 border-b cursor-pointer transition-colors ${
           isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
         } ${isSelected ? 'bg-slate-100' : ''}`}
         style={{ borderColor: 'var(--border-slate-200)' }}
@@ -399,7 +399,7 @@ const DeliveryListView = ({
         {/* Table Header */}
         <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {!isMobile && (
-            <div className="grid grid-cols-[120px_auto_90px_minmax(300px,1fr)_minmax(160px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+            <div className="grid grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
               <div className="text-center">Stop/TR</div>
               <div className="text-center">Status</div>
               <div className="text-center">Time</div>
