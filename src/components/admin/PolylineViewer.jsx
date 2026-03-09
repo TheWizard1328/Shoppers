@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { queueEntityRequest } from '../utils/requestQueue';
-import { Loader2, MapPin, Trash2, RefreshCw } from 'lucide-react';
+import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { clearHereCacheForSegment } from '../utils/hereRouting';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -83,6 +84,25 @@ export default function PolylineViewer({ users = [] }) {
   const [driverFilter, setDriverFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
   const [dataSource, setDataSource] = useState('online'); // 'online' | 'offline'
+  const [isMobile, setIsMobile] = useState(false);
+  const [showList, setShowList] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(30);
+  const listContainerRef = React.useRef(null);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = () => setIsMobile(mq.matches);
+    setIsMobile(mq.matches);
+    if (mq.addEventListener) mq.addEventListener('change', handler); else mq.addListener(handler);
+    return () => { if (mq.removeEventListener) mq.removeEventListener('change', handler); else mq.removeListener(handler); };
+  }, []);
+  const handleListScroll = (e) => {
+    const el = e?.currentTarget;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) {
+      setVisibleCount((c) => Math.min(c + 30, (viewMode === 'polylines' ? filteredPolylines.length : filteredBreadcrumbs.length)));
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -189,6 +209,11 @@ export default function PolylineViewer({ users = [] }) {
 
     return filtered;
   }, [breadcrumbs, driverFilter, dateFilter]);
+  
+  // Reset lazy-load window when data set changes
+  useEffect(() => {
+    setVisibleCount(30);
+  }, [viewMode, filteredPolylines.length, filteredBreadcrumbs.length]);
 
   const availableDrivers = useMemo(() => {
     const dataSource = viewMode === 'polylines' ? polylines : breadcrumbs;
