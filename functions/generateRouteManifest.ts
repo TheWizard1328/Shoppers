@@ -256,7 +256,10 @@ Deno.serve(async (req) => {
             doc.addImage(photo.base64Data, photo.format, photoX, textY, thumbSize, thumbSize);
             photoX += thumbSize + 1;
           } catch {
-            // Skip failed images
+            // Fallback: draw empty box
+            doc.setDrawColor(200);
+            doc.rect(photoX, textY, thumbSize, thumbSize);
+            photoX += thumbSize + 1;
           }
         }
       }
