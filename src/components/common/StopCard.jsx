@@ -1701,65 +1701,45 @@ export default function StopCard({
                                                                  smartRefreshManager.pause();
 
                                 try {
-                                  // Get all driver deliveries
-                                  const driverDeliveries = allDeliveries.filter((d) =>
-                                    d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                                  );
-
-                                  // Ensure single isNextDelivery atomically on the server
-                                  await base44.functions.invoke('setNextDeliveryFlag', {
-                                    driverId: delivery.driver_id,
-                                    deliveryDate: delivery.delivery_date,
-                                    targetDeliveryId: delivery.id
-                                  });
-
-                                  // Set this delivery as isNextDelivery with status update
                                   const now = new Date();
                                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-                                  // Backend safety handled earlier with awaited setNextDeliveryFlag
-                                  
-                                  await updateDeliveryLocal(delivery.id, {
-                                    status: isPickup ? 'en_route' : 'in_transit',
-                                    delivery_time_start: currentLocalTime
-                                  }, { skipSmartRefresh: true });
-
-                                  // Refresh UI
-                                  invalidate('Delivery');
-                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                                  // Trigger map update
-                                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                    detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                  }));
-
-                                  // Kick off route optimization so ETAs and stop orders refresh immediately
                                   window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
                                     detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                                   }));
-                                  try {
-                                    const now = new Date();
-                                    const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                    const res = await base44.functions.invoke('optimizeRouteRealTime', {
-                                      driverId: delivery.driver_id,
-                                      deliveryDate: delivery.delivery_date,
-                                      currentLocalTime,
-                                      generatePolyline: false
-                                    });
-                                    // Optional: broadcast ETA updates without waiting for full refetch
-                                    if (res?.data?.optimizedRoute && Array.isArray(res.data.optimizedRoute)) {
-                                      window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: res.data.optimizedRoute.map(u => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.newETA })) } }));
-                                    }
-                                  } catch (optErr) {
-                                    console.warn('⚠️ [Start] optimizeRouteRealTime failed:', optErr?.message || optErr);
-                                  } finally {
-                                    window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
-                                      detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+
+                                  const startRes = await base44.functions.invoke('handleStartDelivery', {
+                                    deliveryId: delivery.id,
+                                    driverId: delivery.driver_id,
+                                    deliveryDate: delivery.delivery_date
+                                  });
+
+                                  await updateDeliveryLocal(delivery.id, {
+                                    status: isPickup ? 'en_route' : 'in_transit',
+                                    delivery_time_start: currentLocalTime,
+                                    isNextDelivery: true
+                                  }, { skipSmartRefresh: true });
+
+                                  if (startRes?.data?.optimization?.optimizedRoute && Array.isArray(startRes.data.optimization.optimizedRoute)) {
+                                    window.dispatchEvent(new CustomEvent('etaUpdated', {
+                                      detail: {
+                                        updates: startRes.data.optimization.optimizedRoute.map(u => ({
+                                          deliveryId: u.deliveryId || u.delivery_id,
+                                          newEta: u.newETA
+                                        }))
+                                      }
                                     }));
-                                    // Refresh to reflect new orders/ETAs
-                                    invalidate('Delivery');
-                                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                                   }
+
+                                  invalidate('Delivery');
+                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                    detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                  }));
+                                  window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
+                                    detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                  }));
 
                                   // Background tasks (fire and forget)
                                   Promise.all([
