@@ -8141,7 +8141,7 @@ function Dashboard() {
           suggestedDate={format(selectedDate, 'yyyy-MM-dd')}
           currentUser={currentUser}
           allDeliveries={deliveries}
-          onCreatePatient={handleCreatePatientFromDelivery} />
+          initialDriverId={selectedDriverId} onCreatePatient={handleCreatePatientFromDelivery} />
         }
       </AnimatePresence>
 

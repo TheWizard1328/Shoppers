@@ -153,9 +153,9 @@ export default function DeliveryForm({
       const isAdmin = userHasRole(currentUser, 'admin');
 
       if (isDriver && !isAdmin && !isDispatcher) {
-        const currentUserDriver = allDrivers.find((d) => d.id === currentUser.id);
+        const currentUserDriver = allDrivers.find((d) => d.id === (initialDriverId && initialDriverId !== 'all' ? initialDriverId : currentUser.id));
         if (currentUserDriver) {
-          initialState.driver_id = currentUser.id;
+          initialState.driver_id = initialDriverId && initialDriverId !== 'all' ? initialDriverId : currentUser.id;
           initialState.driver_name = getDriverNameForStorage(currentUserDriver);
         }
       } else if (isDispatcher && !isDriver && !isAdmin) {
@@ -305,7 +305,7 @@ export default function DeliveryForm({
     if (isDriver && !isAdmin && !isDispatcher) {
       const currentUserDriver = allDrivers.find((d) => d.id === currentUser.id);
       if (currentUserDriver) {
-        driverIdToSet = currentUser.id;
+        driverIdToSet = initialDriverId && initialDriverId !== 'all' ? initialDriverId : currentUser.id;
         driverNameToSet = getDriverNameForStorage(currentUserDriver);
       }
     } else if (isDispatcher && !isDriver && !isAdmin) {
