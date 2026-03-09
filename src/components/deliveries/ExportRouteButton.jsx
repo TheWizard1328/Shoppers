@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Download, ChevronDown } from "lucide-react";
+import { Download, ChevronDown, Loader2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
 import { userHasRole } from "../utils/userRoles";
@@ -68,10 +68,15 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const pmQualified = getPeriodQualification('PM');
   const qualifiedCount = (amQualified ? 1 : 0) + (pmQualified ? 1 : 0);
 
+  const [isExporting, setIsExporting] = React.useState(false);
+
   const handleExport = async (type, ampm) => {
-    const driverId = driverFilter;
-    if (!driverId || driverId === 'all') { alert('Select a driver first'); return; }
-    const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const driverId = driverFilter;
+      if (!driverId || driverId === 'all') { alert('Select a driver first'); return; }
+      const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
 
     const payload = {
       driverId,
@@ -98,6 +103,9 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // === DRIVERS & ADMINS: Post-route only, enabled when route complete ===
@@ -108,10 +116,10 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         <Button
           onClick={() => handleExport('post-route')}
           className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-          disabled={btnDisabled}
+          disabled={btnDisabled || isExporting}
         >
-          <Download className="w-4 h-4" />
-          Export Route
+          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {isExporting ? 'Exporting...' : 'Export Route'}
         </Button>
       </div>
     );
@@ -129,10 +137,10 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
           <Button
             onClick={() => handleExport('post-route')}
             className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-            disabled={noDriver || noStoreDeliveries}
+            disabled={(noDriver || noStoreDeliveries) || isExporting}
           >
-            <Download className="w-4 h-4" />
-            Export Route
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {isExporting ? 'Exporting...' : 'Export Route'}
           </Button>
         </div>
       );
@@ -144,10 +152,10 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         <div className="w-full flex justify-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2 text-white bg-slate-900 hover:bg-slate-800" disabled={noDriver}>
-                <Download className="w-4 h-4" />
-                Export Route
-                <ChevronDown className="w-4 h-4" />
+              <Button variant="outline" className="gap-2 text-white bg-slate-900 hover:bg-slate-800" disabled={noDriver || isExporting}>
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {isExporting ? 'Exporting...' : 'Export Route'}
+                {!isExporting && <ChevronDown className="w-4 h-4" />}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
@@ -172,10 +180,10 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
             onClick={() => handleExport('pre-route', qualifiedPeriod)}
             variant="outline"
             className="gap-2 text-white bg-slate-900 hover:bg-slate-800"
-            disabled={noDriver}
+            disabled={noDriver || isExporting}
           >
-            <Download className="w-4 h-4" />
-            Export Route
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {isExporting ? 'Exporting...' : 'Export Route'}
           </Button>
         </div>
       );
