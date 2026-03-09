@@ -104,14 +104,16 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   if (isDriver || isAdmin) {
     const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0;
     return (
-      <Button
-        onClick={() => handleExport('post-route')}
-        className="bg-emerald-600 hover:bg-emerald-700 gap-2"
-        disabled={btnDisabled}
-      >
-        <Download className="w-4 h-4" />
-        Export Route
-      </Button>
+      <div className="w-full flex justify-center">
+        <Button
+          onClick={() => handleExport('post-route')}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+          disabled={btnDisabled}
+        >
+          <Download className="w-4 h-4" />
+          Export Route
+        </Button>
+      </div>
     );
   }
 
