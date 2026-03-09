@@ -276,6 +276,7 @@ export default function HereType1Polylines({
 
   const isGrace = Date.now() - mountTimeRef.current < 600;
   const lines = [];
+  const seenKeys = new Set();
 
   // Pre-route: prefer real HERE polyline (home -> first); only show dashed after a short grace period
   driverStops.forEach((stops, driverId) => {
@@ -322,14 +323,17 @@ export default function HereType1Polylines({
         
         // If it's a live GPS location, we might not want to wait for HERE API and just draw a straight dashed line
         // because the GPS updates frequently. But we'll try to use the cached HERE line if available.
-        lines.push(
-          <Polyline
-            key={`type1-pre-home-${driverId}`}
-            positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
-            pathOptions={{ color: coords ? "#2563eb" : '#3b82f6', weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
-            pane="overlayPane"
-          />
-        );
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          lines.push(
+            <Polyline
+              key={`type1-pre-home-${driverId}`}
+              positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
+              pathOptions={{ color: coords ? "#2563eb" : '#3b82f6', weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
+              pane="overlayPane"
+            />
+          );
+        }
       }
     }
   });
@@ -387,14 +391,17 @@ export default function HereType1Polylines({
     const fallbackLon = originLon;
 
     // Show dashed fallback immediately; HERE polyline will hydrate when ready
-    lines.push(
-      <Polyline
-        key={`type1-next-${driverId}`}
-        positions={coords || makeFallback({ latitude: fallbackLat, longitude: fallbackLon }, nextStop)}
-        pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
-        pane="overlayPane"
-      />
-    );
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      lines.push(
+        <Polyline
+          key={`type1-next-${driverId}`}
+          positions={coords || makeFallback({ latitude: fallbackLat, longitude: fallbackLon }, nextStop)}
+          pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
+          pane="overlayPane"
+        />
+      );
+    }
   });
 
   // Render last-completed -> home for completed routes
@@ -417,14 +424,17 @@ export default function HereType1Polylines({
       } catch (_) {}
     }
     // Show dashed fallback immediately; HERE polyline will hydrate when ready
-    lines.push(
-      <Polyline
-        key={`type1-home-${driverId}`}
-        positions={coords || makeFallback(lastCompleted, home)}
-        pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
-        pane="overlayPane"
-      />
-    );
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      lines.push(
+        <Polyline
+          key={`type1-home-${driverId}`}
+          positions={coords || makeFallback(lastCompleted, home)}
+          pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
+          pane="overlayPane"
+        />
+      );
+    }
   });
 
   // Preserve last non-empty set only in multi-driver showAll mode to prevent ghost lines on driver switch
