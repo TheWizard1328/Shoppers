@@ -78,6 +78,7 @@ export default function PullToSync({
   const performSync = async (silent = false) => {
     setIsSyncing(true);
     setShowOverlay(!silent);
+    try { window.__dashboardSyncing = true; window.dispatchEvent(new CustomEvent('pullToSyncStarted')); } catch (e) {}
     console.log(`🔄 [Pull to Sync] Starting ${silent ? 'silent' : 'full'} targeted refresh...`);
 
     try {
@@ -217,6 +218,7 @@ export default function PullToSync({
       
       // CRITICAL: Dispatch completion event for SmartRefreshIndicator
       window.dispatchEvent(new CustomEvent('pullToSyncComplete'));
+      try { window.__dashboardSyncing = false; } catch (e) {}
 
       // Update offline sync indicator with fresh sync metadata
       const syncStats = await offlineDB.getStats();
