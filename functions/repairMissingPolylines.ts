@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
           if (!rec?.encoded_polyline) {
             const data = await fetchDirectionsPolyline({ lat: last.lat, lng: last.lon }, { lat: nextStop.lat, lng: nextStop.lon }, GOOGLE_KEY);
             const encoded = data.encoded || encodeGooglePolyline((data.coords || []).map(([la,lo]) => [la, lo]));
-            await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
+            const saved = await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
               encoded_polyline: encoded,
               last_generated_at: new Date().toISOString(),
               expires_at: new Date(Date.now() + 10*60*1000).toISOString(),
@@ -237,6 +237,22 @@ Deno.serve(async (req) => {
               estimated_distance_km: data?.distKm || null,
               estimated_duration_minutes: data?.durMin || null,
             }));
+            // Post-save dedupe for this exact leg
+            try {
+              const again = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
+                driver_id: driverId,
+                delivery_date: dateStr,
+                segment_origin_lat: round5(last.lat),
+                segment_origin_lon: round5(last.lon),
+                segment_dest_lat: round5(nextStop.lat),
+                segment_dest_lon: round5(nextStop.lon)
+              }, '-updated_date');
+              if (Array.isArray(again) && again.length > 1) {
+                again.sort((a,b)=> new Date(b.last_generated_at||b.updated_date||0) - new Date(a.last_generated_at||a.updated_date||0));
+                const keepId = again[0].id;
+                await Promise.all(again.slice(1).map(r=> base44.asServiceRole.entities.DriverRoutePolyline.delete(r.id).catch(()=>null)));
+              }
+            } catch(_) {}
             repaired.push({ driverId, type: 'type1_last_to_next' });
           }
         }
@@ -246,8 +262,18 @@ Deno.serve(async (req) => {
       if (!completed.length && incomplete.length) {
         const next = getLatLon(incomplete[0]);
         const appUser = appUserByKey.get(String(driverId));
-        const originLat = Number(appUser?.current_latitude) || Number(appUser?.home_latitude);
-        const originLon = Number(appUser?.current_longitude) || Number(appUser?.home_longitude);
+        const hLat = Number(appUser?.home_latitude);
+        const hLon = Number(appUser?.home_longitude);
+        const cLat = Number(appUser?.current_latitude);
+        const cLon = Number(appUser?.current_longitude);
+        // Prefer HOME; if both exist and are very close, snap to HOME to avoid duplicate keys
+        let originLat = isFinite(hLat) ? hLat : cLat;
+        let originLon = isFinite(hLon) ? hLon : cLon;
+        if (isFinite(hLat) && isFinite(hLon) && isFinite(cLat) && isFinite(cLon)) {
+          if (Math.abs(cLat - hLat) < 0.0006 && Math.abs(cLon - hLon) < 0.0006) {
+            originLat = hLat; originLon = hLon;
+          }
+        }
         if (next && isFinite(originLat) && isFinite(originLon)) {
           const existing = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
             driver_id: driverId,
@@ -261,7 +287,7 @@ Deno.serve(async (req) => {
           if (!rec?.encoded_polyline) {
             const data = await fetchDirectionsPolyline({ lat: originLat, lng: originLon }, { lat: next.lat, lng: next.lon }, GOOGLE_KEY);
             const encoded = data.encoded || encodeGooglePolyline((data.coords || []).map(([la,lo]) => [la, lo]));
-            await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
+            const saved = await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
               encoded_polyline: encoded,
               last_generated_at: new Date().toISOString(),
               expires_at: new Date(Date.now() + 10*60*1000).toISOString(),
@@ -280,6 +306,21 @@ Deno.serve(async (req) => {
               estimated_distance_km: data?.distKm || null,
               estimated_duration_minutes: data?.durMin || null,
             }));
+            // Post-save dedupe for this exact leg
+            try {
+              const again = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
+                driver_id: driverId,
+                delivery_date: dateStr,
+                segment_origin_lat: round5(originLat),
+                segment_origin_lon: round5(originLon),
+                segment_dest_lat: round5(next.lat),
+                segment_dest_lon: round5(next.lon)
+              }, '-updated_date');
+              if (Array.isArray(again) && again.length > 1) {
+                again.sort((a,b)=> new Date(b.last_generated_at||b.updated_date||0) - new Date(a.last_generated_at||a.updated_date||0));
+                await Promise.all(again.slice(1).map(r=> base44.asServiceRole.entities.DriverRoutePolyline.delete(r.id).catch(()=>null)));
+              }
+            } catch(_) {}
             repaired.push({ driverId, type: 'type1_home_to_first' });
           }
         }
