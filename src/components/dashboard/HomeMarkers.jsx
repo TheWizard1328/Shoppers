@@ -20,9 +20,17 @@ export default function HomeMarkers({ driverHomeMarkers, map, isMobile, onMarker
       let dynamicBottomPadding = balloonH + 20;
       if (stopCardsEl) dynamicBottomPadding = Math.max(stopCardsEl.getBoundingClientRect().height + balloonH + 20, balloonH + 20);
       const bounds = L.latLngBounds([[home.latitude, home.longitude], [home.latitude, home.longitude]]);
-      map._loaded && map._mapPane?._leaflet_pos && map.fitBounds(bounds, { paddingTopLeft: [60, dynamicTopPadding + 50], paddingBottomRight: [60, dynamicBottomPadding], animate: true, duration: 0.6, maxZoom: targetZoom });
+      try {
+        if (map && map._loaded && map._mapPane && map._mapPane._leaflet_pos) {
+          map.fitBounds(bounds, { paddingTopLeft: [60, dynamicTopPadding + 50], paddingBottomRight: [60, dynamicBottomPadding], animate: true, duration: 0.6, maxZoom: targetZoom });
+        }
+      } catch (_) {}
       setTimeout(() => {
-        if (map._loaded && map._mapPane?._leaflet_pos && map.getZoom() < targetZoom) map.setZoom(targetZoom, { animate: true, duration: 0.3 });
+        try {
+          if (map && map._loaded && map._mapPane && map._mapPane._leaflet_pos && map.getZoom() < targetZoom) {
+            map.setZoom(targetZoom, { animate: true, duration: 0.3 });
+          }
+        } catch (_) {}
         e.target.openPopup();
       }, 600);
     };
