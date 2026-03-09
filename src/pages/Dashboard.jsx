@@ -2347,31 +2347,20 @@ function Dashboard() {
     }
   }, [showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant, setIsFormOverlayOpen]);
 
-  /**
-   * MAP CYCLE FAB - RULES:
-   * 
-   * PHASE 1: Show all markers (drivers, stops, home locations)
-   *   - Locked for 3 seconds, then auto-unlocks
-   *   - After unlock: free roam mode (user can pan/zoom)
-   * 
-   * PHASE 2: Center on driver + next stop (continuous tracking)
-   *   - STAYS LOCKED PERMANENTLY until user manually pans/zooms the map
-   *   - Continuously re-centers on driver & next stop as location updates
-   *   - Manual map interaction unlocks FAB (turns gray)
-   * 
-   * PHASE 3: Center on driver only
-   *   - Locked for 3 seconds, then auto-unlocks
-   *   - After unlock: free roam mode (user can pan/zoom)
-   * 
-   * CLICKING FAB:
-   *   - If UNLOCKED (gray): Re-activate current phase (re-lock + re-center)
-   *   - If LOCKED (blue): Advance to next phase
-   */
+  /* Map Cycle FAB rules (condensed) */
   const handleMapViewCycle = useCallback(() => {
     // CRITICAL: Allow dispatchers and admins to use FAB
     if (!isDriver && !isDispatcher && !isAdmin) {
       return;
     }
+
+    // Ensure UI panels are collapsed before re-zoom/center
+    flushSync(() => {
+      setIsExpanded(false);
+      setSelectedCardId(null);
+      cardExpandedAtRef.current = null;
+      setAreCardsVisible(false);
+    });
 
     let newMapViewPhase;
 
