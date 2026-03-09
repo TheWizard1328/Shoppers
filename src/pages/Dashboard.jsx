@@ -3708,14 +3708,14 @@ function Dashboard() {
   useEffect(() => {
     const savedDriverId = globalFilters.getSelectedDriverId();
 
-    if (savedDriverId && savedDriverId !== selectedDriverId) {
+    if (!window.__dashboardSyncing && savedDriverId && savedDriverId !== selectedDriverId) {
       setSelectedDriverId(savedDriverId);
     }
   }, [selectedDriverId]); // Add selectedDriverId as dependency
 
   // CRITICAL: Auto-update driver selection for dispatchers when date/deliveries change
   useEffect(() => {
-    if (!currentUser || !isDispatcher || !userSettingsLoaded || !isDataLoaded) return;
+    if (!currentUser || !isDispatcher || !userSettingsLoaded || !isDataLoaded || window.__dashboardSyncing) return;
     
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     const dispatcherStoreIds = currentUser.store_ids || [];

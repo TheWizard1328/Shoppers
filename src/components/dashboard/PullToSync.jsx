@@ -217,6 +217,7 @@ export default function PullToSync({
       }
       
       // CRITICAL: Dispatch completion event for SmartRefreshIndicator
+      try { window.__dashboardSyncing = false; } catch (e) {}
       window.dispatchEvent(new CustomEvent('pullToSyncComplete'));
       try { window.__dashboardSyncing = false; } catch (e) {}
 
@@ -250,6 +251,7 @@ export default function PullToSync({
         });
       }
     } finally {
+      try { window.__dashboardSyncing = false; window.dispatchEvent(new CustomEvent('pullToSyncComplete')); } catch (e) {}
       // Resume all background managers after sync
       console.log('▶️ [Pull to Sync] Resuming managers...');
       if (window.smartRefreshManager?.resume) {
@@ -268,6 +270,7 @@ export default function PullToSync({
         setShowOverlay(false);
         setPullDistance(0);
         setIsPulling(false);
+        try { window.__dashboardSyncing = false; } catch (e) {}
       }, 500);
     }
   };
@@ -276,6 +279,7 @@ export default function PullToSync({
   useEffect(() => {
     const handleSilentSync = async () => {
       console.log('🔇 [PullToSync] Silent sync triggered after AppUser update');
+      try { window.__dashboardSyncing = true; window.dispatchEvent(new CustomEvent('pullToSyncStarted')); } catch (e) {}
       await performSync(true);
     };
 
