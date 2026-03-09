@@ -1315,12 +1315,11 @@ export default function Layout({ children, currentPageName }) {
     // Listen for messaging requests from map markers
     const handleOpenMessaging = (event) => {
       const { otherUserId, otherUserName } = event.detail || {};
-      if (otherUserId && otherUserName) {
-        setInitialConversation({ otherUserId, otherUserName });
-        setShowMessaging(true);
-      }
+      setInitialConversation(otherUserId && otherUserName ? { otherUserId, otherUserName } : null);
+      setUnreadMessageCount(0); setShowMessaging(true);
     };
-    window.addEventListener('openMessaging', handleOpenMessaging);
+    const handleOpenMessagingPanel = () => { setInitialConversation(null); setUnreadMessageCount(0); setShowMessaging(true); };
+    window.addEventListener('openMessaging', handleOpenMessaging); window.addEventListener('openMessagingPanel', handleOpenMessagingPanel);
 
     // Listen for user role changes and update UI immediately
     const handleUserRolesChanged = async (event) => {
@@ -1737,7 +1736,7 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
       window.removeEventListener('dataConflictsDetected', handleConflict);
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
-      window.removeEventListener('openMessaging', handleOpenMessaging);
+      window.removeEventListener('openMessaging', handleOpenMessaging); window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
     };
   }, [currentUser]);
 
