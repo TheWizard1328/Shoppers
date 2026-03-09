@@ -3747,7 +3747,7 @@ function Dashboard() {
         saveSetting(currentUser.id, 'selected_driver_id', newDriverSelection);
       }
     }
-  }, [isDispatcher, currentUser?.id, selectedDate, deliveries, userSettingsLoaded, isDataLoaded]);
+  }, [isDispatcher, currentUser?.id, selectedDate, deliveries, userSettingsLoaded, isDataLoaded, selectedDriverId]);
 
   // CRITICAL: Reset cardsReadyForFAB when driver/date changes, then enable once cards are measured
   useEffect(() => {
