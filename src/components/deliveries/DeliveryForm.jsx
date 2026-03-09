@@ -2081,21 +2081,8 @@ export default function DeliveryForm({
     setSelectedPatientIds(new Set());
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
-    setFormData((prev) => ({
-      ...prev, patient_id: '', patient_name: '', patient_phone: '',
-      unit_number: '', delivery_instructions: '', delivery_notes: '',
-      prescription_number: '', cod_total_amount_required: 0,
-      cod_payments: [], cod_payment_type: 'No Payment', cod_amount: '',
-      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-      dont_ring_bell: false, back_door: false, signature_needed: false, 
-      fridge_item: false, oversized: false, no_charge: false, store_id: '', delivery_time_start: '', delivery_time_end: '', time_window_start: '', time_window_end: '', barcode_values: [], receipt_barcode_values: [],
-      time_window_start: '', time_window_end: '',
-      recurring: false, recurring_daily: false,
-      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
-      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
-      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-      recurring_monthly: false, recurring_bimonthly: false
-    }));
+    const { getClearedDraftFormData } = await import('../utils/deliveryFormActionHelpers');
+    setFormData((prev) => getClearedDraftFormData(prev));
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
@@ -2114,7 +2101,7 @@ export default function DeliveryForm({
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
       hasLoadedPending.current = false; // Reset flag when closing without saves
       predictionsStopped.current = false; // Reset for next open
-      (await import('../utils/deliveryFormActionHelpers')).closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }); // Close form immediately
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel })); // Close form immediately
       return;
     }
 
@@ -2134,7 +2121,7 @@ export default function DeliveryForm({
         console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
       });
       
-      (await import('../utils/deliveryFormActionHelpers')).closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel });
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
       
       // Background refresh (non-blocking)
       setTimeout(async () => {
@@ -2210,7 +2197,7 @@ export default function DeliveryForm({
       hasLoadedPending.current = false;
       predictionsStopped.current = false; // Reset for next open
       setIsLoadingPredictions(true); // Keep predictions blocked
-      (await import('../utils/deliveryFormActionHelpers')).closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel });
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
       return;
     }
 
@@ -2649,24 +2636,11 @@ export default function DeliveryForm({
         setIsLoadingPredictions(true);
 
         // CRITICAL: Resume background operations before closing
-        (async () => {
-          try {
-            const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-            const { routePolylineManager } = await import('../utils/routePolylineManager');
-            const { fabControlEvents } = await import('../utils/fabControlEvents');
-            
-            smartRefreshManager.resume();
-            driverLocationPoller.resume();
-            routePolylineManager?.resume?.();
-            fabControlEvents.resumeFAB();
-            
-          } catch (error) {
-            console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
-          }
-        })();
+        (await import('../utils/deliveryFormActionHelpers')).resumeDeliveryFormManagers().catch((error) => {
+          console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
+        });
 
-        (await import('../utils/deliveryFormActionHelpers')).closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }); // Close form IMMEDIATELY
+        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel })); // Close form IMMEDIATELY
 
         // CRITICAL: Immediate UI refresh events
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -2759,7 +2733,7 @@ export default function DeliveryForm({
       })();
 
       // Close form FIRST
-      (await import('../utils/deliveryFormActionHelpers')).closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel });
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
 
       // CRITICAL: Wait for form to close, reload from offline DB, then update UI
       setTimeout(async () => {
@@ -3211,7 +3185,7 @@ export default function DeliveryForm({
 
       // CRITICAL: Resume background operations AFTER closing form
       // CRITICAL: Always close form after successful update
-      (await import('../utils/deliveryFormActionHelpers')).closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel });
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
       // Resume managers immediately (non-blocking)
       setTimeout(() => {
         import('../utils/deliveryFormActionHelpers')
@@ -3286,7 +3260,7 @@ export default function DeliveryForm({
         })();
         (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
         
-        (await import('../utils/deliveryFormActionHelpers')).closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel });
+        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
       }
     } else {
       // CRITICAL: Reset the auto-load flag when canceling without changes
@@ -3313,7 +3287,7 @@ export default function DeliveryForm({
         }
       })();
       
-      (await import('../utils/deliveryFormActionHelpers')).closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel });
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, driverId: formData.driver_id, deliveryDate: formData.delivery_date, onCancel }));
     }
   }, [stagedDeliveries, onCancel, delivery]);
 
