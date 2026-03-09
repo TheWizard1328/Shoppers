@@ -25,7 +25,7 @@ import { saveSetting } from "@/components/utils/userSettingsManager";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
-  deliveries, drivers, stores, appUsers, driversList,
+  deliveries, filteredDeliveries, drivers, stores, appUsers, driversList,
   selectedDate, selectedDateStr, selectedDriverId, calendarMonth, setCalendarMonth,
   isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,
   isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
