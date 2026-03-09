@@ -1,5 +1,3 @@
-import { base44 } from "@/api/base44Client";
-
 let managerControllersPromise;
 
 const getManagerControllers = async () => {
