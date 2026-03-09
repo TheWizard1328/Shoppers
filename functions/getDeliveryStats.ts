@@ -26,6 +26,28 @@ const getCacheDateKey = () => {
   return now.toISOString().split('T')[0];
 };
 
+const uniqueIds = (ids = []) => [...new Set((ids || []).filter(Boolean))];
+
+const fetchPatientsByIds = async (base44, ids) => {
+  const results = await Promise.all(
+    uniqueIds(ids).map(async (id) => {
+      const rows = await base44.asServiceRole.entities.Patient.filter({ id }).catch(() => []);
+      return Array.isArray(rows) ? rows[0] : null;
+    })
+  );
+  return results.filter(Boolean);
+};
+
+const fetchAppUsersByUserIds = async (base44, ids) => {
+  const results = await Promise.all(
+    uniqueIds(ids).map(async (userId) => {
+      const rows = await base44.asServiceRole.entities.AppUser.filter({ user_id: userId }).catch(() => []);
+      return Array.isArray(rows) ? rows[0] : null;
+    })
+  );
+  return results.filter(Boolean);
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -374,9 +396,7 @@ Deno.serve(async (req) => {
       
       // CRITICAL: Count only on_duty drivers with in_transit/en_route stops
       // Fetch AppUsers to check driver_status
-      const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ 
-        user_id: { $in: Array.from(allDriverIds) } 
-      }).catch(() => []);
+      const driverAppUsers = await fetchAppUsersByUserIds(base44, Array.from(allDriverIds));
       
       const onDutyDriverIds = new Set(
         driverAppUsers.filter(au => au?.driver_status === 'on_duty').map(au => au.user_id)
@@ -508,9 +528,7 @@ Deno.serve(async (req) => {
           if (deliveriesMissingDist.length > 0) {
             const patientIdsForDist = deliveriesMissingDist.map(d => d.patient_id).filter(Boolean);
             if (patientIdsForDist.length > 0) {
-              const patientsForDist = await base44.asServiceRole.entities.Patient.filter({ 
-                id: { $in: patientIdsForDist } 
-              }).catch(() => []);
+              const patientsForDist = await fetchPatientsByIds(base44, patientIdsForDist);
               patientsForDist.forEach(p => {
                 if (p?.distance_from_store) {
                   patientDistanceMap.set(p.id, p.distance_from_store);
@@ -560,9 +578,7 @@ Deno.serve(async (req) => {
             const patientIds = deliveriesNeedingPatientDistance.map(d => d.patient_id).filter(Boolean);
             
             if (patientIds.length > 0) {
-              const patientsData = await base44.asServiceRole.entities.Patient.filter({ 
-                id: { $in: patientIds } 
-              });
+              const patientsData = await fetchPatientsByIds(base44, patientIds);
               
               const patientMap = new Map(patientsData.map(p => [p.id, p]));
               
@@ -678,9 +694,7 @@ Deno.serve(async (req) => {
         // ALL DRIVERS MODE - aggregate stats across all drivers
         console.log('📊 [ALL DRIVERS MODE] Calculating aggregated performance stats');
         // Fetch all AppUsers for these drivers to get their pay rates
-        const allDriverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ 
-          user_id: { $in: uniqueDriverIds } 
-        }).catch(() => []);
+        const allDriverAppUsers = await fetchAppUsersByUserIds(base44, uniqueDriverIds);
         
         let totalPayAllDrivers = 0;
         let totalKmAllDrivers = 0;
@@ -730,9 +744,7 @@ Deno.serve(async (req) => {
           if (driverDeliveriesMissingDist.length > 0) {
             const driverPatientIdsForDist = driverDeliveriesMissingDist.map(d => d.patient_id).filter(Boolean);
             if (driverPatientIdsForDist.length > 0) {
-              const driverPatientsForDist = await base44.asServiceRole.entities.Patient.filter({ 
-                id: { $in: driverPatientIdsForDist } 
-              }).catch(() => []);
+              const driverPatientsForDist = await fetchPatientsByIds(base44, driverPatientIdsForDist);
               driverPatientsForDist.forEach(p => {
                 if (p?.distance_from_store) {
                   driverPatientDistanceMap.set(p.id, p.distance_from_store);
@@ -762,9 +774,7 @@ Deno.serve(async (req) => {
           let driverPatientMap = new Map();
           
           if (driverPatientIds.length > 0) {
-            const driverPatientsData = await base44.asServiceRole.entities.Patient.filter({ 
-              id: { $in: driverPatientIds } 
-            }).catch(() => []);
+            const driverPatientsData = await fetchPatientsByIds(base44, driverPatientIds);
             driverPatientMap = new Map(driverPatientsData.map(p => [p.id, p]));
           }
           
