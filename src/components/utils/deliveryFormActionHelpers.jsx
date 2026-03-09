@@ -1,3 +1,5 @@
+import { base44 } from "@/api/base44Client";
+
 let managerControllersPromise;
 
 const getManagerControllers = async () => {
@@ -73,15 +75,7 @@ export const resumeDeliveryFormManagers = async () => {
   fabControlEvents.resumeFAB();
 };
 
-export const closeDeliveryFormAfterSave = ({ handleClearForm, driverId, deliveryDate, onCancel }) => {
+export const closeDeliveryFormAfterSave = ({ handleClearForm, onCancel }) => {
   handleClearForm();
-
-  if (driverId && deliveryDate) {
-    base44.functions.invoke('cleanupStagedPickups', {
-      driverId,
-      deliveryDate
-    }).catch(() => {});
-  }
-
   onCancel();
 };
