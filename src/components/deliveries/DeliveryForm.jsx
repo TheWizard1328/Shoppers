@@ -442,8 +442,8 @@ export default function DeliveryForm({
         delivery_time_start: delivery.delivery_time_start || "",
         delivery_time_end: delivery.delivery_time_end || "",
         delivery_time_eta: delivery.delivery_time_eta || "",
-        time_window_start: delivery.time_window_start || "",
-        time_window_end: delivery.time_window_end || "",
+        time_window_start: patient?.time_window_start || delivery.time_window_start || "",
+        time_window_end: patient?.time_window_end || delivery.time_window_end || "",
         status: delivery.status || "Ready For Pickup",
         driver_name: delivery.driver_name || "",
         driver_id: delivery.driver_id || "",
@@ -2909,38 +2909,10 @@ export default function DeliveryForm({
         dataToSave.cod_total_amount_required = dataToSave.cod_total_amount_required / 100;
       }
 
-      // CRITICAL: Sync patient-specific changes to Patient entity
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
-        const patientChanged = 
-          delivery.patient_name !== formData.patient_name ||
-          delivery.patient_phone !== formData.patient_phone ||
-          delivery.unit_number !== formData.unit_number ||
-          delivery.delivery_instructions !== formData.delivery_instructions ||
-          delivery.mailbox_ok !== formData.mailbox_ok ||
-          delivery.call_upon_arrival !== formData.call_upon_arrival ||
-          delivery.ring_bell !== formData.ring_bell ||
-          delivery.dont_ring_bell !== formData.dont_ring_bell ||
-          delivery.back_door !== formData.back_door ||
-          delivery.signature_needed !== formData.signature_needed ||
-          delivery.recurring !== formData.recurring ||
-          delivery.recurring_daily !== formData.recurring_daily ||
-          delivery.recurring_weekly_mon !== formData.recurring_weekly_mon ||
-          delivery.recurring_weekly_tue !== formData.recurring_weekly_tue ||
-          delivery.recurring_weekly_wed !== formData.recurring_weekly_wed ||
-          delivery.recurring_weekly_thu !== formData.recurring_weekly_thu ||
-          delivery.recurring_weekly_fri !== formData.recurring_weekly_fri ||
-          delivery.recurring_weekly_sat !== formData.recurring_weekly_sat ||
-          delivery.recurring_weekly_sun !== formData.recurring_weekly_sun ||
-          delivery.recurring_biweekly !== formData.recurring_biweekly ||
-          delivery.recurring_weekly_x4 !== formData.recurring_weekly_x4 ||
-          delivery.recurring_monthly !== formData.recurring_monthly ||
-          delivery.recurring_bimonthly !== formData.recurring_bimonthly;
-
-        if (patientChanged) {
-          try {
-            await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
-          } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
-        }
+        try {
+          await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
+        } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
       }
 
       if (delivery && isCompletionStatus && completionTime) {
