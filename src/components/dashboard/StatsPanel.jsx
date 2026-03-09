@@ -19,6 +19,7 @@ import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ActivePayStats from '@/components/dashboard/ActivePayStats';
 import PullToSync from '@/components/dashboard/PullToSync';
 import DriverLocationBadge from '@/components/dashboard/DriverLocationBadge';
+import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
 import LocationTrackingToggle from "@/components/layout/LocationTrackingToggle";
 import { saveSetting } from "@/components/utils/userSettingsManager";
 
@@ -299,6 +300,20 @@ export default function StatsPanel({
                 <div className="border-t border-slate-200 mt-2 pt-2"></div>
                 <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
               </>}
+              {/* Dispatcher export button */}
+              {isDispatcher && (
+                <>
+                  <div className="border-t border-slate-200 mt-2 pt-2"></div>
+                  <div className="flex justify-end">
+                    <ExportRouteButton
+                      currentUser={currentUser}
+                      driverFilter={selectedDriverId}
+                      selectedDate={selectedDate}
+                      driverFilteredDeliveries={filteredDeliveries}
+                    />
+                  </div>
+                </>
+              )}
             </motion.div>}
           </AnimatePresence>
         </motion.div>
