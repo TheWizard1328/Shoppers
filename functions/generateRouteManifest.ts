@@ -240,8 +240,11 @@ Deno.serve(async (req) => {
         try {
           doc.addImage(images.signature.base64Data, images.signature.format, colSig, textY, thumbSize, thumbSize);
         } catch {
-          doc.setFontSize(7);
-          doc.text('✓', colSig + 4, rowTop);
+          // Fallback: draw a box with a check mark
+          doc.setDrawColor(200);
+          doc.rect(colSig, textY, thumbSize, thumbSize);
+          doc.setFontSize(10);
+          doc.text('✓', colSig + thumbSize / 2, textY + thumbSize / 2 + 3, { align: 'center' });
         }
       }
 
