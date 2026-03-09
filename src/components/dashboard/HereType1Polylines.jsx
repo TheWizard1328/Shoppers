@@ -82,6 +82,7 @@ export default function HereType1Polylines({
   const markerFingerprint = useMemo(() => `${deliveryMarkers.length}_${pickupMarkers.length}_${deliveryMarkers.map(m => m.id).join(',')}`, [deliveryMarkers, pickupMarkers]);
   useEffect(() => { setLastNonEmptyLines([]); setCache({}); }, [selectedDriverId, showAll, markerFingerprint]);
   const requestTimesRef = useRef({});
+  const mountTimeRef = useRef(Date.now());
 
   const driverStops = useMemo(() => {
     const map = new Map();
@@ -362,6 +363,7 @@ export default function HereType1Polylines({
 
     // If still missing, trigger a fetch once (debounced) to hydrate HERE polyline
     if (!coords && !optimizing) {
+      if (Date.now() - mountTimeRef.current < 1200) return;
       const lastReq = requestTimesRef.current[key] || 0;
       const now = Date.now();
       if (now - lastReq > 4000) {
