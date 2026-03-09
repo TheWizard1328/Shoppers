@@ -211,7 +211,7 @@ export default function HereType1Polylines({
 
   // Prefetch last-completed -> home (for completed routes)
   useEffect(() => {
-     if (!isViewingCurrentDate) return;
+     if (!isViewingCurrentDate || (Date.now() - mountTimeRef.current < 1200)) return;
      driversWithCompleteRoute.forEach((driverId) => {
       const all = driverStops.get(driverId) || { complete: [] };
       const completedSorted = [...(all.complete || [])].sort((a, b) => {
