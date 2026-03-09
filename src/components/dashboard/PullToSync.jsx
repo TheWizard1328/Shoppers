@@ -5,6 +5,7 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { repairMissingPolylines } from '@/functions/repairMissingPolylines';
 
 export default function PullToSync({ 
   selectedDate, 
@@ -101,6 +102,12 @@ export default function PullToSync({
       }
 
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+
+      // Kick off polyline repair in parallel (selected driver only if filtered)
+      const repairPromise = repairMissingPolylines({
+        date: selectedDateStr,
+        driverIds: (selectedDriverId && selectedDriverId !== 'all') ? [selectedDriverId] : undefined
+      });
       
       console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL deliveries for ${selectedDateStr} from online database...`);
 
@@ -194,6 +201,8 @@ export default function PullToSync({
       
       // CRITICAL: Wait for ALL fetches to complete and save to offline DB
       const [freshPatients, freshAppUsers, freshCities, freshStores] = await Promise.all(syncPromises);
+      // Ensure repair finishes (quietly) before we complete
+      await repairPromise.catch(() => null);
       console.log('✅ [Pull to Sync] All entities fetched and saved to offline DB');
       
       // STEP 6: Dispatch complete UI update with fresh data
