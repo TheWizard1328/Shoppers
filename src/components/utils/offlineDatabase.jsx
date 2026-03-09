@@ -930,6 +930,56 @@ const pruneDeliveriesOlderThan60Days = async () => {
   }
 };
 
+/**
+ * Deduplicate DriverRoutePolyline records in offline DB (IndexedDB)
+ * Keeps the most recent by last_generated_at/updated_date per leg signature
+ */
+const deduplicateDriverRoutePolylines = async (dateStr = null) => {
+  try {
+    const records = dateStr
+      ? await getByIndex(STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', dateStr)
+      : await getAll(STORES.DRIVER_ROUTE_POLYLINES);
+    if (!records?.length) return { success: true, removed: 0 };
+
+    const groups = new Map();
+    records.forEach((r) => {
+      if (!r) return;
+      const key = [
+        String(r.driver_id || ''),
+        String(r.delivery_date || ''),
+        Number(r.segment_origin_lat)?.toFixed?.(5),
+        Number(r.segment_origin_lon)?.toFixed?.(5),
+        Number(r.segment_dest_lat)?.toFixed?.(5),
+        Number(r.segment_dest_lon)?.toFixed?.(5)
+      ].join('|');
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    });
+
+    let removed = 0;
+    for (const [, arr] of groups) {
+      if (!arr || arr.length <= 1) continue;
+      arr.sort((a, b) => {
+        const ta = new Date(a.last_generated_at || a.updated_date || a.created_date || 0).getTime();
+        const tb = new Date(b.last_generated_at || b.updated_date || b.created_date || 0).getTime();
+        return tb - ta;
+      });
+      const toDelete = arr.slice(1);
+      await Promise.all(
+        toDelete.map((rec) =>
+          deleteRecord(STORES.DRIVER_ROUTE_POLYLINES, rec.id)
+            .then(() => { removed++; })
+            .catch(() => null)
+        )
+      );
+    }
+
+    return { success: true, removed };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 export const offlineDB = {
   STORES,
   openDatabase,
@@ -957,5 +1007,6 @@ export const offlineDB = {
   deleteDeliveriesByDate,
   pruneDeliveriesOlderThan60Days,
   getSyncMetadata,
-  updateSyncMetadata
+  updateSyncMetadata,
+  deduplicateDriverRoutePolylines
 };

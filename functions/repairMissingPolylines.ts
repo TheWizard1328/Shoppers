@@ -81,6 +81,47 @@ Deno.serve(async (req) => {
 
     if (!driverIds.size) return Response.json({ success: true, repaired: [], message: 'No drivers to repair' });
 
+    // Step 0: Deduplicate existing polylines ONLINE (keep most recent per leg)
+    let existingPolys = [];
+    if (includeDriverIds && includeDriverIds.length) {
+      const batches = await Promise.all(Array.from(driverIds).map((did) =>
+        base44.asServiceRole.entities.DriverRoutePolyline.filter({ driver_id: did, delivery_date: dateStr })
+      ));
+      batches.forEach(arr => { if (Array.isArray(arr)) existingPolys.push(...arr); });
+    } else {
+      existingPolys = await base44.asServiceRole.entities.DriverRoutePolyline.filter({ delivery_date: dateStr });
+    }
+    const byKey = new Map();
+    const deletedIds = [];
+    (existingPolys || []).forEach((rec) => {
+      if (!rec) return;
+      const key = [
+        String(rec.driver_id || ''),
+        String(rec.delivery_date || ''),
+        Number(rec.segment_origin_lat)?.toFixed?.(5),
+        Number(rec.segment_origin_lon)?.toFixed?.(5),
+        Number(rec.segment_dest_lat)?.toFixed?.(5),
+        Number(rec.segment_dest_lon)?.toFixed?.(5)
+      ].join('|');
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(rec);
+    });
+    let keptOnlineCount = 0;
+    for (const [_, arr] of byKey) {
+      if (!arr || arr.length <= 1) { keptOnlineCount += (arr?.length || 0); continue; }
+      arr.sort((a, b) => {
+        const ta = new Date(a.last_generated_at || a.updated_date || a.created_date || 0).getTime();
+        const tb = new Date(b.last_generated_at || b.updated_date || b.created_date || 0).getTime();
+        return tb - ta; // most recent first
+      });
+      keptOnlineCount += 1;
+      const toDelete = arr.slice(1);
+      toDelete.forEach(r => r?.id && deletedIds.push(r.id));
+    }
+    if (deletedIds.length) {
+      await Promise.all(deletedIds.map((id) => base44.asServiceRole.entities.DriverRoutePolyline.delete(id).catch(() => null)));
+    }
+
     const allStores = await base44.asServiceRole.entities.Store.list();
     const storeById = new Map((allStores || []).filter(Boolean).map(s => [String(s.id), s]));
     const allPatients = await base44.asServiceRole.entities.Patient.list();
@@ -248,7 +289,7 @@ Deno.serve(async (req) => {
     // Broadcast for clients to hydrate from entity/offline DB
     try { self && self.dispatchEvent && self.dispatchEvent(new Event('polylineUpdated')); } catch (_) {}
 
-    return Response.json({ success: true, date: dateStr, repaired });
+    return Response.json({ success: true, date: dateStr, repaired, deleted_online: deletedIds.length, kept_online: keptOnlineCount });
   } catch (err) {
     return Response.json({ error: err?.message || 'Server error' }, { status: 500 });
   }

@@ -103,6 +103,14 @@ export default function PullToSync({
 
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
+      // Pre-clean offline polylines (dedupe) before server-side repair
+      try {
+        const polyDedupRes = await offlineDB.deduplicateDriverRoutePolylines(selectedDateStr);
+        console.log(`🧹 [Pull to Sync] Offline polyline dedup removed ${polyDedupRes?.removed || 0}`);
+      } catch (e) {
+        console.warn('⚠️ [Pull to Sync] Offline polyline dedup failed:', e?.message);
+      }
+
       // Kick off polyline repair in parallel for ALL drivers on the date
       const repairPromise = repairMissingPolylines({
         date: selectedDateStr
@@ -202,6 +210,14 @@ export default function PullToSync({
       const [freshPatients, freshAppUsers, freshCities, freshStores] = await Promise.all(syncPromises);
       // Ensure repair finishes (quietly) before we complete
       await repairPromise.catch(() => null);
+
+      // Post-clean offline polylines after server repair (safety)
+      try {
+        const polyDedupAfter = await offlineDB.deduplicateDriverRoutePolylines(selectedDateStr);
+        console.log(`🧹 [Pull to Sync] Post-repair offline polyline dedup removed ${polyDedupAfter?.removed || 0}`);
+      } catch (e) {
+        console.warn('⚠️ [Pull to Sync] Post-repair offline polyline dedup failed:', e?.message);
+      }
       console.log('✅ [Pull to Sync] All entities fetched and saved to offline DB');
       
       // STEP 6: Dispatch complete UI update with fresh data
