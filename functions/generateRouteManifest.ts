@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
     addHeader();
 
     // Draw a small thumbnail with a count badge (for Receipts and Rx)
-    function drawMiniThumb(x: number, y: number, label: string, count: number) {
+    function drawMiniThumb(x, y, label, count) {
       try {
         // base box
         doc.setDrawColor(200);
@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
         doc.setFontSize(7);
         const labelX = x + thumbSize / 2;
         const labelY = y + thumbSize / 2 + 2.2; // visual center tweak
-        doc.text(label, labelX, labelY, { align: 'center' } as any);
+        doc.text(label, labelX, labelY, { align: 'center' });
         // count badge
         const badgeW = Math.min(10, Math.max(7, (String(count).length + 1) * 2.5));
         const bx = x + thumbSize - badgeW - 0.5;
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
         doc.rect(bx, by, badgeW, 4, 'F');
         doc.setTextColor(255);
         doc.setFontSize(6);
-        doc.text(`x${count}`, bx + badgeW / 2, by + 3, { align: 'center' } as any);
+        doc.text(`x${count}`, bx + badgeW / 2, by + 3, { align: 'center' });
         doc.setTextColor(0);
       } catch {}
     }
