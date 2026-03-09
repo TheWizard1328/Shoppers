@@ -165,15 +165,17 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     if (qualifiedCount === 1) {
       const qualifiedPeriod = amQualified ? 'AM' : 'PM';
       return (
-        <Button
-          onClick={() => handleExport('pre-route', qualifiedPeriod)}
-          variant="outline"
-          className="gap-2"
-          disabled={noDriver}
-        >
-          <Download className="w-4 h-4" />
-          Export Route
-        </Button>
+        <div className="w-full flex justify-center">
+          <Button
+            onClick={() => handleExport('pre-route', qualifiedPeriod)}
+            variant="outline"
+            className="gap-2 text-white bg-slate-900 hover:bg-slate-800"
+            disabled={noDriver}
+          >
+            <Download className="w-4 h-4" />
+            Export Route
+          </Button>
+        </div>
       );
     }
 
