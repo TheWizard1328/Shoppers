@@ -123,14 +123,16 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     // If all dispatcher's store stops are finished → post-route export
     if (isDispatcherRouteComplete) {
       return (
-        <Button
-          onClick={() => handleExport('post-route')}
-          className="bg-emerald-600 hover:bg-emerald-700 gap-2"
-          disabled={noDriver || noStoreDeliveries}
-        >
-          <Download className="w-4 h-4" />
-          Export Route
-        </Button>
+        <div className="w-full flex justify-center">
+          <Button
+            onClick={() => handleExport('post-route')}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            disabled={noDriver || noStoreDeliveries}
+          >
+            <Download className="w-4 h-4" />
+            Export Route
+          </Button>
+        </div>
       );
     }
 
