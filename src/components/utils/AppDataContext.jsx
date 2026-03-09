@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback } f
 import { smartRefreshManager } from './smartRefreshManager';
 import { base44 } from '@/api/base44Client';
 import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
+import { ensurePolylineSubscription } from './hereRouting';
 
 const AppDataContext = createContext(null);
 
@@ -24,6 +25,11 @@ export const AppDataProvider = ({ children, value }) => {
   useEffect(() => { updateAppUsersLocallyRef.current = value.updateAppUsersLocally; }, [value.updateAppUsersLocally]);
   useEffect(() => { deliveriesRef.current = value.deliveries; }, [value.deliveries]);
   useEffect(() => { appUsersRef.current = value.appUsers; }, [value.appUsers]);
+
+  useEffect(() => {
+    if (!value.currentUser) return;
+    ensurePolylineSubscription();
+  }, [value.currentUser?.id]);
 
   // CRITICAL: Set up city-filtered real-time subscriptions
   useEffect(() => {
