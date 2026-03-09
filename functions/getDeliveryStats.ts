@@ -92,8 +92,14 @@ Deno.serve(async (req) => {
       
       console.log('📊 [getDeliveryStats] User roles:', userRoles, 'Store IDs:', userStoreIds);
     } catch (appUserError) {
-      console.error('❌ Error fetching AppUser:', appUserError.message);
-      return Response.json({ error: 'Failed to fetch user roles: ' + appUserError.message }, { status: 500 });
+      console.warn('⚠️ [getDeliveryStats] AppUser lookup failed, using safe fallback:', appUserError.message);
+      appUsers = [];
+      appUser = null;
+      userRoles = user?.role === 'admin' ? ['admin'] : [];
+      isAdmin = user?.role === 'admin';
+      isDispatcher = false;
+      isDriver = !!driverId;
+      userStoreIds = [];
     }
     
     // Use selected date or default to today
