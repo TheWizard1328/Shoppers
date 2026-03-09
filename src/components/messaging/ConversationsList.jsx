@@ -6,6 +6,7 @@ import { MessageCircle, Search, Trash2, ChevronUp, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input';
 import { format, subDays } from 'date-fns';
 import { parseLocalTimestamp } from '@/components/utils/localTimeHelper';
+import { isHiddenSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 
 export default function ConversationsList({ currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange }) {
   const [messages, setMessages] = useState([]);
@@ -52,7 +53,9 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
         if (m && m.id) messageMap.set(m.id, m);
       });
       
-      const userMessages = Array.from(messageMap.values());
+      const userMessages = Array.from(messageMap.values()).filter(
+        (message) => !isHiddenSystemBroadcastMessageForThisDevice(message?.id)
+      );
       setMessages(userMessages);
       
       // Check if there might be more messages
@@ -81,7 +84,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
       if (event.type === 'create' || event.type === 'update') {
         const messageData = event.data;
         const isRelated = messageData?.receiver_id === currentUser.id || messageData?.sender_id === currentUser.id;
-        if (!isRelated) return;
+        if (!isRelated || isHiddenSystemBroadcastMessageForThisDevice(messageData?.id)) return;
 
         setMessages(prev => {
           const exists = prev.some(m => m.id === messageData.id);

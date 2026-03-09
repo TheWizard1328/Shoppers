@@ -5,6 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Send, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseLocalTimestamp } from '@/components/utils/localTimeHelper';
+import {
+  SYSTEM_UPDATES_SENDER_ID,
+  isHiddenSystemBroadcastMessageForThisDevice,
+} from './updateBroadcastConfig';
 
 export default function ChatWindow({
   currentUser,
@@ -19,6 +23,7 @@ export default function ChatWindow({
   const [isSending, setIsSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef(null);
+  const isSystemUpdatesConversation = otherUserId === SYSTEM_UPDATES_SENDER_ID;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -34,8 +39,11 @@ export default function ChatWindow({
           '-created_date'
         );
         console.log('📨 [ChatWindow] Fetched messages:', allMessages.length, 'for conversation:', conversationId);
+        const visibleMessages = (allMessages || []).filter(
+          (message) => !isHiddenSystemBroadcastMessageForThisDevice(message?.id)
+        );
         // Reverse to show oldest first in thread, newest at bottom
-        setMessages((allMessages || []).reverse());
+        setMessages(visibleMessages.reverse());
 
         // Mark unread messages as read (in parallel for speed)
         const unreadMessages = allMessages.filter(
@@ -62,7 +70,7 @@ export default function ChatWindow({
     // Subscribe to real-time message updates
     const unsubscribe = base44.entities.Message.subscribe((event) => {
       // Only process messages for this conversation
-      if (event.data?.conversation_id !== conversationId) return;
+      if (event.data?.conversation_id !== conversationId || isHiddenSystemBroadcastMessageForThisDevice(event.data?.id)) return;
       
       if (event.type === 'create' || event.type === 'update') {
         setMessages(prev => {
@@ -185,16 +193,16 @@ export default function ChatWindow({
       <div className="p-3" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)' }}>
         <div className="flex gap-2">
           <Input
-            placeholder="Type a message..."
+            placeholder={isSystemUpdatesConversation ? "Replies are disabled for System Updates" : "Type a message..."}
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             className="flex-1"
-            disabled={isSending}
+            disabled={isSending || isSystemUpdatesConversation}
           />
           <Button
             onClick={handleSend}
-            disabled={!newMessage.trim() || isSending}
+            disabled={!newMessage.trim() || isSending || isSystemUpdatesConversation}
             className="bg-emerald-500 hover:bg-emerald-600"
           >
             <Send className="w-4 h-4" />

@@ -5,7 +5,12 @@ import ChatWindow from './ChatWindow';
 import { Loader2, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isAppOwner } from '@/components/utils/userRoles';
-import { APP_UPDATE_BROADCAST_MESSAGE } from './updateBroadcastConfig';
+import {
+  APP_UPDATE_BROADCAST_MESSAGE,
+  SYSTEM_UPDATES_SENDER_ID,
+  SYSTEM_UPDATES_SENDER_NAME,
+  hideSystemBroadcastMessageForThisDevice,
+} from './updateBroadcastConfig';
 
 export default function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange }) {
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
@@ -36,27 +41,35 @@ export default function MessagingPanel({ currentUser, users, onClose, initialCon
   const handleBroadcastUpdate = async () => {
     if (!currentUser?.id || isBroadcastingUpdate) return;
 
-    const recipients = (users || []).filter((user) => user?.id && user.id !== currentUser.id);
+    const recipients = (users || []).filter((user) => user?.id);
     if (recipients.length === 0) return;
 
     setIsBroadcastingUpdate(true);
     setUpdateBroadcastSent(false);
 
-    const senderName = currentUser.user_name || currentUser.full_name || 'App Owner';
-
-    await Promise.allSettled(
-      recipients.map((user) =>
-        base44.entities.Message.create({
-          sender_id: currentUser.id,
-          sender_name: senderName,
+    const results = await Promise.allSettled(
+      recipients.map(async (user) => {
+        const message = await base44.entities.Message.create({
+          sender_id: SYSTEM_UPDATES_SENDER_ID,
+          sender_name: SYSTEM_UPDATES_SENDER_NAME,
           receiver_id: user.id,
           receiver_name: user.user_name || user.full_name || 'User',
-          conversation_id: [currentUser.id, user.id].sort().join('_'),
+          conversation_id: [SYSTEM_UPDATES_SENDER_ID, user.id].sort().join('_'),
           content: APP_UPDATE_BROADCAST_MESSAGE,
           read: false,
-        })
-      )
+        });
+
+        return { recipientId: user.id, message };
+      })
     );
+
+    const selfBroadcast = results.find(
+      (result) => result.status === 'fulfilled' && result.value.recipientId === currentUser.id
+    );
+
+    if (selfBroadcast?.status === 'fulfilled') {
+      hideSystemBroadcastMessageForThisDevice(selfBroadcast.value.message?.id);
+    }
 
     setIsBroadcastingUpdate(false);
     setUpdateBroadcastSent(true);

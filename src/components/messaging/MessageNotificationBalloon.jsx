@@ -3,7 +3,10 @@ import { X, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import UpdateAppPrompt from './UpdateAppPrompt';
-import { isAppUpdateBroadcast } from './updateBroadcastConfig';
+import {
+  isAppUpdateBroadcast,
+  isHiddenSystemBroadcastMessageForThisDevice,
+} from './updateBroadcastConfig';
 
 export default function MessageNotificationBalloon({ currentUser, onOpenConversation, onDismiss }) {
   const [notification, setNotification] = useState(null);
@@ -22,7 +25,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
 
     // Subscribe to real-time message updates
     const unsubscribe = base44.entities.Message.subscribe((event) => {
-      if (event.data?.receiver_id !== currentUser.id) return;
+      if (event.data?.receiver_id !== currentUser.id || isHiddenSystemBroadcastMessageForThisDevice(event.data?.id)) return;
 
       if (event.type === 'create' && isAppUpdateBroadcast(event.data.content)) {
         setUpdatePromptMessage(event.data.content);
@@ -62,8 +65,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
 
   const handleClick = () => {
     if (notification) {
-      const conversationId = [currentUser.id, notification.sender_id].sort().join('_');
-      onOpenConversation(conversationId, notification.sender_id, notification.sender_name);
+      onOpenConversation(notification.conversation_id, notification.sender_id, notification.sender_name);
       setNotification(null);
     }
   };
