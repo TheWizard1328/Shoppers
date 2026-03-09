@@ -1710,6 +1710,12 @@ export default function StopCard({
                                     deliveryDate: delivery.delivery_date
                                   });
 
+                                  await clearNextDeliveryFlags({
+                                    driverDeliveries: allDeliveries,
+                                    currentDeliveryId: delivery.id,
+                                    updateDeliveryLocal
+                                  });
+
                                   await updateDeliveryLocal(delivery.id, {
                                     status: isPickup ? 'en_route' : 'in_transit',
                                     delivery_time_start: currentLocalTime,

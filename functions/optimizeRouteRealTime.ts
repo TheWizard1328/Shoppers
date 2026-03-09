@@ -420,28 +420,20 @@ Deno.serve(async (req) => {
       const incompletes = (allForDriverDate || []).filter(d => d && !finishedStatuses.includes(d.status) && d.status !== 'pending');
 
       if (incompletes.length > 0) {
-        const flagged = incompletes.filter(d => d.isNextDelivery === true);
+        const targetId = nextDeliveryStop?.delivery?.id || [...incompletes].sort((a, b) => {
+          const so = (a.stop_order || 999) - (b.stop_order || 999);
+          if (so !== 0) return so;
+          const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
+          const etaB = String(b.delivery_time_eta || b.delivery_time_start || '99:99');
+          return etaA.localeCompare(etaB);
+        })[0]?.id;
 
-        if (flagged.length === 0) {
-          // Pick the earliest by stop_order, then by ETA
-          const chosen = [...incompletes].sort((a, b) => {
-            const so = (a.stop_order || 999) - (b.stop_order || 999);
-            if (so !== 0) return so;
-            const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
-            const etaB = String(b.delivery_time_eta || b.delivery_time_start || '99:99');
-            return etaA.localeCompare(etaB);
-          })[0];
-          if (chosen?.id) {
-            await base44.asServiceRole.entities.Delivery.update(chosen.id, { isNextDelivery: true });
+        if (targetId) {
+          const toFalse = incompletes.filter(d => d.id !== targetId && d.isNextDelivery === true);
+          if (toFalse.length > 0) {
+            await Promise.all(toFalse.map(d => base44.asServiceRole.entities.Delivery.update(d.id, { isNextDelivery: false })));
           }
-        } else if (flagged.length > 1) {
-          // Keep the earliest flagged, clear the rest
-          const sortedFlagged = [...flagged].sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-          const keepId = sortedFlagged[0].id;
-          const toClear = sortedFlagged.slice(1);
-          if (toClear.length > 0) {
-            await Promise.all(toClear.map(d => base44.asServiceRole.entities.Delivery.update(d.id, { isNextDelivery: false })));
-          }
+          await base44.asServiceRole.entities.Delivery.update(targetId, { isNextDelivery: true });
         }
       }
     } catch (e) {
