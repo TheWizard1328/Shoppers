@@ -181,10 +181,12 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
     // No period qualifies → disabled button
     return (
-      <Button variant="outline" className="gap-2" disabled>
-        <Download className="w-4 h-4" />
-        Export Route
-      </Button>
+      <div className="w-full flex justify-center">
+        <Button variant="outline" className="gap-2 text-white bg-slate-400" disabled>
+          <Download className="w-4 h-4" />
+          Export Route
+        </Button>
+      </div>
     );
   }
 
