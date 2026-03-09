@@ -369,6 +369,9 @@ export default function PatientForm({
     e.preventDefault();
 
     let dataToSave = { ...formData };
+    dataToSave.latitude = dataToSave.latitude !== null && dataToSave.latitude !== undefined && dataToSave.latitude !== '' ? Number(dataToSave.latitude) : null;
+    dataToSave.longitude = dataToSave.longitude !== null && dataToSave.longitude !== undefined && dataToSave.longitude !== '' ? Number(dataToSave.longitude) : null;
+    dataToSave.distance_from_store = dataToSave.distance_from_store !== null && dataToSave.distance_from_store !== undefined && dataToSave.distance_from_store !== '' ? Number(dataToSave.distance_from_store) : null;
 
     console.log('📝 [PatientForm] handleSubmit - dataToSave.patient_id:', dataToSave.patient_id);
     console.log('📝 [PatientForm] handleSubmit - patient:', patient);
