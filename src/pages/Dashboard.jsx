@@ -3740,7 +3740,7 @@ function Dashboard() {
     }
     
     // Only update if selection should change
-    if (newDriverSelection !== selectedDriverId) {
+    if ((selectedDriverId === 'all' || !selectedDriverId) && newDriverSelection !== selectedDriverId) {
       setSelectedDriverId(newDriverSelection);
       globalFilters.setSelectedDriverId(newDriverSelection);
       if (currentUser?.id) {
