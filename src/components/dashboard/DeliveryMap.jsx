@@ -1292,7 +1292,7 @@ export default function DeliveryMap({
       const shouldRenderHome =
         isAppOwner(currentUser) ||
         isCurrentUserAdmin ||
-        (isCurrentUserDriver && driver.id === currentUser.id && (selectedDriverId === 'all' || selectedDriverId === currentUser.id));
+        (isCurrentUserDriver && ((showOtherDriverDeliveries || selectedDriverId === 'all') || driver.id === currentUser.id));
       
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
 

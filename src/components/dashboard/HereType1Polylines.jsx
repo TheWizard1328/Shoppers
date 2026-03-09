@@ -182,7 +182,7 @@ export default function HereType1Polylines({
       });
       const lastCompleted = completedSorted[0];
       // Fallback to first incomplete stop if isNextDelivery is not set
-      const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
+      const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0] || stops.pending[0];
       if (!lastCompleted || !nextStop) return;
 
       const originLat = Number(lastCompleted.latitude);
@@ -241,10 +241,10 @@ export default function HereType1Polylines({
     if (!isViewingCurrentDate || optimizing) return;
     driverStops.forEach((stops, driverId) => {
       const hasCompleted = (stops?.complete?.length || 0) > 0;
-      const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
-      if (hasCompleted || !hasIncomplete) return;
-      // Fallback to first incomplete stop if isNextDelivery is not set
-      const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
+      const hasActiveOrPending = ((stops?.incomplete?.length || 0) > 0) || ((stops?.pending?.length || 0) > 0);
+      if (hasCompleted || !hasActiveOrPending) return;
+      // Pick next from active first, then pending
+      const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0] || stops.pending[0];
       
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
       const live = (currentDriverMarker && currentDriverMarker.driverId === driverId)
@@ -290,9 +290,9 @@ export default function HereType1Polylines({
     // If they are in_transit but have NO completed stops, they are on their way to the first stop.
     // Let's check if we have a current driver marker. If so, we should draw from there instead of home!
     
-    if (!hasCompleted && hasIncomplete) {
-      // Fallback to first incomplete stop if isNextDelivery is not set
-      const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
+    if (!hasCompleted && (hasIncomplete || (stops.pending && stops.pending.length > 0))) {
+      // Pick next from active first, then pending
+      const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0] || (stops.pending ? stops.pending[0] : undefined);
       
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
       const live = (currentDriverMarker && currentDriverMarker.driverId === driverId)
@@ -335,7 +335,7 @@ export default function HereType1Polylines({
   // Render last-completed -> next-stop using HERE (fallback straight)
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
-    if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
+    if ((stops.incomplete.length === 0 && (!stops.pending || stops.pending.length === 0)) || stops.complete.length === 0) return;
     const completedSorted = [...stops.complete].sort((a, b) => {
       const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
       const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
@@ -343,7 +343,7 @@ export default function HereType1Polylines({
     });
     const lastCompleted = completedSorted[0];
     // Fallback to first incomplete stop if isNextDelivery is not set
-    const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
+    const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0] || (stops.pending ? stops.pending[0] : undefined);
     if (!lastCompleted || !nextStop) return;
     const originLat = Number(lastCompleted.latitude);
     const originLon = Number(lastCompleted.longitude);
