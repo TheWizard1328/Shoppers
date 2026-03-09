@@ -864,7 +864,7 @@ export default function DeliveryMap({
         };
         
         // Fit to fanned bounds (ensures sufficient zoom for separation)
-        (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(bounds, fitOptions);
+        bounds.isValid() && (map && map.getCenter && map._loaded && map._mapPane && map._mapPane._leaflet_pos) && map.fitBounds(bounds, fitOptions);
 
         setTimeout(() => {
           setFannedLocationKey(locationKey);
@@ -1715,7 +1715,7 @@ export default function DeliveryMap({
       if (!map._mapPane._leaflet_pos) return;
     } catch (e) { return; }
     try {
-      const bounds = L.latLngBounds(shouldFitBounds.bounds);
+      const bounds = L.latLngBounds((Array.isArray(shouldFitBounds.bounds)?shouldFitBounds.bounds:[]).filter(p=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&Number.isFinite(p[1])));if(!bounds.isValid())return;
       if (map._leaflet_events?.zoomstart) {
         if (!map._isProgrammaticZoom) Object.defineProperty(map, '_isProgrammaticZoom', { value: { current: false }, writable: true, configurable: true });
         map._isProgrammaticZoom.current = true;
