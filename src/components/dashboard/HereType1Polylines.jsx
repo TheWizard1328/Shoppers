@@ -173,7 +173,7 @@ export default function HereType1Polylines({
 
   // Prefetch last-completed -> next-stop
   useEffect(() => {
-    if (!isViewingCurrentDate || optimizing) return;
+    if (!isViewingCurrentDate || optimizing || (Date.now() - mountTimeRef.current < 1200)) return;
     driverStops.forEach((stops, driverId) => {
       if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
       const completedSorted = [...stops.complete].sort((a, b) => {
@@ -239,7 +239,7 @@ export default function HereType1Polylines({
 
   // Prefetch home -> first stop for not-yet-started routes (Type 1 pre-route)
   useEffect(() => {
-    if (!isViewingCurrentDate || optimizing) return;
+    if (!isViewingCurrentDate || optimizing || (Date.now() - mountTimeRef.current < 1200)) return;
     driverStops.forEach((stops, driverId) => {
       const hasCompleted = (stops?.complete?.length || 0) > 0;
       const hasIncomplete = ((stops?.incomplete?.length || 0) > 0);
@@ -274,6 +274,7 @@ export default function HereType1Polylines({
 
   /* always render polylines on any date; previously gated by current date */
 
+  if (Date.now() - mountTimeRef.current < 600) { return null; }
   const lines = [];
 
   // Pre-route: prefer real HERE polyline (home -> first); only show dashed after a short grace period
