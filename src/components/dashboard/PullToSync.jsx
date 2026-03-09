@@ -103,10 +103,9 @@ export default function PullToSync({
 
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Kick off polyline repair in parallel (selected driver only if filtered)
+      // Kick off polyline repair in parallel for ALL drivers on the date
       const repairPromise = repairMissingPolylines({
-        date: selectedDateStr,
-        driverIds: (selectedDriverId && selectedDriverId !== 'all') ? [selectedDriverId] : undefined
+        date: selectedDateStr
       });
       
       console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL deliveries for ${selectedDateStr} from online database...`);
