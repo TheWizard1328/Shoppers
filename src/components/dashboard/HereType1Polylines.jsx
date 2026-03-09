@@ -274,7 +274,7 @@ export default function HereType1Polylines({
 
   /* always render polylines on any date; previously gated by current date */
 
-  if (Date.now() - mountTimeRef.current < 600) { return null; }
+  const isGrace = Date.now() - mountTimeRef.current < 600;
   const lines = [];
 
   // Pre-route: prefer real HERE polyline (home -> first); only show dashed after a short grace period
@@ -430,5 +430,5 @@ export default function HereType1Polylines({
   // Preserve last non-empty set only in multi-driver showAll mode to prevent ghost lines on driver switch
   useEffect(() => { if (lines.length && showAll) setLastNonEmptyLines(lines); }, [lines.length, showAll, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
 
-  return lines.length ? <>{lines}</> : ((showAll && lastNonEmptyLines.length) ? <>{lastNonEmptyLines}</> : null);
+  return isGrace ? null : (lines.length ? <>{lines}</> : ((showAll && lastNonEmptyLines.length) ? <>{lastNonEmptyLines}</> : null));
 }
