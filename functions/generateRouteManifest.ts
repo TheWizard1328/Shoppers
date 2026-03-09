@@ -121,17 +121,17 @@ Deno.serve(async (req) => {
 
     let y = 36;
 
-    // Column positions (updated order: Stop, TR#, Time, Name/Store, Notes, Receipts, Rx, Sig, Photos)
-    const colStop = 14;
+    // Column positions (Stop, TR#, Time, Name/Store, Notes, Receipts, Rx, Sig, Photos)
+    const colStop = 12;
     const colTR = 26;
-    const colTime = 40;
-    const colName = 58;
-    const rightMargin = pageWidth - 10;
+    const colTime = 42;
+    const colName = 60;
+    const rightMargin = pageWidth - 12;
     const colPhotos = rightMargin - thumbSize;
     const colSig = colPhotos - (thumbSize + 2);
     const colRx = colSig - (thumbSize + 2);
     const colReceipts = colRx - (thumbSize + 2);
-    const colNotes = colReceipts - 36;
+    const colNotes = colReceipts - 48;
 
     const addHeader = () => {
       doc.setFontSize(9);
