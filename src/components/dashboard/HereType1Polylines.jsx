@@ -328,7 +328,7 @@ export default function HereType1Polylines({
           lines.push(
             <Polyline
               key={`type1-pre-home-${driverId}`}
-              positions={coords || makeFallback(fallbackOrigin || { latitude: originLat, longitude: originLon }, next)}
+              positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
               pathOptions={{ color: coords ? "#2563eb" : '#3b82f6', weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
               pane="overlayPane"
             />
