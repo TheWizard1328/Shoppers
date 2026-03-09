@@ -907,7 +907,7 @@ function Dashboard() {
           }
         }
         setSelectedDriverId(driverToSelect);
-        globalFilters.setSelectedDriverId(driverToSelect);
+        if (!selectedDriverId || selectedDriverId === 'all') globalFilters.setSelectedDriverId(driverToSelect);
 
       } catch (error) {
         console.error('❌ [Dashboard] Error loading user settings:', error);
