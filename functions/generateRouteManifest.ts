@@ -141,10 +141,10 @@ Deno.serve(async (req) => {
       doc.text('Time', colTime, y);
       doc.text('Name / Store', colName, y);
       doc.text('Notes', colNotes, y);
-      doc.text('Receipts', colReceipts, y);
-      doc.text('Rx', colRx, y);
-      doc.text('Sig', colSig, y);
-      doc.text('Photos', colPhotos, y);
+      doc.text('Rcpt', colReceipts + thumbSize / 2, y, { align: 'center' });
+      doc.text('Rx', colRx + thumbSize / 2, y, { align: 'center' });
+      doc.text('Sig', colSig + thumbSize / 2, y, { align: 'center' });
+      doc.text('Photos', colPhotos + thumbSize / 2, y, { align: 'center' });
       doc.setFont(undefined, 'normal');
       // Draw header line
       y = snap(y + 1);
