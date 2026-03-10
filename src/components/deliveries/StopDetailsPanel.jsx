@@ -453,7 +453,7 @@ export default function StopDetailsPanel({
                   Status & Timing
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
-                  <div className="min-w-[160px] flex-1 space-y-1">
+                  <div className="min-w-0 w-full space-y-1">
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       {isPickup ? 'Pickup Status' : 'Delivery Status'}
                     </Label>
@@ -483,13 +483,13 @@ export default function StopDetailsPanel({
 
                   {isActiveEditStatus && (
                     <>
-                      <div className="min-w-[120px] space-y-1">
+                      <div className="min-w-0 w-full space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                           Start
                         </Label>
                         <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
                       </div>
-                      <div className="min-w-[120px] space-y-1">
+                      <div className="min-w-0 w-full space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                           End
                         </Label>
@@ -499,7 +499,7 @@ export default function StopDetailsPanel({
                   )}
 
                   {isCompletionEditStatus && (
-                    <div className="min-w-[140px] space-y-1">
+                    <div className="min-w-0 w-full space-y-1">
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                         Completion
                       </Label>
@@ -507,7 +507,7 @@ export default function StopDetailsPanel({
                     </div>
                   )}
 
-                  <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 shrink-0">
+                  <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 w-full md:w-auto">
                     Apply
                   </Button>
                 </div>
