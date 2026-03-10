@@ -171,7 +171,7 @@ export default function StopDetailsPanel({
   const StatusIcon = status.icon;
 
   const canEdit = currentUser && (
-    currentUser.app_roles?.includes('admin') || 
+    currentUser.app_roles?.includes('driver') || 
     currentUser.app_roles?.includes('dispatcher')
   );
 
@@ -452,7 +452,7 @@ export default function StopDetailsPanel({
                 <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                   Status & Timing
                 </p>
-                <div className={`grid gap-2 items-end ${isActiveEditStatus ? 'grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto]' : isCompletionEditStatus ? 'grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)_auto]'}`}>
+                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
 
                   <div className="min-w-0 w-full space-y-1">
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
@@ -500,12 +500,31 @@ export default function StopDetailsPanel({
                   )}
 
                   {isCompletionEditStatus && (
-                    <div className="min-w-0 w-full space-y-1">
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                        Completion
-                      </Label>
-                      <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
-                    </div>
+                    <>
+                      <div className="min-w-0 w-full space-y-1">
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                          Completion
+                        </Label>
+                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                      </div>
+                      <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
+                        <Label className="text-sm font-semibold">End</Label>
+                        <Input type="time" value="" readOnly className="h-9 text-sm" />
+                      </div>
+                    </>
+                  )}
+
+                  {!(isActiveEditStatus || isCompletionEditStatus) && (
+                    <>
+                      <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
+                        <Label className="text-sm font-semibold">Start</Label>
+                        <Input type="time" value="" readOnly className="h-9 text-sm" />
+                      </div>
+                      <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
+                        <Label className="text-sm font-semibold">End</Label>
+                        <Input type="time" value="" readOnly className="h-9 text-sm" />
+                      </div>
+                    </>
                   )}
 
                   <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
