@@ -4111,7 +4111,7 @@ export default function DeliveriesPage() {
                         {isMobile && effectiveDrivers?.length > 1 &&
                     <div className="flex-shrink-0">
                             <Select value={driverFilter} onValueChange={handleDriverChange}>
-                              <SelectTrigger className="w-[100px] h-9 text-xs" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                              <SelectTrigger className="w-[120px] h-9 text-xs" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                                 <SelectValue placeholder="Driver" />
                               </SelectTrigger>
                               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
