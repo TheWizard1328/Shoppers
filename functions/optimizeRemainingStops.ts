@@ -258,6 +258,7 @@ Deno.serve(async (req) => {
     let optimizedCurrentStage = [];
     let directionsLegs = [];
     let totalApiCalls = 0;
+    let attemptedHereCalls = 0;
 
     // CRITICAL: Current stage is already sorted by delivery_time_start from STEP 1
     // Just use it as-is for HERE API (no re-sorting, no optimize:true)
@@ -278,17 +279,6 @@ Deno.serve(async (req) => {
           hereWaypoints += `&via=${c.lat},${c.lng}`;
         });
 
-        // Log API call
-        await base44.asServiceRole.entities.GoogleAPILog.create({
-          timestamp: new Date().toISOString(),
-          api_type: 'Directions (HERE)',
-          purpose: `Current stage optimization for driver ${driverAppUser?.user_name || driverId}`,
-          function_name: 'optimizeRemainingStops',
-          user_id: user.id,
-          user_name: driverAppUser?.user_name || user.full_name,
-          metadata: { driver_id: driverId, delivery_date: deliveryDate, stops_count: currentStageSorted.length }
-        });
-
         // CRITICAL: Don't use optimize:true - respect the time-based order
         const directionsUrl = `https://router.hereapi.com/v8/routes?${hereWaypoints}&return=summary&transportMode=car&routingMode=fast&apiKey=${hereApiKey}`;
 
@@ -296,6 +286,7 @@ Deno.serve(async (req) => {
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             if (attempt > 0) await new Promise(r => setTimeout(r, Math.min(1000 * Math.pow(2, attempt), 5000)));
+            attemptedHereCalls += 1;
             const response = await fetch(directionsUrl, { signal: AbortSignal.timeout(15000) });
             directionsData = await response.json();
             if (directionsData.routes && directionsData.routes.length > 0) {
@@ -553,7 +544,30 @@ Deno.serve(async (req) => {
       console.warn('[optimizeRemainingStops] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
     }
 
-    console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops updated, ${totalApiCalls} API calls`);
+    try {
+      if (attemptedHereCalls > 0) {
+        await base44.asServiceRole.entities.GoogleAPILog.create({
+          timestamp: new Date().toISOString(),
+          api_type: 'Directions (HERE)',
+          purpose: `Current stage optimization for driver ${driverAppUser?.user_name || driverId}`,
+          function_name: 'optimizeRemainingStops',
+          user_id: user.id,
+          user_name: driverAppUser?.user_name || user.full_name,
+          metadata: {
+            api_provider: 'here',
+            call_count: attemptedHereCalls,
+            successful_calls: totalApiCalls,
+            driver_id: driverId,
+            delivery_date: deliveryDate,
+            stops_count: currentStageSorted.length
+          }
+        });
+      }
+    } catch (logError) {
+      console.warn('[optimizeRemainingStops] Non-fatal log error:', logError?.message || logError);
+    }
+
+    console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops updated, ${attemptedHereCalls} API calls`);
 
     return Response.json({
       success: true,
@@ -562,7 +576,7 @@ Deno.serve(async (req) => {
       routeChanged: true,
       optimizedCount: activeStops.length,
       stagesCount: stages.length,
-      apiCallsMade: totalApiCalls,
+      apiCallsMade: attemptedHereCalls,
       locationSource
     });
 

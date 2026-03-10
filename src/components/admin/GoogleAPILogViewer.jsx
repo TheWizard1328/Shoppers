@@ -503,9 +503,11 @@ export default function GoogleAPILogViewer() {
                     <SelectItem value="Google Directions">Google Directions</SelectItem>
                     <SelectItem value="HERE Directions">HERE Directions</SelectItem>
                     <SelectItem value="Google Distance Matrix">Google Distance Matrix</SelectItem>
+                    <SelectItem value="HERE Distance Matrix">HERE Distance Matrix</SelectItem>
                     <SelectItem value="Google Places Autocomplete">Google Places Autocomplete</SelectItem>
                     <SelectItem value="Google Place Details">Google Place Details</SelectItem>
                     <SelectItem value="Google Geocoding">Google Geocoding</SelectItem>
+                    <SelectItem value="HERE Geocoding">HERE Geocoding</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
