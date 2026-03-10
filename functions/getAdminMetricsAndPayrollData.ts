@@ -28,12 +28,6 @@ const getMidpointDate = (startStr, endStr) => {
   return midpoint.toISOString().split('T')[0];
 };
 
-const getPreviousDate = (dateStr) => {
-  const date = new Date(`${dateStr}T00:00:00`);
-  date.setDate(date.getDate() - 1);
-  return date.toISOString().split('T')[0];
-};
-
 const getNextDate = (dateStr) => {
   const date = new Date(`${dateStr}T00:00:00`);
   date.setDate(date.getDate() + 1);
@@ -297,9 +291,6 @@ Deno.serve(async (req) => {
   }
 });
 
-
-// ─── Admin Metrics Processing ─────────────────────────────────────────────────
-
 function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate) {
   
   const calculateExtraKm = (delivery, patientList) => {
@@ -350,8 +341,6 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   const storeMap = new Map(stores.map(s => [s.id, s]));
   const appUserMap = new Map(appUsers.map(au => [au.user_id, au]));
 
-  // Helper: Check if store was paying fees on a specific date using app_fee_history
-  // Pre-sort histories once per store for efficiency (avoids re-sorting per delivery)
   const sortedHistoryCache = new Map();
   const wasPayingFeesOnDate = (store, dateStr) => {
     if (!store) return false;
@@ -426,7 +415,6 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const dayOfMonth = date.getDate();
     const store = delivery.store_id ? storeMap.get(delivery.store_id) : null;
 
-    // CRITICAL: Check fee status using app_fee_history effective dates, not just current flag
     const wasPayingOnDeliveryDate = store ? wasPayingFeesOnDate(store, delivery.delivery_date) : false;
 
     if (isBillableDelivery(delivery)) {
@@ -581,9 +569,6 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
 
   return metrics;
 }
-
-
-// ─── Envelope Metrics ─────────────────────────────────────────────────────────
 
 function calculateEnvelopeMetrics(deliveries, stores) {
   const envelopeMetrics = {
