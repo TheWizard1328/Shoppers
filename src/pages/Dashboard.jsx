@@ -1818,138 +1818,67 @@ function Dashboard() {
         return () => {};
       }
 
-      // MOBILE: Use device GPS
+      // MOBILE: Prefer tracker events when native tracking is active
+      const syncMobileLocation = (newLocation) => {
+        setDriverLocation(newLocation);
+        if (!isMobile || !newLocation.latitude || !newLocation.longitude) return;
+        const now = Date.now();
+        if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current) {
+          if (now - lastProgrammaticMapMoveRef.current > 1200) { lastProgrammaticMapMoveRef.current = now; window._lastProgrammaticMapMove = now; setMapViewTrigger((prev) => prev + 1); }
+          const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+          if (nextCard) document.getElementById(`stop-card-${nextCard.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          return;
+        }
+        if (mapViewPhaseRef.current === 3 && isMapViewLockedRef.current) {
+          if (now - lastProgrammaticMapMoveRef.current > 1800) { lastProgrammaticMapMoveRef.current = now; window._lastProgrammaticMapMove = now; setMapViewTrigger((prev) => prev + 1); }
+          return;
+        }
+        if (isMapViewLocked || now - lastUserInteractionRef.current < 300000 || now - lastProximitySnapTimeRef.current < 60000) return;
+        for (const delivery of deliveriesWithStopOrder.filter((d) => d && ['in_transit', 'en_route'].includes(d.status))) {
+          const patient = delivery.patient_id ? patients.find((p) => p && p.id === delivery.patient_id) : null;
+          const store = !delivery.patient_id && delivery.store_id ? stores.find((s) => s && s.id === delivery.store_id) : null;
+          const stopLat = patient?.latitude || store?.latitude;
+          const stopLon = patient?.longitude || store?.longitude;
+          if (!stopLat || !stopLon) continue;
+          if (calculateDistance(newLocation.latitude, newLocation.longitude, stopLat, stopLon) > 0.1) continue;
+          const cardElement = document.getElementById(`stop-card-${delivery.id}`);
+          const container = stopCardsContainerRef.current?.querySelector('.overflow-x-auto');
+          if (cardElement && container) {
+            const c = container.getBoundingClientRect();
+            const r = cardElement.getBoundingClientRect();
+            if (Math.abs((r.left + r.width / 2) - (c.left + c.width / 2)) < 50) continue;
+          }
+          lastProximitySnapTimeRef.current = Date.now();
+          cardElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          break;
+        }
+      };
+
+      const trackerStatus = locationTracker.getStatus();
+      if (trackerStatus.lastLocation?.latitude && trackerStatus.lastLocation?.longitude) {
+        syncMobileLocation({ latitude: trackerStatus.lastLocation.latitude, longitude: trackerStatus.lastLocation.longitude, timestamp: new Date().toISOString(), accuracy: trackerStatus.lastLocation.accuracy, source: trackerStatus.providerName || 'tracker' });
+      }
+
+      if (trackerStatus.providerName === 'native') {
+        const handleTrackerPosition = (event) => {
+          const { userId, latitude, longitude, timestamp, accuracy, source } = event.detail || {};
+          if (userId && userId !== currentUser.id) return;
+          if (!latitude || !longitude) return;
+          syncMobileLocation({ latitude, longitude, timestamp, accuracy, source: source || 'tracker' });
+        };
+        window.addEventListener('driverPositionUpdated', handleTrackerPosition);
+        return () => window.removeEventListener('driverPositionUpdated', handleTrackerPosition);
+      }
+
       if (!navigator.geolocation) {
         console.warn('⚠️ [Dashboard] Geolocation not available on this device');
         return;
       }
 
       watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const newLocation = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            timestamp: new Date(position.timestamp).toISOString(),
-            accuracy: position.coords.accuracy,
-            source: 'device_gps'
-          };
-
-          setDriverLocation(newLocation);
-
-          // CRITICAL: Auto-zoom when within 100m of in_transit/en_route stop (mobile only)
-          // Phase 2: continuous re-centering ONLY when locked (FAB blue)
-          // When user pans/zooms, handleMapInteraction unlocks FAB, stopping re-centering
-          // Other phases: proximity snap only (if unlocked)
-          if (isMobile && newLocation.latitude && newLocation.longitude) {
-            const now = Date.now();
-
-            // PHASE 2 LOCKED: Auto-scroll to next delivery card (every location update)
-            // NOTE: Map re-centering is intentionally removed here - it fought with the FAB positioning.
-            // The FAB handles the initial center on Phase 2 activation; GPS updates only scroll the card.
-            if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current) {
-              const now = Date.now(); if (now - lastProgrammaticMapMoveRef.current > 1200) { lastProgrammaticMapMoveRef.current = now; window._lastProgrammaticMapMove = now; setMapViewTrigger((prev) => prev + 1); }
-              const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-              if (nextCard) { const cardEl = document.getElementById(`stop-card-${nextCard.id}`); if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }
-              return;
-            }
-
-            if (mapViewPhaseRef.current === 3 && isMapViewLockedRef.current) {
-              const now = Date.now(); if (now - lastProgrammaticMapMoveRef.current > 1800) { lastProgrammaticMapMoveRef.current = now; window._lastProgrammaticMapMove = now; setMapViewTrigger((prev) => prev + 1); }
-              return;
-            }
-
-            // PROXIMITY SNAP: Only when FAB is unlocked (gray) and user has been idle
-            // Check if 5 minutes have passed since last user interaction (map/card)
-            const timeSinceUserInteraction = now - lastUserInteractionRef.current;
-            const interactionCooldown = 300000; // 5 minutes
-
-            // Also check 60 seconds since last auto-snap
-            const timeSinceLastSnap = now - lastProximitySnapTimeRef.current;
-            const snapCooldown = 60000; // 60 seconds
-
-            if (!isMapViewLocked && timeSinceUserInteraction >= interactionCooldown && timeSinceLastSnap >= snapCooldown) {
-              const activeStatuses = ['in_transit', 'en_route'];
-              const activeDeliveries = deliveriesWithStopOrder.filter((d) =>
-              d && activeStatuses.includes(d.status)
-              );
-
-              // Check each active delivery for proximity
-              for (const delivery of activeDeliveries) {
-                let stopLat, stopLon;
-
-                if (delivery.patient_id) {
-                  const patient = patients.find((p) => p && p.id === delivery.patient_id);
-                  stopLat = patient?.latitude;
-                  stopLon = patient?.longitude;
-                } else if (delivery.store_id) {
-                  const store = stores.find((s) => s && s.id === delivery.store_id);
-                  stopLat = store?.latitude;
-                  stopLon = store?.longitude;
-                }
-
-                if (stopLat && stopLon) {
-                  const distanceKm = calculateDistance(
-                    newLocation.latitude,
-                    newLocation.longitude,
-                    stopLat,
-                    stopLon
-                  );
-
-                  // Within 100m (0.1km)
-                  if (distanceKm <= 0.1) {
-                    // Check if card is currently centered on screen
-                    const cardElement = document.getElementById(`stop-card-${delivery.id}`);
-                    let isCardCentered = false;
-
-                    if (cardElement && stopCardsContainerRef.current) {
-                      const container = stopCardsContainerRef.current.querySelector('.overflow-x-auto');
-                      if (container) {
-                        const containerRect = container.getBoundingClientRect();
-                        const cardRect = cardElement.getBoundingClientRect();
-
-                        const containerCenter = containerRect.left + containerRect.width / 2;
-                        const cardCenter = cardRect.left + cardRect.width / 2;
-                        const distanceFromCenter = Math.abs(cardCenter - containerCenter);
-
-                        // Consider centered if within 50px of center
-                        isCardCentered = distanceFromCenter < 50;
-                      }
-                    }
-
-                    if (isCardCentered) {
-                      continue;
-                    }
-
-                    // Record the snap time (prevents any snaps for 60 seconds)
-                    lastProximitySnapTimeRef.current = Date.now();
-
-                    // Scroll to the associated card (map re-centering removed - was causing oscillation)
-                    const nearbyCardElement = document.getElementById(`stop-card-${delivery.id}`);
-                    if (nearbyCardElement) {
-                      nearbyCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                    }
-
-                    break; // Only zoom to first nearby stop
-                  }
-                }
-              }
-            } else {
-              if (timeSinceUserInteraction < interactionCooldown) {
-                const remainingMinutes = Math.ceil((interactionCooldown - timeSinceUserInteraction) / 60000);
-              } else {
-                const remainingSeconds = Math.ceil((snapCooldown - timeSinceLastSnap) / 1000);
-              }
-            }
-          }
-        },
-        (error) => {
-          console.warn('⚠️ [Dashboard] GPS error:', error.message);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
+        (position) => syncMobileLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude, timestamp: new Date(position.timestamp).toISOString(), accuracy: position.coords.accuracy, source: 'device_gps' }),
+        (error) => console.warn('⚠️ [Dashboard] GPS error:', error.message),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     };
 
