@@ -33,6 +33,8 @@ Deno.serve(async (req) => {
         user_id: user.id,
         user_name: userAppUser?.user_name || user.full_name,
         metadata: {
+          api_provider: 'google',
+          call_count: 1,
           place_id: place_id
         }
       });

@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
     const appUserByKey = new Map((allAppUsers || []).filter(Boolean).flatMap(u => [[String(u.id), u], [String(u.user_id), u]]));
 
     const GOOGLE_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    let googleApiCalls = 0;
 
     const FINISHED = new Set(['completed','failed','cancelled','returned']);
     const repaired = [];
@@ -172,6 +173,7 @@ Deno.serve(async (req) => {
           // Fetch & save
           const origin = { lat: a.lat, lng: a.lon };
           const dest = { lat: b.lat, lng: b.lon };
+          googleApiCalls += 1;
           const data = await fetchDirectionsPolyline(origin, dest, GOOGLE_KEY);
           const encoded = data.encoded || encodeGooglePolyline((data.coords || []).map(([la,lo]) => [la, lo]));
           await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
@@ -330,7 +332,28 @@ Deno.serve(async (req) => {
     // Broadcast for clients to hydrate from entity/offline DB
     try { self && self.dispatchEvent && self.dispatchEvent(new Event('polylineUpdated')); } catch (_) {}
 
-    return Response.json({ success: true, date: dateStr, repaired, deleted_online: deletedIds.length, kept_online: keptOnlineCount });
+    try {
+      if (googleApiCalls > 0) {
+        const myAppUser = (await base44.asServiceRole.entities.AppUser.filter({ user_id: me.id }, '-updated_date', 1))?.[0];
+        await base44.asServiceRole.entities.GoogleAPILog.create({
+          timestamp: new Date().toISOString(),
+          api_type: 'Directions',
+          purpose: 'Repairing missing route polylines',
+          function_name: 'repairMissingPolylines',
+          user_id: me.id,
+          user_name: myAppUser?.user_name || me.full_name,
+          metadata: {
+            api_provider: 'google',
+            call_count: googleApiCalls,
+            delivery_date: dateStr,
+            repaired_segments: repaired.length,
+            deleted_online: deletedIds.length
+          }
+        });
+      }
+    } catch (_) {}
+
+    return Response.json({ success: true, date: dateStr, repaired, deleted_online: deletedIds.length, kept_online: keptOnlineCount, googleApiCalls });
   } catch (err) {
     return Response.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
