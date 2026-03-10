@@ -370,6 +370,117 @@ export default function HereType1Polylines({
     });
   }, [isViewingCurrentDate, driverStops, driverHomeMarkers, currentDriverMarker, optimizing, refreshToken]);
 
+  useEffect(() => {
+    const settings = getRouteOptimizationSettings();
+    if (!settings.enableRouteDeviationDetection || !isViewingCurrentDate || optimizing) {
+      setDeviationSegments({});
+      deviationMetaRef.current = {};
+      return;
+    }
+
+    const thresholdMeters = Math.max(50, Number(settings.routeDeviationThresholdMeters) || 200);
+    const cooldownMs = Math.max(1, Number(settings.routeDeviationCooldownMinutes) || 5) * 60 * 1000;
+    let cancelled = false;
+
+    const run = async () => {
+      const nextDeviationSegments = {};
+      const activeSegmentIds = new Set();
+      const jobs = [];
+
+      driverStops.forEach((stops, driverId) => {
+        if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
+        if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
+
+        const completedSorted = [...stops.complete].sort((a, b) => {
+          const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
+          const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
+          return bt - at;
+        });
+        const lastCompleted = completedSorted[0];
+        const nextStop = stops.incomplete.find((stop) => stop.isNextDelivery === true) || stops.incomplete[0];
+        const liveMarker = getLiveDriverMarker(driverId, currentDriverMarker, driverLocations);
+        if (!lastCompleted || !nextStop || !liveMarker) return;
+
+        const origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
+        const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
+        const current = { latitude: Number(liveMarker.latitude), longitude: Number(liveMarker.longitude) };
+        if (![origin.latitude, origin.longitude, destination.latitude, destination.longitude, current.latitude, current.longitude].every(Number.isFinite)) return;
+
+        const segmentId = getSegmentKey(driverId, origin, destination);
+        const plannedKey = getHereCacheKey(origin, destination);
+        const plannedCoords = getCachedPolyline(plannedKey, cache);
+        if (!segmentId || !plannedCoords) return;
+
+        activeSegmentIds.add(segmentId);
+        const deviationDistance = pointToPolylineDistanceMeters({ lat: current.latitude, lng: current.longitude }, plannedCoords);
+        const existing = deviationMetaRef.current[segmentId];
+
+        if (Number.isFinite(deviationDistance) && deviationDistance <= thresholdMeters * 0.6) {
+          delete deviationMetaRef.current[segmentId];
+          return;
+        }
+
+        if (!Number.isFinite(deviationDistance) || deviationDistance < thresholdMeters) {
+          if (existing) nextDeviationSegments[segmentId] = existing;
+          return;
+        }
+
+        if (existing?.remainingCoords && existing?.remainingPoint && (Date.now() - (existing.lastFetchedAt || 0) < cooldownMs)) {
+          nextDeviationSegments[segmentId] = {
+            ...existing,
+            breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
+            currentPoint: current,
+            deviationDistance
+          };
+          return;
+        }
+
+        jobs.push(
+          getHerePolyline(driverId, current, destination, nextStop.delivery_date).then((remainingCoords) => {
+            if (cancelled) return;
+            nextDeviationSegments[segmentId] = {
+              segmentId,
+              driverId,
+              origin,
+              destination,
+              currentPoint: current,
+              breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
+              remainingCoords: Array.isArray(remainingCoords) && remainingCoords.length > 1 ? remainingCoords : makeFallback(current, destination),
+              remainingPoint: current,
+              deviationDistance,
+              lastFetchedAt: Date.now()
+            };
+          }).catch(() => {
+            if (cancelled) return;
+            nextDeviationSegments[segmentId] = {
+              segmentId,
+              driverId,
+              origin,
+              destination,
+              currentPoint: current,
+              breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
+              remainingCoords: makeFallback(current, destination),
+              remainingPoint: current,
+              deviationDistance,
+              lastFetchedAt: Date.now()
+            };
+          })
+        );
+      });
+
+      await Promise.all(jobs);
+      if (cancelled) return;
+
+      deviationMetaRef.current = Object.fromEntries(
+        Object.entries({ ...deviationMetaRef.current, ...nextDeviationSegments }).filter(([segmentId]) => activeSegmentIds.has(segmentId))
+      );
+      setDeviationSegments(nextDeviationSegments);
+    };
+
+    run();
+    return () => { cancelled = true; };
+  }, [isViewingCurrentDate, optimizing, driverStops, currentDriverMarker, driverLocations, selectedDriverId, showAll, cache, refreshToken]);
+
   /* always render polylines on any date; previously gated by current date */
 
   const isGrace = Date.now() - mountTimeRef.current < 600;
@@ -436,7 +547,7 @@ export default function HereType1Polylines({
     }
   });
 
-  // Render last-completed -> next-stop using HERE (fallback straight)
+  // Render last-completed -> next-stop using HERE, or hybrid breadcrumb + remaining leg when deviated
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
     if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
@@ -446,55 +557,62 @@ export default function HereType1Polylines({
       return bt - at;
     });
     const lastCompleted = completedSorted[0];
-    // Fallback to first incomplete stop if isNextDelivery is not set
     const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
     if (!lastCompleted || !nextStop) return;
-    const originLat = Number(lastCompleted.latitude);
-    const originLon = Number(lastCompleted.longitude);
 
-    const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(nextStop.latitude).toFixed(5)}_${Number(nextStop.longitude).toFixed(5)}`;
-    let coords = cache[key];
-    if (!coords) {
-      try {
-        const cached = localStorage.getItem(key);
-        if (cached) {
-          const c = JSON.parse(cached);
-          if (Array.isArray(c) && c.length > 1) coords = c;
-        }
-      } catch (_) {}
+    const origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
+    const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
+    const key = getHereCacheKey(origin, destination);
+    const segmentId = getSegmentKey(driverId, origin, destination);
+    const hybrid = segmentId ? deviationSegments[segmentId] : null;
+
+    if (hybrid?.breadcrumbCoords?.length > 1 && !seenKeys.has(`${key}_deviation_history`)) {
+      seenKeys.add(`${key}_deviation_history`);
+      lines.push(
+        <Polyline
+          key={`type1-next-history-${driverId}`}
+          positions={hybrid.breadcrumbCoords}
+          pathOptions={{ color: "#94a3b8", weight: 4, opacity: 0.85, dashArray: "6,10", lineJoin: "round", lineCap: "round" }}
+          pane="overlayPane"
+        />
+      );
     }
 
-    // If still missing, trigger a fetch once (debounced) to hydrate HERE polyline
+    if (hybrid?.remainingCoords?.length > 1 && !seenKeys.has(`${key}_deviation_remaining`)) {
+      seenKeys.add(`${key}_deviation_remaining`);
+      lines.push(
+        <Polyline
+          key={`type1-next-remaining-${driverId}`}
+          positions={hybrid.remainingCoords}
+          pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.95, lineJoin: "round", lineCap: "round" }}
+          pane="overlayPane"
+        />
+      );
+      return;
+    }
+
+    let coords = getCachedPolyline(key, cache);
+
     if (!coords && !optimizing) {
       if (Date.now() - mountTimeRef.current < 1200) return;
       const lastReq = requestTimesRef.current[key] || 0;
       const now = Date.now();
       if (now - lastReq > 4000) {
         requestTimesRef.current[key] = now;
-        getHerePolyline(
-          driverId,
-          { latitude: originLat, longitude: originLon },
-          { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) },
-          nextStop.delivery_date
-        ).then((fetched) => {
+        getHerePolyline(driverId, origin, destination, nextStop.delivery_date).then((fetched) => {
           if (Array.isArray(fetched) && fetched.length > 1) {
             setCache((p) => ({ ...p, [key]: fetched }));
           }
         }).catch(() => {});
       }
     }
-    
-    // Always use static last-completed stop as origin for Type 1 segment
-    const fallbackLat = originLat;
-    const fallbackLon = originLon;
 
-    // Show dashed fallback immediately; HERE polyline will hydrate when ready
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
       lines.push(
         <Polyline
           key={`type1-next-${driverId}`}
-          positions={coords || makeFallback({ latitude: fallbackLat, longitude: fallbackLon }, nextStop)}
+          positions={coords || makeFallback(origin, destination)}
           pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
           pane="overlayPane"
         />
