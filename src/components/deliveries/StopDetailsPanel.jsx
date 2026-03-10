@@ -723,8 +723,8 @@ export default function StopDetailsPanel({
         </Card>
       </div>
 
-      {/* Action Buttons - Only Complete/Failed for non-admins */}
-      {canEdit && !currentUser?.app_roles?.includes('admin') && (
+      {/* Action Buttons - Only Complete/Failed for drivers */}
+      {currentUser?.app_roles?.includes('driver') && (
         <div className="flex-shrink-0 p-4 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           {!isCompleted && (
             <div className="flex gap-2">
