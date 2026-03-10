@@ -112,6 +112,10 @@ export default function DeliveryFormView({
     return !(existsInStaged || existsInSaved);
   })();
 
+  const hasSelectedLocationAndDriver = Boolean(
+    formData?.driver_id && (formData?.store_id || selectedPatient?.store_id || selectedPickupOption)
+  );
+
   // Auto-open the driver dropdown when a driver must be selected
   const [forceOpenDriverSelect, setForceOpenDriverSelect] = React.useState(false);
   React.useEffect(() => {
@@ -190,11 +194,11 @@ export default function DeliveryFormView({
                     <Button type="button" size="sm" onClick={() => { setIsPickupMode(false); setIsInterStoreMode?.(false); }} className={!isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
                       Add Delivery
                     </Button>
-                    <Button type="button" size="sm" onClick={() => { setIsPickupMode(true); setIsInterStoreMode?.(false); }} className={isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={!isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
-                      Add Pickup
-                    </Button>
                     <Button type="button" size="sm" onClick={() => { setIsPickupMode(false); setIsInterStoreMode?.(true); }} className={isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={!isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
                       InterStores
+                    </Button>
+                    <Button type="button" size="sm" onClick={() => { setIsPickupMode(true); setIsInterStoreMode?.(false); }} className={isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={!isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
+                      Add Pickup
                     </Button>
                   </div>
                 )}
@@ -618,7 +622,7 @@ export default function DeliveryFormView({
                     <Edit2 className="w-4 h-4" />Update
                   </Button>
                 ) : buttonState === 'add' ? (
-                  <Button type="button" size="sm" onClick={handleAddToStaging} className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || !isFormValid || isPatientFormOpen || requiresDriverSelection} title={requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
+                  <Button type="button" size="sm" onClick={handleAddToStaging} className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || isPatientFormOpen || (!isFormValid && !hasSelectedLocationAndDriver) || (requiresDriverSelection && !hasSelectedLocationAndDriver)} title={requiresDriverSelection && !hasSelectedLocationAndDriver ? 'Select a driver to create a pickup for this store/date' : undefined}>
                     <Plus className="w-4 h-4" />Add
                   </Button>
                 ) : (
