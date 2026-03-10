@@ -3883,7 +3883,7 @@ export default function Layout({ children, currentPageName }) {
                     </main>
 
                     {/* Mobile Bottom Nav - inside main-content-area so flex column shrinks main naturally */}
-                    {!isSnapshotModeActive && (isMobile || isTabletPortrait) && !sidebarOpen && currentUser && (
+                    {!isSnapshotModeActive && !sidebarOpen && currentUser && screenWidth < 768 && (
                       <MobileBottomNav
                         currentUser={currentUser}
                         currentPageName={currentPageName}
