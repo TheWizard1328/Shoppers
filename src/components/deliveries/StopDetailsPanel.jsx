@@ -382,74 +382,6 @@ export default function StopDetailsPanel({
                   </div>
                 )}
 
-                {/* Status & Timing */}
-                {canEdit && typeof onStatusUpdate === 'function' && (
-                  <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
-                    <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
-                      Status & Timing
-                    </p>
-                    <div className="flex items-end gap-2 flex-wrap">
-                      <div className="min-w-[160px] flex-1 space-y-1">
-                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                          {isPickup ? 'Pickup Status' : 'Delivery Status'}
-                        </Label>
-                        <Select value={editableStatus} onValueChange={setEditableStatus} disabled={isUpdating}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[10030]">
-                            {isPickup ? (
-                              <>
-                                <SelectItem value="en_route">En Route</SelectItem>
-                                <SelectItem value="completed">Completed</SelectItem>
-                                <SelectItem value="cancelled">Cancelled</SelectItem>
-                              </>
-                            ) : (
-                              <>
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="in_transit">In Transit</SelectItem>
-                                <SelectItem value="completed">Completed</SelectItem>
-                                <SelectItem value="failed">Failed</SelectItem>
-                                <SelectItem value="cancelled">Cancelled</SelectItem>
-                              </>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {isActiveEditStatus && (
-                        <>
-                          <div className="min-w-[120px] space-y-1">
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                              Start
-                            </Label>
-                            <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
-                          </div>
-                          <div className="min-w-[120px] space-y-1">
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                              End
-                            </Label>
-                            <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
-                          </div>
-                        </>
-                      )}
-
-                      {isCompletionEditStatus && (
-                        <div className="min-w-[140px] space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                            Completion
-                          </Label>
-                          <Input type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
-                        </div>
-                      )}
-
-                      <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9">
-                        Apply
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Patient Preferences */}
                 <div className="flex flex-wrap gap-2 pt-2">
                   {patient.mailbox_ok && (
@@ -501,6 +433,74 @@ export default function StopDetailsPanel({
               </>
             ) : (
               <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Patient information not available</p>
+            )}
+
+            {/* Status & Timing */}
+            {canEdit && typeof onStatusUpdate === 'function' && (
+              <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
+                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
+                  Status & Timing
+                </p>
+                <div className="flex items-end gap-2 overflow-x-auto">
+                  <div className="min-w-[160px] flex-1 space-y-1">
+                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                      {isPickup ? 'Pickup Status' : 'Delivery Status'}
+                    </Label>
+                    <Select value={editableStatus} onValueChange={setEditableStatus} disabled={isUpdating}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10030]">
+                        {isPickup ? (
+                          <>
+                            <SelectItem value="en_route">En Route</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </>
+                        ) : (
+                          <>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="in_transit">In Transit</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="failed">Failed</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {isActiveEditStatus && (
+                    <>
+                      <div className="min-w-[120px] space-y-1">
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                          Start
+                        </Label>
+                        <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                      </div>
+                      <div className="min-w-[120px] space-y-1">
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                          End
+                        </Label>
+                        <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                      </div>
+                    </>
+                  )}
+
+                  {isCompletionEditStatus && (
+                    <div className="min-w-[140px] space-y-1">
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                        Completion
+                      </Label>
+                      <Input type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                    </div>
+                  )}
+
+                  <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 shrink-0">
+                    Apply
+                  </Button>
+                </div>
+              </div>
             )}
             
             {/* Admin Action Buttons - Bottom Right */}
