@@ -1,8 +1,27 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 
 export default function UpdateAppPrompt({ message, onUpdate, onCancel }) {
+  const [secondsLeft, setSecondsLeft] = useState(30);
+
+  useEffect(() => {
+    setSecondsLeft(30);
+
+    const intervalId = window.setInterval(() => {
+      setSecondsLeft((current) => {
+        if (current <= 1) {
+          window.clearInterval(intervalId);
+          onUpdate();
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [onUpdate]);
+
   return (
     <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/60 p-4">
       <motion.div
@@ -18,6 +37,9 @@ export default function UpdateAppPrompt({ message, onUpdate, onCancel }) {
           <p className="text-sm leading-6" style={{ color: 'var(--text-slate-600)' }}>
             {message}
           </p>
+          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+            Auto-updating in {secondsLeft}s.
+          </p>
         </div>
 
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -25,7 +47,7 @@ export default function UpdateAppPrompt({ message, onUpdate, onCancel }) {
             Cancel
           </Button>
           <Button onClick={onUpdate} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            Update
+            Update ({secondsLeft})
           </Button>
         </div>
       </motion.div>
