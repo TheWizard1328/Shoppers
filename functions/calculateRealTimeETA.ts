@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
         purpose: `Calculating real-time ETAs for driver ${driverAppUser?.user_name || driverId}`,
         function_name: 'calculateRealTimeETA',
         user_id: user.id,
-        user_name: driverAppUser?.user_name || user.full_name,
+        user_name: userAppUser?.user_name || user.id,
         metadata: {
           api_provider: 'here',
           call_count: 1,

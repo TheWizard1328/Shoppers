@@ -129,8 +129,12 @@ Deno.serve(async (req) => {
 
     console.log(`🔄 Optimizing route for driver ${driverId} on ${deliveryDate}`);
 
-    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
-    const driverAppUser = appUsers?.[0];
+    const [driverAppUsers, callerAppUsers] = await Promise.all([
+      base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }),
+      base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1)
+    ]);
+    const driverAppUser = driverAppUsers?.[0];
+    const callerAppUser = callerAppUsers?.[0];
 
     if (!driverAppUser) {
       return Response.json({ error: 'Driver not found' }, { status: 404 });
@@ -412,7 +416,7 @@ Deno.serve(async (req) => {
         purpose: `Real-time route optimization for driver ${driverAppUser?.user_name || driverId}`,
         function_name: 'optimizeRouteRealTime',
         user_id: user.id,
-        user_name: user.full_name,
+        user_name: callerAppUser?.user_name || user.id,
         metadata: {
           api_provider: 'here_waypoints_sequence_v8',
           call_count: 1,

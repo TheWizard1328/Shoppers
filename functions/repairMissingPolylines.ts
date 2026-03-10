@@ -343,7 +343,7 @@ Deno.serve(async (req) => {
           purpose: 'Repairing missing route polylines',
           function_name: 'repairMissingPolylines',
           user_id: me.id,
-          user_name: myAppUser?.user_name || me.full_name,
+          user_name: myAppUser?.user_name || me.id,
           metadata: {
             api_provider: 'google',
             call_count: googleApiCalls,

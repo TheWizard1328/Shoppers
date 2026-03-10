@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       purpose: 'Fetching route polyline for map display',
       function_name: 'getGoogleDirections',
       user_id: user.id,
-      user_name: userAppUser?.user_name || user.full_name,
+      user_name: userAppUser?.user_name || user.id,
       metadata: {
         api_provider: 'google',
         call_count: 1,
