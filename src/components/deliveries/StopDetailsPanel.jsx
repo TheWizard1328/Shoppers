@@ -452,7 +452,8 @@ export default function StopDetailsPanel({
                 <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                   Status & Timing
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
+                <div className={`grid gap-2 items-end ${isActiveEditStatus ? 'grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto]' : isCompletionEditStatus ? 'grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)_auto]'}`}>
+
                   <div className="min-w-0 w-full space-y-1">
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       {isPickup ? 'Pickup Status' : 'Delivery Status'}
