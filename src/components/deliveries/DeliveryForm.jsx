@@ -2337,7 +2337,6 @@ export default function DeliveryForm({
         );
 
         const updatePromises = existingDeliveries.map((updated) => {
-          // Convert statuses for batch save
           let finalStatus = updated.status;
           if (finalStatus === 'Staged') {
             finalStatus = (!updated.patient_id) ? 'en_route' : 'pending';
@@ -2361,7 +2360,7 @@ export default function DeliveryForm({
             cod_total_amount_required: updated.cod_total_amount_required || 0,
             delivery_instructions: updated.delivery_instructions || '',
             tracking_number: updated.tracking_number || '99',
-            isNextDelivery: hasCompletedDeliveries ? false : updated.isNextDelivery || false,
+            isNextDelivery: updated.isNextDelivery && !['completed','failed','cancelled','returned','pending'].includes(finalStatus),
             patient_name: updated.patient_name || '',
             patient_phone: updated.patient_phone || '',
             unit_number: updated.unit_number || '',
