@@ -54,6 +54,19 @@ const broadcastMutation = async (entity, action, id, data, ids = null) => {
   }
 };
 
+let creatorAppUserPromise = null;
+const getCurrentCreatorAppUserId = async () => {
+  if (!creatorAppUserPromise) {
+    creatorAppUserPromise = (async () => {
+      const me = await base44.auth.me();
+      if (!me?.id) return null;
+      const appUsers = await base44.entities.AppUser.filter({ user_id: me.id }, '-updated_date', 1);
+      return appUsers?.[0]?.id || null;
+    })().catch(() => null);
+  }
+  return creatorAppUserPromise;
+};
+
 // ========================================
 // LISTENERS & STATE
 // ========================================
@@ -342,10 +355,15 @@ export const createDelivery = async (deliveryData, options = {}) => {
   try {
     // CRITICAL: Sanitize actual_delivery_time before saving
     const sanitizedData = sanitizeDeliveryData(deliveryData);
+    const creatorAppUserId = await getCurrentCreatorAppUserId();
+    const payloadWithCreator = {
+      ...sanitizedData,
+      created_by_app_user_id: sanitizedData.created_by_app_user_id || creatorAppUserId || ''
+    };
     
     const tempId = `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const localDelivery = {
-      ...sanitizedData,
+      ...payloadWithCreator,
       id: tempId,
       created_date: new Date().toISOString(),
       updated_date: new Date().toISOString(),
@@ -566,8 +584,13 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
   try {
     // CRITICAL: Sanitize all deliveries before saving
     const sanitizedDeliveriesData = deliveriesData.map(d => sanitizeDeliveryData(d));
+    const creatorAppUserId = await getCurrentCreatorAppUserId();
+    const deliveriesWithCreator = sanitizedDeliveriesData.map(d => ({
+      ...d,
+      created_by_app_user_id: d.created_by_app_user_id || creatorAppUserId || ''
+    }));
     
-    const localDeliveries = sanitizedDeliveriesData.map(d => ({
+    const localDeliveries = deliveriesWithCreator.map(d => ({
       ...d,
       id: `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       created_date: new Date().toISOString(),

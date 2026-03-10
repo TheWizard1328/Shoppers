@@ -23,6 +23,11 @@ Deno.serve(async (req) => {
 
     const finished = ['completed','failed','cancelled','returned'];
     let items = (deliveries || []).filter(Boolean);
+    const creatorIds = [...new Set(items.map((item) => item?.created_by_app_user_id).filter(Boolean))];
+    const creatorAppUsers = creatorIds.length > 0
+      ? await base44.asServiceRole.entities.AppUser.filter({ id: { $in: creatorIds } })
+      : [];
+    const creatorNameMap = new Map((creatorAppUsers || []).map((appUser) => [appUser.id, appUser.user_name || appUser.id]));
 
     // CRITICAL: If storeIds provided (dispatcher export), filter to only those stores
     if (storeIds && Array.isArray(storeIds) && storeIds.length > 0) {
@@ -122,7 +127,7 @@ Deno.serve(async (req) => {
 
     let y = 36;
 
-    // Column positions (Stop, TR#, Time, Name/Store, Notes, Receipts, Rx, Sig, Photos)
+    // Column positions (Stop, TR#, Time, Name/Store, Created By, Notes, Receipts, Rx, Sig, Photos)
     const colStop = 12;
     const colTR = 26;
     const colTime = 42;
@@ -132,7 +137,8 @@ Deno.serve(async (req) => {
     const colSig = colPhotos - (thumbSize + rightGap);
     const colRx = colSig - (thumbSize + rightGap);
     const colReceipts = colRx - (thumbSize + rightGap);
-    const colNotes = colReceipts - 60; // widen notes area
+    const colNotes = colReceipts - 44;
+    const colCreatedBy = colNotes - 34;
 
     const addHeader = () => {
       doc.setFontSize(9);
@@ -141,6 +147,7 @@ Deno.serve(async (req) => {
       doc.text('TR#', colTR, y);
       doc.text('Time', colTime, y);
       doc.text('Name / Store', colName, y);
+      doc.text('Created By', colCreatedBy, y);
       doc.text('Notes', colNotes, y);
       doc.text('Rcpt', colReceipts + thumbSize / 2, y, { align: 'center' });
       doc.text('Rx', colRx + thumbSize / 2, y, { align: 'center' });
@@ -188,15 +195,19 @@ Deno.serve(async (req) => {
       // Calculate row height needed
       const isPickup = !d?.patient_id;
       const name = isPickup ? (d?.delivery_notes || 'Store Pickup') : (d?.patient_name || '');
+      const createdBy = creatorNameMap.get(d?.created_by_app_user_id) || d?.created_by_app_user_id || '';
       const notes = d?.delivery_instructions || d?.delivery_notes || '';
       
-      const nameWrapWidth = Math.max(30, colNotes - colName - 2);
+      const nameWrapWidth = Math.max(22, colCreatedBy - colName - 2);
+      const createdByWrapWidth = Math.max(18, colNotes - colCreatedBy - 2);
       const notesWrapWidth = Math.max(20, colReceipts - colNotes - 2);
       const nameLines = doc.splitTextToSize(name, nameWrapWidth);
+      const createdByLines = doc.splitTextToSize(createdBy, createdByWrapWidth);
       const notesLines = doc.splitTextToSize(notes, notesWrapWidth);
       const nameDims = doc.getTextDimensions(nameLines);
+      const createdByDims = doc.getTextDimensions(createdByLines);
       const notesDims = doc.getTextDimensions(notesLines);
-      const textHeight = Math.max(nameDims.h, notesDims.h) + cellPadding;
+      const textHeight = Math.max(nameDims.h, createdByDims.h, notesDims.h) + cellPadding;
 
       const receiptsCount = Array.isArray(d?.receipt_barcode_values) ? d.receipt_barcode_values.length : 0;
       const rxCount = Array.isArray(d?.barcode_values) ? d.barcode_values.length : 0;
@@ -234,6 +245,7 @@ Deno.serve(async (req) => {
       doc.text(tr, colTR, textY, { baseline: 'top' });
       doc.text(time, colTime, textY, { baseline: 'top' });
       doc.text(nameLines, colName, textY, { baseline: 'top' });
+      doc.text(createdByLines, colCreatedBy, textY, { baseline: 'top' });
       doc.text(notesLines, colNotes, textY, { baseline: 'top' });
 
       // Barcode thumbnails (draw count boxes)
