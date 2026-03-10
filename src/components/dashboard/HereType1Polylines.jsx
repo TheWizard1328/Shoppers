@@ -570,17 +570,6 @@ export default function HereType1Polylines({
     const segmentId = getSegmentKey(driverId, origin, destination);
     const hybrid = segmentId ? deviationSegments[segmentId] : null;
 
-    if (hybrid?.breadcrumbCoords?.length > 1 && !seenKeys.has(`${key}_deviation_history`)) {
-      seenKeys.add(`${key}_deviation_history`);
-      lines.push(
-        <Polyline
-          key={`type1-next-history-${driverId}`}
-          positions={hybrid.breadcrumbCoords}
-          pathOptions={{ color: "#94a3b8", weight: 4, opacity: 0.85, dashArray: "6,10", lineJoin: "round", lineCap: "round" }}
-          pane="overlayPane"
-        />
-      );
-    }
 
     if (hybrid?.remainingCoords?.length > 1 && !seenKeys.has(`${key}_deviation_remaining`)) {
       seenKeys.add(`${key}_deviation_remaining`);
