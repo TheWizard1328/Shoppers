@@ -1,18 +1,56 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 Deno.serve(async (req) => {
+  let base44 = null;
+  let user = null;
+  let userAppUser = null;
+  let input = '';
+  let latitude = null;
+  let longitude = null;
+  let googleApiCallCount = 0;
+  let autocompleteCalls = 0;
+  let placeDetailsCalls = 0;
+  let directionsCalls = 0;
+
+  const logUsage = async (extraMetadata = {}) => {
+    if (!base44 || !user) return;
+    try {
+      await base44.asServiceRole.entities.GoogleAPILog.create({
+        timestamp: new Date().toISOString(),
+        api_type: 'Places Autocomplete',
+        purpose: 'Address autocomplete search',
+        function_name: 'googlePlacesAutocomplete',
+        user_id: user.id,
+        user_name: userAppUser?.user_name || user.full_name,
+        metadata: {
+          api_provider: 'google',
+          call_count: googleApiCallCount,
+          autocomplete_calls: autocompleteCalls,
+          place_details_calls: placeDetailsCalls,
+          directions_calls: directionsCalls,
+          input,
+          has_location_bias: !!(latitude && longitude),
+          ...extraMetadata
+        }
+      });
+    } catch (logError) {
+      console.warn('[googlePlacesAutocomplete] Non-fatal log error:', logError?.message || logError);
+    }
+  };
+
   try {
-    const base44 = createClientFromRequest(req);
-    
-    // Verify user is authenticated
-    const user = await base44.auth.me();
+    base44 = createClientFromRequest(req);
+
+    user = await base44.auth.me();
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await req.json();
-    const { input, latitude, longitude } = body;
-    
+    input = body?.input || '';
+    latitude = body?.latitude;
+    longitude = body?.longitude;
+
     if (!input || input.trim().length < 3) {
       return Response.json({ predictions: [] });
     }
@@ -22,50 +60,32 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'API key not configured' }, { status: 500 });
     }
 
-    // Use the NEW Google Places API
+    try {
+      const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+      userAppUser = userAppUsers?.[0] || null;
+    } catch (_) {}
+
     const url = 'https://places.googleapis.com/v1/places:autocomplete';
-    
-    // Build request body for new API
     const requestBody = {
-      input: input,
+      input,
       languageCode: 'en',
       includedRegionCodes: ['CA']
     };
 
-    // Add location bias for better results (50km max allowed by API)
     if (latitude && longitude) {
       requestBody.locationBias = {
         circle: {
           center: {
-            latitude: latitude,
-            longitude: longitude
+            latitude,
+            longitude
           },
-          radius: 50000 // 50km radius (API maximum)
+          radius: 50000
         }
       };
     }
-    
-    // Best-effort user lookup + logging only
-    let userAppUser = null;
-    try {
-      const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
-      userAppUser = userAppUsers?.[0] || null;
-      await base44.asServiceRole.entities.GoogleAPILog.create({
-        timestamp: new Date().toISOString(),
-        api_type: 'Places Autocomplete',
-        purpose: 'Address autocomplete search',
-        function_name: 'googlePlacesAutocomplete',
-        user_id: user.id,
-        user_name: userAppUser?.user_name || user.full_name,
-        metadata: {
-          input: input,
-          has_location_bias: !!(latitude && longitude)
-        }
-      });
-    } catch (logError) {
-      console.warn('[googlePlacesAutocomplete] Non-fatal log error:', logError?.message || logError);
-    }
 
+    googleApiCallCount += 1;
+    autocompleteCalls += 1;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -75,21 +95,17 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify(requestBody)
     });
-    
+
     const data = await response.json();
 
-    // New API returns suggestions array instead of predictions
     if (!response.ok) {
       const errorMsg = data.error?.message || 'Places API error';
-      return Response.json({ 
-        error: errorMsg,
-        details: data 
-      }, { status: 500 });
+      await logUsage({ error: errorMsg, status_code: response.status });
+      return Response.json({ error: errorMsg, details: data }, { status: 500 });
     }
 
-    // Convert new API format and fetch driving distances via Directions API
     const predictions = (await Promise.all(
-      (data.suggestions || []).map(async suggestion => {
+      (data.suggestions || []).map(async (suggestion) => {
         const placePrediction = suggestion.placePrediction;
         if (!placePrediction) return null;
 
@@ -97,10 +113,11 @@ Deno.serve(async (req) => {
         const place_id = placePrediction.placeId || '';
         let distance = null;
 
-        // Fetch place details to get coordinates for Directions API
         if (latitude && longitude) {
           try {
             const detailsUrl = `https://places.googleapis.com/v1/places/${place_id}`;
+            googleApiCallCount += 1;
+            placeDetailsCalls += 1;
             const detailsResponse = await fetch(detailsUrl, {
               method: 'GET',
               headers: {
@@ -113,21 +130,22 @@ Deno.serve(async (req) => {
             if (detailsResponse.ok) {
               const detailsData = await detailsResponse.json();
               const placeLocation = detailsData.location;
-              
+
               if (placeLocation?.latitude && placeLocation?.longitude) {
-                // Use Directions API for actual driving distance
                 const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${placeLocation.latitude},${placeLocation.longitude}&key=${apiKey}`;
+                googleApiCallCount += 1;
+                directionsCalls += 1;
                 const directionsResponse = await fetch(directionsUrl);
-                
+
                 if (directionsResponse.ok) {
                   const directionsData = await directionsResponse.json();
                   if (directionsData.routes?.[0]?.legs?.[0]?.distance?.value) {
-                    distance = directionsData.routes[0].legs[0].distance.value / 1000; // Convert meters to km
+                    distance = directionsData.routes[0].legs[0].distance.value / 1000;
                   }
                 }
               }
             }
-          } catch (error) {
+          } catch (_) {
             // Silently fail distance calculation
           }
         }
@@ -138,24 +156,20 @@ Deno.serve(async (req) => {
           distance
         };
       })
-    )).filter(p => p !== null);
+    )).filter((prediction) => prediction !== null);
 
-    // Sort by distance (closest first)
     predictions.sort((a, b) => {
-      // Predictions without distance go to the end
       if (a.distance === null && b.distance === null) return 0;
       if (a.distance === null) return 1;
       if (b.distance === null) return -1;
       return a.distance - b.distance;
     });
 
-    // Results should already be within 75km radius due to locationRestriction
+    await logUsage({ suggestion_count: predictions.length });
     return Response.json({ predictions });
-
   } catch (error) {
     console.error('[googlePlacesAutocomplete] Error:', error.message);
-    return Response.json({ 
-      error: error.message
-    }, { status: 500 });
+    await logUsage({ error: error.message });
+    return Response.json({ error: error.message }, { status: 500 });
   }
 });
