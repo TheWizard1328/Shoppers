@@ -306,7 +306,7 @@ export default function StopDetailsPanel({
                 {store?.phone && (
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                    <a href={`tel:${store.phone}`} className="text-sm text-blue-600 hover:underline">
+                    <a href={`tel:${store.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
                       {formatPhoneNumber(store.phone)}
                     </a>
                   </div>
@@ -468,7 +468,7 @@ export default function StopDetailsPanel({
                     </Badge>
                   )}
                   {patient.dont_ring_bell && (
-                    <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: '#ea580c', borderColor: '#fdba74' }}>
                       <BellOff className="w-3 h-3 mr-1" /> Don't Ring
                     </Badge>
                   )}
@@ -527,7 +527,8 @@ export default function StopDetailsPanel({
                   disabled={typeof onDelete !== 'function'}
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 hover:bg-red-50"
+                  className="h-8 w-8"
+                  style={{ color: '#dc2626' }}
                 >
                   <Trash2 className="w-4 h-4 text-red-600" />
                 </Button>
@@ -554,8 +555,8 @@ export default function StopDetailsPanel({
                     {delivery.receipt_barcode_values.map((val, idx) => (
                       <div
                         key={`rb-${idx}`}
-                        className="border rounded-md p-2 bg-white dark:bg-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
-                        style={{ borderColor: 'var(--border-slate-200)' }}
+                        className="border rounded-md p-2 cursor-pointer transition-colors"
+                        style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
                         onClick={() => setBarcodePreview(val)}
                       >
                         <BarcodeThumb value={val} />
@@ -574,8 +575,8 @@ export default function StopDetailsPanel({
                     {delivery.barcode_values.map((val, idx) => (
                       <div
                         key={`rx-${idx}`}
-                        className="border rounded-md p-2 bg-white dark:bg-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
-                        style={{ borderColor: 'var(--border-slate-200)' }}
+                        className="border rounded-md p-2 cursor-pointer transition-colors"
+                        style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
                         onClick={() => setBarcodePreview(val)}
                       >
                         <BarcodeThumb value={val} />
@@ -614,7 +615,8 @@ export default function StopDetailsPanel({
                        <img 
                          src={delivery.signature_image_url} 
                          alt="Customer Signature" 
-                         className="w-full h-auto max-h-32 object-contain bg-white"
+                         className="w-full h-auto max-h-32 object-contain"
+                         style={{ background: 'var(--bg-white)' }}
                        />
                      </div>
                    </div>
@@ -630,11 +632,8 @@ export default function StopDetailsPanel({
                    <Button
                      onClick={() => setShowSignatureCapture(true)}
                      disabled={isUpdating}
-                     className={`text-xs whitespace-nowrap ${
-                       hasSignature 
-                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
-                         : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                     }`}
+                     className={`text-xs whitespace-nowrap ${hasSignature ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                     style={!hasSignature ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
                      size="sm"
                    >
                      <FileSignature className="w-3 h-3 mr-1" />
@@ -646,6 +645,7 @@ export default function StopDetailsPanel({
                        disabled={isUpdating}
                        variant="outline"
                        className="text-xs whitespace-nowrap"
+                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}
                        size="sm"
                      >
                        <RotateCcw className="w-3 h-3 mr-1" />
@@ -676,7 +676,8 @@ export default function StopDetailsPanel({
                            <button
                              onClick={(e) => { e.stopPropagation(); deletePhoto(index); }}
                              disabled={isUpdating}
-                             className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                             className="absolute top-1 right-1 rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                            style={{ background: '#dc2626', color: '#ffffff' }}
                            >
                              <X className="w-3 h-3" />
                            </button>
@@ -690,11 +691,8 @@ export default function StopDetailsPanel({
                  <Button
                    onClick={() => setShowPhotoCapture(true)}
                    disabled={isUpdating}
-                   className={`text-xs whitespace-nowrap ml-3 ${
-                     hasPhotos 
-                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
-                       : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                   }`}
+                   className={`text-xs whitespace-nowrap ml-3 ${hasPhotos ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                   style={!hasPhotos ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
                    size="sm"
                  >
                    <Camera className="w-3 h-3 mr-1" />
