@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   User, 
   Phone, 
@@ -68,6 +71,12 @@ export default function StopDetailsPanel({
   const [viewingImage, setViewingImage] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [barcodePreview, setBarcodePreview] = useState(null);
+  const [editableStatus, setEditableStatus] = useState(delivery?.status || 'pending');
+  const [deliveryTimeStart, setDeliveryTimeStart] = useState(delivery?.delivery_time_start || '');
+  const [deliveryTimeEnd, setDeliveryTimeEnd] = useState(delivery?.delivery_time_end || '');
+  const [completionTime, setCompletionTime] = useState(
+    delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
+  );
 
   if (!delivery) {
     return (
@@ -164,6 +173,42 @@ export default function StopDetailsPanel({
     currentUser.app_roles?.includes('admin') || 
     currentUser.app_roles?.includes('dispatcher')
   );
+
+  useEffect(() => {
+    setEditableStatus(delivery?.status || 'pending');
+    setDeliveryTimeStart(delivery?.delivery_time_start || '');
+    setDeliveryTimeEnd(delivery?.delivery_time_end || '');
+    setCompletionTime(
+      delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
+    );
+  }, [delivery?.id, delivery?.status, delivery?.delivery_time_start, delivery?.delivery_time_end, delivery?.actual_delivery_time]);
+
+  const activeStatuses = ['in_transit', 'en_route'];
+  const completionStatuses = ['completed', 'failed', 'cancelled'];
+  const isActiveEditStatus = activeStatuses.includes(editableStatus);
+  const isCompletionEditStatus = completionStatuses.includes(editableStatus);
+
+  const handleApplyStatusTiming = async () => {
+    if (!canEdit || !onStatusUpdate) return;
+
+    setIsUpdating(true);
+    try {
+      const extraData = {};
+
+      if (isActiveEditStatus) {
+        extraData.delivery_time_start = deliveryTimeStart || '';
+        extraData.delivery_time_end = deliveryTimeEnd || '';
+      }
+
+      if (isCompletionEditStatus && completionTime && delivery?.delivery_date) {
+        extraData.actual_delivery_time = `${delivery.delivery_date}T${completionTime}:00`;
+      }
+
+      await onStatusUpdate(delivery.id, editableStatus, extraData, true);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
@@ -310,6 +355,71 @@ export default function StopDetailsPanel({
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Status & Timing */}
+                {canEdit && typeof onStatusUpdate === 'function' && (
+                  <div className="pt-2 border-t space-y-3" style={{ borderColor: 'var(--border-slate-100)' }}>
+                    <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>
+                      Status & Timing
+                    </p>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                          {isPickup ? 'Pickup Status' : 'Delivery Status'}
+                        </Label>
+                        <Select value={editableStatus} onValueChange={setEditableStatus} disabled={isUpdating}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="z-[10030]">
+                            {isPickup ? (
+                              <>
+                                <SelectItem value="en_route">En Route</SelectItem>
+                                <SelectItem value="completed">Completed</SelectItem>
+                                <SelectItem value="cancelled">Cancelled</SelectItem>
+                              </>
+                            ) : (
+                              <>
+                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="in_transit">In Transit</SelectItem>
+                                <SelectItem value="completed">Completed</SelectItem>
+                                <SelectItem value="failed">Failed</SelectItem>
+                                <SelectItem value="cancelled">Cancelled</SelectItem>
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {isActiveEditStatus && (
+                        <div className="space-y-1">
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                            Delivery Time Start / End
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                            <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                          </div>
+                        </div>
+                      )}
+
+                      {isCompletionEditStatus && (
+                        <div className="space-y-1">
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                            Completion Time
+                          </Label>
+                          <Input type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                        </div>
+                      )}
+
+                      <div className="flex justify-end">
+                        <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                          Apply
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
