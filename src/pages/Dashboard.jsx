@@ -3671,7 +3671,7 @@ function Dashboard() {
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
     setIsEntityUpdating(true);
-    flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);});
+    flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);});
     // Reset route summary tracking when date changes
     hasShownSummaryRef.current.clear();
 
@@ -3848,7 +3848,7 @@ function Dashboard() {
     lastAppliedTriggerRef.current = nextTrigger;
 
     try {
-      flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);});
+      flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);});
       setIsEntityUpdating(true);
 
       // CRITICAL: Uncheck "Show All" when switching to "All Drivers" mode to prevent duplicate markers
