@@ -5855,9 +5855,7 @@ function Dashboard() {
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
-    // CRITICAL: Declare these outside try block so they're accessible in finally
-    let driverId = null;
-    let deliveryDate = null;
+    let driverId = null, deliveryDate = null, pendingBreadcrumbDriverAppUserId = null;
 
     // STEP 0: Pause smart refresh and offline sync only (NOT mutations - we bypass them)
     setIsEntityUpdating(true);
@@ -5980,25 +5978,20 @@ function Dashboard() {
         updateData.delivery_time_start = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       }
 
-      // CRITICAL: Calculate travel distance from LOCAL data (no API call)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         updateData.isNextDelivery = false;
-
-        // Get completed stops from LOCAL state
         const finishedStatuses = ['completed', 'failed', 'cancelled'];
-        const completedStops = deliveriesWithStopOrder.
-        filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status)).
-        sort((a, b) => {
-          if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
-          return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
-        });
+        const completedStops = deliveriesWithStopOrder
+          .filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status))
+          .sort((a, b) => {
+            if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
+            return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
+          });
 
-        if (completedStops.length === 0) {
-          updateData.travel_dist = 0;
-        } else {
+        if (completedStops.length === 0) updateData.travel_dist = 0;
+        else {
           const lastStop = completedStops[completedStops.length - 1];
           let lastLat, lastLon, currentLat, currentLon;
-
           if (lastStop.patient_id) {
             const lastPatient = patients.find((p) => p && p.id === lastStop.patient_id);
             lastLat = lastPatient?.latitude;
@@ -6008,7 +6001,6 @@ function Dashboard() {
             lastLat = lastStore?.latitude;
             lastLon = lastStore?.longitude;
           }
-
           if (targetDelivery.patient_id) {
             const currentPatient = patients.find((p) => p && p.id === targetDelivery.patient_id);
             currentLat = currentPatient?.latitude;
@@ -6018,13 +6010,17 @@ function Dashboard() {
             currentLat = currentStore?.latitude;
             currentLon = currentStore?.longitude;
           }
-
           if (lastLat && lastLon && currentLat && currentLon) {
             const distance = calculateDistance(lastLat, lastLon, currentLat, currentLon);
             updateData.travel_dist = Math.round(distance * 100) / 100;
-          } else {
-            updateData.travel_dist = 0;
-          }
+          } else updateData.travel_dist = 0;
+        }
+
+        const driverAppUser = (appUsers || []).find((user) => user?.user_id === driverId) || (await base44.entities.AppUser.filter({ user_id: driverId }))[0];
+        pendingBreadcrumbDriverAppUserId = driverAppUser?.id || null;
+        const pendingBreadcrumbs = pendingBreadcrumbDriverAppUserId ? await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, pendingBreadcrumbDriverAppUserId) : null;
+        if (Array.isArray(pendingBreadcrumbs?.breadcrumbs) && pendingBreadcrumbs.breadcrumbs.length) {
+          updateData.delivery_route_breadcrumbs = JSON.stringify(pendingBreadcrumbs.breadcrumbs);
         }
       }
 
@@ -6099,10 +6095,11 @@ function Dashboard() {
         
         // Update offline DB using bulkSave (save method may not exist)
         const freshDelivery = await base44.entities.Delivery.filter({ id: deliveryId });
-        if (freshDelivery && freshDelivery.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery[0]]);
+        if (freshDelivery?.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery[0]]);
+        if (pendingBreadcrumbDriverAppUserId) {
+          await offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, pendingBreadcrumbDriverAppUserId);
+          if (showBreadcrumbs && selectedDriverId === driverId) setBreadcrumbsData((prev) => ({ ...prev, current: [] }));
         }
-        
       } catch (updateError) {
         console.error('═══════════════════════════════════════════════════');
         console.error('❌ [STATUS] Database update FAILED');
@@ -7660,53 +7657,34 @@ function Dashboard() {
                           onClick={async () => {
                             const newShowBreadcrumbs = !showBreadcrumbs;
                             setShowBreadcrumbs(newShowBreadcrumbs);
-                            
-                            if (newShowBreadcrumbs) {
-                              // Load breadcrumbs for selected date and driver
-                              try {
-                                const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                                const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-
-                                // Fetch historical breadcrumbs from DeliveryBreadcrumbs entity
-                                const historicalBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
-                                  driver_id: driverIdToFetch,
-                                  delivery_date: selectedDateStr
-                                });
-
-                                // Fetch current/real-time breadcrumbs from offline database
-                                let currentBreadcrumbs = [];
-                                try {
-                                  const allCurrentBreadcrumbs = await offlineDB.getByIndex(
-                                    offlineDB.STORES.CURRENT_BREADCRUMBS,
-                                    'driver_id',
-                                    driverIdToFetch
-                                  );
-
-                                  // Filter to selected date
-                                  currentBreadcrumbs = allCurrentBreadcrumbs
-                                    .filter(b => b && b.delivery_date === selectedDateStr)
-                                    .sort((a, b) => a.timestamp - b.timestamp);
-                                } catch (offlineError) {
-                                  console.warn('⚠️ [Breadcrumbs] Failed to load current breadcrumbs:', offlineError);
-                                }
-
-                                if (historicalBreadcrumbs.length === 0 && currentBreadcrumbs.length === 0) {
-                                  toast.info('No breadcrumb trails available', {
-                                    description: 'GPS trails are saved after deliveries are completed with tracking enabled'
-                                  });
-                                  setShowBreadcrumbs(false);
-                                  return;
-                                }
-
-                                setBreadcrumbsData({
-                                  historical: historicalBreadcrumbs,
-                                  current: currentBreadcrumbs
-                                });
-                              } catch (error) {
-                                console.error('❌ [Breadcrumbs] Failed to load:', error);
-                                setBreadcrumbsData({ historical: [], current: [] });
+                            if (!newShowBreadcrumbs) return setBreadcrumbsData({ historical: [], current: [] });
+                            try {
+                              const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                              const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                              const driverAppUser = (appUsers || []).find((user) => user?.user_id === driverIdToFetch) || (await base44.entities.AppUser.filter({ user_id: driverIdToFetch }))[0];
+                              const historicalBreadcrumbs = (deliveries || [])
+                                .filter((delivery) => delivery && delivery.driver_id === driverIdToFetch && delivery.delivery_date === selectedDateStr && delivery.delivery_route_breadcrumbs)
+                                .map((delivery) => {
+                                  try {
+                                    const breadcrumbs = JSON.parse(delivery.delivery_route_breadcrumbs);
+                                    return Array.isArray(breadcrumbs) && breadcrumbs.length ? { id: delivery.id, driver_id: delivery.driver_id, breadcrumbs } : null;
+                                  } catch {
+                                    return null;
+                                  }
+                                })
+                                .filter(Boolean);
+                              const currentBreadcrumbRecord = driverAppUser?.id ? await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, driverAppUser.id) : null;
+                              const currentBreadcrumbs = Array.isArray(currentBreadcrumbRecord?.breadcrumbs)
+                                ? currentBreadcrumbRecord.breadcrumbs.map(([lat, lng, timestamp]) => ({ lat, lng, timestamp })).filter((point) => typeof point.lat === 'number' && typeof point.lng === 'number')
+                                : [];
+                              if (historicalBreadcrumbs.length === 0 && currentBreadcrumbs.length === 0) {
+                                toast.info('No breadcrumb trails available', { description: 'GPS trails appear after a stop is finished with tracking on' });
+                                setShowBreadcrumbs(false);
+                                return;
                               }
-                            } else {
+                              setBreadcrumbsData({ historical: historicalBreadcrumbs, current: currentBreadcrumbs });
+                            } catch (error) {
+                              console.error('❌ [Breadcrumbs] Failed to load:', error);
                               setBreadcrumbsData({ historical: [], current: [] });
                             }
                           }}
