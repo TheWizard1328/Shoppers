@@ -112,9 +112,11 @@ export function parseLocalTimestamp(localTimestamp) {
   if (!localTimestamp) {
     return null;
   }
-  
-  // Remove any timezone suffix if present (shouldn't exist, but defensive)
-  const cleaned = localTimestamp.replace(/Z$/, '').replace(/[+-]\d{2}:\d{2}$/, '');
-  
-  return new Date(cleaned);
+
+  const hasTimezoneSuffix = /Z$|[+-]\d{2}:\d{2}$/.test(localTimestamp);
+  if (hasTimezoneSuffix) {
+    return new Date(localTimestamp);
+  }
+
+  return new Date(localTimestamp);
 }
