@@ -69,15 +69,42 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
    }, [currentPageName]);
 
    React.useEffect(() => {
-     // Restore scroll position when entering a page
-     const timer = setTimeout(() => {
-       const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
-       if (mainContent && PAGE_SCROLL_POSITIONS[currentPageName]) {
-         mainContent.scrollTop = PAGE_SCROLL_POSITIONS[currentPageName];
-       }
-     }, 0);
-     return () => clearTimeout(timer);
-   }, [currentPageName]);
+      // Restore scroll position when entering a page
+      const timer = setTimeout(() => {
+        const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
+        if (mainContent && PAGE_SCROLL_POSITIONS[currentPageName]) {
+          mainContent.scrollTop = PAGE_SCROLL_POSITIONS[currentPageName];
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }, [currentPageName]);
+
+   const updateScrollState = React.useCallback(() => {
+     const el = scrollRef.current;
+     if (!el) return;
+     const maxScrollLeft = el.scrollWidth - el.clientWidth;
+     setCanScrollLeft(el.scrollLeft > 4);
+     setCanScrollRight(el.scrollLeft < maxScrollLeft - 4);
+   }, []);
+
+   React.useEffect(() => {
+     const el = scrollRef.current;
+     if (!el) return;
+     updateScrollState();
+     const handleScroll = () => updateScrollState();
+     el.addEventListener('scroll', handleScroll, { passive: true });
+     window.addEventListener('resize', handleScroll);
+     return () => {
+       el.removeEventListener('scroll', handleScroll);
+       window.removeEventListener('resize', handleScroll);
+     };
+   }, [navItems.length, updateScrollState]);
+
+   const scrollNavBy = (direction) => {
+     const el = scrollRef.current;
+     if (!el) return;
+     el.scrollBy({ left: direction * 120, behavior: 'smooth' });
+   };
 
    return (
      <nav
@@ -106,66 +133,77 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
            className="flex-1 flex overflow-x-auto custom-scrollbar"
            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
          >
-         {navItems.map((item) => {
-           const isMessagingItem = item.action === 'messaging';
-           const isActive = !isMessagingItem && currentPageName === item.page;
-           const Icon = item.icon;
-           const sharedProps = {
-             className: "flex flex-col items-center justify-center py-2 px-3 flex-shrink-0 transition-colors",
-             style: {
-               minWidth: `${100 / Math.min(navItems.length, 5)}vw`,
-               color: isActive ? '#10b981' : 'var(--text-slate-500)',
-             }
-           };
+           {navItems.map((item) => {
+             const isMessagingItem = item.action === 'messaging';
+             const isActive = !isMessagingItem && currentPageName === item.page;
+             const Icon = item.icon;
+             const sharedProps = {
+               className: "flex flex-col items-center justify-center py-2 px-3 flex-shrink-0 transition-colors",
+               style: {
+                 minWidth: `${100 / Math.min(navItems.length, 5)}vw`,
+                 color: isActive ? '#10b981' : 'var(--text-slate-500)',
+               }
+             };
 
-           if (isMessagingItem) {
+             if (isMessagingItem) {
+               return (
+                 <button
+                   key={item.name}
+                   type="button"
+                   {...sharedProps}
+                   onClick={() => window.dispatchEvent(new CustomEvent('openMessagingPanel'))}
+                 >
+                   <Icon className="w-5 h-5 mb-0.5" style={{ color: 'var(--text-slate-500)' }} />
+                   <span
+                     className="text-xs font-medium truncate"
+                     style={{ color: 'var(--text-slate-500)', maxWidth: '80px' }}
+                   >
+                     {item.name}
+                   </span>
+                 </button>
+               );
+             }
+
              return (
-               <button
+               <Link
                  key={item.name}
-                 type="button"
+                 to={createPageUrl(item.page)}
                  {...sharedProps}
-                 onClick={() => window.dispatchEvent(new CustomEvent('openMessagingPanel'))}
+                 onClick={() => {
+                   const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
+                   if (mainContent && currentPageName) {
+                     PAGE_SCROLL_POSITIONS[currentPageName] = mainContent.scrollTop;
+                   }
+                 }}
                >
-                 <Icon className="w-5 h-5 mb-0.5" style={{ color: 'var(--text-slate-500)' }} />
+                 <Icon
+                   className="w-5 h-5 mb-0.5"
+                   style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)' }}
+                 />
                  <span
                    className="text-xs font-medium truncate"
-                   style={{ color: 'var(--text-slate-500)', maxWidth: '80px' }}
+                   style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)', maxWidth: '80px' }}
                  >
                    {item.name}
                  </span>
-               </button>
+                 {isActive && (
+                   <div className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5" />
+                 )}
+               </Link>
              );
-           }
-
-           return (
-             <Link
-               key={item.name}
-               to={createPageUrl(item.page)}
-               {...sharedProps}
-               onClick={() => {
-                 const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
-                 if (mainContent && currentPageName) {
-                   PAGE_SCROLL_POSITIONS[currentPageName] = mainContent.scrollTop;
-                 }
-               }}
-             >
-               <Icon
-                 className="w-5 h-5 mb-0.5"
-                 style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)' }}
-               />
-               <span
-                 className="text-xs font-medium truncate"
-                 style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)', maxWidth: '80px' }}
-               >
-                 {item.name}
-               </span>
-               {isActive && (
-                 <div className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5" />
-               )}
-             </Link>
-           );
-         })}
+           })}
+         </div>
+         <button
+           type="button"
+           onClick={() => scrollNavBy(1)}
+           disabled={!canScrollRight}
+           className="flex h-9 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-30 disabled:cursor-default shrink-0"
+           style={{ color: 'var(--text-slate-500)' }}
+           aria-label="Scroll navigation right"
+         >
+           <ChevronRight className="w-4 h-4" />
+         </button>
        </div>
      </nav>
    );
- }
+   }
