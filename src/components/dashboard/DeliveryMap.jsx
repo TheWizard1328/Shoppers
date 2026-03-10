@@ -1259,17 +1259,8 @@ export default function DeliveryMap({
       // Determine if any pickups are actively en route
       const hasEnRoutePickups = stops.pickups.some((s) => s && s.status === 'en_route');
 
-      // ADMIN VISIBILITY: In single-driver view, admins can see other drivers' homes when route not started OR no pickups en_route
-      if ((isCurrentUserAdmin || isAppOwner(currentUser)) && driverId !== (currentUser?.id)) {
-        const routeNotStarted = (allStops.length > 0 && completedStops.length === 0);
-        if (routeNotStarted || !hasEnRoutePickups) {
-          driversToShowHome.add(driverId);
-          return;
-        }
-      }
-
-      // SHOW-ALL OVERRIDE: In show-all or all-drivers mode, always show other drivers' homes
-      if ((isShowAllMode) && driverId !== (currentUser?.id)) {
+      // SHOW-ALL OVERRIDE: Only show other drivers' homes when Show All is enabled
+      if (showOtherDriverDeliveries && driverId !== (currentUser?.id)) {
         driversToShowHome.add(driverId);
         return;
       }
@@ -1309,12 +1300,12 @@ export default function DeliveryMap({
         return; // Skip drivers without valid home coordinates
       }
 
-      // CRITICAL: Admins see ALL home markers (for all drivers with active stops)
-      // Drivers ALWAYS see their own home marker
+      // CRITICAL: Only Show All can reveal other drivers' home markers
+      // Otherwise, users only see their own selected driver's home
       const shouldRenderHome =
-        isAppOwner(currentUser) ||
-        isCurrentUserAdmin ||
-        (isCurrentUserDriver && ((showOtherDriverDeliveries || selectedDriverId === 'all') || driver.id === currentUser.id));
+        driver.id === selectedDriverId ||
+        driver.id === currentUser.id ||
+        (showOtherDriverDeliveries && (isAppOwner(currentUser) || isCurrentUserAdmin || isCurrentUserDriver));
       
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
 
