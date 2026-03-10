@@ -10,11 +10,17 @@ import {
   CreditCard,
   DollarSign,
   Settings,
-} from 'lucide-react';
+  ChevronLeft,
+  ChevronRight,
+  } from 'lucide-react';
 
 const PAGE_SCROLL_POSITIONS = {};
 
 export default function MobileBottomNav({ currentUser, currentPageName }) {
+   const scrollRef = React.useRef(null);
+   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
+   const [canScrollRight, setCanScrollRight] = React.useState(false);
+
    if (!currentUser) return null;
 
    const isDriver = userHasRole(currentUser, 'driver');
@@ -84,10 +90,22 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
          paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
        }}
      >
-       <div
-         className="flex overflow-x-auto custom-scrollbar"
-         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-       >
+       <div className="flex items-center gap-1 px-1">
+         <button
+           type="button"
+           onClick={() => scrollNavBy(-1)}
+           disabled={!canScrollLeft}
+           className="flex h-9 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-30 disabled:cursor-default shrink-0"
+           style={{ color: 'var(--text-slate-500)' }}
+           aria-label="Scroll navigation left"
+         >
+           <ChevronLeft className="w-4 h-4" />
+         </button>
+         <div
+           ref={scrollRef}
+           className="flex-1 flex overflow-x-auto custom-scrollbar"
+           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+         >
          {navItems.map((item) => {
            const isMessagingItem = item.action === 'messaging';
            const isActive = !isMessagingItem && currentPageName === item.page;
