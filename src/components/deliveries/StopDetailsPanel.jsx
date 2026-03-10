@@ -505,7 +505,7 @@ export default function StopDetailsPanel({
             
             {/* Admin Action Buttons - Bottom Right */}
             {currentUser?.app_roles?.includes('admin') && (
-              <div className="absolute bottom-4 right-4 flex gap-2">
+              <div className="absolute top-4 right-4 flex gap-2">
                 <Button 
                   onClick={() => onEdit(delivery)}
                   variant="ghost"
