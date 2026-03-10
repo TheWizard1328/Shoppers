@@ -1868,10 +1868,8 @@ export default function DeliveryForm({
       };
     }
 
-    setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
+    if(isPickupMode) await createDeliveryLocal(newStagedDelivery); else setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
 
-    // CRITICAL: Only auto-add default pickups when ADDING to an existing driver route
-    // SKIP if this is a NEW route with zero stops (isNewRouteWithZeroStops flag)
     if (!isPickupMode && formData.driver_id && formData.delivery_date && stores && !isNewRouteWithZeroStops) {
       const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
       const isSpecialStore = specialStores.some(name => 
