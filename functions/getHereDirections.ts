@@ -37,23 +37,6 @@ Deno.serve(async (req) => {
     const resp = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
 
-    if (!resp.ok) {
-      const text = await resp.text();
-      console.error('[Directions] provider error', { status: resp.status, details: text?.slice(0, 500) });
-      return Response.json({ error: 'Directions provider error', status: resp.status }, { status: 502 });
-    }
-
-    const data = await resp.json();
-    if (data?.status && data.status !== 'OK') {
-      console.error('[Directions] provider payload error', { status: data.status, error_message: data.error_message || null });
-      return Response.json({ error: data.error_message || data.status || 'Directions provider error' }, { status: 502 });
-    }
-
-    const route = Array.isArray(data?.routes) ? data.routes[0] : null;
-    if (!route) {
-      return Response.json({ error: 'No route found' }, { status: 404 });
-    }
-
     try {
       const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
       const userAppUser = userAppUsers?.[0];
@@ -74,6 +57,23 @@ Deno.serve(async (req) => {
       });
     } catch (logError) {
       console.warn('[getHereDirections] Non-fatal log error:', logError?.message || logError);
+    }
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error('[Directions] provider error', { status: resp.status, details: text?.slice(0, 500) });
+      return Response.json({ error: 'Directions provider error', status: resp.status }, { status: 502 });
+    }
+
+    const data = await resp.json();
+    if (data?.status && data.status !== 'OK') {
+      console.error('[Directions] provider payload error', { status: data.status, error_message: data.error_message || null });
+      return Response.json({ error: data.error_message || data.status || 'Directions provider error' }, { status: 502 });
+    }
+
+    const route = Array.isArray(data?.routes) ? data.routes[0] : null;
+    if (!route) {
+      return Response.json({ error: 'No route found' }, { status: 404 });
     }
 
     const polyline = route?.overview_polyline?.points || null;
