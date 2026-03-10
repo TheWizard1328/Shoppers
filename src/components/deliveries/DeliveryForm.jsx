@@ -1868,7 +1868,7 @@ export default function DeliveryForm({
       };
     }
 
-    if(isPickupMode) await createDeliveryLocal(newStagedDelivery); else setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
+    if(isPickupMode) { await createDeliveryLocal(newStagedDelivery); setHasPendingDeletes(true); } else setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
 
     if (!isPickupMode && formData.driver_id && formData.delivery_date && stores && !isNewRouteWithZeroStops) {
       const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
