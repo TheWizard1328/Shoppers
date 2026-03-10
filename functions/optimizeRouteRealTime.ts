@@ -433,14 +433,14 @@ Deno.serve(async (req) => {
     }
 
     try {
-      await base44.asServiceRole.functions.invoke('recalculateTrackingNumbers', { driverId, deliveryDate });
+      await base44.functions.invoke('recalculateTrackingNumbers', { driverId, deliveryDate });
       console.log('🔢 [optimizeRouteRealTime] Tracking numbers recalculated');
     } catch (trackingError) {
       console.warn('[optimizeRouteRealTime] recalculateTrackingNumbers failed (non-fatal):', trackingError?.message || trackingError);
     }
 
     try {
-      await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate });
+      await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate });
       console.log('🧹 [optimizeRouteRealTime] Polylines purged and regenerated');
     } catch (polylineError) {
       console.warn('[optimizeRouteRealTime] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);

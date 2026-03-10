@@ -36,6 +36,59 @@ function encodeGooglePolyline(points) {
   return encoded;
 }
 
+const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char, index) => {
+  acc[char] = index;
+  return acc;
+}, {});
+
+function decodeHereFlexiblePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+
+  const values = [];
+  let current = 0;
+  let shift = 0;
+
+  for (const char of encoded) {
+    const value = HERE_POLYLINE_DECODER[char];
+    if (value == null) return [];
+    current |= (value & 0x1f) << shift;
+    if (value & 0x20) {
+      shift += 5;
+      continue;
+    }
+    values.push(current);
+    current = 0;
+    shift = 0;
+  }
+
+  if (shift > 0 || values.length < 2) return [];
+  if (values[0] !== 1) return [];
+
+  const header = values[1];
+  const precision = header & 15;
+  const thirdDimension = (header >> 4) & 7;
+  const factor = 10 ** precision;
+  const dimension = thirdDimension ? 3 : 2;
+  const toSigned = (value) => ((value & 1) ? ~(value >> 1) : (value >> 1));
+
+  let latitude = 0;
+  let longitude = 0;
+  let third = 0;
+  const coordinates = [];
+
+  for (let i = 2; i < values.length; i += dimension) {
+    latitude += toSigned(values[i]);
+    longitude += toSigned(values[i + 1]);
+    if (thirdDimension) {
+      third += toSigned(values[i + 2]);
+    }
+    coordinates.push([latitude / factor, longitude / factor]);
+  }
+
+  return coordinates;
+}
+
 function makeSegmentKey(driverId, date, from, to) {
   return [
     String(driverId || ''),
@@ -48,15 +101,31 @@ function makeSegmentKey(driverId, date, from, to) {
 }
 
 async function getSegmentDirections(base44, from, to) {
-  const response = await base44.asServiceRole.functions.invoke('getHereDirections', {
+  const response = await base44.functions.invoke('getHereDirections', {
     origin: { lat: from.lat, lng: from.lon },
     destination: { lat: to.lat, lng: to.lon }
   });
 
   const data = response?.data || response || {};
-  const polyline = typeof data?.polyline === 'string' && data.polyline
-    ? data.polyline
-    : encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]);
+
+  let polyline = null;
+
+  if (Array.isArray(data?.coordinates) && data.coordinates.length > 1) {
+    polyline = encodeGooglePolyline(
+      data.coordinates.map((point) => [Number(point?.lat ?? point?.latitude), Number(point?.lng ?? point?.longitude)])
+    );
+  } else if (data?.polyline_format === 'flexible' && typeof data?.polyline === 'string') {
+    const coords = decodeHereFlexiblePolyline(data.polyline);
+    if (coords.length > 1) {
+      polyline = encodeGooglePolyline(coords);
+    }
+  } else if (typeof data?.polyline === 'string' && data.polyline) {
+    polyline = data.polyline;
+  }
+
+  if (!polyline) {
+    polyline = encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]);
+  }
 
   return {
     encoded_polyline: polyline,
