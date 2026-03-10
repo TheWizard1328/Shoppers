@@ -14,6 +14,16 @@ const normalizeTimeString = (timeStr, fallback) => {
   return `${hours}:${minutes}:${seconds}`;
 };
 
+const parseTimeToMinutes = (timeStr) => {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return null;
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return (hours * 60) + minutes;
+};
+
 const getWeekdayCode = (dateStr) => {
   const [year, month, day] = String(dateStr).split('-').map(Number);
   const utcDate = new Date(Date.UTC(year, (month || 1) - 1, day || 1, 12, 0, 0));
@@ -66,6 +76,11 @@ const resolveCurrentTime = ({ currentLocalTime, deviceTime }) => {
 
 const buildAccessConstraint = (dateStr, startTime, endTime) => {
   if (!startTime && !endTime) return null;
+  const startMinutes = parseTimeToMinutes(startTime);
+  const endMinutes = parseTimeToMinutes(endTime);
+  if (startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes) {
+    return null;
+  }
   const weekday = getWeekdayCode(dateStr);
   const offset = getTimeZoneOffset(dateStr);
   const start = normalizeTimeString(startTime, '00:00:00');
@@ -235,48 +250,71 @@ Deno.serve(async (req) => {
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
       : null;
 
-    const params = new URLSearchParams();
-    params.set('apiKey', hereApiKey);
-    params.set('departure', departureIso);
-    params.set('mode', 'fastest;car;traffic:enabled');
-    params.set('improveFor', 'time');
-    params.set('start', `driverStart;${currentPosition.lat},${currentPosition.lng}`);
+    const executeHereSequence = async (includeTimeWindows) => {
+      const params = new URLSearchParams();
+      params.set('apiKey', hereApiKey);
+      params.set('departure', departureIso);
+      params.set('mode', 'fastest;car;traffic:enabled');
+      params.set('improveFor', 'time');
+      params.set('start', `driverStart;${currentPosition.lat},${currentPosition.lng}`);
 
-    if (endLocation && !Number.isNaN(endLocation.lat) && !Number.isNaN(endLocation.lng)) {
-      params.set('end', `driverEnd;${endLocation.lat},${endLocation.lng}`);
+      if (endLocation && !Number.isNaN(endLocation.lat) && !Number.isNaN(endLocation.lng)) {
+        params.set('end', `driverEnd;${endLocation.lat},${endLocation.lng}`);
+      }
+
+      for (const stop of stops) {
+        const segments = [`${stop.waypointLabel};${stop.lat},${stop.lng}`];
+        if (includeTimeWindows) {
+          const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
+          if (accessConstraint) segments.push(accessConstraint);
+        }
+        segments.push(`st:${Math.round(stop.serviceMinutes * 60)}`);
+        params.set(stop.waypointId, segments.join(';'));
+      }
+
+      const hereUrl = `https://wps.hereapi.com/v8/findsequence2?${params.toString()}`;
+      console.log(`🌐 [optimizeRouteRealTime] Calling HERE Waypoints Sequence API for ${stops.length} stops${includeTimeWindows ? ' with time windows' : ' without time windows'}`);
+      const response = await fetch(hereUrl, { signal: AbortSignal.timeout(20000) });
+      const data = await response.json().catch(() => null);
+      return { response, data, includeTimeWindows };
+    };
+
+    let hereAttempt = await executeHereSequence(true);
+    let hereResponse = hereAttempt.response;
+    let hereData = hereAttempt.data;
+    let usedTimeWindows = hereAttempt.includeTimeWindows;
+
+    let result = Array.isArray(hereData?.results) ? hereData.results[0] : null;
+    let waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
+    let interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+
+    const needsFallback = !hereResponse.ok || !result || waypoints.length === 0;
+    if (needsFallback && usedTimeWindows) {
+      console.warn('[optimizeRouteRealTime] Retrying HERE without time windows due to failed constrained optimization');
+      hereAttempt = await executeHereSequence(false);
+      hereResponse = hereAttempt.response;
+      hereData = hereAttempt.data;
+      usedTimeWindows = hereAttempt.includeTimeWindows;
+      result = Array.isArray(hereData?.results) ? hereData.results[0] : null;
+      waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
+      interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
     }
-
-    for (const stop of stops) {
-      const segments = [`${stop.waypointLabel};${stop.lat},${stop.lng}`];
-      const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
-      if (accessConstraint) segments.push(accessConstraint);
-      segments.push(`st:${Math.round(stop.serviceMinutes * 60)}`);
-      params.set(stop.waypointId, segments.join(';'));
-    }
-
-    const hereUrl = `https://wps.hereapi.com/v8/findsequence2?${params.toString()}`;
-    console.log(`🌐 [optimizeRouteRealTime] Calling HERE Waypoints Sequence API for ${stops.length} stops`);
-
-    const hereResponse = await fetch(hereUrl, { signal: AbortSignal.timeout(20000) });
-    const hereData = await hereResponse.json().catch(() => null);
 
     if (!hereResponse.ok) {
       console.error('[optimizeRouteRealTime] HERE HTTP error:', hereResponse.status, hereData);
       return Response.json({
         error: 'HERE Waypoints Sequence API request failed',
         details: hereData,
-        status: hereResponse.status
+        status: hereResponse.status,
+        usedTimeWindows
       }, { status: 502 });
     }
-
-    const result = Array.isArray(hereData?.results) ? hereData.results[0] : null;
-    const waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
-    const interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
 
     if (!result || waypoints.length === 0) {
       return Response.json({
         error: 'HERE did not return an optimized sequence',
-        details: hereData
+        details: hereData,
+        usedTimeWindows
       }, { status: 422 });
     }
 
@@ -297,7 +335,8 @@ Deno.serve(async (req) => {
         details: {
           requestedStops: stops.length,
           returnedStops: orderedStops.length,
-          response: hereData
+          response: hereData,
+          usedTimeWindows
         }
       }, { status: 422 });
     }
@@ -375,7 +414,7 @@ Deno.serve(async (req) => {
           delivery_date: deliveryDate,
           stops_count: stops.length,
           location_source: locationSource,
-          used_time_windows: true,
+          used_time_windows: usedTimeWindows,
           used_service_times: true,
           used_before_constraints: true,
           locked_next_delivery: !!nextDeliveryStop,
