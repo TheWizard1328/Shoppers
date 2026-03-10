@@ -121,6 +121,98 @@ function decodeGooglePolyline(encoded) {
   return coordinates;
 }
 
+const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char, index) => {
+  acc[char] = index;
+  return acc;
+}, {});
+
+function decodeHereFlexiblePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+
+  const values = [];
+  let current = 0;
+  let shift = 0;
+
+  for (const char of encoded) {
+    const value = HERE_POLYLINE_DECODER[char];
+    if (value == null) return [];
+    current |= (value & 0x1f) << shift;
+    if (value & 0x20) {
+      shift += 5;
+      continue;
+    }
+    values.push(current);
+    current = 0;
+    shift = 0;
+  }
+
+  if (shift > 0 || values.length < 2) return [];
+
+  const version = values[0];
+  if (version !== 1) return [];
+
+  const header = values[1];
+  const precision = header & 15;
+  const thirdDimension = (header >> 4) & 7;
+  const factor = 10 ** precision;
+  const dimension = thirdDimension ? 3 : 2;
+
+  const toSigned = (value) => ((value & 1) ? ~(value >> 1) : (value >> 1));
+
+  let latitude = 0;
+  let longitude = 0;
+  let z = 0;
+  const coordinates = [];
+
+  for (let i = 2; i < values.length; i += dimension) {
+    latitude += toSigned(values[i]);
+    longitude += toSigned(values[i + 1]);
+    if (thirdDimension) {
+      z += toSigned(values[i + 2]);
+    }
+    coordinates.push([latitude / factor, longitude / factor]);
+  }
+
+  return coordinates;
+}
+
+function mergeDecodedPolylines(polylines, decoder) {
+  if (!Array.isArray(polylines)) return null;
+  const merged = [];
+
+  for (const polyline of polylines) {
+    const decoded = decoder(polyline);
+    if (!decoded.length) continue;
+
+    if (merged.length && merged[merged.length - 1][0] === decoded[0][0] && merged[merged.length - 1][1] === decoded[0][1]) {
+      merged.push(...decoded.slice(1));
+    } else {
+      merged.push(...decoded);
+    }
+  }
+
+  return merged.length > 1 ? merged : null;
+}
+
+function decodeRouteGeometry(data) {
+  if (Array.isArray(data?.coordinates)) {
+    const coords = data.coordinates.map((p) => [p.lat ?? p.latitude, p.lng ?? p.longitude]);
+    return coords.length > 1 ? coords : null;
+  }
+
+  if (data?.polyline_format === 'flexible') {
+    const mergedHere = mergeDecodedPolylines(data?.polylines, decodeHereFlexiblePolyline);
+    if (mergedHere) return mergedHere;
+
+    const singleHere = typeof data?.polyline === 'string' ? decodeHereFlexiblePolyline(data.polyline) : null;
+    return singleHere && singleHere.length > 1 ? singleHere : null;
+  }
+
+  const googlePolyline = typeof data?.polyline === 'string' ? decodeGooglePolyline(data.polyline) : null;
+  return googlePolyline && googlePolyline.length > 1 ? googlePolyline : null;
+}
+
 // Encode Google polyline helpers
 function encodeSigned(value) {
   let sgn = value << 1;
@@ -390,19 +482,10 @@ const deliveryDateSafe = deliveryDate || todayStr;
       destination: { lat: toStop.latitude, lng: toStop.longitude }
     });
 
-    // Accept both shapes from backend: {coordinates:[{lat,lng},...]} OR {polyline:"..."}
-    const coordsFromArray = Array.isArray(res?.data?.coordinates)
-      ? res.data.coordinates.map((p) => [p.lat ?? p.latitude, p.lng ?? p.longitude])
-      : null;
-    const coordsFromEncoded = typeof res?.data?.polyline === 'string'
-      ? decodeGooglePolyline(res.data.polyline)
-      : null;
-    const coords = (coordsFromArray && coordsFromArray.length > 1)
-      ? coordsFromArray
-      : (coordsFromEncoded && coordsFromEncoded.length > 1 ? coordsFromEncoded : null);
+    const coords = decodeRouteGeometry(res?.data);
 
     if (coords) {
-      console.info('[HERE][client] Route OK', { cacheKey, points: coords.length, shape: coordsFromArray ? 'coordinates' : 'polyline' });
+      console.info('[HERE][client] Route OK', { cacheKey, points: coords.length, shape: res?.data?.polyline_format === 'flexible' ? 'here-polyline' : Array.isArray(res?.data?.coordinates) ? 'coordinates' : 'polyline' });
       memoryCache.set(cacheKey, coords);
       try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (e) { console.warn('Failed to save HERE polyline to localStorage', e); }
       try { localStorage.removeItem(failKey); } catch (_) {}
