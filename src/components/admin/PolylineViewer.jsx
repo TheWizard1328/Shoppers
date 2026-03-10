@@ -395,48 +395,50 @@ export default function PolylineViewer({ users = [] }) {
           <div className="flex gap-2">
             {selectedPolylines.size > 0 && (
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    if (!window.confirm(`Recompute distance/time for ${selectedPolylines.size} selected polyline(s)?`)) return;
-                    try {
-                      setIsRecomputing(true);
-                      const ids = Array.from(selectedPolylines);
-                      setOpProgress({ total: ids.length, processed: 0, label: 'Recomputing…' });
-                      for (let i = 0; i < ids.length; i++) {
-                        const id = ids[i];
-                        const pl = polylines.find(p => p.id === id);
-                        if (!pl) continue;
-                        try {
-                          const res = await base44.functions.invoke('getHereDirections', {
-                            origin: { lat: pl.segment_origin_lat, lng: pl.segment_origin_lon },
-                            destination: { lat: pl.segment_dest_lat, lng: pl.segment_dest_lon }
-                          });
-                          const estKm = res?.data?.estimated_distance_km ?? null;
-                          const estMin = res?.data?.estimated_duration_minutes ?? null;
-                          if (estKm !== null && estMin !== null) {
-                            await base44.entities.DriverRoutePolyline.update(pl.id, {
-                              estimated_distance_km: estKm,
-                              estimated_duration_minutes: estMin,
-                              last_generated_at: new Date().toISOString(),
+                {viewMode === 'polylines' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      if (!window.confirm(`Recompute distance/time for ${selectedPolylines.size} selected polyline(s)?`)) return;
+                      try {
+                        setIsRecomputing(true);
+                        const ids = Array.from(selectedPolylines);
+                        setOpProgress({ total: ids.length, processed: 0, label: 'Recomputing…' });
+                        for (let i = 0; i < ids.length; i++) {
+                          const id = ids[i];
+                          const pl = polylines.find(p => p.id === id);
+                          if (!pl) continue;
+                          try {
+                            const res = await base44.functions.invoke('getHereDirections', {
+                              origin: { lat: pl.segment_origin_lat, lng: pl.segment_origin_lon },
+                              destination: { lat: pl.segment_dest_lat, lng: pl.segment_dest_lon }
                             });
-                            setPolylines(prev => prev.map(p => p.id === pl.id ? { ...p, estimated_distance_km: estKm, estimated_duration_minutes: estMin, last_generated_at: new Date().toISOString() } : p));
-                          }
-                        } catch (_) {}
-                        setOpProgress((p) => ({ ...p, processed: i + 1 }));
-                        await new Promise(r => setTimeout(r, 75));
+                            const estKm = res?.data?.estimated_distance_km ?? null;
+                            const estMin = res?.data?.estimated_duration_minutes ?? null;
+                            if (estKm !== null && estMin !== null) {
+                              await base44.entities.DriverRoutePolyline.update(pl.id, {
+                                estimated_distance_km: estKm,
+                                estimated_duration_minutes: estMin,
+                                last_generated_at: new Date().toISOString(),
+                              });
+                              setPolylines(prev => prev.map(p => p.id === pl.id ? { ...p, estimated_distance_km: estKm, estimated_duration_minutes: estMin, last_generated_at: new Date().toISOString() } : p));
+                            }
+                          } catch (_) {}
+                          setOpProgress((p) => ({ ...p, processed: i + 1 }));
+                          await new Promise(r => setTimeout(r, 75));
+                        }
+                      } finally {
+                        setIsRecomputing(false);
+                        setOpProgress({ total: 0, processed: 0, label: '' });
                       }
-                    } finally {
-                      setIsRecomputing(false);
-                      setOpProgress({ total: 0, processed: 0, label: '' });
-                    }
-                  }}
-                  disabled={isLoading || isDeleting || isRecomputing}
-                  className="gap-2"
-                >
-                  <RefreshCw className="w-4 h-4" /> Recompute Selected
-                </Button>
+                    }}
+                    disabled={isLoading || isDeleting || isRecomputing}
+                    className="gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" /> Recompute Selected
+                  </Button>
+                )}
                 <Button
                   variant="destructive"
                   size="sm"
@@ -447,14 +449,14 @@ export default function PolylineViewer({ users = [] }) {
                 </Button>
               </>
             )}
-            {filteredPolylines.length > 0 && selectedPolylines.size === 0 && (
+            {activeItems.length > 0 && selectedPolylines.size === 0 && (
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={handleDeleteAll}
                 disabled={isLoading}
               >
-                Delete All Filtered ({filteredPolylines.length})
+                Delete All Filtered ({activeItems.length})
               </Button>
             )}
           </div>
@@ -642,7 +644,7 @@ export default function PolylineViewer({ users = [] }) {
                     </h3>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto" onScroll={handleListScroll} ref={listContainerRef}>
                   {viewMode === 'polylines' ? filteredPolylines.slice(0, visibleCount).map((polyline) => (
                     <div
                       key={polyline.id}
@@ -708,9 +710,10 @@ export default function PolylineViewer({ users = [] }) {
                             {getDriverName(breadcrumb.driver_id)}
                           </div>
                           <div className="text-xs text-slate-600 space-y-1">
-                            <div>📅 {format(new Date(breadcrumb.delivery_date + 'T00:00:00'), 'MMM d, yyyy')}</div>
+                            <div>📅 {breadcrumb.delivery_date ? format(new Date(breadcrumb.delivery_date + 'T00:00:00'), 'MMM d, yyyy') : 'No date'}</div>
                             <div className="flex justify-between">
-                              <span>📍 {breadcrumb.coordinates?.length || 0} points</span>
+                              <span>📍 {breadcrumb.point_count || breadcrumb.coordinates?.length || 0} points</span>
+                              {breadcrumb.is_temp_offline && <span className="text-amber-600">Offline Temp</span>}
                             </div>
                             {breadcrumb.created_date && (
                               <div className="text-slate-400">
