@@ -44,28 +44,18 @@ Deno.serve(async (req) => {
       return Response.json({ predictions: [], count: 0, selectedDate, dayOfWeek: selectedDayName });
     }
 
-    const patientResults = await Promise.all(
-      targetStoreIds.map((storeId) =>
-        base44.entities.Patient.filter(
-          { status: 'active', store_id: storeId },
-          'full_name',
-          REQUEST_LIMIT
-        ).catch(() => [])
+    const [allPatients, existingDeliveries] = await Promise.all([
+      base44.entities.Patient.filter(
+        { status: 'active', store_id: { $in: targetStoreIds } },
+        'full_name',
+        REQUEST_LIMIT * 2
+      ),
+      base44.entities.Delivery.filter(
+        { delivery_date: selectedDate, store_id: { $in: targetStoreIds } },
+        '-created_date',
+        REQUEST_LIMIT * 2
       )
-    );
-
-    const deliveryResults = await Promise.all(
-      targetStoreIds.map((storeId) =>
-        base44.entities.Delivery.filter(
-          { delivery_date: selectedDate, store_id: storeId },
-          '-created_date',
-          REQUEST_LIMIT
-        ).catch(() => [])
-      )
-    );
-
-    const allPatients = dedupeById(patientResults.flat().filter(Array.isArray));
-    const existingDeliveries = dedupeById(deliveryResults.flat().filter(Array.isArray));
+    ]);
 
     const patients = allPatients.filter((patient) => {
       if (!patient) return false;
