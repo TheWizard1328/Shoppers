@@ -189,6 +189,17 @@ export default function StopDetailsPanel({
   const isActiveEditStatus = activeStatuses.includes(editableStatus);
   const isCompletionEditStatus = completionStatuses.includes(editableStatus);
   const showDesktopClearButtons = typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches;
+  const initialCompletionTime = delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : '';
+  const hasStatusTimingChanges = (() => {
+    if (editableStatus !== (delivery?.status || 'pending')) return true;
+    if (isActiveEditStatus) {
+      return (deliveryTimeStart || '') !== (delivery?.delivery_time_start || '') || (deliveryTimeEnd || '') !== (delivery?.delivery_time_end || '');
+    }
+    if (isCompletionEditStatus) {
+      return (completionTime || '') !== initialCompletionTime;
+    }
+    return false;
+  })();
 
   const handleStatusChange = (value) => {
     const wasCompletionStatus = completionStatuses.includes(editableStatus);
@@ -555,7 +566,7 @@ export default function StopDetailsPanel({
                     </>
                   )}
 
-                  <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
+                  <Button onClick={handleApplyStatusTiming} disabled={isUpdating || !hasStatusTimingChanges} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
                     Apply
                   </Button>
                 </div>
