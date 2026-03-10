@@ -1,6 +1,9 @@
 export const getApiLogCallCount = (log) => {
-  const rawCount = Number(log?.metadata?.call_count ?? log?.metadata?.api_calls ?? 1);
-  return Number.isFinite(rawCount) && rawCount > 0 ? rawCount : 1;
+  const explicitCount = log?.metadata?.call_count ?? log?.metadata?.api_calls;
+  if (explicitCount === undefined || explicitCount === null) return 1;
+
+  const rawCount = Number(explicitCount);
+  return Number.isFinite(rawCount) && rawCount >= 0 ? rawCount : 1;
 };
 
 export const getApiLogProvider = (log) => {
