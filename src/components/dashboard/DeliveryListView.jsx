@@ -27,8 +27,8 @@ const DeliveryRow = memo(({
       <div
         onClick={() => onSelect(delivery.id)}
         className={`px-4 py-3 border-b cursor-pointer transition-colors ${
-          isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
-        } ${isSelected ? 'bg-slate-100' : ''}`}
+          isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+        } ${isSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
         style={{ borderColor: 'var(--border-slate-200)' }}
       >
         {/* Rows 1-2: Structured two-column layout */}
@@ -125,8 +125,8 @@ const DeliveryRow = memo(({
       <div
         onClick={() => onSelect(delivery.id)}
         className={`grid grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-3 border-b cursor-pointer transition-colors ${
-          isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
-        } ${isSelected ? 'bg-slate-100' : ''}`}
+          isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+        } ${isSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
         style={{ borderColor: 'var(--border-slate-200)' }}
       >
         <div className="flex items-center justify-center">
