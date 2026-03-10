@@ -1572,16 +1572,6 @@ export default function Layout({ children, currentPageName }) {
             if (prev.some((d) => d?.id === update.id)) return prev;
             return [...prev, update.data];
           });
-          // Refresh catalog items if delivery has COD
-          if (update.data?.cod_total_amount_required) {
-            setTimeout(() => {
-              base44.functions.invoke('squareSyncCatalogItems', {}).
-              then((response) => {
-                const items = response?.data?.items || response?.items || [];
-                setCatalogItems(items);
-              }).catch(() => {});
-            }, 500);
-          }
         } else if (update.action === 'update') {
           setDeliveries((prev) => prev.map((d) =>
           d?.id === update.id ? { ...d, ...update.data } : d
@@ -1595,16 +1585,6 @@ export default function Layout({ children, currentPageName }) {
           // CRITICAL: Force polyline update when delivery status changes
           if (update.data?.driver_id && update.data?.delivery_date) {
             updatePolylineOnRefresh(update.data.driver_id, update.data.delivery_date);
-          }
-          // Refresh catalog items if COD amount changed
-          if (update.data?.cod_total_amount_required) {
-            setTimeout(() => {
-              base44.functions.invoke('squareSyncCatalogItems', {}).
-              then((response) => {
-                const items = response?.data?.items || response?.items || [];
-                setCatalogItems(items);
-              }).catch(() => {});
-            }, 500);
           }
         } else if (update.action === 'delete') {
           setDeliveries((prev) => prev.filter((d) => d?.id !== update.id));
@@ -1688,16 +1668,6 @@ export default function Layout({ children, currentPageName }) {
         }
       }
 
-      // Handle SquareTransaction updates - refresh COD data
-      if (update.entity === 'SquareTransaction') {
-        console.log('🔔 [Layout] SquareTransaction realtime update - syncing COD data');
-        setTimeout(() => {
-          base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
-            const items = response?.data?.items || response?.items || [];
-            setCatalogItems(items);
-          }).catch(() => {});
-        }, 500);
-      }
 
       // Handle Patient updates
       if (update.entity === 'Patient') {
@@ -1751,26 +1721,7 @@ export default function Layout({ children, currentPageName }) {
     setTotalCodsDue(codTotal);
   }, [currentUser, catalogItems, squareLocationConfigs, stores, squareTransactions]);
 
-  // Subscribe to real-time SquareTransaction updates to refresh catalog
-  useEffect(() => {
-    const unsubscribe = subscribeToRealtime((update) => {
-      if (update.entity === 'SquareTransaction') {
-        console.log('🔔 [Layout] SquareTransaction update detected, syncing catalog...');
-        // Refresh catalog items and transactions when transactions change
-        Promise.all([
-        base44.functions.invoke('squareSyncCatalogItems', {}),
-        base44.entities.SquareTransaction.filter({ type: 'collection' })]
-        ).then(([catalogData, transactions]) => {
-          const items = catalogData?.data?.items || catalogData?.items || [];
-          setCatalogItems(items);
-          setSquareTransactions(transactions || []);
-          toast.success('COD data updated');
-        }).catch(() => {});
-      }
-    });
-
-    return unsubscribe;
-  }, []);
+  // SquareTransaction realtime updates are handled from cached/offline data only
 
   // CRITICAL: Message polling DISABLED - causes rate limits
   // Messages will only load when user opens messaging panel
@@ -2291,13 +2242,6 @@ export default function Layout({ children, currentPageName }) {
       const codTotal = calculateUserCodTotal(currentUser, catalogItems || [], squareLocationConfigs || [], allStores, squareTransactions || []);
       setTotalCodsDue(codTotal);
 
-      // Refresh COD data from server to ensure it's up-to-date (background)
-      setTimeout(() => {
-        base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
-          const items = response?.data?.items || response?.items || [];
-          setCatalogItems(items);
-        }).catch(() => {});
-      }, 1000);
 
     } catch (error) {
       setUsers([]);
