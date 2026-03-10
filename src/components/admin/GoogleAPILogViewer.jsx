@@ -71,12 +71,13 @@ export default function GoogleAPILogViewer() {
 
       const byType = {};
       allLogs.forEach(log => {
-        byType[log.api_type] = (byType[log.api_type] || 0) + 1;
+        const displayType = getApiLogDisplayType(log);
+        byType[displayType] = (byType[displayType] || 0) + getApiLogCallCount(log);
       });
 
       setStats({
-        total: allLogs.length,
-        today: todayLogs.length,
+        total: sumApiLogCalls(allLogs),
+        today: sumApiLogCalls(todayLogs),
         byType
       });
       
@@ -97,20 +98,23 @@ export default function GoogleAPILogViewer() {
     
     // Check for spike in last 5 minutes
     const recentLogs = allLogs.filter(log => new Date(log.timestamp) >= fiveMinutesAgo);
-    if (recentLogs.length > SPIKE_THRESHOLD) {
+    const recentCallCount = sumApiLogCalls(recentLogs);
+    if (recentCallCount > SPIKE_THRESHOLD) {
       newAlerts.push({
         type: 'spike',
-        message: `High API call volume: ${recentLogs.length} calls in last 5 minutes`,
+        message: `High API call volume: ${recentCallCount} calls in last 5 minutes`,
         severity: 'warning'
       });
     }
     
     // Check for errors (if metadata contains error info)
     const errorLogs = allLogs.filter(log => log.metadata?.error);
-    if (allLogs.length > 0 && errorLogs.length / allLogs.length > ERROR_RATE_THRESHOLD) {
+    const totalCalls = sumApiLogCalls(allLogs);
+    const errorCalls = sumApiLogCalls(errorLogs);
+    if (totalCalls > 0 && errorCalls / totalCalls > ERROR_RATE_THRESHOLD) {
       newAlerts.push({
         type: 'error',
-        message: `High error rate: ${Math.round(errorLogs.length / allLogs.length * 100)}%`,
+        message: `High error rate: ${Math.round(errorCalls / totalCalls * 100)}%`,
         severity: 'error'
       });
     }
@@ -153,7 +157,7 @@ export default function GoogleAPILogViewer() {
       }
       
       // API type filter
-      const passesTypeFilter = apiTypeFilter === 'all' || log.api_type === apiTypeFilter;
+      const passesTypeFilter = apiTypeFilter === 'all' || getApiLogDisplayType(log) === apiTypeFilter;
       
       // User filter
       const passesUserFilter = !userFilter || (log.user_name && log.user_name.toLowerCase().includes(userFilter.toLowerCase()));
@@ -182,7 +186,7 @@ export default function GoogleAPILogViewer() {
         const hourDate = subHours(now, i);
         const hourKey = format(hourDate, 'MMM dd HH:00');
         hourlyMap[hourKey] = { hour: format(hourDate, 'HH:00'), calls: 0, sortOrder: 23 - i };
-        
+
         if (isAllUsers) {
           uniqueUsers.forEach(user => {
             hourlyMap[hourKey][user] = 0;
@@ -195,9 +199,10 @@ export default function GoogleAPILogViewer() {
         const logDate = new Date(log.timestamp);
         const hourKey = format(logDate, 'MMM dd HH:00');
         if (hourlyMap[hourKey]) {
-          hourlyMap[hourKey].calls++;
+          const callCount = getApiLogCallCount(log);
+          hourlyMap[hourKey].calls += callCount;
           if (isAllUsers && log.user_name) {
-            hourlyMap[hourKey][log.user_name] = (hourlyMap[hourKey][log.user_name] || 0) + 1;
+            hourlyMap[hourKey][log.user_name] = (hourlyMap[hourKey][log.user_name] || 0) + callCount;
           }
         }
       });
@@ -271,9 +276,10 @@ export default function GoogleAPILogViewer() {
         
         const key = `${dayStr} ${period}`;
         if (periodMap[key]) {
-          periodMap[key].calls++;
+          const callCount = getApiLogCallCount(log);
+          periodMap[key].calls += callCount;
           if (isAllUsers && log.user_name) {
-            periodMap[key][log.user_name] = (periodMap[key][log.user_name] || 0) + 1;
+            periodMap[key][log.user_name] = (periodMap[key][log.user_name] || 0) + callCount;
           }
         }
       });
@@ -302,9 +308,10 @@ export default function GoogleAPILogViewer() {
         }
         
         const entry = dailyMap.get(dayKey);
-        entry.calls++;
+        const callCount = getApiLogCallCount(log);
+        entry.calls += callCount;
         if (isAllUsers && log.user_name) {
-          entry[log.user_name] = (entry[log.user_name] || 0) + 1;
+          entry[log.user_name] = (entry[log.user_name] || 0) + callCount;
         }
       });
       
@@ -322,7 +329,8 @@ export default function GoogleAPILogViewer() {
   const apiTypeChartData = useMemo(() => {
     const typeMap = {};
     filteredLogs.forEach(log => {
-      typeMap[log.api_type] = (typeMap[log.api_type] || 0) + 1;
+      const displayType = getApiLogDisplayType(log);
+      typeMap[displayType] = (typeMap[displayType] || 0) + getApiLogCallCount(log);
     });
     return Object.entries(typeMap).map(([name, value]) => ({ name, value }));
   }, [filteredLogs]);
