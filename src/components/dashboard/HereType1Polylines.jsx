@@ -123,6 +123,8 @@ export default function HereType1Polylines({
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
+  const [deviationSegments, setDeviationSegments] = useState({});
+  const deviationMetaRef = useRef({});
 
   // Ensure DriverRoutePolyline subscription is active to hydrate offline DB immediately
   useEffect(() => {
@@ -171,7 +173,12 @@ export default function HereType1Polylines({
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
   // Clear stale polylines when driver, showAll, or the underlying markers change (e.g. date switch)
   const markerFingerprint = useMemo(() => `${deliveryMarkers.length}_${pickupMarkers.length}_${deliveryMarkers.map(m => m.id).join(',')}`, [deliveryMarkers, pickupMarkers]);
-  useEffect(() => { setLastNonEmptyLines([]); setCache({}); }, [selectedDriverId, showAll, markerFingerprint]);
+  useEffect(() => {
+    setLastNonEmptyLines([]);
+    setCache({});
+    setDeviationSegments({});
+    deviationMetaRef.current = {};
+  }, [selectedDriverId, showAll, markerFingerprint]);
   const requestTimesRef = useRef({});
   const mountTimeRef = useRef(Date.now());
 
