@@ -42,6 +42,7 @@ import BarcodeThumb from "./BarcodeThumb";
 import BarcodeOverlay from "./BarcodeOverlay";
 import { base44 } from "@/api/base44Client";
 import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
+import { isRouteCompleted } from "../utils/routeCompletionChecker";
 
 const statusConfig = {
   pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700', label: 'Pending', icon: Clock },
@@ -65,7 +66,8 @@ export default function StopDetailsPanel({
   onStatusUpdate,
   onEdit = () => console.warn('[StopDetailsPanel] onEdit not provided'),
   onDelete = null,
-  onRestart
+  onRestart,
+  allDeliveries = []
 }) {
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
@@ -175,6 +177,9 @@ export default function StopDetailsPanel({
     currentUser.app_roles?.includes('driver') || 
     currentUser.app_roles?.includes('dispatcher')
   );
+  const canManageStop = currentUser &&
+    (currentUser.app_roles?.includes('admin') || currentUser.app_roles?.includes('driver')) &&
+    !isRouteCompleted(delivery, allDeliveries);
 
   useEffect(() => {
     setEditableStatus(delivery?.status || 'pending');
@@ -597,8 +602,8 @@ export default function StopDetailsPanel({
               </div>
             )}
             
-            {/* Admin Action Buttons - Bottom Right */}
-            {currentUser?.app_roles?.includes('admin') && (
+            {/* Edit/Delete Buttons */}
+            {canManageStop && (
               <div className="absolute top-4 right-4 flex gap-2">
                 <Button 
                   onClick={() => onEdit(delivery)}
