@@ -1879,8 +1879,8 @@ export default function StopCard({
 
 
 
-                          {onDelete && !isStrippedForDispatcher && !isRouteCompleted && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && (onEdit || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
-                          {onDelete && !isStrippedForDispatcher && !isRouteCompleted && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
+                          {onDelete && !isStrippedForDispatcher && !routeCompleted && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && (onEdit || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
+                          {onDelete && !isStrippedForDispatcher && !routeCompleted && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                             <DropdownMenuItem
                               onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
                               className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
