@@ -384,12 +384,12 @@ export default function StopDetailsPanel({
 
                 {/* Status & Timing */}
                 {canEdit && typeof onStatusUpdate === 'function' && (
-                  <div className="pt-2 border-t space-y-3" style={{ borderColor: 'var(--border-slate-100)' }}>
-                    <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>
+                  <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
+                    <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                       Status & Timing
                     </p>
-                    <div className="space-y-3">
-                      <div className="space-y-1">
+                    <div className="flex items-end gap-2 flex-wrap">
+                      <div className="min-w-[160px] flex-1 space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                           {isPickup ? 'Pickup Status' : 'Delivery Status'}
                         </Label>
@@ -418,31 +418,34 @@ export default function StopDetailsPanel({
                       </div>
 
                       {isActiveEditStatus && (
-                        <div className="space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                            Delivery Time Start / End
-                          </Label>
-                          <div className="flex gap-2">
+                        <>
+                          <div className="min-w-[120px] space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                              Start
+                            </Label>
                             <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                          </div>
+                          <div className="min-w-[120px] space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                              End
+                            </Label>
                             <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
                           </div>
-                        </div>
+                        </>
                       )}
 
                       {isCompletionEditStatus && (
-                        <div className="space-y-1">
+                        <div className="min-w-[140px] space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                            Completion Time
+                            Completion
                           </Label>
                           <Input type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
                         </div>
                       )}
 
-                      <div className="flex justify-end">
-                        <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                          Apply
-                        </Button>
-                      </div>
+                      <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9">
+                        Apply
+                      </Button>
                     </div>
                   </div>
                 )}
