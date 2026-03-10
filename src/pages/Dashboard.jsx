@@ -88,6 +88,7 @@ import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
 import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
 import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
+import { sumApiLogCalls } from '@/components/utils/apiUsageLog';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
@@ -1745,12 +1746,11 @@ function Dashboard() {
       const todayStart = new Date(todayStr + 'T00:00:00').toISOString();
       const todayEnd = new Date(todayStr + 'T23:59:59').toISOString();
 
-      // Fetch all Google API calls for today
       const apiLogs = await base44.entities.GoogleAPILog.filter({
         timestamp: { $gte: todayStart, $lte: todayEnd }
       });
 
-      setDailyPolylineCount(apiLogs?.length || 0);
+      setDailyPolylineCount(sumApiLogCalls(apiLogs));
     } catch (error) {
       // CRITICAL: Silently fail on rate limits - this is non-essential data
       if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {

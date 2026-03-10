@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
+import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLog";
 
 // Small self-contained badge that shows Google/HERE API usage for today
 // Props:
@@ -34,31 +35,12 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0 }) {
     try {
       const { startISO, endISO } = getDayBoundsISO();
 
-      // Google API usage: count GoogleAPILog entries for today
-      const googleLogs = await base44.entities.GoogleAPILog.filter({
+      const apiLogs = await base44.entities.GoogleAPILog.filter({
         timestamp: { $gte: startISO, $lte: endISO },
       });
-      setGoogleCount(Array.isArray(googleLogs) ? googleLogs.length : 0);
 
-      // HERE API usage (approx.): count unique DriverRoutePolyline generated today
-      // via either record creation (created_date) or regeneration (last_generated_at)
-      const created = await base44.entities.DriverRoutePolyline.filter({
-        created_date: { $gte: startISO, $lte: endISO },
-      });
-      let updated = [];
-      try {
-        updated = await base44.entities.DriverRoutePolyline.filter({
-          last_generated_at: { $gte: startISO, $lte: endISO },
-        });
-      } catch (_) {
-        // last_generated_at filter may not exist on all records; ignore errors silently
-      }
-
-      const idSet = new Set([
-        ...(Array.isArray(created) ? created.map((p) => p.id) : []),
-        ...(Array.isArray(updated) ? updated.map((p) => p.id) : []),
-      ]);
-      setHereCount(idSet.size);
+      setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'google'));
+      setHereCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'here'));
     } catch (err) {
       // Non-critical; keep previous values
       console.warn("[ApiUsageBadge] Failed to fetch counts:", err?.message || err);

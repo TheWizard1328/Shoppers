@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
+import { getApiLogCallCount, getApiLogDisplayType, getApiLogProvider, sumApiLogCalls } from '@/components/utils/apiUsageLog';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,21 +11,25 @@ import { format, isWithinInterval, startOfDay, endOfDay, subDays, subHours } fro
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 const apiTypeIcons = {
-  'Directions': Navigation,
-  'Directions (HERE)': Navigation,
-  'Distance Matrix': MapPin,
-  'Places Autocomplete': Search,
-  'Place Details': Info,
-  'Geocoding': MapPin
+  'Google Directions': Navigation,
+  'HERE Directions': Navigation,
+  'Google Distance Matrix': MapPin,
+  'HERE Distance Matrix': MapPin,
+  'Google Places Autocomplete': Search,
+  'Google Place Details': Info,
+  'Google Geocoding': MapPin,
+  'HERE Geocoding': MapPin
 };
 
 const apiTypeColors = {
-  'Directions': 'bg-blue-100 text-blue-800',
-  'Directions (HERE)': 'bg-indigo-100 text-indigo-800',
-  'Distance Matrix': 'bg-purple-100 text-purple-800',
-  'Places Autocomplete': 'bg-green-100 text-green-800',
-  'Place Details': 'bg-yellow-100 text-yellow-800',
-  'Geocoding': 'bg-orange-100 text-orange-800'
+  'Google Directions': 'bg-blue-100 text-blue-800',
+  'HERE Directions': 'bg-indigo-100 text-indigo-800',
+  'Google Distance Matrix': 'bg-purple-100 text-purple-800',
+  'HERE Distance Matrix': 'bg-violet-100 text-violet-800',
+  'Google Places Autocomplete': 'bg-green-100 text-green-800',
+  'Google Place Details': 'bg-yellow-100 text-yellow-800',
+  'Google Geocoding': 'bg-orange-100 text-orange-800',
+  'HERE Geocoding': 'bg-cyan-100 text-cyan-800'
 };
 
 export default function GoogleAPILogViewer() {
