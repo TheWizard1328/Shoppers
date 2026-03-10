@@ -783,7 +783,7 @@ export default function DeliveryForm({
   // CRITICAL: Track if predictions should be stopped (when Done button is clicked or form is closing)
   const predictionsStopped = useRef(false);
   // CRITICAL: Store full prediction list from backend (never refetch unless date/user changes)
-  const fullPredictionListRef = useRef([]);
+  const fullPredictionListRef = useRef([]), lastPredictionsFetchKeyRef = useRef('');
 
   useEffect(() => {
     if (delivery || !formData.delivery_date || !currentUser || !stores || !allDeliveries) return;
@@ -829,7 +829,7 @@ export default function DeliveryForm({
           return;
         }
 
-        // Call backend function for predictions (ONLY once per form open)
+        const _pk=`${formData.delivery_date}::${[...storeIdsToPredict].sort().join(',')}::${predictionTrigger}`; if(lastPredictionsFetchKeyRef.current===_pk){setIsLoadingPredictions(false);return;} lastPredictionsFetchKeyRef.current=_pk;
         const response = await base44.functions.invoke('getDeliveryPredictions', {
           selectedDate: formData.delivery_date,
           storeIds: storeIdsToPredict,
