@@ -236,6 +236,7 @@ export default function DriverPayroll() {
   const hasLoadedInitialDataRef = useRef(false);
   const triedPreviousPeriodRef = useRef(false);
   const summaryRef = useRef(null);
+  const fetchPayrollInFlightRef = useRef(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
@@ -653,53 +654,64 @@ export default function DriverPayroll() {
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser) return;
-    if (!isAutoRefresh) setIsLoadingPayroll(true);
 
-    if (isAutoRefresh && setSmartRefreshActivity) {
-      setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
+    if (fetchPayrollInFlightRef.current) {
+      return fetchPayrollInFlightRef.current;
     }
 
-    try {
-      // Use cached full-year data unless forced fresh
-      if (fullYearPayrollDataRef.current && !forceFresh) {
-        console.log(`📊 [DriverPayroll] Using cached full-year data`);
-        setPayrollData(fullYearPayrollDataRef.current);
-        return;
-      }
+    const runFetch = async () => {
+      if (!isAutoRefresh) setIsLoadingPayroll(true);
 
-      console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
-      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
-        payrollYear: selectedYear,
-        payrollCityId: null, // Backend returns all cities; frontend filters
-        payrollDriverId: null,
-        payrollStartDate: `${selectedYear}-01-01`,
-        payrollEndDate: `${selectedYear}-12-31`
-      });
-      const data = response?.data?.payrollData || response?.payrollData;
-
-      // Cache full-year data
-      fullYearPayrollDataRef.current = data;
-
-      console.log(`✅ [DriverPayroll] Loaded:`, {
-        deliveries: data?.deliveries?.length || 0,
-        drivers: data?.drivers?.length || 0,
-        payrollRecords: data?.payrollRecords?.length || 0
-      });
-
-      setPayrollData(data);
-
-      if (data?.payrollRecords?.length > 0) {
-        setPayrollRecords(data.payrollRecords);
-      }
-    } catch (error) {
-      console.error('Failed to fetch payroll data:', error);
-      toast.error('Failed to refresh payroll data');
-    } finally {
-      if (!isAutoRefresh) setIsLoadingPayroll(false);
       if (isAutoRefresh && setSmartRefreshActivity) {
-        setSmartRefreshActivity({ active: false, updatedEntities: [] });
+        setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
       }
-    }
+
+      try {
+        if (fullYearPayrollDataRef.current && !forceFresh) {
+          console.log(`📊 [DriverPayroll] Using cached full-year data`);
+          setPayrollData(fullYearPayrollDataRef.current);
+          return fullYearPayrollDataRef.current;
+        }
+
+        console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
+        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+          payrollYear: selectedYear,
+          payrollCityId: null,
+          payrollDriverId: null,
+          payrollStartDate: `${selectedYear}-01-01`,
+          payrollEndDate: `${selectedYear}-12-31`
+        });
+        const data = response?.data?.payrollData || response?.payrollData;
+
+        fullYearPayrollDataRef.current = data;
+
+        console.log(`✅ [DriverPayroll] Loaded:`, {
+          deliveries: data?.deliveries?.length || 0,
+          drivers: data?.drivers?.length || 0,
+          payrollRecords: data?.payrollRecords?.length || 0
+        });
+
+        setPayrollData(data);
+        if (data?.payrollRecords?.length > 0) {
+          setPayrollRecords(data.payrollRecords);
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Failed to fetch payroll data:', error);
+        toast.error('Failed to refresh payroll data');
+        throw error;
+      } finally {
+        fetchPayrollInFlightRef.current = null;
+        if (!isAutoRefresh) setIsLoadingPayroll(false);
+        if (isAutoRefresh && setSmartRefreshActivity) {
+          setSmartRefreshActivity({ active: false, updatedEntities: [] });
+        }
+      }
+    };
+
+    fetchPayrollInFlightRef.current = runFetch();
+    return fetchPayrollInFlightRef.current;
   }, [selectedYear, currentUser, setSmartRefreshActivity]);
 
   const handleManualRefresh = useCallback(async () => {
