@@ -1,6 +1,7 @@
 import { nativeLocationProvider } from './nativeLocationProvider';
 import { webLocationProvider } from './webLocationProvider';
+import { isCapacitorNativeApp } from './capacitorRuntime';
 
 export const getLocationProvider = () => {
-  return nativeLocationProvider.isAvailable() ? nativeLocationProvider : webLocationProvider;
+  return isCapacitorNativeApp() && nativeLocationProvider.isAvailable() ? nativeLocationProvider : webLocationProvider;
 };
