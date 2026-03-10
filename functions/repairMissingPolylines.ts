@@ -218,6 +218,7 @@ Deno.serve(async (req) => {
           }, '-updated_date', 1);
           const rec = Array.isArray(existing) ? existing[0] : null;
           if (!rec?.encoded_polyline) {
+            googleApiCalls += 1;
             const data = await fetchDirectionsPolyline({ lat: last.lat, lng: last.lon }, { lat: nextStop.lat, lng: nextStop.lon }, GOOGLE_KEY);
             const encoded = data.encoded || encodeGooglePolyline((data.coords || []).map(([la,lo]) => [la, lo]));
             const saved = await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
@@ -287,6 +288,7 @@ Deno.serve(async (req) => {
           }, '-updated_date', 1);
           const rec = Array.isArray(existing) ? existing[0] : null;
           if (!rec?.encoded_polyline) {
+            googleApiCalls += 1;
             const data = await fetchDirectionsPolyline({ lat: originLat, lng: originLon }, { lat: next.lat, lng: next.lon }, GOOGLE_KEY);
             const encoded = data.encoded || encodeGooglePolyline((data.coords || []).map(([la,lo]) => [la, lo]));
             const saved = await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
