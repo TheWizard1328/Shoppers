@@ -1579,7 +1579,7 @@ export default function Layout({ children, currentPageName }) {
               then((response) => {
                 const items = response?.data?.items || response?.items || [];
                 setCatalogItems(items);
-              });
+              }).catch(() => {});
             }, 500);
           }
         } else if (update.action === 'update') {
@@ -1603,7 +1603,7 @@ export default function Layout({ children, currentPageName }) {
               then((response) => {
                 const items = response?.data?.items || response?.items || [];
                 setCatalogItems(items);
-              });
+              }).catch(() => {});
             }, 500);
           }
         } else if (update.action === 'delete') {
@@ -1765,7 +1765,7 @@ export default function Layout({ children, currentPageName }) {
           setCatalogItems(items);
           setSquareTransactions(transactions || []);
           toast.success('COD data updated');
-        });
+        }).catch(() => {});
       }
     });
 
