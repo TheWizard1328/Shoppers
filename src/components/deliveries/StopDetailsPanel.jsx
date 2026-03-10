@@ -452,7 +452,7 @@ export default function StopDetailsPanel({
                 <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                   Status & Timing
                 </p>
-                <div className="flex items-end gap-2 overflow-x-auto">
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
                   <div className="min-w-[160px] flex-1 space-y-1">
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       {isPickup ? 'Pickup Status' : 'Delivery Status'}
