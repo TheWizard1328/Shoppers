@@ -490,7 +490,7 @@ export default function StopDetailsPanel({
                           Start
                         </Label>
                         <div className="relative">
-                          <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm mobile-time-input pr-9" />
+                          <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm pr-9" style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'textfield' }} />
                           {deliveryTimeStart && (
                             <button
                               type="button"
@@ -507,7 +507,7 @@ export default function StopDetailsPanel({
                           End
                         </Label>
                         <div className="relative">
-                          <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className="h-9 text-sm mobile-time-input pr-9" />
+                          <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className="h-9 text-sm pr-9" style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'textfield' }} />
                           {deliveryTimeEnd && (
                             <button
                               type="button"
@@ -528,7 +528,7 @@ export default function StopDetailsPanel({
                         Completion
                       </Label>
                       <div className="relative">
-                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm mobile-time-input pr-9" />
+                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm pr-9" style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'textfield' }} />
                         {completionTime && (
                           <button
                             type="button"
