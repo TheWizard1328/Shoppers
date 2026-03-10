@@ -90,6 +90,7 @@ import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
 import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
+import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";
 
 function Dashboard() {
@@ -550,19 +551,44 @@ function Dashboard() {
 
 
 
+  // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
-    const handleDeliveryStatsUpdate = (event) => setDeliveryStats(event.detail);
-    const handleRefreshCurrentUser = () => refreshUser && refreshUser();
+    const handleDeliveryStatsUpdate = (event) => {
+      setDeliveryStats(event.detail);
+    };
+    
+    // CRITICAL: Listen for smart refresh AppUser updates to refresh currentUser for toggles
+    const handleRefreshCurrentUser = () => {
+      if (refreshUser) {
+        refreshUser();
+      }
+    };
+    
+    // CRITICAL: Listen for manual refresh payroll stats trigger from SmartRefreshIndicator
     const handleRefreshPayrollStatsAfterSync = async () => { return; };
+
+    // CRITICAL: Listen for live travel_dist updates
     const handleTravelDistUpdate = (event) => {
-      const { deliveryId, travel_dist, totalAccumulatedDistance } = event.detail;
+      const { deliveryId, travel_dist, totalAccumulatedDistance, completedDistance, inProgressDistance } = event.detail;
+      // Update local deliveries state
       if (updateDeliveriesLocally) {
         const updatedDelivery = deliveries.find((d) => d?.id === deliveryId);
-        if (updatedDelivery) updateDeliveriesLocally([{ ...updatedDelivery, travel_dist }], false);
+        if (updatedDelivery) {
+          updateDeliveriesLocally([{ ...updatedDelivery, travel_dist }], false);
+        }
       }
+
+      // CRITICAL: Store total accumulated distance to display on stats card
       setLiveDistance(totalAccumulatedDistance);
     };
-    const handleTimeOnDutyUpdate = (event) => setLiveTimeOnDuty(event.detail.formattedTime);
+
+    // CRITICAL: Listen for time on duty updates
+    const handleTimeOnDutyUpdate = (event) => {
+      const { totalMinutes, formattedTime } = event.detail;
+      // CRITICAL: Store live time on duty to display on stats card
+      setLiveTimeOnDuty(formattedTime);
+    };
+
     window.addEventListener('deliveryStatsUpdated', handleDeliveryStatsUpdate);
     window.addEventListener('travelDistUpdated', handleTravelDistUpdate);
     window.addEventListener('timeOnDutyUpdated', handleTimeOnDutyUpdate);
@@ -575,7 +601,7 @@ function Dashboard() {
       window.removeEventListener('refreshPayrollStatsAfterSync', handleRefreshPayrollStatsAfterSync);
       window.removeEventListener('refreshCurrentUserFromSmartRefresh', handleRefreshCurrentUser);
     };
-  }, [deliveries, updateDeliveriesLocally, currentUser?.id, refreshUser]);
+  }, [deliveries, updateDeliveriesLocally, performanceStats, isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate, refreshUser]);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -644,7 +670,7 @@ function Dashboard() {
     checkPrimaryDevice();
   }, [currentUser?.id]);
 
-  useEffect(() => { if (!currentUser?.id || !isDataLoaded || isDispatcher) { setPerformanceStats(null); setIsLoadingPayrollStats(false); return; } const pm = new Map((patients || []).filter(p => p?.id).map(p => [p.id, p])); const um = new Map((appUsers || []).filter(u => u?.user_id).map(u => [u.user_id, u])); const isReturnStop = (d) => { const p = d?.patient_id ? pm.get(d.patient_id) : null; const n = `${d?.delivery_notes || ''} ${d?.patient_name || p?.full_name || ''}`.toLowerCase(); return n.includes('(rtn)') || /\breturn\b/.test(n); }; const ids = selectedDriverId && selectedDriverId !== 'all' ? [selectedDriverId] : [...new Set((filteredDeliveries || []).map(d => d?.driver_id).filter(Boolean))]; let pay = 0, km = 0, extra = 0, duty = 0, limit = 0; ids.forEach((id) => { const u = um.get(id) || {}; const ds = (filteredDeliveries || []).filter(d => d?.driver_id === id); if (ids.length === 1) limit = u.extra_km_limit || 0; const paid = ds.filter(d => d && (d.patient_id ? (d.status === 'completed' || d.status === 'failed' || isReturnStop(d)) : (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')))); pay += paid.length * (u.pay_rate_per_delivery || 0) + paid.filter(d => d?.oversized).length * (u.oversized_item_rate || 0); paid.forEach((d) => { if (!d?.patient_id) return; const dist = d.paid_km_override ?? pm.get(d.patient_id)?.distance_from_store; if (typeof dist === 'number' && dist > (u.extra_km_limit || 0)) { const over = dist - (u.extra_km_limit || 0); extra += over; pay += over * (u.extra_km_rate || 0); } }); ds.forEach((d) => { if (!d?.actual_delivery_time || !(d.status === 'completed' || d.status === 'failed' || isReturnStop(d))) return; const dist = typeof d.travel_dist === 'number' ? d.travel_dist : pm.get(d.patient_id)?.distance_from_store; if (typeof dist === 'number') km += dist; }); const ts = ds.filter(d => d?.actual_delivery_time).map(d => { const m = d.actual_delivery_time.match(/T(\d{2}):(\d{2})/); return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null; }).filter(v => v !== null).sort((a, b) => a - b); if (ts.length) { let end = ts[ts.length - 1]; const pds = ds.filter(d => d?.patient_id); if (!(pds.length && pds.every(d => ['completed', 'failed', 'cancelled', 'returned'].includes(d.status))) && u.driver_status === 'on_duty') { const now = new Date(); end = now.getHours() * 60 + now.getMinutes(); } let dur = end - ts[0]; if (dur < 0) dur += 1440; duty += Math.max(0, dur); } }); setPerformanceStats({ totalPay: pay, totalKm: km, totalExtraKm: extra, totalTimeOnDuty: `${String(Math.floor(duty / 60)).padStart(2, '0')}:${String(duty % 60).padStart(2, '0')}`, extraKmLimit: ids.length === 1 ? limit : 0 }); setIsLoadingPayrollStats(false); }, [currentUser?.id, isDataLoaded, isDispatcher, selectedDriverId, filteredDeliveries, patients, appUsers]);
+  useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
 
   // Track dynamically measured heights for map padding
   // CRITICAL: Start at 0, will be measured once cards render
