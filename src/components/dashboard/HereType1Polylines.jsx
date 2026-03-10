@@ -372,14 +372,18 @@ export default function HereType1Polylines({
 
   useEffect(() => {
     const settings = getRouteOptimizationSettings();
-    if (!settings.enableRouteDeviationDetection || !isViewingCurrentDate || optimizing) {
+    if (!isViewingCurrentDate || optimizing) {
       setDeviationSegments({});
       deviationMetaRef.current = {};
       return;
     }
 
-    const thresholdMeters = Math.max(50, Number(settings.routeDeviationThresholdMeters) || 200);
-    const cooldownMs = Math.max(1, Number(settings.routeDeviationCooldownMinutes) || 5) * 60 * 1000;
+    const thresholdMeters = settings.enableRouteDeviationDetection
+      ? Math.max(50, Number(settings.routeDeviationThresholdMeters) || 200)
+      : 250;
+    const cooldownMs = (settings.enableRouteDeviationDetection
+      ? Math.max(1, Number(settings.routeDeviationCooldownMinutes) || 5)
+      : 2) * 60 * 1000;
     let cancelled = false;
 
     const run = async () => {
