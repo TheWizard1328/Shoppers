@@ -508,7 +508,7 @@ export default function StopDetailsPanel({
                     </div>
                   )}
 
-                  <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 w-full md:w-auto">
+                  <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
                     Apply
                   </Button>
                 </div>
