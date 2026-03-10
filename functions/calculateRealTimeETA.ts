@@ -190,6 +190,8 @@ Deno.serve(async (req) => {
         user_id: user.id,
         user_name: driverAppUser?.user_name || user.full_name,
         metadata: {
+          api_provider: 'here',
+          call_count: 1,
           driver_id: driverId,
           delivery_date: deliveryDate,
           stops_count: deliveriesWithCoords.length
