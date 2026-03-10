@@ -43,6 +43,7 @@ class NativeLocationProvider {
     }
 
     const plugin = getBackgroundGeolocationPlugin();
+    await ensureBackgroundNotificationPermission();
 
     return await new Promise((resolve, reject) => {
       let watchId = null;
