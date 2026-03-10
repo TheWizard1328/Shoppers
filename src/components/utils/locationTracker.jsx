@@ -589,7 +589,7 @@ class LocationTracker {
 
     // Breadcrumb tracking
     this.lastBreadcrumbPosition = null;
-    this.minBreadcrumbDistance = 100; // 100 meters
+    this.minBreadcrumbDistance = 250; // 250 meters
 
     // Test GPS capabilities
     const capabilities = await this.checkGPSCapabilities();
@@ -732,6 +732,7 @@ class LocationTracker {
     this.failedUpdateCount = 0;
     this.backoffTime = 0;
     this.currentDeliveryDate = null;
+    this.lastBreadcrumbPosition = null;
     
     // Clear arrival detection state
     arrivalTimeDetector.clearRecordedArrivals();
@@ -841,6 +842,20 @@ class LocationTracker {
       return;
     }
 
+    if (this.isPrimaryDevice && this.lastBreadcrumbPosition) {
+      const breadcrumbDistance = this.calculateDistanceInMeters(
+        this.lastBreadcrumbPosition.latitude,
+        this.lastBreadcrumbPosition.longitude,
+        latitude,
+        longitude
+      );
+
+      if (breadcrumbDistance < this.minBreadcrumbDistance) {
+        console.log(`🍞 [LocationTracker] Skipping breadcrumb - moved only ${breadcrumbDistance.toFixed(0)}m`);
+        return;
+      }
+    }
+
     try {
       const { offlineDB } = await import('./offlineDatabase');
 
@@ -856,6 +871,7 @@ class LocationTracker {
       };
 
       await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, breadcrumbData);
+      this.lastBreadcrumbPosition = { latitude, longitude, timestamp };
       console.log(`🍞 [LocationTracker] Collected breadcrumb for driver ${this.appUserId}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
