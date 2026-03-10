@@ -2204,25 +2204,23 @@ export default function DeliveryForm({
     // Get delivery date from form data for use in TR# calculation
     const deliveryDate = formData.delivery_date;
 
-    // Calculate sequential TR#s based on pickup's TR# for each store/AM-PM combination
-    const calculateSequentialTRs = (deliveries) => {
-      // Group by store_id + ampm_deliveries (each store/AM-PM slot has its own pickup with TR#)
+    // Calculate sequential TR#s from each pickup's TR# so deliveries start at pickup TR# + 1
+    const calculateSequentialTRAssignments = (newItems, existingItems) => {
       const groups = {};
+      const assignments = new Map();
 
-      deliveries.forEach((del) => {
-        const groupKey = `${del.store_id}_${del.ampm_deliveries || 'AM'}`;
+      [...newItems, ...existingItems].forEach((delivery) => {
+        if (!delivery?.patient_id) return;
+        const groupKey = `${delivery.store_id}_${delivery.driver_id}_${delivery.ampm_deliveries || 'AM'}`;
         if (!groups[groupKey]) {
-          const store = stores?.find((s) => s && s.id === del.store_id);
-          const storeAbbrev = store?.abbreviation || '';
-
-          // CRITICAL: Find the pickup's TR# for this store/AM-PM combination
+          const store = stores?.find((s) => s && s.id === delivery.store_id);
           const pickup = allDeliveries?.find((d) =>
             d &&
             !d.patient_id &&
-            d.store_id === del.store_id &&
+            d.store_id === delivery.store_id &&
             d.delivery_date === formData.delivery_date &&
-            d.driver_id === del.driver_id &&
-            (d.ampm_deliveries || 'AM') === (del.ampm_deliveries || 'AM')
+            d.driver_id === delivery.driver_id &&
+            (d.ampm_deliveries || 'AM') === (delivery.ampm_deliveries || 'AM')
           );
 
           let pickupTR = store?.base_tracking_number || 0;
@@ -2234,52 +2232,28 @@ export default function DeliveryForm({
           }
 
           groups[groupKey] = {
-            pickupTR: pickupTR,
-            abbreviation: storeAbbrev,
+            pickupTR,
+            abbreviation: store?.abbreviation || '',
             deliveries: []
           };
         }
-        groups[groupKey].deliveries.push(del);
+
+        groups[groupKey].deliveries.push(delivery);
       });
 
-      // Count existing deliveries for each group (store + AM/PM)
-      Object.keys(groups).forEach((groupKey) => {
-        const [storeId, ampm] = groupKey.split('_');
-        const existingCount = allDeliveries?.filter((d) =>
-          d &&
-          d.patient_id && // Only count deliveries, not pickups
-          d.store_id === storeId &&
-          d.delivery_date === formData.delivery_date &&
-          (d.ampm_deliveries || 'AM') === ampm
-        ).length || 0;
+      Object.values(groups).forEach((group) => {
+        const sortedDeliveries = [...group.deliveries].sort((a, b) =>
+          (a.patient_name || '').localeCompare(b.patient_name || '')
+        );
 
-        groups[groupKey].existingCount = existingCount;
+        sortedDeliveries.forEach((delivery, index) => {
+          const trString = `${group.abbreviation}${group.pickupTR + index + 1}`;
+          const key = delivery.id || delivery._tempId;
+          assignments.set(key, trString);
+        });
       });
 
-      // Assign sequential TR#s: abbreviation + (pickupTR + existing + index + 1)
-      const updatedDeliveries = deliveries.map((del) => {
-        if (!del.patient_id) return del; // Skip pickups
-
-        const groupKey = `${del.store_id}_${del.ampm_deliveries || 'AM'}`;
-        const group = groups[groupKey];
-        if (!group) return del;
-
-        // Sort this group's new deliveries by patient name for consistent ordering
-        const newDeliveriesInGroup = [...group.deliveries].
-        filter((d) => d.patient_id).
-        sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
-
-        const indexInGroup = newDeliveriesInGroup.findIndex((d) => d._tempId === del._tempId);
-        const trNumber = group.pickupTR + group.existingCount + indexInGroup + 1;
-        const trString = `${group.abbreviation}${trNumber}`;
-
-        return {
-          ...del,
-          tracking_number: trString
-        };
-      });
-
-      return updatedDeliveries;
+      return assignments;
     };
 
     // CRITICAL: Before calculating TRs, ensure ALL deliveries have correct store_id via PUID lookup
