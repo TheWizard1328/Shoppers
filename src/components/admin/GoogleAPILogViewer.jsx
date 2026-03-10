@@ -233,9 +233,10 @@ export default function GoogleAPILogViewer() {
         
         const logHour = format(new Date(log.timestamp), 'HH:00');
         if (hourlyMap[logHour]) {
-          hourlyMap[logHour].calls++;
+          const callCount = getApiLogCallCount(log);
+          hourlyMap[logHour].calls += callCount;
           if (isAllUsers && log.user_name) {
-            hourlyMap[logHour][log.user_name] = (hourlyMap[logHour][log.user_name] || 0) + 1;
+            hourlyMap[logHour][log.user_name] = (hourlyMap[logHour][log.user_name] || 0) + callCount;
           }
         }
       });
