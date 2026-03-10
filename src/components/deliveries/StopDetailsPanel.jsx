@@ -252,8 +252,19 @@ export default function StopDetailsPanel({
           }
         }));
       }
+
+      onClose?.();
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleTimeFieldKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (!isUpdating && hasStatusTimingChanges) {
+        handleApplyStatusTiming();
+      }
     }
   };
 
@@ -507,7 +518,7 @@ export default function StopDetailsPanel({
                           Start
                         </Label>
                         <div className="relative">
-                          <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                          <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                           {showDesktopClearButtons && deliveryTimeStart && (
                             <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
                               <X className="w-4 h-4" />
@@ -520,7 +531,7 @@ export default function StopDetailsPanel({
                           End
                         </Label>
                         <div className="relative">
-                          <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                          <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                           {showDesktopClearButtons && deliveryTimeEnd && (
                             <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
                               <X className="w-4 h-4" />
@@ -538,7 +549,7 @@ export default function StopDetailsPanel({
                           Completion
                         </Label>
                         <div className="relative">
-                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                         {showDesktopClearButtons && completionTime && (
                           <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
                             <X className="w-4 h-4" />
