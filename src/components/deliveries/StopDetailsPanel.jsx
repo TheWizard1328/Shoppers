@@ -723,10 +723,10 @@ export default function StopDetailsPanel({
         </Card>
       </div>
 
-      {/* Action Buttons - Only Complete/Failed for drivers */}
+      {/* Action Buttons - Drivers */}
       {currentUser?.app_roles?.includes('driver') && (
         <div className="flex-shrink-0 p-4 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          {!isCompleted && (
+          {!isCompleted ? (
             <div className="flex gap-2">
               <Button 
                 onClick={() => onStatusUpdate(delivery.id, 'completed')}
@@ -744,6 +744,19 @@ export default function StopDetailsPanel({
                 Failed
               </Button>
             </div>
+          ) : (
+            ['completed', 'failed', 'cancelled'].includes(delivery.status) && onRestart && (
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => onRestart(delivery.id)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={isUpdating}
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Restart
+                </Button>
+              </div>
+            )
           )}
         </div>
       )}

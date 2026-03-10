@@ -1405,7 +1405,7 @@ export default function StopCard({
                         </Button>
 
                         {/* 3. Restart button */}
-                        {onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
+                        {onRestart && ['completed', 'failed', 'cancelled'].includes(delivery.status) &&
                           <Button
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -1413,8 +1413,8 @@ export default function StopCard({
                             }}
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
-                            disabled={isProcessingBackground}>
-                            <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
+                            disabled={isRestarting || isProcessingBackground || isFailing}>
+                            {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                             <span className="text-white">Restart</span>
                           </Button>
                         }
@@ -1814,8 +1814,8 @@ export default function StopCard({
                               </Button>
                           )}
                       
-                      {/* Restart button for completed/cancelled on today's date when route not finished (NOT failed) */}
-                      {delivery.status !== 'failed' && FINISHED_STATUSES.includes(delivery.status) && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
+                      {/* Restart button for completed/cancelled */}
+                      {delivery.status !== 'failed' && ['completed', 'cancelled'].includes(delivery.status) && onRestart &&
                         <Button
                           onClick={async (e) => {
                             e.stopPropagation();
