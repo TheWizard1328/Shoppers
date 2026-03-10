@@ -2276,65 +2276,23 @@ export default function DeliveryForm({
       return del;
     });
 
-    const deliveriesWithTRs = calculateSequentialTRs(deliveriesWithCorrectStores);
+    const trAssignments = calculateSequentialTRAssignments(deliveriesWithCorrectStores, existingDeliveries);
+    const deliveriesWithTRs = deliveriesWithCorrectStores.map((delivery) => ({
+      ...delivery,
+      tracking_number: trAssignments.get(delivery.id || delivery._tempId) || delivery.tracking_number
+    }));
 
-    // STEP 2: Re-number ALL existing deliveries for affected pickup groups
-    const affectedGroups = new Set(deliveriesWithCorrectStores.map((del) =>
-    `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`
-    ));
-
-    // Collect existing deliveries that need TR# updates
-    const existingDeliveriesToUpdate = [];
-
-    for (const groupKey of affectedGroups) {
-      const [storeId, driverId, ampm] = groupKey.split('_');
-
-      // Find the pickup for this group
-      const existingPickup = allDeliveries?.find((d) =>
-      d &&
-      !d.patient_id &&
-      d.store_id === storeId &&
-      d.driver_id === driverId &&
-      d.delivery_date === formData.delivery_date &&
-      (d.ampm_deliveries || 'AM') === ampm
-      );
-
-      // CRITICAL: Get store reference FIRST
-      const store = stores?.find((s) => s && s.id === storeId);
-      const storeAbbrev = store?.abbreviation || '';
-
-      // CRITICAL: Use pickup's TR# if available, fallback to store base_tracking_number
-      let effectivePickupTR = store?.base_tracking_number || 0;
-
-      if (existingPickup && existingPickup.tracking_number !== undefined && existingPickup.tracking_number !== null && existingPickup.tracking_number !== '') {
-        const pickupTR = parseInt(existingPickup.tracking_number, 10);
-        effectivePickupTR = isNaN(pickupTR) ? effectivePickupTR : pickupTR;
-      }
-
-      // Get all existing deliveries for this group (already saved in DB)
-      const existingDeliveriesInGroup = (allDeliveries || []).filter((d) =>
-      d &&
-      d.patient_id && // Is a delivery, not pickup
-      d.store_id === storeId &&
-      d.driver_id === driverId &&
-      d.delivery_date === formData.delivery_date &&
-      (d.ampm_deliveries || 'AM') === ampm
-      );
-
-      // Sort by patient name for consistent ordering
-      existingDeliveriesInGroup.sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
-
-      // Re-assign sequential TR#s: abbreviation + (pickupTR + index + 1)
-      existingDeliveriesInGroup.forEach((delivery, index) => {
-        const correctTR = `${storeAbbrev}${effectivePickupTR + existingDeliveries.length + index + 1}`; // Account for new deliveries added
-        if (delivery.tracking_number !== correctTR) {
-          existingDeliveriesToUpdate.push({
-            id: delivery.id,
-            tracking_number: correctTR
-          });
-        }
-      });
-    }
+    // STEP 2: Re-number ALL existing staged deliveries so they also start at pickup TR# + 1
+    const existingDeliveriesToUpdate = existingDeliveries
+      .map((delivery) => {
+        const correctTR = trAssignments.get(delivery.id || delivery._tempId);
+        if (!correctTR || delivery.tracking_number === correctTR) return null;
+        return {
+          id: delivery.id,
+          tracking_number: correctTR
+        };
+      })
+      .filter(Boolean);
 
     setIsSaving(true);
     setError(null);
