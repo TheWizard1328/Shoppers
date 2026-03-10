@@ -77,7 +77,12 @@
     "zod": "^3.24.2",
     "jsbarcode": "^3.11.6",
     "@zxing/browser": "^0.1.5",
-    "@zxing/library": "^0.21.3"
+    "@zxing/library": "^0.21.3",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/local-notifications": "^7.0.0",
+    "@capacitor-community/background-geolocation": "^1.2.26"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
