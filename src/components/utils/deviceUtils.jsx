@@ -1,3 +1,5 @@
+import { getCapacitorPlatform, isCapacitorNativeApp } from './locationProviders/capacitorRuntime';
+
 /**
  * Centralized device detection utility
  * Provides consistent device type and OS detection across the application
@@ -52,6 +54,14 @@ export const shouldUseMobileLayout = () => {
  * @returns {Object} - { deviceType: 'Mobile'|'Desktop'|'Tablet', os: string }
  */
 export const getUserAgentInfo = () => {
+  if (isCapacitorNativeApp()) {
+    const platform = getCapacitorPlatform();
+    return {
+      deviceType: window.innerWidth > 768 ? 'Tablet' : 'Mobile',
+      os: platform === 'android' ? 'Android' : platform === 'ios' ? 'iOS' : 'Unknown OS'
+    };
+  }
+
   const ua = navigator.userAgent;
 
   // Detect OS first (needed for tablet classification)

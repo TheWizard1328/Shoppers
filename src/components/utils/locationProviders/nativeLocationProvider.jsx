@@ -1,6 +1,6 @@
-const getBackgroundGeolocationPlugin = () => {
-  return globalThis?.Capacitor?.Plugins?.BackgroundGeolocation || null;
-};
+import { BackgroundGeolocation, ensureBackgroundNotificationPermission, getCapacitorPlatform, isCapacitorNativeApp } from './capacitorRuntime';
+
+const getBackgroundGeolocationPlugin = () => BackgroundGeolocation;
 
 const normalizeNativePosition = (location) => ({
   coords: {
@@ -34,7 +34,7 @@ class NativeLocationProvider {
 
   isAvailable() {
     const plugin = getBackgroundGeolocationPlugin();
-    return !!plugin && typeof plugin.addWatcher === 'function' && typeof plugin.removeWatcher === 'function';
+    return isCapacitorNativeApp() && !!plugin && typeof plugin.addWatcher === 'function' && typeof plugin.removeWatcher === 'function';
   }
 
   async getCurrentPosition(options = {}) {
@@ -102,6 +102,7 @@ class NativeLocationProvider {
     }
 
     const plugin = getBackgroundGeolocationPlugin();
+    await ensureBackgroundNotificationPermission();
 
     return await plugin.addWatcher(
       {
