@@ -30,7 +30,8 @@ import {
   Image,
   FileSignature,
   Camera,
-  X
+  X,
+  X as XIcon
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
@@ -452,7 +453,7 @@ export default function StopDetailsPanel({
                 <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                   Status & Timing
                 </p>
-                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
+                <div className={`grid gap-2 items-end ${isActiveEditStatus ? 'grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto]' : isCompletionEditStatus ? 'grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)_auto]'}`}>
 
                   <div className="min-w-0 w-full space-y-1">
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
@@ -488,43 +489,57 @@ export default function StopDetailsPanel({
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                           Start
                         </Label>
-                        <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                        <div className="relative">
+                          <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm mobile-time-input pr-9" />
+                          {deliveryTimeStart && (
+                            <button
+                              type="button"
+                              onClick={() => setDeliveryTimeStart('')}
+                              className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                              <XIcon className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="min-w-0 w-full space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                           End
                         </Label>
-                        <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                        <div className="relative">
+                          <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className="h-9 text-sm mobile-time-input pr-9" />
+                          {deliveryTimeEnd && (
+                            <button
+                              type="button"
+                              onClick={() => setDeliveryTimeEnd('')}
+                              className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                              <XIcon className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </>
                   )}
 
                   {isCompletionEditStatus && (
-                    <>
-                      <div className="min-w-0 w-full space-y-1">
-                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                          Completion
-                        </Label>
-                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                    <div className="min-w-0 w-full space-y-1">
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                        Completion
+                      </Label>
+                      <div className="relative">
+                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm mobile-time-input pr-9" />
+                        {completionTime && (
+                          <button
+                            type="button"
+                            onClick={() => setCompletionTime('')}
+                            className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            <XIcon className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
-                      <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
-                        <Label className="text-sm font-semibold">End</Label>
-                        <Input type="time" value="" readOnly className="h-9 text-sm" />
-                      </div>
-                    </>
-                  )}
-
-                  {!(isActiveEditStatus || isCompletionEditStatus) && (
-                    <>
-                      <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
-                        <Label className="text-sm font-semibold">Start</Label>
-                        <Input type="time" value="" readOnly className="h-9 text-sm" />
-                      </div>
-                      <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
-                        <Label className="text-sm font-semibold">End</Label>
-                        <Input type="time" value="" readOnly className="h-9 text-sm" />
-                      </div>
-                    </>
+                    </div>
                   )}
 
                   <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
