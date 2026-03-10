@@ -1176,7 +1176,7 @@ function Dashboard() {
     };
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
-  useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
+  useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, selectedDate, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
 
   const isDateFinished = useMemo(() => {
     const todayDate = startOfDay(new Date());

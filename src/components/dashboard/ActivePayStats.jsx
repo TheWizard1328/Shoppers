@@ -72,7 +72,7 @@ export default function ActivePayStats({
   const displayPay = performanceStats?.totalPay || 0;
   const displayKm = liveDistance > 0 ? liveDistance : (performanceStats?.totalKm || 0);
   const displayExtraKm = performanceStats?.totalExtraKm || 0;
-  const displayTime = liveTimeOnDuty ?? performanceStats?.totalTimeOnDuty ?? '00:00';
+  const displayTime = performanceStats?.totalTimeOnDuty ?? '00:00';
   const extraKmLimit = performanceStats?.extraKmLimit || 0;
   
   // Build tooltips

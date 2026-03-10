@@ -1,10 +1,109 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-// In-memory cache keyed by year+cityId — busted on new deploy
-// DISABLED cache temporarily for debugging
 const CACHE_VERSION = Date.now().toString();
 const statsCache = new Map();
 const CACHE_DISABLED = true;
+const BATCH_LIMIT = 1000;
+
+const pickFields = (record, fields) => {
+  const picked = {};
+  fields.forEach((field) => {
+    picked[field] = record?.[field];
+  });
+  return picked;
+};
+
+const dedupeById = (records) => {
+  const recordMap = new Map();
+  (records || []).forEach((record) => {
+    if (record?.id) recordMap.set(record.id, record);
+  });
+  return Array.from(recordMap.values());
+};
+
+const getMidpointDate = (startStr, endStr) => {
+  const start = new Date(`${startStr}T00:00:00`);
+  const end = new Date(`${endStr}T00:00:00`);
+  const midpoint = new Date(start.getTime() + Math.floor((end.getTime() - start.getTime()) / 2));
+  return midpoint.toISOString().split('T')[0];
+};
+
+const getPreviousDate = (dateStr) => {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() - 1);
+  return date.toISOString().split('T')[0];
+};
+
+const getNextDate = (dateStr) => {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().split('T')[0];
+};
+
+const fetchDateRangeRecords = async (entityApi, dateField, startStr, endStr, sort = '-created_date') => {
+  const records = await entityApi.filter({
+    [dateField]: { $gte: startStr, $lte: endStr }
+  }, sort, BATCH_LIMIT);
+
+  if (!Array.isArray(records)) return [];
+  if (records.length < BATCH_LIMIT || startStr === endStr) return records;
+
+  const midpoint = getMidpointDate(startStr, endStr);
+  if (midpoint <= startStr || midpoint >= endStr) return records;
+
+  const leftRecords = await fetchDateRangeRecords(entityApi, dateField, startStr, midpoint, sort);
+  const rightRecords = await fetchDateRangeRecords(entityApi, dateField, getNextDate(midpoint), endStr, sort);
+  return dedupeById([...leftRecords, ...rightRecords]);
+};
+
+const DELIVERY_FIELDS = [
+  'id',
+  'delivery_date',
+  'driver_id',
+  'store_id',
+  'patient_id',
+  'status',
+  'after_hours_pickup',
+  'paid_km_override',
+  'travel_dist',
+  'oversized',
+  'no_charge',
+  'patient_name',
+  'delivery_notes',
+  'actual_delivery_time'
+];
+
+const STORE_FIELDS = [
+  'id',
+  'name',
+  'abbreviation',
+  'city_id',
+  'sort_order',
+  'color',
+  'status',
+  'pays_app_fees',
+  'app_fee_history'
+];
+
+const DRIVER_FIELDS = [
+  'id',
+  'user_id',
+  'user_name',
+  'full_name',
+  'app_roles',
+  'status',
+  'city_id',
+  'pay_cycle_type',
+  'pay_rate_per_delivery',
+  'extra_km_rate',
+  'extra_km_limit',
+  'oversized_item_rate',
+  'gst_hst_enabled',
+  'deductions'
+];
+
+const PATIENT_FIELDS = ['id', 'full_name', 'distance_from_store'];
+const CITY_FIELDS = ['id', 'name', 'sort_order', 'province_state'];
 
 Deno.serve(async (req) => {
   try {
@@ -21,7 +120,7 @@ Deno.serve(async (req) => {
     const appUserList = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
     const appUser = appUserList[0];
     const appRoles = appUser?.app_roles || [];
-    if (!user.role === 'admin' && !appRoles.includes('admin') && !appRoles.includes('driver')) {
+    if (user.role !== 'admin' && !appRoles.includes('admin') && !appRoles.includes('driver')) {
       return Response.json({ error: 'Forbidden: Access denied' }, { status: 403 });
     }
 
@@ -32,99 +131,69 @@ Deno.serve(async (req) => {
     } catch (_) {}
 
     const {
-      // Admin Metrics request
       adminMetricsYear, adminMetricsCityId,
-      // Payroll request
       payrollYear, payrollCityId,
     } = body;
-
-    // ─── Shared data fetch (year + optional city filter) ───────────────────────
-    // Both admin metrics and payroll use the same underlying year data.
-    // We fetch once per year+city combination and cache it.
 
     const fetchYearData = async (year, cityId) => {
       const cacheKey = `${CACHE_VERSION}_${year}_${cityId || 'all'}`;
       const cached = statsCache.get(cacheKey);
-      if (!CACHE_DISABLED && cached && (Date.now() - cached.timestamp < 300000)) {  // 5 min cache TTL
-        console.log(`📊 Using CACHED year data for ${year} city=${cityId || 'all'}`);
+      if (!CACHE_DISABLED && cached && (Date.now() - cached.timestamp < 300000)) {
         return cached.data;
       }
 
       console.log(`📥 Fetching year data for ${year} city=${cityId || 'all'}`);
 
-      // Build optional store filter when a city is selected
-      let storeIds = null;
+      let cityStoreIds = null;
       if (cityId && cityId !== 'all') {
         const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId }, '', 50000);
-        storeIds = cityStores.map(s => s.id);
+        cityStoreIds = new Set((cityStores || []).map((store) => store.id));
       }
 
-      // Fetch reference data in parallel
-      // Deliveries: fetch only for the requested year using a paginated approach
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
 
-      const [stores, appUsers, patients, cities, appSettings] = await Promise.all([
+      const [storesRaw, appUsersRaw, patientsRaw, citiesRaw, appSettings, allYearDeliveriesRaw, allYearPayrollRaw] = await Promise.all([
         base44.asServiceRole.entities.Store.list('', 50000),
         base44.asServiceRole.entities.AppUser.list('', 50000),
         base44.asServiceRole.entities.Patient.list('', 50000),
         base44.asServiceRole.entities.City.list('', 50000),
-        base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
+        base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
+        fetchDateRangeRecords(base44.asServiceRole.entities.Delivery, 'delivery_date', yearStart, yearEnd, '-delivery_date'),
+        fetchDateRangeRecords(base44.asServiceRole.entities.Payroll, 'pay_period_start', yearStart, yearEnd, '-pay_period_start')
       ]);
 
-      // CRITICAL: SDK returns a raw string (not parsed JSON) when response > ~4MB
-      // This happens at around 2500+ deliveries. We must fetch in batches of 2000.
-      // Use filter() with date range, fetching month-by-month to stay under the 4MB limit.
-      const BATCH_SIZE = 2000;
-
-      console.log(`📥 Fetching deliveries for ${year} month-by-month...`);
-      const allYearDeliveries = [];
-      for (let month = 1; month <= 12; month++) {
-        const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-        const lastDay = new Date(year, month, 0).getDate();
-        const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-        
-        const monthDeliveries = await base44.asServiceRole.entities.Delivery.filter(
-          { delivery_date: { $gte: monthStart, $lte: monthEnd } },
-          '-delivery_date',
-          BATCH_SIZE
-        );
-        
-        if (Array.isArray(monthDeliveries)) {
-          allYearDeliveries.push(...monthDeliveries);
-          if (monthDeliveries.length > 0) {
-            console.log(`  📦 Month ${month}: ${monthDeliveries.length} deliveries`);
-          }
-        } else {
-          console.warn(`  ⚠️ Month ${month}: response was not an array (type=${typeof monthDeliveries})`);
-        }
+      let deliveries = dedupeById(allYearDeliveriesRaw || []);
+      if (cityStoreIds) {
+        deliveries = deliveries.filter((delivery) => cityStoreIds.has(delivery.store_id));
       }
-      console.log(`📦 Total deliveries fetched for ${year}: ${allYearDeliveries.length}`);
 
-      // Fetch payroll records (usually small)
-      console.log(`📥 Fetching payroll records for ${year}...`);
-      const allYearPayroll = await base44.asServiceRole.entities.Payroll.filter(
-        { pay_period_start: { $gte: yearStart, $lte: yearEnd } },
-        '-pay_period_start',
-        BATCH_SIZE
-      );
-      const payrollArr = Array.isArray(allYearPayroll) ? allYearPayroll : [];
-      console.log(`📦 Total payroll records fetched for ${year}: ${payrollArr.length}`);
+      const relevantStoreIds = new Set(deliveries.map((delivery) => delivery.store_id).filter(Boolean));
+      const relevantPatientIds = new Set(deliveries.map((delivery) => delivery.patient_id).filter(Boolean));
+      const relevantDriverIds = new Set(deliveries.map((delivery) => delivery.driver_id).filter(Boolean));
 
+      const stores = (storesRaw || [])
+        .filter((store) => relevantStoreIds.has(store.id) || !cityStoreIds)
+        .map((store) => pickFields(store, STORE_FIELDS));
+
+      const appUsers = (appUsersRaw || [])
+        .filter((appUserRecord) => appUserRecord?.app_roles?.includes('driver') || relevantDriverIds.has(appUserRecord.user_id))
+        .map((appUserRecord) => pickFields(appUserRecord, DRIVER_FIELDS));
+
+      const patients = (patientsRaw || [])
+        .filter((patient) => relevantPatientIds.has(patient.id))
+        .map((patient) => pickFields(patient, PATIENT_FIELDS));
+
+      const relevantCityIds = new Set(stores.map((store) => store.city_id).filter(Boolean));
+      const cities = (citiesRaw || [])
+        .filter((city) => relevantCityIds.has(city.id) || city.id === cityId)
+        .map((city) => pickFields(city, CITY_FIELDS));
+
+      const payrollRecords = dedupeById(allYearPayrollRaw || []);
       const appFeeRate = parseFloat(appSettings?.[0]?.setting_value?.app_fees_per_delivery) || 0;
-      
-      let deliveries = allYearDeliveries;
-      let payrollRecords = payrollArr;
-      
-      // Filter by stores if city is specified
-      if (storeIds && storeIds.length > 0) {
-        deliveries = deliveries.filter(d => d && storeIds.includes(d.store_id));
-      }
-
-      console.log(`📦 FINAL: ${deliveries.length} deliveries, ${payrollRecords.length} payroll records for year ${year}`);
 
       const data = {
-        deliveries,
+        deliveries: deliveries.map((delivery) => pickFields(delivery, DELIVERY_FIELDS)),
         stores,
         appUsers,
         patients,
@@ -134,11 +203,10 @@ Deno.serve(async (req) => {
       };
 
       statsCache.set(cacheKey, { data, timestamp: Date.now() });
-      console.log(`✅ Cached year data for ${year}: ${data.deliveries.length} deliveries`);
+      console.log(`✅ Year data ready for ${year}: ${data.deliveries.length} deliveries, ${data.payrollRecords.length} payroll records`);
       return data;
     };
 
-    // ─── Admin Metrics ──────────────────────────────────────────────────────────
     let adminMetrics = null;
     if (adminMetricsYear) {
       const yearData = await fetchYearData(adminMetricsYear, adminMetricsCityId);
@@ -154,56 +222,51 @@ Deno.serve(async (req) => {
       console.log(`✅ AdminMetrics processed for ${adminMetricsYear}`);
     }
 
-    // ─── Payroll Data ───────────────────────────────────────────────────────────
-    // Calculate aggregated totals per driver and store
     let payrollData = null;
     if (payrollYear) {
       const yearData = await fetchYearData(payrollYear, payrollCityId);
-      const drivers = yearData.appUsers.filter(au => au.app_roles && au.app_roles.includes('driver'));
+      const drivers = yearData.appUsers.filter((appUserRecord) => appUserRecord.app_roles && appUserRecord.app_roles.includes('driver'));
 
-      // Pre-calculate driver stats
       const driverStats = {};
-      drivers.forEach(driver => {
+      drivers.forEach((driver) => {
         driverStats[driver.user_id] = {
           total_deliveries: 0,
           total_after_hours_pickups: 0
         };
       });
 
-      // Pre-calculate store stats
       const storeStats = {};
-      yearData.stores.forEach(store => {
+      yearData.stores.forEach((store) => {
         storeStats[store.id] = {
           total_deliveries: 0,
           total_after_hours_pickups: 0
         };
       });
 
-      // Aggregate from deliveries
-      yearData.deliveries.forEach(d => {
-        if (!d || !d.delivery_date || !d.store_id) return;
+      yearData.deliveries.forEach((delivery) => {
+        if (!delivery || !delivery.delivery_date || !delivery.store_id) return;
 
-        const isValidDelivery = (d.status === 'completed' || d.status === 'failed') && d.patient_id;
-        const isAfterHoursPickup = d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled');
+        const isValidDelivery = (delivery.status === 'completed' || delivery.status === 'failed') && delivery.patient_id;
+        const isAfterHoursPickup = delivery.after_hours_pickup && (delivery.status === 'completed' || delivery.status === 'cancelled');
 
-        // Count by driver
-        if (d.driver_id) {
+        if (delivery.driver_id) {
           if (isValidDelivery) {
-            driverStats[d.driver_id] = driverStats[d.driver_id] || { total_deliveries: 0, total_after_hours_pickups: 0 };
-            driverStats[d.driver_id].total_deliveries++;
+            driverStats[delivery.driver_id] = driverStats[delivery.driver_id] || { total_deliveries: 0, total_after_hours_pickups: 0 };
+            driverStats[delivery.driver_id].total_deliveries++;
           }
           if (isAfterHoursPickup) {
-            driverStats[d.driver_id] = driverStats[d.driver_id] || { total_deliveries: 0, total_after_hours_pickups: 0 };
-            driverStats[d.driver_id].total_after_hours_pickups++;
+            driverStats[delivery.driver_id] = driverStats[delivery.driver_id] || { total_deliveries: 0, total_after_hours_pickups: 0 };
+            driverStats[delivery.driver_id].total_after_hours_pickups++;
           }
         }
 
-        // Count by store
-        if (isValidDelivery) {
-          storeStats[d.store_id].total_deliveries++;
-        }
-        if (isAfterHoursPickup) {
-          storeStats[d.store_id].total_after_hours_pickups++;
+        if (storeStats[delivery.store_id]) {
+          if (isValidDelivery) {
+            storeStats[delivery.store_id].total_deliveries++;
+          }
+          if (isAfterHoursPickup) {
+            storeStats[delivery.store_id].total_after_hours_pickups++;
+          }
         }
       });
 
@@ -217,14 +280,13 @@ Deno.serve(async (req) => {
         payrollRecords: yearData.payrollRecords,
         driverStats,
         storeStats,
-        // minimal counts to aid UI without filtering
         totals: {
           deliveries: yearData.deliveries.length,
           drivers: drivers.length,
           stores: yearData.stores.length
         }
       };
-      console.log(`✅ PayrollData for ${payrollYear}: ${payrollData.deliveries.length} deliveries, ${payrollData.payrollRecords.length} payroll records, driver stats calculated`);
+      console.log(`✅ PayrollData for ${payrollYear}: ${payrollData.deliveries.length} deliveries, ${payrollData.payrollRecords.length} payroll records`);
     }
 
     return Response.json({ adminMetrics, payrollData });
