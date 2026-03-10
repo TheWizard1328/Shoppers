@@ -516,14 +516,13 @@ export default function DeliveryForm({
   formData.cod_total_amount_required > 0 || formData.recurring),
   [formData]);
 
-  // CRITICAL: Done button only shows when there are staged items to process
-  // hasChanges tracks whether user has actually added/edited something (not just auto-loaded pending items)
+  // Footer button mode
   const buttonState = useMemo(() => {
     if (delivery) return 'update';
     if (editingStagedId) return 'updateStaged';
-    if ((stagedDeliveries.length > 0 || hasPendingDeletes) && !hasFormData) return 'done';
+    if ((stagedDeliveries.length > 0 || hasPendingDeletes) && !hasFormData && !(isPickupMode && !delivery && (selectedPickupOption || formData.store_id || formData.delivery_notes || formData.after_hours_pickup))) return 'done';
     return 'add';
-  }, [delivery, editingStagedId, stagedDeliveries.length, hasFormData, hasPendingDeletes]);
+  }, [delivery, editingStagedId, stagedDeliveries.length, hasFormData, hasPendingDeletes, isPickupMode, selectedPickupOption, formData.store_id, formData.delivery_notes, formData.after_hours_pickup]);
 
   const cancelButtonState = useMemo(() => hasFormData ? 'clear' : 'cancel', [hasFormData]);
 
