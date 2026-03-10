@@ -133,7 +133,7 @@ class LocationTracker {
    * Enhanced mobile device detection using centralized utility
    */
   isMobileDevice() {
-    return checkIsMobileDevice();
+    return checkIsMobileDevice() || this.locationProvider?.backgroundCapable === true;
   }
 
   /**
@@ -469,10 +469,24 @@ class LocationTracker {
 
   handleLocationSuccess(position) {
     const { latitude, longitude, accuracy } = position.coords;
+    const timestamp = position.timestamp || Date.now();
     console.log(`📍 [LocationTracker] GPS position received - lat: ${latitude.toFixed(6)}, lon: ${longitude.toFixed(6)}, accuracy: ${accuracy?.toFixed(0)}m`);
     // Note: watchPosition callback doesn't upload - heartbeat interval handles all uploads
     // This just stores the position for the interval to use
     this.lastPosition = { latitude, longitude, accuracy };
+
+    if (typeof window !== 'undefined') {
+      const detail = {
+        userId: this.currentUser?.id,
+        latitude,
+        longitude,
+        accuracy,
+        timestamp: new Date(timestamp).toISOString(),
+        source: this.locationProvider?.name || 'web'
+      };
+      window.dispatchEvent(new CustomEvent('driverPositionUpdated', { detail }));
+      window.dispatchEvent(new CustomEvent('driverLocationChanged', { detail }));
+    }
   }
 
   handleLocationError(error) {
