@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRouting";
+import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
 
 const FINISHED = ["completed", "failed", "cancelled", "returned"];
 
@@ -18,6 +19,96 @@ const makeFallback = (a, b) => {
     return [A, [A[0] + 0.0003, A[1] + 0.0003]];
   }
   return [A, B];
+};
+
+const getSegmentKey = (driverId, from, to) => {
+  if (!driverId || !from || !to) return null;
+  return `${driverId}_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
+};
+
+const getHereCacheKey = (from, to) => {
+  if (!from || !to) return null;
+  return `here_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
+};
+
+const getCachedPolyline = (key, memoryCache) => {
+  if (!key) return null;
+  const inMemory = memoryCache[key];
+  if (Array.isArray(inMemory) && inMemory.length > 1) return inMemory;
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const parsed = JSON.parse(cached);
+    return Array.isArray(parsed) && parsed.length > 1 ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+};
+
+const getLiveDriverMarker = (driverId, currentDriverMarker, driverLocations) => {
+  const currentId = currentDriverMarker?.driverId || currentDriverMarker?.driver_id;
+  if (currentId === driverId) return currentDriverMarker;
+  return (driverLocations || []).find((marker) => (marker?.driverId || marker?.driver_id) === driverId) || null;
+};
+
+const toMetersPoint = ({ lat, lng }, originLat) => {
+  const latFactor = 111320;
+  const lonFactor = 111320 * Math.cos((originLat * Math.PI) / 180);
+  return { x: lng * lonFactor, y: lat * latFactor };
+};
+
+const pointToSegmentDistanceMeters = (point, start, end) => {
+  const originLat = (point.lat + start.lat + end.lat) / 3;
+  const p = toMetersPoint(point, originLat);
+  const a = toMetersPoint(start, originLat);
+  const b = toMetersPoint(end, originLat);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(p.x - a.x, p.y - a.y);
+  }
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
+  const projX = a.x + t * dx;
+  const projY = a.y + t * dy;
+  return Math.hypot(p.x - projX, p.y - projY);
+};
+
+const pointToPolylineDistanceMeters = (point, polyline) => {
+  if (!point || !Array.isArray(polyline) || polyline.length < 2) return Infinity;
+  let minDistance = Infinity;
+  for (let i = 0; i < polyline.length - 1; i += 1) {
+    const start = { lat: Number(polyline[i][0]), lng: Number(polyline[i][1]) };
+    const end = { lat: Number(polyline[i + 1][0]), lng: Number(polyline[i + 1][1]) };
+    if (![start.lat, start.lng, end.lat, end.lng].every(Number.isFinite)) continue;
+    minDistance = Math.min(minDistance, pointToSegmentDistanceMeters(point, start, end));
+  }
+  return minDistance;
+};
+
+const buildBreadcrumbLine = (breadcrumbsValue, origin, current, sampleEvery = 5) => {
+  const originPoint = [Number(origin?.latitude), Number(origin?.longitude)];
+  const currentPoint = [Number(current?.latitude), Number(current?.longitude)];
+  if (!originPoint.every(Number.isFinite) || !currentPoint.every(Number.isFinite)) return [];
+
+  let breadcrumbs = [];
+  try {
+    const parsed = typeof breadcrumbsValue === 'string' ? JSON.parse(breadcrumbsValue) : breadcrumbsValue;
+    breadcrumbs = Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    breadcrumbs = [];
+  }
+
+  const sampled = breadcrumbs
+    .filter((_, index) => index % sampleEvery === 0)
+    .map((point) => [Number(point?.[0]), Number(point?.[1])])
+    .filter((point) => point.every(Number.isFinite));
+
+  const combined = [originPoint, ...sampled, currentPoint];
+  return combined.filter((point, index) => {
+    if (index === 0) return true;
+    const previous = combined[index - 1];
+    return Math.abs(previous[0] - point[0]) > 0.00001 || Math.abs(previous[1] - point[1]) > 0.00001;
+  });
 };
 
 export default function HereType1Polylines({
