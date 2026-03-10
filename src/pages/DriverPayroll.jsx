@@ -525,7 +525,6 @@ export default function DriverPayroll() {
 
   const refreshPayrollRecords = useCallback(async () => {
     if (!currentPeriod || !payrollData?.payrollRecords) {
-      console.log(`⚠️ [DriverPayroll] Cannot filter records - currentPeriod: ${!!currentPeriod}, payrollRecords: ${!!payrollData?.payrollRecords}`);
       return;
     }
     
@@ -534,19 +533,10 @@ export default function DriverPayroll() {
     const periodStart = toLocalYMD(currentPeriod.start);
     const periodEnd = toLocalYMD(currentPeriod.end);
     
-    console.log(`🔍 [DriverPayroll] Filtering payroll records for period:`, { periodStart, periodEnd, totalRecords: payrollData.payrollRecords.length });
-    console.log(`🔍 [DriverPayroll] Available records:`, payrollData.payrollRecords.map(r => ({
-      driver_id: r.driver_id?.slice(-4),
-      pay_period_start: r.pay_period_start,
-      pay_period_end: r.pay_period_end,
-      net_pay: r.net_pay
-    })));
-    
     const filtered = payrollData.payrollRecords.filter(r => 
       r.pay_period_start === periodStart && r.pay_period_end === periodEnd
     );
     
-    console.log(`📊 [DriverPayroll] Filtered payroll records: ${filtered.length} for period ${currentPeriod.label} (${periodStart} to ${periodEnd})`);
     setPayrollRecords(filtered);
   }, [currentPeriod, payrollData?.payrollRecords]);
 
@@ -713,7 +703,7 @@ export default function DriverPayroll() {
 
     fetchPayrollInFlightRef.current = runFetch();
     return fetchPayrollInFlightRef.current;
-  }, [selectedYear, currentUser, setSmartRefreshActivity]);
+  }, [selectedYear, currentUser, isPayrollPageActive, setSmartRefreshActivity]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -851,7 +841,6 @@ export default function DriverPayroll() {
           );
 
           targetIdx = anyUnfinalized ? prevIdx : idxClose;
-          console.log(`✅ [DriverPayroll Init] Checked ${periods[prevIdx].label} finalized? ${allFinalized}`);
         }
 
         determinedPeriodIndex = targetIdx;
@@ -860,8 +849,6 @@ export default function DriverPayroll() {
         console.warn('⚠️ [DriverPayroll] Could not read offline payroll records:', e);
       }
 
-      console.log(`✅ [DriverPayroll Init] Pre-computed: cycle=${determinedPayCycle}, period=${periods[determinedPeriodIndex]?.label} (index ${determinedPeriodIndex})`);
-      
       // Set all state at once to avoid double-renders
       setPayPeriod(determinedPayCycle);
       setSelectedPeriodIndex(determinedPeriodIndex);
@@ -873,7 +860,7 @@ export default function DriverPayroll() {
     };
 
     initFromOfflineData();
-  }, [currentUser, isDriver, hasInitialized, fetchPayroll]);
+  }, [currentUser, isDriver, hasInitialized, isPayrollPageActive, fetchPayroll]);
 
 
 
@@ -891,7 +878,6 @@ export default function DriverPayroll() {
     
     // Only update if live data disagrees with offline-based selection
     if (liveCycle && liveCycle !== payPeriod) {
-      console.log(`🔄 [DriverPayroll] Live data: updating pay cycle from ${payPeriod} to ${liveCycle}`);
       setPayPeriod(liveCycle);
       // Reset period selection so it recalculates for new cycle
       periodSelectionDoneWithRecordsRef.current = false;
@@ -971,7 +957,6 @@ export default function DriverPayroll() {
       if (!allFinalized) {
         targetIdx = prevIdx;
       }
-      console.log(`✅ [DriverPayroll] Live: previous ${allPeriods[prevIdx].label} finalized? ${allFinalized} — selecting ${allPeriods[targetIdx]?.label}`);
     }
 
     if (targetIdx !== selectedPeriodIndex) {
@@ -989,7 +974,6 @@ export default function DriverPayroll() {
     // Subscribe to Payroll changes only - refetch entire year on change
     try {
       const unsubPayroll = base44.entities.Payroll.subscribe((event) => {
-        console.log(`📡 [DriverPayroll] Payroll ${event.type}:`, event.id);
         // Force fresh fetch on payroll changes to get latest records
         fetchPayroll(true, true);
       });
@@ -1008,7 +992,7 @@ export default function DriverPayroll() {
         }
       });
     };
-  }, [hasInitialized, fetchPayroll]);
+  }, [hasInitialized, isPayrollPageActive, fetchPayroll]);
 
   // Real-time Delivery updates with 3s throttle, triggers background refresh and small indicator
   useEffect(() => {
@@ -1044,7 +1028,7 @@ export default function DriverPayroll() {
       }
       if (hideTimer) clearTimeout(hideTimer);
     };
-  }, [hasInitialized, fetchPayroll]);
+  }, [hasInitialized, isPayrollPageActive, fetchPayroll]);
 
   // 60s fallback polling
   useEffect(() => {
@@ -1059,7 +1043,7 @@ export default function DriverPayroll() {
       }
     }, 60000);
     return () => clearInterval(interval);
-  }, [hasInitialized, fetchPayroll]);
+  }, [hasInitialized, isPayrollPageActive, fetchPayroll]);
 
   // Filter payroll records when period changes (don't re-fetch since all year data is loaded)
   // CRITICAL: Uses refs to avoid redundant updates
@@ -1073,7 +1057,6 @@ export default function DriverPayroll() {
     if (lastFilteredPeriodRef.current === periodKey) return;
     
     lastFilteredPeriodRef.current = periodKey;
-    console.log(`🔄 [DriverPayroll] Filtering records for period: ${currentPeriod.label}`);
 
     // CRITICAL: Just filter, don't invalidate or re-fetch
     refreshPayrollRecords();
@@ -1086,7 +1069,6 @@ export default function DriverPayroll() {
     if (selectedPeriodIndex === 0) return; // Can't go back further
     if (triedPreviousPeriodRef.current) return; // Already tried going back
     
-    console.log(`⚠️ [DriverPayroll] No payroll data for current period, switching to previous...`);
     triedPreviousPeriodRef.current = true;
     setSelectedPeriodIndex(selectedPeriodIndex - 1);
   }, [payrollRecords, hasInitialized, selectedPeriodIndex]);

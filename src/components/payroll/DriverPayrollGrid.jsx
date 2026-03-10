@@ -166,7 +166,6 @@ export default function DriverPayrollGrid({
   // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
   const filteredDeliveries = useMemo(() => {
     if (!deliveries || !currentPeriod) {
-      console.log(`⚠️ [Payroll Grid Filter] Missing data - deliveries: ${!!deliveries}, currentPeriod: ${!!currentPeriod}`);
       return [];
     }
 
