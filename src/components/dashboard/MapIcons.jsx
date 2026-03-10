@@ -135,7 +135,7 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = fal
   return icon;
 };
 
-export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isMobile = false, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true, isOtherDriver = false, isFaded = false, isHighlightedFinished = false) => {
+export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isMobile = false, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true, isOtherDriver = false, isFaded = false, isHighlightedFinished = false, isAfterHours = false) => {
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextYellow = isNextDelivery && !isFinished && hasIncompleteStops;
   
@@ -173,7 +173,7 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
                 stroke-width="1.2"
                 style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));" />
           
-          <g transform="translate(12, 9)">
+          <g transform="translate(12, 9) ${isAfterHours ? 'rotate(45)' : ''}">
             <rect x="-2" y="-7" width="4" height="14" fill="${innerColor}" rx="1.5" />
             <rect x="-7" y="-2" width="14" height="4" fill="${innerColor}" rx="1.5" />
           </g>

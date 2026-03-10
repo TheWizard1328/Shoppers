@@ -52,7 +52,7 @@ export default function PickupMarkers({
 
     const icon = pickup.useSimpleCircle
       ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, pickup.isNextDelivery, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished)
-      : createStoreIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, currentZoom, pickup.duplicateCount, isMobile, isHighlighted, pickup.isNextDelivery, hasIncompleteStops, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished);
+      : createStoreIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, currentZoom, pickup.duplicateCount, isMobile, isHighlighted, pickup.isNextDelivery, hasIncompleteStops, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished, pickup.after_hours_pickup === true);
 
     const handlers = pickup.isOtherDriver ? {
       click: (e) => { L.DomEvent.stopPropagation(e); if (isPickupFaded) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id])); },
