@@ -189,22 +189,46 @@ export default function StopDetailsPanel({
   const isCompletionEditStatus = completionStatuses.includes(editableStatus);
 
   const handleApplyStatusTiming = async () => {
-    if (!canEdit || !onStatusUpdate) return;
+    if (!canEdit) return;
 
     setIsUpdating(true);
     try {
-      const extraData = {};
+      const timingUpdate = {};
 
       if (isActiveEditStatus) {
-        extraData.delivery_time_start = deliveryTimeStart || '';
-        extraData.delivery_time_end = deliveryTimeEnd || '';
+        timingUpdate.delivery_time_start = deliveryTimeStart || '';
+        timingUpdate.delivery_time_end = deliveryTimeEnd || '';
       }
 
       if (isCompletionEditStatus && completionTime && delivery?.delivery_date) {
-        extraData.actual_delivery_time = `${delivery.delivery_date}T${completionTime}:00`;
+        timingUpdate.actual_delivery_time = `${delivery.delivery_date}T${completionTime}:00`;
       }
 
-      await onStatusUpdate(delivery.id, editableStatus, extraData, true);
+      const statusChanged = editableStatus !== delivery.status;
+
+      if (statusChanged && typeof onStatusUpdate === 'function') {
+        await onStatusUpdate(delivery.id, editableStatus, {}, true);
+      }
+
+      if (!statusChanged || Object.keys(timingUpdate).length > 0) {
+        await base44.entities.Delivery.update(delivery.id, statusChanged ? timingUpdate : { status: editableStatus, ...timingUpdate });
+        window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+          detail: {
+            deliveryId: delivery.id,
+            updates: statusChanged ? timingUpdate : { status: editableStatus, ...timingUpdate },
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            source: 'stopDetailsPanel'
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            triggeredBy: 'stopDetailsPanel'
+          }
+        }));
+      }
     } finally {
       setIsUpdating(false);
     }
