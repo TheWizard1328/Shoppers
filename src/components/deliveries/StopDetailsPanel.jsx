@@ -41,6 +41,7 @@ import ImageViewer from "../common/ImageViewer";
 import BarcodeThumb from "./BarcodeThumb";
 import BarcodeOverlay from "./BarcodeOverlay";
 import { base44 } from "@/api/base44Client";
+import { calculateRealTimeETA } from "@/functions/calculateRealTimeETA";
 import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
 import { isRouteCompleted } from "../utils/routeCompletionChecker";
 
@@ -256,7 +257,7 @@ export default function StopDetailsPanel({
 
       const now = new Date();
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      await base44.functions.invoke('calculateRealTimeETA', {
+      await calculateRealTimeETA({
         driverId: delivery.driver_id,
         deliveryDate: delivery.delivery_date,
         currentLocalTime
