@@ -175,7 +175,7 @@ export default function StopDetailsPanel({
 
   const canEdit = currentUser && (
     currentUser.app_roles?.includes('driver') || 
-    currentUser.app_roles?.includes('dispatcher')
+    currentUser.app_roles?.includes('admin')
   );
   const canManageStop = currentUser &&
     (currentUser.app_roles?.includes('admin') || currentUser.app_roles?.includes('driver')) &&
