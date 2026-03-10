@@ -30,8 +30,7 @@ import {
   Image,
   FileSignature,
   Camera,
-  X,
-  X as XIcon
+  X
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
@@ -189,6 +188,7 @@ export default function StopDetailsPanel({
   const completionStatuses = ['completed', 'failed', 'cancelled'];
   const isActiveEditStatus = activeStatuses.includes(editableStatus);
   const isCompletionEditStatus = completionStatuses.includes(editableStatus);
+  const showDesktopClearButtons = typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches;
 
   const handleStatusChange = (value) => {
     const wasCompletionStatus = completionStatuses.includes(editableStatus);
@@ -248,6 +248,12 @@ export default function StopDetailsPanel({
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+      <style>{`
+        .stop-details-time-input-desktop::-webkit-calendar-picker-indicator {
+          opacity: 0;
+          pointer-events: none;
+        }
+      `}</style>
       {/* Header */}
       <div className="flex-shrink-0 p-4 border-b" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
         <div className="flex items-center gap-2">
@@ -453,7 +459,7 @@ export default function StopDetailsPanel({
                 <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                   Status & Timing
                 </p>
-                <div className={`grid gap-2 items-end ${isActiveEditStatus ? 'grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto]' : isCompletionEditStatus ? 'grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)_auto]'}`}>
+                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
 
                   <div className="min-w-0 w-full space-y-1">
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
@@ -490,14 +496,10 @@ export default function StopDetailsPanel({
                           Start
                         </Label>
                         <div className="relative">
-                          <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className="h-9 text-sm pr-9" style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'textfield' }} />
-                          {deliveryTimeStart && (
-                            <button
-                              type="button"
-                              onClick={() => setDeliveryTimeStart('')}
-                              className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                            >
-                              <XIcon className="w-4 h-4" />
+                          <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                          {showDesktopClearButtons && deliveryTimeStart && (
+                            <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
+                              <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
@@ -507,14 +509,10 @@ export default function StopDetailsPanel({
                           End
                         </Label>
                         <div className="relative">
-                          <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className="h-9 text-sm pr-9" style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'textfield' }} />
-                          {deliveryTimeEnd && (
-                            <button
-                              type="button"
-                              onClick={() => setDeliveryTimeEnd('')}
-                              className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                            >
-                              <XIcon className="w-4 h-4" />
+                          <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                          {showDesktopClearButtons && deliveryTimeEnd && (
+                            <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
+                              <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
@@ -523,23 +521,38 @@ export default function StopDetailsPanel({
                   )}
 
                   {isCompletionEditStatus && (
-                    <div className="min-w-0 w-full space-y-1">
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                        Completion
-                      </Label>
-                      <div className="relative">
-                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm pr-9" style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'textfield' }} />
-                        {completionTime && (
-                          <button
-                            type="button"
-                            onClick={() => setCompletionTime('')}
-                            className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                          >
-                            <XIcon className="w-4 h-4" />
+                    <>
+                      <div className="min-w-0 w-full space-y-1">
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                          Completion
+                        </Label>
+                        <div className="relative">
+                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                        {showDesktopClearButtons && completionTime && (
+                          <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
+                            <X className="w-4 h-4" />
                           </button>
                         )}
                       </div>
-                    </div>
+                      </div>
+                      <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
+                        <Label className="text-sm font-semibold">End</Label>
+                        <Input type="time" value="" readOnly className="h-9 text-sm" />
+                      </div>
+                    </>
+                  )}
+
+                  {!(isActiveEditStatus || isCompletionEditStatus) && (
+                    <>
+                      <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
+                        <Label className="text-sm font-semibold">Start</Label>
+                        <Input type="time" value="" readOnly className="h-9 text-sm" />
+                      </div>
+                      <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
+                        <Label className="text-sm font-semibold">End</Label>
+                        <Input type="time" value="" readOnly className="h-9 text-sm" />
+                      </div>
+                    </>
                   )}
 
                   <Button onClick={handleApplyStatusTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
