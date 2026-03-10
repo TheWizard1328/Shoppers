@@ -4,6 +4,7 @@ import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSett
 import { liveDistanceTracker } from './liveDistanceTracker';
 import { getCurrentDevice, updateDeviceLastActive } from './deviceManager';
 import { arrivalTimeDetector } from './arrivalTimeDetector';
+import { getLocationProvider } from './locationProviders';
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -45,6 +46,8 @@ class LocationTracker {
         this.backoffTime = 0;
         this.lastSuccessfulUpdate = 0;
         this.deviceCapabilities = null;
+        this.locationProvider = getLocationProvider();
+        this.isPrimaryDevice = false;
 
         // Event-driven updates tracking
         this._pendingEventUpdate = false;
@@ -141,55 +144,45 @@ class LocationTracker {
       return this.deviceCapabilities;
     }
 
-    if (!navigator.geolocation) {
+    const provider = getLocationProvider();
+    this.locationProvider = provider;
+
+    if (!provider.isAvailable()) {
       this.deviceCapabilities = {
         hasGeolocation: false,
         hasHighAccuracy: false,
-        error: 'Geolocation API not available'
+        error: 'Location provider not available'
       };
       return this.deviceCapabilities;
     }
 
-    return new Promise((resolve) => {
-      const timeoutId = setTimeout(() => {
-        this.deviceCapabilities = {
-          hasGeolocation: true,
-          hasHighAccuracy: false,
-          error: 'GPS test timed out'
-        };
-        resolve(this.deviceCapabilities);
-      }, 5000);
+    try {
+      const position = await provider.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0,
+        requestPermissions: true
+      });
+      const accuracy = position.coords.accuracy;
+      const hasHighAccuracy = accuracy && accuracy < 100;
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          clearTimeout(timeoutId);
-          const accuracy = position.coords.accuracy;
-          const hasHighAccuracy = accuracy && accuracy < 100;
-          
-          this.deviceCapabilities = {
-            hasGeolocation: true,
-            hasHighAccuracy: hasHighAccuracy,
-            accuracy: accuracy,
-            error: null
-          };
-          resolve(this.deviceCapabilities);
-        },
-        (error) => {
-          clearTimeout(timeoutId);
-          this.deviceCapabilities = {
-            hasGeolocation: true,
-            hasHighAccuracy: false,
-            error: error.message
-          };
-          resolve(this.deviceCapabilities);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 0
-        }
-      );
-    });
+      this.deviceCapabilities = {
+        hasGeolocation: true,
+        hasHighAccuracy,
+        accuracy,
+        error: null,
+        provider: provider.name
+      };
+    } catch (error) {
+      this.deviceCapabilities = {
+        hasGeolocation: true,
+        hasHighAccuracy: false,
+        error: error.message,
+        provider: provider.name
+      };
+    }
+
+    return this.deviceCapabilities;
   }
 
   calculateDistance(lat1, lon1, lat2, lon2) {
@@ -486,24 +479,22 @@ class LocationTracker {
     console.error('❌ Location error:', error);
 
     let errorMessage = 'Unknown location error';
-    switch (error.code) {
-      case error.PERMISSION_DENIED:
-        errorMessage = 'Location permission denied. Please enable location access in your browser settings.';
-        this.stopTracking();
-        break;
-      case error.POSITION_UNAVAILABLE:
-        errorMessage = 'Location information unavailable. Please check your device GPS.';
-        break;
-      case error.TIMEOUT:
-        errorMessage = 'Location request timed out. Retrying...';
-        break;
+    const errorCode = error?.code;
+
+    if (errorCode === 1 || errorCode === 'NOT_AUTHORIZED') {
+      errorMessage = 'Location permission denied. Please enable location access on your device.';
+      this.stopTracking();
+    } else if (errorCode === 2 || errorCode === 'POSITION_UNAVAILABLE') {
+      errorMessage = 'Location information unavailable. Please check your device GPS.';
+    } else if (errorCode === 3 || errorCode === 'TIMEOUT') {
+      errorMessage = 'Location request timed out. Retrying...';
     }
 
     window.dispatchEvent(new CustomEvent('locationTrackingError', {
-      detail: { message: errorMessage, code: error.code }
+      detail: { message: errorMessage, code: errorCode }
     }));
 
-    return { success: false, message: errorMessage, code: error.code };
+    return { success: false, message: errorMessage, code: errorCode };
   }
 
   async startTracking(user, deliveryDate = null) {
@@ -530,8 +521,10 @@ class LocationTracker {
 
     console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4})`);
 
-    if (!navigator.geolocation) {
-      throw new Error('Geolocation is not supported by this browser');
+    this.locationProvider = getLocationProvider();
+
+    if (!this.locationProvider.isAvailable()) {
+      throw new Error('Location services are not available on this device');
     }
 
     if (!navigator.onLine) {
@@ -595,107 +588,119 @@ class LocationTracker {
     }
 
     // CRITICAL: At this point isPrimaryDevice is confirmed true, proceed with GPS
-    return new Promise((resolve, reject) => {
-      console.log('📍 [PRIMARY DEVICE] Starting watchPosition with high accuracy GPS...');
-      this.watchId = navigator.geolocation.watchPosition(
-        async (position) => {
-          this.handleLocationSuccess(position);
+    return new Promise(async (resolve, reject) => {
+      try {
+        const providerName = (this.locationProvider?.name || 'web').toUpperCase();
+        console.log(`📍 [${providerName} PROVIDER] Starting location watch...`);
 
-          if (!this.isTracking) {
-            this.isTracking = true;
-            console.log('✅ [PRIMARY DEVICE] GPS watch established - uploading initial location now');
+        this.watchId = await this.locationProvider.watchPosition(
+          async (position) => {
+            this.handleLocationSuccess(position);
 
-            // CRITICAL: Upload initial location immediately on refresh/load
-            console.log('🚀 [PRIMARY DEVICE] Initial location upload:', {
-              lat: position.coords.latitude.toFixed(6),
-              lng: position.coords.longitude.toFixed(6),
-              accuracy: position.coords.accuracy?.toFixed(0) + 'm',
-              timestamp: new Date(position.timestamp).toISOString(),
-              appUserId: this.appUserId
-            });
+            if (!this.isTracking) {
+              this.isTracking = true;
+              console.log(`✅ [${providerName} PROVIDER] GPS watch established - uploading initial location now`);
 
-            await this.updateLocationInDatabase(
-              position.coords.latitude,
-              position.coords.longitude,
-              position.coords.accuracy,
-              true, // forceUpdate
-              false, // full update
-              true // isPrimaryDevice
-            );
+              console.log(`🚀 [${providerName} PROVIDER] Initial location upload:`, {
+                lat: position.coords.latitude.toFixed(6),
+                lng: position.coords.longitude.toFixed(6),
+                accuracy: position.coords.accuracy?.toFixed(0) + 'm',
+                timestamp: new Date(position.timestamp).toISOString(),
+                appUserId: this.appUserId
+              });
 
-            resolve();
-          }
-        },
-        (error) => {
-          console.error('❌ watchPosition error callback triggered:', error);
-          const result = this.handleLocationError(error);
-          
-          if (!this.isTracking) {
-            reject(result);
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      );
-
-      // Poll GPS every 15 seconds - guaranteed primary device at this point
-      this.heartbeatInterval = setInterval(() => {
-        if (this.isTracking) {
-          if (this.lastPosition) {
-            console.log('💓 [PRIMARY DEVICE] Poll interval - uploading location', {
-              lat: this.lastPosition.latitude.toFixed(6),
-              lng: this.lastPosition.longitude.toFixed(6),
-              accuracy: this.lastPosition.accuracy?.toFixed(0) + 'm',
-              appUserId: this.appUserId
-            });
-
-            this._pendingEventUpdate = false;
-            this.updateLocationInDatabase(
-              this.lastPosition.latitude,
-              this.lastPosition.longitude,
-              this.lastPosition.accuracy,
-              true, // forceUpdate - skip all checks
-              false, // full update with coordinates
-              true // isPrimaryDevice flag
-            );
-          } else {
-            // No GPS fix yet — try to get a fresh position directly
-            console.log('⏭️ [PRIMARY DEVICE] Poll: No cached GPS position - requesting fresh fix...');
-            if (navigator.geolocation) {
-              navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                  this.lastPosition = {
-                    latitude: pos.coords.latitude,
-                    longitude: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy
-                  };
-                  console.log('📍 [PRIMARY DEVICE] Got fresh GPS fix on demand:', this.lastPosition.latitude.toFixed(6), this.lastPosition.longitude.toFixed(6));
-                  this.updateLocationInDatabase(
-                    pos.coords.latitude,
-                    pos.coords.longitude,
-                    pos.coords.accuracy,
-                    true, false, true
-                  );
-                },
-                (err) => console.warn('⚠️ [PRIMARY DEVICE] On-demand GPS fix failed:', err.message),
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+              await this.updateLocationInDatabase(
+                position.coords.latitude,
+                position.coords.longitude,
+                position.coords.accuracy,
+                true,
+                false,
+                true
               );
+
+              resolve();
+            }
+          },
+          (error) => {
+            console.error('❌ watchPosition error callback triggered:', error);
+            const result = this.handleLocationError(error);
+
+            if (!this.isTracking) {
+              reject(result);
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+            requestPermissions: true,
+            distanceFilter: 0,
+            backgroundTitle: 'RxDeliver location tracking',
+            backgroundMessage: 'Tracking delivery location in the background.'
+          }
+        );
+
+        this.heartbeatInterval = setInterval(() => {
+          if (this.isTracking) {
+            if (this.lastPosition) {
+              console.log(`💓 [${providerName} PROVIDER] Poll interval - uploading location`, {
+                lat: this.lastPosition.latitude.toFixed(6),
+                lng: this.lastPosition.longitude.toFixed(6),
+                accuracy: this.lastPosition.accuracy?.toFixed(0) + 'm',
+                appUserId: this.appUserId
+              });
+
+              this._pendingEventUpdate = false;
+              this.updateLocationInDatabase(
+                this.lastPosition.latitude,
+                this.lastPosition.longitude,
+                this.lastPosition.accuracy,
+                true,
+                false,
+                true
+              );
+            } else {
+              console.log(`⏭️ [${providerName} PROVIDER] Poll: No cached GPS position - requesting fresh fix...`);
+              this.locationProvider.getCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0,
+                requestPermissions: true
+              }).then((pos) => {
+                this.lastPosition = {
+                  latitude: pos.coords.latitude,
+                  longitude: pos.coords.longitude,
+                  accuracy: pos.coords.accuracy
+                };
+                console.log(`📍 [${providerName} PROVIDER] Got fresh GPS fix on demand:`, this.lastPosition.latitude.toFixed(6), this.lastPosition.longitude.toFixed(6));
+                this.updateLocationInDatabase(
+                  pos.coords.latitude,
+                  pos.coords.longitude,
+                  pos.coords.accuracy,
+                  true,
+                  false,
+                  true
+                );
+              }).catch((err) => console.warn(`⚠️ [${providerName} PROVIDER] On-demand GPS fix failed:`, err.message));
             }
           }
-        }
-      }, this.updateInterval);
+        }, this.updateInterval);
 
-      console.log(`✅ [PRIMARY DEVICE] Location tracking started - uploads every ${this.updateInterval/1000}s`);
+        console.log(`✅ [${providerName} PROVIDER] Location tracking started - uploads every ${this.updateInterval/1000}s`);
+      } catch (error) {
+        console.error('❌ Failed to start location provider:', error);
+        reject(this.handleLocationError(error));
+      }
     });
   }
 
   stopTracking() {
     if (this.watchId !== null) {
-      navigator.geolocation.clearWatch(this.watchId);
+      const activeWatchId = this.watchId;
       this.watchId = null;
+      Promise.resolve(this.locationProvider?.clearWatch(activeWatchId)).catch((error) => {
+        console.warn('⚠️ [LocationTracker] Failed to clear location watch:', error?.message || error);
+      });
     }
     if (this.heartbeatInterval !== null) {
       clearInterval(this.heartbeatInterval);
@@ -865,6 +870,7 @@ class LocationTracker {
        backoffTime: this.backoffTime,
        isOnline: navigator.onLine,
        deviceCapabilities: this.deviceCapabilities,
+       providerName: this.locationProvider?.name || 'web',
        updateInterval: this.updateInterval,
        minDistanceChange: this.minDistanceChange
      };
