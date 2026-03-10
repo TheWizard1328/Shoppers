@@ -214,8 +214,7 @@ Deno.serve(async (req) => {
           windowEnd,
           serviceMinutes,
           waypointId: `destination${index + 1}`,
-          waypointLabel: delivery.stop_id || delivery.delivery_id || delivery.id,
-          beforeIds: []
+          waypointLabel: delivery.stop_id || delivery.delivery_id || delivery.id
         };
       })
       .filter((stop) => stop.lat != null && stop.lng != null && !Number.isNaN(stop.lat) && !Number.isNaN(stop.lng));
@@ -229,27 +228,6 @@ Deno.serve(async (req) => {
     );
 
     const nextDeliveryStop = stops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-
-    if (nextDeliveryStop) {
-      for (const stop of stops) {
-        if (stop.delivery.id !== nextDeliveryStop.delivery.id) {
-          nextDeliveryStop.beforeIds.push(stop.waypointId);
-        }
-      }
-    }
-
-    for (const stop of stops) {
-      if (!stop.isPickup && stop.delivery.puid) {
-        const pickupStop = pickupByStopId.get(stop.delivery.puid);
-        if (pickupStop && pickupStop.delivery.id !== stop.delivery.id) {
-          pickupStop.beforeIds.push(stop.waypointId);
-        }
-      }
-    }
-
-    for (const stop of stops) {
-      stop.beforeIds = [...new Set(stop.beforeIds)];
-    }
 
     const departureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
     const departureIso = buildLocalIso(deliveryDate, departureTime);
@@ -273,9 +251,6 @@ Deno.serve(async (req) => {
       const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
       if (accessConstraint) segments.push(accessConstraint);
       segments.push(`st:${Math.round(stop.serviceMinutes * 60)}`);
-      for (const beforeId of stop.beforeIds) {
-        segments.push(`before:${beforeId}`);
-      }
       params.set(stop.waypointId, segments.join(';'));
     }
 
@@ -327,11 +302,40 @@ Deno.serve(async (req) => {
       }, { status: 422 });
     }
 
+    const pickupItemByStopId = new Map(
+      orderedStops
+        .filter(({ stop }) => stop.isPickup && stop.delivery.stop_id)
+        .map((item) => [item.stop.delivery.stop_id, item])
+    );
+
+    const arrangedStops = [];
+    const arrangedIds = new Set();
+    const pushOrderedItem = (item) => {
+      if (!item || arrangedIds.has(item.stop.delivery.id)) return;
+      arrangedStops.push(item);
+      arrangedIds.add(item.stop.delivery.id);
+    };
+
+    if (nextDeliveryStop) {
+      const nextItem = orderedStops.find((item) => item.stop.delivery.id === nextDeliveryStop.delivery.id);
+      if (nextItem?.stop?.delivery?.puid) {
+        pushOrderedItem(pickupItemByStopId.get(nextItem.stop.delivery.puid));
+      }
+      pushOrderedItem(nextItem);
+    }
+
+    for (const item of orderedStops) {
+      if (item.stop.delivery.puid) {
+        pushOrderedItem(pickupItemByStopId.get(item.stop.delivery.puid));
+      }
+      pushOrderedItem(item);
+    }
+
     const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
     let stopOrderCounter = completedDeliveries.length;
     let assignedNextDeliveryStopOrder = null;
 
-    const deliveryUpdates = orderedStops.map(({ stop, waypoint }) => {
+    const deliveryUpdates = arrangedStops.map(({ stop, waypoint }) => {
       stopOrderCounter += 1;
       if (stop.delivery.isNextDelivery && assignedNextDeliveryStopOrder === null) {
         assignedNextDeliveryStopOrder = stopOrderCounter;
