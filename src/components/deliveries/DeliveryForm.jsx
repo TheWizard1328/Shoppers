@@ -3025,13 +3025,6 @@ export default function DeliveryForm({
             incompleteStatuses.includes(d.status)
           );
           if (incompleteDeliveries.length > 0) {
-            setTimeout(() => {
-              base44.functions.invoke('calculateRealTimeETA', {
-                driverId: formData.driver_id,
-                deliveryDate: formData.delivery_date
-              }).then(()=>console.log(`✅ [DeliveryForm] ETAs updated (bg) for ${incompleteDeliveries.length} incomplete stops`))
-              .catch((error)=>console.error('❌ [DeliveryForm] ETA update failed (bg):', error));
-            }, 0);
           }
         } catch (error) {
           console.error('❌ [DeliveryForm] ETA update setup failed:', error);
