@@ -324,10 +324,14 @@ Deno.serve(async (req) => {
 
     const orderedStops = stopWaypoints
       .map((waypoint) => {
-        const stop = stops.find((item) => item.waypointId === waypoint.id);
+        const stop = stops.find((item) => item.waypointId === waypoint.id || item.waypointLabel === waypoint.id);
         return stop ? { stop, waypoint } : null;
       })
       .filter(Boolean);
+
+    const unmatchedWaypointIds = stopWaypoints
+      .filter((waypoint) => !orderedStops.some((item) => item.waypoint.id === waypoint.id))
+      .map((waypoint) => waypoint.id);
 
     if (orderedStops.length !== stops.length) {
       return Response.json({
