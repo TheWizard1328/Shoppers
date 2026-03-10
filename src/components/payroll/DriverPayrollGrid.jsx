@@ -159,8 +159,6 @@ export default function DriverPayrollGrid({
     const targetCycle = payCycleMap[payPeriod];
     const matching = appUsers.filter(au => au?.pay_cycle_type === targetCycle);
 
-    console.log(`🔄 [PayCycle Filter] Pay period: ${payPeriod}, Drivers with matching cycle: ${matching.length}`);
-
     return matching.map(au => au.user_id).filter(Boolean);
   }, [appUsers, payPeriod]);
 
@@ -172,13 +170,6 @@ export default function DriverPayrollGrid({
       return [];
     }
 
-    console.log(`🔍 [Payroll Grid Filter] Input - Total deliveries: ${deliveries.length}, Period: ${currentPeriod.label}, Driver: ${selectedDriverId}`);
-
-    // Debug: Show unique driver IDs in the deliveries
-    const uniqueDriverIds = [...new Set(deliveries.map(d => d.driver_id).filter(Boolean))];
-    console.log(`   Available driver IDs in data:`, uniqueDriverIds);
-    console.log(`   Looking for driver ID: "${selectedDriverId}"`);
-    console.log(`   Match exists: ${uniqueDriverIds.includes(selectedDriverId)}`);
 
     // Determine which driver IDs to include
     const driverIdsToInclude = selectedDriverId === 'all' ? driversWithMatchingPayCycle : [selectedDriverId];
@@ -198,11 +189,6 @@ export default function DriverPayrollGrid({
       if (!d.patient_id && !d.after_hours_pickup) return false;
       return true;
     });
-
-    console.log(`✅ [Payroll Grid Filter] Filtered to ${filtered.length} deliveries`);
-    if (filtered.length > 0) {
-      console.log(`   Sample delivery:`, filtered[0]);
-    }
 
     return filtered;
   }, [deliveries, currentPeriod, selectedDriverId, driversWithMatchingPayCycle]);
@@ -238,10 +224,6 @@ export default function DriverPayrollGrid({
     const oversizedCountMap = {};
     const storeHasData = {};
     
-    console.log(`🔍 [Payroll Grid] Building data map for driver: ${selectedDriverId}`);
-    console.log(`   - Period: ${currentPeriod?.label}`);
-    console.log(`   - Filtered deliveries count: ${filteredDeliveries.length}`);
-    console.log(`   - All stores count: ${allSortedStores.length}`);
     
     periodDays.forEach(day => {
       const dateKey = format(day, 'yyyy-MM-dd');
@@ -272,9 +254,6 @@ export default function DriverPayrollGrid({
     const storesWithDataList = allSortedStores.filter(store => 
       store.status !== 'inactive'
     );
-
-    console.log(`   - Stores with data: ${Object.keys(storeHasData).length}`);
-    console.log(`   - Showing stores: ${storesWithDataList.length}`);
 
     return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, storesWithData: storesWithDataList };
   }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers, selectedDriverId, currentPeriod]);

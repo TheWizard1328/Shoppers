@@ -241,6 +241,7 @@ export default function DriverPayroll() {
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
+  const isPayrollPageActive = typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('driverpayroll');
 
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -653,7 +654,7 @@ export default function DriverPayroll() {
   const fullYearPayrollDataRef = useRef(null);
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
-    if (!currentUser) return;
+    if (!currentUser || !isPayrollPageActive) return;
 
     if (fetchPayrollInFlightRef.current) {
       return fetchPayrollInFlightRef.current;
@@ -750,15 +751,15 @@ export default function DriverPayroll() {
 
   // Trigger fetch when filters change (after initialization)
   useEffect(() => {
-    if (hasInitialized) {
+    if (hasInitialized && isPayrollPageActive) {
       fetchPayroll(false, false);
     }
-  }, [selectedYear, selectedCityId, hasInitialized, fetchPayroll]);
+  }, [selectedYear, selectedCityId, hasInitialized, isPayrollPageActive, fetchPayroll]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   // CRITICAL: Reads offline Payroll records to determine the correct pay cycle + period BEFORE rendering data
   useEffect(() => {
-    if (!currentUser || hasInitialized) return;
+    if (!currentUser || hasInitialized || !isPayrollPageActive) return;
 
     const initFromOfflineData = async () => {
       if (currentUser.city_id && !isDriver) {
@@ -981,7 +982,7 @@ export default function DriverPayroll() {
 
   // Subscribe to real-time websocket updates
   useEffect(() => {
-    if (!hasInitialized) return;
+    if (!hasInitialized || !isPayrollPageActive) return;
 
     const unsubscribers = [];
 
@@ -1011,7 +1012,7 @@ export default function DriverPayroll() {
 
   // Real-time Delivery updates with 3s throttle, triggers background refresh and small indicator
   useEffect(() => {
-    if (!hasInitialized) return;
+    if (!hasInitialized || !isPayrollPageActive) return;
     let isMounted = true;
     let lastRefreshTs = 0;
     let hideTimer = null;
@@ -1047,7 +1048,7 @@ export default function DriverPayroll() {
 
   // 60s fallback polling
   useEffect(() => {
-    if (!hasInitialized) return;
+    if (!hasInitialized || !isPayrollPageActive) return;
     const interval = setInterval(async () => {
       try {
         await fetchPayroll(true, true);
@@ -1096,6 +1097,8 @@ export default function DriverPayroll() {
   }, [selectedYear]);
 
   // Conditional rendering without early return to maintain hook order
+  if (!isPayrollPageActive) return null;
+
   return !currentUser ? (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
       <span className="text-lg text-slate-600">Please log in to view payroll</span>
