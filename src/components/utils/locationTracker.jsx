@@ -589,7 +589,7 @@ class LocationTracker {
 
     // Breadcrumb tracking
     this.lastBreadcrumbPosition = null;
-    this.minBreadcrumbDistance = 250; // 250 meters
+    this.minBreadcrumbDistance = 100; // 100 meters
 
     // Test GPS capabilities
     const capabilities = await this.checkGPSCapabilities();
