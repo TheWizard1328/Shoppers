@@ -339,6 +339,8 @@ Deno.serve(async (req) => {
         details: {
           requestedStops: stops.length,
           returnedStops: orderedStops.length,
+          unmatchedWaypointIds,
+          expectedWaypointIds: stops.map((stop) => ({ waypointId: stop.waypointId, waypointLabel: stop.waypointLabel })),
           response: hereData,
           usedTimeWindows
         }
