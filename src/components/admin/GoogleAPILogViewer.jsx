@@ -352,7 +352,7 @@ export default function GoogleAPILogViewer() {
   }, []);
 
   const handleClearLogs = async () => {
-    if (!window.confirm('Are you sure you want to clear all Google API logs? This cannot be undone.')) {
+    if (!window.confirm('Are you sure you want to clear all maps API logs? This cannot be undone.')) {
       return;
     }
 
@@ -371,7 +371,7 @@ export default function GoogleAPILogViewer() {
       
       // Reload logs
       await loadLogs();
-      alert('All Google API logs have been cleared.');
+      alert('All maps API logs have been cleared.');
     } catch (error) {
       console.error('Failed to clear logs:', error);
       alert('Failed to clear logs: ' + (error.message || 'Please try again.'));
@@ -385,9 +385,9 @@ export default function GoogleAPILogViewer() {
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <CardTitle className="text-2xl font-bold text-slate-900">Google API Call Log</CardTitle>
+            <CardTitle className="text-2xl font-bold text-slate-900">Maps API Usage Log</CardTitle>
             <p className="text-sm text-slate-600 mt-1">
-              Real-time monitoring of Google Maps API calls
+              Real-time monitoring of Google and HERE API usage totals
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -499,12 +499,12 @@ export default function GoogleAPILogViewer() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="Directions">Directions</SelectItem>
-                    <SelectItem value="Directions (HERE)">Directions (HERE)</SelectItem>
-                    <SelectItem value="Distance Matrix">Distance Matrix</SelectItem>
-                    <SelectItem value="Places Autocomplete">Places Autocomplete</SelectItem>
-                    <SelectItem value="Place Details">Place Details</SelectItem>
-                    <SelectItem value="Geocoding">Geocoding</SelectItem>
+                    <SelectItem value="Google Directions">Google Directions</SelectItem>
+                    <SelectItem value="HERE Directions">HERE Directions</SelectItem>
+                    <SelectItem value="Google Distance Matrix">Google Distance Matrix</SelectItem>
+                    <SelectItem value="Google Places Autocomplete">Google Places Autocomplete</SelectItem>
+                    <SelectItem value="Google Place Details">Google Place Details</SelectItem>
+                    <SelectItem value="Google Geocoding">Google Geocoding</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -544,8 +544,8 @@ export default function GoogleAPILogViewer() {
             <div className="text-2xl font-bold text-blue-900">{stats.today}</div>
           </div>
           <div className="bg-green-50 rounded-lg p-4">
-            <div className="text-sm text-green-600 mb-1">Filtered Results</div>
-            <div className="text-2xl font-bold text-green-900">{filteredLogs.length}</div>
+            <div className="text-sm text-green-600 mb-1">Filtered Calls</div>
+            <div className="text-2xl font-bold text-green-900">{sumApiLogCalls(filteredLogs)}</div>
           </div>
           <div className="bg-purple-50 rounded-lg p-4">
             <div className="text-sm text-purple-600 mb-1">Unique Users</div>
@@ -664,16 +664,18 @@ export default function GoogleAPILogViewer() {
                 </thead>
                 <tbody>
                   {filteredLogs.map((log, index) => {
-                    const Icon = apiTypeIcons[log.api_type] || MapPin;
+                    const displayType = getApiLogDisplayType(log);
+                    const provider = getApiLogProvider(log);
+                    const Icon = apiTypeIcons[displayType] || MapPin;
                     return (
                       <tr key={log.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                         <td className="p-3 text-sm text-slate-700">
                           {format(new Date(log.timestamp), 'MMM dd, yyyy HH:mm:ss')}
                         </td>
                         <td className="p-3">
-                          <Badge className={`${apiTypeColors[log.api_type] || 'bg-gray-100 text-gray-800'} gap-1`}>
+                          <Badge className={`${apiTypeColors[displayType] || 'bg-gray-100 text-gray-800'} gap-1`}>
                             <Icon className="w-3 h-3" />
-                            {log.api_type}
+                            {displayType}
                           </Badge>
                         </td>
                         <td className="p-3 text-sm text-slate-700 max-w-xs truncate" title={log.purpose}>
@@ -686,6 +688,8 @@ export default function GoogleAPILogViewer() {
                           {log.user_name || 'Unknown'}
                         </td>
                         <td className="p-3 text-xs text-slate-600">
+                          <div>Provider: {provider.toUpperCase()}</div>
+                          <div>Calls: {getApiLogCallCount(log)}</div>
                           {log.metadata?.driver_id && (
                             <div>Driver: {log.metadata.driver_id.substring(0, 8)}...</div>
                           )}
@@ -713,7 +717,7 @@ export default function GoogleAPILogViewer() {
 
         {filteredLogs.length > 0 && (
           <div className="mt-4 text-sm text-slate-500 text-center">
-            Showing {filteredLogs.length} of {logs.length} API calls
+            Showing {filteredLogs.length} log entries totaling {sumApiLogCalls(filteredLogs)} API calls
           </div>
         )}
       </CardContent>
