@@ -670,8 +670,6 @@ function Dashboard() {
     checkPrimaryDevice();
   }, [currentUser?.id]);
 
-  useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
-
   // Track dynamically measured heights for map padding
   // CRITICAL: Start at 0, will be measured once cards render
   const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0);
@@ -1176,6 +1174,8 @@ function Dashboard() {
       totalPickups, activePickupsEnRoute, completedPickups
     };
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
+
+  useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
 
   const isDateFinished = useMemo(() => {
     const todayDate = startOfDay(new Date());
