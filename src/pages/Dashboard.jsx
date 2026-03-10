@@ -56,6 +56,7 @@ import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { reorderStops } from "@/components/utils/stopReorderer";
 import { recalculateAndUpdateStopOrders, updateNextDeliveryFlags } from "@/components/utils/stopOrderManager";
 import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
+import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import {
   notifyDriverStarted,
@@ -6935,6 +6936,25 @@ function Dashboard() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [forceRender, setForceRender] = useState(0);
 
+  useEffect(() => {
+    if (!showBreadcrumbs) return;
+    const refreshBreadcrumbs = async (event) => {
+      const { driverId, deliveryDate } = event.detail || {};
+      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+      const activeDate = format(selectedDate, 'yyyy-MM-dd');
+      if ((driverId && activeDriverId && driverId !== activeDriverId) || (deliveryDate && deliveryDate !== activeDate)) return;
+      setBreadcrumbsData(await loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsers));
+    };
+    window.addEventListener('deliveriesUpdated', refreshBreadcrumbs);
+    window.addEventListener('routeOptimizationComplete', refreshBreadcrumbs);
+    window.addEventListener('routeReordered', refreshBreadcrumbs);
+    return () => {
+      window.removeEventListener('deliveriesUpdated', refreshBreadcrumbs);
+      window.removeEventListener('routeOptimizationComplete', refreshBreadcrumbs);
+      window.removeEventListener('routeReordered', refreshBreadcrumbs);
+    };
+  }, [showBreadcrumbs, selectedDriverId, currentUser?.id, selectedDate, appUsers]);
+
   // Listen for pullToSyncDataReady events - full update regardless of current state
   useEffect(() => {
     const handlePullToSyncDataReady = async (event) => {
@@ -7587,35 +7607,15 @@ function Dashboard() {
                             const newShowBreadcrumbs = !showBreadcrumbs;
                             setShowBreadcrumbs(newShowBreadcrumbs);
                             if (!newShowBreadcrumbs) return setBreadcrumbsData({ historical: [], current: [] });
-                            try {
-                              const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                              const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                              const driverAppUser = (appUsers || []).find((user) => user?.user_id === driverIdToFetch) || (await base44.entities.AppUser.filter({ user_id: driverIdToFetch }))[0];
-                              const historicalBreadcrumbs = (deliveries || [])
-                                .filter((delivery) => delivery && delivery.driver_id === driverIdToFetch && delivery.delivery_date === selectedDateStr && delivery.delivery_route_breadcrumbs)
-                                .map((delivery) => {
-                                  try {
-                                    const breadcrumbs = JSON.parse(delivery.delivery_route_breadcrumbs);
-                                    return Array.isArray(breadcrumbs) && breadcrumbs.length ? { id: delivery.id, driver_id: delivery.driver_id, breadcrumbs } : null;
-                                  } catch {
-                                    return null;
-                                  }
-                                })
-                                .filter(Boolean);
-                              const currentBreadcrumbRecord = driverAppUser?.id ? await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, driverAppUser.id) : null;
-                              const currentBreadcrumbs = Array.isArray(currentBreadcrumbRecord?.breadcrumbs)
-                                ? currentBreadcrumbRecord.breadcrumbs.map(([lat, lng, timestamp]) => ({ lat, lng, timestamp })).filter((point) => typeof point.lat === 'number' && typeof point.lng === 'number')
-                                : [];
-                              if (historicalBreadcrumbs.length === 0 && currentBreadcrumbs.length === 0) {
-                                toast.info('No breadcrumb trails available', { description: 'GPS trails appear after a stop is finished with tracking on' });
-                                setShowBreadcrumbs(false);
-                                return;
-                              }
-                              setBreadcrumbsData({ historical: historicalBreadcrumbs, current: currentBreadcrumbs });
-                            } catch (error) {
-                              console.error('❌ [Breadcrumbs] Failed to load:', error);
-                              setBreadcrumbsData({ historical: [], current: [] });
+                            const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                            const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                            const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selectedDateStr, appUsers);
+                            if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
+                              toast.info('No breadcrumb trails available', { description: 'GPS trails appear after a stop is finished with tracking on' });
+                              setShowBreadcrumbs(false);
+                              return;
                             }
+                            setBreadcrumbsData(loadedBreadcrumbs);
                           }}
                           className={`h-9 w-9 p-0 ${showBreadcrumbs ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                           style={!showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
