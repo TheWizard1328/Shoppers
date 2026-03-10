@@ -136,10 +136,11 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
             const isMessagingItem = item.action === 'messaging';
             const isActive = !isMessagingItem && currentPageName === item.page;
             const Icon = item.icon;
+            const visibleTabs = Math.min(navItems.length, 5);
             const sharedProps = {
-              className: 'flex flex-col items-center justify-center py-2 px-3 flex-shrink-0 transition-colors',
+              className: 'flex flex-col items-center justify-center py-2 px-2 flex-shrink-0 transition-colors',
               style: {
-                minWidth: `${100 / Math.min(navItems.length, 5)}vw`,
+                minWidth: `calc((100vw - 74px) / ${visibleTabs})`,
                 color: isActive ? '#10b981' : 'var(--text-slate-500)',
               },
             };
