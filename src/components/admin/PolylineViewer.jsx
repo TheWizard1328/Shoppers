@@ -70,6 +70,11 @@ const MapUpdater = ({ coordinates }) => {
   return null;
 };
 
+const getEdmontonDateFromTimestamp = (timestamp) => {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+};
+
 export default function PolylineViewer({ users = [] }) {
   const [polylines, setPolylines] = useState([]);
   const [breadcrumbs, setBreadcrumbs] = useState([]);
@@ -145,15 +150,30 @@ export default function PolylineViewer({ users = [] }) {
             setPolylines(sorted);
           }
         } else {
-          // Breadcrumbs view (online only)
           try {
-            const breadcrumbsData = await queueEntityRequest(
-              () => base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 250),
-              'Routes: DeliveryBreadcrumbs.list'
-            );
-            setBreadcrumbs(breadcrumbsData || []);
+            if (dataSource === 'online') {
+              const breadcrumbsData = await queueEntityRequest(
+                () => base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 250),
+                'Routes: DeliveryBreadcrumbs.list'
+              );
+              setBreadcrumbs(breadcrumbsData || []);
+            } else {
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              const pending = await offlineDB.getAll(offlineDB.STORES.PENDING_BREADCRUMBS);
+              const normalized = (pending || []).map((record) => ({
+                id: `pending-${record.driver_id}`,
+                storage_key: record.driver_id,
+                driver_id: record.driver_id,
+                coordinates: Array.isArray(record.breadcrumbs) ? record.breadcrumbs.map((point) => [point[0], point[1]]) : [],
+                point_count: Array.isArray(record.breadcrumbs) ? record.breadcrumbs.length : 0,
+                created_date: record.timestamp ? new Date(record.timestamp).toISOString() : null,
+                delivery_date: getEdmontonDateFromTimestamp(record.timestamp),
+                is_temp_offline: true,
+              }));
+              setBreadcrumbs(normalized);
+            }
           } catch (breadcrumbError) {
-            console.warn('⚠️ [PolylineViewer] DeliveryBreadcrumbs entity not available:', breadcrumbError.message);
+            console.warn('⚠️ [PolylineViewer] Breadcrumb data not available:', breadcrumbError.message);
             setBreadcrumbs([]);
           }
         }
@@ -224,6 +244,8 @@ export default function PolylineViewer({ users = [] }) {
     }));
   }, [polylines, breadcrumbs, users, viewMode]);
 
+  const activeItems = viewMode === 'polylines' ? filteredPolylines : filteredBreadcrumbs;
+
   // Remove any cached polyline keys (memory resets on reload; we clear localStorage keys here)
   const clearLocalCachesForPolyline = (rec) => {
     try {
@@ -241,7 +263,7 @@ export default function PolylineViewer({ users = [] }) {
 
    const handleSelectAll = (checked) => {
     if (checked) {
-      setSelectedPolylines(new Set(filteredPolylines.map(p => p.id)));
+      setSelectedPolylines(new Set(activeItems.map(item => item.id)));
     } else {
       setSelectedPolylines(new Set());
     }
@@ -261,7 +283,7 @@ export default function PolylineViewer({ users = [] }) {
 
   const handleDeleteSelected = async () => {
     if (selectedPolylines.size === 0) return;
-    if (!window.confirm(`Delete ${selectedPolylines.size} selected polyline(s)?`)) return;
+    if (!window.confirm(`Delete ${selectedPolylines.size} selected ${viewMode === 'polylines' ? 'route' : 'breadcrumb'} record(s)?`)) return;
 
     try {
       setIsDeleting(true);
@@ -273,24 +295,36 @@ export default function PolylineViewer({ users = [] }) {
       for (let i = 0; i < ids.length; i += CHUNK) {
         const batch = ids.slice(i, i + CHUNK);
         await Promise.all(batch.map(async (id) => {
-          const rec = polylines.find(p => p.id === id);
-          if (rec) clearLocalCachesForPolyline(rec);
-          // Delete online (ignore errors)
-          try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
-          // Delete offline (ignore errors)
-          try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
+          if (viewMode === 'polylines') {
+            const rec = polylines.find(p => p.id === id);
+            if (rec) clearLocalCachesForPolyline(rec);
+            try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
+            try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
+            return;
+          }
+
+          const rec = breadcrumbs.find(b => b.id === id);
+          if (dataSource === 'offline' && rec?.storage_key) {
+            try { await offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, rec.storage_key); } catch (_) {}
+          } else {
+            try { await base44.entities.DeliveryBreadcrumbs.delete(id); } catch (_) {}
+          }
         }));
         setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
         await new Promise(r => setTimeout(r, 100));
       }
 
-      const remaining = polylines.filter(p => !selectedPolylines.has(p.id));
-      setPolylines(remaining);
+      if (viewMode === 'polylines') {
+        setPolylines(polylines.filter(p => !selectedPolylines.has(p.id)));
+      } else {
+        setBreadcrumbs(breadcrumbs.filter(b => !selectedPolylines.has(b.id)));
+      }
       setSelectedPolylines(new Set());
       setSelectedPolyline(null);
+      setDecodedCoordinates([]);
     } catch (error) {
-      console.error('Error deleting polylines:', error);
-      alert('Failed to delete polylines: ' + error.message);
+      console.error('Error deleting route records:', error);
+      alert('Failed to delete route records: ' + error.message);
     } finally {
       setIsDeleting(false);
       setOpProgress({ total: 0, processed: 0, label: '' });
@@ -298,12 +332,12 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   const handleDeleteAll = async () => {
-    if (filteredPolylines.length === 0) return;
-    if (!window.confirm(`Delete all ${filteredPolylines.length} filtered polyline(s)? This cannot be undone.`)) return;
+    if (activeItems.length === 0) return;
+    if (!window.confirm(`Delete all ${activeItems.length} filtered ${viewMode === 'polylines' ? 'route' : 'breadcrumb'} record(s)? This cannot be undone.`)) return;
 
     try {
       setIsDeleting(true);
-      const ids = filteredPolylines.map(p => p.id);
+      const ids = activeItems.map(item => item.id);
       setOpProgress({ total: ids.length, processed: 0, label: 'Deleting filtered…' });
       const CHUNK = 50;
 
@@ -311,32 +345,44 @@ export default function PolylineViewer({ users = [] }) {
       for (let i = 0; i < ids.length; i += CHUNK) {
         const batch = ids.slice(i, i + CHUNK);
         await Promise.all(batch.map(async (id) => {
-          const rec = filteredPolylines.find(p => p.id === id) || polylines.find(p => p.id === id);
-          if (rec) clearLocalCachesForPolyline(rec);
-          // Delete online (ignore errors)
-          try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
-          // Delete offline (ignore errors)
-          try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
+          if (viewMode === 'polylines') {
+            const rec = filteredPolylines.find(p => p.id === id) || polylines.find(p => p.id === id);
+            if (rec) clearLocalCachesForPolyline(rec);
+            try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
+            try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
+            return;
+          }
+
+          const rec = filteredBreadcrumbs.find(b => b.id === id) || breadcrumbs.find(b => b.id === id);
+          if (dataSource === 'offline' && rec?.storage_key) {
+            try { await offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, rec.storage_key); } catch (_) {}
+          } else {
+            try { await base44.entities.DeliveryBreadcrumbs.delete(id); } catch (_) {}
+          }
         }));
         setOpProgress((p) => ({ ...p, processed: Math.min(i + CHUNK, ids.length) }));
         await new Promise(r => setTimeout(r, 100));
       }
 
-      const remaining = polylines.filter(p => !ids.includes(p.id));
-      setPolylines(remaining);
+      if (viewMode === 'polylines') {
+        setPolylines(polylines.filter(p => !ids.includes(p.id)));
+      } else {
+        setBreadcrumbs(breadcrumbs.filter(b => !ids.includes(b.id)));
+      }
       setSelectedPolylines(new Set());
       setSelectedPolyline(null);
+      setDecodedCoordinates([]);
     } catch (error) {
-      console.error('Error deleting all polylines:', error);
-      alert('Failed to delete polylines: ' + error.message);
+      console.error('Error deleting route records:', error);
+      alert('Failed to delete route records: ' + error.message);
     } finally {
       setIsDeleting(false);
       setOpProgress({ total: 0, processed: 0, label: '' });
     }
   };
 
-  const isAllSelected = filteredPolylines.length > 0 && selectedPolylines.size === filteredPolylines.length;
-  const isSomeSelected = selectedPolylines.size > 0 && selectedPolylines.size < filteredPolylines.length;
+  const isAllSelected = activeItems.length > 0 && selectedPolylines.size === activeItems.length;
+  const isSomeSelected = selectedPolylines.size > 0 && selectedPolylines.size < activeItems.length;
 
   return (
     <Card>
@@ -428,6 +474,81 @@ export default function PolylineViewer({ users = [] }) {
           </div>
         ) : (
           <>
+            <div className="flex items-center gap-2 mb-4 md:hidden">
+              <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Filter className="w-4 h-4" /> Controls
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-[80vh] overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle>Routes Controls</SheetTitle>
+                  </SheetHeader>
+                  <div className="space-y-4 pt-4">
+                    <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-full">
+                      <Button variant={viewMode === 'polylines' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('polylines')} className="flex-1 h-8">Polylines</Button>
+                      <Button variant={viewMode === 'breadcrumbs' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('breadcrumbs')} className="flex-1 h-8">Breadcrumbs</Button>
+                    </div>
+                    <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-full">
+                      <Button variant={dataSource === 'online' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('online')} className="flex-1 h-8">Online</Button>
+                      <Button variant={dataSource === 'offline' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('offline')} className="flex-1 h-8">Offline</Button>
+                    </div>
+                    <Select value={driverFilter} onValueChange={setDriverFilter}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="All Drivers" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Drivers</SelectItem>
+                        {availableDrivers.map(driver => <SelectItem key={driver.id} value={driver.id}>{driver.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full" />
+                    {(driverFilter !== 'all' || dateFilter) && <Button variant="outline" size="sm" onClick={() => { setDriverFilter('all'); setDateFilter(''); }}>Clear Filters</Button>}
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <Sheet open={showList} onOpenChange={setShowList}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <ChevronDown className="w-4 h-4" /> Records ({activeItems.length})
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-[80vh] p-0">
+                  <SheetHeader className="p-4 pb-2 border-b">
+                    <SheetTitle>{viewMode === 'polylines' ? 'Route Records' : 'Breadcrumb Records'}</SheetTitle>
+                  </SheetHeader>
+                  <div className="h-[calc(80vh-73px)] overflow-y-auto">
+                    {viewMode === 'polylines' ? filteredPolylines.slice(0, visibleCount).map((polyline) => (
+                      <div key={polyline.id} className={`p-3 border-b transition-colors ${selectedPolyline?.id === polyline.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-slate-50'}`}>
+                        <div className="flex items-start gap-2">
+                          <Checkbox checked={selectedPolylines.has(polyline.id)} onCheckedChange={(checked) => handleSelectPolyline(polyline.id, checked)} onClick={(e) => e.stopPropagation()} className="mt-1" />
+                          <div className="flex-1 cursor-pointer" onClick={() => { handlePolylineClick(polyline); setShowList(false); }}>
+                            <div className="font-medium text-sm mb-1">{getDriverName(polyline.driver_id)}</div>
+                            <div className="text-xs text-slate-600 space-y-1">
+                              <div>📅 {format(new Date(polyline.delivery_date + 'T00:00:00'), 'MMM d, yyyy')}</div>
+                              <div className="flex justify-between"><span>🕒 {polyline.estimated_duration_minutes?.toFixed(1) || '0'} min</span><span>📏 {polyline.estimated_distance_km?.toFixed(2) || '0'} km</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )) : filteredBreadcrumbs.slice(0, visibleCount).map((breadcrumb) => (
+                      <div key={breadcrumb.id} className={`p-3 border-b transition-colors ${selectedPolyline?.id === breadcrumb.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-slate-50'}`}>
+                        <div className="flex items-start gap-2">
+                          <Checkbox checked={selectedPolylines.has(breadcrumb.id)} onCheckedChange={(checked) => handleSelectPolyline(breadcrumb.id, checked)} onClick={(e) => e.stopPropagation()} className="mt-1" />
+                          <div className="flex-1 cursor-pointer" onClick={() => { setSelectedPolyline(breadcrumb); setDecodedCoordinates(breadcrumb.coordinates || []); setShowList(false); }}>
+                            <div className="font-medium text-sm mb-1">{getDriverName(breadcrumb.driver_id)}</div>
+                            <div className="text-xs text-slate-600 space-y-1">
+                              <div>📅 {breadcrumb.delivery_date ? format(new Date(breadcrumb.delivery_date + 'T00:00:00'), 'MMM d, yyyy') : 'No date'}</div>
+                              <div className="flex justify-between"><span>📍 {breadcrumb.point_count || breadcrumb.coordinates?.length || 0} points</span>{breadcrumb.is_temp_offline && <span className="text-amber-600">Offline Temp</span>}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+
             <div className="flex gap-3 mb-4 hidden md:flex">
               <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
                 <Button
@@ -503,9 +624,9 @@ export default function PolylineViewer({ users = [] }) {
               )}
             </div>
 
-            <div className="flex gap-4" style={{ height: '600px' }}>
+            <div className="flex flex-col md:flex-row gap-4" style={{ height: isMobile ? 'auto' : '600px' }}>
               {/* Left: List */}
-              <div className="w-1/3 border rounded-lg overflow-hidden flex flex-col disabled:opacity-50">
+              <div className="hidden md:flex md:w-1/3 border rounded-lg overflow-hidden flex-col disabled:opacity-50">
                 <div className="bg-slate-100 p-3 border-b flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -522,7 +643,7 @@ export default function PolylineViewer({ users = [] }) {
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  {viewMode === 'polylines' ? filteredPolylines.map((polyline) => (
+                  {viewMode === 'polylines' ? filteredPolylines.slice(0, visibleCount).map((polyline) => (
                     <div
                       key={polyline.id}
                       className={`p-3 border-b transition-colors ${
@@ -560,7 +681,7 @@ export default function PolylineViewer({ users = [] }) {
                         </div>
                       </div>
                     </div>
-                  )) : filteredBreadcrumbs.map((breadcrumb) => (
+                  )) : filteredBreadcrumbs.slice(0, visibleCount).map((breadcrumb) => (
                     <div
                       key={breadcrumb.id}
                       className={`p-3 border-b transition-colors ${
@@ -605,7 +726,7 @@ export default function PolylineViewer({ users = [] }) {
               </div>
 
               {/* Right: Map */}
-              <div className="flex-1 border rounded-lg overflow-hidden">
+              <div className="flex-1 border rounded-lg overflow-hidden h-[420px] md:h-auto">
                 {selectedPolyline && decodedCoordinates.length > 0 ? (
                   <MapContainer
                     center={decodedCoordinates[0]}
@@ -655,7 +776,7 @@ export default function PolylineViewer({ users = [] }) {
                   </MapContainer>
                 ) : (
                   <div className="h-full flex items-center justify-center bg-slate-50 text-slate-400">
-                    Select a polyline from the list to view it on the map
+                    Select a route record to view it on the map
                   </div>
                 )}
               </div>
