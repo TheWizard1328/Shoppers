@@ -61,7 +61,7 @@ export default function FABControls({
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
                   invalidateDeliveriesForDate(deliveryDate);
                   await refreshData();
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: currentUser.id, deliveryDate, triggeredBy: 'reoptimizeRoute' } }));
+                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: currentUser.id, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true } }));
                   setIsMapViewLocked(true); setMapViewTrigger(p => p + 1);
                   setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
                 } else { setOptimizationMessage(data?.error || 'Optimization failed'); setTimeout(() => setOptimizationMessage(null), 5000); }
