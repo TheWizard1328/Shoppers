@@ -285,6 +285,12 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                   id="deviceName"
                   value={newDeviceName}
                   onChange={(e) => setNewDeviceName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newDeviceName.trim() && !isSaving) {
+                      e.preventDefault();
+                      handleCreateNewDevice();
+                    }
+                  }}
                   placeholder="e.g., My iPhone 15 Pro"
                   className="placeholder:text-slate-500"
                   style={{ 
