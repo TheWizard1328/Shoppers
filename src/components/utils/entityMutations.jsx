@@ -375,8 +375,8 @@ export const createDelivery = async (deliveryData, options = {}) => {
     notifyMutation({ type: 'create', entity: 'Delivery', id: tempId, data: localDelivery });
 
     try {
-      // STEP 2: Create on backend (with sanitized data)
-      const backendDelivery = await base44.entities.Delivery.create(sanitizedData);
+      // STEP 2: Create on backend (with creator attached)
+      const backendDelivery = await base44.entities.Delivery.create(payloadWithCreator);
       console.log('☁️ [EntityMutations] Backend created:', backendDelivery.id);
       
       // STEP 3: Replace temp with real in IndexedDB
@@ -403,7 +403,7 @@ export const createDelivery = async (deliveryData, options = {}) => {
       return backendDelivery;
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery sync failed, queuing:', error.message);
-      await offlineDB.addPendingMutation({ operation: 'create', entity: 'Delivery', recordId: tempId, payload: sanitizedData });
+      await offlineDB.addPendingMutation({ operation: 'create', entity: 'Delivery', recordId: tempId, payload: payloadWithCreator });
       await restartSmartRefresh();
       return localDelivery;
     }
@@ -603,8 +603,8 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
     localDeliveries.forEach(d => notifyMutation({ type: 'create', entity: 'Delivery', id: d.id, data: d }));
 
     try {
-      // STEP 2: Create on backend (with sanitized data)
-      const backendDeliveries = await base44.entities.Delivery.bulkCreate(sanitizedDeliveriesData);
+      // STEP 2: Create on backend (with creator attached)
+      const backendDeliveries = await base44.entities.Delivery.bulkCreate(deliveriesWithCreator);
       console.log(`☁️ [EntityMutations] Backend created ${backendDeliveries.length} deliveries`);
       
       // STEP 3: Replace temps with real in IndexedDB
