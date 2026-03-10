@@ -41,6 +41,7 @@ import ImageViewer from "../common/ImageViewer";
 import BarcodeThumb from "./BarcodeThumb";
 import BarcodeOverlay from "./BarcodeOverlay";
 import { base44 } from "@/api/base44Client";
+import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
 
 const statusConfig = {
   pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700', label: 'Pending', icon: Clock },
@@ -244,14 +245,26 @@ export default function StopDetailsPanel({
             source: 'stopDetailsPanel'
           }
         }));
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: {
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date,
-            triggeredBy: 'stopDetailsPanel'
-          }
-        }));
       }
+
+      await recalculateAndUpdateStopOrders(delivery.driver_id, delivery.delivery_date);
+
+      const now = new Date();
+      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      await base44.functions.invoke('calculateRealTimeETA', {
+        driverId: delivery.driver_id,
+        deliveryDate: delivery.delivery_date,
+        currentLocalTime
+      });
+
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          triggeredBy: 'stopDetailsPanel'
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
       onClose?.();
     } finally {
