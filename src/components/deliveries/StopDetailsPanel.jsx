@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,7 @@ export default function StopDetailsPanel({
   const [viewingImage, setViewingImage] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [barcodePreview, setBarcodePreview] = useState(null);
+  const completionTimeRef = useRef(null);
   const [editableStatus, setEditableStatus] = useState(delivery?.status || 'pending');
   const [deliveryTimeStart, setDeliveryTimeStart] = useState(delivery?.delivery_time_start || '');
   const [deliveryTimeEnd, setDeliveryTimeEnd] = useState(delivery?.delivery_time_end || '');
@@ -187,6 +188,16 @@ export default function StopDetailsPanel({
   const completionStatuses = ['completed', 'failed', 'cancelled'];
   const isActiveEditStatus = activeStatuses.includes(editableStatus);
   const isCompletionEditStatus = completionStatuses.includes(editableStatus);
+
+  const handleStatusChange = (value) => {
+    const wasCompletionStatus = completionStatuses.includes(editableStatus);
+    const changingToCompletion = completionStatuses.includes(value) && !wasCompletionStatus;
+    setEditableStatus(value);
+    if (changingToCompletion) {
+      setCompletionTime(format(new Date(), 'HH:mm'));
+      setTimeout(() => completionTimeRef.current?.focus(), 50);
+    }
+  };
 
   const handleApplyStatusTiming = async () => {
     if (!canEdit) return;
@@ -446,7 +457,7 @@ export default function StopDetailsPanel({
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       {isPickup ? 'Pickup Status' : 'Delivery Status'}
                     </Label>
-                    <Select value={editableStatus} onValueChange={setEditableStatus} disabled={isUpdating}>
+                    <Select value={editableStatus} onValueChange={handleStatusChange} disabled={isUpdating}>
                       <SelectTrigger className="h-9">
                         <SelectValue />
                       </SelectTrigger>
@@ -492,7 +503,7 @@ export default function StopDetailsPanel({
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                         Completion
                       </Label>
-                      <Input type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                      <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
                     </div>
                   )}
 
