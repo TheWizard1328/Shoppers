@@ -5,7 +5,7 @@
 
 // CRITICAL: Use stable database name and version to prevent recreation
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
-const DB_VERSION = 7; // Incremented to add DRIVER_ROUTE_POLYLINES store
+const DB_VERSION = 8; // Incremented to add SQUARE_CATALOG_ITEMS store
 
 // Store names
 const STORES = {
@@ -15,6 +15,7 @@ const STORES = {
   CITIES: 'cities',
   STORES: 'stores',
   SQUARE_LOCATION_CONFIGS: 'square_location_configs',
+  SQUARE_CATALOG_ITEMS: 'square_catalog_items',
   SQUARE_TRANSACTIONS: 'square_transactions',
   DRIVER_OVERVIEW_STATS: 'driver_overview_stats',
   SYNC_STATUS: 'sync_status',
@@ -114,6 +115,14 @@ const openDatabase = () => {
         const configStore = db.createObjectStore(STORES.SQUARE_LOCATION_CONFIGS, { keyPath: 'id' });
         configStore.createIndex('square_location_id', 'square_location_id', { unique: false });
         configStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.SQUARE_CATALOG_ITEMS)) {
+        const squareCatalogStore = db.createObjectStore(STORES.SQUARE_CATALOG_ITEMS, { keyPath: 'id' });
+        squareCatalogStore.createIndex('delivery_id', 'delivery_id', { unique: false });
+        squareCatalogStore.createIndex('location_id', 'location_id', { unique: false });
+        squareCatalogStore.createIndex('status', 'status', { unique: false });
+        squareCatalogStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
       if (!db.objectStoreNames.contains(STORES.SQUARE_TRANSACTIONS)) {
