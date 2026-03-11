@@ -16,7 +16,7 @@ import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgres
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
-import { saveCatalogItemsOffline, savePaymentTransactionsOffline, getCatalogItemsOffline, getPaymentTransactionsOffline, clearSquareCODOfflineData, getSquareCODSyncStatus } from "@/components/utils/squareCODOfflineManager";
+import { saveCatalogItemsOffline, savePaymentTransactionsOffline, getCatalogItemsOffline, getPaymentTransactionsOffline, getSquareCODSyncStatus } from "@/components/utils/squareCODOfflineManager";
 
 export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
@@ -62,37 +62,46 @@ export default function SquareManagement() {
     };
   }, []);
 
+  const refreshSquareView = async (fallbackLocationIds = []) => {
+    const response = await base44.functions.invoke('squareGetCODData', {});
+    const data = response?.data || response || {};
+    const items = data.catalogItems || data.items || [];
+    const transactions = data.transactions || [];
+    const sold = transactions.filter(tx => ['completed', 'refunded'].includes(tx.status));
+
+    setCatalogItems(items);
+    setSoldCatalogItems(sold);
+    setAllTransactions(transactions);
+    setLocationIds(data.locationIds || fallbackLocationIds);
+
+    await Promise.all([
+      saveCatalogItemsOffline(items),
+      savePaymentTransactionsOffline(transactions),
+    ]);
+
+    return { items, transactions, sold, data };
+  };
+
   const syncFromSquare = async () => {
     setIsSyncing(true);
     setError(null);
     setBgSyncProgress({ stage: 'catalog_sync' });
 
     try {
-      await clearSquareCODOfflineData();
-
-      // Single call does everything: fetch deliveries, transactions, catalog, delete matched, create missing
       const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
       const data = response?.data || response || {};
 
       if (!data.success) throw new Error(data.error || 'Sync failed');
 
-      const items = data.items || [];
-      const sold = data.soldCatalogItems || [];
+      setBgSyncProgress({ stage: 'payments_sync' });
+      const { items } = await refreshSquareView(locationIds);
 
-      setCatalogItems(items);
-      setSoldCatalogItems(sold);
-      setAllTransactions(sold);
-      setLocationIds(data.locationIds || locationIds);
-
-      await Promise.all([
-        saveCatalogItemsOffline(items),
-        savePaymentTransactionsOffline(sold),
-      ]);
-
+      const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
+      const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
       const parts = [];
       parts.push(`${items.length} active items`);
-      if (data.createdCount > 0) parts.push(`+${data.createdCount} created`);
-      if (data.deletedCount > 0) parts.push(`-${data.deletedCount} deleted`);
+      if (createdCount > 0) parts.push(`+${createdCount} created`);
+      if (deletedCount > 0) parts.push(`-${deletedCount} deleted`);
       toast.success(`Square COD sync: ${parts.join(', ')}`);
 
       setBgSyncProgress({ stage: 'complete', detail: parts.join(', ') });
@@ -246,32 +255,24 @@ export default function SquareManagement() {
           }
         }
 
-        // Always fetch fresh data from API (single call does everything)
+        // Always fetch fresh data from API (sync first, then refresh UI from Square)
         setBgSyncProgress({ stage: 'catalog_sync' });
         try {
           const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
           const data = response?.data || response || {};
 
           if (data.success) {
-            const items = data.items || [];
-            const sold = data.soldCatalogItems || [];
-
-            setCatalogItems(items);
-            setSoldCatalogItems(sold);
-            setAllTransactions(sold);
-            setLocationIds(data.locationIds || syncedLocationIds);
-
-            await Promise.all([
-              saveCatalogItemsOffline(items),
-              savePaymentTransactionsOffline(sold)
-            ]);
+            setBgSyncProgress({ stage: 'payments_sync' });
+            const { items } = await refreshSquareView(syncedLocationIds);
 
             await loadSyncStatus();
 
+            const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
+            const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
             const detailParts = [
               `${items.length} items`,
-              data.createdCount > 0 ? `+${data.createdCount} created` : null,
-              data.deletedCount > 0 ? `-${data.deletedCount} deleted` : null,
+              createdCount > 0 ? `+${createdCount} created` : null,
+              deletedCount > 0 ? `-${deletedCount} deleted` : null,
             ].filter(Boolean).join(', ');
 
             setBgSyncProgress({ stage: 'complete', detail: detailParts });
