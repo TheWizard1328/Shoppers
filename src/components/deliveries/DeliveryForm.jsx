@@ -1127,9 +1127,7 @@ export default function DeliveryForm({
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
-    if (shouldAutoFocusFields) {
-      if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100);
-    }
+    if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100);
     
     // Resume location poller after operations complete
     driverLocationPoller.resume();
@@ -1991,9 +1989,7 @@ export default function DeliveryForm({
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
-    if (shouldAutoFocusFields) {
-      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-    }
+    if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
   }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption]);
 
   const handleUpdateStaged = useCallback(async () => {
@@ -2081,9 +2077,7 @@ export default function DeliveryForm({
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
-    if (shouldAutoFocusFields) {
-      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-    }
+    if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
   }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
   const handleBatchSave = useCallback(async () => {
@@ -3105,9 +3099,7 @@ export default function DeliveryForm({
     }));
     setSelectedPickupOption('');
     // Only auto-focus on desktop
-    if (shouldAutoFocusFields) {
-      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-    }
+    if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
   }, [shouldAutoFocusFields]);
 
   const handleCancelClick = useCallback(() => {
@@ -3210,9 +3202,7 @@ export default function DeliveryForm({
   }, [handleCancelClick, showCameraOverlay, stopCamera]);
 
   useEffect(() => {
-    if (!delivery && shouldAutoFocusFields) {
-      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-    }
+    if (!delivery && shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
   }, [delivery, shouldAutoFocusFields]);
 
   useEffect(() => {
