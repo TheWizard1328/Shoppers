@@ -148,7 +148,6 @@ Deno.serve(async (req) => {
       if (itemName) catalogByName.set(itemName, item);
     }
 
-    const pendingTransactions = (squareTransactions || []).filter((transaction) => transaction?.status === 'pending');
     const transactionsByItemName = new Map();
     const completedTransactionsByItemName = new Map();
 
@@ -171,9 +170,12 @@ Deno.serve(async (req) => {
       const catalogItem = catalogByName.get(itemName);
       const existingTransactions = transactionsByItemName.get(itemName) || [];
       const hasCompletedTransaction = completedTransactionsByItemName.has(itemName);
-      const isInactiveDelivery = INACTIVE_DELIVERY_STATUSES.has(delivery.status);
+      const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
+      const hasCashPayment = codPayments.some((payment) => payment?.type === 'Cash' && Number(payment?.amount || 0) > 0) || delivery.cod_payment_type === 'Cash';
+      const hasCardOrCheckPayment = codPayments.some((payment) => ['Debit', 'Credit', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0) || ['Debit', 'Credit', 'Check'].includes(delivery.cod_payment_type);
+      const shouldDeleteCatalogItem = !activeConfig || !store?.square_location_config_id || delivery.status === 'failed' || delivery.status === 'cancelled' || (delivery.status === 'completed' && !hasCashPayment);
 
-      if (!activeConfig || !store?.square_location_config_id || isInactiveDelivery) {
+      if (shouldDeleteCatalogItem) {
         if (catalogItem) {
           itemsToDelete.push(catalogItem.id);
         }
@@ -189,7 +191,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      if (hasCompletedTransaction) {
+      if (hasCompletedTransaction || hasCashPayment || hasCardOrCheckPayment) {
         continue;
       }
 
