@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle, Pane } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
@@ -1753,6 +1753,8 @@ export default function DeliveryMap({
         />
 
         <MapController onMapInteraction={onMapInteraction} onDoubleTap={onDoubleTap} currentZoom={currentZoom} setCurrentZoom={setCurrentZoom} setShowZoomOverlay={setShowZoomOverlay} zoomOverlayTimeoutRef={zoomOverlayTimeoutRef} setMapCenter={setMapCenter} setVisibleBounds={setVisibleBounds} setFannedLocationKey={setFannedLocationKey} />
+        <Pane name="routeBasePane" style={{ zIndex: 430 }} />
+        <Pane name="completedBreadcrumbPane" style={{ zIndex: 460 }} />
 
 
 

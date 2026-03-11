@@ -268,7 +268,7 @@ export default function HereType2Polylines({
             lineJoin: "round",
             lineCap: "round"
           }}
-          pane="overlayPane"
+          pane="routeBasePane"
         />
       );
     }

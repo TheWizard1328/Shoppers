@@ -4,7 +4,7 @@ import { getHerePolyline } from "../utils/hereRouting";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 const STORED_ROUTE_COLOR = "#16a34a";
-const BREADCRUMB_ROUTE_COLOR = "#2563eb";
+const BREADCRUMB_ROUTE_COLOR = "#39FF14";
 
 const isBlueHex = (hex) => {
   if (!hex || typeof hex !== "string" || !hex.startsWith("#") || hex.length < 7) return false;
@@ -258,7 +258,7 @@ export default function CompletedBreadcrumbPolylines({
             lineJoin: "round",
             lineCap: "round",
           }}
-          pane="overlayPane"
+          pane="completedBreadcrumbPane"
         />
       );
       return;
@@ -283,7 +283,7 @@ export default function CompletedBreadcrumbPolylines({
             lineJoin: "round",
             lineCap: "round",
           }}
-          pane="overlayPane"
+          pane="completedBreadcrumbPane"
         />
       );
     });
@@ -301,7 +301,7 @@ export default function CompletedBreadcrumbPolylines({
             opacity: Math.max(segment.opacity, 0.5),
             weight: 1,
           }}
-          pane="overlayPane"
+          pane="completedBreadcrumbPane"
         />
       );
     });

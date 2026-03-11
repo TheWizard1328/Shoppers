@@ -543,7 +543,7 @@ export default function HereType1Polylines({
               key={`type1-pre-home-${driverId}`}
               positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
               pathOptions={{ color: coords ? "#2563eb" : '#3b82f6', weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
-              pane="overlayPane"
+              pane="routeBasePane"
             />
           );
         }
@@ -578,7 +578,7 @@ export default function HereType1Polylines({
           key={`type1-next-remaining-${driverId}`}
           positions={hybrid.remainingCoords}
           pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.95, lineJoin: "round", lineCap: "round" }}
-          pane="overlayPane"
+          pane="routeBasePane"
         />
       );
       return;
@@ -607,7 +607,7 @@ export default function HereType1Polylines({
           key={`type1-next-${driverId}`}
           positions={coords || makeFallback(origin, destination)}
           pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
-          pane="overlayPane"
+          pane="routeBasePane"
         />
       );
     }
@@ -640,7 +640,7 @@ export default function HereType1Polylines({
           key={`type1-home-${driverId}`}
           positions={coords || makeFallback(lastCompleted, home)}
           pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
-          pane="overlayPane"
+          pane="routeBasePane"
         />
       );
     }
