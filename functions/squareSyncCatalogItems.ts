@@ -235,6 +235,7 @@ Deno.serve(async (req) => {
     );
 
     const storeById = new Map((stores || []).map((store) => [store.id, store]));
+    const deliveryById = new Map((deliveries || []).map((delivery) => [delivery.id, delivery]));
     const allSquareLocationIds = Array.from(new Set(
       (squareConfigs || [])
         .map((config) => config?.square_location_id)
@@ -492,6 +493,46 @@ Deno.serve(async (req) => {
       }
     }
 
+    const allTransactionsAfterSync = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000);
+    const lookbackStartMs = new Date(lookbackStartAt).getTime();
+    const staleTransactions = (allTransactionsAfterSync || []).filter((transaction) => {
+      const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
+      return Number.isFinite(transactionTime) && transactionTime < lookbackStartMs;
+    });
+
+    for (const transaction of staleTransactions) {
+      await base44.asServiceRole.entities.SquareTransaction.delete(transaction.id);
+    }
+
+    const activeTransactions = (allTransactionsAfterSync || [])
+      .filter((transaction) => !staleTransactions.some((stale) => stale.id === transaction.id))
+      .filter((transaction) => transaction?.status === 'pending' && transaction?.square_catalog_object_id);
+
+    const existingSquareCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
+    for (const record of existingSquareCatalogItems || []) {
+      await base44.asServiceRole.entities.SquareCatalogItems.delete(record.id);
+    }
+
+    if (activeTransactions.length > 0) {
+      await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(activeTransactions.map((transaction) => {
+        const delivery = deliveryById.get(transaction.delivery_id);
+        return {
+          square_catalog_object_id: transaction.square_catalog_object_id,
+          square_catalog_version: transaction.square_catalog_version || null,
+          item_name: transaction.item_name,
+          description: '',
+          amount: Number(transaction.amount || 0),
+          amount_cents: transaction.amount_cents || Math.round(Number(transaction.amount || 0) * 100),
+          delivery_id: transaction.delivery_id,
+          delivery_date: delivery?.delivery_date || null,
+          patient_id: transaction.patient_id || null,
+          store_id: transaction.store_id || null,
+          location_id: transaction.location_id || null,
+          status: 'active',
+        };
+      }));
+    }
+
     return Response.json({
       success: true,
       scanned_deliveries: relevantDeliveries.length,
@@ -502,6 +543,8 @@ Deno.serve(async (req) => {
       completed_transactions: Array.from(new Set(transactionsToComplete.filter(Boolean))).length,
       created_catalog_items: createdCount,
       updated_pending_transactions: updatedPendingCount,
+      pruned_transactions: staleTransactions.length,
+      synced_square_catalog_items: activeTransactions.length,
     });
   } catch (error) {
     console.error('❌ squareSyncCatalogItems failed:', error.message);

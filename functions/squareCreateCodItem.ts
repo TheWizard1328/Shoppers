@@ -201,6 +201,28 @@ Deno.serve(async (req) => {
         });
       }
 
+      const existingCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: deliveryId }).catch(() => []);
+      const catalogPayload = {
+        square_catalog_object_id: catalogObjectId,
+        square_catalog_version: catalogVersion,
+        item_name: itemName,
+        description: '',
+        amount: Number(codAmount || 0),
+        amount_cents: amountCents,
+        delivery_id: deliveryId,
+        delivery_date: deliveryDate || null,
+        patient_id: patientId || null,
+        store_id: storeId || null,
+        location_id: locationId,
+        status: 'active'
+      };
+
+      if (existingCatalogItems.length > 0) {
+        await base44.asServiceRole.entities.SquareCatalogItems.update(existingCatalogItems[0].id, catalogPayload);
+      } else {
+        await base44.asServiceRole.entities.SquareCatalogItems.create(catalogPayload);
+      }
+
       return Response.json({
         success: true,
         catalogObjectId,

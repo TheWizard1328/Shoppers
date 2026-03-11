@@ -59,6 +59,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    const squareCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 500).catch(() => []);
+    const matchingCatalogItems = (squareCatalogItems || []).filter((item) => {
+      return item.delivery_id === deliveryId || item.square_catalog_object_id === transaction.square_catalog_object_id;
+    });
+
+    await Promise.all(
+      matchingCatalogItems.map((item) => base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch(() => null))
+    );
+
     return Response.json({
       success: true,
       transactionId: transaction.id,
