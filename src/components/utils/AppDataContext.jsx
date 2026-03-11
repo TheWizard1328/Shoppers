@@ -194,6 +194,11 @@ export const AppDataProvider = ({ children, value }) => {
     return () => {
       unsubscribe();
       cityFilteredRealtimeSync.stop();
+      if (realtimeBatchTimerRef.current) {
+        clearTimeout(realtimeBatchTimerRef.current);
+        realtimeBatchTimerRef.current = null;
+      }
+      flushRealtimeBatch();
     };
   // CRITICAL: Only re-subscribe when user/city/date changes - NOT on every delivery/appUser update
   // Using refs above ensures callbacks always see latest data without triggering re-subscriptions
@@ -215,45 +220,64 @@ export const AppDataProvider = ({ children, value }) => {
       try {
         setIsProgressiveSyncing(true);
         const { offlineDB } = await import('./offlineDatabase');
+        const deliveryScopeKey = `date:${selectedDate}`;
 
         // 1) Load OFFLINE first in parallel
-        const [offlineDeliveries, offlineAppUsers] = await Promise.all([
+        const [offlineDeliveries, offlineAppUsers, deliveryCache, appUsersCache] = await Promise.all([
           offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate),
-          offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => [])
+          offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
+          offlineDB.getCacheValidation('Delivery', {
+            scopeKey: deliveryScopeKey,
+            maxAgeMs: selectedDate === new Date().toISOString().split('T')[0] ? 60 * 1000 : 10 * 60 * 1000,
+            allowEmpty: true
+          }),
+          offlineDB.getCacheValidation('AppUser', {
+            scopeKey: 'global',
+            maxAgeMs: 10 * 60 * 1000,
+            minRecordCount: 1
+          })
         ]);
 
         if (cancelled) return;
 
-        // Push offline deliveries to UI immediately (merge by date)
         if (Array.isArray(offlineDeliveries) && offlineDeliveries.length > 0 && value.updateDeliveriesLocally) {
           const other = (value.deliveries || []).filter(d => d && d.delivery_date !== selectedDate);
           value.updateDeliveriesLocally([...other, ...offlineDeliveries], true);
         }
-        // Push offline app users (merge-safe, never overwrite fresher in-memory data)
+
         if (Array.isArray(offlineAppUsers) && offlineAppUsers.length > 0) {
           await wrappedUpdateAppUsersLocally(offlineAppUsers, false);
         }
 
-        // 2) If offline missing or stale, fetch ONLINE progressively and persist
-        const needsOnline = !offlineDeliveries || offlineDeliveries.length === 0;
-        if (needsOnline) {
+        const shouldFetchDeliveries = !deliveryCache.isValid;
+        const shouldFetchAppUsers = !appUsersCache.isValid;
+
+        if (shouldFetchDeliveries || shouldFetchAppUsers) {
           const [onlineDeliveries, onlineAppUsers] = await Promise.all([
-            // Minimal online pull scoped by date to reduce rate limits
-            base44.entities.Delivery.filter({ delivery_date: selectedDate }),
-            base44.entities.AppUser.list().catch(() => [])
+            shouldFetchDeliveries ? base44.entities.Delivery.filter({ delivery_date: selectedDate }).catch(() => []) : Promise.resolve(null),
+            shouldFetchAppUsers ? base44.entities.AppUser.list().catch(() => []) : Promise.resolve(null)
           ]);
 
           if (cancelled) return;
 
-          // Save to offline and refresh UI once
-          if (onlineDeliveries && onlineDeliveries.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveries);
+          if (onlineDeliveries !== null) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveries || []);
+            await offlineDB.updateCacheSnapshot('Delivery', onlineDeliveries || [], {
+              scopeKey: deliveryScopeKey,
+              syncType: 'startup_full'
+            });
+
             const other2 = (value.deliveries || []).filter(d => d && d.delivery_date !== selectedDate);
-            value.updateDeliveriesLocally([...other2, ...onlineDeliveries], true);
+            value.updateDeliveriesLocally([...other2, ...(onlineDeliveries || [])], true);
           }
-          if (onlineAppUsers && onlineAppUsers.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, onlineAppUsers);
-            await wrappedUpdateAppUsersLocally(onlineAppUsers, false);
+
+          if (onlineAppUsers !== null) {
+            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, onlineAppUsers || []);
+            await offlineDB.updateCacheSnapshot('AppUser', onlineAppUsers || [], {
+              scopeKey: 'global',
+              syncType: 'startup_full'
+            });
+            await wrappedUpdateAppUsersLocally(onlineAppUsers || [], false);
           }
         }
       } catch (e) {
