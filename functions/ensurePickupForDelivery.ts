@@ -133,14 +133,15 @@ Deno.serve(async (req) => {
 
         console.log(`🔍 Ensuring pickup (store-scoped): store=${storeId}, date=${deliveryDate}, driver=${driverId}, primarySlot=${primarySlot}`);
 
-        // Fetch ALL pickups for this driver/date (AM + PM) for numbering purposes
-        const allPickups = await base44.entities.Delivery.filter({
+        // Fast path: only load pickups for this specific store first
+        const storePickups = (await base44.entities.Delivery.filter({
+            store_id: storeId,
             delivery_date: deliveryDate,
             driver_id: driverId
-        }, '-created_date', 150);
+        }, '-created_date', 50)).filter(p => !p.patient_id);
 
-        // Focus selection ONLY on this store
-        const storePickups = allPickups.filter(p => p.store_id === storeId && !p.patient_id);
+        // Load all driver/date pickups only if we actually need to create a new pickup number
+        let allPickups = null;
 
         // If skipReuseCheck is true (driver has 0 existing stops), skip all reuse logic and go straight to creation
         if (!skipReuseCheck) {
@@ -243,6 +244,12 @@ Deno.serve(async (req) => {
         const puid = generateShortStopId();
 
         // Compute pickup TR#: StoreAbbrev + (20 * total_unique_pickups_in_slot + (-20))
+        if (!allPickups) {
+            allPickups = await base44.entities.Delivery.filter({
+                delivery_date: deliveryDate,
+                driver_id: driverId
+            }, '-created_date', 150);
+        }
         const slotPickups = allPickups.filter(p => !p.patient_id && (p.ampm_deliveries || 'AM') === chosenSlot);
         const uniqueStoreCount = new Set(slotPickups.map(p => p.store_id)).size;
         const totalPickupsAfterCreate = uniqueStoreCount + 1; // include this new pickup
