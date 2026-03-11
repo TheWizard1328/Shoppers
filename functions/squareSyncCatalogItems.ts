@@ -286,7 +286,12 @@ Deno.serve(async (req) => {
       const signature = buildItemSignature(itemName, amountCents);
       let catalogItem = catalogBySignature.get(signature);
       const paidMatches = paidOrderItemsBySignature.get(signature) || [];
-      const isPaidByCatalogObjectId = catalogItem ? paidCatalogObjectIds.has(catalogItem.id) : false;
+      const catalogVariationIds = (catalogItem?.item_data?.variations || [])
+        .map((variation) => variation?.id)
+        .filter(Boolean);
+      const isPaidByCatalogObjectId = catalogItem
+        ? paidCatalogObjectIds.has(catalogItem.id) || catalogVariationIds.some((variationId) => paidCatalogObjectIds.has(variationId))
+        : false;
       const existingTransactions = transactionsBySignature.get(signature) || [];
       const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || delivery.status === 'failed' || delivery.status === 'cancelled';
 
