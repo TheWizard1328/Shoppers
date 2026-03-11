@@ -17,7 +17,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       timeZone: "America/Edmonton",
       year: "numeric",
       month: "2-digit",
-      day: "2-digit",
+      day: "2-digit"
     }).formatToParts(new Date());
     const y = p.find((x) => x.type === "year").value;
     const m = p.find((x) => x.type === "month").value;
@@ -37,7 +37,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       const { startISO, endISO } = getDayBoundsISO();
 
       const apiLogs = await base44.entities.GoogleAPILog.filter({
-        timestamp: { $gte: startISO, $lte: endISO },
+        timestamp: { $gte: startISO, $lte: endISO }
       });
 
       setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'google'));
@@ -75,7 +75,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
           🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
         </div>
       </div>
-      {showCompletedRouteControls && <div className="absolute top-4 right-4 z-[180] pointer-events-auto"><div className="rounded-xl border shadow-lg px-4 py-3 space-y-3 min-w-[280px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}><label className="flex items-start gap-3 cursor-pointer"><Checkbox checked={showRoutes} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowRoutes?.(checked === true)} className="mt-0.5" /><div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Polylines</div><div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Show stored polylines for the selected date and driver.</div></div></label><label className="flex items-start gap-3 cursor-pointer"><Checkbox checked={showBreadcrumbs} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(checked === true)} className="mt-0.5" /><div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Breadcrumbs</div><div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Show connected breadcrumbs for the selected date and driver.</div></div></label></div></div>}
-    </>
-  );
+      {showCompletedRouteControls && <div className="absolute top-4 right-4 z-[180] pointer-events-auto"><div className="rounded-xl border shadow-lg px-4 py-3 space-y-3 min-w-[180px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}><label className="flex items-start gap-3 cursor-pointer"><Checkbox checked={showRoutes} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowRoutes?.(checked === true)} className="mt-0.5" /><div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Polylines</div></div></label><label className="flex items-start gap-3 cursor-pointer"><Checkbox checked={showBreadcrumbs} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(checked === true)} className="mt-0.5" /><div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Breadcrumbs</div></div></label></div></div>}
+    </>);
+
 }
