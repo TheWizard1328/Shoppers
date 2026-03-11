@@ -75,6 +75,7 @@ const getInitialDefaultSettings = () => {
     notifications_vibration: true,
     sidebar_width: 240,
     right_panel_width: 350,
+    breadcrumbs_enabled: true,
     theme_preference: isMobile ? 'auto' : 'light'
   };
 };

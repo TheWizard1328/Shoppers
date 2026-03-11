@@ -24,7 +24,7 @@ const DEFAULT_SETTINGS = {
   respectTimeWindows: true,
   minimizeBacktracking: true,
   // Real-time tracking settings (admin only)
-  enableRouteDeviationDetection: false,
+  enableRouteDeviationDetection: true,
   routeDeviationThresholdMeters: 200,
   routeDeviationCooldownMinutes: 5,
   locationUpdateIntervalSeconds: 30,
