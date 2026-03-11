@@ -256,6 +256,10 @@ Deno.serve(async (req) => {
     const optimizationStartPosition = lockedNextStop
       ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng }
       : currentPosition;
+    const sequencedStops = stopsToSequence.map((stop, index) => ({
+      ...stop,
+      hereWaypointId: `destination${index + 1}`
+    }));
 
     const departureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
     const departureIso = buildLocalIso(deliveryDate, departureTime);
@@ -271,14 +275,10 @@ Deno.serve(async (req) => {
       params.set('improveFor', 'time');
       params.set('start', `driverStart;${optimizationStartPosition.lat},${optimizationStartPosition.lng}`);
 
-      for (const stop of stopsToSequence) {
+      for (const stop of sequencedStops) {
         const segments = [`${stop.waypointLabel};${stop.lat},${stop.lng}`];
-        if (includeTimeWindows) {
-          const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
-          if (accessConstraint) segments.push(accessConstraint);
-        }
-        segments.push(`st:${Math.round(stop.serviceMinutes * 60)}`);
-        params.set(stop.waypointId, segments.join(';'));
+...
+        params.set(stop.hereWaypointId, segments.join(';'));
       }
 
       const hereUrl = `https://wps.hereapi.com/v8/findsequence2?${params.toString()}`;
@@ -342,7 +342,7 @@ Deno.serve(async (req) => {
 
     const orderedStops = stopWaypoints
       .map((waypoint) => {
-        const stop = stops.find((item) => item.waypointId === waypoint.id || item.waypointLabel === waypoint.id);
+        const stop = sequencedStops.find((item) => item.hereWaypointId === waypoint.id || item.waypointLabel === waypoint.id);
         return stop ? { stop, waypoint } : null;
       })
       .filter(Boolean);
@@ -358,7 +358,7 @@ Deno.serve(async (req) => {
           requestedStops: stopsToSequence.length,
           returnedStops: orderedStops.length,
           unmatchedWaypointIds,
-          expectedWaypointIds: stopsToSequence.map((stop) => ({ waypointId: stop.waypointId, waypointLabel: stop.waypointLabel })),
+          expectedWaypointIds: sequencedStops.map((stop) => ({ waypointId: stop.hereWaypointId, waypointLabel: stop.waypointLabel })),
           response: hereData,
           usedTimeWindows
         }
