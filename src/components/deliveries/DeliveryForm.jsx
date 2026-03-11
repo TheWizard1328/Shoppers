@@ -2893,8 +2893,8 @@ export default function DeliveryForm({
           }
         }));
         
+        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
         // NOTE: updateDeliveryLocal already notifies mutation listeners immediately after local save
-        // The Layout component subscribes to these mutations and updates state instantly
       } else {
         await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
