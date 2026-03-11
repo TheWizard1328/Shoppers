@@ -1,6 +1,5 @@
 import React from 'react';
 import { Circle } from 'react-leaflet';
-import { getDriverColor } from './DeliveryMap';
 
 /**
  * Renders historical and real-time GPS breadcrumb trails on the map.
@@ -12,8 +11,7 @@ export default function MapBreadcrumbs({ breadcrumbsData, safeUsers }) {
   if (breadcrumbsData.historical && breadcrumbsData.historical.length > 0) {
     breadcrumbsData.historical.forEach((trail) => {
       if (!trail || !trail.breadcrumbs || !Array.isArray(trail.breadcrumbs)) return;
-      const trailDriver = safeUsers.find(u => u && u.id === trail.driver_id);
-      const color = trailDriver ? getDriverColor(trailDriver) : '#607D8B';
+      const color = '#39FF14';
 
       trail.breadcrumbs.forEach(([lat, lng], idx) => {
         if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
@@ -31,7 +29,7 @@ export default function MapBreadcrumbs({ breadcrumbsData, safeUsers }) {
 
   // Current/real-time breadcrumbs from offline database
   if (breadcrumbsData.current && breadcrumbsData.current.length > 0) {
-    const color = '#3B82F6';
+    const color = '#39FF14';
     breadcrumbsData.current.forEach((b, idx) => {
       if (!b || typeof b.lat !== 'number' || typeof b.lng !== 'number') return;
       circles.push(
