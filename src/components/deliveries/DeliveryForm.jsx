@@ -458,17 +458,17 @@ export default function DeliveryForm({
         delivery_stop_id: delivery.delivery_stop_id || "",
         stop_id: delivery.stop_id || "",
         puid: delivery.puid || "",
-        patient_name: delivery.patient_name || "",
-        patient_phone: delivery.patient_phone || "",
-        unit_number: delivery.unit_number || "",
-        store_phone: delivery.store_phone || "",
+        patient_name: patient?.full_name || delivery.patient_name || "",
+        patient_phone: patient?.phone || delivery.patient_phone || "",
+        unit_number: patient?.unit_number || delivery.unit_number || "",
+        store_phone: stores?.find((s) => s && s.id === finalStoreId)?.phone || delivery.store_phone || "",
         store_id: finalStoreId,
         ampm_deliveries: finalAmpm,
-        mailbox_ok: delivery.mailbox_ok || false,
-        call_upon_arrival: delivery.call_upon_arrival || false,
-        ring_bell: delivery.ring_bell || false,
-        dont_ring_bell: delivery.dont_ring_bell || false,
-        back_door: delivery.back_door || false,
+        mailbox_ok: patient?.mailbox_ok ?? delivery.mailbox_ok || false,
+        call_upon_arrival: patient?.call_upon_arrival ?? delivery.call_upon_arrival || false,
+        ring_bell: patient?.ring_bell ?? delivery.ring_bell || false,
+        dont_ring_bell: patient?.dont_ring_bell ?? delivery.dont_ring_bell || false,
+        back_door: patient?.back_door ?? delivery.back_door || false,
         signature_needed: delivery.signature_needed || false,
         fridge_item: delivery.fridge_item || false,
         oversized: delivery.oversized || false,
@@ -2361,14 +2361,6 @@ export default function DeliveryForm({
             delivery_instructions: updated.delivery_instructions || '',
             tracking_number: updated.tracking_number || '99',
             isNextDelivery: updated.isNextDelivery && !['completed','failed','cancelled','returned','pending'].includes(finalStatus),
-            patient_name: updated.patient_name || '',
-            patient_phone: updated.patient_phone || '',
-            unit_number: updated.unit_number || '',
-            mailbox_ok: updated.mailbox_ok || false,
-            call_upon_arrival: updated.call_upon_arrival || false,
-            ring_bell: updated.ring_bell || false,
-            dont_ring_bell: updated.dont_ring_bell || false,
-            back_door: updated.back_door || false,
             signature_needed: updated.signature_needed || false,
             fridge_item: updated.fridge_item || false,
             oversized: updated.oversized || false,
@@ -2502,10 +2494,8 @@ export default function DeliveryForm({
                 newStatus = 'in_transit';
               }
             }
-            return {
-              ...d,
-              status: newStatus
-            };
+            const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, ...deliveryPayload } = d;
+            return { ...deliveryPayload, status: newStatus };
           }
           return d;
         });
@@ -2831,7 +2821,7 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      const dataToSave = { ...formData };
+      const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, ...dataToSave } = { ...formData };
 
       if (dataToSave.cod_total_amount_required > 0) {
         dataToSave.cod_total_amount_required = dataToSave.cod_total_amount_required / 100;
