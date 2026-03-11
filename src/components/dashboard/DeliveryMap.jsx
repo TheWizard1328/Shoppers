@@ -1653,6 +1653,7 @@ export default function DeliveryMap({
     realtimeAppUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(4)}:${u?.current_longitude?.toFixed(4)}`).join('|'),
     isViewingCurrentDate,
     isDriverViewingSelfToday,
+    showBreadcrumbs,
     routeRenderKey // CRITICAL: Force recalculation when deliveries update
   ]);
   
