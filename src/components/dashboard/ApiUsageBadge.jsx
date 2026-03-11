@@ -55,12 +55,14 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0 }) {
     const onSmart = () => fetchCounts();
     window.addEventListener("smartRefreshComplete", onSmart);
 
-    // Periodic refresh every 5 minutes
-    const iv = setInterval(fetchCounts, 300000);
+    // Realtime refresh when API logs change
+    const unsubscribe = base44.entities.GoogleAPILog.subscribe(() => {
+      fetchCounts();
+    });
 
     return () => {
       clearTimeout(t);
-      clearInterval(iv);
+      unsubscribe();
       window.removeEventListener("smartRefreshComplete", onSmart);
     };
   }, []);
