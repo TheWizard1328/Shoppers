@@ -274,13 +274,23 @@ Deno.serve(async (req) => {
     }
 
     const transactionsBySignature = new Map();
+    const completedTransactionCatalogObjectIds = new Set();
+    const completedTransactionLocationSignatures = new Set();
     for (const transaction of squareTransactions || []) {
-      const signature = buildItemSignature(transaction?.item_name, transaction?.amount_cents);
+      const amountCents = transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100);
+      const signature = buildItemSignature(transaction?.item_name, amountCents);
       if (!normalizeText(transaction?.item_name)) continue;
       if (!transactionsBySignature.has(signature)) {
         transactionsBySignature.set(signature, []);
       }
       transactionsBySignature.get(signature).push(transaction);
+
+      if (['completed', 'refunded'].includes(transaction?.status)) {
+        if (transaction?.square_catalog_object_id) {
+          completedTransactionCatalogObjectIds.add(transaction.square_catalog_object_id);
+        }
+        completedTransactionLocationSignatures.add(buildLocationSignature(transaction?.item_name, amountCents, transaction?.location_id));
+      }
     }
 
     const itemsToDelete = [];
@@ -300,15 +310,20 @@ Deno.serve(async (req) => {
       ].filter(Boolean)));
       const variationIds = (item?.item_data?.variations || []).map((variation) => variation?.id).filter(Boolean);
       const matchedByCatalogObjectId = paidCatalogObjectIds.has(item.id) || variationIds.some((variationId) => paidCatalogObjectIds.has(variationId));
+      const matchedByCompletedTransactionId = completedTransactionCatalogObjectIds.has(item.id) || variationIds.some((variationId) => completedTransactionCatalogObjectIds.has(variationId));
       const matchedByLocationSignature = itemLocationIds.some((locationId) => paidOrderItemsByLocationSignature.has(buildLocationSignature(itemName, amountCents, locationId)));
+      const matchedByCompletedTransactionSignature = itemLocationIds.some((locationId) => completedTransactionLocationSignatures.has(buildLocationSignature(itemName, amountCents, locationId)));
 
-      if (matchedByCatalogObjectId || matchedByLocationSignature) {
+      if (matchedByCatalogObjectId || matchedByCompletedTransactionId || matchedByLocationSignature || matchedByCompletedTransactionSignature) {
         directlyMatchedCatalogItemIds.add(item.id);
         itemLocationIds.forEach((locationId) => {
           directlyMatchedLocationSignatures.add(buildLocationSignature(itemName, amountCents, locationId));
         });
         itemsToDelete.push(item.id);
-        console.log(`🧾 Directly matched paid catalog item ${itemName} via ${matchedByCatalogObjectId ? 'catalog_object_id' : 'location_name_amount_signature'}`);
+        const matchSource = matchedByCatalogObjectId || matchedByCompletedTransactionId
+          ? 'catalog_object_id'
+          : 'location_name_amount_signature';
+        console.log(`🧾 Directly matched paid catalog item ${itemName} via ${matchSource}`);
       }
     }
 
