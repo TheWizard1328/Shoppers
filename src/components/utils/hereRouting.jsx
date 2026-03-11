@@ -366,7 +366,6 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
         const coords = decodeGooglePolyline(rec.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
           memoryCache.set(cacheKey, coords);
-          try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
           return coords;
         }
       }
@@ -474,7 +473,6 @@ const deliveryDateSafe = deliveryDate || todayStr;
     if (coords) {
       console.info('[HERE][client] Route OK', { cacheKey, points: coords.length, shape: res?.data?.polyline_format === 'flexible' ? 'here-polyline' : Array.isArray(res?.data?.coordinates) ? 'coordinates' : 'polyline' });
       memoryCache.set(cacheKey, coords);
-      try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (e) { console.warn('Failed to save HERE polyline to localStorage', e); }
       try { backoffCache.delete(failKey); } catch (_) {}
 
       ensurePolylineSubscription();
