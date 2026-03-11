@@ -396,7 +396,6 @@ const deliveryDateSafe = deliveryDate || todayStr;
       const coords = decodeGooglePolyline(rec.encoded_polyline);
       if (Array.isArray(coords) && coords.length > 1) {
         memoryCache.set(cacheKey, coords);
-        try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
         try { await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]); } catch (_) {}
         return coords;
       }
