@@ -1,6 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { invalidate } from "../utils/dataManager";
-import { getHereEncodedPolyline } from "../utils/hereRouting";
+import { encodeGooglePolyline, getHereEncodedPolyline } from "../utils/hereRouting";
 
 export function getCurrentLocalTimeString(date = new Date()) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -58,6 +58,48 @@ export function getFinishedLegOrigin({ delivery, allDeliveries, driver, patients
   return { latitude: homeLatitude, longitude: homeLongitude };
 }
 
+function parseBreadcrumbPoints(deliveryRouteBreadcrumbs) {
+  if (!deliveryRouteBreadcrumbs) return [];
+
+  let parsed;
+  try {
+    parsed = typeof deliveryRouteBreadcrumbs === "string"
+      ? JSON.parse(deliveryRouteBreadcrumbs)
+      : deliveryRouteBreadcrumbs;
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed
+    .map((point) => {
+      if (Array.isArray(point)) {
+        return [Number(point[0]), Number(point[1])];
+      }
+      if (point && typeof point === "object") {
+        return [Number(point.latitude ?? point.lat), Number(point.longitude ?? point.lng ?? point.lon)];
+      }
+      return null;
+    })
+    .filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]));
+}
+
+function buildFinishedLegPoints(origin, breadcrumbPoints, destination) {
+  const routePoints = [
+    [Number(origin.latitude), Number(origin.longitude)],
+    ...breadcrumbPoints,
+    [Number(destination.latitude), Number(destination.longitude)]
+  ];
+
+  return routePoints.filter((point, index) => {
+    if (!Array.isArray(point) || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) return false;
+    if (index === 0) return true;
+    const previousPoint = routePoints[index - 1];
+    return !previousPoint || previousPoint[0] !== point[0] || previousPoint[1] !== point[1];
+  });
+}
+
 export async function getFinishedLegEncodedPolyline({
   delivery,
   allDeliveries,
@@ -71,6 +113,15 @@ export async function getFinishedLegEncodedPolyline({
   const origin = getFinishedLegOrigin({ delivery, allDeliveries, driver, patients, stores, finishedStatuses });
   const destination = getStopCoordinates(delivery, patient, store);
   if (!origin || !destination) return null;
+
+  const breadcrumbPoints = parseBreadcrumbPoints(delivery?.delivery_route_breadcrumbs);
+  if (breadcrumbPoints.length > 0) {
+    const finishedLegPoints = buildFinishedLegPoints(origin, breadcrumbPoints, destination);
+    if (finishedLegPoints.length > 1) {
+      return encodeGooglePolyline(finishedLegPoints);
+    }
+  }
+
   return await getHereEncodedPolyline(delivery.driver_id, origin, destination, delivery.delivery_date);
 }
 

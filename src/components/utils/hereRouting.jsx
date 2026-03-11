@@ -225,7 +225,7 @@ function encodeSigned(value) {
   encoded += String.fromCharCode(sgn + 63);
   return encoded;
 }
-function encodeGooglePolyline(points) {
+export function encodeGooglePolyline(points) {
   let lastLat = 0, lastLng = 0;
   let out = '';
   for (const [lat, lng] of points) {
