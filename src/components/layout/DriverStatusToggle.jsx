@@ -300,10 +300,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       } else if (newStatus === 'off_duty') {
         console.log('📍 [DriverStatusToggle] Going OFF DUTY - disabling location sharing...');
         updatePayload.location_tracking_enabled = false;
-        // Keep coordinates but clear timestamp to signal sharing is OFF
-        updatePayload.current_latitude = currentLat;
-        updatePayload.current_longitude = currentLng;
-        updatePayload.location_updated_at = null; // CRITICAL: Null timestamp = not sharing
+        updatePayload.current_latitude = null;
+        updatePayload.current_longitude = null;
+        updatePayload.location_updated_at = null;
       }
       
       // CRITICAL: Update AppUser entity IMMEDIATELY with all fields

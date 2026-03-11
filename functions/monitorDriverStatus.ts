@@ -55,6 +55,8 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.AppUser.update(appUser.id, {
         driver_status: 'off_duty',
         location_tracking_enabled: false,
+        current_latitude: null,
+        current_longitude: null,
         location_updated_at: null
       });
 

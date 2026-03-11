@@ -39,6 +39,8 @@ Deno.serve(async (req) => {
 
     if (newStatus === 'off_duty') {
       updateData.location_tracking_enabled = false;
+      updateData.current_latitude = null;
+      updateData.current_longitude = null;
       updateData.location_updated_at = null;
       console.log('📍 [setDriverStatus] Disabling location sharing for off duty');
     }
