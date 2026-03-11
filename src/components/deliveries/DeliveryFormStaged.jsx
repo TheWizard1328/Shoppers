@@ -243,7 +243,7 @@ export default function DeliveryFormStaged({
                          handleClearForm();
                        }
 
-                       if (!isMobileDevice) {
+                       if (shouldAutoFocusFields) {
                          setTimeout(() => patientSearchInputRef.current?.focus(), 100);
                        }
                      }
@@ -306,7 +306,7 @@ export default function DeliveryFormStaged({
               style={{ backgroundColor: '#059669', color: '#ffffff' }}
               onClick={() => {
                 confirmAddProjectedToStaged(projected);
-                if (!isMobileDevice) {
+                if (shouldAutoFocusFields) {
                   setTimeout(() => patientSearchInputRef.current?.focus(), 100);
                 }
               }}

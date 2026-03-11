@@ -54,7 +54,7 @@ export default function DeliveryFormView({
   highlightedPatientIndex, setHighlightedPatientIndex,
   selectedPatientIds, setSelectedPatientIds, isMultiSelectMode,
   patientSearchInputRef, addPatientButtonRef, patientNameInputRef,
-  shouldAutoFocusFields,
+  shouldAutoFocusFields = !isMobileDevice,
   isScanning, showCameraOverlay,
   handleSearchKeyDown, handlePatientSelect, handleAddSelectedPatients,
   handleDuplicatePatient, handleNewAddressPatient,
