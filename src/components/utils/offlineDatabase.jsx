@@ -1115,5 +1115,8 @@ export const offlineDB = {
   pruneDeliveriesOlderThan60Days,
   getSyncMetadata,
   updateSyncMetadata,
-  deduplicateDriverRoutePolylines
+  getCacheValidation,
+  updateCacheSnapshot,
+  deduplicateDriverRoutePolylines,
+  CACHE_SCHEMA_VERSION
 };
