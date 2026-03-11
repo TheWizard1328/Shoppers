@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      if (hasCompletedTransaction || hasCashPayment || hasCardOrCheckPayment) {
+      if (hasCompletedTransaction || hasCardOrCheckPayment) {
         continue;
       }
 
