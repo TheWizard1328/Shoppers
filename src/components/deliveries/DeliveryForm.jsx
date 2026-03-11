@@ -2016,18 +2016,6 @@ export default function DeliveryForm({
       return;
     }
 
-    const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
-
-    if (formData.patient_id) {
-      try {
-        await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
-      } catch (error) {
-        console.error('Failed to update patient:', error);
-        setError('Failed to update patient data. Delivery will still be updated.');
-      }
-    }
-
-    // Use existing distance_from_store if available, otherwise calculate
     let distanceFromStore = patient?.distance_from_store;
     if (distanceFromStore === null || distanceFromStore === undefined) {
       if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
@@ -2035,37 +2023,24 @@ export default function DeliveryForm({
       }
     }
 
-    setStagedDeliveries((prev) => prev.map((staged) => {
-      if (staged._tempId !== editingStagedId) return staged;
+    const selectedStaged = stagedDeliveries.find((staged) => staged._tempId === editingStagedId);
 
-      // CRITICAL: Preserve the original 'id' field if it exists (pending delivery)
-      // This ensures pending deliveries don't get re-saved as new when clicking Done
-      const updatedStaged = {
-        ...formData,
-        cod_total_amount_required: codAmount,
-        _tempId: editingStagedId,
-        _wasEdited: true, // Mark as explicitly edited by user
-        id: staged.id, // PRESERVE ORIGINAL ID
-        patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
-        store_name: store.name,
-        store_abbreviation: store.abbreviation,
-        distanceFromStore: distanceFromStore,
-        delivery_address: patient?.address || store.address,
-        // Ensure special flags are preserved
-        first_delivery: formData.first_delivery || false,
-        oversized: formData.oversized || false,
-        fridge_item: formData.fridge_item || false,
-        signature_needed: formData.signature_needed || false,
-        paid_km_override: formData.paid_km_override !== null && formData.paid_km_override !== undefined 
-          ? parseFloat(formData.paid_km_override.toFixed(2)) 
-          : null
-        };
-
-          return updatedStaged;
-    }));
+    if (selectedStaged?.id) {
+      const { persistPendingDeliveryUpdate } = await import('./persistPendingDeliveryUpdate');
+      const { stagedDelivery, deliveryId } = await persistPendingDeliveryUpdate({ selectedStaged, formData, patient, store, editingStagedId, distanceFromStore });
+      setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'pendingDeliveryImmediateUpdate' } }));
+    } else {
+      const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
+      if (formData.patient_id) {
+        try { await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData)); } catch (error) { console.error('Failed to update patient:', error); setError('Failed to update patient data. Delivery will still be updated.'); }
+      }
+      setStagedDeliveries((prev) => prev.map((staged) => staged._tempId !== editingStagedId ? staged : ({ ...formData, cod_total_amount_required: codAmount, _tempId: editingStagedId, _wasEdited: true, id: staged.id, patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)', store_name: store.name, store_abbreviation: store.abbreviation, distanceFromStore: distanceFromStore, delivery_address: patient?.address || store.address, first_delivery: formData.first_delivery || false, oversized: formData.oversized || false, fridge_item: formData.fridge_item || false, signature_needed: formData.signature_needed || false, paid_km_override: formData.paid_km_override !== null && formData.paid_km_override !== undefined ? parseFloat(formData.paid_km_override.toFixed(2)) : null })));
+      setHasChanges(true);
+    }
 
     // CRITICAL: Clear form completely after updating staged
-    setHasChanges(true);
     setError(null);
     setEditingStagedId(null);
     setSelectedPatient(null);
