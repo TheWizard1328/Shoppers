@@ -261,14 +261,22 @@ export default function StopDetailsPanel({
 
       const now = new Date();
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      try {
-        await calculateRealTimeETA({
-          driverId: delivery.driver_id,
-          deliveryDate: delivery.delivery_date,
-          currentLocalTime
-        });
-      } catch (error) {
-        console.warn('⚠️ [StopDetailsPanel] ETA refresh skipped:', error?.response?.status || error?.message || error);
+      const edmToday = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Edmonton',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(now);
+      if (delivery.delivery_date === edmToday) {
+        try {
+          await calculateRealTimeETA({
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            currentLocalTime
+          });
+        } catch (error) {
+          console.warn('⚠️ [StopDetailsPanel] ETA refresh skipped:', error?.response?.status || error?.message || error);
+        }
       }
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
