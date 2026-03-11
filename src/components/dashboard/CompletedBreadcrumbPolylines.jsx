@@ -55,21 +55,22 @@ const getCachedPolyline = (key, cache) => {
   }
 };
 
+const parseBreadcrumbPoints = (breadcrumbsValue) => {
+  try {
+    const parsed = typeof breadcrumbsValue === "string" ? JSON.parse(breadcrumbsValue) : breadcrumbsValue;
+    return (Array.isArray(parsed) ? parsed : [])
+      .map((point) => ({ latitude: Number(point?.[0]), longitude: Number(point?.[1]) }))
+      .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+  } catch (_) {
+    return [];
+  }
+};
+
 const parseBreadcrumbWaypoints = (breadcrumbsValue, start, end, sampleEvery = 10) => {
   if (!start || !end) return [];
 
-  let breadcrumbs = [];
-  try {
-    const parsed = typeof breadcrumbsValue === "string" ? JSON.parse(breadcrumbsValue) : breadcrumbsValue;
-    breadcrumbs = Array.isArray(parsed) ? parsed : [];
-  } catch (_) {
-    breadcrumbs = [];
-  }
-
-  const sampled = breadcrumbs
-    .filter((_, index) => index % sampleEvery === 0)
-    .map((point) => ({ latitude: Number(point?.[0]), longitude: Number(point?.[1]) }))
-    .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+  const sampled = parseBreadcrumbPoints(breadcrumbsValue)
+    .filter((_, index) => index % sampleEvery === 0);
 
   const combined = [start, ...sampled, end];
   return combined.filter((point, index) => {
@@ -123,6 +124,7 @@ export default function CompletedBreadcrumbPolylines({
 
         const start = { latitude: Number(fromStop.latitude), longitude: Number(fromStop.longitude) };
         const end = { latitude: Number(toStop.latitude), longitude: Number(toStop.longitude) };
+        const breadcrumbPoints = parseBreadcrumbPoints(toStop.delivery_route_breadcrumbs);
         const breadcrumbWaypoints = parseBreadcrumbWaypoints(toStop.delivery_route_breadcrumbs, start, end, 10);
 
         return {
@@ -135,6 +137,7 @@ export default function CompletedBreadcrumbPolylines({
           start,
           end,
           breadcrumbWaypoints,
+          hasAnyBreadcrumbs: breadcrumbPoints.length > 0,
           hasBreadcrumbs: breadcrumbWaypoints.length > 2,
         };
       }).filter(Boolean);
@@ -158,7 +161,7 @@ export default function CompletedBreadcrumbPolylines({
 
   const directSegmentLegs = useMemo(() => {
     return completedSegments
-      .filter((segment) => !segment.hasBreadcrumbs)
+      .filter((segment) => !segment.hasAnyBreadcrumbs)
       .map((segment) => ({
         id: `${segment.id}-direct`,
         driverId: segment.driverId,
@@ -198,7 +201,7 @@ export default function CompletedBreadcrumbPolylines({
   const renderedDots = [];
 
   completedSegments.forEach((segment) => {
-    if (!segment.hasBreadcrumbs) {
+    if (!segment.hasAnyBreadcrumbs) {
       const key = getLegKey(segment.start, segment.end);
       const coords = getCachedPolyline(key, cache);
       if (!coords) return;
@@ -219,6 +222,8 @@ export default function CompletedBreadcrumbPolylines({
       );
       return;
     }
+
+    if (!segment.hasBreadcrumbs) return;
 
     segment.breadcrumbWaypoints.slice(0, -1).forEach((from, index) => {
       const to = segment.breadcrumbWaypoints[index + 1];
