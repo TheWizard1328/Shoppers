@@ -948,6 +948,7 @@ export default function StopCard({
 
         await clearNextDeliveryFlags({
           driverDeliveries,
+          currentDelivery: delivery,
           currentDeliveryId: delivery.id,
           updateDeliveryLocal
         });
@@ -1740,6 +1741,7 @@ export default function StopCard({
 
                                   await clearNextDeliveryFlags({
                                     driverDeliveries: allDeliveries,
+                                    currentDelivery: delivery,
                                     currentDeliveryId: delivery.id,
                                     updateDeliveryLocal
                                   });

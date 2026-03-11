@@ -159,8 +159,15 @@ export function buildRetryDelivery(delivery, nextTrackingNumber) {
   return retryDelivery;
 }
 
-export async function clearNextDeliveryFlags({ driverDeliveries, currentDeliveryId, updateDeliveryLocal }) {
-  const activeNextStops = driverDeliveries.filter((d) => d.isNextDelivery && d.id !== currentDeliveryId);
+export async function clearNextDeliveryFlags({ driverDeliveries, currentDelivery, currentDeliveryId, updateDeliveryLocal }) {
+  const activeNextStops = driverDeliveries.filter((d) =>
+    d?.isNextDelivery &&
+    d.id !== currentDeliveryId &&
+    (!currentDelivery || (
+      d.driver_id === currentDelivery.driver_id &&
+      d.delivery_date === currentDelivery.delivery_date
+    ))
+  );
   await Promise.all(
     activeNextStops.map((d) => updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true }))
   );
