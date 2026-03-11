@@ -65,11 +65,30 @@ Deno.serve(async (req) => {
           return String(a.patient_name || '').localeCompare(String(b.patient_name || ''));
         });
 
-      linkedDeliveries.forEach((delivery, index) => {
-        const expectedTrackingNumber = `${abbreviation}${pickupBase + index + 1}`;
+      const reservedTrackingNumbers = new Set(
+        linkedDeliveries
+          .filter((delivery) => FINISHED_STATUSES.includes(delivery.status))
+          .map((delivery) => parseTrackingNumber(delivery.tracking_number))
+          .filter((value) => value !== null)
+      );
+
+      const activeLinkedDeliveries = linkedDeliveries.filter(
+        (delivery) => !FINISHED_STATUSES.includes(delivery.status)
+      );
+
+      let nextTrackingNumber = pickupBase + 1;
+
+      activeLinkedDeliveries.forEach((delivery) => {
+        while (reservedTrackingNumbers.has(nextTrackingNumber)) {
+          nextTrackingNumber += 1;
+        }
+
+        const expectedTrackingNumber = `${abbreviation}${nextTrackingNumber}`;
         if (delivery.tracking_number !== expectedTrackingNumber) {
           updates.push({ id: delivery.id, tracking_number: expectedTrackingNumber });
         }
+
+        nextTrackingNumber += 1;
       });
     }
 
