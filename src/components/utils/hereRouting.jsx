@@ -61,7 +61,7 @@ export const ensurePolylineSubscription = () => {
           try {
             if (rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null) {
               const key = `here_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`;
-              try { localStorage.removeItem(`${key}:fail_until`); } catch (_) {}
+              try { backoffCache.delete(`${key}:fail_until`); } catch (_) {}
             }
           } catch (_) {}
           // Offline de-dup for same segment (keep latest by updated_date/last_generated_at)
@@ -328,20 +328,6 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     return hit;
   }
 
-  // Check localStorage
-  try {
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      const coords = JSON.parse(cached);
-      console.debug('[HERE][client] localStorage cache hit', { cacheKey, points: coords?.length });
-      memoryCache.set(cacheKey, coords);
-      return coords;
-    } else {
-      console.debug('[HERE][client] localStorage miss', { cacheKey });
-    }
-  } catch (e) {
-    console.warn('[HERE][client] Failed to read HERE polyline from localStorage', e);
-  }
 
   // Early in-flight dedupe to prevent burst duplicates after cache purges
   if (fetchingKeys.has(cacheKey)) {
@@ -350,10 +336,6 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       let waited = 0;
       const iv = setInterval(() => {
         if (memoryCache.has(cacheKey)) { clearInterval(iv); resolve(memoryCache.get(cacheKey)); return; }
-        try {
-          const cached = localStorage.getItem(cacheKey);
-          if (cached) { clearInterval(iv); resolve(JSON.parse(cached)); return; }
-        } catch (_) {}
         if (!fetchingKeys.has(cacheKey) || waited > 6000) { clearInterval(iv); resolve(null); }
         waited += 150;
       }, 150);
