@@ -7749,10 +7749,7 @@ function Dashboard() {
       </div>
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
-        {/* Polyline API hits badge - App Owner only - fixed position */}
-        {currentUser && isAppOwner(currentUser) && (
-          <ApiUsageBadge currentUser={currentUser} stopCardsHeight={(deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0)} />
-        )}
+        {currentUser&&isAppOwner(currentUser)&&<ApiUsageBadge currentUser={currentUser} stopCardsHeight={(deliveriesWithStopOrder.length>0?stopCardsBaseHeight:0)} showRoutes={showRoutes} showBreadcrumbs={showBreadcrumbs} showCompletedRouteControls={!isMobile&&selectedDriverId!=='all'&&filteredDeliveries.length>0&&filteredDeliveries.every((delivery)=>delivery&&['completed','failed','cancelled','returned'].includes(delivery.status))} />}
 
         {/* Offline Sync Indicator - separate when stats card is in upper left corner */}
         {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
