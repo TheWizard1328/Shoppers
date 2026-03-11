@@ -253,7 +253,11 @@ export default function StopDetailsPanel({
         }));
       }
 
-      await recalculateAndUpdateStopOrders(delivery.driver_id, delivery.delivery_date);
+      try {
+        await recalculateAndUpdateStopOrders(delivery.driver_id, delivery.delivery_date);
+      } catch (error) {
+        console.warn('⚠️ [StopDetailsPanel] Stop order refresh skipped:', error?.message || error);
+      }
 
       const now = new Date();
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -264,8 +268,7 @@ export default function StopDetailsPanel({
           currentLocalTime
         });
       } catch (error) {
-        if (error?.response?.status !== 404) throw error;
-        console.warn('⚠️ [StopDetailsPanel] Skipping ETA refresh because driver location is not available yet');
+        console.warn('⚠️ [StopDetailsPanel] ETA refresh skipped:', error?.response?.status || error?.message || error);
       }
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
