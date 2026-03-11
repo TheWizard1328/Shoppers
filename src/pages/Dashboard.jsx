@@ -6901,17 +6901,17 @@ function Dashboard() {
     
     const preRenderSync = async () => {
       try {
-        // Purge junk offline records, then sync fresh
         const existing = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        const junk = (existing || []).filter(u => !u?.user_id || u.user_id === 'undefined');
-        if (junk.length > 0) {
-          const valid = (existing || []).filter(u => u?.user_id && u.user_id !== 'undefined');
+        const valid = (existing || []).filter(u => u?.user_id && u.user_id !== 'undefined');
+        if (valid.length !== (existing || []).length) {
           await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
           if (valid.length > 0) await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, valid);
         }
+        const cache = await offlineDB.getCacheValidation('AppUser', { scopeKey: 'global', maxAgeMs: 10 * 60 * 1000, minRecordCount: 1 });
+        if (cache.isValid) return;
         const freshAppUsers = await base44.entities.AppUser.list();
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
+        await offlineDB.updateCacheSnapshot('AppUser', freshAppUsers || [], { scopeKey: 'global', syncType: 'startup_full' });
       } catch (error) { console.error('❌ [STEP 0] Pre-render sync failed:', error); }
     };
     
