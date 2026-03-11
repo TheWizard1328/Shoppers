@@ -178,9 +178,9 @@ export default function StopDetailsPanel({
     currentUser.app_roles?.includes('driver') || 
     currentUser.app_roles?.includes('admin')
   );
+  const isAdminUser = currentUser?.app_roles?.includes('admin') || currentUser?.role === 'admin';
   const canManageStop = currentUser &&
-    (currentUser.app_roles?.includes('admin') || currentUser.app_roles?.includes('driver')) &&
-    !isRouteCompleted(delivery, allDeliveries);
+    (isAdminUser || (currentUser.app_roles?.includes('driver') && !isRouteCompleted(delivery, allDeliveries)));
 
   useEffect(() => {
     setEditableStatus(delivery?.status || 'pending');
