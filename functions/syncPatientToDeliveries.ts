@@ -47,15 +47,7 @@ Deno.serve(async (req) => {
     }
 
     const patch = {
-      patient_name: patient.full_name || null,
-      patient_phone: patient.phone || null,
-      unit_number: patient.unit_number || null,
       delivery_instructions: patient.notes || null,
-      mailbox_ok: !!patient.mailbox_ok,
-      call_upon_arrival: !!patient.call_upon_arrival,
-      ring_bell: patient.dont_ring_bell ? false : (typeof patient.ring_bell === 'boolean' ? patient.ring_bell : true),
-      dont_ring_bell: !!patient.dont_ring_bell,
-      back_door: !!patient.back_door,
     };
 
     // Apply updates in parallel for speed
