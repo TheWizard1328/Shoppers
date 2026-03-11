@@ -248,7 +248,7 @@ export default function PullToSync({
       
       // STEP 7: Callback to parent component
       if (onSyncComplete) {
-        await onSyncComplete(offlineDeliveries, freshAppUsers, freshPatients);
+        await onSyncComplete(offlineDeliveries, freshPatients, freshAppUsers);
       }
       
       // CRITICAL: Dispatch completion event for SmartRefreshIndicator
