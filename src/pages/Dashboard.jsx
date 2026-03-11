@@ -6952,10 +6952,10 @@ function Dashboard() {
     loadOfflineDataFirst();
   }, [currentUser?.id, isDataLoaded, isFiltersReady, userSettingsLoaded, selectedDateStr, hasPreRenderSyncRef.current]);
   
-  const hasTriggeredPrioritySyncRef = useRef(false);
+  const hasTriggeredPrioritySyncRef = useRef('');
   useEffect(() => {
-    if (!currentUser || !isDataLoaded || !isFiltersReady || !userSettingsLoaded || !hasPreRenderSyncRef.current || !hasLoadedOfflineDataRef.current || hasTriggeredPrioritySyncRef.current) return;
-    hasTriggeredPrioritySyncRef.current = true;
+    if (!currentUser || !isDataLoaded || !isFiltersReady || !userSettingsLoaded || !hasPreRenderSyncRef.current || !hasLoadedOfflineDataRef.current || hasTriggeredPrioritySyncRef.current === selectedDateStr) return;
+    hasTriggeredPrioritySyncRef.current = selectedDateStr;
     const backgroundPrioritySync = async () => {
       try {
         const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');
