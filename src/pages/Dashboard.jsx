@@ -1477,35 +1477,24 @@ function Dashboard() {
         // Phase 2 & 3 stay locked permanently
 
         phaseBeforeBreakRef.current = null;
-      } else if (event.type === 'DATA_READY') {
-      } else if (event.type === 'DONE_BUTTON_CLICKED') {
-        // CRITICAL: Done button was clicked - activate Phase 1 for 500ms
-        // Clear any existing timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
+      } else if (event.type === 'DONE_BUTTON_CLICKED' || event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {
+        if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE' && (mapViewPhase !== 2 || isMapViewLocked)) return;
+        if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
         mapLockExpiresAtRef.current = null;
-
-        // Set to Phase 1 and lock
-        setMapViewPhase(1);
+        if (event.type === 'DONE_BUTTON_CLICKED') setMapViewPhase(1);
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
-
-        // Auto-unlock after 500ms
-        const lockDuration = 500;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
-        mapLockTimeoutRef.current = window.setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-          }
-        }, lockDuration);
+        if (event.type === 'DONE_BUTTON_CLICKED') {
+          const expiresAt = Date.now() + 500;
+          mapLockExpiresAtRef.current = expiresAt;
+          mapLockTimeoutRef.current = window.setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null;
+            }
+          }, 500);
+        }
       }
       // REMOVED: DRIVER_LOCATION_CHANGE handler - Phase 1 should NOT react to GPS updates
     });
