@@ -1764,6 +1764,8 @@ export default function DeliveryMap({
             isAllDriversMode={isAllDriversMode}
             highlightedDeliveryId={highlightedDeliveryId}
             polylineRenderKey={polylineRenderKey}
+            showStoredPolylines={showRoutes}
+            showBreadcrumbPolylines={showBreadcrumbs}
           />
         )}
 

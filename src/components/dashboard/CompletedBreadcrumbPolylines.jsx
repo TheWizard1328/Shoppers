@@ -106,6 +106,8 @@ export default function CompletedBreadcrumbPolylines({
   isAllDriversMode = false,
   highlightedDeliveryId = null,
   polylineRenderKey = 0,
+  showStoredPolylines = true,
+  showBreadcrumbPolylines = true,
 }) {
   const [cache, setCache] = useState({});
   const requestTimesRef = useRef({});
@@ -193,6 +195,7 @@ export default function CompletedBreadcrumbPolylines({
 
   const directSegmentLegs = useMemo(() => {
     return completedSegments
+      .filter(() => showStoredPolylines)
       .filter((segment) => !segment.hasAnyBreadcrumbs)
       .filter((segment) => !blockedStoredDestinationStopIds.has(segment.destinationStopId))
       .filter((segment) => !segment.destinationPointKey || !blockedStoredDestinationPointKeys.has(segment.destinationPointKey))
@@ -205,12 +208,12 @@ export default function CompletedBreadcrumbPolylines({
         from: segment.start,
         to: segment.end,
       }));
-  }, [completedSegments, blockedStoredDestinationStopIds, blockedStoredDestinationPointKeys]);
+  }, [completedSegments, blockedStoredDestinationStopIds, blockedStoredDestinationPointKeys, showStoredPolylines]);
 
   useEffect(() => {
     let cancelled = false;
 
-    [...breadcrumbLegs, ...directSegmentLegs].forEach((leg) => {
+    [...(showBreadcrumbPolylines ? breadcrumbLegs : []), ...directSegmentLegs].forEach((leg) => {
       const key = getLegKey(leg.from, leg.to);
       if (!key || getCachedPolyline(key, cache)) return;
 
@@ -229,13 +232,14 @@ export default function CompletedBreadcrumbPolylines({
     return () => {
       cancelled = true;
     };
-  }, [breadcrumbLegs, directSegmentLegs, cache, polylineRenderKey]);
+  }, [breadcrumbLegs, directSegmentLegs, cache, polylineRenderKey, showBreadcrumbPolylines]);
 
   const renderedLines = [];
   const renderedDots = [];
 
   completedSegments.forEach((segment) => {
     if (!segment.hasAnyBreadcrumbs) {
+      if (!showStoredPolylines) return;
       if (blockedStoredDestinationStopIds.has(segment.destinationStopId)) return;
       if (segment.destinationPointKey && blockedStoredDestinationPointKeys.has(segment.destinationPointKey)) return;
 
@@ -260,7 +264,7 @@ export default function CompletedBreadcrumbPolylines({
       return;
     }
 
-    if (!segment.hasBreadcrumbs) return;
+    if (!showBreadcrumbPolylines || !segment.hasBreadcrumbs) return;
 
     segment.breadcrumbWaypoints.slice(0, -1).forEach((from, index) => {
       const to = segment.breadcrumbWaypoints[index + 1];
