@@ -1511,12 +1511,8 @@ function Dashboard() {
     }
   }, []);
 
-  // NOTE: Removed auto-fit bounds effect that was causing map to re-center unexpectedly
-  // The FAB handleMapViewCycle now handles all map positioning
-
-  useEffect(() => {
-    localStorage.setItem('rxdeliver_show_routes', String(showRoutes));
-  }, [showRoutes]);
+  // Persist route visibility and expose completed-route display toggles to the map.
+  useEffect(() => { localStorage.setItem('rxdeliver_show_routes', String(showRoutes)); window.__dashboardCompletedRouteControls = { setShowRoutes, setShowBreadcrumbs }; return () => { delete window.__dashboardCompletedRouteControls; }; }, [showRoutes, setShowRoutes, setShowBreadcrumbs]);
 
   // Subscribe to global filter changes AND URL params
   useEffect(() => {
