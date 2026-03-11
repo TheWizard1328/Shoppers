@@ -326,7 +326,7 @@ export default function StopCardBody({
                       .map((projectedDelivery, idx) => {
                         if (!projectedDelivery) return null;
                         const deliveryId = projectedDelivery.id || `projected-${delivery.id}-${idx}`;
-                        const projPatient = patients.find((p) => p?.id === projectedDelivery.patient_id);
+                        const projPatient = patients.find((p) => p?.id === projectedDelivery.patient_id || p?.patient_id === projectedDelivery.patient_id);
                         return (
                           <div
                             key={deliveryId}
@@ -344,7 +344,7 @@ export default function StopCardBody({
                             }}
                           >
                             <span className="text-base md:text-xs font-medium truncate flex-1" style={{ color: 'var(--text-slate-900)' }}>
-                              {projectedDelivery.patient_name || 'Unknown Patient'}
+                              {projPatient?.full_name || projectedDelivery.patient_name || 'Unknown Patient'}
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <SpecialSymbolsBadges delivery={projectedDelivery} patient={projPatient} isPickup={false} size="sm" />
