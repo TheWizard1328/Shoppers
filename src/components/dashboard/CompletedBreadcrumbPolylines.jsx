@@ -36,15 +36,6 @@ const samePoint = (a, b) => (
   Math.abs(Number(a?.longitude) - Number(b?.longitude)) < 1e-5
 );
 
-const makeFallback = (a, b) => {
-  if (!a || !b) return [];
-  const A = [Number(a.latitude), Number(a.longitude)];
-  const B = [Number(b.latitude), Number(b.longitude)];
-  if (!isFinite(A[0]) || !isFinite(A[1]) || !isFinite(B[0]) || !isFinite(B[1])) return [];
-  if (samePoint(a, b)) return [A, [A[0] + 0.0003, A[1] + 0.0003]];
-  return [A, B];
-};
-
 const getLegKey = (from, to) => {
   if (!from || !to) return null;
   return `here_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
@@ -165,10 +156,24 @@ export default function CompletedBreadcrumbPolylines({
     });
   }, [completedSegments]);
 
+  const directSegmentLegs = useMemo(() => {
+    return completedSegments
+      .filter((segment) => !segment.hasBreadcrumbs)
+      .map((segment) => ({
+        id: `${segment.id}-direct`,
+        driverId: segment.driverId,
+        color: segment.color,
+        opacity: segment.opacity,
+        deliveryDate: segment.deliveryDate,
+        from: segment.start,
+        to: segment.end,
+      }));
+  }, [completedSegments]);
+
   useEffect(() => {
     let cancelled = false;
 
-    breadcrumbLegs.forEach((leg) => {
+    [...breadcrumbLegs, ...directSegmentLegs].forEach((leg) => {
       const key = getLegKey(leg.from, leg.to);
       if (!key || getCachedPolyline(key, cache)) return;
 
@@ -187,22 +192,25 @@ export default function CompletedBreadcrumbPolylines({
     return () => {
       cancelled = true;
     };
-  }, [breadcrumbLegs, cache, polylineRenderKey]);
+  }, [breadcrumbLegs, directSegmentLegs, cache, polylineRenderKey]);
 
   const renderedLines = [];
   const renderedDots = [];
 
   completedSegments.forEach((segment) => {
     if (!segment.hasBreadcrumbs) {
+      const key = getLegKey(segment.start, segment.end);
+      const coords = getCachedPolyline(key, cache);
+      if (!coords) return;
+
       renderedLines.push(
         <Polyline
-          key={`completed-fallback-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
-          positions={makeFallback(segment.start, segment.end)}
+          key={`completed-stored-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
+          positions={coords}
           pathOptions={{
             color: segment.color,
             weight: 4,
-            opacity: segment.opacity,
-            dashArray: segment.fallbackDashArray,
+            opacity: Math.max(segment.opacity, 0.35),
             lineJoin: "round",
             lineCap: "round",
           }}
@@ -216,16 +224,16 @@ export default function CompletedBreadcrumbPolylines({
       const to = segment.breadcrumbWaypoints[index + 1];
       const key = getLegKey(from, to);
       const coords = getCachedPolyline(key, cache);
+      if (!coords) return;
 
       renderedLines.push(
         <Polyline
           key={`completed-breadcrumb-line-${segment.id}-${index}-${polylineRenderKey}`}
-          positions={coords || makeFallback(from, to)}
+          positions={coords}
           pathOptions={{
             color: segment.color,
             weight: 4,
             opacity: Math.max(segment.opacity, 0.35),
-            dashArray: coords ? "" : "4,6",
             lineJoin: "round",
             lineCap: "round",
           }}
