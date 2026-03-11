@@ -6924,7 +6924,7 @@ function Dashboard() {
   const lastOfflineLoadDateRef = useRef(null);
   
   useEffect(() => {
-    if (!currentUser || !isDataLoaded || !isFiltersReady || !userSettingsLoaded) return;
+    if (!currentUser || !isFiltersReady || !userSettingsLoaded) return;
     if (!hasPreRenderSyncRef.current) return;
     // Re-run if date changed (e.g. user settings loaded a different date)
     if (hasLoadedOfflineDataRef.current && lastOfflineLoadDateRef.current === selectedDateStr) return;
@@ -6989,7 +6989,7 @@ function Dashboard() {
     }
   }, [isDataLoaded, deliveries, selectedDateStr]);
 
-  if (isLoadingUser || !isDataLoaded || !isFiltersReady) {
+  if (isLoadingUser || !isFiltersReady || (!isDataLoaded && !userSettingsLoaded)) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-center">
