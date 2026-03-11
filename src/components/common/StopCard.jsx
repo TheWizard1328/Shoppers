@@ -45,7 +45,7 @@ import {
   getCurrentLocalTimeString,
   getFinishedLegEncodedPolyline,
   getNextTrackingNumberInGroup,
-  getTrackingNumberSeed,
+  incrementTrackingNumber,
   refreshDriverRoute,
   verifyDeliveryStillExists,
   withPausedDriverLocationPoller
@@ -687,7 +687,6 @@ export default function StopCard({
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
       // Batch all status updates + TR# assignments
-      const { prefix: trackingPrefix, numericValue: baseTR } = getTrackingNumberSeed(delivery.tracking_number);
       const sortedPending = [...allPendingDeliveries].sort((a, b) =>
         (a.patient_name || '').localeCompare(b.patient_name || '')
       );
@@ -696,7 +695,7 @@ export default function StopCard({
         queueDeliveryUpdate(pendingDelivery.id, {
           status: 'in_transit',
           delivery_time_start: deliveryTimeStart,
-          tracking_number: `${trackingPrefix}${baseTR + i + 1}`
+          tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1)
         });
       });
       await flushQueuedDeliveryUpdates();

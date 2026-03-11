@@ -125,26 +125,41 @@ export async function getFinishedLegEncodedPolyline({
   return await getHereEncodedPolyline(delivery.driver_id, origin, destination, delivery.delivery_date);
 }
 
-export function getTrackingNumberSeed(trackingNumber) {
-  const rawValue = String(trackingNumber || '').trim();
-  const match = rawValue.match(/^(\D*)(\d+)/);
+function parseTrackingNumberParts(trackingNumber) {
+  const trackingString = String(trackingNumber || '');
+  const match = trackingString.match(/^(.*?)(\d+)([^\d]*)$/);
+
   if (!match) {
-    return { prefix: '', numericValue: 0 };
+    return {
+      prefix: '',
+      numericValue: 0,
+      suffix: '',
+      padLength: 0
+    };
   }
 
   return {
     prefix: match[1] || '',
-    numericValue: parseInt(match[2], 10) || 0
+    numericValue: parseInt(match[2], 10) || 0,
+    suffix: match[3] || '',
+    padLength: match[2]?.length || 0
   };
 }
 
+export function incrementTrackingNumber(trackingNumber, increment = 1) {
+  const { prefix, numericValue, suffix, padLength } = parseTrackingNumberParts(trackingNumber);
+  const nextValue = numericValue + increment;
+  const formattedValue = padLength > 0 ? String(nextValue).padStart(padLength, '0') : String(nextValue);
+  return `${prefix}${formattedValue}${suffix}`;
+}
+
 export function getNextTrackingNumberInGroup(trackingNumber, allDeliveries, driverId, deliveryDate) {
-  const originalTR = parseInt(trackingNumber, 10);
+  const { numericValue: originalTR } = parseTrackingNumberParts(trackingNumber);
   const groupStart = Math.floor(originalTR / 20) * 20;
   const groupEnd = groupStart + 19;
   const existingTRsInGroup = allDeliveries
     .filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate)
-    .map((d) => parseInt(d.tracking_number, 10))
+    .map((d) => parseTrackingNumberParts(d.tracking_number).numericValue)
     .filter((tr) => !isNaN(tr) && tr >= groupStart && tr <= groupEnd);
 
   return existingTRsInGroup.length > 0 ? Math.max(...existingTRsInGroup) + 1 : groupStart;
