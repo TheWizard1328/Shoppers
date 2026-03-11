@@ -3,8 +3,24 @@ import { offlineDB } from './offlineDatabase';
 
 const fetchingKeys = new Set();
 const memoryCache = new Map();
+const backoffCache = new Map();
 const USE_ENTITY_LOOKUP = false;
 const USE_CROSS_DEVICE_LOCK = false;
+
+function clearLegacyHereLocalStorageCache() {
+  try {
+    const keysToRemove = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith('here_')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  } catch (_) {}
+}
+
+clearLegacyHereLocalStorageCache();
 
 // If the online entity has been purged, avoid rehydrating from stale localStorage keys
 export function clearHereCacheForSegment(from, to) {
@@ -12,6 +28,7 @@ export function clearHereCacheForSegment(from, to) {
     if (!from || !to) return;
     const key = `here_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
     try { memoryCache.delete(key); } catch (_) {}
+    try { backoffCache.delete(`${key}:fail_until`); } catch (_) {}
     try { localStorage.removeItem(key); } catch (_) {}
     try { localStorage.removeItem(`${key}:fail_until`); } catch (_) {}
   } catch (_) {}
@@ -84,7 +101,6 @@ export const ensurePolylineSubscription = () => {
                 const coords = decodeGooglePolyline(rec.encoded_polyline);
                 if (Array.isArray(coords) && coords.length > 1) {
                   memoryCache.set(key, coords);
-                  try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
                 }
               }
             } catch (_) {}
