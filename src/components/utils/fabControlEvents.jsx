@@ -153,5 +153,16 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+
+  reactivatePhaseTwoIfAvailable: () => {
+    console.log('📢 [FAB Events] Broadcasting phase 2 reactivation request');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'REACTIVATE_PHASE_TWO_IF_AVAILABLE' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
   };
