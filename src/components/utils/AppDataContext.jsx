@@ -137,7 +137,7 @@ export const AppDataProvider = ({ children, value }) => {
       ? realtimeBatchRef.current.deliveries
       : realtimeBatchRef.current.appUsers;
 
-    const recordId = data?.id;
+    const recordId = typeof data === 'string' ? data : data?.id;
     if (!recordId) return;
 
     if (eventType === 'delete') {
