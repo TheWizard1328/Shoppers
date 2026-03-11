@@ -1379,7 +1379,7 @@ export default function DeliveryMap({
   
   // Generate routes for each driver - NOW WITH ZOOM-BASED STYLING, CURRENT DATE ONLY for polylines
   const driverRoutes = useMemo(() => {
-    if (!showRoutes || currentZoom < ZOOM_LEVELS.HIDE_ROUTES) {
+    if ((!showRoutes && !showBreadcrumbs) || currentZoom < ZOOM_LEVELS.HIDE_ROUTES) {
       prevDriverRoutesRef.current = [];
       return [];
     }
