@@ -410,7 +410,7 @@ const deliveryDateSafe = deliveryDate || todayStr;
   // If we previously stored a hard error flag for this key, short-circuit for a bit to avoid hammering APIs
   const failKey = `${cacheKey}:fail_until`;
   try {
-    const until = localStorage.getItem(failKey);
+    const until = backoffCache.get(failKey);
     if (until && Date.now() < Number(until)) {
       const ms = Number(until) - Date.now();
       console.warn('[HERE][client] Backoff active; skipping fetch', { cacheKey, msRemaining: ms });
@@ -475,7 +475,7 @@ const deliveryDateSafe = deliveryDate || todayStr;
       console.info('[HERE][client] Route OK', { cacheKey, points: coords.length, shape: res?.data?.polyline_format === 'flexible' ? 'here-polyline' : Array.isArray(res?.data?.coordinates) ? 'coordinates' : 'polyline' });
       memoryCache.set(cacheKey, coords);
       try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (e) { console.warn('Failed to save HERE polyline to localStorage', e); }
-      try { localStorage.removeItem(failKey); } catch (_) {}
+      try { backoffCache.delete(failKey); } catch (_) {}
 
       ensurePolylineSubscription();
 
@@ -605,7 +605,10 @@ const deliveryDateSafe = deliveryDate || todayStr;
   }
   
   // Backoff 10s for this key on failure
-  try { localStorage.setItem(`${cacheKey}:fail_until`, String(Date.now() + 10000)); console.warn('[HERE][client] Set backoff', { cacheKey, ms: 10000 }); } catch (_) {}
+  try {
+    backoffCache.set(`${cacheKey}:fail_until`, Date.now() + 10000);
+    console.warn('[HERE][client] Set backoff', { cacheKey, ms: 10000 });
+  } catch (_) {}
 
   fetchingKeys.delete(cacheKey);
   return null;
