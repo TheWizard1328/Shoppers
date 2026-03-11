@@ -226,7 +226,7 @@ export default function DeliveryForm({
   const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
   const { deviceType } = getUserAgentInfo();
   const isMobileDevice = deviceType === 'Mobile';
-  const shouldAutoFocusFields = shouldAutoFocusFields || (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && (window.matchMedia('(pointer: fine)').matches || window.matchMedia('(any-pointer: fine)').matches) && (window.matchMedia('(hover: hover)').matches || window.matchMedia('(any-hover: hover)').matches));
+  const shouldAutoFocusFields = !isMobileDevice || (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && (window.matchMedia('(pointer: fine)').matches || window.matchMedia('(any-pointer: fine)').matches) && (window.matchMedia('(hover: hover)').matches || window.matchMedia('(any-hover: hover)').matches));
   const hasLoadedPending = useRef(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanMatches, setScanMatches] = useState([]);
@@ -1012,7 +1012,7 @@ export default function DeliveryForm({
           setStagedDeliveries(prev => [...prev, staged]); if (p.id) autoCreatedPickupsRef.current.add(p.id);
         }
       } } catch {}
-      if (shouldAutoFocusFields) if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.(), 100);
+      if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.(), 100);
       setPatientSearch(''); setHighlightedPatientIndex(-1); driverLocationPoller.resume(); return;
     }
 
@@ -3108,7 +3108,7 @@ export default function DeliveryForm({
     if (shouldAutoFocusFields) {
       if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
     }
-  }, [isMobileDevice]);
+  }, [shouldAutoFocusFields]);
 
   const handleCancelClick = useCallback(() => {
     // Only show confirmation if there are NEW staged deliveries (without an id)
@@ -3213,7 +3213,7 @@ export default function DeliveryForm({
     if (!delivery && shouldAutoFocusFields) {
       if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
     }
-  }, [delivery, isMobileDevice]);
+  }, [delivery, shouldAutoFocusFields]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
