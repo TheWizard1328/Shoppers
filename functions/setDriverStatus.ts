@@ -1,5 +1,18 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+const getEdmDate = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Edmonton',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -58,7 +71,7 @@ Deno.serve(async (req) => {
     if (newStatus === 'on_break') {
       console.log(`🔄 [setDriverStatus] Driver going on break - clearing ALL isNextDelivery flags`);
       
-      const today = new Date().toISOString().split('T')[0];
+      const today = getEdmDate();
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: user.id,
         delivery_date: today
@@ -82,7 +95,7 @@ Deno.serve(async (req) => {
     if (newStatus === 'on_duty') {
       console.log(`🔄 [setDriverStatus] Driver back on duty - finding closest delivery (non-pending only, respecting time windows)`);
       
-      const today = new Date().toISOString().split('T')[0];
+      const today = getEdmDate();
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: user.id,
         delivery_date: today
@@ -201,6 +214,10 @@ Deno.serve(async (req) => {
           
           if (bestDelivery) {
             console.log(`🎯 [setDriverStatus] Selected: ${bestDelivery.patient_name || 'Pickup'} (ETA matches time window by ${bestETADifference.toFixed(0)} min)`);
+            const flaggedDeliveries = allTodayDeliveries.filter(d => d?.isNextDelivery === true && d.id !== bestDelivery.id);
+            for (const delivery of flaggedDeliveries) {
+              await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
+            }
             await base44.asServiceRole.entities.Delivery.update(bestDelivery.id, { isNextDelivery: true });
             console.log(`✅ [setDriverStatus] Delivery marked as next - ready for driver to start`);
           } else {
@@ -223,7 +240,7 @@ Deno.serve(async (req) => {
     if (newStatus === 'off_duty') {
       console.log(`🔄 [setDriverStatus] Driver going off duty - clearing all isNextDelivery flags`);
       
-      const today = new Date().toISOString().split('T')[0];
+      const today = getEdmDate();
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: user.id,
         delivery_date: today

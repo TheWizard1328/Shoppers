@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       });
 
       const activeStops = todayDeliveries.filter((delivery) =>
-        delivery && !FINISHED.includes(delivery.status) && delivery.status !== 'pending'
+        delivery && !FINISHED.includes(delivery.status)
       );
 
       if (activeStops.length > 0) continue;
