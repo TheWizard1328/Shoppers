@@ -377,6 +377,9 @@ Deno.serve(async (req) => {
         : false;
       const isPaidByDirectCatalogMatch = (catalogItem && directlyMatchedCatalogItemIds.has(catalogItem.id)) || directlyMatchedLocationSignatures.has(locationSignature) || directlyMatchedComparableLocationSignatures.has(comparableLocationSignature);
       const existingTransactions = transactionsBySignature.get(signature) || [];
+      const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+      const hasCollectedPayment = codPayments.some((payment) => ['Cash', 'Debit', 'Credit', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
+        || ['Cash', 'Debit', 'Credit', 'Check'].includes(delivery?.cod_payment_type);
       const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || delivery.status === 'failed' || delivery.status === 'cancelled';
 
       if (shouldDeleteForInvalidState) {
@@ -402,10 +405,10 @@ Deno.serve(async (req) => {
         catalogItem = null;
       }
 
-      if (paidMatches.length || isPaidByCatalogObjectId || isPaidByDirectCatalogMatch) {
+      if (paidMatches.length || isPaidByCatalogObjectId || isPaidByDirectCatalogMatch || hasCollectedPayment) {
         if (catalogItem) {
           itemsToDelete.push(catalogItem.id);
-          console.log(`🧾 Matched paid Square item for ${itemName} via ${isPaidByCatalogObjectId ? 'catalog_object_id' : 'name_amount_signature'}`);
+          console.log(`🧾 Matched paid Square item for ${itemName} via ${hasCollectedPayment ? 'delivery_payment_record' : isPaidByCatalogObjectId ? 'catalog_object_id' : 'name_amount_signature'}`);
         }
         for (const transaction of existingTransactions) {
           if (transaction.status === 'pending') {

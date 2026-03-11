@@ -538,8 +538,11 @@ export default function SquareManagement() {
       );
     }
 
-    // Backend already excludes sold items — only filter out explicitly marked ones
-    items = items.filter(item => !item.is_sold);
+    items = items.filter(item => {
+      const soldInSquare = hasBeenSoldInSquare(item);
+      const codDetails = getCODPaymentDetails(item.name, item.location_id);
+      return !item.is_sold && !soldInSquare && codDetails.status !== 'collected';
+    });
 
     // Sort: by driver (sort_order), then item name, then store
     return items.sort((a, b) => {
@@ -567,7 +570,7 @@ export default function SquareManagement() {
       const bStoreName = bStore?.name || bConfig?.name || '';
       return aStoreName.localeCompare(bStoreName);
     });
-  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers]);
+  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores]);
 
   // Summary stats
   const stats = {
