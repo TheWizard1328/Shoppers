@@ -54,6 +54,7 @@ export default function DeliveryFormView({
   highlightedPatientIndex, setHighlightedPatientIndex,
   selectedPatientIds, setSelectedPatientIds, isMultiSelectMode,
   patientSearchInputRef, addPatientButtonRef, patientNameInputRef,
+  shouldAutoFocusFields,
   isScanning, showCameraOverlay,
   handleSearchKeyDown, handlePatientSelect, handleAddSelectedPatients,
   handleDuplicatePatient, handleNewAddressPatient,
@@ -141,16 +142,17 @@ export default function DeliveryFormView({
     setProjectedDeliveries, setStagedDeliveries, setEditingStagedId,
     patientSearchInputRef, confirmAddProjectedToStaged, setDeleteConfirmation,
     isLoadingPredictions, onRefreshProjections: () => setPredictionTrigger(prev => prev + 1),
+    shouldAutoFocusFields,
   };
 
   // Auto-focus COD amount when a staged or pending item is selected (desktop only)
   React.useEffect(() => {
-    if (editingStagedId && !isMobileDevice) {
+    if (editingStagedId && shouldAutoFocusFields) {
       setTimeout(() => {
         try { codAmountInputRef?.current?.focus?.(); } catch {}
       }, 120);
     }
-  }, [editingStagedId, isMobileDevice, codAmountInputRef]);
+  }, [editingStagedId, shouldAutoFocusFields, codAmountInputRef]);
 
   return (
     <div
@@ -447,7 +449,7 @@ export default function DeliveryFormView({
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
                           <div className="space-y-3">
                             <div className="flex items-center space-x-2">
-                              <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={checked => { setFormData(p => ({ ...p, cod_total_amount_required: 0 })); if (checked) setTimeout(() => codAmountInputRef.current?.focus(), 100); }} disabled={isSaving} />
+                              <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={checked => { setFormData(p => ({ ...p, cod_total_amount_required: 0 })); if (checked && shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100); }} disabled={isSaving} />
                               <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
                             </div>
                             {formData.cod_total_amount_required >= 0 && (

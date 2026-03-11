@@ -24,7 +24,8 @@ export default function DeliveryFormStaged({
   patientSearchInputRef,
   confirmAddProjectedToStaged,
   setDeleteConfirmation,
-  isLoadingPredictions
+  isLoadingPredictions,
+  shouldAutoFocusFields
 }) {
   return (
     <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
@@ -127,7 +128,7 @@ export default function DeliveryFormStaged({
                       handleClearForm();
                     }
                     
-                    if (!isMobileDevice) {
+                    if (shouldAutoFocusFields) {
                       setTimeout(() => patientSearchInputRef.current?.focus(), 100);
                     }
                   }}>

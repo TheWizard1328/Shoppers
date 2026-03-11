@@ -109,6 +109,23 @@ export const isMobileDevice = () => {
   return deviceType === 'Mobile';
 };
 
+export const canAutoFocusFormFields = () => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return true;
+  if (!isMobileDevice()) return true;
+
+  const supportsMediaQuery = typeof window.matchMedia === 'function';
+  const hasFinePointer = supportsMediaQuery && (
+    window.matchMedia('(pointer: fine)').matches ||
+    window.matchMedia('(any-pointer: fine)').matches
+  );
+  const hasHover = supportsMediaQuery && (
+    window.matchMedia('(hover: hover)').matches ||
+    window.matchMedia('(any-hover: hover)').matches
+  );
+
+  return hasFinePointer && hasHover;
+};
+
 /**
  * Checks if device is mobile/tablet based ONLY on user agent (ignores screen width)
  * Used for theme decisions - allows dark mode on mobile devices including tablets

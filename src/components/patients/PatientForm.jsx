@@ -17,7 +17,7 @@ import { useAppData } from '@/components/utils/AppDataContext';
 import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autocomplete";
 import { realtimeSync } from "@/components/utils/realtimeSync";
 import { createPatientLocal, updatePatientLocal } from '../utils/entityMutations';
-import { isMobileDevice } from '@/components/utils/deviceUtils';
+import { isMobileDevice, canAutoFocusFormFields } from '@/components/utils/deviceUtils';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
@@ -313,9 +313,11 @@ export default function PatientForm({
     setFormData(newFormData);
 
     // Auto-focus unit number field after address selection
-    setTimeout(() => {
-      unitNumberRef.current?.focus();
-    }, 100);
+    if (shouldAutoFocusFields) {
+      setTimeout(() => {
+        unitNumberRef.current?.focus();
+      }, 100);
+    }
   };
 
   const handleWeeklyDayToggle = (day) => {
@@ -589,17 +591,16 @@ export default function PatientForm({
 
   // Auto-focus store dropdown if no store selected on new patient
   useEffect(() => {
-    if (!patient && !formData.store_id && storeSelectRef.current) {
+    if (!patient && !formData.store_id && storeSelectRef.current && shouldAutoFocusFields) {
       setTimeout(() => {
         storeSelectRef.current?.click();
       }, 200);
     }
-  }, [patient, formData.store_id]);
+  }, [patient, formData.store_id, shouldAutoFocusFields]);
 
   // Auto-focus address or name field based on duplicateMode for non-mobile devices
   useEffect(() => {
-    const isMobile = isMobileDevice();
-    if (isMobile || !duplicateMode) return;
+    if (!shouldAutoFocusFields || !duplicateMode) return;
 
     if (duplicateMode === 'newAddress' && addressInputRef.current) {
       setTimeout(() => {
@@ -621,14 +622,11 @@ export default function PatientForm({
         }
       }, 100);
     }
-  }, [duplicateMode]);
+  }, [duplicateMode, shouldAutoFocusFields]);
 
   // Auto-focus address field after store is selected (non-mobile only)
   useEffect(() => {
-    const isMobile = isMobileDevice();
-    
-    // Only auto-focus on non-mobile devices when store is selected
-    if (!isMobile && formData.store_id) {
+    if (shouldAutoFocusFields && formData.store_id) {
       setTimeout(() => {
         if (addressInputRef.current) {
           const inputElement = addressInputRef.current instanceof HTMLInputElement 
@@ -642,7 +640,7 @@ export default function PatientForm({
         }
       }, 100);
     }
-  }, [formData.store_id]);
+  }, [formData.store_id, shouldAutoFocusFields]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -711,6 +709,7 @@ export default function PatientForm({
   const isPIDValid = formData.patient_id ? validateId(formData.patient_id, 5) : null;
   const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50';
 
+  const shouldAutoFocusFields = canAutoFocusFormFields();
   const isMobile = isMobileDevice();
 
   return (
