@@ -1500,7 +1500,7 @@ function Dashboard() {
     });
 
     return unsubscribe;
-  }, [deliveriesWithStopOrder, mapViewPhase]);
+  }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
 
   useEffect(() => {
     return () => {
