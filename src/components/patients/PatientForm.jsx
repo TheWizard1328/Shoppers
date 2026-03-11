@@ -127,6 +127,7 @@ export default function PatientForm({
   const [frequency, setFrequency] = useState('');
   const [weeklyDays, setWeeklyDays] = useState([]);
   const [showWeeklyDays, setShowWeeklyDays] = useState(false);
+  const [isAddressLookupActive, setIsAddressLookupActive] = useState(false);
   const isInitialLoad = useRef(true);
 
   const cityCenter = useMemo(() => {
@@ -285,6 +286,7 @@ export default function PatientForm({
   }, [setIsFormOverlayOpen]);
 
   const handleAddressSelect = (addressData) => {
+    setIsAddressLookupActive(false);
     // Build from components if present to ensure we keep house number
     const street = (addressData.street_number && addressData.route)
       ? `${addressData.street_number} ${addressData.route}`
@@ -580,6 +582,7 @@ export default function PatientForm({
   };
 
   const isFormValid = formData.full_name && formData.address && formData.store_id;
+  const disableOtherFieldsDuringAddressLookup = isAddressLookupActive;
   const storeSelectRef = useRef(null);
   const addressInputRef = useRef(null);
   const unitNumberRef = useRef(null);
@@ -745,6 +748,7 @@ export default function PatientForm({
                       <Input
                       id="patient_id_appowner"
                       value={formData.patient_id}
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
                       placeholder="5-chr"
                       className="h-10 md:h-9 text-sm"
@@ -756,6 +760,7 @@ export default function PatientForm({
                       <Input
                       id="latitude"
                       type="number"
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       step="any"
                       value={formData.latitude !== null && formData.latitude !== undefined ? formData.latitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
@@ -768,6 +773,7 @@ export default function PatientForm({
                       <Input
                       id="longitude"
                       type="number"
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       step="any"
                       value={formData.longitude !== null && formData.longitude !== undefined ? formData.longitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
@@ -780,6 +786,7 @@ export default function PatientForm({
                       <Input
                       id="distance"
                       type="number"
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       step="0.01"
                       value={formData.distance_from_store !== null && formData.distance_from_store !== undefined ? formData.distance_from_store : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
@@ -799,7 +806,7 @@ export default function PatientForm({
                     <Select
                       value={formData.store_id}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
-                      disabled={isStoreDisabled}>
+                      disabled={isStoreDisabled || disableOtherFieldsDuringAddressLookup}>
                       <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue placeholder="Select store..." />
                       </SelectTrigger>
@@ -818,7 +825,7 @@ export default function PatientForm({
                     <Select
                       value={formData.status}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
-                      disabled={!formData.store_id}>
+                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}>
                       <SelectTrigger className="h-10 md:h-9 text-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue />
                       </SelectTrigger>
@@ -844,6 +851,7 @@ export default function PatientForm({
                       value={formData.address}
                       onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))}
                       onAddressSelect={handleAddressSelect}
+                      onSearchStateChange={setIsAddressLookupActive}
                       cityCenter={cityCenter}
                       placeholder="Start typing address..."
                       className="h-10 md:h-9 text-sm" />
@@ -855,6 +863,7 @@ export default function PatientForm({
                     <Input
                       ref={unitNumberRef}
                       id="unit_number"
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       value={formData.unit_number}
                       onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
                       className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
@@ -868,6 +877,7 @@ export default function PatientForm({
                     <Input
                       id="full_name"
                       value={formData.full_name}
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(e) => setFormData((prev) => ({ ...prev, full_name: capitalizeName(e.target.value) }))}
                       required
                       className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
@@ -880,6 +890,7 @@ export default function PatientForm({
                     <PhoneInput
                       id="phone"
                       value={formData.phone}
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
                       placeholder="Phone number"
                       className={`h-10 md:h-9 text-sm`}
@@ -892,6 +903,7 @@ export default function PatientForm({
                     <PhoneInput
                       id="phone_secondary"
                       value={formData.phone_secondary}
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone_secondary: value }))}
                       placeholder="Alt. phone"
                       className={`h-10 md:h-9 text-sm`}
@@ -907,7 +919,7 @@ export default function PatientForm({
                       type="time"
                       value={formData.time_window_start}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
-                      disabled={!formData.store_id}
+                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
                       className="h-10 md:h-9 text-sm"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
@@ -919,7 +931,7 @@ export default function PatientForm({
                       type="time"
                       value={formData.time_window_end}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
-                      disabled={!formData.store_id}
+                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
                       className="h-10 md:h-9 text-sm"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
@@ -927,12 +939,13 @@ export default function PatientForm({
               </div>
 
               {/* Container 4: Patient Notes */}
-              <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
+              <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                 <div className="px-2 py-2 space-y-1">
                   <Label htmlFor="notes" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
                   <Textarea
                     id="notes"
                     value={formData.notes}
+                    disabled={disableOtherFieldsDuringAddressLookup}
                     onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
                     placeholder="Special delivery instructions, preferences, etc."
                     className="h-24 md:h-32 text-sm resize-none"
@@ -940,7 +953,7 @@ export default function PatientForm({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2" style={{ opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
+              <div className="grid grid-cols-2 gap-2" style={{ opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                     <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)' }}>
                       <div className="border-b pb-2 mb-3" style={{ borderColor: 'var(--border-slate-300)' }}>
                         <h3 className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Preferences</h3>
@@ -951,30 +964,35 @@ export default function PatientForm({
                       id="mailbox_ok"
                       label="Mailbox OK"
                       checked={formData.mailbox_ok}
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(checked) => setFormData((prev) => ({ ...prev, mailbox_ok: checked }))} />
 
                   <CheckboxField
                       id="ring_bell"
                       label="Ring Bell"
                       checked={formData.ring_bell}
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(checked) => setFormData((prev) => ({ ...prev, ring_bell: checked }))} />
 
                   <CheckboxField
                       id="back_door"
                       label="Back Door"
                       checked={formData.back_door}
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(checked) => setFormData((prev) => ({ ...prev, back_door: checked }))} />
 
                   <CheckboxField
                       id="call_upon_arrival"
                       label="Call Upon Arrival"
                       checked={formData.call_upon_arrival}
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(checked) => setFormData((prev) => ({ ...prev, call_upon_arrival: checked }))} />
 
                     <CheckboxField
                       id="dont_ring_bell"
                       label="DON'T Ring Bell"
                       checked={formData.dont_ring_bell}
+                      disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(checked) => setFormData((prev) => ({ ...prev, dont_ring_bell: checked }))} />
                   </div>
                 </div>
@@ -985,6 +1003,7 @@ export default function PatientForm({
                           <Checkbox
                             id="recurring"
                             checked={isRecurring}
+                            disabled={disableOtherFieldsDuringAddressLookup}
                             onCheckedChange={handleRecurringChange} />
                           <Label htmlFor="recurring" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                             Recurring
@@ -995,7 +1014,7 @@ export default function PatientForm({
                       <RadioGroup
                         value={frequency}
                         onValueChange={setFrequency}
-                        disabled={!isRecurring}>
+                        disabled={!isRecurring || disableOtherFieldsDuringAddressLookup}>
 
                         <div className="flex items-center space-x-2">
                           <RadioGroupItem value="daily" id="daily" disabled={!isRecurring} />
@@ -1126,7 +1145,7 @@ export default function PatientForm({
               <Button type="button" variant="outline" onClick={onCancel} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 Cancel
               </Button>
-              <Button type="button" onClick={handleSubmit} disabled={!isFormValid} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white">
+              <Button type="button" onClick={handleSubmit} disabled={!isFormValid || disableOtherFieldsDuringAddressLookup} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white">
                 <Save className="w-3 h-3" />
                 {returnPatientOnSave ? 'Save & Add' : patient ? 'Update Patient' : 'Create Patient'}
               </Button>

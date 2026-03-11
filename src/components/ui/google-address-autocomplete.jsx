@@ -53,6 +53,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   value, 
   onChange, 
   onAddressSelect,
+  onSearchStateChange,
   cityCenter,
   placeholder = "Search address...",
   className = "",
@@ -74,6 +75,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   const fetchSuggestions = async (searchText) => {
     if (!searchText || searchText.length < 3) {
       setSuggestions([]);
+      onSearchStateChange?.(false);
       return;
     }
 
@@ -132,10 +134,12 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         console.log('[GoogleAddressAutocomplete] No predictions found');
         setSuggestions([]);
         setOpen(false);
+        onSearchStateChange?.(false);
       }
     } catch (error) {
       console.error('Error fetching address suggestions:', error);
       setSuggestions([]);
+      onSearchStateChange?.(false);
     } finally {
       setIsLoading(false);
     }
@@ -250,6 +254,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
     } finally {
       setOpen(false);
       setSuggestions([]);
+      onSearchStateChange?.(false);
     }
   };
 
@@ -277,12 +282,13 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
 
     // Debounce by 1500ms (wait for user to finish typing)
     debounceTimer.current = setTimeout(() => {
-      if (value && value.length >= 3 && hasUserTyped.current) {
-        fetchSuggestions(value);
-      } else {
-        setSuggestions([]);
-        setOpen(false);
-      }
+    if (value && value.length >= 3 && hasUserTyped.current) {
+      fetchSuggestions(value);
+    } else {
+      setSuggestions([]);
+      setOpen(false);
+      onSearchStateChange?.(false);
+    }
     }, 1500);
 
     return () => {
@@ -306,12 +312,16 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         onChange={(e) => {
           hasUserTyped.current = true;
           onChange(e.target.value);
+          onSearchStateChange?.(e.target.value.trim().length > 0);
         }}
         onBlur={() => {
           // Do not change text on blur; just close the list after a short delay
           setTimeout(() => {
             setOpen(false);
             setSuggestions([]);
+            if (!justSelected.current) {
+              onSearchStateChange?.(false);
+            }
           }, 120);
         }}
         onKeyDown={(e) => {
