@@ -425,8 +425,8 @@ export default function GoogleAPILogViewer() {
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 min-h-0 overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-6 pb-6 pr-1">
+      <CardContent className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="shrink-0 space-y-6 pb-6">
           {/* Alerts Banner */}
         {alerts.length > 0 && (
           <div className="mb-6 space-y-2">
@@ -559,7 +559,7 @@ export default function GoogleAPILogViewer() {
         
         </div>
 
-        <div className="space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1">
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Hourly Call Volume */}
