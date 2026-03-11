@@ -3024,14 +3024,14 @@ export default function DeliveryForm({
 
       // CRITICAL: Trigger patient update function when delivery is completed
       if (statusChangedToCompletion && delivery && formData.status === 'completed') {
-        try {
-          await base44.functions.invoke('updatePatientsAfterRouteCompletion', {
+        setTimeout(() => {
+          base44.functions.invoke('updatePatientsAfterRouteCompletion', {
             deliveryDate: formData.delivery_date,
             driverId: formData.driver_id
+          }).catch((error) => {
+            console.error('❌ [DeliveryForm] Patient update failed:', error);
           });
-        } catch (error) {
-          console.error('❌ [DeliveryForm] Patient update failed:', error);
-        }
+        }, 0);
       }
 
       if (isPickupMode && delivery && formData.status === 'completed' && formData.store_id && formData.ampm_deliveries) {

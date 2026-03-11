@@ -61,43 +61,6 @@ Deno.serve(async (req) => {
       travel_dist: distanceToTransfer
     });
 
-    // Step 3.5: Re-sequence stop orders so the started stop becomes the first active stop
-    const allDeliveries = await base44.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    }, 'stop_order');
-
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const completedDeliveries = (allDeliveries || []).filter((delivery) => finishedStatuses.includes(delivery.status));
-    const activeDeliveries = (allDeliveries || []).filter((delivery) => !finishedStatuses.includes(delivery.status));
-
-    completedDeliveries.sort((a, b) => {
-      if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
-      return new Date(a.actual_delivery_time).getTime() - new Date(b.actual_delivery_time).getTime();
-    });
-
-    activeDeliveries.sort((a, b) => {
-      if (a.id === deliveryId) return -1;
-      if (b.id === deliveryId) return 1;
-      const orderDelta = (a.stop_order || 999999) - (b.stop_order || 999999);
-      if (orderDelta !== 0) return orderDelta;
-      const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
-      const etaB = String(b.delivery_time_eta || b.delivery_time_start || '99:99');
-      return etaA.localeCompare(etaB);
-    });
-
-    const reorderedStops = [...completedDeliveries, ...activeDeliveries];
-    await Promise.all(
-      reorderedStops.map((delivery, index) => {
-        const nextOrder = index + 1;
-        if (delivery.stop_order === nextOrder) return Promise.resolve(null);
-        return base44.entities.Delivery.update(delivery.id, {
-          stop_order: nextOrder,
-          display_stop_order: nextOrder
-        });
-      })
-    );
-    
     // CRITICAL: Notify frontend to reset live distance tracker's accumulated counter
     // The distance has been transferred, so the tracker should reset to 0
     console.log(`🔄 [handleStartDelivery] Notifying frontend - distance transferred: ${distanceToTransfer} km`);
