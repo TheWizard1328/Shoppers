@@ -1,144 +1,211 @@
 import { offlineDB } from './offlineDatabase';
 
-// Store names for Square COD data
+const LOOKBACK_DAYS = 14;
 const SQUARE_COD_STORES = {
-  CATALOG_ITEMS: 'square_catalog_items',
-  PAYMENT_TRANSACTIONS: 'square_payment_transactions'
+  CATALOG_ITEMS: offlineDB.STORES.SQUARE_CATALOG_ITEMS,
+  PAYMENT_TRANSACTIONS: offlineDB.STORES.SQUARE_TRANSACTIONS
 };
 
-// Add stores to offlineDB STORES
-offlineDB.STORES.SQUARE_CATALOG_ITEMS = SQUARE_COD_STORES.CATALOG_ITEMS;
-offlineDB.STORES.SQUARE_PAYMENT_TRANSACTIONS = SQUARE_COD_STORES.PAYMENT_TRANSACTIONS;
+const getLookbackStartMs = () => {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
+  cutoff.setHours(0, 0, 0, 0);
+  return cutoff.getTime();
+};
 
-/**
- * Save catalog items to offline database
- */
-export const saveCatalogItemsOffline = async (items) => {
-  if (!items || items.length === 0) {
-    return { success: true, count: 0 };
+const isRecentSquareTransaction = (transaction) => {
+  const timestamp = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
+  return Number.isFinite(timestamp) && timestamp >= getLookbackStartMs();
+};
+
+const normalizeCatalogEntityRecord = (record) => ({
+  ...record,
+  amount: Number(record?.amount || 0),
+  amount_cents: record?.amount_cents ?? Math.round(Number(record?.amount || 0) * 100),
+  status: record?.status || 'active'
+});
+
+const mapCatalogEntityToUIItem = (record) => ({
+  id: record.id,
+  catalog_object_id: record.square_catalog_object_id || record.id,
+  variation_id: null,
+  name: record.item_name,
+  description: record.description || '',
+  price_cents: record.amount_cents ?? Math.round(Number(record.amount || 0) * 100),
+  price_dollars: Number(record.amount || 0),
+  location_id: record.location_id || '',
+  present_at_locations: record.location_id ? [record.location_id] : [],
+  present_at_all: false,
+  updated_at: record.updated_date,
+  version: record.square_catalog_version || 0,
+  transaction_id: null,
+  delivery_id: record.delivery_id,
+  patient_id: record.patient_id,
+  store_id: record.store_id,
+  status: record.status || 'active',
+  created_date: record.created_date,
+  is_sold: false
+});
+
+const updateCatalogSyncStatus = async () => {
+  const allItems = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
+  await offlineDB.updateSyncStatus('SquareCatalogItems', {
+    status: 'synced',
+    recordCount: allItems.length,
+    lastSync: new Date().toISOString()
+  });
+};
+
+const updateTransactionSyncStatus = async () => {
+  const allTransactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
+  await offlineDB.updateSyncStatus('SquareTransaction', {
+    status: 'synced',
+    recordCount: allTransactions.length,
+    lastSync: new Date().toISOString()
+  });
+};
+
+const pruneStoredSquareTransactions = async () => {
+  const transactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
+  const recentTransactions = (transactions || []).filter(isRecentSquareTransaction);
+
+  if (recentTransactions.length !== (transactions || []).length) {
+    await offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
+    if (recentTransactions.length > 0) {
+      await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, recentTransactions);
+    }
   }
 
+  await updateTransactionSyncStatus();
+  return recentTransactions;
+};
+
+export const saveCatalogItemsOffline = async (items) => {
   try {
-    const result = await offlineDB.bulkSave(SQUARE_COD_STORES.CATALOG_ITEMS, items);
-    
-    if (result.success) {
-      // Count actual items in database to ensure accuracy
-      const allItems = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
-      const actualCount = allItems.length;
-      
-      await offlineDB.updateSyncStatus('SquareCatalogItems', {
-        status: 'synced',
-        recordCount: actualCount,
-        lastSync: new Date().toISOString()
-      });
-      
-      console.log(`✅ [SquareCODOffline] Saved ${result.count} catalog items offline (${actualCount} total in DB)`);
+    const normalizedItems = (items || []).filter(Boolean).map(normalizeCatalogEntityRecord);
+    await offlineDB.clearStore(SQUARE_COD_STORES.CATALOG_ITEMS);
+
+    if (normalizedItems.length > 0) {
+      await offlineDB.bulkSave(SQUARE_COD_STORES.CATALOG_ITEMS, normalizedItems);
     }
-    
-    return result;
+
+    await updateCatalogSyncStatus();
+    return { success: true, count: normalizedItems.length };
   } catch (error) {
     console.error('❌ [SquareCODOffline] Error saving catalog items:', error);
     return { success: false, error: error.message };
   }
 };
 
-/**
- * Save payment transactions to offline database
- */
 export const savePaymentTransactionsOffline = async (transactions) => {
-  if (!transactions || transactions.length === 0) {
-    return { success: true, count: 0 };
-  }
-
   try {
-    const result = await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, transactions);
-    
-    if (result.success) {
-      // Count actual transactions in database to ensure accuracy
-      const allTransactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
-      const actualCount = allTransactions.length;
-      
-      await offlineDB.updateSyncStatus('SquarePaymentTransactions', {
-        status: 'synced',
-        recordCount: actualCount,
-        lastSync: new Date().toISOString()
-      });
-      
-      console.log(`✅ [SquareCODOffline] Saved ${result.count} payment transactions offline (${actualCount} total in DB)`);
+    const recentTransactions = (transactions || []).filter(Boolean).filter(isRecentSquareTransaction);
+    await offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
+
+    if (recentTransactions.length > 0) {
+      await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, recentTransactions);
     }
-    
-    return result;
+
+    await updateTransactionSyncStatus();
+    return { success: true, count: recentTransactions.length };
   } catch (error) {
     console.error('❌ [SquareCODOffline] Error saving payment transactions:', error);
     return { success: false, error: error.message };
   }
 };
 
-/**
- * Get all catalog items from offline database
- */
+export const syncSquareCODSnapshotOffline = async ({ catalogItems = [], transactions = [] }) => {
+  const [catalogResult, transactionResult] = await Promise.all([
+    saveCatalogItemsOffline(catalogItems),
+    savePaymentTransactionsOffline(transactions)
+  ]);
+
+  return {
+    success: catalogResult.success && transactionResult.success,
+    catalogCount: catalogResult.count || 0,
+    transactionCount: transactionResult.count || 0
+  };
+};
+
 export const getCatalogItemsOffline = async () => {
   try {
     const items = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
-    console.log(`📖 [SquareCODOffline] Retrieved ${items.length} catalog items from offline db`);
-    return items || [];
+    return (items || []).map(mapCatalogEntityToUIItem);
   } catch (error) {
     console.error('❌ [SquareCODOffline] Error retrieving catalog items:', error);
     return [];
   }
 };
 
-/**
- * Get all payment transactions from offline database
- */
 export const getPaymentTransactionsOffline = async () => {
   try {
-    const transactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
-    console.log(`📖 [SquareCODOffline] Retrieved ${transactions.length} payment transactions from offline db`);
-    return transactions || [];
+    return await pruneStoredSquareTransactions();
   } catch (error) {
     console.error('❌ [SquareCODOffline] Error retrieving payment transactions:', error);
     return [];
   }
 };
 
-/**
- * Get catalog items by location
- */
 export const getCatalogItemsByLocationOffline = async (locationId) => {
   try {
     const items = await offlineDB.getByIndex(SQUARE_COD_STORES.CATALOG_ITEMS, 'location_id', locationId);
-    return items || [];
+    return (items || []).map(mapCatalogEntityToUIItem);
   } catch (error) {
     console.error('❌ [SquareCODOffline] Error retrieving items by location:', error);
     return [];
   }
 };
 
-/**
- * Get payment transactions by location
- */
 export const getPaymentTransactionsByLocationOffline = async (locationId) => {
   try {
-    const transactions = await offlineDB.getByIndex(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, 'location_id', locationId);
-    return transactions || [];
+    const transactions = await getPaymentTransactionsOffline();
+    return (transactions || []).filter((transaction) => transaction.location_id === locationId);
   } catch (error) {
     console.error('❌ [SquareCODOffline] Error retrieving transactions by location:', error);
     return [];
   }
 };
 
-/**
- * Clear all Square COD offline data
- */
+export const handleSquareCatalogItemRealtimeEvent = async (event) => {
+  if (!event?.type) return;
+
+  if (event.type === 'delete') {
+    await offlineDB.deleteRecord(SQUARE_COD_STORES.CATALOG_ITEMS, event.id);
+  } else if (event.data?.id) {
+    await offlineDB.save(SQUARE_COD_STORES.CATALOG_ITEMS, normalizeCatalogEntityRecord(event.data));
+  }
+
+  await updateCatalogSyncStatus();
+};
+
+export const handleSquareTransactionRealtimeEvent = async (event) => {
+  if (!event?.type) return;
+
+  if (event.type === 'delete') {
+    await offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, event.id);
+  } else if (event.data?.id) {
+    if (isRecentSquareTransaction(event.data)) {
+      await offlineDB.save(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, event.data);
+    } else {
+      await offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, event.data.id);
+    }
+  }
+
+  await pruneStoredSquareTransactions();
+};
+
 export const clearSquareCODOfflineData = async () => {
   try {
     await Promise.all([
       offlineDB.clearStore(SQUARE_COD_STORES.CATALOG_ITEMS),
       offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS)
     ]);
-    
-    console.log('✅ [SquareCODOffline] Cleared all Square COD offline data');
+
+    await Promise.all([
+      updateCatalogSyncStatus(),
+      updateTransactionSyncStatus()
+    ]);
+
     return { success: true };
   } catch (error) {
     console.error('❌ [SquareCODOffline] Error clearing data:', error);
@@ -146,16 +213,13 @@ export const clearSquareCODOfflineData = async () => {
   }
 };
 
-/**
- * Get sync status for Square COD data
- */
 export const getSquareCODSyncStatus = async () => {
   try {
     const [catalogStatus, transactionStatus] = await Promise.all([
       offlineDB.getSyncStatus('SquareCatalogItems'),
-      offlineDB.getSyncStatus('SquarePaymentTransactions')
+      offlineDB.getSyncStatus('SquareTransaction')
     ]);
-    
+
     return {
       catalog: catalogStatus || { status: 'never_synced', recordCount: 0 },
       transactions: transactionStatus || { status: 'never_synced', recordCount: 0 }
@@ -166,17 +230,14 @@ export const getSquareCODSyncStatus = async () => {
   }
 };
 
-/**
- * Initialize catalog items store (create indexes)
- */
 export const initializeCatalogItemsStore = async () => {
   try {
     const db = await offlineDB.openDatabase();
-    
+
     if (!db.objectStoreNames.contains(SQUARE_COD_STORES.CATALOG_ITEMS)) {
       console.log('⚠️ [SquareCODOffline] Catalog items store does not exist, need to upgrade DB');
     }
-    
+
     return { success: true };
   } catch (error) {
     console.error('❌ [SquareCODOffline] Error initializing store:', error);
@@ -187,10 +248,13 @@ export const initializeCatalogItemsStore = async () => {
 export const squareCODOfflineManager = {
   saveCatalogItemsOffline,
   savePaymentTransactionsOffline,
+  syncSquareCODSnapshotOffline,
   getCatalogItemsOffline,
   getPaymentTransactionsOffline,
   getCatalogItemsByLocationOffline,
   getPaymentTransactionsByLocationOffline,
+  handleSquareCatalogItemRealtimeEvent,
+  handleSquareTransactionRealtimeEvent,
   clearSquareCODOfflineData,
   getSquareCODSyncStatus
 };
