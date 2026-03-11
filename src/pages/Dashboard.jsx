@@ -6223,10 +6223,7 @@ function Dashboard() {
           base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsersList) => {
             const appUser = appUsersList?.[0];
             if (appUser) {
-              return base44.entities.AppUser.update(appUser.id, {
-                driver_status: 'off_duty',
-                location_tracking_enabled: false
-              });
+              return base44.entities.AppUser.update(appUser.id,{driver_status:'off_duty',location_tracking_enabled:false,current_latitude:null,current_longitude:null,location_updated_at:null});
             }
           }).then(() => {
             // Refresh user to update UI
