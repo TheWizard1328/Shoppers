@@ -6,6 +6,8 @@
 // CRITICAL: Use stable database name and version to prevent recreation
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
 const DB_VERSION = 8; // Incremented to add SQUARE_CATALOG_ITEMS store
+const CACHE_SCHEMA_VERSION = 1;
+const DEFAULT_CACHE_SCOPE = 'global';
 
 // Store names
 const STORES = {
@@ -27,6 +29,35 @@ const STORES = {
 
 let dbInstance = null;
 let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
+
+const buildMetadataKey = (entityName, scopeKey = DEFAULT_CACHE_SCOPE) => {
+  if (!scopeKey || scopeKey === DEFAULT_CACHE_SCOPE) return entityName;
+  return `${entityName}::${scopeKey}`;
+};
+
+const getLatestRecordTimestamp = (records = []) => {
+  if (!Array.isArray(records) || records.length === 0) return null;
+  let latest = 0;
+  records.forEach((record) => {
+    const value = record?.updated_date || record?.last_generated_at || record?.created_date || null;
+    const ts = value ? new Date(value).getTime() : 0;
+    if (ts > latest) latest = ts;
+  });
+  return latest ? new Date(latest).toISOString() : null;
+};
+
+const buildDataVersion = (records = []) => {
+  if (!Array.isArray(records) || records.length === 0) {
+    return '0:empty';
+  }
+
+  const latestTimestamp = getLatestRecordTimestamp(records) || 'none';
+  const sortedIds = records.map((record) => record?.id).filter(Boolean).sort();
+  const firstId = sortedIds[0] || 'none';
+  const lastId = sortedIds[sortedIds.length - 1] || 'none';
+
+  return `${records.length}:${latestTimestamp}:${firstId}:${lastId}`;
+};
 
 /**
  * Initialize and open the IndexedDB database
@@ -630,17 +661,17 @@ const deleteRecord = async (storeName, recordId) => {
 /**
  * Get sync metadata for an entity (latest server timestamp)
  */
-const getSyncMetadata = async (entityName) => {
+const getSyncMetadata = async (entityName, scopeKey = DEFAULT_CACHE_SCOPE) => {
   try {
     const db = await openDatabase();
     const transaction = db.transaction([STORES.SYNC_METADATA], 'readonly');
     const store = transaction.objectStore(STORES.SYNC_METADATA);
+    const metadataKey = buildMetadataKey(entityName, scopeKey);
 
     return new Promise((resolve, reject) => {
-      const request = store.get(entityName);
+      const request = store.get(metadataKey);
       request.onsuccess = () => {
         const result = request.result || null;
-        // Map old field names to new ones for compatibility
         if (result && result.last_sync_date && !result.last_sync_time) {
           result.last_sync_time = result.last_sync_date;
         }
@@ -662,9 +693,13 @@ const updateSyncMetadata = async (entityName, latestServerTimestamp, lastSyncTim
     const db = await openDatabase();
     const transaction = db.transaction([STORES.SYNC_METADATA], 'readwrite');
     const store = transaction.objectStore(STORES.SYNC_METADATA);
+    const scopeKey = additionalMetadata.scope_key || DEFAULT_CACHE_SCOPE;
+    const metadataKey = buildMetadataKey(entityName, scopeKey);
 
     const metadata = {
-      entity_name: entityName,
+      entity_name: metadataKey,
+      source_entity_name: entityName,
+      scope_key: scopeKey,
       last_synced_timestamp: latestServerTimestamp,
       last_sync_time: lastSyncTime || new Date().toISOString(),
       last_sync_date: new Date().toISOString(),
@@ -679,6 +714,69 @@ const updateSyncMetadata = async (entityName, latestServerTimestamp, lastSyncTim
   } catch (error) {
     console.error('❌ [OfflineDB] updateSyncMetadata error:', error);
   }
+};
+
+const getCacheValidation = async (entityName, options = {}) => {
+  const {
+    scopeKey = DEFAULT_CACHE_SCOPE,
+    maxAgeMs = 5 * 60 * 1000,
+    minRecordCount = 1,
+    allowEmpty = false,
+    requiredCacheSchemaVersion = CACHE_SCHEMA_VERSION
+  } = options;
+
+  const meta = await getSyncMetadata(entityName, scopeKey);
+  if (!meta) {
+    return { isValid: false, reason: 'missing', meta: null, ageMs: Infinity, recordCount: 0 };
+  }
+
+  const lastSyncMs = new Date(meta.last_sync_time || meta.last_sync_date || 0).getTime();
+  const ageMs = lastSyncMs ? Date.now() - lastSyncMs : Infinity;
+  const recordCount = typeof meta.record_count === 'number' ? meta.record_count : 0;
+  const cacheSchemaVersion = meta.cache_schema_version || 0;
+
+  if (cacheSchemaVersion !== requiredCacheSchemaVersion) {
+    return { isValid: false, reason: 'schema_mismatch', meta, ageMs, recordCount };
+  }
+
+  if (ageMs > maxAgeMs) {
+    return { isValid: false, reason: 'stale', meta, ageMs, recordCount };
+  }
+
+  if (!allowEmpty && recordCount < minRecordCount) {
+    return { isValid: false, reason: 'insufficient_records', meta, ageMs, recordCount };
+  }
+
+  return { isValid: true, reason: 'fresh', meta, ageMs, recordCount };
+};
+
+const updateCacheSnapshot = async (entityName, records = [], options = {}) => {
+  const {
+    scopeKey = DEFAULT_CACHE_SCOPE,
+    lastSyncTime = null,
+    syncType = 'full',
+    extra = {}
+  } = options;
+
+  const safeRecords = Array.isArray(records) ? records.filter(Boolean) : [];
+  const latestTimestamp = getLatestRecordTimestamp(safeRecords);
+  const dataVersion = buildDataVersion(safeRecords);
+
+  await updateSyncMetadata(entityName, latestTimestamp, lastSyncTime, {
+    scope_key: scopeKey,
+    cache_schema_version: CACHE_SCHEMA_VERSION,
+    data_version: dataVersion,
+    record_count: safeRecords.length,
+    sync_type: syncType,
+    ...extra
+  });
+
+  return {
+    scopeKey,
+    dataVersion,
+    recordCount: safeRecords.length,
+    latestTimestamp
+  };
 };
 
 /**
