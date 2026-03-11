@@ -3,6 +3,8 @@ import { CircleMarker, Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 
 const FINISHED = ["completed", "failed", "cancelled"];
+const STORED_ROUTE_COLOR = "#16a34a";
+const BREADCRUMB_ROUTE_COLOR = "#2563eb";
 
 const isBlueHex = (hex) => {
   if (!hex || typeof hex !== "string" || !hex.startsWith("#") || hex.length < 7) return false;
@@ -281,8 +283,8 @@ export default function CompletedBreadcrumbPolylines({
           center={[point.latitude, point.longitude]}
           radius={3}
           pathOptions={{
-            color: segment.color,
-            fillColor: segment.color,
+            color: BREADCRUMB_ROUTE_COLOR,
+            fillColor: BREADCRUMB_ROUTE_COLOR,
             fillOpacity: Math.min(1, segment.opacity + 0.3),
             opacity: Math.max(segment.opacity, 0.5),
             weight: 1,
