@@ -37,6 +37,18 @@ function buildLocationSignature(itemName, amountCents, locationId) {
   return `${normalizeText(locationId)}::${buildItemSignature(itemName, amountCents)}`;
 }
 
+function normalizeMatchName(value) {
+  return normalizeText(value)
+    .replace(/\s+/g, ' ')
+    .replace(/\s-\s\$\d+(?:\.\d{2})?$/, '')
+    .replace(/^(\d{2})-(\d{2})/, '$1/$2')
+    .toLowerCase();
+}
+
+function buildComparableLocationSignature(itemName, amountCents, locationId) {
+  return `${normalizeText(locationId)}::${normalizeMatchName(itemName)}::${toAmountCents(amountCents)}`;
+}
+
 function getCatalogItemAmountCents(item) {
   const variations = item?.item_data?.variations || [];
   const variation = variations.find((entry) => entry?.item_variation_data?.price_money?.amount != null) || variations[0];
@@ -260,22 +272,29 @@ Deno.serve(async (req) => {
     );
     const paidOrderItemsBySignature = new Map();
     const paidOrderItemsByLocationSignature = new Map();
+    const paidOrderItemsByComparableLocationSignature = new Map();
     for (const item of paidOrderItems) {
       const signature = buildItemSignature(item.item_name, item.amount_cents);
       const locationSignature = buildLocationSignature(item.item_name, item.amount_cents, item.location_id);
+      const comparableLocationSignature = buildComparableLocationSignature(item.item_name, item.amount_cents, item.location_id);
       if (!paidOrderItemsBySignature.has(signature)) {
         paidOrderItemsBySignature.set(signature, []);
       }
       if (!paidOrderItemsByLocationSignature.has(locationSignature)) {
         paidOrderItemsByLocationSignature.set(locationSignature, []);
       }
+      if (!paidOrderItemsByComparableLocationSignature.has(comparableLocationSignature)) {
+        paidOrderItemsByComparableLocationSignature.set(comparableLocationSignature, []);
+      }
       paidOrderItemsBySignature.get(signature).push(item);
       paidOrderItemsByLocationSignature.get(locationSignature).push(item);
+      paidOrderItemsByComparableLocationSignature.get(comparableLocationSignature).push(item);
     }
 
     const transactionsBySignature = new Map();
     const completedTransactionCatalogObjectIds = new Set();
     const completedTransactionLocationSignatures = new Set();
+    const completedTransactionComparableLocationSignatures = new Set();
     for (const transaction of squareTransactions || []) {
       const amountCents = transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100);
       const signature = buildItemSignature(transaction?.item_name, amountCents);
@@ -290,6 +309,7 @@ Deno.serve(async (req) => {
           completedTransactionCatalogObjectIds.add(transaction.square_catalog_object_id);
         }
         completedTransactionLocationSignatures.add(buildLocationSignature(transaction?.item_name, amountCents, transaction?.location_id));
+        completedTransactionComparableLocationSignatures.add(buildComparableLocationSignature(transaction?.item_name, amountCents, transaction?.location_id));
       }
     }
 
@@ -299,6 +319,7 @@ Deno.serve(async (req) => {
     const deliveriesToCreate = [];
     const directlyMatchedCatalogItemIds = new Set();
     const directlyMatchedLocationSignatures = new Set();
+    const directlyMatchedComparableLocationSignatures = new Set();
 
     for (const item of catalogItems) {
       const itemName = normalizeText(item?.item_data?.name);
@@ -312,12 +333,15 @@ Deno.serve(async (req) => {
       const matchedByCatalogObjectId = paidCatalogObjectIds.has(item.id) || variationIds.some((variationId) => paidCatalogObjectIds.has(variationId));
       const matchedByCompletedTransactionId = completedTransactionCatalogObjectIds.has(item.id) || variationIds.some((variationId) => completedTransactionCatalogObjectIds.has(variationId));
       const matchedByLocationSignature = itemLocationIds.some((locationId) => paidOrderItemsByLocationSignature.has(buildLocationSignature(itemName, amountCents, locationId)));
+      const matchedByComparableLocationSignature = itemLocationIds.some((locationId) => paidOrderItemsByComparableLocationSignature.has(buildComparableLocationSignature(itemName, amountCents, locationId)));
       const matchedByCompletedTransactionSignature = itemLocationIds.some((locationId) => completedTransactionLocationSignatures.has(buildLocationSignature(itemName, amountCents, locationId)));
+      const matchedByCompletedComparableSignature = itemLocationIds.some((locationId) => completedTransactionComparableLocationSignatures.has(buildComparableLocationSignature(itemName, amountCents, locationId)));
 
-      if (matchedByCatalogObjectId || matchedByCompletedTransactionId || matchedByLocationSignature || matchedByCompletedTransactionSignature) {
+      if (matchedByCatalogObjectId || matchedByCompletedTransactionId || matchedByLocationSignature || matchedByComparableLocationSignature || matchedByCompletedTransactionSignature || matchedByCompletedComparableSignature) {
         directlyMatchedCatalogItemIds.add(item.id);
         itemLocationIds.forEach((locationId) => {
           directlyMatchedLocationSignatures.add(buildLocationSignature(itemName, amountCents, locationId));
+          directlyMatchedComparableLocationSignatures.add(buildComparableLocationSignature(itemName, amountCents, locationId));
         });
         itemsToDelete.push(item.id);
         const matchSource = matchedByCatalogObjectId || matchedByCompletedTransactionId
@@ -329,7 +353,8 @@ Deno.serve(async (req) => {
 
     for (const transaction of squareTransactions || []) {
       const locationSignature = buildLocationSignature(transaction?.item_name, transaction?.amount_cents, transaction?.location_id);
-      if (transaction?.status === 'pending' && (directlyMatchedCatalogItemIds.has(transaction?.square_catalog_object_id) || directlyMatchedLocationSignatures.has(locationSignature))) {
+      const comparableLocationSignature = buildComparableLocationSignature(transaction?.item_name, transaction?.amount_cents, transaction?.location_id);
+      if (transaction?.status === 'pending' && (directlyMatchedCatalogItemIds.has(transaction?.square_catalog_object_id) || directlyMatchedLocationSignatures.has(locationSignature) || directlyMatchedComparableLocationSignatures.has(comparableLocationSignature))) {
         transactionsToComplete.push(transaction.id);
       }
     }
@@ -341,6 +366,7 @@ Deno.serve(async (req) => {
       const amountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
       const signature = buildItemSignature(itemName, amountCents);
       const locationSignature = buildLocationSignature(itemName, amountCents, activeConfig?.square_location_id);
+      const comparableLocationSignature = buildComparableLocationSignature(itemName, amountCents, activeConfig?.square_location_id);
       let catalogItem = catalogBySignature.get(signature);
       const paidMatches = paidOrderItemsBySignature.get(signature) || [];
       const catalogVariationIds = (catalogItem?.item_data?.variations || [])
@@ -349,7 +375,7 @@ Deno.serve(async (req) => {
       const isPaidByCatalogObjectId = catalogItem
         ? paidCatalogObjectIds.has(catalogItem.id) || catalogVariationIds.some((variationId) => paidCatalogObjectIds.has(variationId))
         : false;
-      const isPaidByDirectCatalogMatch = (catalogItem && directlyMatchedCatalogItemIds.has(catalogItem.id)) || directlyMatchedLocationSignatures.has(locationSignature);
+      const isPaidByDirectCatalogMatch = (catalogItem && directlyMatchedCatalogItemIds.has(catalogItem.id)) || directlyMatchedLocationSignatures.has(locationSignature) || directlyMatchedComparableLocationSignatures.has(comparableLocationSignature);
       const existingTransactions = transactionsBySignature.get(signature) || [];
       const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || delivery.status === 'failed' || delivery.status === 'cancelled';
 
