@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+
 function parseTrackingNumber(value) {
   if (value === null || value === undefined) return null;
   const match = String(value).match(/\d+/);
