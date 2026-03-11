@@ -8,7 +8,7 @@ const clearLegacyHereLocalStorageCache = () => {
     const keysToRemove = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
-      if (key && (key.startsWith('here_') || key === 'rxdeliver_last_error')) {
+      if (key && (key.startsWith('here_') || key === 'rxdeliver_last_error' || key === 'base44_from_url')) {
         keysToRemove.push(key);
       }
     }
