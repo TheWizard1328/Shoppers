@@ -228,6 +228,10 @@ Deno.serve(async (req) => {
           const nextDelivery = incompleteDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
           if (nextDelivery) {
             console.log(`📍 [setDriverStatus] No driver location - using first stop by order: ${nextDelivery.patient_name || 'Pickup'}`);
+            const flaggedDeliveries = allTodayDeliveries.filter(d => d?.isNextDelivery === true && d.id !== nextDelivery.id);
+            for (const delivery of flaggedDeliveries) {
+              await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
+            }
             await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true });
           }
         }
