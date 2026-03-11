@@ -2433,7 +2433,7 @@ function Dashboard() {
         // CRITICAL: For admins viewing any driver OR drivers viewing themselves
         const shouldIncludeBlueDot =
           isMobile &&
-          isDriver &&
+          isDriver&&currentUser?.driver_status!=='off_duty' &&
           isViewingToday &&
           driverLocation?.latitude &&
           driverLocation?.longitude &&
@@ -2457,7 +2457,7 @@ function Dashboard() {
           // CRITICAL: For dispatchers viewing a single driver, prioritize AppUser data directly
           if (isDispatcher && selectedDriverId && selectedDriverId !== 'all') {
             const assignedDriverAppUser = appUsers?.find(au => au?.user_id === selectedDriverId);
-            if (assignedDriverAppUser?.current_latitude && assignedDriverAppUser?.current_longitude) {
+            if (assignedDriverAppUser?.driver_status!=='off_duty'&&assignedDriverAppUser?.current_latitude && assignedDriverAppUser?.current_longitude) {
               allCoordinates.push([assignedDriverAppUser.current_latitude, assignedDriverAppUser.current_longitude]);
               hasDriverMarkers = true;
               addedCount++;
@@ -2504,9 +2504,8 @@ function Dashboard() {
               return;
             }
 
-            // CRITICAL: Phase 1 "Show All" mode - include ALL rendered markers regardless of status
-            // No filtering by driver_status or location_tracking_enabled
-            // If the marker is rendered on the map, it should be in the bounds
+            if (appUsers?.find(au=>au?.user_id===location.driver_id)?.driver_status==='off_duty') return;
+            // CRITICAL: Phase 1 "Show All" mode - include rendered markers in bounds
 
             // Dispatcher filtering - check ALL date deliveries, not just selected driver
             if (isDispatcher && !isAdmin) {
@@ -2617,7 +2616,7 @@ function Dashboard() {
             userRefLat = driverLocation.latitude;
             userRefLon = driverLocation.longitude;
             locationSource = 'current_gps';
-          } else if (currentUser?.current_latitude && currentUser?.current_longitude) {
+          } else if (currentUser?.driver_status!=='off_duty'&&currentUser?.current_latitude && currentUser?.current_longitude) {
             userRefLat = currentUser.current_latitude;
             userRefLon = currentUser.current_longitude;
             locationSource = 'last_known';
@@ -2753,7 +2752,7 @@ function Dashboard() {
 
           activeDriverIds2.forEach(driverId => {
             const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
-            if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+            if (driverAppUser?.driver_status!=='off_duty'&&driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
               phase2DispatcherCoords.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
             }
             // Also include each driver's next stop
@@ -2786,7 +2785,7 @@ function Dashboard() {
           let driverLat, driverLon;
           
           // Priority 1: Use live GPS location (mobile blue dot)
-          if (driverLocation?.latitude && driverLocation?.longitude) {
+          if (currentUser?.driver_status!=='off_duty'&&driverLocation?.latitude && driverLocation?.longitude) {
             driverLat = driverLocation.latitude;
             driverLon = driverLocation.longitude;
           }
@@ -2794,14 +2793,14 @@ function Dashboard() {
           else {
             // CRITICAL: Find the AppUser record directly to get fresh location
             const currentAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
-            if (currentAppUser?.current_latitude && currentAppUser?.current_longitude) {
+            if (currentAppUser?.driver_status!=='off_duty'&&currentAppUser?.current_latitude && currentAppUser?.current_longitude) {
               driverLat = currentAppUser.current_latitude;
               driverLon = currentAppUser.current_longitude;
             }
             // Fallback: Use shared marker location
             else {
               const sharedDriverLocation = allDriverLocations.find(loc => loc.driver_id === currentUser?.id);
-              if (sharedDriverLocation?.latitude && sharedDriverLocation?.longitude) {
+              if (currentUser?.driver_status!=='off_duty'&&sharedDriverLocation?.latitude && sharedDriverLocation?.longitude) {
                 driverLat = sharedDriverLocation.latitude;
                 driverLon = sharedDriverLocation.longitude;
               }
@@ -2821,7 +2820,7 @@ function Dashboard() {
             setMapCenter(null);
             setMapZoom(null);
           }
-        } else if (driverLocation?.latitude && driverLocation?.longitude) {
+        } else if (currentUser?.driver_status!=='off_duty'&&driverLocation?.latitude && driverLocation?.longitude) {
           // If no next stop, just center on driver with padding
           const padding = getMapPadding();
 
@@ -2884,7 +2883,7 @@ function Dashboard() {
             );
             driversWithIncompleteInDispatcherStores.forEach(driverId => {
               const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
-              if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              if (driverAppUser?.driver_status!=='off_duty'&&driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
               }
             });
@@ -2959,7 +2958,7 @@ function Dashboard() {
           if (isViewingTodayPhase3) {
             driversWithIncompleteOrPendingStops.forEach((driverId) => {
               const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
-              if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              if (driverAppUser?.driver_status!=='off_duty'&&driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
               }
             });
