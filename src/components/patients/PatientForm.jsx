@@ -573,7 +573,12 @@ export default function PatientForm({
         onSave(completePatient, true);
       } else {
         if (onSave) {
-          await onSave(dataToSave);
+          const completePatient = {
+            ...dataToSave,
+            ...backendPatient,
+            id: savedPatientId
+          };
+          await onSave(completePatient);
         }
         onCancel();
       }
