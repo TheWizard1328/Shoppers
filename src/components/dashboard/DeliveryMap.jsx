@@ -1756,7 +1756,7 @@ export default function DeliveryMap({
 
 
         {/* TYPE 3 POLYLINES: Completed routes - sampled breadcrumbs with HERE-connected legs */}
-        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (
+        {(showRoutes || showBreadcrumbs || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (
           <CompletedBreadcrumbPolylines
             driverRoutes={driverRoutes}
             deliveryMarkers={deliveryMarkers}
