@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
     }
 
     if (!currentPosition || Number.isNaN(currentPosition.lat) || Number.isNaN(currentPosition.lng)) {
-      return Response.json({ error: 'Driver location not available - no GPS or home location set' }, { status: 404 });
+      return Response.json({ error: 'Driver current location is not available' }, { status: 404 });
     }
 
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
