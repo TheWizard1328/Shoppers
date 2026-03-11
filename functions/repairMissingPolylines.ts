@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-// Minimal Google polyline encoder (no external deps)
+// Compact Google polyline encoder used for storage/display compatibility
 function encodeSigned(value) {
   let sgn = value << 1;
   if (value < 0) sgn = ~sgn;
@@ -20,35 +20,126 @@ function encodeGooglePolyline(points) {
     const lngE5 = Math.round(lng * 1e5);
     out += encodeSigned(latE5 - lastLat);
     out += encodeSigned(lngE5 - lastLng);
-    lastLat = latE5; lastLng = lngE5;
+    lastLat = latE5;
+    lastLng = lngE5;
   }
   return out;
 }
 
+const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char, index) => {
+  acc[char] = index;
+  return acc;
+}, {});
+
+function decodeHereFlexiblePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+
+  const values = [];
+  let current = 0;
+  let shift = 0;
+
+  for (const char of encoded) {
+    const value = HERE_POLYLINE_DECODER[char];
+    if (value == null) return [];
+    current |= (value & 0x1f) << shift;
+    if (value & 0x20) {
+      shift += 5;
+      continue;
+    }
+    values.push(current);
+    current = 0;
+    shift = 0;
+  }
+
+  if (shift > 0 || values.length < 2) return [];
+
+  const version = values[0];
+  if (version !== 1) return [];
+
+  const header = values[1];
+  const precision = header & 15;
+  const thirdDimension = (header >> 4) & 7;
+  const factor = 10 ** precision;
+  const dimension = thirdDimension ? 3 : 2;
+  const toSigned = (value) => ((value & 1) ? ~(value >> 1) : (value >> 1));
+
+  let latitude = 0;
+  let longitude = 0;
+  let z = 0;
+  const coordinates = [];
+
+  for (let i = 2; i < values.length; i += dimension) {
+    latitude += toSigned(values[i]);
+    longitude += toSigned(values[i + 1]);
+    if (thirdDimension) {
+      z += toSigned(values[i + 2]);
+    }
+    coordinates.push([latitude / factor, longitude / factor]);
+  }
+
+  return coordinates;
+}
+
+function mergeHerePolylines(polylines) {
+  if (!Array.isArray(polylines)) return null;
+  const merged = [];
+
+  for (const polyline of polylines) {
+    const decoded = decodeHereFlexiblePolyline(polyline);
+    if (!decoded.length) continue;
+
+    if (merged.length && merged[merged.length - 1][0] === decoded[0][0] && merged[merged.length - 1][1] === decoded[0][1]) {
+      merged.push(...decoded.slice(1));
+    } else {
+      merged.push(...decoded);
+    }
+  }
+
+  return merged.length > 1 ? merged : null;
+}
+
 function round5(n) { return Number(Number(n).toFixed(5)); }
 
-async function fetchDirectionsPolyline(origin, destination, googleKey) {
-  const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&mode=driving&key=${googleKey}`;
+async function fetchHerePolyline(origin, destination, hereKey) {
+  const params = new URLSearchParams({
+    transportMode: 'car',
+    origin: `${origin.lat},${origin.lng}`,
+    destination: `${destination.lat},${destination.lng}`,
+    return: 'polyline,summary',
+    apikey: hereKey,
+  });
+  const url = `https://router.hereapi.com/v8/routes?${params.toString()}`;
   const controller = new AbortController();
   const to = setTimeout(() => controller.abort('timeout'), 10000);
   const resp = await fetch(url, { signal: controller.signal });
   clearTimeout(to);
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(`Directions error ${resp.status}: ${text.slice(0,200)}`);
+    throw new Error(`HERE directions error ${resp.status}: ${text.slice(0, 200)}`);
   }
   const data = await resp.json();
   const route = Array.isArray(data?.routes) ? data.routes[0] : null;
   if (!route) return { coords: [[origin.lat, origin.lng], [destination.lat, destination.lng]], distKm: 0, durMin: 0 };
-  const legs = Array.isArray(route?.legs) ? route.legs : [];
-  const totalMeters = legs.reduce((s, l) => s + (l?.distance?.value || 0), 0);
-  const totalSeconds = legs.reduce((s, l) => s + (l?.duration?.value || 0), 0);
-  const polyline = route?.overview_polyline?.points || null;
-  if (polyline) {
-    return { encoded: polyline, distKm: Math.round((totalMeters/1000)*10)/10, durMin: Math.round(totalSeconds/60) };
+
+  const sections = Array.isArray(route?.sections) ? route.sections : [];
+  const totalMeters = sections.reduce((sum, section) => sum + (section?.summary?.length || 0), 0);
+  const totalSeconds = sections.reduce((sum, section) => sum + (section?.summary?.duration || 0), 0);
+  const mergedCoords = mergeHerePolylines(sections.map((section) => section?.polyline).filter(Boolean));
+
+  if (mergedCoords?.length > 1) {
+    return {
+      encoded: encodeGooglePolyline(mergedCoords),
+      distKm: Math.round((totalMeters / 1000) * 10) / 10,
+      durMin: Math.round(totalSeconds / 60),
+    };
   }
-  // Fallback straight line
-  return { coords: [[origin.lat, origin.lng],[destination.lat, destination.lng]], distKm: Math.round((totalMeters/1000)*10)/10, durMin: Math.round(totalSeconds/60) };
+
+  return {
+    coords: [[origin.lat, origin.lng], [destination.lat, destination.lng]],
+    distKm: Math.round((totalMeters / 1000) * 10) / 10,
+    durMin: Math.round(totalSeconds / 60),
+  };
 }
 
 Deno.serve(async (req) => {
@@ -129,8 +220,8 @@ Deno.serve(async (req) => {
     const allAppUsers = await base44.asServiceRole.entities.AppUser.list();
     const appUserByKey = new Map((allAppUsers || []).filter(Boolean).flatMap(u => [[String(u.id), u], [String(u.user_id), u]]));
 
-    const GOOGLE_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY');
-    let googleApiCalls = 0;
+    const HERE_KEY = Deno.env.get('HERE_API_KEY');
+    let hereApiCalls = 0;
 
     const FINISHED = new Set(['completed','failed','cancelled','returned']);
     const repaired = [];
@@ -173,8 +264,8 @@ Deno.serve(async (req) => {
           // Fetch & save
           const origin = { lat: a.lat, lng: a.lon };
           const dest = { lat: b.lat, lng: b.lon };
-          googleApiCalls += 1;
-          const data = await fetchDirectionsPolyline(origin, dest, GOOGLE_KEY);
+          hereApiCalls += 1;
+          const data = await fetchHerePolyline(origin, dest, HERE_KEY);
           const encoded = data.encoded || encodeGooglePolyline((data.coords || []).map(([la,lo]) => [la, lo]));
           await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
             encoded_polyline: encoded,
@@ -218,8 +309,8 @@ Deno.serve(async (req) => {
           }, '-updated_date', 1);
           const rec = Array.isArray(existing) ? existing[0] : null;
           if (!rec?.encoded_polyline) {
-            googleApiCalls += 1;
-            const data = await fetchDirectionsPolyline({ lat: last.lat, lng: last.lon }, { lat: nextStop.lat, lng: nextStop.lon }, GOOGLE_KEY);
+            hereApiCalls += 1;
+            const data = await fetchHerePolyline({ lat: last.lat, lng: last.lon }, { lat: nextStop.lat, lng: nextStop.lon }, HERE_KEY);
             const encoded = data.encoded || encodeGooglePolyline((data.coords || []).map(([la,lo]) => [la, lo]));
             const saved = await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
               encoded_polyline: encoded,
@@ -288,8 +379,8 @@ Deno.serve(async (req) => {
           }, '-updated_date', 1);
           const rec = Array.isArray(existing) ? existing[0] : null;
           if (!rec?.encoded_polyline) {
-            googleApiCalls += 1;
-            const data = await fetchDirectionsPolyline({ lat: originLat, lng: originLon }, { lat: next.lat, lng: next.lon }, GOOGLE_KEY);
+            hereApiCalls += 1;
+            const data = await fetchHerePolyline({ lat: originLat, lng: originLon }, { lat: next.lat, lng: next.lon }, HERE_KEY);
             const encoded = data.encoded || encodeGooglePolyline((data.coords || []).map(([la,lo]) => [la, lo]));
             const saved = await (rec ? base44.asServiceRole.entities.DriverRoutePolyline.update(rec.id, {
               encoded_polyline: encoded,
@@ -335,7 +426,7 @@ Deno.serve(async (req) => {
     try { self && self.dispatchEvent && self.dispatchEvent(new Event('polylineUpdated')); } catch (_) {}
 
     try {
-      if (googleApiCalls > 0) {
+      if (hereApiCalls > 0) {
         const myAppUser = (await base44.asServiceRole.entities.AppUser.filter({ user_id: me.id }, '-updated_date', 1))?.[0];
         await base44.asServiceRole.entities.GoogleAPILog.create({
           timestamp: new Date().toISOString(),
@@ -345,8 +436,8 @@ Deno.serve(async (req) => {
           user_id: me.id,
           user_name: myAppUser?.user_name || me.id,
           metadata: {
-            api_provider: 'google',
-            call_count: googleApiCalls,
+            api_provider: 'here',
+            call_count: hereApiCalls,
             delivery_date: dateStr,
             repaired_segments: repaired.length,
             deleted_online: deletedIds.length
@@ -355,7 +446,7 @@ Deno.serve(async (req) => {
       }
     } catch (_) {}
 
-    return Response.json({ success: true, date: dateStr, repaired, deleted_online: deletedIds.length, kept_online: keptOnlineCount, googleApiCalls });
+    return Response.json({ success: true, date: dateStr, repaired, deleted_online: deletedIds.length, kept_online: keptOnlineCount, hereApiCalls });
   } catch (err) {
     return Response.json({ error: err?.message || 'Server error' }, { status: 500 });
   }

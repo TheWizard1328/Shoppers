@@ -382,8 +382,8 @@ export default function GoogleAPILogViewer() {
   };
 
   return (
-    <Card className="mb-6">
-      <CardHeader>
+    <Card className="mb-6 h-[calc(100vh-8rem)] flex flex-col overflow-hidden">
+      <CardHeader className="shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <CardTitle className="text-2xl font-bold text-slate-900">Maps API Usage Log</CardTitle>
@@ -425,8 +425,9 @@ export default function GoogleAPILogViewer() {
         </div>
       </CardHeader>
 
-      <CardContent>
-        {/* Alerts Banner */}
+      <CardContent className="flex-1 min-h-0 overflow-hidden">
+        <div className="shrink-0 space-y-6 pb-6">
+          {/* Alerts Banner */}
         {alerts.length > 0 && (
           <div className="mb-6 space-y-2">
             {alerts.map((alert, idx) => (
@@ -556,8 +557,11 @@ export default function GoogleAPILogViewer() {
           </div>
         </div>
         
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1">
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Hourly Call Volume */}
           <div className="bg-white border rounded-lg p-4">
             <h3 className="font-semibold text-slate-900 mb-4">
@@ -653,7 +657,7 @@ export default function GoogleAPILogViewer() {
           </div>
         ) : (
           <div className="border rounded-lg overflow-hidden">
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-slate-50 sticky top-0">
                   <tr>
@@ -718,11 +722,12 @@ export default function GoogleAPILogViewer() {
           </div>
         )}
 
-        {filteredLogs.length > 0 && (
-          <div className="mt-4 text-sm text-slate-500 text-center">
-            Showing {filteredLogs.length} log entries totaling {sumApiLogCalls(filteredLogs)} API calls
-          </div>
-        )}
+          {filteredLogs.length > 0 && (
+            <div className="text-sm text-slate-500 text-center pb-1">
+              Showing {filteredLogs.length} log entries totaling {sumApiLogCalls(filteredLogs)} API calls
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
