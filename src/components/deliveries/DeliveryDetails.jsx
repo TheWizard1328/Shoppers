@@ -127,26 +127,26 @@ export default function DeliveryDetails({ delivery, patient, statusConfig }) {
               </div>
             </div>
 
-            {delivery.patient_phone && (
+            {patient?.phone && (
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-slate-100)' }}>
                   <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-600)' }} />
                 </div>
                 <div>
                   <p className="font-medium" style={{ color: 'var(--text-slate-900)' }}>Patient Phone</p>
-                  <span style={{ color: 'var(--text-slate-600)' }}>{formatPhoneNumber(delivery.patient_phone)}</span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>{formatPhoneNumber(patient?.phone)}</span>
                 </div>
               </div>
             )}
 
-            {delivery.store_phone && (
+            {store?.phone && (
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-slate-100)' }}>
                   <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-600)' }} />
                 </div>
                 <div>
                   <p className="font-medium" style={{ color: 'var(--text-slate-900)' }}>Store Phone</p>
-                  <span style={{ color: 'var(--text-slate-600)' }}>{formatPhoneNumber(delivery.store_phone)}</span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>{formatPhoneNumber(store?.phone)}</span>
                 </div>
               </div>
             )}

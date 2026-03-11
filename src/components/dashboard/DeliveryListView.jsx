@@ -54,7 +54,7 @@ const DeliveryRow = memo(({
           {/* Row 2 Left: Patient/Pickup */}
           <div className="min-w-0 mt-1">
             <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
-              {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
+              {patient?.full_name || delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
             </span>
           </div>
 
@@ -152,7 +152,7 @@ const DeliveryRow = memo(({
         <div className="flex items-center min-w-0">
           <div className="flex flex-col min-w-0">
             <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
-              {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
+              {patient?.full_name || delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
             </span>
             {patient?.address && (
               <span className="text-xs text-slate-500 truncate">{patient.address}</span>
@@ -283,7 +283,10 @@ const DeliveryListView = ({
   // Memoize patient lookup map for O(1) access
   const patientMap = useMemo(() => {
     const map = new Map();
-    patients.forEach(p => { if (p?.id) map.set(p.id, p); });
+    patients.forEach(p => {
+      if (p?.id) map.set(p.id, p);
+      if (p?.patient_id) map.set(p.patient_id, p);
+    });
     return map;
   }, [patients]);
 

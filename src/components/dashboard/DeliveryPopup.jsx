@@ -7,7 +7,7 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
 export default function DeliveryPopup({ delivery, isPickup = false, stores = [], patients = [], users = [] }) {
   const store = stores.find(s => s && s.id === delivery.store_id);
-  const patient = !isPickup ? patients.find(p => p && p.id === delivery.patient_id) : null;
+  const patient = !isPickup ? patients.find(p => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id)) : null;
   const driver = users.find(u => u && u.id === delivery.driver_id);
 
   const getStatusColor = (status) => {
@@ -46,7 +46,7 @@ export default function DeliveryPopup({ delivery, isPickup = false, stores = [],
         ) : (
           <button
             onClick={() => {
-              const destination = `${patient?.address}${delivery.unit_number ? ' #' + delivery.unit_number : ''}`;
+              const destination = `${patient?.address}${patient?.unit_number ? ' #' + patient.unit_number : ''}`;
               const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
               window.open(url, '_blank');
             }}
@@ -58,7 +58,7 @@ export default function DeliveryPopup({ delivery, isPickup = false, stores = [],
 
         <p className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
           {isPickup ? store?.address : patient?.address}
-          {!isPickup && delivery.unit_number && <span className="ml-1">#{delivery.unit_number}</span>}
+          {!isPickup && patient?.unit_number && <span className="ml-1">#{patient.unit_number}</span>}
         </p>
 
         {(() => {

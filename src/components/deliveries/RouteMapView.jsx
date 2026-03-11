@@ -87,7 +87,7 @@ export default function RouteMapView({
         storeIds.add(delivery.store_id);
       } else {
         // This is a delivery, find the patient's store
-        const patient = patients.find(p => p.id === delivery.patient_id);
+        const patient = patients.find(p => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id));
         if (patient) storeIds.add(patient.store_id);
       }
     });
