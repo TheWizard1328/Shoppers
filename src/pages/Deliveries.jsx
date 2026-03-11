@@ -3105,7 +3105,7 @@ export default function DeliveriesPage() {
       }).length;
 
       const returned = driverDeliveries.filter((d) => {
-        const patient = patientsToUse.find((p) => p && p.id === d.patient_id);
+        const patient = patientsToUse.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));
         const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
         const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
         return notesReturn || addressReturn;
@@ -3252,7 +3252,7 @@ export default function DeliveriesPage() {
 
     // Find the selected delivery for the details panel
     const selectedDelivery = selectedDeliveryId ? deliveriesToRender.find((d) => d.id === selectedDeliveryId) : null;
-    const selectedPatient = selectedDelivery ? (effectivePatients || []).find((p) => p && p.id === selectedDelivery.patient_id) : null;
+    const selectedPatient = selectedDelivery ? (effectivePatients || []).find((p) => p && (p.id === selectedDelivery.patient_id || p.patient_id === selectedDelivery.patient_id)) : null;
     const selectedStore = selectedDelivery ? (stores || []).find((s) => s && s.id === selectedDelivery.store_id) : null;
     const selectedDriver = selectedDelivery ?
     (effectiveDrivers || []).find((d) => d.id === selectedDelivery.driver_id || d.appUserId === selectedDelivery.driver_id) ||
@@ -3271,7 +3271,7 @@ export default function DeliveriesPage() {
               <StopCard
                 key={delivery.id || `${delivery.delivery_date||'unknown'}-${delivery.patient_id ?? 'pickup'}-${delivery.store_id ?? 'store'}-${delivery.tracking_number || index}` }
                 delivery={delivery}
-                patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
+                patient={(effectivePatients || []).find((p) => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id))}
                 store={(stores || []).find((s) => s && s.id === delivery.store_id)}
                 driver={
                 (effectiveDrivers || []).find((d) => d.id === delivery.driver_id || d.appUserId === delivery.driver_id) ||
@@ -4184,7 +4184,7 @@ export default function DeliveriesPage() {
               return (
                 <StopDetailsPanel
                   delivery={delivery}
-                  patient={(effectivePatients || []).find((p) => p && p.id === delivery?.patient_id)}
+                  patient={(effectivePatients || []).find((p) => p && (p.id === delivery?.patient_id || p.patient_id === delivery?.patient_id))}
                   store={(stores || []).find((s) => s && s.id === delivery?.store_id)}
                   driver={(effectiveDrivers || []).find((d) => d.id === delivery?.driver_id || d.appUserId === delivery?.driver_id)}
                   currentUser={currentUser}
