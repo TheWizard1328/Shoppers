@@ -54,6 +54,27 @@ const broadcastMutation = async (entity, action, id, data, ids = null) => {
   }
 };
 
+const refreshOfflineEntitySnapshots = async (entityName, record = null) => {
+  try {
+    if (entityName === 'Patient') {
+      const allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      await offlineDB.updateCacheSnapshot('Patient', allPatients || [], { scopeKey: 'global', syncType: 'mutation' });
+      return;
+    }
+
+    if (entityName === 'Delivery') {
+      const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      await offlineDB.updateCacheSnapshot('Delivery', allDeliveries || [], { scopeKey: 'global', syncType: 'mutation' });
+      const deliveryDate = record?.delivery_date;
+      if (deliveryDate) {
+        await offlineDB.updateCacheSnapshot('Delivery', (allDeliveries || []).filter(d => d?.delivery_date === deliveryDate), { scopeKey: `date:${deliveryDate}`, syncType: 'mutation' });
+      }
+    }
+  } catch (error) {
+    console.warn('[EntityMutations] Failed to refresh offline cache snapshot:', error.message);
+  }
+};
+
 let creatorAppUserPromise = null;
 const getCurrentCreatorAppUserId = async () => {
   if (!creatorAppUserPromise) {
@@ -211,6 +232,7 @@ export const createPatient = async (patientData, options = {}) => {
         req.onerror = () => reject(req.error);
       });
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
+      await refreshOfflineEntitySnapshots('Patient', backendPatient);
       
       // Notify UI to replace temp with real
       notifyMutation({ type: 'replace', entity: 'Patient', oldId: tempId, newId: backendPatient.id, data: backendPatient });
@@ -269,6 +291,7 @@ export const updatePatient = async (patientId, updates, options = {}) => {
       
       // STEP 3: Update IndexedDB with backend version
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
+      await refreshOfflineEntitySnapshots('Patient', backendPatient);
       
       // STEP 4: CRITICAL - Update cache directly to prevent UI flickering
       const { updateCache } = await import('./dataManager');
@@ -388,6 +411,7 @@ export const createDelivery = async (deliveryData, options = {}) => {
         req.onerror = () => reject(req.error);
       });
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
+      await refreshOfflineEntitySnapshots('Delivery', backendDelivery);
       
       // STEP 4: CRITICAL - Update cache directly (will be added via notifyMutation)
       // For creates, the cache will be updated through the mutation listener
@@ -468,6 +492,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       
       // STEP 3: Update IndexedDB with backend response (authoritative version)
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
+      await refreshOfflineEntitySnapshots('Delivery', backendDelivery);
       
       // STEP 4: CRITICAL - Update cache directly to prevent UI flickering
       const { updateCache } = await import('./dataManager');
