@@ -16,7 +16,7 @@ import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgres
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
-import { saveCatalogItemsOffline, savePaymentTransactionsOffline, getCatalogItemsOffline, getPaymentTransactionsOffline, getSquareCODSyncStatus } from "@/components/utils/squareCODOfflineManager";
+import { syncSquareCODSnapshotOffline, getCatalogItemsOffline, getPaymentTransactionsOffline, getSquareCODSyncStatus, handleSquareCatalogItemRealtimeEvent, handleSquareTransactionRealtimeEvent } from "@/components/utils/squareCODOfflineManager";
 
 export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
@@ -62,45 +62,42 @@ export default function SquareManagement() {
     };
   }, []);
 
+  const loadSquareViewFromOffline = React.useCallback(async () => {
+    const [offlineCatalog, offlineTransactions, updatedSyncStatus] = await Promise.all([
+      getCatalogItemsOffline(),
+      getPaymentTransactionsOffline(),
+      getSquareCODSyncStatus(),
+    ]);
+
+    const sold = (offlineTransactions || []).filter(tx => ['completed', 'refunded'].includes(tx.status));
+
+    setCatalogItems(offlineCatalog || []);
+    setSoldCatalogItems(sold);
+    setAllTransactions(offlineTransactions || []);
+    setSyncStatus(updatedSyncStatus);
+
+    return {
+      items: offlineCatalog || [],
+      transactions: offlineTransactions || [],
+      sold,
+    };
+  }, []);
+
   const refreshSquareView = async (fallbackLocationIds = []) => {
-    const [pendingTxs, transactions] = await Promise.all([
-      base44.entities.SquareTransaction.filter({ status: 'pending' }),
+    const [catalogRecords, transactions] = await Promise.all([
+      base44.entities.SquareCatalogItems.list('-updated_date', 500),
       base44.entities.SquareTransaction.list('-created_date', 500),
     ]);
 
-    const items = (pendingTxs || []).map(tx => ({
-      catalog_object_id: tx.square_catalog_object_id || tx.id,
-      variation_id: null,
-      name: tx.item_name,
-      description: '',
-      price_cents: tx.amount_cents || Math.round((tx.amount || 0) * 100),
-      price_dollars: tx.amount || 0,
-      location_id: tx.location_id || '',
-      present_at_locations: tx.location_id ? [tx.location_id] : [],
-      present_at_all: false,
-      updated_at: tx.updated_date,
-      version: tx.square_catalog_version || 0,
-      transaction_id: tx.id,
-      delivery_id: tx.delivery_id,
-      patient_id: tx.patient_id,
-      store_id: tx.store_id,
-      status: 'active',
-      created_date: tx.created_date,
-      is_sold: false,
-    }));
-    const sold = (transactions || []).filter(tx => ['completed', 'refunded'].includes(tx.status));
+    await syncSquareCODSnapshotOffline({
+      catalogItems: catalogRecords || [],
+      transactions: transactions || [],
+    });
 
-    setCatalogItems(items);
-    setSoldCatalogItems(sold);
-    setAllTransactions(transactions || []);
+    const snapshot = await loadSquareViewFromOffline();
     setLocationIds(fallbackLocationIds);
 
-    await Promise.all([
-      saveCatalogItemsOffline(items),
-      savePaymentTransactionsOffline(transactions || []),
-    ]);
-
-    return { items, transactions: transactions || [], sold, data: { locationIds: fallbackLocationIds } };
+    return { ...snapshot, data: { locationIds: fallbackLocationIds } };
   };
 
   const syncFromSquare = async () => {
@@ -226,54 +223,9 @@ export default function SquareManagement() {
         const syncedLocationIds = configs.map(c => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
-        // INSTANT LOAD: Read SquareTransaction entity (pending = active catalog items)
-        let hasEntityData = false;
-        try {
-          const pendingTxs = await base44.entities.SquareTransaction.filter({ status: 'pending' });
-          if (pendingTxs && pendingTxs.length > 0) {
-            hasEntityData = true;
-            // Convert SquareTransaction records to catalog item format for display
-            const txAsItems = pendingTxs.map(tx => ({
-              catalog_object_id: tx.square_catalog_object_id || tx.id,
-              variation_id: null,
-              name: tx.item_name,
-              description: '',
-              price_cents: tx.amount_cents || Math.round((tx.amount || 0) * 100),
-              price_dollars: tx.amount || 0,
-              location_id: tx.location_id || '',
-              present_at_locations: tx.location_id ? [tx.location_id] : [],
-              present_at_all: false,
-              updated_at: tx.updated_date,
-              version: 0,
-              transaction_id: tx.id,
-              delivery_id: tx.delivery_id,
-              patient_id: tx.patient_id,
-              store_id: tx.store_id,
-              status: 'active',
-              created_date: tx.created_date,
-              is_sold: false
-            }));
-            setCatalogItems(txAsItems);
-            setIsLoading(false);
-            await loadSyncStatus();
-          }
-        } catch (txErr) {
-          console.warn('⚠️ [SquareManagement] Failed to load SquareTransaction entity:', txErr.message);
-        }
-
-        // Offline cache fallback if entity load returned nothing
-        if (!hasEntityData) {
-          const [offlineCatalog, offlinePayments] = await Promise.all([
-            getCatalogItemsOffline(),
-            getPaymentTransactionsOffline()
-          ]);
-          if (offlineCatalog.length > 0) {
-            setCatalogItems(offlineCatalog);
-            setSoldCatalogItems(offlinePayments);
-            setAllTransactions(offlinePayments);
-            setIsLoading(false);
-            await loadSyncStatus();
-          }
+        const offlineSnapshot = await loadSquareViewFromOffline();
+        if (offlineSnapshot.items.length > 0 || offlineSnapshot.transactions.length > 0) {
+          setIsLoading(false);
         }
 
         // Always fetch fresh data from API (sync first, then refresh UI from Square)
@@ -318,6 +270,35 @@ export default function SquareManagement() {
 
     loadData();
   }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const syncRealtimeEvent = async (handler, event) => {
+      try {
+        await handler(event);
+        if (isActive) {
+          await loadSquareViewFromOffline();
+        }
+      } catch (error) {
+        console.error('❌ [SquareManagement] Realtime Square sync failed:', error);
+      }
+    };
+
+    const unsubscribeCatalogItems = base44.entities.SquareCatalogItems.subscribe((event) => {
+      syncRealtimeEvent(handleSquareCatalogItemRealtimeEvent, event);
+    });
+
+    const unsubscribeTransactions = base44.entities.SquareTransaction.subscribe((event) => {
+      syncRealtimeEvent(handleSquareTransactionRealtimeEvent, event);
+    });
+
+    return () => {
+      isActive = false;
+      unsubscribeCatalogItems?.();
+      unsubscribeTransactions?.();
+    };
+  }, [loadSquareViewFromOffline]);
 
 
 
