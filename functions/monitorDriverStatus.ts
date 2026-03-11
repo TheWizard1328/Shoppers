@@ -29,7 +29,28 @@ Deno.serve(async (req) => {
     for (const appUser of appUsers) {
       const roles = Array.isArray(appUser?.app_roles) ? appUser.app_roles : [];
       if (!roles.includes('driver')) continue;
-      if (appUser?.driver_status === 'off_duty') continue;
+
+      if (appUser?.driver_status === 'off_duty') {
+        const hasResidualLocation = appUser?.current_latitude !== null || appUser?.current_longitude !== null || appUser?.location_updated_at !== null;
+        if (hasResidualLocation) {
+          await base44.asServiceRole.entities.AppUser.update(appUser.id, {
+            location_tracking_enabled: false,
+            current_latitude: null,
+            current_longitude: null,
+            location_updated_at: null
+          });
+          updates.push({
+            user_id: appUser.user_id,
+            user_name: appUser.user_name,
+            reason: 'Normalized existing off duty driver location fields',
+            last_location_update_at: appUser.location_updated_at,
+            cleared_next_flags: 0
+          });
+          updated += 1;
+        }
+        continue;
+      }
+
       if (!appUser?.location_updated_at) continue;
 
       checked += 1;
