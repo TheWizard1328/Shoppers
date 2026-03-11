@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
       params.set('mode', 'fastest;car;traffic:enabled');
       params.set('improveFor', 'time');
       params.set('start', `driverStart;${optimizationStartPosition.lat},${optimizationStartPosition.lng}`);
-...
+
       for (const stop of stopsToSequence) {
         const segments = [`${stop.waypointLabel};${stop.lat},${stop.lng}`];
         if (includeTimeWindows) {
@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
       }
 
       const hereUrl = `https://wps.hereapi.com/v8/findsequence2?${params.toString()}`;
-      console.log(`🌐 [optimizeRouteRealTime] Calling HERE Waypoints Sequence API for ${stops.length} stops${includeTimeWindows ? ' with time windows' : ' without time windows'}`);
+      console.log(`🌐 [optimizeRouteRealTime] Calling HERE Waypoints Sequence API for ${stopsToSequence.length} stops${includeTimeWindows ? ' with time windows' : ' without time windows'}`);
       const response = await fetch(hereUrl, { signal: AbortSignal.timeout(20000) });
       const data = await response.json().catch(() => null);
       return { response, data, includeTimeWindows };
@@ -351,14 +351,14 @@ Deno.serve(async (req) => {
       .filter((waypoint) => !orderedStops.some((item) => item.waypoint.id === waypoint.id))
       .map((waypoint) => waypoint.id);
 
-    if (orderedStops.length !== stops.length) {
+    if (orderedStops.length !== stopsToSequence.length) {
       return Response.json({
-        error: 'HERE response did not include all incomplete stops',
+        error: 'HERE response did not include all optimizable stops',
         details: {
-          requestedStops: stops.length,
+          requestedStops: stopsToSequence.length,
           returnedStops: orderedStops.length,
           unmatchedWaypointIds,
-          expectedWaypointIds: stops.map((stop) => ({ waypointId: stop.waypointId, waypointLabel: stop.waypointLabel })),
+          expectedWaypointIds: stopsToSequence.map((stop) => ({ waypointId: stop.waypointId, waypointLabel: stop.waypointLabel })),
           response: hereData,
           usedTimeWindows
         }
@@ -436,7 +436,7 @@ Deno.serve(async (req) => {
         user_name: callerAppUser?.user_name || user.id,
         metadata: {
           api_provider: 'here_waypoints_sequence_v8',
-          call_count: 1,
+          call_count: stopsToSequence.length > 0 ? 1 : 0,
           driver_id: driverId,
           delivery_date: deliveryDate,
           stops_count: stops.length,
@@ -513,7 +513,7 @@ Deno.serve(async (req) => {
       sequence: locked ? 0 : waypoint?.sequence
     }));
 
-    console.log(`✅ Route optimization complete - ${optimizedRoute.length} stops updated, 1 HERE API call`);
+    console.log(`✅ Route optimization complete - ${optimizedRoute.length} stops updated, ${stopsToSequence.length > 0 ? 1 : 0} HERE API call`);
     if (assignedNextDeliveryStopOrder !== null) {
       console.log(`🎯 [optimizeRouteRealTime] isNextDelivery assigned stop order ${assignedNextDeliveryStopOrder}`);
     }
@@ -526,7 +526,7 @@ Deno.serve(async (req) => {
       optimizedRoute,
       totalStops: optimizedRoute.length,
       stagesCount: 1,
-      apiCallsMade: 1,
+      apiCallsMade: stopsToSequence.length > 0 ? 1 : 0,
       locationSource,
       hereSummary: {
         distanceMeters: Number(result?.distance || 0),
