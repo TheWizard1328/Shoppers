@@ -6966,9 +6966,9 @@ function Dashboard() {
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         }
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' } }));
-        const today = selectedDateStr === getEdmDate(), m = await offlineDB.getSyncMetadata('Delivery'), t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
+        const isTodaySelected = selectedDateStr === getEdmDate(), m = await offlineDB.getSyncMetadata('Delivery'), t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
         const active = (freshDeliveries || []).some((d) => d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status));
-        if (today && (!t || Date.now() - t >= (active ? 60000 : 300000))) setTimeout(() => window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'initial_load_today_active_routes' : 'initial_load_today_completed_routes' } })), 2000);
+        if (isTodaySelected && (!t || Date.now() - t >= (active ? 60000 : 300000))) setTimeout(() => window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'initial_load_today_active_routes' : 'initial_load_today_completed_routes' } })), 2000);
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429')) return;
         console.warn('⚠️ [Dashboard Mount - STEP 2] Background sync failed:', error.message);
