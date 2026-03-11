@@ -2612,7 +2612,7 @@ function Dashboard() {
           let userRefLon = null;
           let locationSource = null;
 
-          if (driverLocation?.latitude && driverLocation?.longitude) {
+          if (currentUser?.driver_status!=='off_duty'&&driverLocation?.latitude && driverLocation?.longitude) {
             userRefLat = driverLocation.latitude;
             userRefLon = driverLocation.longitude;
             locationSource = 'current_gps';
@@ -3001,7 +3001,7 @@ function Dashboard() {
           // CRITICAL: Add driver marker ONLY if they have incomplete OR pending stops (only if viewing today)
           if (isViewingTodayPhase3 && incompleteAndPendingActiveDriver.length > 0) {
             const driverAppUser = appUsers?.find(au => au?.user_id === targetDriverId);
-            if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+            if (driverAppUser?.driver_status!=='off_duty'&&driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
               allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
             }
           }
