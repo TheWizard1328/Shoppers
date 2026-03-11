@@ -82,12 +82,20 @@ const parseBreadcrumbWaypoints = (breadcrumbsValue, start, end, sampleEvery = 10
   const sampled = parseBreadcrumbPoints(breadcrumbsValue)
     .filter((_, index) => index % sampleEvery === 0);
 
-  const combined = [start, ...sampled, end];
-  return combined.filter((point, index) => {
-    if (index === 0) return true;
-    const previous = combined[index - 1];
-    return !samePoint(previous, point);
+  const points = [start];
+  sampled.forEach((point) => {
+    const previous = points[points.length - 1];
+    if (!samePoint(previous, point)) points.push(point);
   });
+
+  const previous = points[points.length - 1];
+  if (samePoint(previous, end)) {
+    points[points.length - 1] = end;
+  } else {
+    points.push(end);
+  }
+
+  return points;
 };
 
 export default function CompletedBreadcrumbPolylines({
@@ -276,7 +284,7 @@ export default function CompletedBreadcrumbPolylines({
       );
     });
 
-    segment.breadcrumbWaypoints.slice(1, -1).forEach((point, index) => {
+    segment.breadcrumbWaypoints.slice(1).forEach((point, index) => {
       renderedDots.push(
         <CircleMarker
           key={`completed-breadcrumb-dot-${segment.id}-${index}-${polylineRenderKey}`}
