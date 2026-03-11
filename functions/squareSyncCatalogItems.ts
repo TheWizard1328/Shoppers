@@ -249,6 +249,11 @@ Deno.serve(async (req) => {
     }
 
     const paidOrderItems = flattenPaidOrderItems(completedOrders);
+    const paidCatalogObjectIds = new Set(
+      paidOrderItems
+        .map((item) => item.catalog_object_id)
+        .filter(Boolean)
+    );
     const paidOrderItemsBySignature = new Map();
     for (const item of paidOrderItems) {
       const signature = buildItemSignature(item.item_name, item.amount_cents);
@@ -279,8 +284,9 @@ Deno.serve(async (req) => {
       const itemName = formatItemName(delivery.delivery_date, store?.abbreviation, delivery.patient_name);
       const amountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
       const signature = buildItemSignature(itemName, amountCents);
-      const paidMatches = paidOrderItemsBySignature.get(signature) || [];
       let catalogItem = catalogBySignature.get(signature);
+      const paidMatches = paidOrderItemsBySignature.get(signature) || [];
+      const isPaidByCatalogObjectId = catalogItem ? paidCatalogObjectIds.has(catalogItem.id) : false;
       const existingTransactions = transactionsBySignature.get(signature) || [];
       const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || delivery.status === 'failed' || delivery.status === 'cancelled';
 
@@ -307,9 +313,10 @@ Deno.serve(async (req) => {
         catalogItem = null;
       }
 
-      if (paidMatches.length) {
+      if (paidMatches.length || isPaidByCatalogObjectId) {
         if (catalogItem) {
           itemsToDelete.push(catalogItem.id);
+          console.log(`🧾 Matched paid Square item for ${itemName} via ${isPaidByCatalogObjectId ? 'catalog_object_id' : 'name_amount_signature'}`);
         }
         for (const transaction of existingTransactions) {
           if (transaction.status === 'pending') {
