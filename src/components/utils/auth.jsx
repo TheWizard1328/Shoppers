@@ -3,6 +3,21 @@ import { AppUser } from '@/entities/AppUser';
 import { createMergedUser } from './driverUtils';
 import { getCached } from './dataManager';
 
+const clearLegacyHereLocalStorageCache = () => {
+  try {
+    const keysToRemove = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith('here_')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  } catch (_) {}
+};
+
+clearLegacyHereLocalStorageCache();
+
 // Global cache for user data to prevent repeated API calls
 let userCache = {
   data: null,
