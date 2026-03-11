@@ -22,7 +22,7 @@ function clearLegacyHereLocalStorageCache() {
 
 clearLegacyHereLocalStorageCache();
 
-// If the online entity has been purged, avoid rehydrating from stale localStorage keys
+// Clear route cache for a specific segment
 export function clearHereCacheForSegment(from, to) {
   try {
     if (!from || !to) return;
@@ -437,10 +437,6 @@ const deliveryDateSafe = deliveryDate || todayStr;
           let waited = 0;
           const iv = setInterval(() => {
             if (memoryCache.has(cacheKey)) { clearInterval(iv); resolve(memoryCache.get(cacheKey)); return; }
-            try {
-              const cached = localStorage.getItem(cacheKey);
-              if (cached) { clearInterval(iv); resolve(JSON.parse(cached)); return; }
-            } catch (_) {}
             if (waited >= 6000) { clearInterval(iv); resolve(null); return; }
             waited += 150;
           }, 150);
