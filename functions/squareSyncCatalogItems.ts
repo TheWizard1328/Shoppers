@@ -33,6 +33,10 @@ function buildItemSignature(itemName, amountCents) {
   return `${normalizeText(itemName)}::${toAmountCents(amountCents)}`;
 }
 
+function buildLocationSignature(itemName, amountCents, locationId) {
+  return `${normalizeText(locationId)}::${buildItemSignature(itemName, amountCents)}`;
+}
+
 function getCatalogItemAmountCents(item) {
   const variations = item?.item_data?.variations || [];
   const variation = variations.find((entry) => entry?.item_variation_data?.price_money?.amount != null) || variations[0];
@@ -255,12 +259,18 @@ Deno.serve(async (req) => {
         .filter(Boolean)
     );
     const paidOrderItemsBySignature = new Map();
+    const paidOrderItemsByLocationSignature = new Map();
     for (const item of paidOrderItems) {
       const signature = buildItemSignature(item.item_name, item.amount_cents);
+      const locationSignature = buildLocationSignature(item.item_name, item.amount_cents, item.location_id);
       if (!paidOrderItemsBySignature.has(signature)) {
         paidOrderItemsBySignature.set(signature, []);
       }
+      if (!paidOrderItemsByLocationSignature.has(locationSignature)) {
+        paidOrderItemsByLocationSignature.set(locationSignature, []);
+      }
       paidOrderItemsBySignature.get(signature).push(item);
+      paidOrderItemsByLocationSignature.get(locationSignature).push(item);
     }
 
     const transactionsBySignature = new Map();
@@ -277,6 +287,37 @@ Deno.serve(async (req) => {
     const transactionsToCancel = [];
     const transactionsToComplete = [];
     const deliveriesToCreate = [];
+    const directlyMatchedCatalogItemIds = new Set();
+    const directlyMatchedLocationSignatures = new Set();
+
+    for (const item of catalogItems) {
+      const itemName = normalizeText(item?.item_data?.name);
+      if (!itemName) continue;
+      const amountCents = getCatalogItemAmountCents(item);
+      const itemLocationIds = Array.from(new Set([
+        ...(item?.present_at_location_ids || []),
+        ...(item?.item_data?.variations || []).flatMap((variation) => variation?.present_at_location_ids || []),
+      ].filter(Boolean)));
+      const variationIds = (item?.item_data?.variations || []).map((variation) => variation?.id).filter(Boolean);
+      const matchedByCatalogObjectId = paidCatalogObjectIds.has(item.id) || variationIds.some((variationId) => paidCatalogObjectIds.has(variationId));
+      const matchedByLocationSignature = itemLocationIds.some((locationId) => paidOrderItemsByLocationSignature.has(buildLocationSignature(itemName, amountCents, locationId)));
+
+      if (matchedByCatalogObjectId || matchedByLocationSignature) {
+        directlyMatchedCatalogItemIds.add(item.id);
+        itemLocationIds.forEach((locationId) => {
+          directlyMatchedLocationSignatures.add(buildLocationSignature(itemName, amountCents, locationId));
+        });
+        itemsToDelete.push(item.id);
+        console.log(`🧾 Directly matched paid catalog item ${itemName} via ${matchedByCatalogObjectId ? 'catalog_object_id' : 'location_name_amount_signature'}`);
+      }
+    }
+
+    for (const transaction of squareTransactions || []) {
+      const locationSignature = buildLocationSignature(transaction?.item_name, transaction?.amount_cents, transaction?.location_id);
+      if (transaction?.status === 'pending' && (directlyMatchedCatalogItemIds.has(transaction?.square_catalog_object_id) || directlyMatchedLocationSignatures.has(locationSignature))) {
+        transactionsToComplete.push(transaction.id);
+      }
+    }
 
     for (const delivery of relevantDeliveries) {
       const store = storeById.get(delivery.store_id);
@@ -284,6 +325,7 @@ Deno.serve(async (req) => {
       const itemName = formatItemName(delivery.delivery_date, store?.abbreviation, delivery.patient_name);
       const amountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
       const signature = buildItemSignature(itemName, amountCents);
+      const locationSignature = buildLocationSignature(itemName, amountCents, activeConfig?.square_location_id);
       let catalogItem = catalogBySignature.get(signature);
       const paidMatches = paidOrderItemsBySignature.get(signature) || [];
       const catalogVariationIds = (catalogItem?.item_data?.variations || [])
@@ -292,6 +334,7 @@ Deno.serve(async (req) => {
       const isPaidByCatalogObjectId = catalogItem
         ? paidCatalogObjectIds.has(catalogItem.id) || catalogVariationIds.some((variationId) => paidCatalogObjectIds.has(variationId))
         : false;
+      const isPaidByDirectCatalogMatch = (catalogItem && directlyMatchedCatalogItemIds.has(catalogItem.id)) || directlyMatchedLocationSignatures.has(locationSignature);
       const existingTransactions = transactionsBySignature.get(signature) || [];
       const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || delivery.status === 'failed' || delivery.status === 'cancelled';
 
@@ -318,7 +361,7 @@ Deno.serve(async (req) => {
         catalogItem = null;
       }
 
-      if (paidMatches.length || isPaidByCatalogObjectId) {
+      if (paidMatches.length || isPaidByCatalogObjectId || isPaidByDirectCatalogMatch) {
         if (catalogItem) {
           itemsToDelete.push(catalogItem.id);
           console.log(`🧾 Matched paid Square item for ${itemName} via ${isPaidByCatalogObjectId ? 'catalog_object_id' : 'name_amount_signature'}`);
