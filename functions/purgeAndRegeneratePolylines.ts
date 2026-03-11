@@ -233,36 +233,26 @@ Deno.serve(async (req) => {
       segmentSpecs.push({ from, to });
     };
 
-    if (completedStops.length > 0) {
-      const lastCompleted = getLatLon(completedStops[0]);
-      const nextActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
-      pushSegment(lastCompleted, nextActive);
-    } else {
-      const firstActive = getLatLon(activeStops[0]);
-      const homeLat = Number(driverAppUser?.home_latitude);
-      const homeLon = Number(driverAppUser?.home_longitude);
-      const currentLat = Number(driverAppUser?.current_latitude);
-      const currentLon = Number(driverAppUser?.current_longitude);
+    const firstActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
+    const currentLat = Number(driverAppUser?.current_latitude);
+    const currentLon = Number(driverAppUser?.current_longitude);
 
-      let originLat = Number.isFinite(homeLat) ? homeLat : currentLat;
-      let originLon = Number.isFinite(homeLon) ? homeLon : currentLon;
-
-      if (Number.isFinite(homeLat) && Number.isFinite(homeLon) && Number.isFinite(currentLat) && Number.isFinite(currentLon)) {
-        if (Math.abs(currentLat - homeLat) < 0.0006 && Math.abs(currentLon - homeLon) < 0.0006) {
-          originLat = homeLat;
-          originLon = homeLon;
-        }
-      }
-
-      if (Number.isFinite(originLat) && Number.isFinite(originLon)) {
-        pushSegment({ lat: originLat, lon: originLon }, firstActive);
-      }
+    if (Number.isFinite(currentLat) && Number.isFinite(currentLon)) {
+      pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
     }
 
     for (let index = 0; index < activeStops.length - 1; index += 1) {
       const from = getLatLon(activeStops[index]);
       const to = getLatLon(activeStops[index + 1]);
       pushSegment(from, to);
+    }
+
+    const lastActive = getLatLon(activeStops[activeStops.length - 1]);
+    const homeLat = Number(driverAppUser?.home_latitude);
+    const homeLon = Number(driverAppUser?.home_longitude);
+
+    if (Number.isFinite(homeLat) && Number.isFinite(homeLon)) {
+      pushSegment(lastActive, { lat: homeLat, lon: homeLon });
     }
 
     let apiCallsMade = 0;

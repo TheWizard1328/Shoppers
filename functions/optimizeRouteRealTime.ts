@@ -271,9 +271,12 @@ Deno.serve(async (req) => {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
       params.set('departure', departureIso);
-      params.set('mode', 'fastest;car;traffic:enabled');
-      params.set('improveFor', 'time');
+      params.set('mode', 'shortest;car;traffic:disabled');
+      params.set('improveFor', 'distance');
       params.set('start', `driverStart;${optimizationStartPosition.lat},${optimizationStartPosition.lng}`);
+      if (endLocation) {
+        params.set('end', `driverHome;${endLocation.lat},${endLocation.lng}`);
+      }
 
       for (const stop of sequencedStops) {
         const segments = [`${stop.waypointLabel};${stop.lat},${stop.lng}`];
