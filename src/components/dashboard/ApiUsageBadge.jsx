@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
+import { Checkbox } from "@/components/ui/checkbox";
 import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLog";
 
 // Small self-contained badge that shows Google/HERE API usage for today
 // Props:
 // - currentUser: object (used by parent to gate rendering)
 // - stopCardsHeight: number (px) to position the badge just above stop cards
-export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0 }) {
+export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false }) {
   const [googleCount, setGoogleCount] = useState(null);
   const [hereCount, setHereCount] = useState(null);
 
