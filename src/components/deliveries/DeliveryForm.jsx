@@ -226,6 +226,7 @@ export default function DeliveryForm({
   const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
   const { deviceType } = getUserAgentInfo();
   const isMobileDevice = deviceType === 'Mobile';
+  const shouldAutoFocusFields = shouldAutoFocusFields || (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && (window.matchMedia('(pointer: fine)').matches || window.matchMedia('(any-pointer: fine)').matches) && (window.matchMedia('(hover: hover)').matches || window.matchMedia('(any-hover: hover)').matches));
   const hasLoadedPending = useRef(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanMatches, setScanMatches] = useState([]);
@@ -236,8 +237,6 @@ export default function DeliveryForm({
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
   const [isNewRouteWithZeroStops, setIsNewRouteWithZeroStops] = useState(false);
-  
-  // PID lookup state (for the Delivery Identifiers panel)
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
   const originalPidRef = useRef('');
@@ -1013,7 +1012,7 @@ export default function DeliveryForm({
           setStagedDeliveries(prev => [...prev, staged]); if (p.id) autoCreatedPickupsRef.current.add(p.id);
         }
       } } catch {}
-      if (!isMobileDevice) setTimeout(() => codAmountInputRef.current?.focus?.(), 100);
+      if (shouldAutoFocusFields) if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.(), 100);
       setPatientSearch(''); setHighlightedPatientIndex(-1); driverLocationPoller.resume(); return;
     }
 
@@ -1128,8 +1127,8 @@ export default function DeliveryForm({
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
-    if (!isMobileDevice) {
-      setTimeout(() => codAmountInputRef.current?.focus(), 100);
+    if (shouldAutoFocusFields) {
+      if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100);
     }
     
     // Resume location poller after operations complete
@@ -1512,8 +1511,7 @@ export default function DeliveryForm({
     // Store original patient data for reference when creating new patient
     setSelectedPatient({ ...patient, _duplicateSource: true });
     
-    // Focus name input after a short delay
-    setTimeout(() => patientNameInputRef.current?.focus(), 150);
+    if (shouldAutoFocusFields) setTimeout(() => patientNameInputRef.current?.focus(), 150);
   }, [formData.delivery_date, stores, drivers]);
 
   // Handler for "New Address" button - creates new patient with same info but empty address/unit
@@ -1610,7 +1608,7 @@ export default function DeliveryForm({
       unit_number: '', // Empty unit
       _newAddressSource: true,
       _isNew: true,
-      _focusAddress: !isMobileDevice
+      _focusAddress: shouldAutoFocusFields
     };
     
     setSelectedPatient(patientWithoutAddress);
@@ -1993,8 +1991,8 @@ export default function DeliveryForm({
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
-    if (!isMobileDevice) {
-      setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    if (shouldAutoFocusFields) {
+      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
     }
   }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption]);
 
@@ -2083,8 +2081,8 @@ export default function DeliveryForm({
     setSelectedPickupOption('');
 
     // Only auto-focus on desktop
-    if (!isMobileDevice) {
-      setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    if (shouldAutoFocusFields) {
+      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
     }
   }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
@@ -2734,7 +2732,7 @@ export default function DeliveryForm({
           recurring_monthly: false, recurring_bimonthly: false
         }));
         setSelectedPickupOption('');
-        setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+        if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
       } else {
         // Just clear the search field
         setPatientSearch('');
@@ -3107,8 +3105,8 @@ export default function DeliveryForm({
     }));
     setSelectedPickupOption('');
     // Only auto-focus on desktop
-    if (!isMobileDevice) {
-      setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    if (shouldAutoFocusFields) {
+      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
     }
   }, [isMobileDevice]);
 
@@ -3212,8 +3210,8 @@ export default function DeliveryForm({
   }, [handleCancelClick, showCameraOverlay, stopCamera]);
 
   useEffect(() => {
-    if (!delivery && !isMobileDevice) {
-      setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    if (!delivery && shouldAutoFocusFields) {
+      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
     }
   }, [delivery, isMobileDevice]);
 
