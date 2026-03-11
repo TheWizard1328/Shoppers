@@ -43,6 +43,7 @@ import {
   buildRetryDelivery,
   clearNextDeliveryFlags,
   getCurrentLocalTimeString,
+  getFinishedLegEncodedPolyline,
   getNextTrackingNumberInGroup,
   refreshDriverRoute,
   verifyDeliveryStillExists,
@@ -955,7 +956,8 @@ export default function StopCard({
           status: newStatus,
           isNextDelivery: true,
           actual_delivery_time: null,
-          delivery_notes: ''
+          delivery_notes: '',
+          finished_leg_encoded_polyline: null
         }, { skipSmartRefresh: true });
 
         if (shouldOptimize) {
@@ -1200,20 +1202,32 @@ export default function StopCard({
 
                 // CRITICAL: Round completion time to nearest 5-minute mark
                 const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
+                const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({
+                  delivery,
+                  allDeliveries,
+                  driver: safeDriver,
+                  patient,
+                  store,
+                  patients,
+                  stores,
+                  finishedStatuses: FINISHED_STATUSES
+                });
 
                 // CRITICAL: Save to both offline and online databases
                 try {
                   await updateDeliveryLocal(delivery.id, {
                     status: status,
                     delivery_notes: updatedNotes,
-                    actual_delivery_time: localTimeString
+                    actual_delivery_time: localTimeString,
+                    finished_leg_encoded_polyline: finishedLegEncodedPolyline
                   }, { skipSmartRefresh: true });
 
                   // Also call onStatusUpdate if available for additional UI updates
                   if (onStatusUpdate) {
                     await onStatusUpdate(delivery.id, status, {
                       delivery_notes: updatedNotes,
-                      actual_delivery_time: localTimeString
+                      actual_delivery_time: localTimeString,
+                      finished_leg_encoded_polyline: finishedLegEncodedPolyline
                     }, false);
                   }
                 } catch (statusError) {
@@ -1537,10 +1551,21 @@ export default function StopCard({
 
                                     // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
                                     const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES); // Update status to completed with timestamp
+                                    const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({
+                                      delivery,
+                                      allDeliveries,
+                                      driver: safeDriver,
+                                      patient,
+                                      store,
+                                      patients,
+                                      stores,
+                                      finishedStatuses: FINISHED_STATUSES
+                                    });
                                     const completionUpdate = {
                                       status: 'completed',
                                       actual_delivery_time: localTimeString,
-                                      isNextDelivery: false
+                                      isNextDelivery: false,
+                                      finished_leg_encoded_polyline: finishedLegEncodedPolyline
                                     };
 
                                     // CRITICAL: Save to both offline and online databases

@@ -612,3 +612,10 @@ const deliveryDateSafe = deliveryDate || todayStr;
   fetchingKeys.delete(cacheKey);
   return null;
 };
+
+export const getHereEncodedPolyline = async (driverId, fromStop, toStop, deliveryDate) => {
+  const coords = await getHerePolyline(driverId, fromStop, toStop, deliveryDate);
+  if (!Array.isArray(coords) || coords.length < 2) return null;
+  const encoded = encodeGooglePolyline(coords);
+  return encoded || null;
+};
