@@ -10,6 +10,11 @@ function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   return `${mm}/${dd}(${storeAbbreviation || 'NA'})-${patientName || 'Unknown Patient'}`;
 }
 
+function resolveDeliveryPatientName(delivery, patientById) {
+  const patient = patientById.get(delivery?.patient_id);
+  return normalizeText(patient?.full_name || delivery?.patient_name) || 'Unknown Patient';
+}
+
 function isRecentDelivery(deliveryDate) {
   if (!deliveryDate) return false;
   const deliveryTime = new Date(`${deliveryDate}T00:00:00Z`).getTime();
@@ -246,6 +251,14 @@ Deno.serve(async (req) => {
       return isRecentDelivery(delivery?.delivery_date) && Number(delivery?.cod_total_amount_required || 0) > 0;
     });
 
+    const patientEntries = await Promise.all(
+      Array.from(new Set(relevantDeliveries.map((delivery) => delivery?.patient_id).filter(Boolean))).map(async (patientId) => {
+        const patient = await base44.asServiceRole.entities.Patient.get(patientId).catch(() => null);
+        return [patientId, patient];
+      })
+    );
+    const patientById = new Map(patientEntries);
+
     const lookbackStartAt = getLookbackStartAt();
 
     const [catalogItems, completedOrders] = await Promise.all([
@@ -293,6 +306,7 @@ Deno.serve(async (req) => {
     }
 
     const transactionsBySignature = new Map();
+    const transactionsByDeliveryId = new Map();
     const completedTransactionCatalogObjectIds = new Set();
     const completedTransactionLocationSignatures = new Set();
     const completedTransactionComparableLocationSignatures = new Set();
@@ -304,6 +318,12 @@ Deno.serve(async (req) => {
         transactionsBySignature.set(signature, []);
       }
       transactionsBySignature.get(signature).push(transaction);
+      if (transaction?.delivery_id) {
+        if (!transactionsByDeliveryId.has(transaction.delivery_id)) {
+          transactionsByDeliveryId.set(transaction.delivery_id, []);
+        }
+        transactionsByDeliveryId.get(transaction.delivery_id).push(transaction);
+      }
 
       if (['completed', 'refunded'].includes(transaction?.status)) {
         if (transaction?.square_catalog_object_id) {
@@ -363,7 +383,8 @@ Deno.serve(async (req) => {
     for (const delivery of relevantDeliveries) {
       const store = storeById.get(delivery.store_id);
       const activeConfig = store?.square_location_config_id ? activeConfigById.get(store.square_location_config_id) : null;
-      const itemName = formatItemName(delivery.delivery_date, store?.abbreviation, delivery.patient_name);
+      const resolvedPatientName = resolveDeliveryPatientName(delivery, patientById);
+      const itemName = formatItemName(delivery.delivery_date, store?.abbreviation, resolvedPatientName);
       const amountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
       const signature = buildItemSignature(itemName, amountCents);
       const locationSignature = buildLocationSignature(itemName, amountCents, activeConfig?.square_location_id);
@@ -377,7 +398,11 @@ Deno.serve(async (req) => {
         ? paidCatalogObjectIds.has(catalogItem.id) || catalogVariationIds.some((variationId) => paidCatalogObjectIds.has(variationId))
         : false;
       const isPaidByDirectCatalogMatch = (catalogItem && directlyMatchedCatalogItemIds.has(catalogItem.id)) || directlyMatchedLocationSignatures.has(locationSignature) || directlyMatchedComparableLocationSignatures.has(comparableLocationSignature);
-      const existingTransactions = transactionsBySignature.get(signature) || [];
+      const existingTransactions = transactionsByDeliveryId.get(delivery.id) || [];
+      const existingPending = existingTransactions.find((transaction) => transaction.status === 'pending');
+      if (existingPending?.square_catalog_object_id && (existingPending.item_name !== itemName || toAmountCents(existingPending.amount_cents) !== amountCents)) {
+        itemsToDelete.push(existingPending.square_catalog_object_id);
+      }
       const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
       const hasCollectedPayment = codPayments.some((payment) => ['Cash', 'Debit', 'Credit', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
         || ['Cash', 'Debit', 'Credit', 'Check'].includes(delivery?.cod_payment_type);
@@ -422,6 +447,7 @@ Deno.serve(async (req) => {
       deliveriesToCreate.push({
         delivery,
         itemName,
+        patientName: resolvedPatientName,
         amountCents,
         locationId: activeConfig.square_location_id,
       });
@@ -445,7 +471,7 @@ Deno.serve(async (req) => {
     let updatedPendingCount = 0;
 
     for (const entry of deliveriesToCreate) {
-      const { delivery, itemName, amountCents, locationId } = entry;
+      const { delivery, itemName, patientName, amountCents, locationId } = entry;
       const signature = buildItemSignature(itemName, amountCents);
       let catalogItem = catalogBySignature.get(signature);
 
@@ -455,7 +481,7 @@ Deno.serve(async (req) => {
           amountCents,
           locationId,
           deliveryId: delivery.id,
-          patientName: delivery.patient_name,
+          patientName,
         });
         if (catalogItem) {
           catalogBySignature.set(signature, catalogItem);
@@ -464,7 +490,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const existingPending = (transactionsBySignature.get(signature) || []).find((transaction) => transaction.status === 'pending');
+      const existingPending = (transactionsByDeliveryId.get(delivery.id) || []).find((transaction) => transaction.status === 'pending');
       const transactionPayload = {
         item_name: itemName,
         amount: Number(delivery.cod_total_amount_required || 0),

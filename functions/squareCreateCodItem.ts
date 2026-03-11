@@ -13,8 +13,8 @@ Deno.serve(async (req) => {
 
     const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = await req.json();
 
-    if (!deliveryId || !patientName || !codAmount) {
-      return Response.json({ error: 'Missing required fields: deliveryId, patientName, codAmount' }, { status: 400 });
+    if (!deliveryId || codAmount == null || Number(codAmount) <= 0) {
+      return Response.json({ error: 'Missing required fields: deliveryId, codAmount' }, { status: 400 });
     }
 
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
@@ -23,12 +23,89 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Square access token not configured' }, { status: 500 });
     }
 
-    // Early guard: if a pending transaction with a catalog object already exists, skip creating another
+    const deliveryRecord = await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
+    const patientRecord = deliveryRecord?.patient_id
+      ? await base44.asServiceRole.entities.Patient.get(deliveryRecord.patient_id).catch(() => null)
+      : null;
+    const effectiveStoreId = storeId || deliveryRecord?.store_id;
+
+    // Get the store's Square location ID from SquareLocationConfig
+    if (!effectiveStoreId) {
+      return Response.json({ error: 'Store ID is required for Square COD item creation' }, { status: 400 });
+    }
+
+    let locationId = null;
+    let store = null;
+
+    try {
+      store = await base44.asServiceRole.entities.Store.get(effectiveStoreId);
+
+      if (!store) {
+        console.warn(`⚠️ [Square] Store not found: ${effectiveStoreId}`);
+        return Response.json({
+          error: `Store not found with ID: ${effectiveStoreId}`,
+          storeId: effectiveStoreId
+        }, { status: 400 });
+      }
+
+      if (!store.square_location_config_id) {
+        console.warn(`⚠️ [Square] Store "${store.name}" (${store.abbreviation || storeAbbreviation || 'XX'}) has no Square location configured`);
+        return Response.json({
+          error: `Store "${store.name}" is not configured for Square COD payments. Please assign a Square Location Config to this store.`,
+          storeName: store.name,
+          storeId: effectiveStoreId
+        }, { status: 400 });
+      }
+
+      const config = await base44.asServiceRole.entities.SquareLocationConfig.get(store.square_location_config_id);
+
+      if (!config) {
+        console.warn(`⚠️ [Square] Square location config not found: ${store.square_location_config_id}`);
+        return Response.json({
+          error: `Square location config not found for store "${store.name}"`,
+          storeName: store.name
+        }, { status: 400 });
+      }
+
+      if (config.status !== 'active') {
+        console.warn(`⚠️ [Square] Square location config is inactive: ${config.name}`);
+        return Response.json({
+          error: `Square location "${config.name}" is inactive for store "${store.name}"`,
+          storeName: store.name,
+          configName: config.name
+        }, { status: 400 });
+      }
+
+      locationId = config.square_location_id;
+      console.log(`📍 [Square] Using location: ${locationId} (${config.name}) for store ${store.abbreviation || storeAbbreviation || 'XX'}`);
+    } catch (storeError) {
+      console.error(`❌ [Square] Failed to lookup store configuration:`, storeError.message);
+      return Response.json({
+        error: `Failed to lookup store configuration: ${storeError.message}`,
+        storeId: effectiveStoreId
+      }, { status: 500 });
+    }
+
+    if (!locationId) {
+      return Response.json({ error: 'No Square location configured' }, { status: 500 });
+    }
+
+    const resolvedDeliveryDate = deliveryDate || deliveryRecord?.delivery_date;
+    const resolvedPatientName = String(patientRecord?.full_name || patientName || deliveryRecord?.patient_name || '').trim() || 'Unknown Patient';
+    const resolvedPatientId = patientRecord?.id || deliveryRecord?.patient_id || null;
+    const resolvedStoreAbbr = (store?.abbreviation || storeAbbreviation || 'XX').trim();
+    const amountCents = Math.round(Number(codAmount) * 100);
+
+    const date = new Date(`${resolvedDeliveryDate || ''}T00:00:00`);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const itemName = `${month}/${day}(${resolvedStoreAbbr})-${resolvedPatientName}`;
+
     const existingPending = await base44.asServiceRole.entities.SquareTransaction.filter({
       delivery_id: deliveryId,
       status: 'pending'
     });
-    if (existingPending?.length && existingPending[0]?.square_catalog_object_id) {
+    if (existingPending?.length && existingPending[0]?.square_catalog_object_id && existingPending[0]?.item_name === itemName && existingPending[0]?.amount_cents === amountCents) {
       const tx = existingPending[0];
       return Response.json({
         success: true,
@@ -40,81 +117,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get the store's Square location ID from SquareLocationConfig
-    if (!storeId) {
-      return Response.json({ error: 'Store ID is required for Square COD item creation' }, { status: 400 });
-    }
-
-    let locationId = null;
-    
-    if (storeId) {
-      try {
-        // Look up the store to get its square_location_config_id
-        const store = await base44.asServiceRole.entities.Store.get(storeId);
-        
-        if (!store) {
-          console.warn(`⚠️ [Square] Store not found: ${storeId}`);
-          return Response.json({ 
-            error: `Store not found with ID: ${storeId}`,
-            storeId 
-          }, { status: 400 });
-        }
-        
-        if (!store.square_location_config_id) {
-          console.warn(`⚠️ [Square] Store "${store.name}" (${storeAbbreviation}) has no Square location configured`);
-          return Response.json({ 
-            error: `Store "${store.name}" is not configured for Square COD payments. Please assign a Square Location Config to this store.`,
-            storeName: store.name,
-            storeId 
-          }, { status: 400 });
-        }
-        
-        // Look up the SquareLocationConfig to get the actual Square location ID
-        const config = await base44.asServiceRole.entities.SquareLocationConfig.get(store.square_location_config_id);
-        
-        if (!config) {
-          console.warn(`⚠️ [Square] Square location config not found: ${store.square_location_config_id}`);
-          return Response.json({ 
-            error: `Square location config not found for store "${store.name}"`,
-            storeName: store.name 
-          }, { status: 400 });
-        }
-        
-        if (config.status !== 'active') {
-          console.warn(`⚠️ [Square] Square location config is inactive: ${config.name}`);
-          return Response.json({ 
-            error: `Square location "${config.name}" is inactive for store "${store.name}"`,
-            storeName: store.name,
-            configName: config.name 
-          }, { status: 400 });
-        }
-        
-        locationId = config.square_location_id;
-        console.log(`📍 [Square] Using location: ${locationId} (${config.name}) for store ${storeAbbreviation}`);
-        
-      } catch (storeError) {
-        console.error(`❌ [Square] Failed to lookup store configuration:`, storeError.message);
-        return Response.json({ 
-          error: `Failed to lookup store configuration: ${storeError.message}`,
-          storeId 
-        }, { status: 500 });
-      }
-    }
-
-    if (!locationId) {
-      return Response.json({ error: 'No Square location configured' }, { status: 500 });
-    }
-
-    // Format: MM/DD(Store Abbreviation)-Patient Name - $Amount (force / separator everywhere)
-    const date = new Date((deliveryDate || '') + 'T00:00:00');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const storeAbbr = (storeAbbreviation || 'XX').trim();
-    const amountFormatted = Number.isFinite(Number(codAmount)) ? (Number(codAmount)).toFixed(2) : '0.00';
-    const itemName = `${month}/${day}(${storeAbbr})-${patientName}`;
-
     // Convert dollars to cents for Square
-    const amountCents = Math.round(codAmount * 100);
 
     // Use a single upsert operation for creating/updating the catalog item
     const upsertResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object`, {
@@ -185,7 +188,10 @@ Deno.serve(async (req) => {
           square_catalog_version: catalogVersion,
           item_name: itemName,
           amount: codAmount,
-          amount_cents: amountCents
+          amount_cents: amountCents,
+          patient_id: resolvedPatientId,
+          store_id: effectiveStoreId,
+          location_id: locationId
         });
       } else {
         // Create new
@@ -197,7 +203,10 @@ Deno.serve(async (req) => {
           amount_cents: amountCents,
           type: 'collection',
           status: 'pending',
-          delivery_id: deliveryId
+          delivery_id: deliveryId,
+          patient_id: resolvedPatientId,
+          store_id: effectiveStoreId,
+          location_id: locationId
         });
       }
 
@@ -211,8 +220,8 @@ Deno.serve(async (req) => {
         amount_cents: amountCents,
         delivery_id: deliveryId,
         delivery_date: deliveryDate || null,
-        patient_id: patientId || null,
-        store_id: storeId || null,
+        patient_id: resolvedPatientId,
+        store_id: effectiveStoreId || null,
         location_id: locationId,
         status: 'active'
       };
