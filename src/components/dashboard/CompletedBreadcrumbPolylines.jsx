@@ -4,7 +4,13 @@ import { getHerePolyline } from "../utils/hereRouting";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 const STORED_ROUTE_COLOR = "#16a34a";
-const BREADCRUMB_ROUTE_COLOR = "#39FF14";
+
+const getBreadcrumbRouteColor = () => {
+  const root = document.documentElement;
+  const isDarkMode = root.classList.contains('dark-theme') ||
+    (root.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  return isDarkMode ? '#39FF14' : '#16a34a';
+};
 
 const isBlueHex = (hex) => {
   if (!hex || typeof hex !== "string" || !hex.startsWith("#") || hex.length < 7) return false;
@@ -236,6 +242,7 @@ export default function CompletedBreadcrumbPolylines({
 
   const renderedLines = [];
   const renderedDots = [];
+  const breadcrumbRouteColor = getBreadcrumbRouteColor();
 
   completedSegments.forEach((segment) => {
     if (!segment.hasAnyBreadcrumbs) {
@@ -277,7 +284,7 @@ export default function CompletedBreadcrumbPolylines({
           key={`completed-breadcrumb-line-${segment.id}-${index}-${polylineRenderKey}`}
           positions={coords}
           pathOptions={{
-            color: BREADCRUMB_ROUTE_COLOR,
+            color: breadcrumbRouteColor,
             weight: 4,
             opacity: Math.max(segment.opacity, 0.35),
             lineJoin: "round",
@@ -295,8 +302,8 @@ export default function CompletedBreadcrumbPolylines({
           center={[point.latitude, point.longitude]}
           radius={3}
           pathOptions={{
-            color: BREADCRUMB_ROUTE_COLOR,
-            fillColor: BREADCRUMB_ROUTE_COLOR,
+            color: breadcrumbRouteColor,
+            fillColor: breadcrumbRouteColor,
             fillOpacity: Math.min(1, segment.opacity + 0.3),
             opacity: Math.max(segment.opacity, 0.5),
             weight: 1,

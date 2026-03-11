@@ -1,17 +1,25 @@
 import React from 'react';
 import { Circle } from 'react-leaflet';
 
+const getBreadcrumbRouteColor = () => {
+  const root = document.documentElement;
+  const isDarkMode = root.classList.contains('dark-theme') ||
+    (root.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  return isDarkMode ? '#39FF14' : '#16a34a';
+};
+
 /**
  * Renders historical and real-time GPS breadcrumb trails on the map.
  */
 export default function MapBreadcrumbs({ breadcrumbsData, safeUsers }) {
   const circles = [];
+  const breadcrumbRouteColor = getBreadcrumbRouteColor();
 
   // Historical breadcrumbs from DeliveryBreadcrumbs entity
   if (breadcrumbsData.historical && breadcrumbsData.historical.length > 0) {
     breadcrumbsData.historical.forEach((trail) => {
       if (!trail || !trail.breadcrumbs || !Array.isArray(trail.breadcrumbs)) return;
-      const color = '#39FF14';
+      const color = breadcrumbRouteColor;
 
       trail.breadcrumbs.forEach(([lat, lng], idx) => {
         if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
@@ -29,7 +37,7 @@ export default function MapBreadcrumbs({ breadcrumbsData, safeUsers }) {
 
   // Current/real-time breadcrumbs from offline database
   if (breadcrumbsData.current && breadcrumbsData.current.length > 0) {
-    const color = '#39FF14';
+    const color = breadcrumbRouteColor;
     breadcrumbsData.current.forEach((b, idx) => {
       if (!b || typeof b.lat !== 'number' || typeof b.lng !== 'number') return;
       circles.push(
