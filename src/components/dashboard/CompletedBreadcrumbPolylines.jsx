@@ -240,7 +240,7 @@ export default function CompletedBreadcrumbPolylines({
           key={`completed-stored-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
           pathOptions={{
-            color: segment.color,
+            color: STORED_ROUTE_COLOR,
             weight: 4,
             opacity: Math.max(segment.opacity, 0.35),
             lineJoin: "round",
@@ -265,7 +265,7 @@ export default function CompletedBreadcrumbPolylines({
           key={`completed-breadcrumb-line-${segment.id}-${index}-${polylineRenderKey}`}
           positions={coords}
           pathOptions={{
-            color: segment.color,
+            color: BREADCRUMB_ROUTE_COLOR,
             weight: 4,
             opacity: Math.max(segment.opacity, 0.35),
             lineJoin: "round",
