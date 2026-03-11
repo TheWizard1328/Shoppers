@@ -16,7 +16,7 @@ import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autocomplete";
 import { realtimeSync } from "@/components/utils/realtimeSync";
-import { createPatientLocal, updatePatientLocal } from '../utils/offlineMutations';
+import { createPatientLocal, updatePatientLocal } from '../utils/entityMutations';
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
