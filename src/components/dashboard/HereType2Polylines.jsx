@@ -203,7 +203,7 @@ export default function HereType2Polylines({
 
   // Prefetch HERE polylines for all segments
   useEffect(() => {
-    if (!isViewingCurrentDate || optimizing) return;
+    if (optimizing) return;
     driverIncomplete.forEach((stops, driverId) => {
       if (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
       if (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;

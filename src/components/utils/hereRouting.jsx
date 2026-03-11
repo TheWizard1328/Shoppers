@@ -356,26 +356,20 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
     const deliveryDateSafe = deliveryDate || todayStr;
 
-    // Enforce today-only policy: if requesting a non-today date, skip offline/entity hydration
-    if (deliveryDateSafe !== todayStr) {
-      // Clear any stale cache to avoid ghost lines
-      try { localStorage.removeItem(cacheKey); } catch (_) {}
-    } else {
-      const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDateSafe);
-      if (Array.isArray(rows) && rows.length) {
-        const rec = rows.find(r => r.driver_id === driverId &&
-          Number(r.segment_origin_lat)?.toFixed(5) === rounded(fromStop.latitude).toFixed(5) &&
-          Number(r.segment_origin_lon)?.toFixed(5) === rounded(fromStop.longitude).toFixed(5) &&
-          Number(r.segment_dest_lat)?.toFixed(5) === rounded(toStop.latitude).toFixed(5) &&
-          Number(r.segment_dest_lon)?.toFixed(5) === rounded(toStop.longitude).toFixed(5)
-        );
-        if (rec?.encoded_polyline) {
-          const coords = decodeGooglePolyline(rec.encoded_polyline);
-          if (Array.isArray(coords) && coords.length > 1) {
-            memoryCache.set(cacheKey, coords);
-            try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
-            return coords;
-          }
+    const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDateSafe);
+    if (Array.isArray(rows) && rows.length) {
+      const rec = rows.find(r => r.driver_id === driverId &&
+        Number(r.segment_origin_lat)?.toFixed(5) === rounded(fromStop.latitude).toFixed(5) &&
+        Number(r.segment_origin_lon)?.toFixed(5) === rounded(fromStop.longitude).toFixed(5) &&
+        Number(r.segment_dest_lat)?.toFixed(5) === rounded(toStop.latitude).toFixed(5) &&
+        Number(r.segment_dest_lon)?.toFixed(5) === rounded(toStop.longitude).toFixed(5)
+      );
+      if (rec?.encoded_polyline) {
+        const coords = decodeGooglePolyline(rec.encoded_polyline);
+        if (Array.isArray(coords) && coords.length > 1) {
+          memoryCache.set(cacheKey, coords);
+          try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
+          return coords;
         }
       }
     }
@@ -391,28 +385,23 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 const parts = formatter.formatToParts(new Date());
 const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
 const deliveryDateSafe = deliveryDate || todayStr;
-    if (deliveryDateSafe !== todayStr) {
-      // Today-only policy: do not hydrate from entity for past days; also clear any cached coords
-      try { localStorage.removeItem(cacheKey); } catch (_) {}
-    } else {
-      const recs = await base44.entities.DriverRoutePolyline.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDateSafe,
-        segment_origin_lat: rounded(fromStop.latitude),
-        segment_origin_lon: rounded(fromStop.longitude),
-        segment_dest_lat: rounded(toStop.latitude),
-        segment_dest_lon: rounded(toStop.longitude)
-      }, '-updated_date', 1);
-      const rec = Array.isArray(recs) ? recs[0] : null;
-      console.debug('[HERE][client] Entity cache lookup', { found: !!rec, hasPolyline: !!rec?.encoded_polyline });
-      if (rec?.encoded_polyline) {
-        const coords = decodeGooglePolyline(rec.encoded_polyline);
-        if (Array.isArray(coords) && coords.length > 1) {
-          memoryCache.set(cacheKey, coords);
-          try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
-          try { await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]); } catch (_) {}
-          return coords;
-        }
+    const recs = await base44.entities.DriverRoutePolyline.filter({
+      driver_id: driverId,
+      delivery_date: deliveryDateSafe,
+      segment_origin_lat: rounded(fromStop.latitude),
+      segment_origin_lon: rounded(fromStop.longitude),
+      segment_dest_lat: rounded(toStop.latitude),
+      segment_dest_lon: rounded(toStop.longitude)
+    }, '-updated_date', 1);
+    const rec = Array.isArray(recs) ? recs[0] : null;
+    console.debug('[HERE][client] Entity cache lookup', { found: !!rec, hasPolyline: !!rec?.encoded_polyline });
+    if (rec?.encoded_polyline) {
+      const coords = decodeGooglePolyline(rec.encoded_polyline);
+      if (Array.isArray(coords) && coords.length > 1) {
+        memoryCache.set(cacheKey, coords);
+        try { localStorage.setItem(cacheKey, JSON.stringify(coords)); } catch (_) {}
+        try { await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]); } catch (_) {}
+        return coords;
       }
     }
   } catch (e) {
