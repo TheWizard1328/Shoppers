@@ -41,6 +41,10 @@ Deno.serve(async (req) => {
     }
 
     // Get the store's Square location ID from SquareLocationConfig
+    if (!storeId) {
+      return Response.json({ error: 'Store ID is required for Square COD item creation' }, { status: 400 });
+    }
+
     let locationId = null;
     
     if (storeId) {
@@ -95,10 +99,6 @@ Deno.serve(async (req) => {
           storeId 
         }, { status: 500 });
       }
-    } else {
-      // No storeId provided, use default location
-      locationId = Deno.env.get('SQUARE_LOCATION_ID');
-      console.log(`📍 [Square] Using default location: ${locationId}`);
     }
 
     if (!locationId) {

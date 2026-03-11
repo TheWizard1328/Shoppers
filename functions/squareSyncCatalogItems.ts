@@ -380,7 +380,7 @@ Deno.serve(async (req) => {
       const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
       const hasCollectedPayment = codPayments.some((payment) => ['Cash', 'Debit', 'Credit', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
         || ['Cash', 'Debit', 'Credit', 'Check'].includes(delivery?.cod_payment_type);
-      const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || delivery.status === 'failed' || delivery.status === 'cancelled';
+      const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery.status === 'failed' || delivery.status === 'cancelled';
 
       if (shouldDeleteForInvalidState) {
         if (catalogItem) {
