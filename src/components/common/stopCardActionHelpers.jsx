@@ -125,6 +125,19 @@ export async function getFinishedLegEncodedPolyline({
   return await getHereEncodedPolyline(delivery.driver_id, origin, destination, delivery.delivery_date);
 }
 
+export function getTrackingNumberSeed(trackingNumber) {
+  const rawValue = String(trackingNumber || '').trim();
+  const match = rawValue.match(/^(\D*)(\d+)/);
+  if (!match) {
+    return { prefix: '', numericValue: 0 };
+  }
+
+  return {
+    prefix: match[1] || '',
+    numericValue: parseInt(match[2], 10) || 0
+  };
+}
+
 export function getNextTrackingNumberInGroup(trackingNumber, allDeliveries, driverId, deliveryDate) {
   const originalTR = parseInt(trackingNumber, 10);
   const groupStart = Math.floor(originalTR / 20) * 20;
