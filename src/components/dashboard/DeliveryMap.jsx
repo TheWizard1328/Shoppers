@@ -1292,6 +1292,7 @@ export default function DeliveryMap({
 
       // CRITICAL: Find driver in safeUsers (contains merged AppUser data with home coords)
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
+      if (driver?.driver_status === 'off_duty') return;
 
       // CRITICAL: Validate home coordinates exist and are valid numbers
       if (!driver?.home_latitude || !driver?.home_longitude ||

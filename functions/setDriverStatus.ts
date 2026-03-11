@@ -31,21 +31,17 @@ Deno.serve(async (req) => {
       driver_status: newStatus
     };
 
-    // CRITICAL: Drivers can ALWAYS see their own shared location marker on other devices
-    // Location tracking remains enabled for ALL statuses (on_duty, off_duty, on_break)
-    // This allows drivers to see their own marker on other devices they're logged into
-    // Only the driver_status field changes - location tracking continues
-    if (newStatus === 'on_duty' || newStatus === 'off_duty' || newStatus === 'on_break') {
+    if (newStatus === 'on_duty' || newStatus === 'on_break') {
       updateData.location_tracking_enabled = true;
-    }
-    
-    // CRITICAL: Update timestamp when status changes so marker updates immediately
-    // This ensures timestamp is fresh even if driver is stationary
-    if (newStatus !== 'off_duty') {
       updateData.location_updated_at = new Date().toISOString();
       console.log(`📍 [setDriverStatus] Updating location timestamp for status change to: ${newStatus}`);
     }
-    // Location data is NEVER cleared - drivers can always see their own position
+
+    if (newStatus === 'off_duty') {
+      updateData.location_tracking_enabled = false;
+      updateData.location_updated_at = null;
+      console.log('📍 [setDriverStatus] Disabling location sharing for off duty');
+    }
 
     // CRITICAL: Update with broadcast to ensure all clients receive the change immediately
     await base44.asServiceRole.entities.AppUser.update(appUser.id, updateData);
