@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { smartRefreshManager } from './smartRefreshManager';
 import { base44 } from '@/api/base44Client';
 import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
@@ -19,6 +20,143 @@ export const AppDataProvider = ({ children, value }) => {
   // Track boot sync per city/date and syncing banner state
   const bootKeyRef = useRef('');
   const [isProgressiveSyncing, setIsProgressiveSyncing] = useState(false);
+  const realtimeBatchRef = useRef({
+    deliveries: { upserts: new Map(), deletes: new Set() },
+    appUsers: { upserts: new Map(), deletes: new Set() }
+  });
+  const realtimeBatchTimerRef = useRef(null);
+
+  const flushRealtimeBatch = useCallback(async () => {
+    const batch = realtimeBatchRef.current;
+    const deliveryUpserts = Array.from(batch.deliveries.upserts.values());
+    const deliveryDeletes = Array.from(batch.deliveries.deletes.values());
+    const appUserUpserts = Array.from(batch.appUsers.upserts.values());
+    const appUserDeletes = Array.from(batch.appUsers.deletes.values());
+
+    if (!deliveryUpserts.length && !deliveryDeletes.length && !appUserUpserts.length && !appUserDeletes.length) {
+      return;
+    }
+
+    realtimeBatchRef.current = {
+      deliveries: { upserts: new Map(), deletes: new Set() },
+      appUsers: { upserts: new Map(), deletes: new Set() }
+    };
+
+    const deliveryChanged = deliveryUpserts.length > 0 || deliveryDeletes.length > 0;
+    const appUsersChanged = appUserUpserts.length > 0 || appUserDeletes.length > 0;
+
+    let nextDeliveries = deliveriesRef.current || [];
+    let nextAppUsers = appUsersRef.current || [];
+
+    if (deliveryChanged) {
+      const byId = new Map(nextDeliveries.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
+      deliveryDeletes.forEach((id) => byId.delete(id));
+      deliveryUpserts.forEach((item) => {
+        if (item?.id) byId.set(item.id, item);
+      });
+      nextDeliveries = Array.from(byId.values());
+    }
+
+    if (appUsersChanged) {
+      const ts = (item) => {
+        const value = item?.location_updated_at || item?.updated_date || item?.created_date;
+        return value ? new Date(value).getTime() : 0;
+      };
+
+      const byId = new Map(
+        nextAppUsers
+          .filter((item) => item?.id && !appUserDeletes.includes(item.id))
+          .map((item) => [item.id, item])
+      );
+
+      appUserUpserts.forEach((item) => {
+        if (!item?.id) return;
+        const current = byId.get(item.id);
+        if (!current || ts(item) >= ts(current)) {
+          byId.set(item.id, item);
+        }
+      });
+
+      nextAppUsers = Array.from(byId.values());
+    }
+
+    try {
+      const { offlineDB } = await import('./offlineDatabase');
+      await Promise.all([
+        deliveryUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryUpserts) : Promise.resolve(),
+        appUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserUpserts) : Promise.resolve(),
+        ...deliveryDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)),
+        ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null))
+      ]);
+    } catch (error) {
+      console.warn('[AppDataContext] Realtime offline sync batch failed:', error.message);
+    }
+
+    flushSync(() => {
+      if (deliveryChanged && updateDeliveriesLocallyRef.current) {
+        updateDeliveriesLocallyRef.current(nextDeliveries, true);
+      }
+
+      if (appUsersChanged && updateAppUsersLocallyRef.current) {
+        updateAppUsersLocallyRef.current(nextAppUsers, true);
+      }
+    });
+
+    if (deliveryChanged) {
+      lastDeliveryWsUpdateRef.current = Date.now();
+      smartRefreshManager.notifyRealtimeDeliveryUpdate && smartRefreshManager.notifyRealtimeDeliveryUpdate();
+    }
+
+    if (appUsersChanged) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: nextAppUsers, singleUpdate: appUserUpserts.length === 1, fromRealtime: true }
+        }));
+
+        if (appUserUpserts.length === 1) {
+          window.dispatchEvent(new CustomEvent('appUserUpdated', {
+            detail: { appUser: appUserUpserts[0], fromRealtime: true }
+          }));
+        } else if (appUserUpserts.length > 1) {
+          window.dispatchEvent(new CustomEvent('appUsersUpdated', {
+            detail: { appUsers: appUserUpserts, fromRealtime: true }
+          }));
+        }
+      }
+
+      if (appUserUpserts.some((item) => item?.user_id === value.currentUser?.id) || appUserDeletes.length > 0) {
+        value.refreshUser?.();
+      }
+
+      smartRefreshManager.notifyRealtimeUpdate('AppUser');
+    }
+  }, [value.currentUser?.id, value.refreshUser]);
+
+  const scheduleRealtimeEntityUpdate = useCallback((entityType, eventType, data) => {
+    const entityBatch = entityType === 'Delivery'
+      ? realtimeBatchRef.current.deliveries
+      : realtimeBatchRef.current.appUsers;
+
+    const recordId = data?.id;
+    if (!recordId) return;
+
+    if (eventType === 'delete') {
+      entityBatch.upserts.delete(recordId);
+      entityBatch.deletes.add(recordId);
+    } else {
+      entityBatch.deletes.delete(recordId);
+      entityBatch.upserts.set(recordId, data);
+    }
+
+    if (realtimeBatchTimerRef.current) {
+      clearTimeout(realtimeBatchTimerRef.current);
+    }
+
+    realtimeBatchTimerRef.current = setTimeout(() => {
+      realtimeBatchTimerRef.current = null;
+      flushRealtimeBatch();
+    }, 120);
+  }, [flushRealtimeBatch]);
 
   // Keep refs in sync with latest values
   useEffect(() => { updateDeliveriesLocallyRef.current = value.updateDeliveriesLocally; }, [value.updateDeliveriesLocally]);
@@ -44,63 +182,12 @@ export const AppDataProvider = ({ children, value }) => {
     // CRITICAL: Use refs instead of closure-captured values to always get the latest state
     const unsubscribe = cityFilteredRealtimeSync.subscribe(({ entityType, eventType, data }) => {
       if (entityType === 'Delivery') {
-        if (eventType === 'create' || eventType === 'update') {
-          // CRITICAL: Record WS update time to prevent reconcile from overwriting with stale data
-          lastDeliveryWsUpdateRef.current = Date.now();
-          smartRefreshManager.notifyRealtimeDeliveryUpdate && smartRefreshManager.notifyRealtimeDeliveryUpdate();
+        scheduleRealtimeEntityUpdate('Delivery', eventType, data);
+        return;
+      }
 
-          // CRITICAL: Use ref to get latest function - avoids stale closure on rapid updates
-          if (updateDeliveriesLocallyRef.current) {
-            updateDeliveriesLocallyRef.current([data], false);
-          }
-          
-          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
-          smartRefreshManager.notifyRealtimeUpdate('Delivery');
-        } else if (eventType === 'delete') {
-          // CRITICAL: Record WS update time
-          lastDeliveryWsUpdateRef.current = Date.now();
-
-          // CRITICAL: Use ref to get latest deliveries list for filtering
-          if (updateDeliveriesLocallyRef.current && deliveriesRef.current) {
-            const filtered = deliveriesRef.current.filter(d => d?.id !== data.id);
-            updateDeliveriesLocallyRef.current(filtered, true);
-          }
-          
-          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
-          smartRefreshManager.notifyRealtimeUpdate('Delivery');
-        }
-      } else if (entityType === 'AppUser') {
-        if (eventType === 'create' || eventType === 'update') {
-          const coords = `${data.current_latitude?.toFixed(6)}, ${data.current_longitude?.toFixed(6)}`;
-          console.log(`🔔 [AppDataContext] AppUser ${eventType} via realtime - user: ${data.user_name}, coords: ${coords}`);
-          
-          // Merge-safe update to avoid stale flips from cache/offline
-          wrappedUpdateAppUsersLocally([data], false);
-          
-          // CRITICAL: Merge this update with existing appUsers before dispatching
-          const currentAppUsers = appUsersRef.current || [];
-          const updatedAppUsers = currentAppUsers.map(au => au?.id === data.id ? data : au);
-          if (!currentAppUsers.some(au => au?.id === data.id)) {
-            updatedAppUsers.push(data);
-          }
-          
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: updatedAppUsers, singleUpdate: true, fromRealtime: true }
-            }));
-            window.dispatchEvent(new CustomEvent('appUserUpdated', {
-              detail: { appUser: data, fromRealtime: true }
-            }));
-          }
-          
-          smartRefreshManager.notifyRealtimeUpdate('AppUser');
-        } else if (eventType === 'delete') {
-          if (updateAppUsersLocallyRef.current && appUsersRef.current) {
-            const filtered = appUsersRef.current.filter(au => au?.id !== data.id);
-            updateAppUsersLocallyRef.current(filtered, true);
-          }
-          smartRefreshManager.notifyRealtimeUpdate('AppUser');
-        }
+      if (entityType === 'AppUser') {
+        scheduleRealtimeEntityUpdate('AppUser', eventType, data);
       }
     });
 
