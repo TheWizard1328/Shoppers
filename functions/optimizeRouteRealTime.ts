@@ -277,7 +277,11 @@ Deno.serve(async (req) => {
 
       for (const stop of sequencedStops) {
         const segments = [`${stop.waypointLabel};${stop.lat},${stop.lng}`];
-...
+        if (includeTimeWindows) {
+          const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
+          if (accessConstraint) segments.push(accessConstraint);
+        }
+        segments.push(`st:${Math.round(stop.serviceMinutes * 60)}`);
         params.set(stop.hereWaypointId, segments.join(';'));
       }
 
