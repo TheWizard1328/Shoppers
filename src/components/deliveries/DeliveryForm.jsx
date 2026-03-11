@@ -1601,12 +1601,12 @@ export default function DeliveryForm({
     // Create patient object with all pre-filled data but empty address/patient_id
     const patientWithoutAddress = {
       ...fullPatient,
-      patient_id: '', // CRITICAL: Clear patient_id to trigger new PID generation
-      address: '', // Empty address
-      unit_number: '', // Empty unit
+      patient_id: '',
+      address: '',
+      unit_number: '',
+      latitude: null, longitude: null, distance_from_store: null,
       _newAddressSource: true,
-      _isNew: true,
-      _focusAddress: shouldAutoFocusFields
+      _isNew: true, _focusAddress: shouldAutoFocusFields
     };
     
     setSelectedPatient(patientWithoutAddress);
