@@ -41,6 +41,14 @@ const getLegKey = (from, to) => {
   return `here_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
 };
 
+const getPointKey = (point) => {
+  if (!point) return null;
+  const lat = Number(point.latitude);
+  const lng = Number(point.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return `${lat.toFixed(5)}_${lng.toFixed(5)}`;
+};
+
 const getCachedPolyline = (key, cache) => {
   if (!key) return null;
   const inMemory = cache[key];
@@ -136,6 +144,8 @@ export default function CompletedBreadcrumbPolylines({
           deliveryDate: toStop.delivery_date || fromStop.delivery_date,
           start,
           end,
+          destinationStopId: toStop.id,
+          destinationPointKey: getPointKey(end),
           breadcrumbWaypoints,
           hasAnyBreadcrumbs: breadcrumbPoints.length > 0,
           hasBreadcrumbs: breadcrumbWaypoints.length > 2,
@@ -159,9 +169,23 @@ export default function CompletedBreadcrumbPolylines({
     });
   }, [completedSegments]);
 
+  const blockedStoredDestinationStopIds = useMemo(() => new Set(
+    completedSegments
+      .filter((segment) => segment.hasAnyBreadcrumbs && segment.destinationStopId)
+      .map((segment) => segment.destinationStopId)
+  ), [completedSegments]);
+
+  const blockedStoredDestinationPointKeys = useMemo(() => new Set(
+    completedSegments
+      .filter((segment) => segment.hasAnyBreadcrumbs && segment.destinationPointKey)
+      .map((segment) => segment.destinationPointKey)
+  ), [completedSegments]);
+
   const directSegmentLegs = useMemo(() => {
     return completedSegments
       .filter((segment) => !segment.hasAnyBreadcrumbs)
+      .filter((segment) => !blockedStoredDestinationStopIds.has(segment.destinationStopId))
+      .filter((segment) => !segment.destinationPointKey || !blockedStoredDestinationPointKeys.has(segment.destinationPointKey))
       .map((segment) => ({
         id: `${segment.id}-direct`,
         driverId: segment.driverId,
@@ -171,7 +195,7 @@ export default function CompletedBreadcrumbPolylines({
         from: segment.start,
         to: segment.end,
       }));
-  }, [completedSegments]);
+  }, [completedSegments, blockedStoredDestinationStopIds, blockedStoredDestinationPointKeys]);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,6 +226,9 @@ export default function CompletedBreadcrumbPolylines({
 
   completedSegments.forEach((segment) => {
     if (!segment.hasAnyBreadcrumbs) {
+      if (blockedStoredDestinationStopIds.has(segment.destinationStopId)) return;
+      if (segment.destinationPointKey && blockedStoredDestinationPointKeys.has(segment.destinationPointKey)) return;
+
       const key = getLegKey(segment.start, segment.end);
       const coords = getCachedPolyline(key, cache);
       if (!coords) return;
