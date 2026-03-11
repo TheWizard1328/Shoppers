@@ -257,11 +257,16 @@ export default function StopDetailsPanel({
 
       const now = new Date();
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      await calculateRealTimeETA({
-        driverId: delivery.driver_id,
-        deliveryDate: delivery.delivery_date,
-        currentLocalTime
-      });
+      try {
+        await calculateRealTimeETA({
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          currentLocalTime
+        });
+      } catch (error) {
+        if (error?.response?.status !== 404) throw error;
+        console.warn('⚠️ [StopDetailsPanel] Skipping ETA refresh because driver location is not available yet');
+      }
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
