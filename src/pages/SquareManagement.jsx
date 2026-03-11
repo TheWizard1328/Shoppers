@@ -38,6 +38,7 @@ export default function SquareManagement() {
   const [stores, setStores] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [drivers, setDrivers] = useState([]);
+  const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
@@ -195,6 +196,16 @@ export default function SquareManagement() {
           console.log(`📦 [SquareManagement] Using ${appUsersData.length} AppUsers from offline DB`);
         }
 
+        // Load Patients from offline DB first
+        let patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS) || [];
+        if (patientsData.length === 0) {
+          console.log('📥 [SquareManagement] Patients not in offline DB - fetching from API');
+          patientsData = await base44.entities.Patient.list();
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsData);
+        } else {
+          console.log(`📦 [SquareManagement] Using ${patientsData.length} patients from offline DB`);
+        }
+
         // Load Deliveries from offline DB first
         let deliveriesData = [];
         try {
@@ -222,6 +233,7 @@ export default function SquareManagement() {
 
         setLocationConfigs(configs || []);
         setStores(storesData || []);
+        setPatients(patientsData || []);
         setDeliveries(deliveriesData || []);
 
         const driversList = appUsersData.filter(u => 
@@ -397,7 +409,8 @@ export default function SquareManagement() {
     const matchingDelivery = deliveries.find(d => {
       const dateMatch = d.delivery_date === deliveryDate;
       const storeMatch = d.store_id === store.id;
-      const nameMatch = d.patient_name?.toLowerCase().trim() === patientName.toLowerCase().trim();
+      const matchedPatient = patients.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));
+      const nameMatch = matchedPatient?.full_name?.toLowerCase().trim() === patientName.toLowerCase().trim();
       const isCompleted = ['completed', 'returned'].includes(d.status);
       
       return dateMatch && storeMatch && nameMatch && isCompleted;
@@ -560,7 +573,7 @@ export default function SquareManagement() {
       const bStoreName = bStore?.name || bConfig?.name || '';
       return aStoreName.localeCompare(bStoreName);
     });
-  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores]);
+  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, patients]);
 
   // Summary stats
   const stats = {
