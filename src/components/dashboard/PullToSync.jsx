@@ -134,6 +134,17 @@ export default function PullToSync({
         console.log(`   ✅ Saved ${freshDeliveries.length} deliveries to offline DB`);
       }
 
+      const latestDeliveryTimestamp = freshDeliveries?.reduce((latest, delivery) => {
+        const timestamp = new Date(delivery?.updated_date || delivery?.updated || 0).getTime();
+        return timestamp > latest ? timestamp : latest;
+      }, 0);
+      await offlineDB.updateSyncMetadata(
+        'Delivery',
+        latestDeliveryTimestamp ? new Date(latestDeliveryTimestamp).toISOString() : new Date().toISOString(),
+        new Date().toISOString(),
+        { synced_delivery_date: selectedDateStr }
+      );
+
       // STEP 3: Load fresh deliveries from offline DB and update UI
       console.log('🔄 [Pull to Sync] Step 3: Loading deliveries from offline DB for UI update...');
       const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
