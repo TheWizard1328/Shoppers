@@ -117,19 +117,11 @@ export default function DeliveryPatientSearch({
                   size="sm"
                   className="w-full mt-3 gap-2"
                   onClick={async () => {
-                    const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
-                    const dispatcherStoreIds = isDispatcher ? (currentUser.store_ids || []) : [];
-                    const defaultStoreId = dispatcherStoreIds.length === 1 ? dispatcherStoreIds[0] : '';
-
-                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-                    let newPID = '';
-                    for (let i = 0; i < 5; i++) newPID += chars.charAt(Math.floor(Math.random() * chars.length));
-
                     setIsPatientFormOpen(true);
                     onCreatePatient((newPatient) => {
                       setIsPatientFormOpen(false);
                       onPatientSelect(newPatient, true);
-                    }, { patient_id: newPID, full_name: '', phone: '', store_id: defaultStoreId, address: '', unit_number: '', notes: '', _isNew: true });
+                    }, null);
                   }}
                 >
                   <Plus className="w-4 h-4" /> Add New Patient
