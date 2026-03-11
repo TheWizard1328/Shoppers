@@ -6958,10 +6958,10 @@ function Dashboard() {
     hasTriggeredPrioritySyncRef.current = selectedDateStr;
     const backgroundPrioritySync = async () => {
       try {
-        const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');
-        await performPrioritySyncBeforeRefresh(selectedDateStr, globalFilters.getSelectedCityId(), smartRefreshManager);
-        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        if (updateDeliveriesLocally && freshDeliveries?.length) {
+        const today = selectedDateStr === getEdmDate();
+        if ((await offlineDB.getCacheValidation('Delivery', { scopeKey: `date:${selectedDateStr}`, maxAgeMs: today ? 60 * 1000 : 10 * 60 * 1000, allowEmpty: true })).isValid) return;
+        const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync'); await performPrioritySyncBeforeRefresh(selectedDateStr, globalFilters.getSelectedCityId(), smartRefreshManager);
+        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr); await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], { scopeKey: `date:${selectedDateStr}`, syncType: 'startup_full' }); if (updateDeliveriesLocally && freshDeliveries) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         }
