@@ -149,9 +149,6 @@ Deno.serve(async (req) => {
     } else if (driverAppUser.current_latitude != null && driverAppUser.current_longitude != null) {
       currentPosition = { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) };
       locationSource = 'gps';
-    } else if (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null) {
-      currentPosition = { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) };
-      locationSource = 'home';
     }
 
     if (!currentPosition || Number.isNaN(currentPosition.lat) || Number.isNaN(currentPosition.lng)) {
@@ -205,13 +202,18 @@ Deno.serve(async (req) => {
     const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
     const storeMap = new Map((stores || []).map((store) => [store.id, store]));
 
-    if (completedDeliveries.length > 0) {
+    if (!currentPosition && completedDeliveries.length > 0) {
       const lastCompleted = completedDeliveries[completedDeliveries.length - 1];
       const lastCompletedCoords = getStopCoordinates(lastCompleted, patientMap, storeMap);
       if (lastCompletedCoords.lat != null && lastCompletedCoords.lng != null) {
         currentPosition = { lat: Number(lastCompletedCoords.lat), lng: Number(lastCompletedCoords.lng) };
         locationSource = 'last_completed';
       }
+    }
+
+    if (!currentPosition && driverAppUser.home_latitude != null && driverAppUser.home_longitude != null) {
+      currentPosition = { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) };
+      locationSource = 'home';
     }
 
     const stops = incompleteDeliveries
@@ -365,14 +367,6 @@ Deno.serve(async (req) => {
       arrangedIds.add(item.stop.delivery.id);
     };
 
-    if (nextDeliveryStop) {
-      const nextItem = orderedStops.find((item) => item.stop.delivery.id === nextDeliveryStop.delivery.id);
-      if (nextItem?.stop?.delivery?.puid) {
-        pushOrderedItem(pickupItemByStopId.get(nextItem.stop.delivery.puid));
-      }
-      pushOrderedItem(nextItem);
-    }
-
     for (const item of orderedStops) {
       if (item.stop.delivery.puid) {
         pushOrderedItem(pickupItemByStopId.get(item.stop.delivery.puid));
@@ -459,7 +453,7 @@ Deno.serve(async (req) => {
       const incompletes = (allForDriverDate || []).filter((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status) && delivery.status !== 'pending');
 
       if (incompletes.length > 0) {
-        const targetId = nextDeliveryStop?.delivery?.id || [...incompletes].sort((a, b) => {
+        const targetId = arrangedStops[0]?.stop?.delivery?.id || [...incompletes].sort((a, b) => {
           const stopOrderDiff = (a.stop_order || 999) - (b.stop_order || 999);
           if (stopOrderDiff !== 0) return stopOrderDiff;
           const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
