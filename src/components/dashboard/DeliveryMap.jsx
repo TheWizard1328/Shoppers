@@ -18,6 +18,7 @@ import DriverLocationMarkers from './DriverLocationMarkers';
 import MapController from './MapController';
 import HereType1Polylines from './HereType1Polylines';
 import HereType2Polylines from './HereType2Polylines';
+import CompletedBreadcrumbPolylines from './CompletedBreadcrumbPolylines';
 import PickupMarkers from './PickupMarkers';
 import DeliveryMarkers from './DeliveryMarkers';
 import HomeMarkers from './HomeMarkers';
@@ -1753,25 +1754,18 @@ export default function DeliveryMap({
 
 
 
-        {/* TYPE 3 POLYLINES: Completed routes - dashed lines between all stops */}
-        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && driverRoutes.map(route => {
-          if (!route.driverId) return null;
-          const fin = ['completed','failed','cancelled'];
-          const color = ((isAllDriversMode || selectedDriverId === 'all') ? (function(hex,id){const p=['#8A2BE2','#EC4899','#F59E0B','#A855F7','#F43F5E','#FF7F50','#A0522D'];if(!hex||hex[0]!=='#'||hex.length<7)return hex||'#607D8B';const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;if(d===0)return hex;let h;switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4;}h*=60;if(h>=180&&h<=250){let x=0;for(const c of String(id||''))x=((x<<5)-x)+c.charCodeAt(0)|0;return p[Math.abs(x)%p.length];}return hex;})(route.color,route.driverId) : route.color);
-          const stops = [...pickupMarkers.filter(p=>p&&p.driver_id===route.driverId),...deliveryMarkers.filter(d=>d&&d.driver_id===route.driverId)].sort((a,b)=>(a.stop_order||0)-(b.stop_order||0));
-          if (stops.length < 2) return null;
-          if (!stops.every(s=>fin.includes(s.status))) return null; // TYPE 3 only for completed
-          return stops.slice(0,-1).map((s1,i)=>{
-            const s2=stops[i+1];
-            if (!s1||!s2||[s1.latitude,s1.longitude,s2.latitude,s2.longitude].some(v=>typeof v!=='number'||isNaN(v))) return null;
-            const t1=s1.actual_delivery_time?new Date(s1.actual_delivery_time):s1.delivery_time_eta?new Date(`2000-01-01T${s1.delivery_time_eta}:00`):s1.delivery_time_start?new Date(`2000-01-01T${s1.delivery_time_start}:00`):null;
-            const t2=s2.actual_delivery_time?new Date(s2.actual_delivery_time):s2.delivery_time_eta?new Date(`2000-01-01T${s2.delivery_time_eta}:00`):s2.delivery_time_start?new Date(`2000-01-01T${s2.delivery_time_start}:00`):null;
-            if(t1&&t2&&Math.abs(t2-t1)/60000>90) return null;
-            const isSelRoute=selectedDriverId&&selectedDriverId!=='all'&&route.driverId===selectedDriverId;
-            const isHighSeg=highlightedDeliveryId&&(s1.id===highlightedDeliveryId||s2.id===highlightedDeliveryId);
-            return <Polyline key={`t3-${route.driverId}-${i}-${polylineRenderKey}-${highlightedDeliveryId||'none'}`} positions={[[s1.latitude,s1.longitude],[s2.latitude,s2.longitude]]} pathOptions={{color,weight:4,opacity:isSelRoute?0.7:isHighSeg?0.85:0.2,dashArray:s2.ampm_deliveries==='AM'?'10, 5':'2, 8',lineJoin:'round',lineCap:'round'}} pane="overlayPane"/>;
-          });
-        })}
+        {/* TYPE 3 POLYLINES: Completed routes - sampled breadcrumbs with HERE-connected legs */}
+        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (
+          <CompletedBreadcrumbPolylines
+            driverRoutes={driverRoutes}
+            deliveryMarkers={deliveryMarkers}
+            pickupMarkers={pickupMarkers}
+            selectedDriverId={selectedDriverId}
+            isAllDriversMode={isAllDriversMode}
+            highlightedDeliveryId={highlightedDeliveryId}
+            polylineRenderKey={polylineRenderKey}
+          />
+        )}
 
 
 
