@@ -1899,106 +1899,35 @@ function Dashboard() {
   // 4. App load/page load
   // GPS location updates are passive and should not trigger map repositioning
 
-  // CRITICAL: Periodic smart refresh - ACTUALLY calls smartRefreshManager.performSmartRefresh()
   useEffect(() => {
-    if (!isDataLoaded || !currentUser || !isFiltersReady) {
-      return;
-    }
-
-    // CRITICAL: Set current user in smart refresh manager for location polling
+    if (!isDataLoaded || !currentUser || !isFiltersReady) return;
     smartRefreshManager.setCurrentUser(currentUser);
-    
     const runPeriodicSmartRefresh = async () => {
-      if (smartRefreshManager.isPaused()) return;
-      const isAnyFormOpen = showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant;
-      if (isAnyFormOpen) return;
-      if (!hasTriggeredPrioritySyncRef.current) return;
-
-      // Build filters for smart refresh
-      // CRITICAL: Always fetch ALL drivers for the selected date (don't filter by selectedDriverId)
-      // The UI selection is just a view filter, not a data loading filter
-      const filters = {
-        deliveryFilter: {
-          delivery_date: format(selectedDate, 'yyyy-MM-dd')
-        }
-      };
-
-      // CRITICAL: Wrap in try-catch to handle rate limits gracefully
-      let updates = null;
+      if (smartRefreshManager.isPaused() || !hasTriggeredPrioritySyncRef.current || showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant) return;
+      const filters = { deliveryFilter: { delivery_date: format(selectedDate, 'yyyy-MM-dd') } };
       try {
-        // CRITICAL: Call the actual smart refresh manager
-        updates = await smartRefreshManager.performSmartRefresh(
-        {
-          deliveries,
-          patients,
-          stores,
-          cities,
-          appUsers,
-          drivers
-        },
-        filters,
-        false, // isEntityUpdating
-        showAllDriverMarkers, // showAllDrivers
-        'Dashboard', // currentPage
-        selectedDate // selectedDate
-      );
-
-        if (updates) {
-          // Update local state with smart refresh results
-          if (updates.deliveries && updateDeliveriesLocally) {
-            updateDeliveriesLocally(updates.deliveries, true);
-          }
-          
-          // CRITICAL: Always process location data if we have appUsers (from updates OR context)
-          const appUsersToProcess = updates.appUsers && updates.appUsers.length > 0 ? updates.appUsers : appUsers;
-          if (appUsersToProcess && appUsersToProcess.length > 0) {
-            // CRITICAL: Use updates.deliveries (fresh from smart refresh) or fallback to full deliveries array
-            // The poller needs ALL deliveries to determine which drivers have active stops
-            driverLocationPoller.processLocationData(
-              currentUser, 
-              updates.deliveries || deliveries, 
-              drivers, 
-              stores, 
-              appUsersToProcess, 
-              selectedDate, 
-              true,
-              'Dashboard',
-              showAllDriverMarkers
-            );
-          }
-        }
+        const updates = await smartRefreshManager.performSmartRefresh({ deliveries, patients, stores, cities, appUsers, drivers }, filters, false, showAllDriverMarkers, 'Dashboard', selectedDate);
+        if (updates?.deliveries && updateDeliveriesLocally) updateDeliveriesLocally(updates.deliveries, true);
+        const appUsersToProcess = updates?.appUsers?.length ? updates.appUsers : appUsers;
+        if (appUsersToProcess?.length) driverLocationPoller.processLocationData(currentUser, updates?.deliveries || deliveries, drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
       } catch (error) {
-        // CRITICAL: Handle rate limits gracefully
-        if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
-          return;
-        }
+        if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) return;
         console.warn('⚠️ [Periodic Refresh] Error:', error.message);
       }
     };
-
-    // CRITICAL: Delay first run by 90 seconds after mount to avoid overlap with mount syncs
-    const initialDelay = setTimeout(() => {
-      runPeriodicSmartRefresh();
-      if (smartRefreshManager?.checkHeartbeatAndSync) {
-        smartRefreshManager.checkHeartbeatAndSync();
-      }
-    }, 90000);
-    
-    // Then run on interval every 60 seconds (plus 5‑min auto pull for dispatchers)
-    let __pullTick = 0;
-    const interval = setInterval(() => {
+    const initialDelay = setTimeout(() => { runPeriodicSmartRefresh(); if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync(); }, 90000);
+    const interval = setInterval(async () => {
       runPeriodicSmartRefresh();
       if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();
-      if (isDispatcher && (++__pullTick % 5 === 0) && !(showDeliveryForm||showPatientForm||showOptimizationSettings||showAIAssistant)) {
-        window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: 'dispatcher_auto_5min' } }));
-      }
+      if (showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant) return;
+      const ds = format(selectedDate, 'yyyy-MM-dd');
+      if (ds !== getEdmDate()) return;
+      const m = await offlineDB.getSyncMetadata('Delivery'), t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
+      const active = deliveries.some((d) => d && d.delivery_date === ds && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status));
+      if (!t || Date.now() - t >= (active ? 60000 : 300000)) window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'today_active_routes' : 'today_completed_routes' } }));
     }, 60000);
-
-    return () => {
-      clearTimeout(initialDelay);
-      clearInterval(interval);
-    };
-  }, [isDataLoaded, currentUser?.id, isFiltersReady]);
+    return () => { clearTimeout(initialDelay); clearInterval(interval); };
+  }, [isDataLoaded, currentUser?.id, isFiltersReady, deliveries, patients, stores, cities, appUsers, drivers, selectedDate, showAllDriverMarkers, showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant]);
 
   // CRITICAL: Listen for real-time AppUser location updates from other drivers
   useEffect(() => {
@@ -7126,58 +7055,30 @@ function Dashboard() {
     loadOfflineDataFirst();
   }, [currentUser?.id, isDataLoaded, isFiltersReady, userSettingsLoaded, selectedDateStr, hasPreRenderSyncRef.current]);
   
-  // CRITICAL: STEP 2 - Background priority sync to update offline DB
   const hasTriggeredPrioritySyncRef = useRef(false);
-  
   useEffect(() => {
-    if (!currentUser || !isDataLoaded || !isFiltersReady || !userSettingsLoaded) return;
-    if (!hasPreRenderSyncRef.current) return; // Wait for AppUser sync first
-    if (!hasLoadedOfflineDataRef.current) return; // Wait for offline data to load first
-    if (hasTriggeredPrioritySyncRef.current) return; // Only run once
-    
+    if (!currentUser || !isDataLoaded || !isFiltersReady || !userSettingsLoaded || !hasPreRenderSyncRef.current || !hasLoadedOfflineDataRef.current || hasTriggeredPrioritySyncRef.current) return;
     hasTriggeredPrioritySyncRef.current = true;
-    
     const backgroundPrioritySync = async () => {
       try {
-        // Run priority sync in background to update offline DB (non-blocking for UI)
         const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');
-        const cityId = globalFilters.getSelectedCityId();
-        
-        const syncResult = await performPrioritySyncBeforeRefresh(selectedDateStr, cityId, smartRefreshManager);
-        
+        await performPrioritySyncBeforeRefresh(selectedDateStr, globalFilters.getSelectedCityId(), smartRefreshManager);
         const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        
-        if (updateDeliveriesLocally && freshDeliveries && freshDeliveries.length > 0) {
+        if (updateDeliveriesLocally && freshDeliveries?.length) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         }
-        
-        // CRITICAL: Do NOT re-process driver locations here — STEP 1 already did it
-        // Re-processing from offline DB risks injecting junk records and clearing markers
-        // WebSocket subscriptions will keep locations updated in real-time
-        
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' }
-        }));
-        
-        // CRITICAL: Trigger silent pull-to-sync after background sync completes
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-            detail: { silent: true, reason: 'initial_load' }
-          }));
-        }, 2000);
-        
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' } }));
+        const today = selectedDateStr === getEdmDate(), m = await offlineDB.getSyncMetadata('Delivery'), t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
+        const active = (freshDeliveries || []).some((d) => d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status));
+        if (today && (!t || Date.now() - t >= (active ? 60000 : 300000))) setTimeout(() => window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'initial_load_today_active_routes' : 'initial_load_today_completed_routes' } })), 2000);
       } catch (error) {
-        if (error.response?.status === 429 || error.message?.includes('429')) {
-          return;
-        }
+        if (error.response?.status === 429 || error.message?.includes('429')) return;
         console.warn('⚠️ [Dashboard Mount - STEP 2] Background sync failed:', error.message);
       }
     };
-    
-    // Run in background after 1 second
     setTimeout(backgroundPrioritySync, 1000);
-  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, hasPreRenderSyncRef.current, hasLoadedOfflineDataRef.current]);
+  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, userSettingsLoaded, deliveries]);
 
   useEffect(() => {
     if (!isDataLoaded || !deliveries) return;
