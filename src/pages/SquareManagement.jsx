@@ -63,23 +63,44 @@ export default function SquareManagement() {
   }, []);
 
   const refreshSquareView = async (fallbackLocationIds = []) => {
-    const response = await base44.functions.invoke('squareGetCODData', {});
-    const data = response?.data || response || {};
-    const items = data.catalogItems || data.items || [];
-    const transactions = data.transactions || [];
-    const sold = transactions.filter(tx => ['completed', 'refunded'].includes(tx.status));
+    const [pendingTxs, transactions] = await Promise.all([
+      base44.entities.SquareTransaction.filter({ status: 'pending' }),
+      base44.entities.SquareTransaction.list('-created_date', 500),
+    ]);
+
+    const items = (pendingTxs || []).map(tx => ({
+      catalog_object_id: tx.square_catalog_object_id || tx.id,
+      variation_id: null,
+      name: tx.item_name,
+      description: '',
+      price_cents: tx.amount_cents || Math.round((tx.amount || 0) * 100),
+      price_dollars: tx.amount || 0,
+      location_id: tx.location_id || '',
+      present_at_locations: tx.location_id ? [tx.location_id] : [],
+      present_at_all: false,
+      updated_at: tx.updated_date,
+      version: tx.square_catalog_version || 0,
+      transaction_id: tx.id,
+      delivery_id: tx.delivery_id,
+      patient_id: tx.patient_id,
+      store_id: tx.store_id,
+      status: 'active',
+      created_date: tx.created_date,
+      is_sold: false,
+    }));
+    const sold = (transactions || []).filter(tx => ['completed', 'refunded'].includes(tx.status));
 
     setCatalogItems(items);
     setSoldCatalogItems(sold);
-    setAllTransactions(transactions);
-    setLocationIds(data.locationIds || fallbackLocationIds);
+    setAllTransactions(transactions || []);
+    setLocationIds(fallbackLocationIds);
 
     await Promise.all([
       saveCatalogItemsOffline(items),
-      savePaymentTransactionsOffline(transactions),
+      savePaymentTransactionsOffline(transactions || []),
     ]);
 
-    return { items, transactions, sold, data };
+    return { items, transactions: transactions || [], sold, data: { locationIds: fallbackLocationIds } };
   };
 
   const syncFromSquare = async () => {
