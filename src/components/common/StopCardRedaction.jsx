@@ -29,7 +29,7 @@ export function useDeliveryDisplayInfo({
   const displayAddress = useMemo(() => {
     if (!delivery) return '';
     if (isPickup) return cleanBuzzerFromAddress(store?.address || '');
-    return formatAddressWithUnit(patient?.address || "", patient?.unit_number || delivery.unit_number || "");
+    return formatAddressWithUnit(patient?.address || "", patient?.unit_number || "");
   }, [delivery, isPickup, store, patient]);
 
   const displayPhone = useMemo(() => {

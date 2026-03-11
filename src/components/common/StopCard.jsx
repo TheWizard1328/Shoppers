@@ -232,7 +232,7 @@ export default function StopCard({
   // Memoized values - ALWAYS calculated
   const patient = useMemo(() => {
     if (!delivery?.patient_id || !patients || patients.length === 0) return null;
-    return patients.find((p) => p && p.id === delivery.patient_id);
+    return patients.find((p) => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id));
   }, [delivery?.patient_id, patients]);
 
   const isPickup = useMemo(() => {
@@ -294,7 +294,7 @@ export default function StopCard({
 
   const patientDisplayAddress = useMemo(() => {
     if (isPickup || !patient) return '';
-    return formatAddressWithUnit(patient.address, delivery?.unit_number || patient.unit_number);
+    return formatAddressWithUnit(patient.address, patient.unit_number);
   }, [patient, delivery?.unit_number, isPickup]);
 
   const safeDriver = useMemo(() =>
@@ -325,7 +325,7 @@ export default function StopCard({
   const isReturnDelivery = useMemo(() => {
     if (!delivery || isPickup) return false;
 
-    const patientName = (patient?.full_name || delivery.patient_name || '').toUpperCase();
+    const patientName = (patient?.full_name || '').toUpperCase();
     const deliveryNotes = (delivery.delivery_notes || '').toUpperCase();
     const patientNotes = (patient?.notes || '').toUpperCase();
 
@@ -362,7 +362,7 @@ export default function StopCard({
     if (!delivery) return false;
 
     // Check patient name (from patient entity or denormalized field)
-    const patientName = (patient?.full_name || delivery.patient_name || '').toLowerCase();
+    const patientName = (patient?.full_name || '').toLowerCase();
     if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) {
       return true;
     }
@@ -457,7 +457,7 @@ export default function StopCard({
         // Check for a return delivery - look for "Patient Return" in notes with failed patient's name
         const notesLower = (d.delivery_notes || '').toLowerCase();
         const patientNotesLower = (() => {
-          const returnPatient = patients.find((p) => p?.id === d.patient_id);
+          const returnPatient = patients.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));
           return (returnPatient?.notes || '').toLowerCase();
         })();
 

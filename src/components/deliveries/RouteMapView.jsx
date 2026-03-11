@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,7 +48,7 @@ export default function RouteMapView({
           const store = stores.find(s => s.id === delivery.store_id);
           return store && store.latitude && store.longitude;
         } else {
-          const patient = patients.find(p => p.id === delivery.patient_id);
+          const patient = patients.find(p => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id));
           return patient && patient.latitude && patient.longitude;
         }
       })
@@ -67,7 +66,7 @@ export default function RouteMapView({
             patient: null
           };
         } else {
-          const patient = patients.find(p => p.id === delivery.patient_id);
+          const patient = patients.find(p => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id));
           const store = stores.find(s => s.id === patient?.store_id);
           return {
             id: delivery.id,

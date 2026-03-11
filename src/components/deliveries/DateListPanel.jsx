@@ -83,7 +83,11 @@ export default function DateListPanel({
     }
 
     // Create patient map for quick lookup
-    const patientMap = new Map((patients || []).map((p) => [p.id, p]));
+    const patientMap = new Map();
+    (patients || []).forEach((p) => {
+      if (p?.id) patientMap.set(p.id, p);
+      if (p?.patient_id) patientMap.set(p.patient_id, p);
+    });
 
     // Extract unique dates directly from delivery data (no UTC conversion)
     const dateMap = new Map();
