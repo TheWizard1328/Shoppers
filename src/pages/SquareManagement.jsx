@@ -16,9 +16,18 @@ import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgres
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
-import { syncSquareCODSnapshotOffline, getCatalogItemsOffline, getPaymentTransactionsOffline, getSquareCODSyncStatus, handleSquareCatalogItemRealtimeEvent, handleSquareTransactionRealtimeEvent } from "@/components/utils/squareCODOfflineManager";
+import * as squareCODOfflineManager from "@/components/utils/squareCODOfflineManager";
 
 export default function SquareManagement() {
+  const {
+    syncSquareCODSnapshotOffline,
+    getCatalogItemsOffline,
+    getPaymentTransactionsOffline,
+    getSquareCODSyncStatus,
+    handleSquareCatalogItemRealtimeEvent,
+    handleSquareTransactionRealtimeEvent,
+  } = squareCODOfflineManager;
+
   const [catalogItems, setCatalogItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
