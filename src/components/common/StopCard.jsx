@@ -674,7 +674,6 @@ export default function StopCard({
     e?.stopPropagation?.();
     if (startTapLockRef.current || isStarting || isProcessingBackground) return;
     startTapLockRef.current = true;
-    fabControlEvents.reactivatePhaseTwoIfAvailable();
     setIsStarting(true);
     setIsEntityUpdating(true);
 
