@@ -1164,7 +1164,8 @@ export default function StopCard({
       <Card className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[338px] max-w-[338px] border-blue-500"
 
 
-        onClick={() => {
+        onClick={(e) => {
+          if (e.target?.closest?.('[data-stopcard-action="start"]')) return;
           // Allow clicking even for stripped deliveries (to show driver notes)
           onClick && onClick(delivery);
         }}
