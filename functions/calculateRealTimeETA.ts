@@ -30,9 +30,11 @@ Deno.serve(async (req) => {
 
     if (!driverAppUser || !driverAppUser.current_latitude || !driverAppUser.current_longitude) {
       return Response.json({ 
-        error: 'Driver location not available',
+        success: false,
+        skipped: true,
+        reason: 'Driver location not available',
         driverId 
-      }, { status: 404 });
+      });
     }
 
     const driverLocation = {
