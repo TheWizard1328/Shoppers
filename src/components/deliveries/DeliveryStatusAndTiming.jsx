@@ -160,23 +160,39 @@ export default function DeliveryStatusAndTiming({
             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
               {isPickupMode ? 'Start Time' : 'Delivery Start'}
             </Label>
-            <Input type="time" value={formData.delivery_time_start || ''} onChange={(e) => setFormData(prev => ({ ...prev, delivery_time_start: e.target.value }))} disabled={isSaving} className="h-9 text-sm w-full" />
+            {renderTimeInput(
+              formData.delivery_time_start,
+              (e) => setFormData(prev => ({ ...prev, delivery_time_start: e.target.value })),
+              () => setFormData(prev => ({ ...prev, delivery_time_start: '' }))
+            )}
           </div>
           <div className="space-y-1">
             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
               {isPickupMode ? 'End Time' : 'Delivery End'}
             </Label>
-            <Input type="time" value={formData.delivery_time_end || ''} onChange={(e) => setFormData(prev => ({ ...prev, delivery_time_end: e.target.value }))} disabled={isSaving} className="h-9 text-sm w-full" />
+            {renderTimeInput(
+              formData.delivery_time_end,
+              (e) => setFormData(prev => ({ ...prev, delivery_time_end: e.target.value })),
+              () => setFormData(prev => ({ ...prev, delivery_time_end: '' }))
+            )}
           </div>
           {!isPickupMode && (
             <>
               <div className="space-y-1">
                 <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Start</Label>
-                <Input type="time" value={formData.time_window_start || ''} onChange={(e) => setFormData(prev => ({ ...prev, time_window_start: e.target.value }))} disabled={isSaving} className="h-9 text-sm w-full" />
+                {renderTimeInput(
+                  formData.time_window_start,
+                  (e) => setFormData(prev => ({ ...prev, time_window_start: e.target.value })),
+                  () => setFormData(prev => ({ ...prev, time_window_start: '' }))
+                )}
               </div>
               <div className="space-y-1">
                 <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient End</Label>
-                <Input type="time" value={formData.time_window_end || ''} onChange={(e) => setFormData(prev => ({ ...prev, time_window_end: e.target.value }))} disabled={isSaving} className="h-9 text-sm w-full" />
+                {renderTimeInput(
+                  formData.time_window_end,
+                  (e) => setFormData(prev => ({ ...prev, time_window_end: e.target.value })),
+                  () => setFormData(prev => ({ ...prev, time_window_end: '' }))
+                )}
               </div>
             </>
           )}
