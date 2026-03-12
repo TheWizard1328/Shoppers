@@ -357,6 +357,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           {suggestions.map((prediction, index) => (
             <button
               key={prediction.place_id}
+              type="button"
               onPointerDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -369,6 +370,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                handleSelectAddress(prediction);
               }}
               className={`w-full px-3 py-2 text-left text-sm flex items-start gap-2 last:border-b-0 transition-colors`}
               style={{
