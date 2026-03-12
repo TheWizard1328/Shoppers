@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { CircleMarker, Polyline } from "react-leaflet";
+import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 
 const FINISHED = ["completed", "failed", "cancelled"];
@@ -55,6 +55,28 @@ const getPointKey = (point) => {
   const lng = Number(point.longitude);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return `${lat.toFixed(5)}_${lng.toFixed(5)}`;
+};
+
+const getDistanceMeters = (from, to) => {
+  if (!from || !to) return 0;
+
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const lat1 = Number(from.latitude);
+  const lon1 = Number(from.longitude);
+  const lat2 = Number(to.latitude);
+  const lon2 = Number(to.longitude);
+
+  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return 0;
+
+  const earthRadius = 6371000;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
 const getCachedPolyline = (key, cache) => {
@@ -179,10 +201,32 @@ export default function CompletedBreadcrumbPolylines({
       }));
   }, [completedSegments, blockedStoredDestinationStopIds, blockedStoredDestinationPointKeys, showStoredPolylines]);
 
+  const breadcrumbRouteLegs = useMemo(() => {
+    return completedSegments.flatMap((segment) => {
+      if (!showBreadcrumbPolylines || !segment.hasBreadcrumbs) return [];
+
+      return segment.breadcrumbPoints.slice(0, -1).map((from, index) => {
+        const to = segment.breadcrumbPoints[index + 1];
+        const distanceMeters = getDistanceMeters(from, to);
+
+        return {
+          id: `${segment.id}-breadcrumb-${index}`,
+          driverId: segment.driverId,
+          deliveryDate: segment.deliveryDate,
+          opacity: segment.opacity,
+          from,
+          to,
+          distanceMeters,
+          useHere: distanceMeters > 200,
+        };
+      }).filter(Boolean);
+    });
+  }, [completedSegments, showBreadcrumbPolylines]);
+
   useEffect(() => {
     let cancelled = false;
 
-    directSegmentLegs.forEach((leg) => {
+    [...directSegmentLegs, ...breadcrumbRouteLegs.filter((leg) => leg.useHere)].forEach((leg) => {
       const key = getLegKey(leg.from, leg.to);
       if (!key || getCachedPolyline(key, cache)) return;
 
@@ -201,10 +245,9 @@ export default function CompletedBreadcrumbPolylines({
     return () => {
       cancelled = true;
     };
-  }, [directSegmentLegs, cache, polylineRenderKey]);
+  }, [directSegmentLegs, breadcrumbRouteLegs, cache, polylineRenderKey]);
 
   const renderedLines = [];
-  const renderedDots = [];
   const breadcrumbRouteColor = getBreadcrumbRouteColor();
 
   completedSegments.forEach((segment) => {
