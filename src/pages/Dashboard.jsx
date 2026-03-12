@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 const getEdmDate = () => { const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); return `${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`; };
-import { flushSync } from "react-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -286,7 +285,7 @@ function Dashboard() {
       const byId = new Map((deliveries || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
       deliveryDeletes.forEach((id) => byId.delete(id));
       deliveryUpserts.forEach((item) => { if (item?.id) byId.set(item.id, item); });
-      updateDeliveriesLocally && flushSync(() => updateDeliveriesLocally(Array.from(byId.values()), true));
+      updateDeliveriesLocally&&updateDeliveriesLocally(Array.from(byId.values()),true);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'realtimeBatch', changeCount: deliveryUpserts.length + deliveryDeletes.length } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     }
@@ -295,7 +294,7 @@ function Dashboard() {
       const byId = new Map((appUsers || []).filter((item) => item?.id && !appUserDeletes.includes(item.id)).map((item) => [item.id, item]));
       appUserUpserts.forEach((item) => { const current = byId.get(item?.id); if (item?.id && (!current || ts(item) >= ts(current))) byId.set(item.id, item); });
       const merged = Array.from(byId.values());
-      updateAppUsersLocally && flushSync(() => updateAppUsersLocally(merged, true));
+      updateAppUsersLocally&&updateAppUsersLocally(merged,true);
       if (appUserUpserts.some((item) => item?.user_id === currentUser?.id) && refreshUser) refreshUser();
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: merged, singleUpdate: appUserUpserts.length === 1, fromRealtime: true } }));
     }
@@ -320,12 +319,7 @@ function Dashboard() {
       
       if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
         // Update UI immediately using flushSync for synchronous render
-        if (updateDeliveriesLocally) {
-          flushSync(() => {
-            const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
-            updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-          });
-        }
+        if(updateDeliveriesLocally){const otherDateDeliveries=deliveries.filter(d=>d?.delivery_date!==deliveryDate);updateDeliveriesLocally([...otherDateDeliveries,...freshDeliveries],true);}
         
         // Force refresh driver locations and markers
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
@@ -2081,12 +2075,7 @@ function Dashboard() {
     }
 
     // Ensure UI panels are collapsed before re-zoom/center
-    flushSync(() => {
-      setIsExpanded(false);
-      setSelectedCardId(null);
-      cardExpandedAtRef.current = null;
-      setAreCardsVisible(false);
-    });
+    setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);
 
     let newMapViewPhase;
 
@@ -3480,8 +3469,7 @@ function Dashboard() {
 
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
-    setIsEntityUpdating(true);
-    flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);});
+    setIsEntityUpdating(true);setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
     // Reset route summary tracking when date changes
     hasShownSummaryRef.current.clear();
 
@@ -3523,9 +3511,7 @@ function Dashboard() {
       if (updateDeliveriesLocally) {
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
         const mergedDeliveries = [...otherDateDeliveries, ...priorityDeliveries];
-        flushSync(() => {
-          updateDeliveriesLocally(mergedDeliveries, true);
-        });
+        updateDeliveriesLocally(mergedDeliveries,true);
         
         // CRITICAL: Protect from smart refresh overwrite
         priorityDeliveries.forEach(d => {
@@ -3658,7 +3644,7 @@ function Dashboard() {
     lastAppliedTriggerRef.current = nextTrigger;
 
     try {
-      flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);});
+      setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
       setIsEntityUpdating(true);
 
       // CRITICAL: Uncheck "Show All" when switching to "All Drivers" mode to prevent duplicate markers
@@ -3700,17 +3686,9 @@ function Dashboard() {
         smartRefreshManager.clearPendingUpdates();
       }
 
-      // CRITICAL: Batch ALL state updates in a single flushSync to prevent multiple renders
-      flushSync(() => {
-        setSelectedDriverId(driverId);
-        globalFilters.setSelectedDriverId(driverId);
-
-        if (updateDeliveriesLocally) {
-          const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
-          const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
-          updateDeliveriesLocally(mergedDeliveries, true);
-        }
-      });
+      // CRITICAL: Apply state updates without flushSync to avoid render-time warnings
+      setSelectedDriverId(driverId);globalFilters.setSelectedDriverId(driverId);
+      if(updateDeliveriesLocally){const otherDeliveries=deliveries.filter((d)=>d&&d.delivery_date!==dateStr);const mergedDeliveries=[...otherDeliveries,...freshDeliveries];updateDeliveriesLocally(mergedDeliveries,true);}
 
       // CRITICAL: Wait for React to finish rendering BEFORE dispatching event or triggering map
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
