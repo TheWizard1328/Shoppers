@@ -761,6 +761,7 @@ export default function StopCard({
 
           invalidate('Delivery');
           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+          fabControlEvents.reactivatePhaseTwoIfAvailable();
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
             detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
           }));
