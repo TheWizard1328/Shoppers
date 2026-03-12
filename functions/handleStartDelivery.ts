@@ -15,15 +15,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields: deliveryId, driverId, deliveryDate' }, { status: 400 });
     }
 
-    // Step 1: Verify the driver AppUser exists
-    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-updated_date', 1);
-    if (!appUsers || appUsers.length === 0) {
-      return Response.json({ error: 'Driver AppUser not found' }, { status: 404 });
-    }
-
-    const driverAppUser = appUsers[0];
-
-    // Step 2: Find old isNextDelivery flags and clear only the ones we no longer need
+    // Step 1: Find old isNextDelivery flags and clear only the ones we no longer need
     const oldNextDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,
