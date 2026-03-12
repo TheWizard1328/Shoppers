@@ -1625,16 +1625,14 @@ export default function StopCard({
                                     await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                                     if (updateDeliveriesLocally) {
-                                      const updatedDeliveries = optimisticDeliveries.map((d) => {
-                                        if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) {
-                                          return d;
-                                        }
-                                        if (nextStop && d.id === nextStop.id) {
-                                          return { ...d, isNextDelivery: true };
-                                        }
-                                        return { ...d, isNextDelivery: false };
+                                      const freshRouteDeliveries = await base44.entities.Delivery.filter({
+                                        driver_id: delivery.driver_id,
+                                        delivery_date: delivery.delivery_date
                                       });
-                                      updateDeliveriesLocally(updatedDeliveries, true);
+                                      const otherDeliveries = allDeliveries.filter((d) =>
+                                        !d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date
+                                      );
+                                      updateDeliveriesLocally([...otherDeliveries, ...freshRouteDeliveries], true);
                                     }
 
                                     window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
