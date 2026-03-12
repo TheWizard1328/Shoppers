@@ -357,11 +357,33 @@ export const createDeliveryLocal = async (deliveryData) => {
 
   try {
     console.log('📝 [OfflineMutations] Creating delivery locally...');
+
+    const sourceDelivery = deliveryData?._isBatchSave && Array.isArray(deliveryData?._stagedDeliveries)
+      ? deliveryData._stagedDeliveries[0]
+      : deliveryData;
+
+    if (!sourceDelivery?.delivery_date) {
+      throw new Error('Missing delivery_date');
+    }
+
+    const {
+      _isBatchSave,
+      _stagedDeliveries,
+      _tempId,
+      store_name,
+      store_abbreviation,
+      distanceFromStore,
+      delivery_address,
+      patient_name,
+      patient_phone,
+      store_phone,
+      ...normalizedDeliveryData
+    } = sourceDelivery;
     
     // Generate temporary ID if not provided
-    const tempId = deliveryData.id || `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const tempId = normalizedDeliveryData.id || `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const localDelivery = {
-      ...deliveryData,
+      ...normalizedDeliveryData,
       id: tempId,
       created_date: new Date().toISOString(),
       updated_date: new Date().toISOString(),
@@ -384,7 +406,7 @@ export const createDeliveryLocal = async (deliveryData) => {
     // Try immediate backend sync
     try {
       const { base44 } = await import('@/api/base44Client');
-      const backendDelivery = await base44.entities.Delivery.create(deliveryData);
+      const backendDelivery = await base44.entities.Delivery.create(normalizedDeliveryData);
       console.log('✅ [Sync] Delivery synced to backend immediately:', tempId, '→', backendDelivery.id);
       
       // CRITICAL: Remove temp record from IndexedDB
@@ -420,7 +442,7 @@ export const createDeliveryLocal = async (deliveryData) => {
         operation: 'create',
         entity: 'Delivery',
         recordId: tempId,
-        payload: deliveryData
+        payload: normalizedDeliveryData
       });
       // CRITICAL: Restart smart refresh even if queued
       smartRefreshManager.restart();
