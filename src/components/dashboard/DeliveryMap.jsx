@@ -1731,7 +1731,7 @@ export default function DeliveryMap({
       <MapContainer
         center={center || [53.5461, -113.4938]}
         zoom={zoom || (safeDeliveries.length === 0 ? 11 : 12)}
-        maxZoom={19}
+        maxZoom={17.5}
         zoomSnap={0}
         zoomDelta={0.1}
         style={{ height: '100%', width: '100%' }}
