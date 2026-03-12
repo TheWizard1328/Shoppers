@@ -6,7 +6,7 @@ import { User } from "@/entities/User";
 import { AppUser } from "@/entities/AppUser";
 import { Store } from "@/entities/Store";
 import { City } from "@/entities/City";
-import { getGlobalFilters, updateGlobalFilter, setGlobalFilters } from '../components/utils/filterState';
+import { useGlobalFilters } from '../components/utils/globalFilters';
 import { getEffectiveUser } from "../components/utils/auth";
 import { userHasRole, isAppOwner, canAccessImports } from '../components/utils/userRoles';
 import { Button } from "@/components/ui/button";
@@ -571,7 +571,7 @@ export default function Patients() {
     appUsers: contextAppUsers = [],
     cities: contextCities = [],
     isDataLoaded: contextDataLoaded
-  } = useAppData();
+  } = useAppData(); const { selectedDate } = useGlobalFilters();
 
   const [allPatients, setAllPatients] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
@@ -1033,8 +1033,8 @@ export default function Patients() {
 
   // Augment filteredPatients with selected-date delivery info and display priority
   const patientsWithDeliveryInfoAndPriority = useMemo(() => {
-    const today = getGlobalFilters().selectedDate || format(new Date(), 'yyyy-MM-dd');
-    const todayActiveDeliveries = deliveries.filter((d) => d.delivery_date === today && ['pending', 'picked_up', 'in_transit', 'completed', 'failed'].includes(d.status));
+    const selectedDateStr = typeof selectedDate === 'string' ? selectedDate : format(new Date(selectedDate), 'yyyy-MM-dd');
+    const todayActiveDeliveries = deliveries.filter((d) => d.delivery_date === selectedDateStr && ['pending', 'picked_up', 'in_transit', 'completed', 'failed'].includes(d.status));
 
     const getPatientScoreForDisplayPriority = (patient, recurringInfo, daysSince) => {
       // High scores here indicate lower display priority
@@ -1136,7 +1136,7 @@ export default function Patients() {
         distance_from_store: distanceFromStore // Add the calculated distance here
       };
     });
-  }, [filteredPatients, deliveries, getDistanceFromStore]);
+  }, [filteredPatients, deliveries, getDistanceFromStore, selectedDate]);
 
 
   const handleSaveDelivery = useCallback(async (deliveryData) => {
