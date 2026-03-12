@@ -38,7 +38,15 @@ Deno.serve(async (req) => {
     if (!resp.ok) {
       const text = await resp.text();
       console.error('[HERE Routing] provider error', { status: resp.status, details: text?.slice(0, 500) });
-      return Response.json({ error: 'Directions provider error', status: resp.status, details: text?.slice(0, 500) }, { status: 502 });
+      return Response.json({
+        coordinates: [
+          { lat: origin.lat, lng: origin.lng },
+          { lat: destination.lat, lng: destination.lng }
+        ],
+        estimated_distance_km: 0,
+        estimated_duration_minutes: 0,
+        polyline_format: 'fallback'
+      });
     }
 
     const data = await resp.json();

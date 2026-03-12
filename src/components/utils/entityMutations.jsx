@@ -35,12 +35,34 @@ const sanitizeActualDeliveryTime = (timeString) => {
  */
 const sanitizeDeliveryData = (deliveryData) => {
   if (!deliveryData) return deliveryData;
-  
-  const sanitized = { ...deliveryData };
+
+  const source = deliveryData._isBatchSave && Array.isArray(deliveryData._stagedDeliveries) && deliveryData._stagedDeliveries.length === 1
+    ? deliveryData._stagedDeliveries[0]
+    : deliveryData;
+
+  const sanitized = { ...source };
+  delete sanitized._isBatchSave;
+  delete sanitized._stagedDeliveries;
+  delete sanitized._originalDriverId;
+  delete sanitized._driverWasChanged;
+  delete sanitized._tempId;
+  delete sanitized.isNew;
+  delete sanitized.latitude;
+  delete sanitized.longitude;
+  delete sanitized.store_name;
+  delete sanitized.store_abbreviation;
+  delete sanitized.distanceFromStore;
+  delete sanitized.delivery_address;
+  delete sanitized.patient_name;
+  delete sanitized.patient_phone;
+  delete sanitized.store_phone;
+  delete sanitized.cod_amount;
+  delete sanitized.cod_payment_type;
+
   if (sanitized.actual_delivery_time) {
     sanitized.actual_delivery_time = sanitizeActualDeliveryTime(sanitized.actual_delivery_time);
   }
-  
+
   return sanitized;
 };
 
