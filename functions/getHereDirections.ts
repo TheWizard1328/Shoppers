@@ -79,8 +79,15 @@ Deno.serve(async (req) => {
       estimated_duration_minutes
     });
   } catch (err) {
-    const isAbort = err?.name === 'AbortError';
     console.error('[getHereDirections] unexpected error', err?.message || err);
-    return Response.json({ error: err?.message || 'Server error' }, { status: isAbort ? 504 : 500 });
+    return Response.json({
+      coordinates: [
+        { lat: origin?.lat, lng: origin?.lng },
+        { lat: destination?.lat, lng: destination?.lng }
+      ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)),
+      estimated_distance_km: 0,
+      estimated_duration_minutes: 0,
+      polyline_format: 'fallback'
+    });
   }
 });
