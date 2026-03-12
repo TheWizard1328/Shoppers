@@ -1689,17 +1689,7 @@ export default function StopCard({
                                         })
                                       );
 
-                                      if (nextStop) {
-                                        backgroundTasks.push(
-                                          base44.functions.invoke('setNextDeliveryFlag', {
-                                            driverId: delivery.driver_id,
-                                            deliveryDate: delivery.delivery_date,
-                                            targetDeliveryId: nextStop.id
-                                          }).catch((e) => {
-                                            console.warn('[NextFlag] Server ensure failed (UI already updated locally):', e?.message || e);
-                                          })
-                                        );
-                                      } else if (currentUser?.id) {
+                                      if (!nextStop && currentUser?.id) {
                                         backgroundTasks.push(
                                           (async () => {
                                             const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
