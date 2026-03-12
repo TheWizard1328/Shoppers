@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
       const abbr = (item.storeAbbreviation || 'ST').trim();
       const amountNum = Number(item.codAmount) || 0;
       const amountCents = Math.round(amountNum * 100);
-      const itemName = `${mm}/${dd}(${abbr})-${item.patientName || 'COD'}`;
+      const itemName = `${mm}/${dd}(${abbr})-${item.patientName || 'Unknown Patient'}`;
 
       const payload = {
         idempotency_key: idempotencyKey,
@@ -283,7 +283,7 @@ Deno.serve(async (req) => {
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const dd = String(d.getDate()).padStart(2, '0');
       const abbr = (item.storeAbbreviation || 'ST').trim();
-      const patient = item.patientName || 'COD';
+      const patient = item.patientName || 'Unknown Patient';
       const amountNum = Number(item.codAmount) || 0;
       const amountCents = Math.round(amountNum * 100);
       const baseName = `${mm}/${dd}(${abbr})-${patient}`;
@@ -380,7 +380,7 @@ Deno.serve(async (req) => {
         for (const d of recent || []) {
           if (!d || !d.store_id || !d.delivery_date || !(d.cod_total_amount_required > 0)) continue;
           const storeAbbr = storeMap[d.store_id] || 'ST';
-          const patientName = d.patient_name || 'COD';
+          const patientName = d.patient_name || 'Unknown Patient';
           // Delete catalog items for: failed or cancelled deliveries only
           // Completed deliveries are handled by squareSyncCatalogItems which checks soldCatalogItems before deleting
           if (d.status === 'failed' || d.status === 'cancelled') {
@@ -417,7 +417,7 @@ Deno.serve(async (req) => {
               status: del.status === 'failed' ? 'failed' : 'cancelled',
               amount: Number(del.codAmount) || 0,
               amount_cents: Math.round((Number(del.codAmount) || 0) * 100),
-              item_name: `${(del.deliveryDate || '').slice(5).replace('-', '/')}(${del.storeAbbreviation || 'ST'})-${del.patientName || 'COD'}`,
+              item_name: `${(del.deliveryDate || '').slice(5).replace('-', '/')}(${del.storeAbbreviation || 'ST'})-${del.patientName || 'Unknown Patient'}`,
               delivery_id: del.deliveryId,
               store_id: del.storeId,
               raw_square_data: { deletion: delData },
@@ -439,7 +439,7 @@ Deno.serve(async (req) => {
                         status: 'failed',
                         amount: Number(del.codAmount) || 0,
                         amount_cents: Math.round((Number(del.codAmount) || 0) * 100),
-                        item_name: `${(del.deliveryDate || '').slice(5).replace('-', '/')}(${del.storeAbbreviation || 'ST'})-${del.patientName || 'COD'}`,
+                        item_name: `${(del.deliveryDate || '').slice(5).replace('-', '/')}(${del.storeAbbreviation || 'ST'})-${del.patientName || 'Unknown Patient'}`,
             delivery_id: del.deliveryId,
             store_id: del.storeId,
             raw_square_data: { error: String(lastErr?.message || lastErr) },
@@ -468,14 +468,14 @@ Deno.serve(async (req) => {
               status: 'pending',
               amount: Number(item.codAmount) || 0,
               amount_cents: Math.round((Number(item.codAmount) || 0) * 100),
-              item_name: `${(item.deliveryDate || '').slice(5).replace('-', '/')}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`,
+              item_name: `${(item.deliveryDate || '').slice(5).replace('-', '/')}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'Unknown Patient'}`,
               delivery_id: item.deliveryId,
               store_id: item.storeId,
               raw_square_data: data,
             });
           } catch (_) {}
           // After upsert, fix any stray global items for this name to this location only
-          const itemName = `${(item.deliveryDate || '').slice(5).replace('-', '/') }(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`;
+          const itemName = `${(item.deliveryDate || '').slice(5).replace('-', '/') }(${item.storeAbbreviation || 'ST'})-${item.patientName || 'Unknown Patient'}`;
           try { await enforceItemLocation(itemName, locationId); } catch (_) {}
           results.push({ deliveryId: item.deliveryId, action: 'upsert', status: 'ok' });
           break;
@@ -493,7 +493,7 @@ Deno.serve(async (req) => {
             status: 'failed',
             amount: Number(item.codAmount) || 0,
             amount_cents: Math.round((Number(item.codAmount) || 0) * 100),
-            item_name: `${(item.deliveryDate || '').slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'COD'}`,
+            item_name: `${(item.deliveryDate || '').slice(5)}(${item.storeAbbreviation || 'ST'})-${item.patientName || 'Unknown Patient'}`,
             delivery_id: item.deliveryId,
             store_id: item.storeId,
             raw_square_data: { error: String(lastErr?.message || lastErr) },
