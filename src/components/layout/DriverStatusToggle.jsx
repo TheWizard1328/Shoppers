@@ -19,6 +19,45 @@ const broadcastMutation = async (entity, action, id, data) => {
   }
 };
 
+const getEdmontonDateString = (value = Date.now()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Edmonton',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date(value));
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+};
+
+const clearStalePendingBreadcrumbs = async (appUserId) => {
+  if (!appUserId) return;
+  const { offlineDB } = await import('../utils/offlineDatabase');
+  const pendingRecord = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, appUserId);
+  if (!pendingRecord?.breadcrumbs?.length) return;
+
+  const todayEdmonton = getEdmontonDateString();
+  const todaysBreadcrumbs = pendingRecord.breadcrumbs.filter((point) => {
+    const timestamp = Array.isArray(point) ? point[2] : null;
+    return timestamp && getEdmontonDateString(timestamp) === todayEdmonton;
+  });
+
+  if (todaysBreadcrumbs.length === pendingRecord.breadcrumbs.length) return;
+  if (todaysBreadcrumbs.length === 0) {
+    await offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, appUserId);
+    return;
+  }
+
+  await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, {
+    ...pendingRecord,
+    driver_id: appUserId,
+    timestamp: todaysBreadcrumbs[todaysBreadcrumbs.length - 1][2],
+    breadcrumbs: todaysBreadcrumbs
+  });
+};
+
 /**
  * 3-way driver status toggle for mobile header
  * Left: Off Duty (Red) - Disables location sharing
@@ -398,7 +437,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         // Going on duty - start location tracking and set next delivery
         try {
           console.log('🟢 Starting location tracking (on duty)...');
-          
+          await clearStalePendingBreadcrumbs(appUserId);
+
           // CRITICAL: Set driver status BEFORE starting tracker
           locationTracker.setDriverStatus(newStatus);
           
