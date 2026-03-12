@@ -298,20 +298,27 @@ export default function DriverPayroll() {
 
   const sortedDrivers = useMemo(() => {
     if (!payrollData?.drivers || !payrollData?.appUsers) return [];
-    
+
     const matchingDriverIds = new Set();
+    const appUsersByDriverId = new Map();
+
     payrollData.appUsers.forEach(au => {
+      if (au?.user_id) {
+        appUsersByDriverId.set(au.user_id, au);
+      }
       if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
         matchingDriverIds.add(au.user_id);
       }
     });
 
     return sortUsers(
-      payrollData.drivers.filter(d => {
-        if (!d || d.status !== 'active') return false;
-        const driverId = d.user_id || d.id;
-        return matchingDriverIds.has(driverId);
-      })
+      payrollData.drivers
+        .filter(d => {
+          if (!d || d.status !== 'active') return false;
+          const driverId = d.user_id || d.id;
+          return matchingDriverIds.has(driverId);
+        })
+        .map(d => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
   }, [payrollData?.drivers, payrollData?.appUsers, payPeriod]);
 
