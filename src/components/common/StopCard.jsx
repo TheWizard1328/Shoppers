@@ -1622,6 +1622,7 @@ export default function StopCard({
                                     }
 
                                     invalidate('Delivery');
+                                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                                     if (updateDeliveriesLocally) {
                                       const updatedDeliveries = optimisticDeliveries.map((d) => {
