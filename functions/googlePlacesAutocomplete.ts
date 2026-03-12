@@ -73,6 +73,10 @@ Deno.serve(async (req) => {
     };
 
     if (latitude && longitude) {
+      requestBody.origin = {
+        latitude,
+        longitude
+      };
       requestBody.locationBias = {
         circle: {
           center: {
@@ -91,7 +95,7 @@ Deno.serve(async (req) => {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text'
+        'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text,suggestions.placePrediction.distanceMeters'
       },
       body: JSON.stringify(requestBody)
     });
@@ -111,7 +115,9 @@ Deno.serve(async (req) => {
       return {
         description: placePrediction.text?.text || '',
         place_id: placePrediction.placeId || '',
-        distance: null
+        distance: Number.isFinite(placePrediction.distanceMeters)
+          ? parseFloat((placePrediction.distanceMeters / 1000).toFixed(2))
+          : null
       };
     }).filter((prediction) => prediction !== null);
 
