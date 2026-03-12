@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
 
     googleApiCallCount += 1;
     autocompleteCalls += 1;
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -100,7 +100,27 @@ Deno.serve(async (req) => {
       body: JSON.stringify(requestBody)
     });
 
-    const data = await response.json();
+    let data = await response.json();
+
+    if (!response.ok && latitude && longitude) {
+      const fallbackBody = {
+        input,
+        languageCode: 'en',
+        includedRegionCodes: ['CA']
+      };
+      googleApiCallCount += 1;
+      autocompleteCalls += 1;
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text,suggestions.placePrediction.distanceMeters'
+        },
+        body: JSON.stringify(fallbackBody)
+      });
+      data = await response.json();
+    }
 
     if (!response.ok) {
       const errorMsg = data.error?.message || 'Places API error';

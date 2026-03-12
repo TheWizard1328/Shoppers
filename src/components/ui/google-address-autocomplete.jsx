@@ -138,6 +138,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       }
     } catch (error) {
       console.error('Error fetching address suggestions:', error);
+      lastSearchText.current = null;
       setSuggestions([]);
       onSearchStateChange?.(false);
     } finally {
