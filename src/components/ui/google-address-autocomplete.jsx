@@ -209,6 +209,8 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         street_address: streetAddress,
         latitude: resolvedLatitude,
         longitude: resolvedLongitude,
+        lat: resolvedLatitude,
+        lng: resolvedLongitude,
         place_id: prediction.place_id,
         distance: prediction.distance,
         unit: data.unit || null,
@@ -220,7 +222,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
 
       // Call the parent handler with full address data
       if (onAddressSelect) {
-        onAddressSelect(addressData);
+        await onAddressSelect(addressData);
       }
       
       // Update the input value with street address only (preserves directionals like NW, SE)
