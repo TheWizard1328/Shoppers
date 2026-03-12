@@ -3677,12 +3677,10 @@ export default function DeliveryForm({
           const targetPickup = sortedStagedDeliveries.find(s => s.id === transferPickupId);
           if (!targetPickup) throw new Error('Target pickup not found');
           const targetPickupTR = parseInt(targetPickup.tracking_number, 10) || 0;
-          const targetStore = stores.find(s => s?.id === targetPickup.store_id);
-          const storeAbbrev = targetStore?.abbreviation || '';
           const existingTargetStops = sortedStagedDeliveries.filter(s => s.id && s.patient_id && s.puid === targetPickup.stop_id).length;
           for (let i = 0; i < linkedStops.length; i++) {
             const stop = linkedStops[i];
-            const newTR = `${storeAbbrev}${targetPickupTR + existingTargetStops + i + 1}`;
+            const newTR = targetPickupTR + existingTargetStops + i + 1;
             await updateDeliveryLocal(stop.id, { puid: targetPickup.stop_id, tracking_number: newTR, store_id: targetPickup.store_id, ampm_deliveries: targetPickup.ampm_deliveries });
           }
         }
