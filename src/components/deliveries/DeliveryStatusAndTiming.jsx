@@ -120,24 +120,30 @@ export default function DeliveryStatusAndTiming({
 
       {/* Row 2: Start/End Time — only for active statuses */}
       {isActive && (
-        <div className="flex gap-3">
-          <div className="flex-1 space-y-1">
+        <div className={`grid gap-3 ${isPickupMode ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
+          <div className="space-y-1">
             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-              {isPickupMode ? 'Start Time' : 'Time Window'}
+              {isPickupMode ? 'Start Time' : 'Delivery Start'}
             </Label>
-            <div className="flex gap-1">
-              <Input type="time" value={formData.delivery_time_start || ''} onChange={(e) => setFormData(prev => ({ ...prev, delivery_time_start: e.target.value }))} disabled={isSaving} placeholder="Start" className="h-9 text-sm flex-1" />
-              <Input type="time" value={formData.delivery_time_end || ''} onChange={(e) => setFormData(prev => ({ ...prev, delivery_time_end: e.target.value }))} disabled={isSaving} placeholder="End" className="h-9 text-sm flex-1" />
-            </div>
+            <Input type="time" value={formData.delivery_time_start || ''} onChange={(e) => setFormData(prev => ({ ...prev, delivery_time_start: e.target.value }))} disabled={isSaving} className="h-9 text-sm w-full" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+              {isPickupMode ? 'End Time' : 'Delivery End'}
+            </Label>
+            <Input type="time" value={formData.delivery_time_end || ''} onChange={(e) => setFormData(prev => ({ ...prev, delivery_time_end: e.target.value }))} disabled={isSaving} className="h-9 text-sm w-full" />
           </div>
           {!isPickupMode && (
-            <div className="flex-1 space-y-1">
-              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Time Window (Patient)</Label>
-              <div className="flex gap-1">
-                <Input type="time" value={formData.time_window_start || ''} onChange={(e) => setFormData(prev => ({ ...prev, time_window_start: e.target.value }))} disabled={isSaving} placeholder="Start" className="h-9 text-sm flex-1" />
-                <Input type="time" value={formData.time_window_end || ''} onChange={(e) => setFormData(prev => ({ ...prev, time_window_end: e.target.value }))} disabled={isSaving} placeholder="End" className="h-9 text-sm flex-1" />
+            <>
+              <div className="space-y-1">
+                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Start</Label>
+                <Input type="time" value={formData.time_window_start || ''} onChange={(e) => setFormData(prev => ({ ...prev, time_window_start: e.target.value }))} disabled={isSaving} className="h-9 text-sm w-full" />
               </div>
-            </div>
+              <div className="space-y-1">
+                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient End</Label>
+                <Input type="time" value={formData.time_window_end || ''} onChange={(e) => setFormData(prev => ({ ...prev, time_window_end: e.target.value }))} disabled={isSaving} className="h-9 text-sm w-full" />
+              </div>
+            </>
           )}
         </div>
       )}
