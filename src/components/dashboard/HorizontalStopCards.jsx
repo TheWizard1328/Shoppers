@@ -49,8 +49,14 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   // Define finished statuses
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
-  // CRITICAL FIX: Filter out invalid cards BEFORE sorting/mapping to prevent hook count mismatches
-  const validCards = pickupCards.filter((card) => card && card.id);
+  // CRITICAL FIX: Filter out invalid cards and dedupe by id BEFORE sorting/mapping
+  const validCards = Array.from(
+    new Map(
+      pickupCards
+        .filter((card) => card && card.id)
+        .map((card) => [card.id, card])
+    ).values()
+  );
 
   // Auto-scroll to selected card - always center when card is expanded
   const prevSelectedCardIdRef = React.useRef(null);
