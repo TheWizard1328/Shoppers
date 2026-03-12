@@ -1016,11 +1016,45 @@ export const processPendingMutations = async () => {
     
     try {
       const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
+      const deliveryPayload = mutation.entity === 'Delivery' ? (() => {
+        const source = mutation.payload?._isBatchSave && Array.isArray(mutation.payload?._stagedDeliveries)
+          ? mutation.payload._stagedDeliveries[0]
+          : mutation.payload;
+        if (!source) return source;
+        const {
+          _isBatchSave,
+          _stagedDeliveries,
+          _originalDriverId,
+          _driverWasChanged,
+          _tempId,
+          isNew,
+          latitude,
+          longitude,
+          store_name,
+          store_abbreviation,
+          distanceFromStore,
+          delivery_address,
+          patient_name,
+          patient_phone,
+          store_phone,
+          cod_amount,
+          cod_payment_type,
+          ...cleaned
+        } = source;
+        return cleaned;
+      })() : mutation.payload;
+      
+      if (mutation.entity === 'Delivery' && !deliveryPayload?.delivery_date) {
+        console.warn(`⚠️ [OfflineSync] Removing invalid queued Delivery mutation ${mutation.mutationId} - missing delivery_date`);
+        await offlineDB.removePendingMutation(mutation.mutationId);
+        successCount++;
+        continue;
+      }
       
       if (mutation.operation === 'create') {
-        await Entity.create(mutation.payload);
+        await Entity.create(mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
       } else if (mutation.operation === 'update') {
-        await Entity.update(mutation.recordId, mutation.payload);
+        await Entity.update(mutation.recordId, mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
       }
       
       await offlineDB.removePendingMutation(mutation.mutationId);
