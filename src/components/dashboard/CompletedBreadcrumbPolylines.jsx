@@ -150,21 +150,6 @@ export default function CompletedBreadcrumbPolylines({
     });
   }, [driverRoutes, pickupMarkers, deliveryMarkers, selectedDriverId, isAllDriversMode, highlightedDeliveryId]);
 
-  const breadcrumbLegs = useMemo(() => {
-    return completedSegments.flatMap((segment) => {
-      if (!segment.hasBreadcrumbs) return [];
-      return segment.breadcrumbWaypoints.slice(0, -1).map((from, index) => ({
-        id: `${segment.id}-${index}`,
-        driverId: segment.driverId,
-        color: segment.color,
-        opacity: segment.opacity,
-        deliveryDate: segment.deliveryDate,
-        from,
-        to: segment.breadcrumbWaypoints[index + 1],
-      }));
-    });
-  }, [completedSegments]);
-
   const blockedStoredDestinationStopIds = useMemo(() => new Set(
     completedSegments
       .filter((segment) => segment.hasAnyBreadcrumbs && segment.destinationStopId)
