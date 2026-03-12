@@ -1591,6 +1591,15 @@ export default function StopCard({
 
                                     if (nextStop) {
                                       await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                                      try {
+                                        await base44.functions.invoke('setNextDeliveryFlag', {
+                                          driverId: delivery.driver_id,
+                                          deliveryDate: delivery.delivery_date,
+                                          targetDeliveryId: nextStop.id
+                                        });
+                                      } catch (e) {
+                                        console.warn('[NextFlag] Immediate server save failed:', e?.message || e);
+                                      }
                                       const nextCardElement = document.getElementById(`stop-card-${nextStop.id}`);
                                       if (nextCardElement) {
                                         nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
