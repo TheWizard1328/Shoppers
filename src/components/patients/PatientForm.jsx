@@ -312,7 +312,7 @@ export default function PatientForm({
     };
   }, [setIsFormOverlayOpen]);
 
-  const handleAddressSelect = (addressData) => {
+  const handleAddressSelect = async (addressData) => {
     setIsAddressLookupActive(false);
     const street = (addressData.street_number && addressData.route)
       ? `${addressData.street_number} ${addressData.route}`
@@ -320,8 +320,23 @@ export default function PatientForm({
     const abbreviatedAddress = abbreviateAddress(street);
     const prefilledUnit = addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number;
 
-    const latitude = toFiniteNumber(addressData.latitude);
-    const longitude = toFiniteNumber(addressData.longitude);
+    let latitude = toFiniteNumber(addressData.latitude);
+    let longitude = toFiniteNumber(addressData.longitude);
+
+    if ((latitude === null || longitude === null) && addressData.place_id) {
+      try {
+        const { base44 } = await import('@/api/base44Client');
+        const response = await base44.functions.invoke('googlePlaceDetails', {
+          place_id: addressData.place_id
+        });
+        const details = response?.data || response || {};
+        latitude = latitude ?? toFiniteNumber(details.latitude ?? details.location?.latitude ?? details.location?.lat);
+        longitude = longitude ?? toFiniteNumber(details.longitude ?? details.location?.longitude ?? details.location?.lng);
+      } catch (error) {
+        console.warn('[PatientForm] Secondary coordinate lookup failed:', error?.message || error);
+      }
+    }
+
     const roundedLatitude = latitude !== null ? parseFloat(latitude.toFixed(7)) : null;
     const roundedLongitude = longitude !== null ? parseFloat(longitude.toFixed(7)) : null;
     const googleDistance = toFiniteNumber(addressData.distance);
@@ -339,7 +354,6 @@ export default function PatientForm({
       distance_from_store: distanceFromStore
     }));
 
-    // Auto-focus unit number field after address selection
     if (shouldAutoFocusFields) {
       setTimeout(() => {
         unitNumberRef.current?.focus();
