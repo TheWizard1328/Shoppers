@@ -76,6 +76,33 @@ const dayAbbrevs = {
   sun: 'Sun'
 };
 
+const toFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const calculateDistanceKm = (from, to) => {
+  const fromLat = toFiniteNumber(from?.latitude);
+  const fromLon = toFiniteNumber(from?.longitude);
+  const toLat = toFiniteNumber(to?.latitude);
+  const toLon = toFiniteNumber(to?.longitude);
+
+  if ([fromLat, fromLon, toLat, toLon].some((value) => value === null)) {
+    return null;
+  }
+
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(toLat - fromLat);
+  const dLon = toRadians(toLon - fromLon);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+  return parseFloat((earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2));
+};
+
 export default function PatientForm({
         patient,
         stores = [],
