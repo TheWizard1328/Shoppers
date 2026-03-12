@@ -2158,7 +2158,7 @@ export default function DeliveryForm({
         }
         groups[groupKey].deliveries.push(delivery);
       });
-      Object.values(groups).forEach((group) => [...group.deliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || '')).forEach((delivery, index) => assignments.set(delivery.id || delivery._tempId, group.pickupTR + index + 1)));
+      Object.values(groups).forEach((group) => [...group.deliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || '')).forEach((delivery, index) => assignments.set(delivery.id || delivery._tempId, String(group.pickupTR + index + 1))));
       return assignments;
     };
     const buildOptimizedTrackingUpdates = (deliveries) => {
@@ -2176,8 +2176,8 @@ export default function DeliveryForm({
         groups[groupKey].deliveries.push(delivery);
       });
       Object.values(groups).forEach((group) => [...group.deliveries].sort((a, b) => ((a.stop_order ?? Number.MAX_SAFE_INTEGER) - (b.stop_order ?? Number.MAX_SAFE_INTEGER)) || (a.patient_name || '').localeCompare(b.patient_name || '')).forEach((delivery, index) => {
-        const tracking_number = group.pickupTR + index + 1;
-        if (String(delivery.tracking_number ?? '') !== String(tracking_number)) updates.push({ id: delivery.id, tracking_number });
+        const tracking_number = String(group.pickupTR + index + 1);
+        if (String(delivery.tracking_number ?? '') !== tracking_number) updates.push({ id: delivery.id, tracking_number });
       }));
       return updates;
     };
@@ -3680,7 +3680,7 @@ export default function DeliveryForm({
           const existingTargetStops = sortedStagedDeliveries.filter(s => s.id && s.patient_id && s.puid === targetPickup.stop_id).length;
           for (let i = 0; i < linkedStops.length; i++) {
             const stop = linkedStops[i];
-            const newTR = targetPickupTR + existingTargetStops + i + 1;
+            const newTR = String(targetPickupTR + existingTargetStops + i + 1);
             await updateDeliveryLocal(stop.id, { puid: targetPickup.stop_id, tracking_number: newTR, store_id: targetPickup.store_id, ampm_deliveries: targetPickup.ampm_deliveries });
           }
         }
