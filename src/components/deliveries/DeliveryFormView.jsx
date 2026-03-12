@@ -611,7 +611,7 @@ export default function DeliveryFormView({
                   } else {
                     handleCancelClick();
                   }
-                }} disabled={isSaving || isPatientFormOpen} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                }} disabled={isSaving} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
                 </Button>
 
