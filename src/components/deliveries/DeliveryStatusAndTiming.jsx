@@ -146,76 +146,80 @@ export default function DeliveryStatusAndTiming({
           display: none;
         }
       `}</style>
+
       <div className="space-y-2">
-      {/* Row 1: Store + Status + (optional Pickup ID) */}
-      <div className="flex gap-3">
-        {storeSelect}
-        {statusSelect}
-      </div>
-
-      {/* Row 2: Start/End Time — only for active statuses */}
-      {isActive && (
-        <div className={`grid gap-3 ${isPickupMode ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
-          <div className="space-y-1">
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-              {isPickupMode ? 'Start Time' : 'Delivery Start'}
-            </Label>
-            {renderTimeInput(
-              formData.delivery_time_start,
-              (e) => setFormData(prev => ({ ...prev, delivery_time_start: e.target.value })),
-              () => setFormData(prev => ({ ...prev, delivery_time_start: '' }))
-            )}
-          </div>
-          <div className="space-y-1">
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-              {isPickupMode ? 'End Time' : 'Delivery End'}
-            </Label>
-            {renderTimeInput(
-              formData.delivery_time_end,
-              (e) => setFormData(prev => ({ ...prev, delivery_time_end: e.target.value })),
-              () => setFormData(prev => ({ ...prev, delivery_time_end: '' }))
-            )}
-          </div>
-          {!isPickupMode && (
-            <>
-              <div className="space-y-1">
-                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Start</Label>
-                {renderTimeInput(
-                  formData.time_window_start,
-                  (e) => setFormData(prev => ({ ...prev, time_window_start: e.target.value })),
-                  () => setFormData(prev => ({ ...prev, time_window_start: '' }))
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient End</Label>
-                {renderTimeInput(
-                  formData.time_window_end,
-                  (e) => setFormData(prev => ({ ...prev, time_window_end: e.target.value })),
-                  () => setFormData(prev => ({ ...prev, time_window_end: '' }))
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Row 2: Completion Time — only for completion statuses */}
-      {isCompletion && (
+        {/* Row 1: Store + Status + (optional Pickup ID) */}
         <div className="flex gap-3">
-          <div className="flex-1 space-y-1">
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-              Completion Time {delivery?.arrival_time && `[Arrived: ${format(new Date(delivery.arrival_time), 'HH:mm')}]`} *
-            </Label>
-            {renderTimeInput(
-              completionTime,
-              (e) => setCompletionTime(e.target.value),
-              () => setCompletionTime(''),
-              completionTimeRef
+          {storeSelect}
+          {statusSelect}
+        </div>
+
+        {/* Row 2: Start/End Time — only for active statuses */}
+        {isActive && (
+          <div className={`grid gap-3 ${isPickupMode ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
+            <div className="space-y-1">
+              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                {isPickupMode ? 'Start Time' : 'Delivery Start'}
+              </Label>
+              {renderTimeInput(
+                formData.delivery_time_start,
+                (e) => setFormData(prev => ({ ...prev, delivery_time_start: e.target.value })),
+                () => setFormData(prev => ({ ...prev, delivery_time_start: '' }))
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                {isPickupMode ? 'End Time' : 'Delivery End'}
+              </Label>
+              {renderTimeInput(
+                formData.delivery_time_end,
+                (e) => setFormData(prev => ({ ...prev, delivery_time_end: e.target.value })),
+                () => setFormData(prev => ({ ...prev, delivery_time_end: '' }))
+              )}
+            </div>
+
+            {!isPickupMode && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Start</Label>
+                  {renderTimeInput(
+                    formData.time_window_start,
+                    (e) => setFormData(prev => ({ ...prev, time_window_start: e.target.value })),
+                    () => setFormData(prev => ({ ...prev, time_window_start: '' }))
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient End</Label>
+                  {renderTimeInput(
+                    formData.time_window_end,
+                    (e) => setFormData(prev => ({ ...prev, time_window_end: e.target.value })),
+                    () => setFormData(prev => ({ ...prev, time_window_end: '' }))
+                  )}
+                </div>
+              </>
             )}
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+        {/* Row 2: Completion Time — only for completion statuses */}
+        {isCompletion && (
+          <div className="flex gap-3">
+            <div className="flex-1 space-y-1">
+              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                Completion Time {delivery?.arrival_time && `[Arrived: ${format(new Date(delivery.arrival_time), 'HH:mm')}]`} *
+              </Label>
+              {renderTimeInput(
+                completionTime,
+                (e) => setCompletionTime(e.target.value),
+                () => setCompletionTime(''),
+                completionTimeRef
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }
