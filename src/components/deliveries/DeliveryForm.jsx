@@ -2144,102 +2144,55 @@ export default function DeliveryForm({
     }
 
     // Get delivery date from form data for use in TR# calculation
-    const deliveryDate = formData.delivery_date;
-
-    // Calculate sequential TR#s from each pickup's TR# so deliveries start at pickup TR# + 1
     const calculateSequentialTRAssignments = (newItems, existingItems) => {
-      const groups = {};
-      const assignments = new Map();
-
+      const groups = {}, assignments = new Map();
       [...newItems, ...existingItems].forEach((delivery) => {
         if (!delivery?.patient_id) return;
         const groupKey = `${delivery.store_id}_${delivery.driver_id}_${delivery.ampm_deliveries || 'AM'}`;
         if (!groups[groupKey]) {
           const store = stores?.find((s) => s && s.id === delivery.store_id);
-          const pickup = allDeliveries?.find((d) =>
-            d &&
-            !d.patient_id &&
-            d.store_id === delivery.store_id &&
-            d.delivery_date === formData.delivery_date &&
-            d.driver_id === delivery.driver_id &&
-            (d.ampm_deliveries || 'AM') === (delivery.ampm_deliveries || 'AM')
-          );
-
-          let pickupTR = store?.base_tracking_number || 0;
-          if (pickup?.tracking_number) {
-            const parsedTR = parseInt(pickup.tracking_number, 10);
-            if (!isNaN(parsedTR)) {
-              pickupTR = parsedTR;
-            }
-          }
-
-          groups[groupKey] = {
-            pickupTR,
-            abbreviation: store?.abbreviation || '',
-            deliveries: []
-          };
+          const pickup = allDeliveries?.find((d) => d && !d.patient_id && d.store_id === delivery.store_id && d.delivery_date === formData.delivery_date && d.driver_id === delivery.driver_id && (d.ampm_deliveries || 'AM') === (delivery.ampm_deliveries || 'AM'));
+          let pickupTR = store?.base_tracking_number || 0, parsedTR = parseInt(pickup?.tracking_number, 10);
+          if (!isNaN(parsedTR)) pickupTR = parsedTR;
+          groups[groupKey] = { pickupTR, deliveries: [] };
         }
-
         groups[groupKey].deliveries.push(delivery);
       });
-
-      Object.values(groups).forEach((group) => {
-        const sortedDeliveries = [...group.deliveries].sort((a, b) =>
-          (a.patient_name || '').localeCompare(b.patient_name || '')
-        );
-
-        sortedDeliveries.forEach((delivery, index) => {
-          const trString = `${group.abbreviation}${group.pickupTR + index + 1}`;
-          const key = delivery.id || delivery._tempId;
-          assignments.set(key, trString);
-        });
-      });
-
+      Object.values(groups).forEach((group) => [...group.deliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || '')).forEach((delivery, index) => assignments.set(delivery.id || delivery._tempId, group.pickupTR + index + 1)));
       return assignments;
     };
-
-    // CRITICAL: Before calculating TRs, ensure ALL deliveries have correct store_id via PUID lookup
+    const buildOptimizedTrackingUpdates = (deliveries) => {
+      const groups = {}, updates = [];
+      deliveries.forEach((delivery) => {
+        if (!delivery?.patient_id) return;
+        const groupKey = `${delivery.store_id}_${delivery.driver_id}_${delivery.ampm_deliveries || 'AM'}`;
+        if (!groups[groupKey]) {
+          const store = stores?.find((s) => s && s.id === delivery.store_id);
+          const pickup = deliveries.find((d) => d && !d.patient_id && d.store_id === delivery.store_id && d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id && (d.ampm_deliveries || 'AM') === (delivery.ampm_deliveries || 'AM'));
+          let pickupTR = store?.base_tracking_number || 0, parsedTR = parseInt(pickup?.tracking_number, 10);
+          if (!isNaN(parsedTR)) pickupTR = parsedTR;
+          groups[groupKey] = { pickupTR, deliveries: [] };
+        }
+        groups[groupKey].deliveries.push(delivery);
+      });
+      Object.values(groups).forEach((group) => [...group.deliveries].sort((a, b) => ((a.stop_order ?? Number.MAX_SAFE_INTEGER) - (b.stop_order ?? Number.MAX_SAFE_INTEGER)) || (a.patient_name || '').localeCompare(b.patient_name || '')).forEach((delivery, index) => {
+        const tracking_number = group.pickupTR + index + 1;
+        if (String(delivery.tracking_number ?? '') !== String(tracking_number)) updates.push({ id: delivery.id, tracking_number });
+      }));
+      return updates;
+    };
     const deliveriesWithCorrectStores = newDeliveries.map((del) => {
-      if (!del.patient_id || !del.puid) return del; // Skip pickups or deliveries without PUID
-      
-      // Find parent pickup via PUID
-      const parentPickup = allDeliveries?.find((d) => 
-        d && !d.patient_id && d.stop_id === del.puid
-      );
-      
-      if (parentPickup && parentPickup.store_id) {
-        return {
-          ...del,
-          store_id: parentPickup.store_id,
-          ampm_deliveries: parentPickup.ampm_deliveries || del.ampm_deliveries
-        };
-      }
-      
-      return del;
+      if (!del.patient_id || !del.puid) return del;
+      const parentPickup = allDeliveries?.find((d) => d && !d.patient_id && d.stop_id === del.puid);
+      return parentPickup?.store_id ? { ...del, store_id: parentPickup.store_id, ampm_deliveries: parentPickup.ampm_deliveries || del.ampm_deliveries } : del;
     });
-
     const trAssignments = calculateSequentialTRAssignments(deliveriesWithCorrectStores, existingDeliveries);
-    const deliveriesWithTRs = deliveriesWithCorrectStores.map((delivery) => ({
-      ...delivery,
-      tracking_number: trAssignments.get(delivery.id || delivery._tempId) || delivery.tracking_number
-    }));
-
-    // STEP 2: Re-number ALL existing staged deliveries so they also start at pickup TR# + 1
-    const existingDeliveriesToUpdate = existingDeliveries
-      .map((delivery) => {
-        const correctTR = trAssignments.get(delivery.id || delivery._tempId);
-        if (!correctTR || delivery.tracking_number === correctTR) return null;
-        return {
-          id: delivery.id,
-          tracking_number: correctTR
-        };
-      })
-      .filter(Boolean);
+    const deliveriesWithTRs = deliveriesWithCorrectStores.map((delivery) => ({ ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number }));
+    const existingDeliveriesWithTRs = existingDeliveries.map((delivery) => ({ ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number }));
 
     setIsSaving(true);
     setError(null);
-
-    // CRITICAL: Set batch form saving flag to prevent SmartRefresh spam
+    let existingUpdatesDone = Promise.resolve();
     setBatchFormSaving(true);
     // CRITICAL: Pause SmartRefresh ONCE for the entire batch operation
     try {
@@ -2250,28 +2203,7 @@ export default function DeliveryForm({
     }
 
     try {
-      // First, update existing deliveries with corrected TR#s (batched for speed)
-      if (existingDeliveriesToUpdate.length > 0) {
-        const { base44 } = await import('@/api/base44Client');
-        const trUpdatePromises = existingDeliveriesToUpdate.map((update) =>
-          base44.entities.Delivery.update(update.id, { tracking_number: update.tracking_number })
-            .catch((error) => {
-              if (error.message?.includes('not found') || error.response?.status === 404) {
-                return null;
-              }
-              const delivery = allDeliveries?.find((d) => d?.id === update.id);
-              const deliveryName = delivery?.patient_name || 'Unknown';
-              const errorMessage = error.message?.replace(update.id, deliveryName) || error.message;
-              throw new Error(errorMessage);
-            })
-        );
-        Promise.allSettled(trUpdatePromises)
-          .then(() => console.log('[AddToRoute] ✅ Existing TR#s corrected (bg)'))
-          .catch(() => {});
-      }
-
-      // Second, update existing deliveries (both pending and status-changed) - batched for speed
-      if (existingDeliveries.length > 0) {
+      if (existingDeliveriesWithTRs.length > 0) {
 
         // Check if any deliveries are completed for this driver/date
         const hasCompletedDeliveries = allDeliveries?.some((d) =>
@@ -2281,7 +2213,7 @@ export default function DeliveryForm({
         d.status === 'completed'
         );
 
-        const updatePromises = existingDeliveries.map((updated) => {
+        const updatePromises = existingDeliveriesWithTRs.map((updated) => {
           let finalStatus = updated.status;
           if (finalStatus === 'Staged') {
             finalStatus = (!updated.patient_id) ? 'en_route' : 'pending';
@@ -2331,11 +2263,10 @@ export default function DeliveryForm({
             });
         });
 
-        Promise.allSettled(updatePromises)
-          .then(() => {
-            (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(existingDeliveries.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});if(ids.length)console.log('🗓️ [BatchSave] Updated last_delivery_date for',ids.length,'patients');}catch(_){}})()
-          })
-          .catch(() => {});
+        existingUpdatesDone = Promise.allSettled(updatePromises);
+        existingUpdatesDone.then(() => {
+          (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(existingDeliveriesWithTRs.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});if(ids.length)console.log('🗓️ [BatchSave] Updated last_delivery_date for',ids.length,'patients');}catch(_){}})()
+        }).catch(() => {});
       }
 
       // CRITICAL: Create ALL default pickups ONLY for new routes (isNewRouteWithZeroStops = true)
@@ -2469,6 +2400,8 @@ export default function DeliveryForm({
             .catch(()=>{});
         }
       }
+
+      if (formData.driver_id && formData.delivery_date) Promise.resolve().then(async()=>{await existingUpdatesDone;try{await base44.functions.invoke('optimizeRouteRealTime',{driverId:formData.driver_id,deliveryDate:formData.delivery_date,currentLocalTime:format(new Date(),'HH:mm'),generatePolyline:false});}catch(error){console.warn('⚠️ [AddToRoute] Route optimizer failed before TR correction:', error?.message || error);}const optimizedDeliveries=await base44.entities.Delivery.filter({driver_id:formData.driver_id,delivery_date:formData.delivery_date});const trackingUpdates=buildOptimizedTrackingUpdates(optimizedDeliveries);if(trackingUpdates.length)await Promise.allSettled(trackingUpdates.map((update)=>base44.entities.Delivery.update(update.id,{tracking_number:update.tracking_number})));}).catch((error)=>console.warn('⚠️ [AddToRoute] Post-optimization TR correction failed:', error?.message || error));
 
       // CRITICAL: Resume SmartRefresh ONCE after all updates complete
       try {
