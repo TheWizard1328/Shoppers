@@ -593,6 +593,8 @@ export default function PatientForm({
   const storeSelectRef = useRef(null);
   const addressInputRef = useRef(null);
   const unitNumberRef = useRef(null);
+  const shouldAutoFocusFields = canAutoFocusFormFields();
+  const isMobile = isMobileDevice();
 
   // Auto-focus store dropdown if no store selected on new patient
   useEffect(() => {
@@ -713,9 +715,6 @@ export default function PatientForm({
 
   const isPIDValid = formData.patient_id ? validateId(formData.patient_id, 5) : null;
   const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50';
-
-  const shouldAutoFocusFields = canAutoFocusFormFields();
-  const isMobile = isMobileDevice();
 
   return (
     <div className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 pt-0' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}>
