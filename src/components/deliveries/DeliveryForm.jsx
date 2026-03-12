@@ -2340,84 +2340,78 @@ export default function DeliveryForm({
 
       // CRITICAL: Create ALL default pickups ONLY for new routes (isNewRouteWithZeroStops = true)
       if (newDeliveries.length > 0 && isNewRouteWithZeroStops) {
-        
-        // Group deliveries by driver_id
-        const driverGroups = {};
-        newDeliveries.forEach(del => {
-          if (!del.patient_id || !del.driver_id) return; // Skip pickups
-          
-          if (!driverGroups[del.driver_id]) {
-            driverGroups[del.driver_id] = {
-              driverId: del.driver_id,
-              deliveryDate: del.delivery_date,
-              deliveries: []
-            };
-          }
-          driverGroups[del.driver_id].deliveries.push(del);
-        });
-        
-        // For each driver, create pickups for ALL assigned stores
-        for (const driverId of Object.keys(driverGroups)) {
-          const group = driverGroups[driverId];
-          
-          // Get all stores this driver is assigned to
-          const selectedDate = new Date(group.deliveryDate + 'T00:00:00');
-          const dayOfWeek = selectedDate.getDay();
-          
-          const driverAssignedStores = stores.filter(s => {
-            if (!s) return false;
-            
-            let driverIds = [];
-            if (dayOfWeek === 6) {
-              driverIds = [s.saturday_am_driver_id, s.saturday_pm_driver_id];
-            } else if (dayOfWeek === 0) {
-              driverIds = [s.sunday_am_driver_id, s.sunday_pm_driver_id];
-            } else {
-              driverIds = [s.weekday_am_driver_id, s.weekday_pm_driver_id];
+        Promise.resolve().then(async () => {
+          const driverGroups = {};
+          newDeliveries.forEach(del => {
+            if (!del.patient_id || !del.driver_id) return;
+
+            if (!driverGroups[del.driver_id]) {
+              driverGroups[del.driver_id] = {
+                driverId: del.driver_id,
+                deliveryDate: del.delivery_date,
+                deliveries: []
+              };
             }
-            
-            return driverIds.includes(driverId);
+            driverGroups[del.driver_id].deliveries.push(del);
           });
-          
-          // Create pickup for each assigned store (both AM and PM if applicable)
-          const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
-          
-          for (const assignedStore of driverAssignedStores) {
-            const isSpecialStore = specialStores.some(name => assignedStore.name?.includes(name));
-            if (isSpecialStore) {
-              continue;
-            }
-            
-            // Determine which time slots this driver covers for this store
-            const timeSlots = [];
-            if (dayOfWeek === 6) {
-              if (assignedStore.saturday_am_driver_id === driverId) timeSlots.push('AM');
-              if (assignedStore.saturday_pm_driver_id === driverId) timeSlots.push('PM');
-            } else if (dayOfWeek === 0) {
-              if (assignedStore.sunday_am_driver_id === driverId) timeSlots.push('AM');
-              if (assignedStore.sunday_pm_driver_id === driverId) timeSlots.push('PM');
-            } else {
-              if (assignedStore.weekday_am_driver_id === driverId) timeSlots.push('AM');
-              if (assignedStore.weekday_pm_driver_id === driverId) timeSlots.push('PM');
-            }
-            
-            // Create pickup for each time slot
-            for (const timeSlot of timeSlots) {
-              try {
-                const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
-                  storeId: assignedStore.id,
-                  deliveryDate: group.deliveryDate,
-                  driverId: driverId,
-                  ampmDeliveries: timeSlot
-                });
-                
-              } catch (error) {
-                console.warn(`⚠️ [DoneButton] Failed to ensure pickup for ${assignedStore.name} [${timeSlot}]:`, error.message);
+
+          for (const driverId of Object.keys(driverGroups)) {
+            const group = driverGroups[driverId];
+            const selectedDate = new Date(group.deliveryDate + 'T00:00:00');
+            const dayOfWeek = selectedDate.getDay();
+
+            const driverAssignedStores = stores.filter(s => {
+              if (!s) return false;
+
+              let driverIds = [];
+              if (dayOfWeek === 6) {
+                driverIds = [s.saturday_am_driver_id, s.saturday_pm_driver_id];
+              } else if (dayOfWeek === 0) {
+                driverIds = [s.sunday_am_driver_id, s.sunday_pm_driver_id];
+              } else {
+                driverIds = [s.weekday_am_driver_id, s.weekday_pm_driver_id];
+              }
+
+              return driverIds.includes(driverId);
+            });
+
+            const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
+
+            for (const assignedStore of driverAssignedStores) {
+              const isSpecialStore = specialStores.some(name => assignedStore.name?.includes(name));
+              if (isSpecialStore) {
+                continue;
+              }
+
+              const timeSlots = [];
+              if (dayOfWeek === 6) {
+                if (assignedStore.saturday_am_driver_id === driverId) timeSlots.push('AM');
+                if (assignedStore.saturday_pm_driver_id === driverId) timeSlots.push('PM');
+              } else if (dayOfWeek === 0) {
+                if (assignedStore.sunday_am_driver_id === driverId) timeSlots.push('AM');
+                if (assignedStore.sunday_pm_driver_id === driverId) timeSlots.push('PM');
+              } else {
+                if (assignedStore.weekday_am_driver_id === driverId) timeSlots.push('AM');
+                if (assignedStore.weekday_pm_driver_id === driverId) timeSlots.push('PM');
+              }
+
+              for (const timeSlot of timeSlots) {
+                try {
+                  await base44.functions.invoke('ensurePickupForDelivery', {
+                    storeId: assignedStore.id,
+                    deliveryDate: group.deliveryDate,
+                    driverId: driverId,
+                    ampmDeliveries: timeSlot
+                  });
+                } catch (error) {
+                  console.warn(`⚠️ [DoneButton] Failed to ensure pickup for ${assignedStore.name} [${timeSlot}]:`, error.message);
+                }
               }
             }
           }
-        }
-        
+        }).catch(error => {
+          console.warn('⚠️ [DoneButton] Background pickup creation failed:', error?.message || error);
+        });
       }
       
       // Then save new deliveries OR trigger data refresh
@@ -2544,31 +2538,9 @@ export default function DeliveryForm({
         return; // CRITICAL: Exit early to prevent duplicate processing
       }
 
-      // CRITICAL: Force IMMEDIATE backend data fetch (don't wait for smart refresh cycle)
-      setTimeout(async () => {
-        try {
-          const freshDeliveries = await base44.entities.Delivery.filter({
-            driver_id: formData.driver_id,
-            delivery_date: formData.delivery_date
-          });
-          const { offlineDB } = await import('../utils/offlineDatabase');
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { 
-              deliveryDate: formData.delivery_date, 
-              driverId: formData.driver_id,
-              triggeredBy: 'doneButtonCreates',
-              immediate: true,
-              freshDeliveries
-            }
-          }));
-        } catch (e) {
-          console.warn('⚠️ [AddToRoute] Background refresh failed:', e);
-        }
-      }, 0);
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-      // CRITICAL: Clear staged state AFTER dispatching event
+      // Clear local UI state and close immediately
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       setHasPendingDeletes(false);
@@ -2577,61 +2549,48 @@ export default function DeliveryForm({
       predictionsStopped.current = false;
       setIsLoadingPredictions(true);
 
-      // CRITICAL: Resume background operations before closing form
-      (async () => {
-        try {
-          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-          const { routePolylineManager } = await import('../utils/routePolylineManager');
-          const { fabControlEvents } = await import('../utils/fabControlEvents');
-          
-          smartRefreshManager.resume();
-          driverLocationPoller.resume();
-          routePolylineManager?.resume?.();
-          fabControlEvents.resumeFAB();
-          
-        } catch (error) {
-          console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
-        }
-      })();
+      import('../utils/deliveryFormActionHelpers')
+        .then(({ closeDeliveryFormAfterSave, resumeDeliveryFormManagers }) => {
+          closeDeliveryFormAfterSave({ handleClearForm, onCancel });
+          return resumeDeliveryFormManagers();
+        })
+        .catch(() => {
+          handleClearForm();
+          onCancel();
+        });
 
-      // Close form FIRST
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
-
-      // CRITICAL: Wait for form to close, reload from offline DB, then update UI
-      setTimeout(async () => {
+      // Keep the heavier refresh work in the background
+      Promise.resolve().then(async () => {
         try {
-          // Load complete deliveries from offline DB
+          const freshDeliveries = await base44.entities.Delivery.filter({
+            driver_id: formData.driver_id,
+            delivery_date: formData.delivery_date
+          });
+
           const { offlineDB } = await import('../utils/offlineDatabase');
-          const allDeliveriesOffline = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const completeDeliveries = allDeliveriesOffline.filter(d => d && d.delivery_date === formData.delivery_date);
-          
-          // Dispatch UI update with complete data
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { 
-              deliveryDate: formData.delivery_date, 
+            detail: {
+              deliveryDate: formData.delivery_date,
               driverId: formData.driver_id,
-              triggeredBy: 'doneButtonCompleteLoad',
+              triggeredBy: 'doneButtonCreates',
               immediate: true,
-              freshDeliveries: completeDeliveries
+              freshDeliveries
             }
           }));
-          
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
           const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
           invalidate('Delivery');
           invalidateDeliveriesForDate(formData.delivery_date);
 
-          // Activate FAB
           const { fabControlEvents } = await import('../utils/fabControlEvents');
           fabControlEvents.notifyDataReady();
           fabControlEvents.notifyDoneButtonClicked();
-          
-        } catch (error) {
-          console.error('[AddToRoute] ❌ Background reload failed:', error);
+        } catch (e) {
+          console.warn('⚠️ [AddToRoute] Background refresh failed:', e);
         }
-      }, 300);
+      });
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
