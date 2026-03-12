@@ -12,9 +12,11 @@ export const createStopCardsScrollHandler = ({
   setMapZoom,
   getMapPadding,
   mapLockTimeoutRef,
-  mapLockExpiresAtRef
+  mapLockExpiresAtRef,
+  userSwipeRef
 }) => {
   return (e) => {
+    if (!userSwipeRef?.current) return;
     // Debounce the scroll snap
     const container = e.currentTarget;
     if (container._scrollTimeout) {
@@ -48,23 +50,17 @@ export const createStopCardsScrollHandler = ({
         closestCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }
 
-      // CRITICAL: Center map on the centered delivery's marker and reset FAB phase if needed
+      // CRITICAL: Center map on the centered delivery's marker and unlock FAB only for user swipes
       if (centeredDeliveryId) {
         const centeredDelivery = deliveriesWithStopOrder.find(d => d?.id === centeredDeliveryId);
         if (centeredDelivery) {
-          // Reset FAB phase if currently in phase 2 or 3
-          if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) {
-            console.log('🗺️ [Stop Card Scroll] Resetting FAB from phase', mapViewPhase, 'to phase 1');
-            setIsMapViewLocked(false);
-            setMapViewPhase(1);
-            
-            // Clear any existing timers
-            if (mapLockTimeoutRef.current) {
-              clearTimeout(mapLockTimeoutRef.current);
-              mapLockTimeoutRef.current = null;
-            }
-            mapLockExpiresAtRef.current = null;
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
+            mapLockTimeoutRef.current = null;
           }
+          mapLockExpiresAtRef.current = null;
+          setMapViewPhase(1);
+          setIsMapViewLocked(false);
 
           // Center map on this delivery's marker
           let stopLat, stopLon;
@@ -94,6 +90,8 @@ export const createStopCardsScrollHandler = ({
           }
         }
       }
+
+      userSwipeRef.current = false;
     }, 150);
   };
 };
