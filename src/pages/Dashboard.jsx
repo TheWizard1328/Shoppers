@@ -6746,16 +6746,12 @@ function Dashboard() {
       try {
         setCurrentToNextPolyline(null);
         setDriverRoutes([]);
-        flushSync(() => {
-          // Full replacement of all entities
-          if (updateDeliveriesLocally && freshDeliveries) {
-            updateDeliveriesLocally(freshDeliveries, true);
-          }
-          
-          if (updateAppUsersLocally && freshAppUsers) {
-            updateAppUsersLocally(freshAppUsers, true);
-          }
-        });
+        if (updateDeliveriesLocally && freshDeliveries) {
+          updateDeliveriesLocally(freshDeliveries, true);
+        }
+        if (updateAppUsersLocally && freshAppUsers) {
+          updateAppUsersLocally(freshAppUsers, true);
+        }
         
         // Force complete UI re-render
         setForceRender((prev) => prev + 1);
@@ -7258,7 +7254,7 @@ function Dashboard() {
                         }
 
                         // CRITICAL: Close stats card when checkbox is toggled
-                        flushSync(()=>{setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);});
+                        setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);
 
                         // CRITICAL: Respect data source preference when checking "Show All"
                         if (checked) {
@@ -7745,7 +7741,7 @@ function Dashboard() {
               drivers={drivers}
               patients={patients}
               currentUser={currentUser}
-              onSelectionChange={() => flushSync(() => {})}
+              onSelectionChange={() => {}}
               selectedDeliveryIds={{}}
               stopOrder={{}}
               showDriverName={isAllDriversMode}
