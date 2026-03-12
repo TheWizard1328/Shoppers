@@ -156,6 +156,7 @@ export default function CompletedBreadcrumbPolylines({
         const start = { latitude: Number(fromStop.latitude), longitude: Number(fromStop.longitude) };
         const end = { latitude: Number(toStop.latitude), longitude: Number(toStop.longitude) };
         const breadcrumbPoints = parseBreadcrumbPoints(toStop.delivery_route_breadcrumbs);
+        const routePoints = buildBreadcrumbRoutePoints(start, breadcrumbPoints, end);
 
         return {
           id: `${route.driverId}-${index}`,
@@ -168,9 +169,9 @@ export default function CompletedBreadcrumbPolylines({
           end,
           destinationStopId: toStop.id,
           destinationPointKey: getPointKey(end),
-          breadcrumbPoints,
-          hasAnyBreadcrumbs: breadcrumbPoints.length > 0,
-          hasBreadcrumbs: breadcrumbPoints.length > 1,
+          breadcrumbPoints: routePoints,
+          hasAnyBreadcrumbs: routePoints.length > 0,
+          hasBreadcrumbs: routePoints.length > 1,
         };
       }).filter(Boolean);
     });
