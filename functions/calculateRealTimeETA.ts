@@ -28,19 +28,13 @@ Deno.serve(async (req) => {
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
 
-    if (!driverAppUser || !driverAppUser.current_latitude || !driverAppUser.current_longitude) {
-      return Response.json({ 
-        success: false,
-        skipped: true,
-        reason: 'Driver location not available',
-        driverId 
-      });
+    let driverLocation = null;
+    if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+      driverLocation = {
+        lat: driverAppUser.current_latitude,
+        lng: driverAppUser.current_longitude
+      };
     }
-
-    const driverLocation = {
-      lat: driverAppUser.current_latitude,
-      lng: driverAppUser.current_longitude
-    };
 
     // Get ALL deliveries for the driver and date (not just active ones)
     const allDeliveriesForDay = await base44.asServiceRole.entities.Delivery.filter({
@@ -114,6 +108,43 @@ Deno.serve(async (req) => {
       : [];
     
     const storeMap = new Map(stores.map(s => [s.id, s]));
+
+    if (!driverLocation) {
+      const completedStops = sortedAllDeliveries
+        .filter(d => finishedStatuses.includes(d.status))
+        .sort((a, b) => new Date(b.actual_delivery_time || b.updated_date || 0) - new Date(a.actual_delivery_time || a.updated_date || 0));
+
+      const lastCompleted = completedStops[0];
+      if (lastCompleted) {
+        if (lastCompleted.patient_id) {
+          const patient = patientMap.get(lastCompleted.patient_id);
+          if (patient?.latitude && patient?.longitude) {
+            driverLocation = { lat: patient.latitude, lng: patient.longitude };
+          }
+        } else if (lastCompleted.store_id) {
+          const store = storeMap.get(lastCompleted.store_id);
+          if (store?.latitude && store?.longitude) {
+            driverLocation = { lat: store.latitude, lng: store.longitude };
+          }
+        }
+      }
+
+      if (!driverLocation && driverAppUser?.home_latitude && driverAppUser?.home_longitude) {
+        driverLocation = {
+          lat: driverAppUser.home_latitude,
+          lng: driverAppUser.home_longitude
+        };
+      }
+
+      if (!driverLocation) {
+        return Response.json({ 
+          success: false,
+          skipped: true,
+          reason: 'Driver location not available',
+          driverId 
+        });
+      }
+    }
 
     // Sort deliveries to process by stop_order
     const sortedDeliveries = [...deliveriesToProcess].sort((a, b) => 

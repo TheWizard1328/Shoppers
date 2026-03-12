@@ -151,9 +151,7 @@ Deno.serve(async (req) => {
       locationSource = 'gps';
     }
 
-    if (!currentPosition || Number.isNaN(currentPosition.lat) || Number.isNaN(currentPosition.lng)) {
-      return Response.json({ success: false, skipped: true, reason: 'Driver current location is not available' });
-    }
+    // Fall back to last completed stop or home location below if live GPS is unavailable.
 
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
