@@ -220,21 +220,17 @@ const getDayOrderFromToday = () => {
 const sortPatients = (patients) => {
   const today = new Date();
   const dayMapForGetDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-  const todayDayStr = dayMapForGetDay[getDay(today)];
-
-  // Day order starts from TODAY, not Monday
+  const hasSelectedDateDeliveries = patients.some((p) => p.todayDelivery), getSelectedDateDeliveryPriority = (d) => d?.status === 'in_transit' || d?.status === 'picked_up' ? 0 : d?.status === 'pending' ? 1 : ['completed', 'failed'].includes(d?.status) ? 2 : 3;
   const dayOrderFromToday = getDayOrderFromToday();
 
   return [...patients].sort((a, b) => {
-    // PRIORITY 1: Active deliveries (on today's route) to top, sorted by stop_order
-    const aOnRoute = a.todayDelivery && ['picked_up', 'in_transit', 'pending'].includes(a.todayDelivery.status);
-    const bOnRoute = b.todayDelivery && ['picked_up', 'in_transit', 'pending'].includes(b.todayDelivery.status);
-
-    if (aOnRoute && bOnRoute) {
-      return (a.todayDelivery.stop_order || Infinity) - (b.todayDelivery.stop_order || Infinity);
+    if (hasSelectedDateDeliveries) {
+      const aRoute = a.todayDelivery, bRoute = b.todayDelivery;
+      if (aRoute && bRoute) {
+        const routeDiff = getSelectedDateDeliveryPriority(aRoute) - getSelectedDateDeliveryPriority(bRoute) || (aRoute.stop_order || Infinity) - (bRoute.stop_order || Infinity);
+        if (routeDiff) return routeDiff;
+      } else if (aRoute || bRoute) return aRoute ? -1 : 1;
     }
-    if (aOnRoute) return -1;
-    if (bOnRoute) return 1;
 
     // PRIORITY 2: Patients with exclusion keywords to bottom
     if (a.displayPriority === 'excluded' && b.displayPriority !== 'excluded') return 1;
@@ -1035,11 +1031,10 @@ export default function Patients() {
   }, [allPatients, searchTerm, storeFilter, statusFilter, selectedCityId, stores, getDeliveryStats, currentUser]);
 
 
-  // Augment filteredPatients with today's delivery info and display priority
+  // Augment filteredPatients with selected-date delivery info and display priority
   const patientsWithDeliveryInfoAndPriority = useMemo(() => {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    // Filter for deliveries that are for today and are still 'active' (not yet delivered/cancelled)
-    const todayActiveDeliveries = deliveries.filter((d) => d.delivery_date === today && ['pending', 'picked_up', 'in_transit'].includes(d.status));
+    const today = getGlobalFilters().selectedDate || format(new Date(), 'yyyy-MM-dd');
+    const todayActiveDeliveries = deliveries.filter((d) => d.delivery_date === today && ['pending', 'picked_up', 'in_transit', 'completed', 'failed'].includes(d.status));
 
     const getPatientScoreForDisplayPriority = (patient, recurringInfo, daysSince) => {
       // High scores here indicate lower display priority
@@ -1100,7 +1095,7 @@ export default function Patients() {
 
 
     return filteredPatients.map((patient) => {
-      const patientTodayDelivery = todayActiveDeliveries.find((d) => d.patient_id === patient.id);
+      const patientTodayDelivery = todayActiveDeliveries.filter((d) => d.patient_id === patient.id).sort((a, b) => (a.status === 'in_transit' || a.status === 'picked_up' ? 0 : a.status === 'pending' ? 1 : 2) - (b.status === 'in_transit' || b.status === 'picked_up' ? 0 : b.status === 'pending' ? 1 : 2) || (a.stop_order || Infinity) - (b.stop_order || Infinity))[0];
       const daysSince = getDaysSinceLastDelivery(patient.last_delivery_date, new Date());
       const recurring = getRecurringInfo(patient);
 
