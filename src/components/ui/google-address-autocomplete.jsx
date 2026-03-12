@@ -356,11 +356,14 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           {suggestions.map((prediction, index) => (
             <button
               key={prediction.place_id}
-              onMouseDown={(e) => {
-                // MouseDown fires before input blur, ensuring selection works
+              onPointerDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 handleSelectAddress(prediction);
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
               }}
               onClick={(e) => {
                 e.preventDefault();
