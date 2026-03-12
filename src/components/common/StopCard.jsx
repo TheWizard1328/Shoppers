@@ -669,6 +669,135 @@ export default function StopCard({
     }
   };
 
+  const handleStartAction = async (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (startTapLockRef.current || isStarting || isProcessingBackground) return;
+    startTapLockRef.current = true;
+    fabControlEvents.reactivatePhaseTwoIfAvailable();
+    setIsStarting(true);
+    setIsEntityUpdating(true);
+
+    fabControlEvents.deactivateFAB();
+    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+    driverLocationPoller.pause();
+    smartRefreshManager.pause();
+
+    try {
+      const now = new Date();
+      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      await base44.functions.invoke('handleStartDelivery', {
+        deliveryId: delivery.id,
+        driverId: delivery.driver_id,
+        deliveryDate: delivery.delivery_date
+      });
+
+      await clearNextDeliveryFlags({
+        driverDeliveries: allDeliveries,
+        currentDelivery: delivery,
+        currentDeliveryId: delivery.id,
+        updateDeliveryLocal
+      });
+
+      await updateDeliveryLocal(delivery.id, {
+        status: isPickup ? 'en_route' : 'in_transit',
+        delivery_time_start: currentLocalTime,
+        isNextDelivery: true
+      }, { skipSmartRefresh: true });
+
+      invalidate('Delivery');
+      if (updateDeliveriesLocally) {
+        const updatedDeliveries = allDeliveries.map((d) => {
+          if (d.id === delivery.id) {
+            return {
+              ...d,
+              status: isPickup ? 'en_route' : 'in_transit',
+              delivery_time_start: currentLocalTime,
+              isNextDelivery: true
+            };
+          }
+          return d;
+        });
+        updateDeliveriesLocally(updatedDeliveries, true);
+      }
+
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+      }));
+
+      Promise.resolve().then(async () => {
+        window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
+          detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+        }));
+        try {
+          const [etaRes, optimizeRes] = await Promise.allSettled([
+            base44.functions.invoke('calculateRealTimeETA', {
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date,
+              currentLocalTime,
+              deviceTime: currentLocalTime
+            }),
+            base44.functions.invoke('optimizeRouteRealTime', {
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date,
+              currentLocalTime,
+              generatePolyline: false
+            })
+          ]);
+
+          const etaData = etaRes.status === 'fulfilled' ? (etaRes.value?.data || etaRes.value) : null;
+          const optimizeData = optimizeRes.status === 'fulfilled' ? (optimizeRes.value?.data || optimizeRes.value) : null;
+          const etaUpdates = etaData?.durationUpdates || etaData?.etas || optimizeData?.optimizedRoute || [];
+          if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
+            window.dispatchEvent(new CustomEvent('etaUpdated', {
+              detail: {
+                updates: etaUpdates.map((u) => ({
+                  deliveryId: u.deliveryId || u.delivery_id,
+                  newEta: u.eta || u.newETA
+                }))
+              }
+            }));
+          }
+
+          invalidate('Delivery');
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+          }));
+        } catch (optErr) {
+          console.warn('⚠️ [Start] background optimization failed:', optErr?.message || optErr);
+        } finally {
+          window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
+            detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+          }));
+        }
+      });
+
+      Promise.all([
+        ensureDriverOnline(),
+        userHasRole(currentUser, 'driver') ? notifyDriverStarted({
+          driver: currentUser,
+          patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+          delivery,
+          store,
+          appUsers
+        }) : Promise.resolve()
+      ]).catch((err) => console.warn('Background tasks failed:', err));
+
+    } catch (error) {
+      console.error('❌ [START] Error:', error);
+      toast.error(`Failed to start: ${error.message}`);
+    } finally {
+      driverLocationPoller.resume();
+      smartRefreshManager.resume();
+      fabControlEvents.reactivateFAB(true);
+      startTapLockRef.current = false;
+      setIsStarting(false);
+      setIsEntityUpdating(false);
+    }
+  };
+
   const handleAcceptAllStops = async () => {
     setIsAcceptingAll(true);
     
@@ -1749,136 +1878,7 @@ export default function StopCard({
                                 <span className="text-white">Complete</span>
                               </Button> :
                               onStartDelivery &&
-                              <Button type="button" onClick={async (e) => {
-                                e.stopPropagation();
-                                if (startTapLockRef.current || isStarting || isProcessingBackground) return;
-                                startTapLockRef.current = true;
-                                fabControlEvents.reactivatePhaseTwoIfAvailable();
-                                setIsStarting(true);
-                                setIsEntityUpdating(true);
-                                
-                                fabControlEvents.deactivateFAB();
-                                                                 const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                                                 driverLocationPoller.pause();
-                                                                 // Pause smart refresh to prevent UI clearing during start flow
-                                                                 smartRefreshManager.pause();
-
-                                try {
-                                  const now = new Date();
-                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-                                  await base44.functions.invoke('handleStartDelivery', {
-                                    deliveryId: delivery.id,
-                                    driverId: delivery.driver_id,
-                                    deliveryDate: delivery.delivery_date
-                                  });
-
-                                  await clearNextDeliveryFlags({
-                                    driverDeliveries: allDeliveries,
-                                    currentDelivery: delivery,
-                                    currentDeliveryId: delivery.id,
-                                    updateDeliveryLocal
-                                  });
-
-                                  await updateDeliveryLocal(delivery.id, {
-                                    status: isPickup ? 'en_route' : 'in_transit',
-                                    delivery_time_start: currentLocalTime,
-                                    isNextDelivery: true
-                                  }, { skipSmartRefresh: true });
-
-                                  invalidate('Delivery');
-                                  if (updateDeliveriesLocally) {
-                                    const updatedDeliveries = allDeliveries.map((d) => {
-                                      if (d.id === delivery.id) {
-                                        return {
-                                          ...d,
-                                          status: isPickup ? 'en_route' : 'in_transit',
-                                          delivery_time_start: currentLocalTime,
-                                          isNextDelivery: true
-                                        };
-                                      }
-                                      return d;
-                                    });
-                                    updateDeliveriesLocally(updatedDeliveries, true);
-                                  }
-
-                                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                    detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                  }));
-
-                                  Promise.resolve().then(async () => {
-                                    window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
-                                      detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                    }));
-                                    try {
-                                      const [etaRes, optimizeRes] = await Promise.allSettled([
-                                        base44.functions.invoke('calculateRealTimeETA', {
-                                          driverId: delivery.driver_id,
-                                          deliveryDate: delivery.delivery_date,
-                                          currentLocalTime,
-                                          deviceTime: currentLocalTime
-                                        }),
-                                        base44.functions.invoke('optimizeRouteRealTime', {
-                                          driverId: delivery.driver_id,
-                                          deliveryDate: delivery.delivery_date,
-                                          currentLocalTime,
-                                          generatePolyline: false
-                                        })
-                                      ]);
-
-                                      const etaData = etaRes.status === 'fulfilled' ? (etaRes.value?.data || etaRes.value) : null;
-                                      const optimizeData = optimizeRes.status === 'fulfilled' ? (optimizeRes.value?.data || optimizeRes.value) : null;
-                                      const etaUpdates = etaData?.durationUpdates || etaData?.etas || optimizeData?.optimizedRoute || [];
-                                      if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
-                                        window.dispatchEvent(new CustomEvent('etaUpdated', {
-                                          detail: {
-                                            updates: etaUpdates.map((u) => ({
-                                              deliveryId: u.deliveryId || u.delivery_id,
-                                              newEta: u.eta || u.newETA
-                                            }))
-                                          }
-                                        }));
-                                      }
-
-                                      invalidate('Delivery');
-                                      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                        detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                      }));
-                                    } catch (optErr) {
-                                      console.warn('⚠️ [Start] background optimization failed:', optErr?.message || optErr);
-                                    } finally {
-                                      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
-                                        detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                      }));
-                                    }
-                                  });
-
-                                  // Background tasks (fire and forget)
-                                  Promise.all([
-                                    ensureDriverOnline(),
-                                    userHasRole(currentUser, 'driver') ? notifyDriverStarted({
-                                      driver: currentUser,
-                                      patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                      delivery,
-                                      store,
-                                      appUsers
-                                    }) : Promise.resolve()
-                                  ]).catch((err) => console.warn('Background tasks failed:', err));
-
-                                } catch (error) {
-                                  console.error('❌ [START] Error:', error);
-                                  toast.error(`Failed to start: ${error.message}`);
-                                } finally {
-                                  driverLocationPoller.resume();
-                                  // Resume smart refresh after start flow completes
-                                  smartRefreshManager.resume();
-                                  fabControlEvents.reactivateFAB(true);
-                                  startTapLockRef.current = false;
-                                  setIsStarting(false);
-                                  setIsEntityUpdating(false);
-                                }
-                              }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
+                              <Button type="button" onPointerDownCapture={handleStartAction} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
                                 {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Start</span>
                               </Button>
