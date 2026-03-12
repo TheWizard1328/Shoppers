@@ -2028,7 +2028,7 @@ export default function DeliveryForm({
     if (selectedStaged?.id) {
       const { persistPendingDeliveryUpdate } = await import('./persistPendingDeliveryUpdate');
       const { stagedDelivery, deliveryId } = await persistPendingDeliveryUpdate({ selectedStaged, formData, patient, store, editingStagedId, distanceFromStore });
-      setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged));
+      setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged));setHasChanges(true);
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'pendingDeliveryImmediateUpdate' } }));
     } else {
