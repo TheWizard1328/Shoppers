@@ -467,6 +467,33 @@ class OfflineManager {
   // Execute a single sync action with conflict detection
   async executeSyncAction(action) {
     const { base44 } = await import('@/api/base44Client');
+    const normalizeDeliveryPayload = (payload) => {
+      const source = payload?._isBatchSave && Array.isArray(payload?._stagedDeliveries)
+        ? payload._stagedDeliveries[0]
+        : payload;
+      if (!source) return source;
+      const {
+        _isBatchSave,
+        _stagedDeliveries,
+        _originalDriverId,
+        _driverWasChanged,
+        _tempId,
+        isNew,
+        latitude,
+        longitude,
+        store_name,
+        store_abbreviation,
+        distanceFromStore,
+        delivery_address,
+        patient_name,
+        patient_phone,
+        store_phone,
+        cod_amount,
+        cod_payment_type,
+        ...cleaned
+      } = source;
+      return cleaned;
+    };
     
     switch (action.type) {
       case 'updateDelivery':
