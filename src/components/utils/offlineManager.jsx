@@ -517,9 +517,14 @@ class OfflineManager {
         await base44.entities.Delivery.update(action.deliveryId, action.data);
         return { conflict: false };
         
-      case 'createDelivery':
-        await base44.entities.Delivery.create(action.data);
+      case 'createDelivery': {
+        const payload = normalizeDeliveryPayload(action.data);
+        if (!payload?.delivery_date) {
+          return { conflict: false };
+        }
+        await base44.entities.Delivery.create(payload);
         return { conflict: false };
+      }
         
       case 'updatePatient':
         await base44.entities.Patient.update(action.patientId, action.data);
