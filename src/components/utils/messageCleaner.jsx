@@ -9,6 +9,10 @@ import { format, subDays } from 'date-fns';
 
 const LOCAL_CLEANUP_KEY = 'last_message_cleanup_check';
 const APP_SETTINGS_KEY = 'message_cleanup_tracker';
+let cleanupInitialized = false;
+let cleanupInProgress = false;
+let cleanupStartTimeout = null;
+let cleanupInterval = null;
 
 /**
  * Check if cleanup was already performed today (server-side check via AppSettings)
@@ -17,9 +21,9 @@ async function wasCleanupPerformedToday() {
   try {
     const settings = await base44.entities.AppSettings.filter({ setting_key: APP_SETTINGS_KEY });
     if (settings && settings.length > 0) {
-      const lastCleanupDate = settings[0].setting_value?.last_cleanup_date;
+      const settingValue = settings[0].setting_value || {};
       const today = format(new Date(), 'yyyy-MM-dd');
-      return lastCleanupDate === today;
+      return settingValue.last_cleanup_date === today || (settingValue.cleanup_status === 'running' && settingValue.cleanup_date === today);
     }
     return false;
   } catch (error) {
@@ -31,19 +35,22 @@ async function wasCleanupPerformedToday() {
 /**
  * Mark cleanup as performed in AppSettings
  */
-async function markCleanupPerformed() {
+async function markCleanupStatus(status) {
   try {
     const today = format(new Date(), 'yyyy-MM-dd');
     const settings = await base44.entities.AppSettings.filter({ setting_key: APP_SETTINGS_KEY });
-    
+    const settingValue = status === 'running'
+      ? { cleanup_status: 'running', cleanup_date: today, last_cleanup_date: null }
+      : { cleanup_status: 'completed', cleanup_date: today, last_cleanup_date: today };
+
     if (settings && settings.length > 0) {
       await base44.entities.AppSettings.update(settings[0].id, {
-        setting_value: { last_cleanup_date: today }
+        setting_value: settingValue
       });
     } else {
       await base44.entities.AppSettings.create({
         setting_key: APP_SETTINGS_KEY,
-        setting_value: { last_cleanup_date: today },
+        setting_value: settingValue,
         description: 'Tracks daily message cleanup to prevent multiple runs'
       });
     }
@@ -57,6 +64,13 @@ async function markCleanupPerformed() {
  * Only deletes messages older than 7 days
  */
 export async function performDailyMessageCleanup() {
+  if (cleanupInProgress) {
+    console.log('ℹ️ [messageCleaner] Cleanup already in progress in this session');
+    return;
+  }
+
+  cleanupInProgress = true;
+
   try {
     const today = format(new Date(), 'yyyy-MM-dd');
     
@@ -88,7 +102,7 @@ export async function performDailyMessageCleanup() {
     
     if (!allMessages || allMessages.length === 0) {
       console.log('ℹ️ [messageCleaner] No messages to process');
-      await markCleanupPerformed();
+      await markCleanupStatus('completed');
       return;
     }
 
@@ -101,11 +115,12 @@ export async function performDailyMessageCleanup() {
 
     if (oldMessages.length === 0) {
       console.log('ℹ️ [messageCleaner] No old messages to delete');
-      await markCleanupPerformed();
+      await markCleanupStatus('completed');
       return;
     }
 
     console.log(`🗑️ [messageCleaner] Deleting ${oldMessages.length} messages older than 7 days...`);
+    await markCleanupStatus('running');
 
     // CRITICAL: Delete in small batches with long delays to prevent rate limits
     let deleted = 0;
@@ -122,9 +137,12 @@ export async function performDailyMessageCleanup() {
           deleted++;
           await new Promise(resolve => setTimeout(resolve, 500)); // 500ms between individual deletes
         } catch (error) {
-          console.warn(`Failed to delete message ${message.id}:`, error.message);
-          failed++;
-          // If rate limited, wait longer before continuing
+          if (error.response?.status === 404 || error.message?.includes('not found')) {
+            console.log(`ℹ️ [messageCleaner] Message already deleted: ${message.id}`);
+          } else {
+            console.warn(`Failed to delete message ${message.id}:`, error.message);
+            failed++;
+          }
           if (error.message?.includes('Rate limit') || error.response?.status === 429) {
             console.log('⏸️ [messageCleaner] Rate limited - pausing cleanup for 30 seconds...');
             await new Promise(resolve => setTimeout(resolve, 30000));
@@ -140,10 +158,12 @@ export async function performDailyMessageCleanup() {
     }
 
     console.log(`✅ [messageCleaner] Daily cleanup complete: ${deleted} deleted, ${failed} failed`);
-    await markCleanupPerformed();
+    await markCleanupStatus('completed');
 
   } catch (error) {
     console.error('❌ [messageCleaner] Cleanup failed:', error);
+  } finally {
+    cleanupInProgress = false;
   }
 }
 
