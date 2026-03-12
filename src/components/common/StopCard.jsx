@@ -135,6 +135,7 @@ export default function StopCard({
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState(null); // URL of image to view fullscreen
   const [selectedTransferPickupId, setSelectedTransferPickupId] = useState(''); const [isHovered, setIsHovered] = useState(false); const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false); const [pendingFailureStatus, setPendingFailureStatus] = useState(null); const [isFailing, setIsFailing] = useState(false); const [isRestarting, setIsRestarting] = useState(false);
+  const startTapLockRef = useRef(false);
 
   // Detect if this is a stripped delivery (from other store)
   // For drivers: strip completed deliveries (_isStripped flag from Dashboard)
@@ -1750,6 +1751,8 @@ export default function StopCard({
                               onStartDelivery &&
                               <Button type="button" onClick={async (e) => {
                                 e.stopPropagation();
+                                if (startTapLockRef.current || isStarting || isProcessingBackground) return;
+                                startTapLockRef.current = true;
                                 fabControlEvents.reactivatePhaseTwoIfAvailable();
                                 setIsStarting(true);
                                 setIsEntityUpdating(true);
@@ -1871,6 +1874,7 @@ export default function StopCard({
                                   // Resume smart refresh after start flow completes
                                   smartRefreshManager.resume();
                                   fabControlEvents.reactivateFAB(true);
+                                  startTapLockRef.current = false;
                                   setIsStarting(false);
                                   setIsEntityUpdating(false);
                                 }
