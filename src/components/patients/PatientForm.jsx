@@ -323,15 +323,6 @@ export default function PatientForm({
     let latitude = toFiniteNumber(addressData.latitude ?? addressData.lat);
     let longitude = toFiniteNumber(addressData.longitude ?? addressData.lng);
 
-    if (addressData.place_id) {
-      const { base44 } = await import('@/api/base44Client');
-      const response = await base44.functions.invoke('googlePlaceDetails', {
-        place_id: addressData.place_id
-      });
-      const details = response?.data || response || {};
-      latitude = toFiniteNumber(details.latitude ?? details.location?.latitude ?? details.location?.lat ?? latitude);
-      longitude = toFiniteNumber(details.longitude ?? details.location?.longitude ?? details.location?.lng ?? longitude);
-    }
 
     const roundedLatitude = latitude !== null ? parseFloat(latitude.toFixed(7)) : null;
     const roundedLongitude = longitude !== null ? parseFloat(longitude.toFixed(7)) : null;
