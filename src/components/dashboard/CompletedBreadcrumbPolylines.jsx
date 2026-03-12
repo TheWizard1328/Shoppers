@@ -182,7 +182,7 @@ export default function CompletedBreadcrumbPolylines({
   useEffect(() => {
     let cancelled = false;
 
-    [...(showBreadcrumbPolylines ? breadcrumbLegs : []), ...directSegmentLegs].forEach((leg) => {
+    directSegmentLegs.forEach((leg) => {
       const key = getLegKey(leg.from, leg.to);
       if (!key || getCachedPolyline(key, cache)) return;
 
@@ -201,7 +201,7 @@ export default function CompletedBreadcrumbPolylines({
     return () => {
       cancelled = true;
     };
-  }, [breadcrumbLegs, directSegmentLegs, cache, polylineRenderKey, showBreadcrumbPolylines]);
+  }, [directSegmentLegs, cache, polylineRenderKey]);
 
   const renderedLines = [];
   const renderedDots = [];
