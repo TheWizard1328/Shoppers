@@ -136,7 +136,6 @@ export default function StopCard({
   const [viewingImageUrl, setViewingImageUrl] = useState(null); // URL of image to view fullscreen
   const [selectedTransferPickupId, setSelectedTransferPickupId] = useState(''); const [isHovered, setIsHovered] = useState(false); const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false); const [pendingFailureStatus, setPendingFailureStatus] = useState(null); const [isFailing, setIsFailing] = useState(false); const [isRestarting, setIsRestarting] = useState(false);
   const startTapLockRef = useRef(false);
-  const startTapLockRef = useRef(false);
 
   // Detect if this is a stripped delivery (from other store)
   // For drivers: strip completed deliveries (_isStripped flag from Dashboard)
