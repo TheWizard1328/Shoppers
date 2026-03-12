@@ -12,11 +12,10 @@ export const createStopCardsScrollHandler = ({
   setMapZoom,
   getMapPadding,
   mapLockTimeoutRef,
-  mapLockExpiresAtRef,
-  userSwipeRef
+  mapLockExpiresAtRef
 }) => {
   return (e) => {
-    if (!userSwipeRef?.current) return;
+    if (typeof window !== 'undefined' && !window.__isUserCardSwipe) return;
     // Debounce the scroll snap
     const container = e.currentTarget;
     if (container._scrollTimeout) {
@@ -91,7 +90,7 @@ export const createStopCardsScrollHandler = ({
         }
       }
 
-      userSwipeRef.current = false;
+      if (typeof window !== 'undefined') window.__isUserCardSwipe = false;
     }, 150);
   };
 };

@@ -7652,8 +7652,8 @@ function Dashboard() {
               e.currentTarget.scrollLeft += e.deltaY;
             }}
             onTouchStart={() => {
-              // Disable proximity snap when user starts scrolling cards
               lastUserInteractionRef.current = Date.now();
+              window.__isUserCardSwipe = true;
             }}
             onScroll={isMobile ? createStopCardsScrollHandler({
               deliveriesWithStopOrder,
