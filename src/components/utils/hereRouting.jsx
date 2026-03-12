@@ -366,6 +366,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
         const coords = decodeGooglePolyline(rec.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
           memoryCache.set(cacheKey, coords);
+          fetchingKeys.delete(cacheKey);
           return coords;
         }
       }
@@ -397,6 +398,7 @@ const deliveryDateSafe = deliveryDate || todayStr;
       if (Array.isArray(coords) && coords.length > 1) {
         memoryCache.set(cacheKey, coords);
         try { await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]); } catch (_) {}
+        fetchingKeys.delete(cacheKey);
         return coords;
       }
     }
@@ -412,6 +414,7 @@ const deliveryDateSafe = deliveryDate || todayStr;
     if (until && Date.now() < Number(until)) {
       const ms = Number(until) - Date.now();
       console.warn('[HERE][client] Backoff active; skipping fetch', { cacheKey, msRemaining: ms });
+      fetchingKeys.delete(cacheKey);
       return null;
     }
   } catch (_) {}
