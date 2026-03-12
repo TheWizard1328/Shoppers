@@ -360,7 +360,16 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
             <button
               key={prediction.place_id}
               type="button"
+              onPointerDownCapture={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSelectAddress(prediction);
+              }}
               onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onTouchStart={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 handleSelectAddress(prediction);
@@ -368,6 +377,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
               onMouseDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                handleSelectAddress(prediction);
               }}
               onClick={(e) => {
                 e.preventDefault();
