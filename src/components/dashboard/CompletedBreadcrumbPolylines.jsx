@@ -306,5 +306,5 @@ export default function CompletedBreadcrumbPolylines({
       });
   });
 
-  return renderedLines.length || renderedDots.length ? <>{renderedLines}{renderedDots}</> : null;
+  return renderedLines.length ? <>{renderedLines}</> : null;
 }
