@@ -279,40 +279,31 @@ export default function CompletedBreadcrumbPolylines({
 
     if (!showBreadcrumbPolylines || !segment.hasAnyBreadcrumbs) return;
 
-    if (segment.hasBreadcrumbs) {
-      renderedLines.push(
-        <Polyline
-          key={`completed-breadcrumb-line-${segment.id}-${polylineRenderKey}`}
-          positions={segment.breadcrumbPoints.map((point) => [point.latitude, point.longitude])}
-          pathOptions={{
-            color: breadcrumbRouteColor,
-            weight: 4,
-            opacity: Math.max(segment.opacity, 0.35),
-            lineJoin: "round",
-            lineCap: "round",
-          }}
-          pane="completedBreadcrumbPane"
-        />
-      );
-    }
+    breadcrumbRouteLegs
+      .filter((leg) => leg.id.startsWith(`${segment.id}-breadcrumb-`))
+      .forEach((leg) => {
+        const key = getLegKey(leg.from, leg.to);
+        const positions = leg.useHere
+          ? getCachedPolyline(key, cache)
+          : [[leg.from.latitude, leg.from.longitude], [leg.to.latitude, leg.to.longitude]];
 
-    segment.breadcrumbPoints.forEach((point, index) => {
-      renderedDots.push(
-        <CircleMarker
-          key={`completed-breadcrumb-dot-${segment.id}-${index}-${polylineRenderKey}`}
-          center={[point.latitude, point.longitude]}
-          radius={3}
-          pathOptions={{
-            color: breadcrumbRouteColor,
-            fillColor: breadcrumbRouteColor,
-            fillOpacity: Math.min(1, segment.opacity + 0.3),
-            opacity: Math.max(segment.opacity, 0.5),
-            weight: 1,
-          }}
-          pane="completedBreadcrumbPane"
-        />
-      );
-    });
+        if (!positions || positions.length < 2) return;
+
+        renderedLines.push(
+          <Polyline
+            key={`completed-breadcrumb-line-${leg.id}-${polylineRenderKey}`}
+            positions={positions}
+            pathOptions={{
+              color: breadcrumbRouteColor,
+              weight: 4,
+              opacity: Math.max(segment.opacity, 0.35),
+              lineJoin: "round",
+              lineCap: "round",
+            }}
+            pane="completedBreadcrumbPane"
+          />
+        );
+      });
   });
 
   return renderedLines.length || renderedDots.length ? <>{renderedLines}{renderedDots}</> : null;
