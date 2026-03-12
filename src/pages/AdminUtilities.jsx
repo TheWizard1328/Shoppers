@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
-import { mergeUsersWithAppUsers } from '../components/utils/driverUtils';
+import AdminPatientsTab from '../components/admin/AdminPatientsTab';
 import { sortUsers } from '../components/utils/sorting';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
@@ -4567,38 +4567,25 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="patients" className="mt-6">
-                    <div className="mb-4 flex justify-start md:justify-end gap-2">
-                      <Button
-                        variant={dataViewMode.patients === 'offline' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDataViewMode(prev => ({ ...prev, patients: 'offline' }))}
-                        className="flex-1 md:flex-none min-h-10"
-                      >
-                        Offline
-                      </Button>
-                      <Button
-                        variant={dataViewMode.patients !== 'offline' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDataViewMode(prev => ({ ...prev, patients: 'online' }))}
-                        className="flex-1 md:flex-none min-h-10"
-                      >
-                        Online
-                      </Button>
-                    </div>
-                    <PatientDataTable
-                      patients={filteredPatientsForDetectDuplicates || []}
-                      stores={stores || []}
-                      onEdit={handleEditEntity}
-                      onDelete={handleDeleteEntity}
-                      filterText={patientFilterText}
-                      onFilterChange={setPatientFilterText}
-                      sortColumn={patientSortColumn}
-                      sortDirection={patientSortDirection}
-                      onSortChange={handlePatientSort}
-                      isLoadingData={patientsLoading}
-                      onDeleteAll={_confirmDeleteAllPatients}
-                      onDeleteSelected={_confirmDeleteSelectedPatients}
-                    />
+                    <AdminPatientsTab
+                      dataViewMode={dataViewMode}
+                      setDataViewMode={setDataViewMode}
+                    >
+                      <PatientDataTable
+                        patients={filteredPatientsForDetectDuplicates || []}
+                        stores={stores || []}
+                        onEdit={handleEditEntity}
+                        onDelete={handleDeleteEntity}
+                        filterText={patientFilterText}
+                        onFilterChange={setPatientFilterText}
+                        sortColumn={patientSortColumn}
+                        sortDirection={patientSortDirection}
+                        onSortChange={handlePatientSort}
+                        isLoadingData={patientsLoading}
+                        onDeleteAll={_confirmDeleteAllPatients}
+                        onDeleteSelected={_confirmDeleteSelectedPatients}
+                      />
+                    </AdminPatientsTab>
                   </TabsContent>
 
                   <TabsContent value="stores" className="mt-6">
