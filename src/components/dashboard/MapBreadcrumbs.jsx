@@ -1,5 +1,5 @@
 import React from 'react';
-import { Polyline } from 'react-leaflet';
+import { CircleMarker, Polyline } from 'react-leaflet';
 
 const getBreadcrumbRouteColor = () => {
   const root = document.documentElement;
@@ -8,14 +8,10 @@ const getBreadcrumbRouteColor = () => {
   return isDarkMode ? '#39FF14' : '#16a34a';
 };
 
-/**
- * Renders historical and real-time GPS breadcrumb trails on the map.
- */
-export default function MapBreadcrumbs({ breadcrumbsData, safeUsers }) {
+export default function MapBreadcrumbs({ breadcrumbsData }) {
   const lines = [];
   const breadcrumbRouteColor = getBreadcrumbRouteColor();
 
-  // Historical breadcrumbs from DeliveryBreadcrumbs entity
   if (breadcrumbsData.historical && breadcrumbsData.historical.length > 0) {
     breadcrumbsData.historical.forEach((trail) => {
       if (!trail || !trail.breadcrumbs || !Array.isArray(trail.breadcrumbs)) return;
@@ -35,21 +31,29 @@ export default function MapBreadcrumbs({ breadcrumbsData, safeUsers }) {
     });
   }
 
-  // Current/real-time breadcrumbs from offline database
-  if (breadcrumbsData.current && breadcrumbsData.current.length > 1) {
-    const positions = breadcrumbsData.current
-      .map((b) => [Number(b?.lat), Number(b?.lng)])
-      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
-
-    if (positions.length > 1) {
-      lines.push(
-        <Polyline
-          key="current-breadcrumb-line"
-          positions={positions}
-          pathOptions={{ color: breadcrumbRouteColor, weight: 3, opacity: 0.95, lineJoin: 'round', lineCap: 'round' }}
-        />
-      );
-    }
+  if (breadcrumbsData.current && breadcrumbsData.current.length > 0) {
+    breadcrumbsData.current
+      .map((point, index) => ({
+        lat: Number(point?.lat),
+        lng: Number(point?.lng),
+        key: point?.timestamp || index,
+      }))
+      .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+      .forEach((point) => {
+        lines.push(
+          <CircleMarker
+            key={`current-breadcrumb-point-${point.key}`}
+            center={[point.lat, point.lng]}
+            radius={3}
+            pathOptions={{
+              color: breadcrumbRouteColor,
+              fillColor: breadcrumbRouteColor,
+              fillOpacity: 0.95,
+              weight: 1,
+            }}
+          />
+        );
+      });
   }
 
   return lines.length > 0 ? <>{lines}</> : null;
