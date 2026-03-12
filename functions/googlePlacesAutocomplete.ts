@@ -101,62 +101,19 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       const errorMsg = data.error?.message || 'Places API error';
       await logUsage({ error: errorMsg, status_code: response.status });
-      return Response.json({ error: errorMsg, details: data }, { status: 500 });
+      return Response.json({ error: errorMsg, details: data }, { status: response.status });
     }
 
-    const predictions = (await Promise.all(
-      (data.suggestions || []).map(async (suggestion) => {
-        const placePrediction = suggestion.placePrediction;
-        if (!placePrediction) return null;
+    const predictions = (data.suggestions || []).map((suggestion) => {
+      const placePrediction = suggestion.placePrediction;
+      if (!placePrediction) return null;
 
-        const description = placePrediction.text?.text || '';
-        const place_id = placePrediction.placeId || '';
-        let distance = null;
-
-        if (latitude && longitude) {
-          try {
-            const detailsUrl = `https://places.googleapis.com/v1/places/${place_id}`;
-            googleApiCallCount += 1;
-            placeDetailsCalls += 1;
-            const detailsResponse = await fetch(detailsUrl, {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': apiKey,
-                'X-Goog-FieldMask': 'location'
-              }
-            });
-
-            if (detailsResponse.ok) {
-              const detailsData = await detailsResponse.json();
-              const placeLocation = detailsData.location;
-
-              if (placeLocation?.latitude && placeLocation?.longitude) {
-                const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${placeLocation.latitude},${placeLocation.longitude}&key=${apiKey}`;
-                googleApiCallCount += 1;
-                directionsCalls += 1;
-                const directionsResponse = await fetch(directionsUrl);
-
-                if (directionsResponse.ok) {
-                  const directionsData = await directionsResponse.json();
-                  if (directionsData.routes?.[0]?.legs?.[0]?.distance?.value) {
-                    distance = directionsData.routes[0].legs[0].distance.value / 1000;
-                  }
-                }
-              }
-            }
-          } catch (_) {
-            // Silently fail distance calculation
-          }
-        }
-
-        return {
-          description,
-          place_id,
-          distance
-        };
-      })
-    )).filter((prediction) => prediction !== null);
+      return {
+        description: placePrediction.text?.text || '',
+        place_id: placePrediction.placeId || '',
+        distance: null
+      };
+    }).filter((prediction) => prediction !== null);
 
     predictions.sort((a, b) => {
       if (a.distance === null && b.distance === null) return 0;
