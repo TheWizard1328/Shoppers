@@ -452,21 +452,11 @@ export const AppDataProvider = ({ children, value }) => {
         return;
       }
 
-      // What do we already have offline?
-      const existingPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-      const have = new Set((existingPatients || []).map(p => p.id));
-      const missingIds = patientIdsNeeded.filter(id => !have.has(id));
-
-      if (missingIds.length === 0) {
-        patientSyncStateRef.current.inProgress = false;
-        return;
-      }
-
-      // Fetch missing patients in small batches to avoid rate limits
+      // Always refresh the patients needed for the selected date so coordinate edits sync too
       const fetched = [];
       const BATCH = 10;
-      for (let i = 0; i < missingIds.length; i += BATCH) {
-        const chunk = missingIds.slice(i, i + BATCH);
+      for (let i = 0; i < patientIdsNeeded.length; i += BATCH) {
+        const chunk = patientIdsNeeded.slice(i, i + BATCH);
         const chunkResults = await Promise.all(
           chunk.map(async (pid) => {
             const res = await base44.entities.Patient.filter({ id: pid });
