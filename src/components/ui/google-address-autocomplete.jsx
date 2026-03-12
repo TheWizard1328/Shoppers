@@ -202,13 +202,13 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       
       console.log('[GoogleAddressAutocomplete] Full address:', fullAddress);
       console.log('[GoogleAddressAutocomplete] Chosen street address:', streetAddress);
-      console.log('[GoogleAddressAutocomplete] GPS Coords:', { lat: data.latitude, lon: data.longitude });
+      console.log('[GoogleAddressAutocomplete] GPS Coords:', { lat: resolvedLatitude, lon: resolvedLongitude });
       
       const addressData = {
         full_address: fullAddress,
         street_address: streetAddress,
-        latitude: data.latitude,
-        longitude: data.longitude,
+        latitude: resolvedLatitude,
+        longitude: resolvedLongitude,
         place_id: prediction.place_id,
         distance: prediction.distance,
         unit: data.unit || null,
