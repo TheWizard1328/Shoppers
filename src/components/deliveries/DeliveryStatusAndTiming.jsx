@@ -111,6 +111,29 @@ export default function DeliveryStatusAndTiming({
     </div>
   );
 
+  const renderTimeInput = (value, onChange, onClear, ref = null) => (
+    <div className="relative">
+      <Input
+        ref={ref}
+        type="time"
+        value={value || ''}
+        onChange={onChange}
+        disabled={isSaving}
+        className="compact-time-input h-9 w-full px-2 pr-8 text-sm"
+      />
+      {value && !isSaving && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+          aria-label="Clear time"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-2">
       {/* Row 1: Store + Status + (optional Pickup ID) */}
