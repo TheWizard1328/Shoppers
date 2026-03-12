@@ -320,21 +320,17 @@ export default function PatientForm({
     const abbreviatedAddress = abbreviateAddress(street);
     const prefilledUnit = addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number;
 
-    let latitude = toFiniteNumber(addressData.latitude);
-    let longitude = toFiniteNumber(addressData.longitude);
+    let latitude = toFiniteNumber(addressData.latitude ?? addressData.lat);
+    let longitude = toFiniteNumber(addressData.longitude ?? addressData.lng);
 
-    if ((latitude === null || longitude === null) && addressData.place_id) {
-      try {
-        const { base44 } = await import('@/api/base44Client');
-        const response = await base44.functions.invoke('googlePlaceDetails', {
-          place_id: addressData.place_id
-        });
-        const details = response?.data || response || {};
-        latitude = latitude ?? toFiniteNumber(details.latitude ?? details.location?.latitude ?? details.location?.lat);
-        longitude = longitude ?? toFiniteNumber(details.longitude ?? details.location?.longitude ?? details.location?.lng);
-      } catch (error) {
-        console.warn('[PatientForm] Secondary coordinate lookup failed:', error?.message || error);
-      }
+    if (addressData.place_id) {
+      const { base44 } = await import('@/api/base44Client');
+      const response = await base44.functions.invoke('googlePlaceDetails', {
+        place_id: addressData.place_id
+      });
+      const details = response?.data || response || {};
+      latitude = toFiniteNumber(details.latitude ?? details.location?.latitude ?? details.location?.lat ?? latitude);
+      longitude = toFiniteNumber(details.longitude ?? details.location?.longitude ?? details.location?.lng ?? longitude);
     }
 
     const roundedLatitude = latitude !== null ? parseFloat(latitude.toFixed(7)) : null;
