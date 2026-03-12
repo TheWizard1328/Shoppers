@@ -7852,12 +7852,11 @@ function Dashboard() {
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
                 const now = new Date();
                 const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                const response = await base44.functions.invoke('optimizeRouteRealTime', {
+                const response = await base44.functions.invoke('optimizeRemainingStops', {
                   driverId: currentUser.id,
                   deliveryDate,
                   currentLocalTime,
-                  deviceTime: now.toISOString(),
-                  generatePolyline: false
+                  deviceTime: now.toISOString()
                 });
                 const data = response?.data || response;
                 if (data?.success) {
