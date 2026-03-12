@@ -55,6 +55,7 @@ export default function FABControls({
               try {
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
                 const now = new Date(); const localTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'optimize_route_fab', driverId: currentUser.id, deliveryDate } }));
                 const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: currentUser.id, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString() });
                 const data = response?.data || response;
                 if (data?.success) {
@@ -66,7 +67,7 @@ export default function FABControls({
                   setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
                 } else { setOptimizationMessage(data?.error || 'Optimization failed'); setTimeout(() => setOptimizationMessage(null), 5000); }
               } catch (e) { setOptimizationMessage(`Error: ${e.message}`); setTimeout(() => setOptimizationMessage(null), 5000); }
-              finally { resumeOfflineMutations(); resumeOfflineSync(); setIsEntityUpdating(false); await new Promise(r => setTimeout(r, 100)); setIsReoptimizing(false); }
+              finally { window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'optimize_route_fab', driverId: currentUser.id, deliveryDate: format(selectedDate, 'yyyy-MM-dd') } })); resumeOfflineMutations(); resumeOfflineSync(); setIsEntityUpdating(false); await new Promise(r => setTimeout(r, 100)); setIsReoptimizing(false); }
             }}
             disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some(d => d && d.status === 'in_transit')}
             title="Re-optimize entire route using Google Maps"

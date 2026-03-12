@@ -6,11 +6,15 @@ export default function OptimizationSpinner() {
   const [isOptimizing, setIsOptimizing] = useState(false);
 
   useEffect(() => {
-    const handleOptimizationStart = () => {
+    const handleOptimizationStart = (event) => {
+      const source = event?.detail?.source;
+      if (source !== 'optimize_route_fab') return;
       setIsOptimizing(true);
     };
 
-    const handleOptimizationEnd = () => {
+    const handleOptimizationEnd = (event) => {
+      const source = event?.detail?.source;
+      if (source !== 'optimize_route_fab') return;
       setIsOptimizing(false);
     };
 
