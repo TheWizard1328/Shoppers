@@ -297,16 +297,24 @@ export default function PatientForm({
     const prefilledUnit = addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number;
 
     // Use distance from Google Places API if available (it's calculated from store location)
-    const distanceFromStore = addressData.distance !== null && addressData.distance !== undefined 
-      ? parseFloat(addressData.distance.toFixed(2))
+    const distanceFromStore = Number.isFinite(Number(addressData.distance))
+      ? parseFloat(Number(addressData.distance).toFixed(2))
+      : null;
+
+    const latitude = Number.isFinite(Number(addressData.latitude))
+      ? parseFloat(Number(addressData.latitude).toFixed(7))
+      : null;
+
+    const longitude = Number.isFinite(Number(addressData.longitude))
+      ? parseFloat(Number(addressData.longitude).toFixed(7))
       : null;
 
     const newFormData = {
       ...formData,
       address: abbreviatedAddress,
       unit_number: prefilledUnit || formData.unit_number,
-      latitude: parseFloat(Number(addressData.latitude).toFixed(7)), // Round to 7 decimal places
-      longitude: parseFloat(Number(addressData.longitude).toFixed(7)), // Round to 7 decimal places
+      latitude,
+      longitude,
       distance_from_store: distanceFromStore
     };
 
@@ -765,8 +773,8 @@ export default function PatientForm({
                       type="number"
                       disabled={disableOtherFieldsDuringAddressLookup}
                       step="any"
-                      value={formData.latitude !== null && formData.latitude !== undefined ? formData.latitude : ''}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
+                      value={Number.isFinite(formData.latitude) ? formData.latitude : ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, latitude: Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : null }))}
                       placeholder="GPS Lat"
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
@@ -778,8 +786,8 @@ export default function PatientForm({
                       type="number"
                       disabled={disableOtherFieldsDuringAddressLookup}
                       step="any"
-                      value={formData.longitude !== null && formData.longitude !== undefined ? formData.longitude : ''}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
+                      value={Number.isFinite(formData.longitude) ? formData.longitude : ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, longitude: Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : null }))}
                       placeholder="GPS Lon"
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
@@ -791,8 +799,8 @@ export default function PatientForm({
                       type="number"
                       disabled={disableOtherFieldsDuringAddressLookup}
                       step="0.01"
-                      value={formData.distance_from_store !== null && formData.distance_from_store !== undefined ? formData.distance_from_store : ''}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
+                      value={Number.isFinite(formData.distance_from_store) ? formData.distance_from_store : ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : null }))}
                       placeholder="km"
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
