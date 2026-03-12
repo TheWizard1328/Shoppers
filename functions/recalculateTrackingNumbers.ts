@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
     const storeIds = [...new Set(deliveries.map((delivery) => delivery?.store_id).filter(Boolean))];
     const stores = storeIds.length > 0
-      ? await base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, '', 50000)
+      ? await base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, undefined, 50000)
       : [];
     const storeMap = new Map((stores || []).map((store) => [store.id, store]));
 

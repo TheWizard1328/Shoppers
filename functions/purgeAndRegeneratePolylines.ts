@@ -176,8 +176,8 @@ Deno.serve(async (req) => {
     const storeIds = [...new Set(deliveries.filter((d) => d?.store_id).map((d) => d.store_id))];
 
     const [patients, stores, appUsers] = await Promise.all([
-      patientIds.length ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }, '', 50000) : [],
-      storeIds.length ? base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, '', 50000) : [],
+      patientIds.length ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }, undefined, 50000) : [],
+      storeIds.length ? base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, undefined, 50000) : [],
       base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-updated_date', 1)
     ]);
 
