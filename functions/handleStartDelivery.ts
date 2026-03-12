@@ -39,16 +39,25 @@ Deno.serve(async (req) => {
       base44.asServiceRole.entities.Delivery.update(delivery.id, {
         isNextDelivery: false,
         travel_dist: 0
+      }).catch((error) => {
+        console.warn(`⚠️ [handleStartDelivery] Failed resetting old next delivery ${delivery.id}:`, error?.message || error);
+        return null;
       })
     );
 
-    await Promise.all([
-      ...resetPromises,
-      base44.asServiceRole.entities.Delivery.update(deliveryId, {
-        isNextDelivery: true,
-        travel_dist: distanceToTransfer
-      })
-    ]);
+    const startResult = await base44.asServiceRole.entities.Delivery.update(deliveryId, {
+      isNextDelivery: true,
+      travel_dist: distanceToTransfer
+    }).catch((error) => {
+      console.error(`❌ [handleStartDelivery] Failed updating selected delivery ${deliveryId}:`, error?.message || error);
+      return null;
+    });
+
+    await Promise.allSettled(resetPromises);
+
+    if (!startResult) {
+      return Response.json({ error: 'Failed to mark selected delivery as started' }, { status: 409 });
+    }
 
     console.log(`🔄 [handleStartDelivery] Notifying frontend - distance transferred: ${distanceToTransfer} km`);
 
