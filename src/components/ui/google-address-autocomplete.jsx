@@ -177,6 +177,8 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       console.log('[GoogleAddressAutocomplete] Place details response:', response);
 
       const data = response?.data || response;
+      const resolvedLatitude = data?.latitude ?? data?.lat ?? data?.location?.latitude ?? data?.location?.lat ?? data?.geometry?.location?.lat ?? null;
+      const resolvedLongitude = data?.longitude ?? data?.lng ?? data?.location?.longitude ?? data?.location?.lng ?? data?.geometry?.location?.lng ?? null;
       
       // Prefer exact street_number + route if provided by backend, then parsed/formatted, then prediction
       const parsedStreet = (data.address || '').trim();
