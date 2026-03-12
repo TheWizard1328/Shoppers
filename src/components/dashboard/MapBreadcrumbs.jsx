@@ -1,5 +1,5 @@
 import React from 'react';
-import { Circle } from 'react-leaflet';
+import { Polyline } from 'react-leaflet';
 
 const getBreadcrumbRouteColor = () => {
   const root = document.documentElement;

@@ -284,7 +284,7 @@ export default function CompletedBreadcrumbPolylines({
       .forEach((leg) => {
         const key = getLegKey(leg.from, leg.to);
         const positions = leg.useHere
-          ? getCachedPolyline(key, cache)
+          ? (getCachedPolyline(key, cache) || [[leg.from.latitude, leg.from.longitude], [leg.to.latitude, leg.to.longitude]])
           : [[leg.from.latitude, leg.from.longitude], [leg.to.latitude, leg.to.longitude]];
 
         if (!positions || positions.length < 2) return;
