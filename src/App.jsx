@@ -10,6 +10,35 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
+const cleanupLocalStorageQuota = () => {
+  try {
+    const protectedKeys = new Set(['base44_server_url', 'base44_data_env', 'rxdeliver_device_identifier']);
+    const isProtected = (key) => protectedKeys.has(key) || key.startsWith('base44_');
+    const getSize = (key) => {
+      const value = localStorage.getItem(key) || '';
+      return key.length + value.length;
+    };
+    const keys = Object.keys(localStorage);
+    let totalSize = keys.reduce((sum, key) => sum + getSize(key), 0);
+    if (totalSize < 4000000) return;
+
+    const removableKeys = keys
+      .filter((key) => !isProtected(key))
+      .map((key) => ({ key, size: getSize(key) }))
+      .sort((a, b) => b.size - a.size);
+
+    for (const entry of removableKeys) {
+      localStorage.removeItem(entry.key);
+      totalSize -= entry.size;
+      if (totalSize < 3000000) break;
+    }
+  } catch (error) {
+    console.warn('Storage cleanup skipped:', error?.message || error);
+  }
+};
+
+cleanupLocalStorageQuota();
+
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
