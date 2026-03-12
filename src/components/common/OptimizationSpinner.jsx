@@ -6,15 +6,17 @@ export default function OptimizationSpinner() {
   const [isOptimizing, setIsOptimizing] = useState(false);
 
   useEffect(() => {
+    const visibleSources = new Set(['optimize_route_fab', 'accept_all']);
+
     const handleOptimizationStart = (event) => {
       const source = event?.detail?.source;
-      if (source !== 'optimize_route_fab') return;
+      if (!visibleSources.has(source)) return;
       setIsOptimizing(true);
     };
 
     const handleOptimizationEnd = (event) => {
       const source = event?.detail?.source;
-      if (source !== 'optimize_route_fab') return;
+      if (!visibleSources.has(source)) return;
       setIsOptimizing(false);
     };
 
