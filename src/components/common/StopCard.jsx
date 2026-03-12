@@ -1549,6 +1549,17 @@ export default function StopCard({
                                     // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
                                     const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
                                     const completionCodPayments = autoCODPayment || codPayments;
+                                    const sameRouteDeliveries = allDeliveries.filter((d) =>
+                                      d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                                    );
+
+                                    await clearNextDeliveryFlags({
+                                      driverDeliveries: sameRouteDeliveries,
+                                      currentDelivery: null,
+                                      currentDeliveryId: null,
+                                      updateDeliveryLocal
+                                    });
+
                                     const completionUpdate = {
                                       status: 'completed',
                                       actual_delivery_time: localTimeString,
@@ -1561,17 +1572,20 @@ export default function StopCard({
 
                                     const pendingPickupIds = isPickup ? new Set((pendingPickups || []).filter((p) => p?.status === 'pending').map((p) => p.id)) : null;
                                     const optimisticDeliveries = allDeliveries.map((d) => {
+                                      if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) {
+                                        return d;
+                                      }
                                       if (d.id === delivery.id) {
-                                        return { ...d, ...completionUpdate };
+                                        return { ...d, ...completionUpdate, isNextDelivery: false };
                                       }
                                       if (pendingPickupIds?.has(d.id)) {
-                                        return { ...d, status: 'in_transit' };
+                                        return { ...d, status: 'in_transit', isNextDelivery: false };
                                       }
-                                      return d;
+                                      return { ...d, isNextDelivery: false };
                                     });
 
                                     const incompleteDeliveries = optimisticDeliveries
-                                      .filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
+                                      .filter((d) => d && d.id !== delivery.id && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
                                       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                                     const nextStop = incompleteDeliveries[0] || null;
 
