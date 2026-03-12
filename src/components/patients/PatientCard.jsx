@@ -146,6 +146,13 @@ export default function PatientCard({
   [];
 
   const recurringText = useMemo(() => getRecurringDisplay(patient), [patient]);
+  const deliveryBadgeConfig = useMemo(() => ({
+    pending: { label: 'Pending', style: { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' } },
+    picked_up: { label: 'In Transit', style: { background: '#dbeafe', color: '#1d4ed8' } },
+    in_transit: { label: 'In Transit', style: { background: '#dbeafe', color: '#1d4ed8' } },
+    completed: { label: 'Completed', style: { background: '#d1fae5', color: '#065f46' } },
+    failed: { label: 'Failed', style: { background: '#fee2e2', color: '#991b1b' } }
+  })[todayDelivery?.status] || { label: 'On Route', style: { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' } }, [todayDelivery?.status]);
 
   return (
     <Card
@@ -171,8 +178,8 @@ export default function PatientCard({
                 {patient.full_name}
               </h3>
               {todayDelivery &&
-              <Badge style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-                  On Route
+              <Badge style={deliveryBadgeConfig.style}>
+                  {deliveryBadgeConfig.label}
                 </Badge>
               }
               {store && showStoreBadge &&
