@@ -2849,7 +2849,7 @@ export default function DeliveryForm({
       if (statusChangedToCompletion) dataToSave.isNextDelivery = false;
 
       // SQUARE INTEGRATION: Delete COD item when delivery is completed or failed
-      if (statusChangedToCompletion && delivery?.id && (formData.status === 'completed' || formData.status === 'failed')) {
+      if (statusChangedToCompletion && delivery?.id && (formData.status === 'failed' || (formData.status === 'completed' && (((Array.isArray(formData.cod_payments) && formData.cod_payments.some(payment => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)) || ['Debit', 'Credit'].includes(formData.cod_payment_type)))))) {
         setTimeout(() => {
           base44.functions.invoke('squareDeleteCodItem', {
             deliveryId: delivery.id,
