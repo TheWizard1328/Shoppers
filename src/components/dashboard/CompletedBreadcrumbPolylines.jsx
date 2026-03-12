@@ -104,6 +104,10 @@ const parseBreadcrumbPoints = (breadcrumbsValue) => {
   }
 };
 
+const buildBreadcrumbRoutePoints = (start, breadcrumbPoints, end) => {
+  const points = [start, ...breadcrumbPoints, end].filter(Boolean);
+  return points.filter((point, index) => index === 0 || !samePoint(point, points[index - 1]));
+};
 
 export default function CompletedBreadcrumbPolylines({
   driverRoutes = [],
