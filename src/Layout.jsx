@@ -550,8 +550,8 @@ class ErrorBoundary extends React.Component {
   }
 
   render() {
+    if (this.state.hasError && (window.location.search.includes('_preview_token') || window.location.search.includes('hide_badge=true') || window.location.hostname.includes('preview') || window.location.hostname.includes('sandbox'))) throw this.state.error;
     if (this.state.hasError) {
-      // Get cached error from previous session if available
       let cachedError = null;
       try {
         const cached = localStorage.getItem('rxdeliver_last_error');
