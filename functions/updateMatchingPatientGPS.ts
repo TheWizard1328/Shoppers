@@ -176,6 +176,8 @@ Deno.serve(async (req) => {
       seenIds.add(sourcePatient.id);
     }
 
+    const relatedPatientsUpdatedCount = Math.max(0, matchedPatients.length - 1);
+
     const updateResults = await Promise.all(
       matchedPatients.map(async (patient) => {
         const patientStore = storeMap.get(patient.store_id) || sourceStore;
@@ -198,10 +200,34 @@ Deno.serve(async (req) => {
         return {
           id: updatedPatient.id,
           full_name: updatedPatient.full_name,
+          address: updatedPatient.address,
           distance_from_store: updatedPatient.distance_from_store,
-          store_id: updatedPatient.store_id
+          store_id: updatedPatient.store_id,
+          old_latitude: toNumber(patient.latitude),
+          old_longitude: toNumber(patient.longitude)
         };
       })
+    );
+
+    await base44.asServiceRole.entities.PatientGPSLog.bulkCreate(
+      updateResults.map((patient) => ({
+        source_patient_id: sourcePatient.id,
+        patient_id: patient.id,
+        patient_name: patient.full_name || '',
+        patient_address: patient.address || '',
+        store_id: patient.store_id || null,
+        city_id: sourceStore.city_id || null,
+        is_source_patient: patient.id === sourcePatient.id,
+        old_latitude: patient.old_latitude,
+        old_longitude: patient.old_longitude,
+        new_latitude: newLatitude,
+        new_longitude: newLongitude,
+        updated_by_user_id: user.id,
+        updated_by_user_name: user.full_name || user.email || 'Unknown User',
+        normalized_address: sourceStreetKey,
+        related_patients_updated_count: relatedPatientsUpdatedCount,
+        matched_patient_ids: updateResults.map((item) => item.id)
+      }))
     );
 
     return Response.json({
@@ -209,7 +235,8 @@ Deno.serve(async (req) => {
       normalizedAddress: sourceStreetKey,
       cityId: sourceStore.city_id || null,
       updatedCount: updateResults.length,
-      updatedPatients: updateResults,
+      relatedPatientsUpdatedCount,
+      updatedPatients: updateResults.map(({ old_latitude, old_longitude, ...patient }) => patient),
       sourcePatientId: sourcePatient.id
     });
   } catch (error) {
