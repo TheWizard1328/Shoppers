@@ -1101,8 +1101,7 @@ export default function Patients() {
 
       let displayPriority = 'normal';
 
-      // If patient is on an active route today, this is highest priority for display
-      if (patientTodayDelivery) {
+      if (patientTodayDelivery && ['pending', 'picked_up', 'in_transit'].includes(patientTodayDelivery.status)) {
         displayPriority = 'on_route';
       } else if (patient.status === 'inactive') {
         displayPriority = 'inactive';
