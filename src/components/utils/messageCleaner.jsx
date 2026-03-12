@@ -171,13 +171,16 @@ export async function performDailyMessageCleanup() {
  * Initialize daily cleanup - call this once during app startup
  */
 export function initializeDailyCleanup() {
+  if (cleanupInitialized) return;
+  cleanupInitialized = true;
+
   // CRITICAL: Delay initial cleanup to 5 minutes after app load to prevent rate limits during init
-  setTimeout(() => {
+  cleanupStartTimeout = setTimeout(() => {
     performDailyMessageCleanup();
   }, 300000); // 5 minutes
 
   // Check every 12 hours if cleanup is needed (reduced frequency)
-  setInterval(() => {
+  cleanupInterval = setInterval(() => {
     performDailyMessageCleanup();
   }, 43200000); // 12 hours
 }
