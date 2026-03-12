@@ -2484,7 +2484,7 @@ function Dashboard() {
               bounds,
               options: {
                 ...padding,
-                maxZoom: 19,
+                maxZoom: 17.5,
                 animate: true
               }
             });
@@ -2500,7 +2500,7 @@ function Dashboard() {
             bounds: allCoordinates,
             options: {
               ...padding,
-              maxZoom: 19,
+              maxZoom: 17.5,
               animate: true
             }
           });
@@ -2587,7 +2587,7 @@ function Dashboard() {
             const padding = getMapPadding();
             setShouldFitBounds({
               bounds: phase2DispatcherCoords,
-              options: { ...padding, maxZoom: 19, animate: true }
+              options: { ...padding, maxZoom: 17.5, animate: true }
             });
             setMapCenter(null);
             setMapZoom(null);
@@ -2631,7 +2631,7 @@ function Dashboard() {
 
             const padding = getMapPadding();
 
-            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 19, animate: true } });
+            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
             setMapCenter(null);
             setMapZoom(null);
           }
@@ -2643,7 +2643,7 @@ function Dashboard() {
             bounds: [[driverLocation.latitude, driverLocation.longitude]],
             options: {
               ...padding,
-              maxZoom: 19,
+              maxZoom: 17.5,
               animate: true
             }
           });
@@ -3361,7 +3361,7 @@ function Dashboard() {
             bounds: [[patient.latitude, patient.longitude]],
             options: {
               ...padding,
-              maxZoom: 19,
+              maxZoom: 17.5,
               animate: true
             }
           });
@@ -3375,7 +3375,7 @@ function Dashboard() {
             bounds: [[store.latitude, store.longitude]],
             options: {
               ...padding,
-              maxZoom: 19,
+              maxZoom: 17.5,
               animate: true
             }
           });
@@ -3890,7 +3890,7 @@ function Dashboard() {
                   bounds: [[patient.latitude, patient.longitude]],
                   options: {
                     ...padding,
-                    maxZoom: 19,
+                    maxZoom: 17.5,
                     animate: true
                   }
                 });
@@ -3905,7 +3905,7 @@ function Dashboard() {
                   bounds: [[store.latitude, store.longitude]],
                   options: {
                     ...padding,
-                    maxZoom: 19,
+                    maxZoom: 17.5,
                     animate: true
                   }
                 });
@@ -3926,7 +3926,7 @@ function Dashboard() {
                 bounds: [[patient.latitude, patient.longitude]],
                 options: {
                   ...padding,
-                  maxZoom: 19,
+                  maxZoom: 17.5,
                   animate: true
                 }
               });
@@ -3941,7 +3941,7 @@ function Dashboard() {
                 bounds: [[store.latitude, store.longitude]],
                 options: {
                   ...padding,
-                  maxZoom: 19,
+                  maxZoom: 17.5,
                   animate: true
                 }
               });
