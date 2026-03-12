@@ -1616,10 +1616,13 @@ export default function StopCard({
 
                                     if (updateDeliveriesLocally) {
                                       const updatedDeliveries = optimisticDeliveries.map((d) => {
+                                        if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) {
+                                          return d;
+                                        }
                                         if (nextStop && d.id === nextStop.id) {
                                           return { ...d, isNextDelivery: true };
                                         }
-                                        return d;
+                                        return { ...d, isNextDelivery: false };
                                       });
                                       updateDeliveriesLocally(updatedDeliveries, true);
                                     }
