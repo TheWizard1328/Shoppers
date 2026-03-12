@@ -41,32 +41,7 @@ Deno.serve(async (req) => {
       }
     });
 
-    // Now delete the Square catalog item since payment is collected
-    const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
-    
-    if (accessToken && transaction.square_catalog_object_id) {
-      try {
-        await fetch(`https://connect.squareup.com/v2/catalog/object/${transaction.square_catalog_object_id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Square-Version': '2024-01-18'
-          }
-        });
-      } catch (deleteError) {
-        console.error('Failed to delete Square catalog item:', deleteError);
-        // Continue - the payment is still recorded
-      }
-    }
-
-    const squareCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 500).catch(() => []);
-    const matchingCatalogItems = (squareCatalogItems || []).filter((item) => {
-      return item.delivery_id === deliveryId || item.square_catalog_object_id === transaction.square_catalog_object_id;
-    });
-
-    await Promise.all(
-      matchingCatalogItems.map((item) => base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch(() => null))
-    );
+    // Keep the Square catalog item active until the delivery is explicitly marked complete with Debit/Credit in the app.
 
     return Response.json({
       success: true,

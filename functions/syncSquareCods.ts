@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
             if (locationId) {
               const delItem = {
                 deliveryId: delivery.id,
-                patientName: delivery.patient_name || 'Unknown Patient',
+                patientName: delivery.patient_name || 'COD',
                 storeAbbreviation,
                 codAmount: delivery.cod_total_amount_required,
                 deliveryDate: delivery.delivery_date,
@@ -219,7 +219,16 @@ Deno.serve(async (req) => {
       const abbr = (item.storeAbbreviation || 'ST').trim();
       const amountNum = Number(item.codAmount) || 0;
       const amountCents = Math.round(amountNum * 100);
-      const itemName = `${mm}/${dd}(${abbr})-${item.patientName || 'COD'}`;
+      let resolvedPatientName = String(item.patientName || '').trim();
+      if (!resolvedPatientName || resolvedPatientName === 'COD') {
+        const delivery = item.deliveryId ? await base44.entities.Delivery.get(item.deliveryId).catch(() => null) : null;
+        const patient = delivery?.patient_id ? await base44.entities.Patient.get(delivery.patient_id).catch(() => null) : null;
+        resolvedPatientName = String(patient?.full_name || delivery?.patient_name || '').trim();
+      }
+      if (!resolvedPatientName || resolvedPatientName === 'COD' || resolvedPatientName === 'Unknown Patient') {
+        return { skipped: true, reason: 'missing_patient_name' };
+      }
+      const itemName = `${mm}/${dd}(${abbr})-${resolvedPatientName}`;
 
       const payload = {
         idempotency_key: idempotencyKey,
@@ -462,6 +471,10 @@ Deno.serve(async (req) => {
         attempts += 1;
         try {
           const data = await upsertCodItem(item, locationId);
+          if (data?.skipped) {
+            results.push({ deliveryId: item.deliveryId, action: 'upsert', status: 'skipped', reason: data.reason });
+            break;
+          }
           try {
             await base44.entities.SquareTransaction.create({
               type: 'collection',

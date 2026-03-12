@@ -30,25 +30,6 @@ function normalizeText(value) {
   return String(value || '').trim();
 }
 
-function hasCollectedCardPayment(delivery) {
-  const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
-  return codPayments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
-    || ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
-}
-
-function buildPlaceholderItemNames(deliveryDate, storeAbbreviation) {
-  const [year, month, day] = String(deliveryDate || '').split('-');
-  const mm = month?.padStart(2, '0') || '00';
-  const dd = day?.padStart(2, '0') || '00';
-  const abbr = storeAbbreviation || 'NA';
-  return [
-    `${mm}/${dd}(${abbr})-COD`,
-    `${mm}/${dd}(${abbr})-Unknown Patient`,
-    `${mm}-${dd}(${abbr})-COD`,
-    `${mm}-${dd}(${abbr})-Unknown Patient`
-  ];
-}
-
 function toAmountCents(value) {
   return Math.max(0, Math.round(Number(value || 0)));
 }
@@ -423,8 +404,10 @@ Deno.serve(async (req) => {
         itemsToDelete.push(existingPending.square_catalog_object_id);
       }
       const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
-      const hasCollectedPayment = codPayments.some((payment) => ['Cash', 'Debit', 'Credit', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
-        || ['Cash', 'Debit', 'Credit', 'Check'].includes(delivery?.cod_payment_type);
+      const hasCardCollectedPayment = codPayments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
+        || ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
+      const hasSquareCollectedEvidence = paidMatches.length || isPaidByCatalogObjectId || isPaidByDirectCatalogMatch;
+      const isAppMarkedCollectedAndComplete = delivery.status === 'completed' && hasCardCollectedPayment;
       const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery.status === 'failed' || delivery.status === 'cancelled';
 
       if (shouldDeleteForInvalidState) {
@@ -450,10 +433,14 @@ Deno.serve(async (req) => {
         catalogItem = null;
       }
 
-      if (paidMatches.length || isPaidByCatalogObjectId || isPaidByDirectCatalogMatch || hasCollectedPayment) {
+      if (hasSquareCollectedEvidence && !isAppMarkedCollectedAndComplete) {
+        continue;
+      }
+
+      if (hasSquareCollectedEvidence || isAppMarkedCollectedAndComplete) {
         if (catalogItem) {
           itemsToDelete.push(catalogItem.id);
-          console.log(`🧾 Matched paid Square item for ${itemName} via ${hasCollectedPayment ? 'delivery_payment_record' : isPaidByCatalogObjectId ? 'catalog_object_id' : 'name_amount_signature'}`);
+          console.log(`🧾 Matched paid Square item for ${itemName} via ${isAppMarkedCollectedAndComplete ? 'delivery_completed_with_card_payment' : isPaidByCatalogObjectId ? 'catalog_object_id' : 'name_amount_signature'}`);
         }
         for (const transaction of existingTransactions) {
           if (transaction.status === 'pending') {

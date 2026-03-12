@@ -91,7 +91,10 @@ Deno.serve(async (req) => {
     }
 
     const resolvedDeliveryDate = deliveryDate || deliveryRecord?.delivery_date;
-    const resolvedPatientName = String(patientRecord?.full_name || patientName || deliveryRecord?.patient_name || '').trim() || 'Unknown Patient';
+    const resolvedPatientName = String(patientRecord?.full_name || patientName || deliveryRecord?.patient_name || '').trim();
+    if (!resolvedPatientName || resolvedPatientName === 'COD' || resolvedPatientName === 'Unknown Patient') {
+      return Response.json({ success: true, skipped: true, reason: 'missing_patient_name' });
+    }
     const resolvedPatientId = patientRecord?.id || deliveryRecord?.patient_id || null;
     const resolvedStoreAbbr = (store?.abbreviation || storeAbbreviation || 'XX').trim();
     const amountCents = Math.round(Number(codAmount) * 100);
@@ -115,6 +118,20 @@ Deno.serve(async (req) => {
         transactionId: tx.id,
         note: 'Skipped create: existing pending Square item found'
       });
+    }
+
+    if (existingPending?.length && existingPending[0]?.square_catalog_object_id && (existingPending[0]?.item_name !== itemName || existingPending[0]?.amount_cents !== amountCents)) {
+      try {
+        await fetch(`${SQUARE_BASE_URL}/catalog/object/${existingPending[0].square_catalog_object_id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Square-Version': '2024-01-18'
+          }
+        });
+      } catch (deleteError) {
+        console.warn('Failed to delete stale Square placeholder item:', deleteError.message);
+      }
     }
 
     // Convert dollars to cents for Square
