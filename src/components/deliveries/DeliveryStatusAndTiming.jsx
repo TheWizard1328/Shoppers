@@ -135,7 +135,18 @@ export default function DeliveryStatusAndTiming({
   );
 
   return (
-    <div className="space-y-2">
+    <>
+      <style>{`
+        .compact-time-input::-webkit-calendar-picker-indicator {
+          display: none;
+          -webkit-appearance: none;
+        }
+        .compact-time-input::-webkit-clear-button,
+        .compact-time-input::-webkit-inner-spin-button {
+          display: none;
+        }
+      `}</style>
+      <div className="space-y-2">
       {/* Row 1: Store + Status + (optional Pickup ID) */}
       <div className="flex gap-3">
         {storeSelect}
