@@ -342,14 +342,14 @@ export default function DriverPayroll() {
       });
       return [];
     }
-    
-    // CRITICAL: Ensure deliveries is always an array
-    const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
 
-    // CRITICAL: Filter drivers by the selected pay cycle
     const driverIdsToShow = new Set();
+    const appUsersByDriverId = new Map();
 
     payrollData.appUsers.forEach(au => {
+      if (au?.user_id) {
+        appUsersByDriverId.set(au.user_id, au);
+      }
       if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
         driverIdsToShow.add(au.user_id);
       }
@@ -361,13 +361,15 @@ export default function DriverPayroll() {
     }
 
     const result = sortUsers(
-      payrollData.drivers.filter(d => {
-        if (!d || d.status !== 'active') return false;
-        const driverId = d.user_id || d.id;
-        return driverIdsToShow.has(driverId);
-      })
+      payrollData.drivers
+        .filter(d => {
+          if (!d || d.status !== 'active') return false;
+          const driverId = d.user_id || d.id;
+          return driverIdsToShow.has(driverId);
+        })
+        .map(d => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
-    
+
     console.log(`📋 [driversInPayCycle] Showing ${result.length} active drivers for pay period: ${payPeriod}`);
     return result;
   }, [payrollData?.appUsers, payrollData?.drivers, payPeriod, selectedDriverId]);
