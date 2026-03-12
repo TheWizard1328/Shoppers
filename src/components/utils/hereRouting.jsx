@@ -30,6 +30,7 @@ export function clearHereCacheForSegment(from, to) {
     const key = `here_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
     try { memoryCache.delete(key); } catch (_) {}
     try { backoffCache.delete(`${key}:fail_until`); } catch (_) {}
+    try { backoffNoticeCache.delete(key); } catch (_) {}
     try { localStorage.removeItem(key); } catch (_) {}
     try { localStorage.removeItem(`${key}:fail_until`); } catch (_) {}
   } catch (_) {}
