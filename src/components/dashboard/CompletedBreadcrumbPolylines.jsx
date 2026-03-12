@@ -234,22 +234,24 @@ export default function CompletedBreadcrumbPolylines({
       return;
     }
 
-    if (!showBreadcrumbPolylines || !segment.hasBreadcrumbs) return;
+    if (!showBreadcrumbPolylines || !segment.hasAnyBreadcrumbs) return;
 
-    renderedLines.push(
-      <Polyline
-        key={`completed-breadcrumb-line-${segment.id}-${polylineRenderKey}`}
-        positions={segment.breadcrumbPoints.map((point) => [point.latitude, point.longitude])}
-        pathOptions={{
-          color: breadcrumbRouteColor,
-          weight: 4,
-          opacity: Math.max(segment.opacity, 0.35),
-          lineJoin: "round",
-          lineCap: "round",
-        }}
-        pane="completedBreadcrumbPane"
-      />
-    );
+    if (segment.hasBreadcrumbs) {
+      renderedLines.push(
+        <Polyline
+          key={`completed-breadcrumb-line-${segment.id}-${polylineRenderKey}`}
+          positions={segment.breadcrumbPoints.map((point) => [point.latitude, point.longitude])}
+          pathOptions={{
+            color: breadcrumbRouteColor,
+            weight: 4,
+            opacity: Math.max(segment.opacity, 0.35),
+            lineJoin: "round",
+            lineCap: "round",
+          }}
+          pane="completedBreadcrumbPane"
+        />
+      );
+    }
 
     segment.breadcrumbPoints.forEach((point, index) => {
       renderedDots.push(
