@@ -314,38 +314,30 @@ export default function PatientForm({
 
   const handleAddressSelect = (addressData) => {
     setIsAddressLookupActive(false);
-    // Build from components if present to ensure we keep house number
     const street = (addressData.street_number && addressData.route)
       ? `${addressData.street_number} ${addressData.route}`
       : (addressData.street_address || addressData.full_address || '');
     const abbreviatedAddress = abbreviateAddress(street);
-
-    // If unit/subpremise came back, prefill unit_number
     const prefilledUnit = addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number;
 
-    // Use distance from Google Places API if available (it's calculated from store location)
-    const distanceFromStore = Number.isFinite(Number(addressData.distance))
-      ? parseFloat(Number(addressData.distance).toFixed(2))
-      : null;
+    const latitude = toFiniteNumber(addressData.latitude);
+    const longitude = toFiniteNumber(addressData.longitude);
+    const roundedLatitude = latitude !== null ? parseFloat(latitude.toFixed(7)) : null;
+    const roundedLongitude = longitude !== null ? parseFloat(longitude.toFixed(7)) : null;
+    const googleDistance = toFiniteNumber(addressData.distance);
+    const calculatedDistance = calculateDistanceKm(cityCenter, { latitude: roundedLatitude, longitude: roundedLongitude });
+    const distanceFromStore = googleDistance !== null
+      ? parseFloat(googleDistance.toFixed(2))
+      : calculatedDistance;
 
-    const latitude = Number.isFinite(Number(addressData.latitude))
-      ? parseFloat(Number(addressData.latitude).toFixed(7))
-      : null;
-
-    const longitude = Number.isFinite(Number(addressData.longitude))
-      ? parseFloat(Number(addressData.longitude).toFixed(7))
-      : null;
-
-    const newFormData = {
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       address: abbreviatedAddress,
-      unit_number: prefilledUnit || formData.unit_number,
-      latitude,
-      longitude,
+      unit_number: prefilledUnit || prev.unit_number,
+      latitude: roundedLatitude,
+      longitude: roundedLongitude,
       distance_from_store: distanceFromStore
-    };
-
-    setFormData(newFormData);
+    }));
 
     // Auto-focus unit number field after address selection
     if (shouldAutoFocusFields) {
@@ -801,7 +793,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       step="any"
                       value={Number.isFinite(formData.latitude) ? formData.latitude : ''}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, latitude: Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : null }))}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, latitude: toFiniteNumber(e.target.value) }))}
                       placeholder="GPS Lat"
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
@@ -814,7 +806,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       step="any"
                       value={Number.isFinite(formData.longitude) ? formData.longitude : ''}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, longitude: Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : null }))}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, longitude: toFiniteNumber(e.target.value) }))}
                       placeholder="GPS Lon"
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
@@ -827,7 +819,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       step="0.01"
                       value={Number.isFinite(formData.distance_from_store) ? formData.distance_from_store : ''}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : null }))}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: toFiniteNumber(e.target.value) }))}
                       placeholder="km"
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
