@@ -12,44 +12,45 @@ const getBreadcrumbRouteColor = () => {
  * Renders historical and real-time GPS breadcrumb trails on the map.
  */
 export default function MapBreadcrumbs({ breadcrumbsData, safeUsers }) {
-  const circles = [];
+  const lines = [];
   const breadcrumbRouteColor = getBreadcrumbRouteColor();
 
   // Historical breadcrumbs from DeliveryBreadcrumbs entity
   if (breadcrumbsData.historical && breadcrumbsData.historical.length > 0) {
     breadcrumbsData.historical.forEach((trail) => {
       if (!trail || !trail.breadcrumbs || !Array.isArray(trail.breadcrumbs)) return;
-      const color = breadcrumbRouteColor;
+      const positions = trail.breadcrumbs
+        .map(([lat, lng]) => [Number(lat), Number(lng)])
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
 
-      trail.breadcrumbs.forEach(([lat, lng], idx) => {
-        if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
-        circles.push(
-          <Circle
-            key={`historical-breadcrumb-${trail.id}-${idx}`}
-            center={[lat, lng]}
-            radius={4}
-            pathOptions={{ color, fillColor: color, fillOpacity: 0.6, weight: 1, opacity: 0.8 }}
-          />
-        );
-      });
-    });
-  }
+      if (positions.length < 2) return;
 
-  // Current/real-time breadcrumbs from offline database
-  if (breadcrumbsData.current && breadcrumbsData.current.length > 0) {
-    const color = breadcrumbRouteColor;
-    breadcrumbsData.current.forEach((b, idx) => {
-      if (!b || typeof b.lat !== 'number' || typeof b.lng !== 'number') return;
-      circles.push(
-        <Circle
-          key={`current-breadcrumb-${idx}`}
-          center={[b.lat, b.lng]}
-          radius={5}
-          pathOptions={{ color, fillColor: color, fillOpacity: 0.8, weight: 1.5, opacity: 1 }}
+      lines.push(
+        <Polyline
+          key={`historical-breadcrumb-line-${trail.id}`}
+          positions={positions}
+          pathOptions={{ color: breadcrumbRouteColor, weight: 3, opacity: 0.8, lineJoin: 'round', lineCap: 'round' }}
         />
       );
     });
   }
 
-  return circles.length > 0 ? <>{circles}</> : null;
+  // Current/real-time breadcrumbs from offline database
+  if (breadcrumbsData.current && breadcrumbsData.current.length > 1) {
+    const positions = breadcrumbsData.current
+      .map((b) => [Number(b?.lat), Number(b?.lng)])
+      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+
+    if (positions.length > 1) {
+      lines.push(
+        <Polyline
+          key="current-breadcrumb-line"
+          positions={positions}
+          pathOptions={{ color: breadcrumbRouteColor, weight: 3, opacity: 0.95, lineJoin: 'round', lineCap: 'round' }}
+        />
+      );
+    }
+  }
+
+  return lines.length > 0 ? <>{lines}</> : null;
 }
