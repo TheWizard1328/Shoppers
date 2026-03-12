@@ -16,13 +16,15 @@ export const AppDataProvider = ({ children, value }) => {
   const updateAppUsersLocallyRef = useRef(value.updateAppUsersLocally);
   const deliveriesRef = useRef(value.deliveries);
   const appUsersRef = useRef(value.appUsers);
+  const patientsRef = useRef(value.patients);
   
   // Track boot sync per city/date and syncing banner state
   const bootKeyRef = useRef('');
   const [isProgressiveSyncing, setIsProgressiveSyncing] = useState(false);
   const realtimeBatchRef = useRef({
     deliveries: { upserts: new Map(), deletes: new Set() },
-    appUsers: { upserts: new Map(), deletes: new Set() }
+    appUsers: { upserts: new Map(), deletes: new Set() },
+    patients: { upserts: new Map(), deletes: new Set() }
   });
   const realtimeBatchTimerRef = useRef(null);
 
@@ -32,21 +34,26 @@ export const AppDataProvider = ({ children, value }) => {
     const deliveryDeletes = Array.from(batch.deliveries.deletes.values());
     const appUserUpserts = Array.from(batch.appUsers.upserts.values());
     const appUserDeletes = Array.from(batch.appUsers.deletes.values());
+    const patientUpserts = Array.from(batch.patients.upserts.values());
+    const patientDeletes = Array.from(batch.patients.deletes.values());
 
-    if (!deliveryUpserts.length && !deliveryDeletes.length && !appUserUpserts.length && !appUserDeletes.length) {
+    if (!deliveryUpserts.length && !deliveryDeletes.length && !appUserUpserts.length && !appUserDeletes.length && !patientUpserts.length && !patientDeletes.length) {
       return;
     }
 
     realtimeBatchRef.current = {
       deliveries: { upserts: new Map(), deletes: new Set() },
-      appUsers: { upserts: new Map(), deletes: new Set() }
+      appUsers: { upserts: new Map(), deletes: new Set() },
+      patients: { upserts: new Map(), deletes: new Set() }
     };
 
     const deliveryChanged = deliveryUpserts.length > 0 || deliveryDeletes.length > 0;
     const appUsersChanged = appUserUpserts.length > 0 || appUserDeletes.length > 0;
+    const patientsChanged = patientUpserts.length > 0 || patientDeletes.length > 0;
 
     let nextDeliveries = deliveriesRef.current || [];
     let nextAppUsers = appUsersRef.current || [];
+    let nextPatients = patientsRef.current || [];
 
     if (deliveryChanged) {
       const byId = new Map(nextDeliveries.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
@@ -80,13 +87,24 @@ export const AppDataProvider = ({ children, value }) => {
       nextAppUsers = Array.from(byId.values());
     }
 
+    if (patientsChanged) {
+      const byId = new Map(nextPatients.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
+      patientDeletes.forEach((id) => byId.delete(id));
+      patientUpserts.forEach((item) => {
+        if (item?.id) byId.set(item.id, item);
+      });
+      nextPatients = Array.from(byId.values());
+    }
+
     try {
       const { offlineDB } = await import('./offlineDatabase');
       await Promise.all([
         deliveryUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryUpserts) : Promise.resolve(),
         appUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserUpserts) : Promise.resolve(),
+        patientUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientUpserts) : Promise.resolve(),
         ...deliveryDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)),
-        ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null))
+        ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null)),
+        ...patientDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => null))
       ]);
     } catch (error) {
       console.warn('[AppDataContext] Realtime offline sync batch failed:', error.message);
@@ -99,6 +117,10 @@ export const AppDataProvider = ({ children, value }) => {
 
       if (appUsersChanged && updateAppUsersLocallyRef.current) {
         updateAppUsersLocallyRef.current(nextAppUsers, true);
+      }
+
+      if (patientsChanged && value.updatePatientsLocally) {
+        value.updatePatientsLocally(nextPatients, true);
       }
     });
 
@@ -130,12 +152,26 @@ export const AppDataProvider = ({ children, value }) => {
 
       smartRefreshManager.notifyRealtimeUpdate('AppUser');
     }
-  }, [value.currentUser?.id, value.refreshUser]);
+
+    if (patientsChanged && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('patientsUpdated', {
+        detail: {
+          patients: patientUpserts,
+          deletedIds: patientDeletes,
+          deletedId: patientDeletes.length === 1 ? patientDeletes[0] : undefined,
+          fromRealtime: true
+        }
+      }));
+      smartRefreshManager.notifyRealtimeUpdate('Patient');
+    }
+  }, [value.currentUser?.id, value.refreshUser, value.updatePatientsLocally]);
 
   const scheduleRealtimeEntityUpdate = useCallback((entityType, eventType, data) => {
     const entityBatch = entityType === 'Delivery'
       ? realtimeBatchRef.current.deliveries
-      : realtimeBatchRef.current.appUsers;
+      : entityType === 'Patient'
+        ? realtimeBatchRef.current.patients
+        : realtimeBatchRef.current.appUsers;
 
     const recordId = typeof data === 'string' ? data : data?.id;
     if (!recordId) return;
@@ -163,6 +199,7 @@ export const AppDataProvider = ({ children, value }) => {
   useEffect(() => { updateAppUsersLocallyRef.current = value.updateAppUsersLocally; }, [value.updateAppUsersLocally]);
   useEffect(() => { deliveriesRef.current = value.deliveries; }, [value.deliveries]);
   useEffect(() => { appUsersRef.current = value.appUsers; }, [value.appUsers]);
+  useEffect(() => { patientsRef.current = value.patients; }, [value.patients]);
 
   useEffect(() => {
     if (!value.currentUser) return;
@@ -183,6 +220,11 @@ export const AppDataProvider = ({ children, value }) => {
     const unsubscribe = cityFilteredRealtimeSync.subscribe(({ entityType, eventType, data }) => {
       if (entityType === 'Delivery') {
         scheduleRealtimeEntityUpdate('Delivery', eventType, data);
+        return;
+      }
+
+      if (entityType === 'Patient') {
+        scheduleRealtimeEntityUpdate('Patient', eventType, data);
         return;
       }
 
