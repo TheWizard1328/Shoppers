@@ -175,8 +175,7 @@ Deno.serve(async (req) => {
         const sequentialOrder = index + 1;
         if (delivery.stop_order === sequentialOrder) return null;
         return base44.asServiceRole.entities.Delivery.update(delivery.id, {
-          stop_order: sequentialOrder,
-          display_stop_order: sequentialOrder
+          stop_order: sequentialOrder
         });
       })
       .filter(Boolean);
@@ -410,8 +409,7 @@ Deno.serve(async (req) => {
         : stop.delivery.delivery_time_eta || null;
       const resolvedLeg = waypoint ? interconnectionByToWaypoint.get(waypoint.id) : (leg || null);
       const updateData = {
-        stop_order: stopOrderCounter,
-        display_stop_order: stopOrderCounter
+        stop_order: stopOrderCounter
       };
 
       if (eta) {
