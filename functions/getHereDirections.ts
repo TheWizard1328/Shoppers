@@ -1,6 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 Deno.serve(async (req) => {
+  let origin = null;
+  let destination = null;
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -10,7 +12,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { origin, destination } = body || {};
+    ({ origin, destination } = body || {});
 
     if (!origin || !destination || origin.lat == null || origin.lng == null || destination.lat == null || destination.lng == null) {
       return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
@@ -53,7 +55,15 @@ Deno.serve(async (req) => {
     const route = Array.isArray(data?.routes) ? data.routes[0] : null;
     if (!route) {
       console.error('[HERE Routing] no route in payload', { payload: data });
-      return Response.json({ error: 'No route found' }, { status: 404 });
+      return Response.json({
+        coordinates: [
+          { lat: origin.lat, lng: origin.lng },
+          { lat: destination.lat, lng: destination.lng }
+        ],
+        estimated_distance_km: 0,
+        estimated_duration_minutes: 0,
+        polyline_format: 'fallback'
+      });
     }
 
     const sections = Array.isArray(route?.sections) ? route.sections : [];
