@@ -82,27 +82,6 @@ const parseBreadcrumbPoints = (breadcrumbsValue) => {
   }
 };
 
-const parseBreadcrumbWaypoints = (breadcrumbsValue, start, end, sampleEvery = 10) => {
-  if (!start || !end) return [];
-
-  const sampled = parseBreadcrumbPoints(breadcrumbsValue)
-    .filter((_, index) => index % sampleEvery === 0);
-
-  const points = [start];
-  sampled.forEach((point) => {
-    const previous = points[points.length - 1];
-    if (!samePoint(previous, point)) points.push(point);
-  });
-
-  const previous = points[points.length - 1];
-  if (samePoint(previous, end)) {
-    points[points.length - 1] = end;
-  } else {
-    points.push(end);
-  }
-
-  return points;
-};
 
 export default function CompletedBreadcrumbPolylines({
   driverRoutes = [],
