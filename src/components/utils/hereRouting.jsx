@@ -4,6 +4,7 @@ import { offlineDB } from './offlineDatabase';
 const fetchingKeys = new Set();
 const memoryCache = new Map();
 const backoffCache = new Map();
+const backoffNoticeCache = new Map();
 const USE_ENTITY_LOOKUP = false;
 const USE_CROSS_DEVICE_LOCK = false;
 
@@ -413,7 +414,11 @@ const deliveryDateSafe = deliveryDate || todayStr;
     const until = backoffCache.get(failKey);
     if (until && Date.now() < Number(until)) {
       const ms = Number(until) - Date.now();
-      console.warn('[HERE][client] Backoff active; skipping fetch', { cacheKey, msRemaining: ms });
+      const lastNotice = backoffNoticeCache.get(cacheKey) || 0;
+      if (Date.now() - lastNotice > 10000) {
+        console.info('[HERE][client] Backoff active; using fallback line', { cacheKey, msRemaining: ms });
+        backoffNoticeCache.set(cacheKey, Date.now());
+      }
       fetchingKeys.delete(cacheKey);
       return null;
     }
@@ -472,6 +477,7 @@ const deliveryDateSafe = deliveryDate || todayStr;
       console.info('[HERE][client] Route OK', { cacheKey, points: coords.length, shape: res?.data?.polyline_format === 'flexible' ? 'here-polyline' : Array.isArray(res?.data?.coordinates) ? 'coordinates' : 'polyline' });
       memoryCache.set(cacheKey, coords);
       try { backoffCache.delete(failKey); } catch (_) {}
+      try { backoffNoticeCache.delete(cacheKey); } catch (_) {}
 
       ensurePolylineSubscription();
 
@@ -603,7 +609,8 @@ const deliveryDateSafe = deliveryDate || todayStr;
   // Backoff 10s for this key on failure
   try {
     backoffCache.set(`${cacheKey}:fail_until`, Date.now() + 10000);
-    console.warn('[HERE][client] Set backoff', { cacheKey, ms: 10000 });
+    backoffNoticeCache.set(cacheKey, Date.now());
+    console.info('[HERE][client] Set backoff fallback window', { cacheKey, ms: 10000 });
   } catch (_) {}
 
   fetchingKeys.delete(cacheKey);
