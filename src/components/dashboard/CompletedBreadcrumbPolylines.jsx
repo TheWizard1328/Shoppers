@@ -236,29 +236,22 @@ export default function CompletedBreadcrumbPolylines({
 
     if (!showBreadcrumbPolylines || !segment.hasBreadcrumbs) return;
 
-    segment.breadcrumbWaypoints.slice(0, -1).forEach((from, index) => {
-      const to = segment.breadcrumbWaypoints[index + 1];
-      const key = getLegKey(from, to);
-      const coords = getCachedPolyline(key, cache);
-      if (!coords) return;
+    renderedLines.push(
+      <Polyline
+        key={`completed-breadcrumb-line-${segment.id}-${polylineRenderKey}`}
+        positions={segment.breadcrumbPoints.map((point) => [point.latitude, point.longitude])}
+        pathOptions={{
+          color: breadcrumbRouteColor,
+          weight: 4,
+          opacity: Math.max(segment.opacity, 0.35),
+          lineJoin: "round",
+          lineCap: "round",
+        }}
+        pane="completedBreadcrumbPane"
+      />
+    );
 
-      renderedLines.push(
-        <Polyline
-          key={`completed-breadcrumb-line-${segment.id}-${index}-${polylineRenderKey}`}
-          positions={coords}
-          pathOptions={{
-            color: breadcrumbRouteColor,
-            weight: 4,
-            opacity: Math.max(segment.opacity, 0.35),
-            lineJoin: "round",
-            lineCap: "round",
-          }}
-          pane="completedBreadcrumbPane"
-        />
-      );
-    });
-
-    segment.breadcrumbWaypoints.slice(1).forEach((point, index) => {
+    segment.breadcrumbPoints.forEach((point, index) => {
       renderedDots.push(
         <CircleMarker
           key={`completed-breadcrumb-dot-${segment.id}-${index}-${polylineRenderKey}`}
