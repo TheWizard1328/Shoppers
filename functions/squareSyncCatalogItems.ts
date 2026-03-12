@@ -30,6 +30,25 @@ function normalizeText(value) {
   return String(value || '').trim();
 }
 
+function hasCollectedCardPayment(delivery) {
+  const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+  return codPayments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
+    || ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
+}
+
+function buildPlaceholderItemNames(deliveryDate, storeAbbreviation) {
+  const [year, month, day] = String(deliveryDate || '').split('-');
+  const mm = month?.padStart(2, '0') || '00';
+  const dd = day?.padStart(2, '0') || '00';
+  const abbr = storeAbbreviation || 'NA';
+  return [
+    `${mm}/${dd}(${abbr})-COD`,
+    `${mm}/${dd}(${abbr})-Unknown Patient`,
+    `${mm}-${dd}(${abbr})-COD`,
+    `${mm}-${dd}(${abbr})-Unknown Patient`
+  ];
+}
+
 function toAmountCents(value) {
   return Math.max(0, Math.round(Number(value || 0)));
 }

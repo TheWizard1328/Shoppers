@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
             if (locationId) {
               const delItem = {
                 deliveryId: delivery.id,
-                patientName: delivery.patient_name || 'COD',
+                patientName: delivery.patient_name || 'Unknown Patient',
                 storeAbbreviation,
                 codAmount: delivery.cod_total_amount_required,
                 deliveryDate: delivery.delivery_date,

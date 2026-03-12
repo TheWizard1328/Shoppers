@@ -133,7 +133,9 @@ export async function deleteSquareCODOnCompletion({
   const statusChangedToCompletion = ['completed', 'cancelled', 'failed', 'returned'].includes(currentStatus) &&
     delivery.status !== currentStatus;
 
-  if (statusChangedToCompletion && (currentStatus === 'completed' || currentStatus === 'failed')) {
+  const hasDebitOrCreditCollection = (Array.isArray(delivery?.cod_payments) && delivery.cod_payments.some(payment => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)) || ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
+
+  if (statusChangedToCompletion && (currentStatus === 'failed' || (currentStatus === 'completed' && hasDebitOrCreditCollection))) {
     try {
       console.log('💳 [Square] Deleting COD item for completed/failed delivery:', delivery.id);
       await Promise.race([
