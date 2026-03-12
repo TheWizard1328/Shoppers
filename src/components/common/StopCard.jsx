@@ -1526,169 +1526,178 @@ export default function StopCard({
                                       throw new Error('This delivery has been deleted. Please refresh the page.');
                                     }
 
-                                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
                                     // Auto-toggle driver online if offline
                                     await ensureDriverOnline();
 
-                                    // CRITICAL: Auto-collect COD if required and not already collected
-                                    if (hasCODRequired && codPayments.length === 0 && onCODUpdate) {
-                                      const autoCODPayment = [{
-                                        type: 'Cash',
-                                        amount: codTotalRequired
-                                      }];
+                                    const autoCODPayment = hasCODRequired && codPayments.length === 0 && onCODUpdate ? [{
+                                      type: 'Cash',
+                                      amount: codTotalRequired
+                                    }] : null;
 
-                                      // Update local state FIRST for immediate UI update
+                                    if (autoCODPayment) {
                                       setCodPayments(autoCODPayment);
-
-                                      // Save COD payment to both databases
-                                      await onCODUpdate(delivery.id, autoCODPayment, true);
                                     }
 
                                     // CRITICAL: For pickups with pending deliveries, trigger Accept All FIRST, then continue to complete pickup
                                     if (isPickup && pendingPickups && pendingPickups.length > 0) {
                                       const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');
                                       if (hasPendingDeliveries) {
-                                        await handleAcceptAllStops();  // Continue execution - don't return early
+                                        await handleAcceptAllStops();
                                       }
                                     }
 
                                     // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
-                                    const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES); // Update status to completed with timestamp
-                                    const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({
-                                      delivery,
-                                      allDeliveries,
-                                      driver: safeDriver,
-                                      patient,
-                                      store,
-                                      patients,
-                                      stores,
-                                      finishedStatuses: FINISHED_STATUSES
-                                    });
+                                    const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
+                                    const completionCodPayments = autoCODPayment || codPayments;
                                     const completionUpdate = {
                                       status: 'completed',
                                       actual_delivery_time: localTimeString,
                                       isNextDelivery: false,
-                                      finished_leg_encoded_polyline: finishedLegEncodedPolyline
+                                      finished_leg_encoded_polyline: null,
+                                      ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {})
                                     };
 
-                                    // CRITICAL: Save to both offline and online databases
                                     await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
-                                    // CRITICAL: Re-fetch ALL deliveries to ensure we see the newly transitioned deliveries
-                                    const refreshedAfterAccept = await base44.entities.Delivery.filter({
-                                      driver_id: delivery.driver_id,
-                                      delivery_date: delivery.delivery_date
+
+                                    const pendingPickupIds = isPickup ? new Set((pendingPickups || []).filter((p) => p?.status === 'pending').map((p) => p.id)) : null;
+                                    const optimisticDeliveries = allDeliveries.map((d) => {
+                                      if (d.id === delivery.id) {
+                                        return { ...d, ...completionUpdate };
+                                      }
+                                      if (pendingPickupIds?.has(d.id)) {
+                                        return { ...d, status: 'in_transit' };
+                                      }
+                                      return d;
                                     });
 
-                                    // Find and update next delivery flag
-                                    const incompleteDeliveries = refreshedAfterAccept.
-                                      filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').
-                                      sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                                    const incompleteDeliveries = optimisticDeliveries
+                                      .filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
+                                      .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                                    const nextStop = incompleteDeliveries[0] || null;
 
-                                    if (incompleteDeliveries.length > 0) {
-                                      const nextStop = incompleteDeliveries[0];
-                                      // Set locally for instant UI
+                                    if (nextStop) {
                                       await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
-                                      // Also enforce atomically on the server (clears any other flags)
-                                      Promise.resolve().then(async () => {
-                                        try {
-                                          await base44.functions.invoke('setNextDeliveryFlag', {
-                                            driverId: delivery.driver_id,
-                                            deliveryDate: delivery.delivery_date,
-                                            targetDeliveryId: nextStop.id
-                                          });
-                                        } catch (e) {
-                                          console.warn('[NextFlag] Server ensure failed (UI already updated locally):', e?.message || e);
-                                        }
-                                      });
                                     } else {
-                                      // CRITICAL: This is the FINAL stop - activate FAB phase 1 and show route summary
-                                      // Activate FAB phase 1
                                       fabControlEvents.notifyDoneButtonClicked();
-
-                                      // Show route summary popup
                                       window.dispatchEvent(new CustomEvent('showRouteSummary', {
                                         detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                                       }));
 
-                                      // Toggle location sharing off and driver status to off_duty
-                                      if (currentUser?.id) {
-                                        const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-                                        if (appUsers && appUsers.length > 0) {
-                                          const appUser = appUsers[0];
-                                          await base44.entities.AppUser.update(appUser.id, {
-                                            driver_status: 'off_duty',
-                                            location_tracking_enabled: false
-                                          });
+                                      try {
+                                        locationTracker.stopTracking();
+                                      } catch (trackingError) {
+                                        console.warn('Could not stop location tracking:', trackingError.message);
+                                      }
 
-                                          // Stop location tracking
-                                          try {
-                                            locationTracker.stopTracking();
-                                          } catch (trackingError) {
-                                            console.warn('Could not stop location tracking:', trackingError.message);
-                                          }
-
-                                          // Notify parent to refresh UI
-                                          if (onDriverStatusChange) {
-                                            onDriverStatusChange('off_duty');
-                                          }
-                                        }
+                                      if (onDriverStatusChange) {
+                                        onDriverStatusChange('off_duty');
                                       }
                                     }
 
-                                    // Force UI refresh with ONLY local data (skip API call)
                                     invalidate('Delivery');
 
-                                    // CRITICAL: Use local data only to avoid slow API call
                                     if (updateDeliveriesLocally) {
-                                     const updatedDeliveries = allDeliveries.map(d => {
-                                       if (d.id === delivery.id) {
-                                         return { ...d, ...completionUpdate };
-                                       }
-                                       if (incompleteDeliveries.length > 0 && d.id === incompleteDeliveries[0].id) {
-                                         return { ...d, isNextDelivery: true };
-                                       }
-                                       return d;
-                                     });
-                                     updateDeliveriesLocally(updatedDeliveries, true);
+                                      const updatedDeliveries = optimisticDeliveries.map((d) => {
+                                        if (nextStop && d.id === nextStop.id) {
+                                          return { ...d, isNextDelivery: true };
+                                        }
+                                        return d;
+                                      });
+                                      updateDeliveriesLocally(updatedDeliveries, true);
                                     }
 
-                                    // CRITICAL: Trigger map and stop cards update immediately
                                     window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                                       detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                                     }));
 
-                                    // CRITICAL: Collapse ALL cards first
                                     if (typeof window !== 'undefined') {
                                       window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
                                     }
 
-                                    // CRITICAL: Scroll to next delivery card immediately
-                                    if (incompleteDeliveries.length > 0) {
+                                    if (nextStop) {
                                       setTimeout(() => {
-                                        const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
+                                        const nextCardElement = document.getElementById(`stop-card-${nextStop.id}`);
                                         if (nextCardElement) {
                                           nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                                         }
                                       }, 100);
                                     }
 
-                                    // CRITICAL: Reactivate FAB immediately (before background work)
                                     fabControlEvents.reactivateFAB(true);
-                                    // ═══════════ PHASE 2: BACKGROUND TASKS ═══════════
-                                    setIsProcessingBackground(true);
 
-                                    // Background: Notifications only (no auto optimization on complete)
-                                    Promise.all([
-                                      userHasRole(currentUser, 'driver') ? notifyDriverCompleted({
-                                        driver: currentUser,
-                                        patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                        delivery,
-                                        store,
-                                        appUsers
-                                      }).catch((err) => console.warn('Notification failed:', err)) : Promise.resolve()
-                                    ]).finally(() => {
-                                      setIsProcessingBackground(false);
+                                    Promise.resolve().then(async () => {
+                                      const backgroundTasks = [];
+
+                                      if (autoCODPayment && onCODUpdate) {
+                                        backgroundTasks.push(
+                                          onCODUpdate(delivery.id, autoCODPayment, true).catch((err) => {
+                                            console.warn('Background COD sync failed:', err);
+                                          })
+                                        );
+                                      }
+
+                                      backgroundTasks.push(
+                                        (async () => {
+                                          const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({
+                                            delivery,
+                                            allDeliveries,
+                                            driver: safeDriver,
+                                            patient,
+                                            store,
+                                            patients,
+                                            stores,
+                                            finishedStatuses: FINISHED_STATUSES
+                                          });
+
+                                          if (finishedLegEncodedPolyline) {
+                                            await updateDeliveryLocal(delivery.id, {
+                                              finished_leg_encoded_polyline: finishedLegEncodedPolyline
+                                            }, { skipSmartRefresh: true });
+                                          }
+                                        })().catch((err) => {
+                                          console.warn('Background polyline generation failed:', err);
+                                        })
+                                      );
+
+                                      if (nextStop) {
+                                        backgroundTasks.push(
+                                          base44.functions.invoke('setNextDeliveryFlag', {
+                                            driverId: delivery.driver_id,
+                                            deliveryDate: delivery.delivery_date,
+                                            targetDeliveryId: nextStop.id
+                                          }).catch((e) => {
+                                            console.warn('[NextFlag] Server ensure failed (UI already updated locally):', e?.message || e);
+                                          })
+                                        );
+                                      } else if (currentUser?.id) {
+                                        backgroundTasks.push(
+                                          (async () => {
+                                            const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+                                            if (appUsers && appUsers.length > 0) {
+                                              await base44.entities.AppUser.update(appUsers[0].id, {
+                                                driver_status: 'off_duty',
+                                                location_tracking_enabled: false
+                                              });
+                                            }
+                                          })().catch((err) => {
+                                            console.warn('Background driver status update failed:', err);
+                                          })
+                                        );
+                                      }
+
+                                      backgroundTasks.push(
+                                        (userHasRole(currentUser, 'driver') ? notifyDriverCompleted({
+                                          driver: currentUser,
+                                          patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                          delivery,
+                                          store,
+                                          appUsers
+                                        }) : Promise.resolve()).catch((err) => {
+                                          console.warn('Notification failed:', err);
+                                        })
+                                      );
+
+                                      await Promise.allSettled(backgroundTasks);
                                     });
 
                                   } catch (error) {
