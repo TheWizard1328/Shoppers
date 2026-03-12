@@ -75,12 +75,14 @@ export const updatePatientGPS = async ({ patientId, storeId, stores }) => {
     // 2) Compute distance from store
     const distanceKm = haversineKm(store.latitude, store.longitude, fresh.latitude, fresh.longitude);
 
-    // 3) Update patient
-    const updatedPatient = await base44.entities.Patient.update(patientId, {
+    // 3) Update source patient + same-city matches in backend
+    const response = await base44.functions.invoke('updateMatchingPatientGPS', {
+      patientId,
+      storeId,
       latitude: fresh.latitude,
       longitude: fresh.longitude,
-      distance_from_store: distanceKm,
     });
+    const result = response?.data || response;
 
     try {
       window.dispatchEvent(new CustomEvent('patientGpsUpdated', {
@@ -89,14 +91,17 @@ export const updatePatientGPS = async ({ patientId, storeId, stores }) => {
           latitude: fresh.latitude,
           longitude: fresh.longitude,
           distance_from_store: distanceKm,
-          patient: updatedPatient,
+          updatedCount: result?.updatedCount || 1,
+          patients: result?.updatedPatients || [],
         }
       }));
     } catch {}
 
     // 4) Notify UI
     toast.success("Patient GPS Updated", {
-      description: `Location saved. Distance from store: ${distanceKm} km`,
+      description: result?.updatedCount > 1
+        ? `Location saved for ${result.updatedCount} matching patients. Distance from store: ${distanceKm} km`
+        : `Location saved. Distance from store: ${distanceKm} km`,
     });
 
     _gpsUpdateInFlight = false;
@@ -106,7 +111,8 @@ export const updatePatientGPS = async ({ patientId, storeId, stores }) => {
       distance: distanceKm,
       latitude: fresh.latitude,
       longitude: fresh.longitude,
-      patient: updatedPatient,
+      updatedCount: result?.updatedCount || 1,
+      patients: result?.updatedPatients || [],
     };
   } catch (error) {
     if (error?.response?.status === 429 || (error?.message && /429|rate limit/i.test(error.message))) {
