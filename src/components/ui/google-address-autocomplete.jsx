@@ -148,6 +148,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
 
   // Handle address selection and fetch full details
   const handleSelectAddress = async (prediction) => {
+    if (justSelected.current) return;
     try {
       // Set flag to prevent search after selection
       justSelected.current = true;
