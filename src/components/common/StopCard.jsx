@@ -1577,6 +1577,10 @@ export default function StopCard({
 
                                     if (nextStop) {
                                       await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                                      const nextCardElement = document.getElementById(`stop-card-${nextStop.id}`);
+                                      if (nextCardElement) {
+                                        nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                      }
                                     } else {
                                       fabControlEvents.notifyDoneButtonClicked();
                                       window.dispatchEvent(new CustomEvent('showRouteSummary', {
@@ -1620,7 +1624,7 @@ export default function StopCard({
                                         if (nextCardElement) {
                                           nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                                         }
-                                      }, 100);
+                                      }, 0);
                                     }
 
                                     fabControlEvents.reactivateFAB(true);
