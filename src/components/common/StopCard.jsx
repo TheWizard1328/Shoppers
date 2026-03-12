@@ -1164,7 +1164,7 @@ export default function StopCard({
 
 
         onClick={(e) => {
-          if (e.target?.closest?.('[data-stopcard-action="start"]')) return;
+          if (startTapLockRef.current || e.target?.closest?.('[data-stopcard-action="start"]')) return;
           // Allow clicking even for stripped deliveries (to show driver notes)
           onClick && onClick(delivery);
         }}
