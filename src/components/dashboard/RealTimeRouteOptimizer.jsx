@@ -86,6 +86,18 @@ export default function RealTimeRouteOptimizer({
         console.log(`✅ [RealTimeRouteOptimizer] Route ${data.routeChanged ? 'OPTIMIZED' : 'unchanged'}`);
         
         if (data.routeChanged) {
+          if (Array.isArray(data.optimizedRoute) && data.optimizedRoute.length > 0) {
+            window.dispatchEvent(new CustomEvent('etaUpdated', {
+              detail: {
+                driverId: selectedDriverId,
+                updates: data.optimizedRoute.map((stop) => ({
+                  deliveryId: stop.deliveryId || stop.delivery_id,
+                  newEta: stop.newETA || stop.eta
+                })).filter((stop) => stop.deliveryId && stop.newEta)
+              }
+            }));
+          }
+
           // CRITICAL: Backend has already updated stop_order and ETAs
           // Just show notification and force UI refresh
           if (showUIRef.current) {
@@ -185,6 +197,20 @@ export default function RealTimeRouteOptimizer({
       });
     };
 
+    const handleSignificantDelayDetected = (event) => {
+      const { driverId, deliveryDate } = event.detail || {};
+      if (driverId !== selectedDriverId || deliveryDate !== selectedDate) return;
+      if (isOptimizingRef.current) return;
+      const timeSinceLastOptimization = Date.now() - lastOptimizationTimeRef.current;
+      if (timeSinceLastOptimization < OPTIMIZATION_COOLDOWN) return;
+      showUIRef.current = false;
+      isOptimizingRef.current = true;
+      lastOptimizationTimeRef.current = Date.now();
+      optimizeRoute().finally(() => {
+        isOptimizingRef.current = false;
+      });
+    };
+
     // Listen for route optimization completion to prevent duplicate runs
     const handleOptimizationComplete = (event) => {
       const { source } = event.detail || {};
@@ -195,11 +221,13 @@ export default function RealTimeRouteOptimizer({
 
     window.addEventListener('triggerRouteOptimization', handleTriggerOptimization);
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+    window.addEventListener('significantDelayDetected', handleSignificantDelayDetected);
     window.addEventListener('routeOptimizationComplete', handleOptimizationComplete);
 
     return () => {
       window.removeEventListener('triggerRouteOptimization', handleTriggerOptimization);
       window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+      window.removeEventListener('significantDelayDetected', handleSignificantDelayDetected);
       window.removeEventListener('routeOptimizationComplete', handleOptimizationComplete);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

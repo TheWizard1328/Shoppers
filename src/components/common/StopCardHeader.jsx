@@ -7,25 +7,6 @@ import { userHasRole } from "../utils/userRoles";
 import { format } from "date-fns";
 import { getCurrentEtaForDelivery, getEtaTrendForDelivery, primeEtaTrendBus } from "../utils/etaTrendBus";
 
-// Lightweight ETA override bus to reflect real-time ETA updates without full data reloads
-const etaBus = (() => {
-  if (typeof window === 'undefined') return { map: new Map(), version: 0 };
-  if (!window.__etaBus) {
-    window.__etaBus = { map: new Map(), version: 0 };
-    window.addEventListener('etaUpdated', (e) => {
-      try {
-        const updates = (e?.detail?.updates) || [];
-        updates.forEach((u) => {
-          const id = u?.deliveryId || u?.delivery_id;
-          if (id && u?.newEta) window.__etaBus.map.set(id, u.newEta);
-        });
-        window.__etaBus.version++;
-      } catch (_) {}
-    });
-  }
-  return window.__etaBus;
-})();
-
 // Local status labels (mirrors StopCard)
 const statusConfig = {
   pending: { label: "Pending" },
@@ -71,14 +52,21 @@ export default function StopCardHeader({
   appUsers = [],
   isReturnDelivery,
 }) {
-  // Subscribe to ETA bus to trigger re-render on updates
-  const [etaVersion, setEtaVersion] = React.useState(etaBus.version);
+  const [etaTrendVersion, setEtaTrendVersion] = React.useState(0);
   React.useEffect(() => {
-    const handler = () => setEtaVersion(etaBus.version);
-    window.addEventListener('etaUpdated', handler);
-    return () => window.removeEventListener('etaUpdated', handler);
-  }, []);
+    primeEtaTrendBus([delivery]);
+    const handler = () => setEtaTrendVersion((value) => value + 1);
+    window.addEventListener('etaTrendUpdated', handler);
+    return () => window.removeEventListener('etaTrendUpdated', handler);
+  }, [delivery]);
+
   const isFinished = FINISHED_STATUSES.includes(delivery?.status);
+  const etaTrend = !isFinished ? getEtaTrendForDelivery(delivery?.id) : null;
+  const timeColor = etaTrend?.trend === 'improved'
+    ? '#16a34a'
+    : etaTrend?.trend === 'delayed'
+      ? '#dc2626'
+      : 'var(--text-slate-600)';
 
   const timeDisplay = (() => {
     if (isFinished && delivery?.actual_delivery_time) {
@@ -92,9 +80,10 @@ export default function StopCardHeader({
         </>
       );
     }
-    // Prefer real-time ETA override from bus if available
-    const overrideEta = etaBus.map.get(delivery?.id);
-    const eta = overrideEta || delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--";
+    const eta = getCurrentEtaForDelivery(
+      delivery?.id,
+      delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--"
+    );
     return <span className="font-medium">ETA: {formatTime12Hour(eta)}</span>;
   })();
 
@@ -160,7 +149,7 @@ export default function StopCardHeader({
           {finalDisplayName}
         </h3>
         <div className="flex flex-col items-center min-h-[40px]">
-          <div className="text-lg md:text-sm flex items-center justify-center" style={{ color: "var(--text-slate-600)" }}>
+          <div className="text-lg md:text-sm flex items-center justify-center" style={{ color: timeColor }}>
             {timeDisplay}
             {showDriverName && safeDriver && (
               <>

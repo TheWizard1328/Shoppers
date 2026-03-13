@@ -145,12 +145,34 @@ export default function ETATracker({
           }
 
           console.log(`✅ [ETATracker] Updated ${etaUpdates.length} active ETAs (filtered ${data.durationUpdates.length - activeUpdates.length} finished)`);
+
+          const nextActiveUpdate = [...activeUpdates]
+            .sort((a, b) => (a.stopOrder || Infinity) - (b.stopOrder || Infinity))[0];
+          if (nextActiveUpdate?.deliveryId && nextActiveUpdate?.eta) {
+            const previousEta = getCurrentEtaForDelivery(nextActiveUpdate.deliveryId);
+            if (previousEta && previousEta !== nextActiveUpdate.eta) {
+              const [prevHours, prevMinutes] = previousEta.split(':').map(Number);
+              const [nextHours, nextMinutes] = nextActiveUpdate.eta.split(':').map(Number);
+              const diffMinutes = ((nextHours * 60) + nextMinutes) - ((prevHours * 60) + prevMinutes);
+              if (diffMinutes >= 10) {
+                window.dispatchEvent(new CustomEvent('significantDelayDetected', {
+                  detail: {
+                    driverId: selectedDriverId,
+                    deliveryDate: selectedDate,
+                    deliveryId: nextActiveUpdate.deliveryId,
+                    previousEta,
+                    newEta: nextActiveUpdate.eta,
+                    diffMinutes
+                  }
+                }));
+              }
+            }
+          }
           
           if (onETAUpdate) {
             onETAUpdate(etaUpdates);
           }
 
-          // Dispatch custom event for other components to listen
           window.dispatchEvent(new CustomEvent('etaUpdated', {
             detail: {
               driverId: selectedDriverId,

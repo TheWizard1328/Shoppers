@@ -58,6 +58,13 @@ export default function QuickRouteAdjustments({
     setDelayMinutes(15);
   };
 
+  useEffect(() => {
+    primeEtaTrendBus(incompleteDeliveries);
+    const handleTrendUpdate = () => setDelayMinutes((value) => value);
+    window.addEventListener('etaTrendUpdated', handleTrendUpdate);
+    return () => window.removeEventListener('etaTrendUpdated', handleTrendUpdate);
+  }, [incompleteDeliveries]);
+
   const getStopName = (delivery) => {
     if (delivery.patient_id) {
       const patient = patients.find(p => p && p.id === delivery.patient_id);
@@ -77,6 +84,13 @@ export default function QuickRouteAdjustments({
           const isNext = delivery.isNextDelivery === true;
           const canMoveUp = index > 0;
           const canMoveDown = index < incompleteDeliveries.length - 1;
+          const etaTrend = getEtaTrendForDelivery(delivery.id);
+          const etaDisplay = getCurrentEtaForDelivery(delivery.id, delivery.delivery_time_eta || delivery.delivery_time_start || '--:--');
+          const etaColorClass = etaTrend?.trend === 'improved'
+            ? 'text-green-600'
+            : etaTrend?.trend === 'delayed'
+              ? 'text-red-600'
+              : 'text-slate-500';
 
           return (
             <motion.div
@@ -113,8 +127,8 @@ export default function QuickRouteAdjustments({
                   <span className="text-sm font-medium text-slate-900 truncate">{getStopName(delivery)}</span>
                   {isNext && <Badge className="bg-emerald-500 text-white text-[9px] px-1.5">NEXT</Badge>}
                 </div>
-                <div className="text-xs text-slate-500">
-                  ETA: {delivery.delivery_time_eta || delivery.delivery_time_start || '--:--'}
+                <div className={`text-xs ${etaColorClass}`}>
+                  ETA: {etaDisplay}
                 </div>
               </div>
 
