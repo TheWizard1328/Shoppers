@@ -119,7 +119,7 @@ export default function DeliveryMarkers({
         return <Circle key={`delivery-store-halo-${delivery.id}`} center={[deliveryStore.latitude, deliveryStore.longitude]} radius={40} pathOptions={{ color: delivery.pinColor, fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />;
       })(),
       <Marker
-        key={`delivery-${delivery.id}-${routeRenderKey}`}
+        key={`delivery-${delivery.id}`}
         position={markerPosition}
         icon={icon}
         zIndexOffset={dynamicZIndex}

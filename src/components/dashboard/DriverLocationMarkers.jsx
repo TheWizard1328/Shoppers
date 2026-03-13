@@ -358,22 +358,19 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       [...newVisibleIds].some(id => !prevIds.has(id)) ||
       [...prevIds].some(id => !newVisibleIds.has(id));
     
-    // Check if any driver's location OR timestamp has changed
+    // Check if any driver's actual coordinates changed
     const locationsChanged = deduplicatedDrivers.some(driver => {
       const driverKey = getDriverIdentityKey(driver) || driver.id;
       const existing = visibleDrivers.find(d => (getDriverIdentityKey(d) || d.id) === driverKey);
       if (!existing) return true;
-      // Check if coordinates changed at all
       const latDiff = Math.abs((driver.current_latitude || 0) - (existing.current_latitude || 0));
       const lngDiff = Math.abs((driver.current_longitude || 0) - (existing.current_longitude || 0));
-      // CRITICAL: Also check if timestamp changed - forces marker popup update
-      const timestampChanged = driver.location_updated_at !== existing.location_updated_at;
       
-      if (latDiff > 0 || lngDiff > 0 || timestampChanged) {
-        console.log(`🔄 [DriverMarkers - users prop] ${driver.user_name} location changed - lat: ${latDiff.toFixed(6)}, lng: ${lngDiff.toFixed(6)}, time changed: ${timestampChanged}`);
+      if (latDiff > 0 || lngDiff > 0) {
+        console.log(`🔄 [DriverMarkers - users prop] ${driver.user_name} location changed - lat: ${latDiff.toFixed(6)}, lng: ${lngDiff.toFixed(6)}`);
       }
       
-      return latDiff > 0 || lngDiff > 0 || timestampChanged;
+      return latDiff > 0 || lngDiff > 0;
     });
     
     // Only update state if there's an actual meaningful change

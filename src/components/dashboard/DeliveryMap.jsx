@@ -175,7 +175,6 @@ export default function DeliveryMap({
         });
         return Array.from(next.values());
       });
-      setRouteRenderKey((value) => value + 1);
     };
 
     const handleDeliveriesUpdate = () => {
