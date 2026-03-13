@@ -542,6 +542,8 @@ export default function SquareManagement() {
     }
 
     items = items.filter(item => {
+      const linkedDelivery = deliveries.find(d => d?.id === item.delivery_id);
+      if (linkedDelivery?.status === 'pending') return false;
       const soldInSquare = hasBeenSoldInSquare(item);
       const codDetails = getCODPaymentDetails(item.name, item.location_id);
       return !item.is_sold && !soldInSquare && codDetails.status !== 'collected';
@@ -826,8 +828,10 @@ export default function SquareManagement() {
                       <td className="p-3">
                         <div className="font-medium text-sm text-slate-900 dark:text-slate-50">
                           {(() => {
-                            const parsed = parseSquareItemName(item.name);
-                            return parsed?.patientName || item.name || 'N/A';
+                            const delivery = deliveries.find(d => d?.id === item.delivery_id);
+                            const patient = delivery?.patient_id ? patients.find(p => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id) : null;
+                            const parsed = parseSquareItemName(item.name || item.item_name);
+                            return patient?.full_name || parsed?.patientName || item.name || item.item_name || 'N/A';
                           })()}
                         </div>
                        {userIsAppOwner && itemDrivers.length > 0 && (
@@ -985,8 +989,10 @@ export default function SquareManagement() {
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-sm text-slate-900 dark:text-slate-50 truncate">
                           {(() => {
-                            const parsed = parseSquareItemName(item.name);
-                            return parsed?.patientName || item.name || 'N/A';
+                            const delivery = deliveries.find(d => d?.id === item.delivery_id);
+                            const patient = delivery?.patient_id ? patients.find(p => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id) : null;
+                            const parsed = parseSquareItemName(item.name || item.item_name);
+                            return patient?.full_name || parsed?.patientName || item.name || item.item_name || 'N/A';
                           })()}
                         </p>
                         {item.description && (
