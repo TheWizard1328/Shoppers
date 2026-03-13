@@ -30,6 +30,10 @@ function normalizeText(value) {
   return String(value || '').trim();
 }
 
+function isValidEntityId(value) {
+  return /^[a-f0-9]{24}$/i.test(String(value || ''));
+}
+
 function hasCollectedCardPayment(delivery) {
   const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
   return codPayments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
@@ -270,7 +274,7 @@ Deno.serve(async (req) => {
       return isRecentDelivery(delivery?.delivery_date) && Number(delivery?.cod_total_amount_required || 0) > 0;
     });
 
-    const patientIds = Array.from(new Set(relevantDeliveries.map((delivery) => delivery?.patient_id).filter(Boolean)));
+    const patientIds = Array.from(new Set(relevantDeliveries.map((delivery) => delivery?.patient_id).filter((id) => isValidEntityId(id))));
     const patients = patientIds.length
       ? await base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } })
       : [];
@@ -533,7 +537,7 @@ Deno.serve(async (req) => {
         type: 'collection',
         status: 'pending',
         delivery_id: delivery.id,
-        patient_id: delivery.patient_id || null,
+        patient_id: isValidEntityId(delivery.patient_id) ? delivery.patient_id : null,
         store_id: delivery.store_id,
         location_id: locationId,
         driver_id: delivery.driver_id || null,
