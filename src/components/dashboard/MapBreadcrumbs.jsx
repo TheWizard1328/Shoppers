@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { CircleMarker, Polyline } from 'react-leaflet';
 
 const getBreadcrumbRouteColor = () => {
@@ -8,9 +8,13 @@ const getBreadcrumbRouteColor = () => {
   return isDarkMode ? '#39FF14' : '#16a34a';
 };
 
-export default function MapBreadcrumbs({ breadcrumbsData }) {
+export default function MapBreadcrumbs({ breadcrumbsData, currentZoom = 12 }) {
   const lines = [];
   const breadcrumbRouteColor = getBreadcrumbRouteColor();
+  const breadcrumbDotRadius = useMemo(() => {
+    const zoom = Number.isFinite(currentZoom) ? currentZoom : 12;
+    return Math.max(1.5, Math.min(4.5, 7 - zoom * 0.25));
+  }, [currentZoom]);
 
   if (breadcrumbsData.historical && breadcrumbsData.historical.length > 0) {
     breadcrumbsData.historical.forEach((trail) => {
@@ -44,7 +48,7 @@ export default function MapBreadcrumbs({ breadcrumbsData }) {
           <CircleMarker
             key={`current-breadcrumb-point-${point.key}`}
             center={[point.lat, point.lng]}
-            radius={3}
+            radius={breadcrumbDotRadius}
             pathOptions={{
               color: breadcrumbRouteColor,
               fillColor: breadcrumbRouteColor,

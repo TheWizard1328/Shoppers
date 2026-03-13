@@ -816,7 +816,7 @@ export default function DeliveryMap({
           stores={stores}
         />
 
-        {showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} safeUsers={safeUsers} />}
+        {showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} safeUsers={safeUsers} />}
       </MapContainer>
 
       <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? (isStatsCardExpanded ? 216 : 116) : 0} isMobile={isMobile} />
