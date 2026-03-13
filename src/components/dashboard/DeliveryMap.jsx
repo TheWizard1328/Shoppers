@@ -750,7 +750,7 @@ export default function DeliveryMap({
               selectedDriverId={selectedDriverId}
             />
             <HereType1Polylines
-              key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}-${routeRecalcVersion}`}
+              key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`}
               isViewingCurrentDate={isViewingCurrentDate}
               deliveryMarkers={deliveryMarkers}
               pickupMarkers={pickupMarkers}
