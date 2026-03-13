@@ -229,6 +229,11 @@ export default function DeliveryMap({
     return map;
   }, [safeUsers]);
 
+  const deliveriesToShow = useMemo(() => {
+    if (!showOtherDriverDeliveries || otherDriverDeliveries.length === 0) return safeDeliveries;
+    return dedupeById([...safeDeliveries, ...otherDriverDeliveries]);
+  }, [safeDeliveries, otherDriverDeliveries, showOtherDriverDeliveries]);
+
   const driverNameLookupMap = useMemo(() => {
     const map = new Map();
     safeUsers.forEach((user) => {
@@ -244,11 +249,6 @@ export default function DeliveryMap({
     });
     return map;
   }, [safeUsers, deliveriesToShow]);
-
-  const deliveriesToShow = useMemo(() => {
-    if (!showOtherDriverDeliveries || otherDriverDeliveries.length === 0) return safeDeliveries;
-    return dedupeById([...safeDeliveries, ...otherDriverDeliveries]);
-  }, [safeDeliveries, otherDriverDeliveries, showOtherDriverDeliveries]);
 
   const { pickupMarkers, groupedPickupMarkers, deliveryMarkers, groupedDeliveryMarkers, hasIncompleteStops } = useMemo(() => {
     const pickups = [];
