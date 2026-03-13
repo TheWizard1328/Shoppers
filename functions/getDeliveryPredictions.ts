@@ -36,20 +36,21 @@ Deno.serve(async (req) => {
       return Response.json({ predictions: [], count: 0, selectedDate, dayOfWeek: selectedDayName });
     }
 
-    const [allPatients, existingDeliveries] = await Promise.all([
-      base44.entities.Patient.filter(
-        { status: 'active', store_id: { $in: targetStoreIds } },
-        'full_name',
-        REQUEST_LIMIT * 2
-      ),
-      base44.entities.Delivery.filter(
-        { delivery_date: selectedDate, store_id: { $in: targetStoreIds } },
-        '-created_date',
-        REQUEST_LIMIT * 2
-      )
+    const [allPatientsRaw, allDeliveriesRaw] = await Promise.all([
+      base44.entities.Patient.list('full_name', REQUEST_LIMIT * 4),
+      base44.entities.Delivery.list('-created_date', REQUEST_LIMIT * 4)
     ]);
 
+    const allPatients = Array.isArray(allPatientsRaw) ? allPatientsRaw : [];
+    const existingDeliveries = (Array.isArray(allDeliveriesRaw) ? allDeliveriesRaw : []).filter((delivery) => {
+      if (!delivery) return false;
+      return delivery.delivery_date === selectedDate && targetStoreIds.includes(delivery.store_id);
+    });
+
     const patients = allPatients.filter((patient) => {
+      if (!patient) return false;
+      if (patient.status !== 'active') return false;
+      if (!targetStoreIds.includes(patient.store_id)) return false;
       if (!patient) return false;
       return patient.recurring ||
         patient.recurring_daily ||
