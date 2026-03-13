@@ -120,3 +120,13 @@ export function parseLocalTimestamp(localTimestamp) {
 
   return new Date(localTimestamp);
 }
+
+export function parseEntityTimestamp(timestamp) {
+  if (!timestamp) {
+    return null;
+  }
+
+  const normalizedTimestamp = String(timestamp);
+  const hasTimezoneSuffix = /Z$|[+-]\d{2}:\d{2}$/.test(normalizedTimestamp);
+  return new Date(hasTimezoneSuffix ? normalizedTimestamp : `${normalizedTimestamp}Z`);
+}
