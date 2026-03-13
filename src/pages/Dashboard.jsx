@@ -1731,31 +1731,24 @@ function Dashboard() {
       };
 
       const trackerStatus = locationTracker.getStatus();
-      if (trackerStatus.lastLocation?.latitude && trackerStatus.lastLocation?.longitude) {
-        syncMobileLocation({ latitude: trackerStatus.lastLocation.latitude, longitude: trackerStatus.lastLocation.longitude, timestamp: new Date().toISOString(), accuracy: trackerStatus.lastLocation.accuracy, source: trackerStatus.providerName || 'tracker' });
-      }
-
-      if (trackerStatus.providerName === 'native') {
-        const handleTrackerPosition = (event) => {
-          const { userId, latitude, longitude, timestamp, accuracy, source } = event.detail || {};
-          if (userId && userId !== currentUser.id) return;
-          if (!latitude || !longitude) return;
-          syncMobileLocation({ latitude, longitude, timestamp, accuracy, source: source || 'tracker' });
-        };
-        window.addEventListener('driverPositionUpdated', handleTrackerPosition);
-        return () => window.removeEventListener('driverPositionUpdated', handleTrackerPosition);
-      }
-
-      if (!navigator.geolocation) {
+      if (trackerStatus.lastLocation?.latitude && trackerStatus.lastLocation?.longitude) syncMobileLocation({ latitude: trackerStatus.lastLocation.latitude, longitude: trackerStatus.lastLocation.longitude, timestamp: new Date().toISOString(), accuracy: trackerStatus.lastLocation.accuracy, source: trackerStatus.providerName || 'tracker' });
+      const handleTrackerPosition = (event) => {
+        const { userId, latitude, longitude, timestamp, accuracy, source } = event.detail || {};
+        if (userId && userId !== currentUser.id) return;
+        if (!latitude || !longitude) return;
+        syncMobileLocation({ latitude, longitude, timestamp, accuracy, source: source || 'tracker' });
+      };
+      window.addEventListener('driverPositionUpdated', handleTrackerPosition);
+      if (!trackerStatus.isTracking && navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(
+          (position) => syncMobileLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude, timestamp: new Date(position.timestamp).toISOString(), accuracy: position.coords.accuracy, source: 'device_gps' }),
+          (error) => console.warn('⚠️ [Dashboard] GPS error:', error.message),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } else if (!trackerStatus.isTracking) {
         console.warn('⚠️ [Dashboard] Geolocation not available on this device');
-        return;
       }
-
-      watchId = navigator.geolocation.watchPosition(
-        (position) => syncMobileLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude, timestamp: new Date(position.timestamp).toISOString(), accuracy: position.coords.accuracy, source: 'device_gps' }),
-        (error) => console.warn('⚠️ [Dashboard] GPS error:', error.message),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
+      return () => window.removeEventListener('driverPositionUpdated', handleTrackerPosition);
     };
 
     const cleanup = startWatchingPosition();
