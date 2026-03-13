@@ -278,25 +278,23 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
       // Handle single driver update
       if (singleUpdate && updatedAppUsers && updatedAppUsers.length === 1) {
-        const user = updatedAppUsers[0];
+        const user = normalizeDriverRecord(updatedAppUsers[0]);
+        const userKey = getDriverIdentityKey(user);
         console.log(`🔔 [DriverMarkers] Single update - ${user.user_name}, coords: ${user.current_latitude}, ${user.current_longitude}, time: ${user.location_updated_at}`);
         
         if (user.current_latitude && user.current_longitude) {
           setVisibleDrivers(prev => {
-            const exists = prev.find(d => d && (d.id === user.id || d.user_id === user.user_id));
-            if (exists) {
-              console.log(`✏️ [DriverMarkers] Updating existing marker for ${user.user_name}`);
-              return prev.map(d => (d.id === user.id || d.user_id === user.user_id) ? {
-                ...d,
+            const nextDrivers = prev.filter((driver) => (getDriverIdentityKey(driver) || driver?.id) !== userKey);
+            console.log(`✏️ [DriverMarkers] Upserting marker for ${user.user_name}`);
+            return dedupeVisibleDrivers([
+              ...nextDrivers,
+              {
                 ...user,
                 current_latitude: user.current_latitude,
                 current_longitude: user.current_longitude,
                 location_updated_at: user.location_updated_at || new Date().toISOString()
-              } : d);
-            } else {
-              console.log(`➕ [DriverMarkers] Adding new marker for ${user.user_name}`);
-              return [...prev, user];
-            }
+              }
+            ]);
           });
         }
         return;
