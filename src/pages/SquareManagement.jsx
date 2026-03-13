@@ -575,15 +575,39 @@ export default function SquareManagement() {
     });
   }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, patients]);
 
+  const selectedDriverUserIds = React.useMemo(() => {
+    if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+      const selectedDriver = drivers.find(driver => driver?.id === selectedDriverFilter);
+      return new Set(selectedDriver?.user_id ? [selectedDriver.user_id] : []);
+    }
+    return new Set((drivers || []).map(driver => driver?.user_id).filter(Boolean));
+  }, [drivers, selectedDriverFilter]);
+
+  const lookbackStart = React.useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 14);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, []);
+
   const codDeliveriesCount = React.useMemo(() => {
-    const visibleLocationIds = new Set(filteredCatalogItems.map(item => item.location_id).filter(Boolean));
     return deliveries.filter(delivery => {
       if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
-      const store = stores.find(s => s?.id === delivery.store_id);
-      const config = locationConfigs.find(c => c.id === store?.square_location_config_id);
-      return !visibleLocationIds.size || (config?.square_location_id && visibleLocationIds.has(config.square_location_id));
+      if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return false;
+      if (selectedDriverUserIds.size === 0) return false;
+      return selectedDriverUserIds.has(delivery.driver_id);
     }).length;
-  }, [deliveries, filteredCatalogItems, locationConfigs, stores]);
+  }, [deliveries, lookbackStart, selectedDriverUserIds]);
+
+  const filteredTransactionsCount = React.useMemo(() => {
+    return allTransactions.filter(transaction => {
+      if (!transaction) return false;
+      const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
+      if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
+      if (selectedDriverUserIds.size === 0) return false;
+      return selectedDriverUserIds.has(transaction.driver_id);
+    }).length;
+  }, [allTransactions, lookbackStart, selectedDriverUserIds]);
 
   // Summary stats
   const stats = {
@@ -637,7 +661,7 @@ export default function SquareManagement() {
                 error={error}
                 codDeliveryCount={codDeliveriesCount}
                 catalogItemCount={filteredCatalogItems.length}
-                transactionCount={allTransactions.length}
+                transactionCount={filteredTransactionsCount}
               />
             </div>
           )}
