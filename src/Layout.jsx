@@ -2244,13 +2244,8 @@ export default function Layout({ children, currentPageName }) {
 
 
     } catch (error) {
-      setUsers([]);
-      setDrivers([]);
-      setStores([]);
-      setPatients([]);
-      setDeliveries([]);
-      setAppUsers([]);
-      setDataLoaded(true); // Ensure it's set even on error
+      console.warn('⚠️ [Layout] Full data reload failed - preserving current dashboard data:', error?.message || error);
+      setDataLoaded(true);
     } finally {
       triggerFullDataLoad.isRunning = false;
     }
