@@ -1,20 +1,29 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+const buildFallback = (origin, destination, extra = {}) => Response.json({
+  coordinates: [
+    { lat: Number(origin?.lat), lng: Number(origin?.lng) },
+    { lat: Number(destination?.lat), lng: Number(destination?.lng) }
+  ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)),
+  estimated_distance_km: 0,
+  estimated_duration_minutes: 0,
+  polyline_format: 'fallback',
+  ...extra
+});
 
 Deno.serve(async (req) => {
   let origin = null;
   let destination = null;
+
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await req.json().catch(() => ({}));
-    ({ origin, destination } = body || {});
+    origin = body?.origin || null;
+    destination = body?.destination || null;
 
-    if (!origin || !destination || origin.lat == null || origin.lng == null || destination.lat == null || destination.lng == null) {
+    const originLat = Number(origin?.lat);
+    const originLng = Number(origin?.lng);
+    const destinationLat = Number(destination?.lat);
+    const destinationLng = Number(destination?.lng);
+
+    if (![originLat, originLng, destinationLat, destinationLng].every(Number.isFinite)) {
       return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
     }
 
@@ -25,48 +34,35 @@ Deno.serve(async (req) => {
 
     const params = new URLSearchParams({
       transportMode: 'car',
-      origin: `${origin.lat},${origin.lng}`,
-      destination: `${destination.lat},${destination.lng}`,
+      origin: `${originLat},${originLng}`,
+      destination: `${destinationLat},${destinationLng}`,
       return: 'polyline,summary',
       apikey: hereApiKey,
     });
-    const url = `https://router.hereapi.com/v8/routes?${params.toString()}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
-    const resp = await fetch(url, { signal: controller.signal });
+    const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+      signal: controller.signal,
+      headers: { accept: 'application/json' }
+    });
     clearTimeout(timeoutId);
 
     if (!resp.ok) {
       const text = await resp.text();
       console.error('[HERE Routing] provider error', { status: resp.status, details: text?.slice(0, 500) });
-      return Response.json({
-        coordinates: [
-          { lat: origin.lat, lng: origin.lng },
-          { lat: destination.lat, lng: destination.lng }
-        ],
-        estimated_distance_km: 0,
-        estimated_duration_minutes: 0,
-        polyline_format: 'fallback'
-      });
+      return buildFallback(origin, destination, { provider_status: resp.status });
     }
 
     const data = await resp.json();
     const route = Array.isArray(data?.routes) ? data.routes[0] : null;
-    if (!route) {
+    const sections = Array.isArray(route?.sections) ? route.sections : [];
+
+    if (!route || !sections.length) {
       console.error('[HERE Routing] no route in payload', { payload: data });
-      return Response.json({
-        coordinates: [
-          { lat: origin.lat, lng: origin.lng },
-          { lat: destination.lat, lng: destination.lng }
-        ],
-        estimated_distance_km: 0,
-        estimated_duration_minutes: 0,
-        polyline_format: 'fallback'
-      });
+      return buildFallback(origin, destination);
     }
 
-    const sections = Array.isArray(route?.sections) ? route.sections : [];
     const polylines = sections.map((section) => section?.polyline).filter(Boolean);
     const totalMeters = sections.reduce((sum, section) => sum + (section?.summary?.length || 0), 0);
     const totalSeconds = sections.reduce((sum, section) => sum + (section?.summary?.duration || 0), 0);
@@ -74,11 +70,15 @@ Deno.serve(async (req) => {
     const estimated_duration_minutes = Math.round(totalSeconds / 60);
 
     if (!polylines.length) {
-      const coordinates = [
-        { lat: origin.lat, lng: origin.lng },
-        { lat: destination.lat, lng: destination.lng }
-      ];
-      return Response.json({ coordinates, estimated_distance_km, estimated_duration_minutes, polyline_format: 'flexible' });
+      return Response.json({
+        coordinates: [
+          { lat: originLat, lng: originLng },
+          { lat: destinationLat, lng: destinationLng }
+        ],
+        estimated_distance_km,
+        estimated_duration_minutes,
+        polyline_format: 'fallback'
+      });
     }
 
     return Response.json({
@@ -90,14 +90,6 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error('[getHereDirections] unexpected error', err?.message || err);
-    return Response.json({
-      coordinates: [
-        { lat: origin?.lat, lng: origin?.lng },
-        { lat: destination?.lat, lng: destination?.lng }
-      ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)),
-      estimated_distance_km: 0,
-      estimated_duration_minutes: 0,
-      polyline_format: 'fallback'
-    });
+    return buildFallback(origin, destination, { error: err?.message || 'Unknown error' });
   }
 });
