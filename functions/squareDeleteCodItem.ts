@@ -1,6 +1,39 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com/v2';
+const SQUARE_VERSION = '2024-01-18';
+
+async function safeDeleteSquareCatalogObject(catalogObjectId, accessToken) {
+  if (!catalogObjectId) return { attempted: false, ok: false };
+
+  try {
+    const response = await fetch(`${SQUARE_BASE_URL}/catalog/object/${catalogObjectId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Square-Version': SQUARE_VERSION,
+      },
+    });
+
+    const responseText = await response.text();
+    let responseBody = null;
+    try {
+      responseBody = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      responseBody = responseText || null;
+    }
+
+    if (!response.ok) {
+      console.warn('[squareDeleteCodItem] Square delete non-fatal error:', response.status, responseBody);
+      return { attempted: true, ok: false, status: response.status, body: responseBody };
+    }
+
+    return { attempted: true, ok: true, body: responseBody };
+  } catch (error) {
+    console.warn('[squareDeleteCodItem] Square delete request failed (non-fatal):', error?.message || error);
+    return { attempted: true, ok: false, error: error?.message || String(error) };
+  }
+}
 
 Deno.serve(async (req) => {
   try {
@@ -11,96 +44,104 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { deliveryId, transactionId, catalogObjectId, reason } = await req.json();
+    const { deliveryId, transactionId, catalogObjectId, reason } = await req.json().catch(() => ({}));
 
     if (!deliveryId && !transactionId && !catalogObjectId) {
       return Response.json({ error: 'Missing required field: deliveryId, transactionId, or catalogObjectId' }, { status: 400 });
     }
 
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
-
     if (!accessToken) {
       return Response.json({ error: 'Square credentials not configured' }, { status: 500 });
     }
 
-    let transaction = null;
-    let catalogIdToDelete = catalogObjectId;
+    let primaryTransaction = null;
+    const relatedTransactions = [];
 
-    // Find the transaction by various methods
-    try {
-      if (transactionId) {
-        // Direct transaction ID lookup
-        const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({ id: transactionId });
-        transaction = transactions[0];
-        catalogIdToDelete = transaction?.square_catalog_object_id || catalogObjectId;
-      } else if (deliveryId) {
-        // Find by delivery ID (any status, not just pending)
-        const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId });
-        transaction = transactions[0];
-        catalogIdToDelete = transaction?.square_catalog_object_id || catalogObjectId;
+    if (transactionId) {
+      const transaction = await base44.asServiceRole.entities.SquareTransaction.get(transactionId).catch(() => null);
+      if (transaction) {
+        primaryTransaction = transaction;
+        relatedTransactions.push(transaction);
       }
-    } catch (lookupError) {
-      console.warn('Could not find transaction record:', lookupError.message);
-      // Continue with catalog delete if we have the ID
     }
 
-    if (catalogIdToDelete) {
-      try {
-        // Delete the catalog item from Square
-        const deleteResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object/${catalogIdToDelete}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Square-Version': '2024-01-18'
-          }
-        });
+    if (deliveryId) {
+      const deliveryTransactions = await base44.asServiceRole.entities.SquareTransaction.filter(
+        { delivery_id: deliveryId },
+        '-updated_date',
+        50
+      ).catch(() => []);
 
-        if (!deleteResponse.ok) {
-          const errorData = await deleteResponse.json();
-          console.warn('Square delete error:', errorData);
-          // Continue to update our record even if Square delete fails
+      for (const transaction of deliveryTransactions || []) {
+        if (!relatedTransactions.some((item) => item?.id === transaction?.id)) {
+          relatedTransactions.push(transaction);
         }
-      } catch (squareError) {
-        console.warn('Could not delete from Square:', squareError.message);
-        // Continue anyway
+      }
+
+      if (!primaryTransaction && relatedTransactions.length > 0) {
+        primaryTransaction = relatedTransactions[0];
       }
     }
 
-    // Update our transaction record if we have one
-    if (transaction) {
-      const newStatus = reason === 'failed' ? 'failed' : 'cancelled';
-      try {
-        await base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
+    const catalogIdToDelete = catalogObjectId || primaryTransaction?.square_catalog_object_id || relatedTransactions[0]?.square_catalog_object_id || null;
+    const squareDeleteResult = await safeDeleteSquareCatalogObject(catalogIdToDelete, accessToken);
+
+    const newStatus = reason === 'failed' ? 'failed' : 'cancelled';
+    await Promise.all(
+      relatedTransactions.map((transaction) =>
+        base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
           status: newStatus,
           raw_square_data: {
             ...(transaction.raw_square_data || {}),
             deleted_at: new Date().toISOString(),
-            deleted_reason: reason || 'manual_delete'
-          }
-        });
-      } catch (updateError) {
-        console.warn('Could not update transaction record:', updateError.message);
-        // Continue anyway - catalog item was deleted
-      }
+            deleted_reason: reason || 'manual_delete',
+          },
+        }).catch((error) => {
+          console.warn('[squareDeleteCodItem] Could not update transaction record:', error?.message || error);
+          return null;
+        })
+      )
+    );
+
+    const catalogMatches = [];
+    if (deliveryId) {
+      const byDelivery = await base44.asServiceRole.entities.SquareCatalogItems.filter(
+        { delivery_id: deliveryId },
+        '-updated_date',
+        50
+      ).catch(() => []);
+      catalogMatches.push(...(byDelivery || []));
+    }
+    if (catalogIdToDelete) {
+      const byCatalog = await base44.asServiceRole.entities.SquareCatalogItems.filter(
+        { square_catalog_object_id: catalogIdToDelete },
+        '-updated_date',
+        50
+      ).catch(() => []);
+      catalogMatches.push(...(byCatalog || []));
     }
 
-    const squareCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 500).catch(() => []);
-    const matchingCatalogItems = (squareCatalogItems || []).filter((item) => {
-      return (deliveryId && item.delivery_id === deliveryId) || (catalogIdToDelete && item.square_catalog_object_id === catalogIdToDelete);
-    });
-
+    const uniqueCatalogMatches = Array.from(new Map(catalogMatches.filter(Boolean).map((item) => [item.id, item])).values());
     await Promise.all(
-      matchingCatalogItems.map((item) => base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch(() => null))
+      uniqueCatalogMatches.map((item) =>
+        base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch((error) => {
+          console.warn('[squareDeleteCodItem] Could not delete SquareCatalogItems record:', error?.message || error);
+          return null;
+        })
+      )
     );
 
     return Response.json({
       success: true,
       deletedCatalogId: catalogIdToDelete,
-      transactionStatus: transaction ? 'cancelled' : 'deleted_from_square'
+      transactionCount: relatedTransactions.length,
+      deletedCatalogRecordCount: uniqueCatalogMatches.length,
+      squareDeleteResult,
+      transactionStatus: relatedTransactions.length > 0 ? newStatus : 'deleted_from_square',
     });
-
   } catch (error) {
     console.error('Error deleting Square COD item:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
 });
