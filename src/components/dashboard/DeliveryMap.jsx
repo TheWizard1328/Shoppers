@@ -706,6 +706,7 @@ export default function DeliveryMap({
   const currentDriverMarker = useMemo(() => {
     if (!isMobile) return null;
     if (!currentUser) return null;
+
     const today = getEdmDate();
     const isViewingTodayOrFuture = !selectedDate || selectedDate >= today;
     if (!isViewingTodayOrFuture) return null;
@@ -718,15 +719,28 @@ export default function DeliveryMap({
     if (!shouldShowBlueDot) return null;
 
     let locationData = currentDriverLocation || (() => {
-      const appUser = (realtimeAppUsers || []).find((user) => user && (user.user_id === currentUser.id || user.id === currentUser.id));
-      return (appUser && appUser.current_latitude && appUser.current_longitude)
-        ? { latitude: appUser.current_latitude, longitude: appUser.current_longitude, timestamp: appUser.location_updated_at }
-        : null;
+      const appUser = (realtimeAppUsers || []).find(
+        (user) => user && (user.user_id === currentUser.id || user.id === currentUser.id)
+      );
+
+      if (appUser && appUser.current_latitude && appUser.current_longitude) {
+        return {
+          latitude: appUser.current_latitude,
+          longitude: appUser.current_longitude,
+          timestamp: appUser.location_updated_at
+        };
+      }
+
+      return null;
     })();
 
     if (!locationData?.latitude || !locationData?.longitude) {
       if (currentUser.current_latitude && currentUser.current_longitude) {
-        locationData = { latitude: currentUser.current_latitude, longitude: currentUser.current_longitude, timestamp: currentUser.location_updated_at };
+        locationData = {
+          latitude: currentUser.current_latitude,
+          longitude: currentUser.current_longitude,
+          timestamp: currentUser.location_updated_at
+        };
       } else {
         return null;
       }
@@ -1160,22 +1174,22 @@ export default function DeliveryMap({
         {(() => {
           const HeadingUpRotator = React.lazy(() => import('./HeadingUpRotator'));
           const enabled = false;
-          const hasValid = !!(currentDriverMarker && typeof currentDriverMarker.latitude === 'number' && typeof currentDriverMarker.longitude === 'number' && !Number.isNaN(currentDriverMarker.latitude) && !Number.isNaN(currentDriverMarker.longitude));
+          const hasValid = !!(routeAwareCurrentDriverMarker && typeof routeAwareCurrentDriverMarker.latitude === 'number' && typeof routeAwareCurrentDriverMarker.longitude === 'number' && !Number.isNaN(routeAwareCurrentDriverMarker.latitude) && !Number.isNaN(routeAwareCurrentDriverMarker.longitude));
           return (
             <>
               {enabled && hasValid && (
                 <React.Suspense fallback={null}>
-                  <HeadingUpRotator isMobile={isMobile} currentDriverMarker={currentDriverMarker} enabled={enabled} />
+                  <HeadingUpRotator isMobile={isMobile} currentDriverMarker={routeAwareCurrentDriverMarker} enabled={enabled} />
                 </React.Suspense>
               )}
               {hasValid && (
                 <Marker
                   key="current-driver-location"
-                  position={[currentDriverMarker.latitude, currentDriverMarker.longitude]}
+                  position={[routeAwareCurrentDriverMarker.latitude, routeAwareCurrentDriverMarker.longitude]}
                   icon={createLiveLocationDot()}
                   zIndexOffset={6000}
                   eventHandlers={{
-                    click: () => onMarkerClick && onMarkerClick(currentDriverMarker, 'driver'),
+                    click: () => onMarkerClick && onMarkerClick(routeAwareCurrentDriverMarker, 'driver'),
                     mouseover: (e) => { e.target.openPopup(); },
                     mouseout: (e) => { e.target.closePopup(); }
                   }}>
@@ -1189,10 +1203,10 @@ export default function DeliveryMap({
                         <Activity className="w-3 h-3 animate-pulse" />
                         Live GPS
                       </div>
-                      {currentDriverMarker.timestamp && (
+                      {routeAwareCurrentDriverMarker.timestamp && (
                         <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-600">
                           <Clock className="w-3 h-3" />
-                          Updated: {format(new Date(currentDriverMarker.timestamp), 'HH:mm:ss')}
+                          Updated: {format(new Date(routeAwareCurrentDriverMarker.timestamp), 'HH:mm:ss')}
                         </div>
                       )}
                     </div>
@@ -1203,7 +1217,7 @@ export default function DeliveryMap({
           );
         })()}
 
-        <DriverLocationMarkers users={driverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />
+        <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />
 
         {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (
           <>
