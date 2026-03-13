@@ -3619,8 +3619,8 @@ export default function DeliveryForm({
   }, [stagedDeliveries, stores, formData.driver_id]);
 
   const sortedProjectedDeliveries = useMemo(() => {
-    let filtered = [...projectedDeliveries];
-
+    const scheduledPatientIds=new Set((allDeliveries||[]).filter((d)=>d&&d.delivery_date===formData.delivery_date&&d.patient_id).map((d)=>d.patient_id));
+    let filtered = projectedDeliveries.filter((proj) => !scheduledPatientIds.has(proj.patient_id));
     // Filter by driver if a specific driver is selected (match by store's assigned driver)
     if (formData.driver_id && formData.driver_id !== '') {
       filtered = filtered.filter((proj) => {
@@ -3660,7 +3660,7 @@ export default function DeliveryForm({
       // Then by patient name
       return (a.patient_name || '').localeCompare(b.patient_name || '');
     });
-  }, [projectedDeliveries, stores, formData.driver_id, formData.delivery_date]);
+  }, [projectedDeliveries, allDeliveries, stores, formData.driver_id, formData.delivery_date]);
 
 
   const handleConfirmDelete = useCallback(async () => {
