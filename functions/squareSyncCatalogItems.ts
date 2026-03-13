@@ -10,8 +10,14 @@ function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   return `${mm}/${dd}(${storeAbbreviation || 'NA'})-${patientName || 'Unknown Patient'}`;
 }
 
-function resolveDeliveryPatientName(delivery, patientById) {
-  const patient = patientById.get(delivery?.patient_id);
+function resolveDeliveryPatient(delivery, patientById, patientByPid) {
+  const rawPatientRef = normalizeText(delivery?.patient_id);
+  if (!rawPatientRef) return null;
+  return patientById.get(rawPatientRef) || patientByPid.get(rawPatientRef) || null;
+}
+
+function resolveDeliveryPatientName(delivery, patientById, patientByPid) {
+  const patient = resolveDeliveryPatient(delivery, patientById, patientByPid);
   return normalizeText(patient?.full_name || delivery?.patient_name) || 'Unknown Patient';
 }
 
@@ -274,11 +280,23 @@ Deno.serve(async (req) => {
       return isRecentDelivery(delivery?.delivery_date) && Number(delivery?.cod_total_amount_required || 0) > 0;
     });
 
-    const patientIds = Array.from(new Set(relevantDeliveries.map((delivery) => delivery?.patient_id).filter((id) => isValidEntityId(id))));
-    const patients = patientIds.length
-      ? await base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } })
-      : [];
+    const deliveryPatientRefs = Array.from(new Set(relevantDeliveries.map((delivery) => normalizeText(delivery?.patient_id)).filter(Boolean)));
+    const patientEntityIds = deliveryPatientRefs.filter((id) => isValidEntityId(id));
+    const patientPidStrings = deliveryPatientRefs.filter((id) => !isValidEntityId(id));
+    const [patientsByEntityId, patientsByPid] = await Promise.all([
+      patientEntityIds.length
+        ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientEntityIds } })
+        : [],
+      patientPidStrings.length
+        ? base44.asServiceRole.entities.Patient.filter({ patient_id: { $in: patientPidStrings } })
+        : [],
+    ]);
+    const patients = [
+      ...(patientsByEntityId || []),
+      ...((patientsByPid || []).filter((patient) => !(patientsByEntityId || []).some((existing) => existing.id === patient.id))),
+    ];
     const patientById = new Map((patients || []).map((patient) => [patient.id, patient]));
+    const patientByPid = new Map((patients || []).map((patient) => [normalizeText(patient?.patient_id), patient]).filter(([patientId]) => patientId));
 
     const lookbackStartAt = getLookbackStartAt();
 
@@ -404,7 +422,8 @@ Deno.serve(async (req) => {
     for (const delivery of relevantDeliveries) {
       const store = storeById.get(delivery.store_id);
       const activeConfig = store?.square_location_config_id ? activeConfigById.get(store.square_location_config_id) : null;
-      const resolvedPatientName = resolveDeliveryPatientName(delivery, patientById);
+      const resolvedPatient = resolveDeliveryPatient(delivery, patientById, patientByPid);
+      const resolvedPatientName = resolveDeliveryPatientName(delivery, patientById, patientByPid);
       const itemName = formatItemName(delivery.delivery_date, store?.abbreviation, resolvedPatientName);
       const amountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
       const signature = buildItemSignature(itemName, amountCents);
@@ -537,7 +556,7 @@ Deno.serve(async (req) => {
         type: 'collection',
         status: 'pending',
         delivery_id: delivery.id,
-        patient_id: isValidEntityId(delivery.patient_id) ? delivery.patient_id : null,
+        patient_id: resolvedPatient?.id || (isValidEntityId(delivery.patient_id) ? delivery.patient_id : null),
         store_id: delivery.store_id,
         location_id: locationId,
         driver_id: delivery.driver_id || null,
