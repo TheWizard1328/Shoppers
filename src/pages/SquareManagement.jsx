@@ -599,19 +599,24 @@ export default function SquareManagement() {
     }).length;
   }, [deliveries, lookbackStart, selectedDriverUserIds]);
 
+  const isTransferTransaction = (transaction) => {
+    const label = `${transaction?.item_name || ''} ${transaction?.delivery_id || ''}`.toLowerCase();
+    return transaction?.type === 'transfer' || label.includes('transfer') || label.includes('interstore') || label.includes('inter-store');
+  };
+
   const filteredCardSpendCount = React.useMemo(() => {
     return allTransactions.filter(transaction => {
-      if (!transaction) return false;
+      if (!transaction || isTransferTransaction(transaction)) return false;
       const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
       if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
       if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(transaction.driver_id)) return false;
-      return transaction.type === 'collection' && ['completed', 'refunded'].includes(transaction.status) && ['debit', 'credit'].includes((transaction.payment_method || '').toLowerCase());
+      return transaction.type === 'collection' && ['completed', 'refunded'].includes(transaction.status);
     }).length;
   }, [allTransactions, lookbackStart, selectedDriverUserIds]);
 
   const filteredSalesCount = React.useMemo(() => {
     return soldCatalogItems.filter(transaction => {
-      if (!transaction) return false;
+      if (!transaction || isTransferTransaction(transaction)) return false;
       const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
       if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
       if (selectedDriverUserIds.size === 0) return false;
