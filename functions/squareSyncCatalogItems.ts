@@ -270,13 +270,11 @@ Deno.serve(async (req) => {
       return isRecentDelivery(delivery?.delivery_date) && Number(delivery?.cod_total_amount_required || 0) > 0;
     });
 
-    const patientEntries = await Promise.all(
-      Array.from(new Set(relevantDeliveries.map((delivery) => delivery?.patient_id).filter(Boolean))).map(async (patientId) => {
-        const patient = await base44.asServiceRole.entities.Patient.get(patientId).catch(() => null);
-        return [patientId, patient];
-      })
-    );
-    const patientById = new Map(patientEntries);
+    const patientIds = Array.from(new Set(relevantDeliveries.map((delivery) => delivery?.patient_id).filter(Boolean)));
+    const patients = patientIds.length
+      ? await base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } })
+      : [];
+    const patientById = new Map((patients || []).map((patient) => [patient.id, patient]));
 
     const lookbackStartAt = getLookbackStartAt();
 
