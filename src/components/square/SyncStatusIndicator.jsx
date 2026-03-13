@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, AlertCircle, Clock, Loader2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
-export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codDeliveryCount = 0, catalogItemCount = 0, transactionCount = 0 }) {
+export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codDeliveryCount = 0, catalogItemCount = 0, cardSpendCount = 0, salesCount = 0 }) {
   const catalogStatus = syncStatus?.catalog;
   const transactionStatus = syncStatus?.transactions;
 
@@ -79,7 +79,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                   <span className="text-muted-foreground">•</span>
                   <span className="text-muted-foreground">Catalog Items: {catalogItemCount}</span>
                   <span className="text-muted-foreground">•</span>
-                  <span className="text-muted-foreground">Transactions: {transactionCount}</span>
+                  <span className="text-muted-foreground">Transactions: Card Spend: {cardSpendCount} Sales: {salesCount}</span>
                 </>
               </div>
               {error && (

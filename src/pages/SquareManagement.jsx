@@ -599,15 +599,25 @@ export default function SquareManagement() {
     }).length;
   }, [deliveries, lookbackStart, selectedDriverUserIds]);
 
-  const filteredTransactionsCount = React.useMemo(() => {
+  const filteredCardSpendCount = React.useMemo(() => {
     return allTransactions.filter(transaction => {
+      if (!transaction) return false;
+      const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
+      if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
+      if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(transaction.driver_id)) return false;
+      return transaction.type === 'collection' && ['completed', 'refunded'].includes(transaction.status) && ['debit', 'credit'].includes((transaction.payment_method || '').toLowerCase());
+    }).length;
+  }, [allTransactions, lookbackStart, selectedDriverUserIds]);
+
+  const filteredSalesCount = React.useMemo(() => {
+    return soldCatalogItems.filter(transaction => {
       if (!transaction) return false;
       const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
       if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
       if (selectedDriverUserIds.size === 0) return false;
       return selectedDriverUserIds.has(transaction.driver_id);
     }).length;
-  }, [allTransactions, lookbackStart, selectedDriverUserIds]);
+  }, [soldCatalogItems, lookbackStart, selectedDriverUserIds]);
 
   // Summary stats
   const stats = {
@@ -661,7 +671,8 @@ export default function SquareManagement() {
                 error={error}
                 codDeliveryCount={codDeliveriesCount}
                 catalogItemCount={filteredCatalogItems.length}
-                transactionCount={filteredTransactionsCount}
+                cardSpendCount={filteredCardSpendCount}
+                salesCount={filteredSalesCount}
               />
             </div>
           )}
