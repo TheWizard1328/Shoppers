@@ -12,12 +12,11 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { driverId, deliveryDate, manifestType, ampm, storeIds } = body || {};
 
-    if (!driverId || !deliveryDate || !manifestType) {
+    if (!deliveryDate || !manifestType || (!driverId && (!Array.isArray(storeIds) || storeIds.length === 0))) {
       return Response.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
     const deliveries = await base44.entities.Delivery.filter({
-      driver_id: driverId,
       delivery_date: deliveryDate
     });
 
@@ -28,6 +27,10 @@ Deno.serve(async (req) => {
       ? await base44.asServiceRole.entities.AppUser.filter({ id: { $in: creatorIds } })
       : [];
     const creatorNameMap = new Map((creatorAppUsers || []).map((appUser) => [appUser.id, appUser.user_name || appUser.id]));
+
+    if (driverId) {
+      items = items.filter(d => d?.driver_id === driverId);
+    }
 
     // CRITICAL: If storeIds provided (dispatcher export), filter to only those stores
     if (storeIds && Array.isArray(storeIds) && storeIds.length > 0) {
@@ -123,7 +126,7 @@ Deno.serve(async (req) => {
     doc.setFontSize(16);
     doc.text(`Route Manifest - ${title}`, 14, 18);
     doc.setFontSize(11);
-    doc.text(`Driver: ${driverId}    Date: ${deliveryDate}`, 14, 26);
+    doc.text(`Driver: ${driverId || 'All Drivers'}    Date: ${deliveryDate}`, 14, 26);
 
     let y = 36;
 

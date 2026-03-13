@@ -74,8 +74,9 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     if (isExporting) return;
     setIsExporting(true);
     try {
-      const driverId = driverFilter;
-      if (!driverId || driverId === 'all') { alert('Select a driver first'); return; }
+      const exportAllDispatcherDrivers = isDispatcherOnly && driverFilter === 'all';
+      const driverId = exportAllDispatcherDrivers ? undefined : driverFilter;
+      if (!driverId && !exportAllDispatcherDrivers) { alert('Select a driver first'); return; }
       const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
 
     const payload = {
@@ -127,7 +128,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
   // === DISPATCHERS ===
   if (isDispatcherOnly) {
-    const noDriver = driverFilter === 'all';
+    const noDriver = !driverFilter;
     const noStoreDeliveries = dispatcherDayDeliveries.length === 0;
 
     // If all dispatcher's store stops are finished → post-route export
