@@ -564,12 +564,13 @@ export default function DeliveryMap({
       const firstStop = (isRouteCompleted ? stops : incomplete)[0] || null;
       const lastStop = (isRouteCompleted ? stops : incomplete).slice(-1)[0] || null;
       const routeLocation = routeLocationSnapshot[route.driverId];
-      const startPoint = routeLocation ? [routeLocation.latitude, routeLocation.longitude] : (!completed.length && route.driver?.home_latitude && route.driver?.home_longitude ? [route.driver.home_latitude, route.driver.home_longitude] : null);
+      const shouldShowDriverHomeMarker = driverHomeVisibilityById.get(route.driverId)?.shouldShowHomeMarker === true;
+      const startPoint = routeLocation ? [routeLocation.latitude, routeLocation.longitude] : (shouldShowDriverHomeMarker && route.driver?.home_latitude && route.driver?.home_longitude ? [route.driver.home_latitude, route.driver.home_longitude] : null);
       return {
         ...route,
         coordinates,
         lastStopCoordinates: lastStop ? [lastStop.latitude, lastStop.longitude] : null,
-        shouldShowHomeRoute: !!lastStop && !isRouteCompleted && isViewingCurrentDate,
+        shouldShowHomeRoute: shouldShowDriverHomeMarker && !!lastStop && !isRouteCompleted && isViewingCurrentDate,
         startToFirstStopCoordinates: startPoint && firstStop ? [startPoint, [firstStop.latitude, firstStop.longitude]] : null,
         isOriginLine: completed.length > 0,
         hasPickup: stops.some((stop) => stop.markerType === "pickup"),
