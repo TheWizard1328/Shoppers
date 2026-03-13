@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
-import { parseLocalTimestamp } from '@/components/utils/localTimeHelper';
+import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import {
   SYSTEM_UPDATES_SENDER_ID,
   isHiddenSystemBroadcastMessageForThisDevice,
@@ -179,7 +179,7 @@ export default function ChatWindow({
                   className="text-xs mt-1"
                   style={{ color: isOwnMessage ? 'rgba(255,255,255,0.7)' : 'var(--text-slate-400)' }}
                 >
-                  {msg.created_date && format(parseLocalTimestamp(msg.created_date), 'h:mm a')}
+                  {msg.created_date && format(parseEntityTimestamp(msg.created_date), 'h:mm a')}
                   {isOwnMessage && msg.read && ' • Read'}
                 </p>
               </div>

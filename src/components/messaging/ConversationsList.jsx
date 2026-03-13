@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { MessageCircle, Search, Trash2, ChevronUp, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format, subDays } from 'date-fns';
-import { parseLocalTimestamp } from '@/components/utils/localTimeHelper';
+import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import { isHiddenSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 
 export default function ConversationsList({ currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange }) {
@@ -315,7 +315,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
                   {conv.lastMessage?.content}
                 </p>
                 <p className="text-xs" style={{ color: 'var(--text-slate-400)' }}>
-                  {conv.lastMessage?.created_date && format(parseLocalTimestamp(conv.lastMessage.created_date), 'MMM d, h:mm a')}
+                  {conv.lastMessage?.created_date && format(parseEntityTimestamp(conv.lastMessage.created_date), 'MMM d, h:mm a')}
                 </p>
               </div>
             </div>
