@@ -1,19 +1,19 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-const SQUARE_BASE_URL = 'https://connect.squareup.com/v2';
-const SQUARE_VERSION = '2024-01-18';
-
-async function safeDeleteSquareCatalogObject(catalogObjectId, accessToken) {
-  if (!catalogObjectId) return { attempted: false, ok: false };
-
+Deno.serve(async (req) => {
   try {
-    const response = await fetch(`${SQUARE_BASE_URL}/catalog/object/${catalogObjectId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Square-Version': SQUARE_VERSION,
-      },
+    const base44 = createClientFromRequest(req);
+    const payload = await req.json().catch(() => ({}));
+    const response = await base44.functions.invoke('squareCodCore', {
+      action: 'deleteCodItem',
+      ...payload,
     });
+
+    return Response.json(response?.data || response, { status: response?.status || 200 });
+  } catch (error) {
+    return Response.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+  }
+});
 
     const responseText = await response.text();
     let responseBody = null;

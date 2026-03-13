@@ -1,16 +1,19 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
-
-// Gentle Square COD batch processor (v1.0.1)
-// Payload: { items: [{ deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId }] }
-// Processes sequentially with delays and retries to avoid Square rate limits
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 Deno.serve(async (req) => {
-  const startedAt = new Date().toISOString();
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const payload = await req.json().catch(() => ({}));
+    const response = await base44.functions.invoke('squareCodCore', {
+      action: 'syncSquareCods',
+      ...payload,
+    });
+
+    return Response.json(response?.data || response, { status: response?.status || 200 });
+  } catch (error) {
+    return Response.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+  }
+});
     }
 
     const bodyText = await req.text();

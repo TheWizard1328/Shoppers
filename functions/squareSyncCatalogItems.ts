@@ -1,104 +1,18 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-const SQUARE_VERSION = '2025-01-23';
-const LOOKBACK_DAYS = 14;
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    await req.text().catch(() => '');
+    const response = await base44.functions.invoke('squareCodCore', {
+      action: 'syncCatalogItems',
+    });
 
-function formatItemName(deliveryDate, storeAbbreviation, patientName) {
-  const [year, month, day] = String(deliveryDate || '').split('-');
-  const mm = month?.padStart(2, '0') || '00';
-  const dd = day?.padStart(2, '0') || '00';
-  return `${mm}/${dd}(${storeAbbreviation || 'NA'})-${patientName || 'Unknown Patient'}`;
-}
-
-function resolveDeliveryPatient(delivery, patientById, patientByPid) {
-  const rawPatientRef = normalizeText(delivery?.patient_id);
-  if (!rawPatientRef) return null;
-  return patientById.get(rawPatientRef) || patientByPid.get(rawPatientRef) || null;
-}
-
-function resolveDeliveryPatientName(delivery, patientById, patientByPid) {
-  const patient = resolveDeliveryPatient(delivery, patientById, patientByPid);
-  return normalizeText(patient?.full_name || delivery?.patient_name) || 'Unknown Patient';
-}
-
-function isRecentDelivery(deliveryDate) {
-  if (!deliveryDate) return false;
-  const deliveryTime = new Date(`${deliveryDate}T00:00:00Z`).getTime();
-  const cutoff = Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
-  return Number.isFinite(deliveryTime) && deliveryTime >= cutoff;
-}
-
-function getLookbackStartAt() {
-  return new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
-}
-
-function normalizeText(value) {
-  return String(value || '').trim();
-}
-
-function isValidEntityId(value) {
-  return /^[a-f0-9]{24}$/i.test(String(value || ''));
-}
-
-function hasCollectedCardPayment(delivery) {
-  const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
-  return codPayments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
-    || ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
-}
-
-function buildPlaceholderItemNames(deliveryDate, storeAbbreviation) {
-  const [year, month, day] = String(deliveryDate || '').split('-');
-  const mm = month?.padStart(2, '0') || '00';
-  const dd = day?.padStart(2, '0') || '00';
-  const abbr = storeAbbreviation || 'NA';
-  return [
-    `${mm}/${dd}(${abbr})-COD`,
-    `${mm}/${dd}(${abbr})-Unknown Patient`,
-    `${mm}-${dd}(${abbr})-COD`,
-    `${mm}-${dd}(${abbr})-Unknown Patient`
-  ];
-}
-
-function toAmountCents(value) {
-  return Math.max(0, Math.round(Number(value || 0)));
-}
-
-function buildItemSignature(itemName, amountCents) {
-  return `${normalizeText(itemName)}::${toAmountCents(amountCents)}`;
-}
-
-function buildLocationSignature(itemName, amountCents, locationId) {
-  return `${normalizeText(locationId)}::${buildItemSignature(itemName, amountCents)}`;
-}
-
-function normalizeMatchName(value) {
-  return normalizeText(value)
-    .replace(/\s+/g, ' ')
-    .replace(/\s-\s\$\d+(?:\.\d{2})?$/, '')
-    .replace(/^(\d{2})-(\d{2})/, '$1/$2')
-    .toLowerCase();
-}
-
-function buildComparableLocationSignature(itemName, amountCents, locationId) {
-  return `${normalizeText(locationId)}::${normalizeMatchName(itemName)}::${toAmountCents(amountCents)}`;
-}
-
-function getCatalogItemAmountCents(item) {
-  const variations = item?.item_data?.variations || [];
-  const variation = variations.find((entry) => entry?.item_variation_data?.price_money?.amount != null) || variations[0];
-  return toAmountCents(variation?.item_variation_data?.price_money?.amount);
-}
-
-async function squareFetch(path, method, body) {
-  const response = await fetch(`https://connect.squareup.com${path}`, {
-    method,
-    headers: {
-      'Authorization': `Bearer ${Deno.env.get('SQUARE_ACCESS_TOKEN')}`,
-      'Content-Type': 'application/json',
-      'Square-Version': SQUARE_VERSION,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+    return Response.json(response?.data || response, { status: response?.status || 200 });
+  } catch (error) {
+    return Response.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+  }
+});
 
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {

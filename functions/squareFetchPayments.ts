@@ -1,14 +1,19 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
-
-const SQUARE_BASE_URL = 'https://connect.squareup.com/v2';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+    const payload = await req.json().catch(() => ({}));
+    const response = await base44.functions.invoke('squareCodCore', {
+      action: 'fetchPayments',
+      ...payload,
+    });
 
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    return Response.json(response?.data || response, { status: response?.status || 200 });
+  } catch (error) {
+    return Response.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+  }
+});
     }
 
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
