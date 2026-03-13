@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Download, ChevronDown, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import ExportRouteEmailDialog from "./ExportRouteEmailDialog";
 import { format } from "date-fns";
 import { userHasRole } from "../utils/userRoles";
 import { globalFilters } from "@/components/utils/globalFilters";
@@ -92,6 +92,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const qualifiedCount = (amQualified ? 1 : 0) + (pmQualified ? 1 : 0);
 
   const [isExporting, setIsExporting] = useState(false);
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
 
   const handleExport = async (type, ampm) => {
     if (isExporting) return;
@@ -154,74 +155,42 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   if (isDispatcherOnly) {
     const noDriver = false;
     const noStoreDeliveries = dispatcherDayDeliveries.length === 0;
+    const qualifiedPeriod = amQualified ? 'AM' : 'PM';
+    const canPostRouteExport = isDispatcherRouteComplete && !noDriver && !noStoreDeliveries;
+    const canPreRouteExport = qualifiedCount > 0 && !noDriver;
+    const exportOptions = isDispatcherRouteComplete
+      ? [{ label: 'Export Route', onClick: () => handleExport('post-route') }]
+      : qualifiedCount === 2
+        ? [
+            { label: 'Export AM', onClick: () => handleExport('pre-route', 'AM') },
+            { label: 'Export PM', onClick: () => handleExport('pre-route', 'PM') }
+          ]
+        : qualifiedCount === 1
+          ? [{ label: `Export ${qualifiedPeriod}`, onClick: () => handleExport('pre-route', qualifiedPeriod) }]
+          : [];
 
-    // If all dispatcher's store stops are finished → post-route export
-    if (isDispatcherRouteComplete) {
-      return (
-        <div className="w-full flex justify-center">
-          <Button
-            onClick={() => handleExport('post-route')}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-            disabled={(noDriver || noStoreDeliveries) || isExporting}
-          >
-            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {isExporting ? 'Exporting...' : 'Export Route'}
-          </Button>
-        </div>
-      );
-    }
-
-    // Both AM and PM qualify → show dropdown
-    if (qualifiedCount === 2) {
-      return (
-        <div className="w-full flex justify-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2 text-white bg-slate-900 hover:bg-slate-800" disabled={noDriver || isExporting}>
-                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {isExporting ? 'Exporting...' : 'Export Route'}
-                {!isExporting && <ChevronDown className="w-4 h-4" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => handleExport('pre-route', 'AM')}>
-                Export AM
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('pre-route', 'PM')}>
-                Export PM
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      );
-    }
-
-    // Only one period qualifies → single button (no dropdown)
-    if (qualifiedCount === 1) {
-      const qualifiedPeriod = amQualified ? 'AM' : 'PM';
-      return (
-        <div className="w-full flex justify-center">
-          <Button
-            onClick={() => handleExport('pre-route', qualifiedPeriod)}
-            variant="outline"
-            className="gap-2 text-white bg-slate-900 hover:bg-slate-800"
-            disabled={noDriver || isExporting}
-          >
-            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {isExporting ? 'Exporting...' : 'Export Route'}
-          </Button>
-        </div>
-      );
-    }
-
-    // No period qualifies → disabled button
     return (
-      <div className="w-full flex justify-center">
-        <Button variant="outline" className="gap-2 text-white bg-slate-400" disabled>
-          <Download className="w-4 h-4" />
-          Export Route
-        </Button>
-      </div>
+      <>
+        <div className="w-full flex justify-center">
+          <Button
+            onClick={() => setIsEmailDialogOpen(true)}
+            variant={isDispatcherRouteComplete ? 'default' : 'outline'}
+            className={isDispatcherRouteComplete ? 'bg-emerald-600 hover:bg-emerald-700 text-white gap-2' : 'gap-2 text-white bg-slate-900 hover:bg-slate-800'}
+            disabled={(!canPostRouteExport && !canPreRouteExport) || isExporting}
+          >
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {isExporting ? 'Exporting...' : 'Export Route'}
+          </Button>
+        </div>
+
+        <ExportRouteEmailDialog
+          open={isEmailDialogOpen}
+          onOpenChange={setIsEmailDialogOpen}
+          storeIds={dispatcherStoreIds}
+          exportOptions={exportOptions}
+          isExporting={isExporting}
+        />
+      </>
     );
   }
 
