@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { isMobileDevice } from '../utils/deviceUtils';
 import MapCrosshair from './MapCrosshair';
 import DeliveryPopup from './DeliveryPopup';
+import { useRouteRecalcSignal } from './useRouteRecalcSignal';
 import { base44 } from '@/api/base44Client';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import DriverLocationMarkers from './DriverLocationMarkers';
@@ -175,6 +176,11 @@ export default function DeliveryMap({
   const [mapCenter, setMapCenter] = useState(center);
   const [visibleBounds, setVisibleBounds] = useState(null);
   const [realtimeAppUsers, setRealtimeAppUsers] = useState(users);
+  const { routeLocationSnapshot, routeRecalcVersion } = useRouteRecalcSignal({
+    currentDriverLocation,
+    realtimeAppUsers,
+    currentUserId: currentUser?.id
+  });
 
   // Add safety checks for required props - MUST be before useEffect that uses them
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
@@ -227,29 +233,14 @@ export default function DeliveryMap({
     };
   }, [map]);
 
-  // State to force re-render of polylines when driver locations change
+  // State to force re-render of polylines when route-recalc positions change
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
-  
-  // CRITICAL: Force polyline update when currentDriverLocation changes (live GPS on primary device)
+
   useEffect(() => {
-    if (currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
-      setPolylineRenderKey(prev => prev + 1);
-    }
-  }, [currentDriverLocation?.latitude, currentDriverLocation?.longitude]);
-  
-  // CRITICAL: Create stable dependency string for location tracking
-  const realtimeLocationKey = useMemo(() => {
-    if (!realtimeAppUsers || realtimeAppUsers.length === 0) return '';
-    return realtimeAppUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(4)}:${u?.current_longitude?.toFixed(4)}`).join('|');
-  }, [realtimeAppUsers]);
-  
-  // CRITICAL: Force polyline update when realtimeAppUsers location data changes
-  useEffect(() => {
-    if (!realtimeLocationKey) return;
-    
-    console.log(`🔵 [Polyline Trigger] realtimeAppUsers location changed - forcing Type 1 polyline re-render`);
+    if (routeRecalcVersion === 0) return;
+    console.log('🔵 [Polyline Trigger] Route recalculation signal changed');
     setPolylineRenderKey(prev => prev + 1);
-  }, [realtimeLocationKey]);
+  }, [routeRecalcVersion]);
   
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
@@ -1107,50 +1098,7 @@ export default function DeliveryMap({
     if (!isMobile) {
       return null;
     }
-
-    if (!currentUser) {
-      return null;
-    }
-
-    // CRITICAL: Check if viewing today or future date - handle null selectedDate as today
-    const today = getEdmDate();
-    const isViewingTodayOrFuture = !selectedDate || selectedDate >= today;
-    
-    if (!isViewingTodayOrFuture) {
-      return null;
-    }
-
-    // CRITICAL: Check user roles
-    const isCurrentUserDriver = userHasRole(currentUser, 'driver');
-    const isCurrentUserAdmin = userHasRole(currentUser, 'admin');
-    const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
-    
-    // CRITICAL: Pure dispatcher = dispatcher WITHOUT driver or admin roles
-    const isPureDispatcher = isCurrentUserDispatcher && !isCurrentUserDriver && !isCurrentUserAdmin;
-    
-    // CRITICAL: Show blue dot ONLY for users with driver OR admin role (NOT pure dispatchers)
-    const shouldShowBlueDot = (isCurrentUserDriver || isCurrentUserAdmin) && !isPureDispatcher;
-    
-    if (!shouldShowBlueDot) {
-      return null;
-    }
-
-    // CRITICAL: Use currentDriverLocation if available, otherwise fall back to user's AppUser location
-    let locationData = currentDriverLocation || (function(){ const au = (realtimeAppUsers||[]).find(u => u && (u.user_id === currentUser.id || u.id === currentUser.id)); return (au && au.current_latitude && au.current_longitude) ? { latitude: au.current_latitude, longitude: au.current_longitude, timestamp: au.location_updated_at } : null; })();
-    
-    if (!locationData?.latitude || !locationData?.longitude) {
-      // Fall back to current user's location from AppUser data
-      if (currentUser.current_latitude && currentUser.current_longitude) {
-        locationData = {
-          latitude: currentUser.current_latitude,
-          longitude: currentUser.current_longitude,
-          timestamp: currentUser.location_updated_at
-        };
-      } else {
-        return null;
-      }
-    }
-
+...
     return {
       ...locationData,
       driver: currentUser,
@@ -1158,6 +1106,41 @@ export default function DeliveryMap({
       driver_id: currentUser.id
     };
   }, [currentDriverLocation, currentUser, isMobile, selectedDate]);
+
+  const routeAwareCurrentDriverMarker = useMemo(() => {
+    if (!currentDriverMarker) return null;
+    const driverId = currentDriverMarker.driverId || currentDriverMarker.driver_id;
+    const routeLocation = driverId ? routeLocationSnapshot[driverId] : null;
+    if (!routeLocation) return currentDriverMarker;
+
+    return {
+      ...currentDriverMarker,
+      latitude: routeLocation.latitude,
+      longitude: routeLocation.longitude,
+      timestamp: routeLocation.location_updated_at || currentDriverMarker.timestamp
+    };
+  }, [currentDriverMarker, routeLocationSnapshot]);
+
+  const routeAwareDriverLocationMarkers = useMemo(() => {
+    if (!Array.isArray(driverLocationMarkers) || driverLocationMarkers.length === 0) {
+      return driverLocationMarkers;
+    }
+
+    return driverLocationMarkers.map((marker) => {
+      const driverId = marker?.driverId || marker?.driver_id || marker?.id;
+      const routeLocation = driverId ? routeLocationSnapshot[driverId] : null;
+      if (!routeLocation) return marker;
+
+      return {
+        ...marker,
+        latitude: routeLocation.latitude,
+        longitude: routeLocation.longitude,
+        current_latitude: routeLocation.latitude,
+        current_longitude: routeLocation.longitude,
+        location_updated_at: routeLocation.location_updated_at || marker.location_updated_at
+      };
+    });
+  }, [driverLocationMarkers, routeLocationSnapshot]);
 
   // CRITICAL: Calculate drivers with complete routes FIRST - used by both home markers AND polylines
   const driversWithCompleteRoute = useMemo(() => {
@@ -1880,7 +1863,7 @@ export default function DeliveryMap({
          />
 
         {/* TYPE 1 POLYLINES (HERE): next leg + home */}
-        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (<><HereType2Polylines key={`type2-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? 'all' : 'single'}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={selectedDriverId === 'all' || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} /><HereType1Polylines key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? 'all' : 'single'}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={currentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} driverLocations={driverLocationMarkers} /></>) }
+        {(showRoutes || (typeof window !== 'undefined' && localStorage.getItem('rxdeliver_show_routes') === 'true')) && (<><HereType2Polylines key={`type2-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? 'all' : 'single'}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={selectedDriverId === 'all' || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} /><HereType1Polylines key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? 'all' : 'single'}-${routeRecalcVersion}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={routeAwareCurrentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} driverLocations={routeAwareDriverLocationMarkers} /></>) }
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
         <HomeMarkers driverHomeMarkers={driverHomeMarkers} map={map} isMobile={isMobile} onMarkerClick={onMarkerClick} />
