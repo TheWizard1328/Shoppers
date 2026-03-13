@@ -3,6 +3,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 const ACTIVE_STATUSES = new Set(['in_transit', 'en_route']);
 const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
 
+function isNotFoundError(error) {
+  return error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').includes('not found');
+}
+
 function round5(value) {
   return Number(Number(value).toFixed(5));
 }
@@ -165,7 +169,12 @@ Deno.serve(async (req) => {
       : 0;
 
     if (Array.isArray(existingPolylines) && existingPolylines.length) {
-      await Promise.all(existingPolylines.map((row) => base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id)));
+      await Promise.all(existingPolylines.map((row) =>
+        base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        })
+      ));
     }
 
     if (!Array.isArray(deliveries) || deliveries.length === 0) {
