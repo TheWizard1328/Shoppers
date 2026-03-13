@@ -860,7 +860,9 @@ async function handleSyncCatalogItems(base44) {
   const allSquareLocationIds = Array.from(new Set((squareConfigs || []).map((config) => config?.square_location_id).filter(Boolean)));
 
   const relevantDeliveries = (deliveries || []).filter((delivery) => {
-    return isRecentDelivery(delivery?.delivery_date) && Number(delivery?.cod_total_amount_required || 0) > 0;
+    return isRecentDelivery(delivery?.delivery_date)
+      && Number(delivery?.cod_total_amount_required || 0) > 0
+      && delivery?.status !== 'pending';
   });
 
   const { patientById, patientByPid } = await buildPatientMaps(base44, relevantDeliveries);

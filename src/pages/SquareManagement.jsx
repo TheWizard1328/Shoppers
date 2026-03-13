@@ -928,9 +928,9 @@ export default function SquareManagement() {
                           </td>
                           <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
                             {(() => {
-                              const delivery = findMatchingDelivery(item.name, item.location_id);
-                              if (delivery?.delivery_date) {
-                                const [year, month, day] = delivery.delivery_date.split('-');
+                              const resolvedDate = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+                              if (resolvedDate) {
+                                const [year, month, day] = resolvedDate.split('-');
                                 const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                                 return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
                               }
@@ -1068,9 +1068,9 @@ export default function SquareManagement() {
                       </div>
                       <div className="truncate text-right">
                         <span className="font-semibold text-slate-900 dark:text-slate-50">Date:</span> {(() => {
-                          const delivery = findMatchingDelivery(item.name, item.location_id);
-                          if (delivery?.delivery_date) {
-                            const [year, month, day] = delivery.delivery_date.split('-');
+                          const resolvedDate = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+                          if (resolvedDate) {
+                            const [year, month, day] = resolvedDate.split('-');
                             const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                             return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                           }
