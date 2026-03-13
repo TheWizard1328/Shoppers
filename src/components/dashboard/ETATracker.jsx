@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { isMobileDevice } from '../utils/deviceUtils';
 import { userHasRole } from '../utils/userRoles';
+import { getCurrentEtaForDelivery } from '../utils/etaTrendBus';
 
 /**
  * Background ETA tracking service

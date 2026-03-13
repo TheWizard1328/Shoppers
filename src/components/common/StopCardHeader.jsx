@@ -5,6 +5,7 @@ import { getDriverDisplayName } from "../utils/driverUtils";
 import { calculateDeliveryPay, formatPay } from "../utils/payCalculator";
 import { userHasRole } from "../utils/userRoles";
 import { format } from "date-fns";
+import { getCurrentEtaForDelivery, getEtaTrendForDelivery, primeEtaTrendBus } from "../utils/etaTrendBus";
 
 // Lightweight ETA override bus to reflect real-time ETA updates without full data reloads
 const etaBus = (() => {

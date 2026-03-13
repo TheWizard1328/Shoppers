@@ -77,7 +77,6 @@ import ErrorFlagIndicator from "@/components/dashboard/ErrorFlagIndicator";
 // import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ETATracker from '../components/dashboard/ETATracker';
-import ETANotification from '../components/dashboard/ETANotification';
 import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimizer';
 import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments';
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
