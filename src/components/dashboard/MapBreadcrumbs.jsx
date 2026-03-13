@@ -13,7 +13,7 @@ export default function MapBreadcrumbs({ breadcrumbsData, currentZoom = 12 }) {
   const breadcrumbRouteColor = getBreadcrumbRouteColor();
   const breadcrumbDotRadius = useMemo(() => {
     const zoom = Number.isFinite(currentZoom) ? currentZoom : 12;
-    return Math.max(1.5, Math.min(4.5, 7 - zoom * 0.25));
+    return Math.max(1.5, Math.min(4, 1 + (zoom - 8) * 0.25));
   }, [currentZoom]);
 
   if (breadcrumbsData.historical && breadcrumbsData.historical.length > 0) {
