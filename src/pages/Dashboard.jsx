@@ -7837,7 +7837,7 @@ function Dashboard() {
                 const now = new Date();
                 const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 const response = await base44.functions.invoke('optimizeRouteRealTime', {
-                  driverId: currentUser.id,
+                  driverId: selectedDriverId,
                   deliveryDate,
                   currentLocalTime,
                   deviceTime: now.toISOString()
@@ -7847,7 +7847,7 @@ function Dashboard() {
                   setOptimizationMessage(`Route optimized! ${(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)} stops updated.`);
                   invalidateDeliveriesForDate(deliveryDate);
                   await refreshData();
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: currentUser.id, deliveryDate, triggeredBy: 'reoptimizeRoute' } }));
+                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: selectedDriverId, deliveryDate, triggeredBy: 'reoptimizeRoute' } }));
                   setIsMapViewLocked(true);
                   setMapViewTrigger((prev) => prev + 1);
                   setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);

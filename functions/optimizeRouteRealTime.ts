@@ -253,6 +253,22 @@ Deno.serve(async (req) => {
     const optimizationStartPosition = lockedNextStop
       ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng }
       : currentPosition;
+
+    if (!optimizationStartPosition?.lat || !optimizationStartPosition?.lng) {
+      return Response.json({
+        error: 'Driver location is unavailable for route optimization',
+        routeChanged: false,
+        details: {
+          driverId,
+          deliveryDate,
+          locationSource,
+          hasLockedNextStop: !!lockedNextStop,
+          hasHomeLocation: driverAppUser.home_latitude != null && driverAppUser.home_longitude != null,
+          hasGpsLocation: driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
+        }
+      }, { status: 400 });
+    }
+
     const sequencedStops = stopsToSequence.map((stop, index) => ({
       ...stop,
       hereWaypointId: `destination${index + 1}`
