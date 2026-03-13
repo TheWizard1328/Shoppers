@@ -6715,7 +6715,7 @@ function Dashboard() {
 
   useEffect(() => {
     if (!showBreadcrumbs) return;
-    const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+    const activeDriverId = (showAllDriverMarkers || selectedDriverId === 'all') ? currentUser?.id : selectedDriverId;
     const activeDate = format(selectedDate, 'yyyy-MM-dd');
     const matches = ({ driverId, deliveryDate } = {}) => (!driverId || !activeDriverId || driverId === activeDriverId) && (!deliveryDate || deliveryDate === activeDate);
     const refresh = async (event) => matches(event.detail || {}) && setBreadcrumbsData(await loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsers));
@@ -6728,7 +6728,7 @@ function Dashboard() {
     return () => {
       window.removeEventListener('deliveriesUpdated', refresh); window.removeEventListener('routeOptimizationComplete', refresh); window.removeEventListener('routeReordered', refresh); window.removeEventListener('breadcrumbCollected', append);
     };
-  }, [showBreadcrumbs, selectedDriverId, currentUser?.id, selectedDate, appUsers]);
+  }, [showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser?.id, selectedDate, appUsers]);
 
   // Listen for pullToSyncDataReady events - full update regardless of current state
   useEffect(() => {
@@ -7351,7 +7351,7 @@ function Dashboard() {
                             setShowBreadcrumbs(newShowBreadcrumbs);
                             if (!newShowBreadcrumbs) return setBreadcrumbsData({ historical: [], current: [] });
                             const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                            const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                            const driverIdToFetch = (showAllDriverMarkers || selectedDriverId === 'all') ? currentUser?.id : selectedDriverId;
                             const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selectedDateStr, appUsers);
                             if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
                               toast.info('No breadcrumb trails available', { description: 'GPS trails appear after a stop is finished with tracking on' });
