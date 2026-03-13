@@ -47,6 +47,10 @@ function hasCollectedCardPayment(delivery) {
     || ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
 }
 
+function isOfflineCollectedPaymentMethod(paymentMethod) {
+  return ['cash', 'check'].includes(String(paymentMethod || '').toLowerCase());
+}
+
 function buildPlaceholderItemNames(deliveryDate, storeAbbreviation) {
   const [_, month, day] = String(deliveryDate || '').split('-');
   const mm = month?.padStart(2, '0') || '00';
@@ -1108,14 +1112,17 @@ async function handleSyncCatalogItems(base44) {
   }
 
   const staleIds = new Set(staleTransactions.map((transaction) => transaction.id));
-  const activeTransactions = (allTransactionsAfterSync || []).filter((transaction) => !staleIds.has(transaction.id)).filter((transaction) => transaction?.status === 'pending' && transaction?.square_catalog_object_id);
+  const syncedCatalogTransactions = (allTransactionsAfterSync || [])
+    .filter((transaction) => !staleIds.has(transaction.id))
+    .filter((transaction) => transaction?.square_catalog_object_id)
+    .filter((transaction) => transaction?.status === 'pending' || (transaction?.status === 'completed' && isOfflineCollectedPaymentMethod(transaction?.payment_method)));
   const existingSquareCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
   for (const record of existingSquareCatalogItems || []) {
     await base44.asServiceRole.entities.SquareCatalogItems.delete(record.id);
   }
 
-  if (activeTransactions.length > 0) {
-    await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(activeTransactions.map((transaction) => {
+  if (syncedCatalogTransactions.length > 0) {
+    await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(syncedCatalogTransactions.map((transaction) => {
       const delivery = deliveryById.get(transaction.delivery_id);
       return {
         square_catalog_object_id: transaction.square_catalog_object_id,
@@ -1129,7 +1136,7 @@ async function handleSyncCatalogItems(base44) {
         patient_id: transaction.patient_id || null,
         store_id: transaction.store_id || null,
         location_id: transaction.location_id || null,
-        status: 'active',
+        status: transaction?.status === 'pending' ? 'active' : 'completed',
       };
     }));
   }
@@ -1145,7 +1152,7 @@ async function handleSyncCatalogItems(base44) {
     created_catalog_items: createdCount,
     updated_pending_transactions: updatedPendingCount,
     pruned_transactions: staleTransactions.length,
-    synced_square_catalog_items: activeTransactions.length,
+    synced_square_catalog_items: syncedCatalogTransactions.length,
   };
 }
 
