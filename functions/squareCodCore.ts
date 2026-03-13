@@ -999,7 +999,7 @@ async function handleSyncCatalogItems(base44) {
     const hasCollectedPayment = codPayments.some((payment) => ['Cash', 'Debit', 'Credit', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
       || ['Cash', 'Debit', 'Credit', 'Check'].includes(delivery?.cod_payment_type);
     const readyToCloseCollectedCard = delivery.status === 'completed' && hasCollectedCardPayment(delivery);
-    const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery.status === 'failed' || delivery.status === 'cancelled';
+    const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled';
 
     if (shouldDeleteForInvalidState) {
       if (catalogItem) itemsToDelete.push(catalogItem.id);
@@ -1157,7 +1157,7 @@ async function handleSyncSquareCods(base44, payload) {
       return { success: true, processed: 0, results: [{ deliveryId: event?.entity_id, action: 'noop', status: 'skipped' }] };
     }
 
-    if (delivery.status === 'failed' || delivery.status === 'cancelled') {
+    if (delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled') {
       const result = await handleDeleteCodItem(base44, { deliveryId: delivery.id, reason: delivery.status });
       return { success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result }] };
     }
