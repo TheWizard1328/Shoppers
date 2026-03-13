@@ -375,9 +375,10 @@ async function handleCreateCodItem(base44, payload) {
   const { store, locationId } = await getStoreSquareContext(base44, effectiveStoreId);
 
   const resolvedDeliveryDate = deliveryDate || deliveryRecord?.delivery_date;
-  const resolvedPatientName = deliveryRecord
+  const lookedUpPatientName = deliveryRecord
     ? await resolveDeliveryPatientName(base44, deliveryRecord, patientById, patientByPid)
-    : normalizeText(patientName);
+    : '';
+  const resolvedPatientName = normalizeText(lookedUpPatientName || patientName || deliveryRecord?.patient_name);
   if (!resolvedPatientName || resolvedPatientName === 'COD' || resolvedPatientName === 'Unknown Patient') {
     return { success: true, skipped: true, reason: 'missing_patient_name' };
   }
