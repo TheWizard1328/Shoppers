@@ -87,6 +87,7 @@ const DRIVER_FIELDS = [
   'app_roles',
   'status',
   'city_id',
+  'sort_order',
   'pay_cycle_type',
   'pay_rate_per_delivery',
   'extra_km_rate',
