@@ -282,7 +282,32 @@ function flattenPaidOrderItems(orders) {
 async function resolveDeliveryPatient(base44, delivery, patientById, patientByPid) {
   const rawPatientRef = normalizeText(delivery?.patient_id);
   if (!rawPatientRef) return null;
-  return patientById.get(rawPatientRef) || patientByPid.get(rawPatientRef) || null;
+
+  const mappedPatient = patientById.get(rawPatientRef) || patientByPid.get(rawPatientRef);
+  if (mappedPatient) return mappedPatient;
+
+  if (isValidEntityId(rawPatientRef)) {
+    const patientByEntityId = await base44.asServiceRole.entities.Patient.get(rawPatientRef).catch(() => null);
+    if (patientByEntityId) {
+      patientById.set(patientByEntityId.id, patientByEntityId);
+      const normalizedPid = normalizeText(patientByEntityId.patient_id);
+      if (normalizedPid) patientByPid.set(normalizedPid, patientByEntityId);
+      return patientByEntityId;
+    }
+  }
+
+  const patientMatches = await base44.asServiceRole.entities.Patient.filter({
+    patient_id: rawPatientRef,
+  }, '-updated_date', 1).catch(() => []);
+  const patientByPidValue = Array.isArray(patientMatches) ? patientMatches[0] : null;
+  if (patientByPidValue) {
+    patientById.set(patientByPidValue.id, patientByPidValue);
+    const normalizedPid = normalizeText(patientByPidValue.patient_id);
+    if (normalizedPid) patientByPid.set(normalizedPid, patientByPidValue);
+    return patientByPidValue;
+  }
+
+  return null;
 }
 
 async function resolveDeliveryPatientName(base44, delivery, patientById, patientByPid) {
@@ -350,7 +375,9 @@ async function handleCreateCodItem(base44, payload) {
   const { store, locationId } = await getStoreSquareContext(base44, effectiveStoreId);
 
   const resolvedDeliveryDate = deliveryDate || deliveryRecord?.delivery_date;
-  const resolvedPatientName = normalizeText(patientRecord?.full_name || patientName || deliveryRecord?.patient_name);
+  const resolvedPatientName = deliveryRecord
+    ? await resolveDeliveryPatientName(base44, deliveryRecord, patientById, patientByPid)
+    : normalizeText(patientName);
   if (!resolvedPatientName || resolvedPatientName === 'COD' || resolvedPatientName === 'Unknown Patient') {
     return { success: true, skipped: true, reason: 'missing_patient_name' };
   }
