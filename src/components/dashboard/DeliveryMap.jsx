@@ -466,6 +466,7 @@ export default function DeliveryMap({
 
   const driverHomeMarkers = useMemo(() => {
     const hideHomeMarkersForDispatcher = currentUser && userHasRole(currentUser, "dispatcher") && !userHasRole(currentUser, "admin");
+    const isPureDriver = currentUser && userHasRole(currentUser, "driver") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "dispatcher");
 
     if (!showRoutes || !currentUser || hideHomeMarkersForDispatcher || (selectedDate && selectedDate < getEdmDate())) {
       prevDriverHomeMarkersRef.current = [];
@@ -473,7 +474,21 @@ export default function DeliveryMap({
     }
 
     const visibleDriverIds = new Set([...deliveryMarkers, ...pickupMarkers].map((stop) => stop?.driver_id).filter(Boolean));
+    const routeStateByDriver = new Map();
+    [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
+      if (!stop?.driver_id) return;
+      if (!routeStateByDriver.has(stop.driver_id)) routeStateByDriver.set(stop.driver_id, { completed: 0, remaining: 0 });
+      if (FINISHED_STATUSES.includes(stop.status)) routeStateByDriver.get(stop.driver_id).completed += 1;
+      else routeStateByDriver.get(stop.driver_id).remaining += 1;
+    });
+
     const items = safeUsers.filter((user) => visibleDriverIds.has(user.id) && user.home_latitude && user.home_longitude && user.driver_status !== "off_duty").filter((user) => {
+      const routeState = routeStateByDriver.get(user.id);
+      const hasStartedRoute = (routeState?.completed || 0) > 0;
+      const hasRemainingStops = (routeState?.remaining || 0) > 0;
+
+      if (hasStartedRoute && hasRemainingStops) return false;
+      if (isPureDriver && user.id !== currentUser.id && !(showOtherDriverDeliveries || isAllDriversMode)) return false;
       if (showOtherDriverDeliveries || isAllDriversMode) return true;
       return user.id === selectedDriverId || user.id === currentUser.id;
     }).map((user) => ({
