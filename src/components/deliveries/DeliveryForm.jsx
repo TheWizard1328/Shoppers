@@ -2176,7 +2176,7 @@ export default function DeliveryForm({
       });
       Object.values(groups).forEach((group) => [...group.deliveries].sort((a, b) => ((a.stop_order ?? Number.MAX_SAFE_INTEGER) - (b.stop_order ?? Number.MAX_SAFE_INTEGER)) || (a.patient_name || '').localeCompare(b.patient_name || '')).forEach((delivery, index) => {
         const tracking_number = String(group.pickupTR + index + 1);
-        if (String(delivery.tracking_number ?? '') !== tracking_number) updates.push({ id: delivery.id, tracking_number });
+        if ((!delivery.tracking_number || delivery.tracking_number === '' || delivery.tracking_number === '99') && String(delivery.tracking_number ?? '') !== tracking_number) updates.push({ id: delivery.id, tracking_number });
       }));
       return updates;
     };
@@ -2185,9 +2185,9 @@ export default function DeliveryForm({
       const parentPickup = allDeliveries?.find((d) => d && !d.patient_id && d.stop_id === del.puid);
       return parentPickup?.store_id ? { ...del, store_id: parentPickup.store_id, ampm_deliveries: parentPickup.ampm_deliveries || del.ampm_deliveries } : del;
     });
-    const trAssignments = calculateSequentialTRAssignments(deliveriesWithCorrectStores, existingDeliveries);
+    const trAssignments = calculateSequentialTRAssignments(deliveriesWithCorrectStores, existingDeliveries.filter((delivery) => delivery?.status === 'Staged'));
     const deliveriesWithTRs = deliveriesWithCorrectStores.map((delivery) => ({ ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number }));
-    const existingDeliveriesWithTRs = existingDeliveries.map((delivery) => ({ ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number }));
+    const existingDeliveriesWithTRs = existingDeliveries.map((delivery) => delivery?.status === 'Staged' ? { ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number } : delivery);
 
     setIsSaving(true);
     setError(null);
