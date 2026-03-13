@@ -94,6 +94,51 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const [isExporting, setIsExporting] = useState(false);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
 
+  const getDriverNamesForSubject = (deliveries) => {
+    const names = [...new Set((deliveries || []).map((delivery) => delivery?.driver_name || delivery?.driver_id).filter(Boolean))];
+    return names.length > 0 ? names.join(', ') : 'Unassigned';
+  };
+
+  const handleDispatcherEmailExport = async (recipientEmails) => {
+    if (isExporting || !recipientEmails?.length) return;
+    setIsExporting(true);
+    try {
+      const exportConfig = isDispatcherRouteComplete
+        ? { manifestType: 'post-route' }
+        : qualifiedCount > 0
+          ? { manifestType: 'pre-route', ampm: qualifiedPeriod }
+          : null;
+
+      if (!exportConfig) return;
+
+      const exportDate = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+      const relevantDeliveries = exportConfig.manifestType === 'post-route'
+        ? dispatcherDayDeliveries
+        : dispatcherDayDeliveries.filter((d) => d && d.ampm_deliveries === exportConfig.ampm && !finishedStatuses.includes(d.status));
+      const driverNames = getDriverNamesForSubject(relevantDeliveries);
+
+      const res = await base44.functions.invoke('generateRouteManifest', {
+        deliveryDate: exportDate,
+        manifestType: exportConfig.manifestType,
+        ampm: exportConfig.manifestType === 'pre-route' ? exportConfig.ampm : undefined,
+        storeIds: dispatcherStoreIds,
+        selectedCityId,
+        recipientEmails,
+        emailSubject: `Route logs for: ${driverNames} ${exportDate}`,
+      });
+      const data = res?.data || res;
+
+      if (data?.error) {
+        alert(data.error);
+        return;
+      }
+
+      alert('Route log emailed successfully.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleExport = async (type, ampm) => {
     if (isExporting) return;
     setIsExporting(true);
@@ -158,16 +203,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     const qualifiedPeriod = amQualified ? 'AM' : 'PM';
     const canPostRouteExport = isDispatcherRouteComplete && !noDriver && !noStoreDeliveries;
     const canPreRouteExport = qualifiedCount > 0 && !noDriver;
-    const exportOptions = isDispatcherRouteComplete
-      ? [{ label: 'Export Route', onClick: () => handleExport('post-route') }]
-      : qualifiedCount === 2
-        ? [
-            { label: 'Export AM', onClick: () => handleExport('pre-route', 'AM') },
-            { label: 'Export PM', onClick: () => handleExport('pre-route', 'PM') }
-          ]
-        : qualifiedCount === 1
-          ? [{ label: `Export ${qualifiedPeriod}`, onClick: () => handleExport('pre-route', qualifiedPeriod) }]
-          : [];
+
 
     return (
       <>
@@ -187,8 +223,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
           open={isEmailDialogOpen}
           onOpenChange={setIsEmailDialogOpen}
           storeIds={dispatcherStoreIds}
-          exportOptions={exportOptions}
           isExporting={isExporting}
+          onExportRoute={handleDispatcherEmailExport}
         />
       </>
     );

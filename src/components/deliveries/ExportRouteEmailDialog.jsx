@@ -19,8 +19,8 @@ export default function ExportRouteEmailDialog({
   open,
   onOpenChange,
   storeIds = [],
-  exportOptions = [],
   isExporting = false,
+  onExportRoute,
 }) {
   const [stores, setStores] = useState([]);
   const [emailDrafts, setEmailDrafts] = useState({});
@@ -95,9 +95,11 @@ export default function ExportRouteEmailDialog({
     setIsSaving(false);
   };
 
-  const runExport = async (onExport) => {
+  const handleExportRoute = async () => {
+    await saveEmails();
+    const recipientEmails = [...new Set(stores.flatMap((store) => emailDrafts[store.id] || []))];
     onOpenChange(false);
-    await onExport();
+    await onExportRoute(recipientEmails);
   };
 
   return (
@@ -106,7 +108,7 @@ export default function ExportRouteEmailDialog({
         <DialogHeader>
           <DialogTitle>Route export emails</DialogTitle>
           <DialogDescription>
-            Review, add, or remove store email addresses before exporting.
+            Review, add, or remove store email addresses before exporting the route log by email.
           </DialogDescription>
         </DialogHeader>
 
@@ -180,21 +182,20 @@ export default function ExportRouteEmailDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button type="button" onClick={saveEmails} disabled={isLoading || isSaving || stores.length === 0}>
-            {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            Save emails
+          <Button
+            type="button"
+            onClick={handleExportRoute}
+            disabled={
+              isLoading ||
+              isSaving ||
+              isExporting ||
+              stores.length === 0 ||
+              !stores.some((store) => (emailDrafts[store.id] || []).length > 0)
+            }
+          >
+            {(isSaving || isExporting) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            Export Route
           </Button>
-          {exportOptions.map((option) => (
-            <Button
-              key={option.label}
-              type="button"
-              onClick={() => runExport(option.onClick)}
-              disabled={isLoading || isSaving || isExporting}
-            >
-              {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              {option.label}
-            </Button>
-          ))}
         </DialogFooter>
       </DialogContent>
     </Dialog>
