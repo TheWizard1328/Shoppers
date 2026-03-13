@@ -113,9 +113,25 @@ Deno.serve(async (req) => {
 
     const simplifiedPoints = simplifyRdp(normalizedPoints, epsilon);
 
-    await base44.entities.Delivery.update(deliveryId, {
-      delivery_route_breadcrumbs: JSON.stringify(simplifiedPoints),
-    });
+    try {
+      await base44.entities.Delivery.update(deliveryId, {
+        delivery_route_breadcrumbs: JSON.stringify(simplifiedPoints),
+      });
+    } catch (error) {
+      if (error?.message?.includes('not found')) {
+        return Response.json({
+          success: false,
+          skipped: true,
+          reason: 'delivery_not_found',
+          delivery_id: deliveryId,
+          stop_order: payload.stop_order ?? null,
+          raw_point_count: normalizedPoints.length,
+          simplified_point_count: simplifiedPoints.length,
+          epsilon,
+        });
+      }
+      throw error;
+    }
 
     return Response.json({
       success: true,
