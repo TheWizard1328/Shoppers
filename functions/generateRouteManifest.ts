@@ -201,28 +201,10 @@ Deno.serve(async (req) => {
 
     addHeader();
 
-    // Draw a small thumbnail with a count badge (for Receipts and Rx)
-    function drawMiniThumb(x, y, label, count) {
+    function drawCountCell(x, y, count) {
       try {
-        // base box
-        doc.setDrawColor(200);
-        doc.setFillColor(250, 250, 250);
-        doc.rect(x, y, thumbSize, thumbSize, 'FD');
-        // center label
-        doc.setFontSize(7);
-        const labelX = x + thumbSize / 2;
-        const labelY = y + thumbSize / 2 + 2.2; // visual center tweak
-        doc.text(label, labelX, labelY, { align: 'center' });
-        // count badge
-        const badgeW = Math.min(10, Math.max(7, (String(count).length + 1) * 2.5));
-        const bx = x + thumbSize - badgeW - 0.5;
-        const by = y + thumbSize - 4.5;
-        doc.setFillColor(30);
-        doc.rect(bx, by, badgeW, 4, 'F');
-        doc.setTextColor(255);
-        doc.setFontSize(6);
-        doc.text(`x${count}`, bx + badgeW / 2, by + 3, { align: 'center' });
-        doc.setTextColor(0);
+        doc.setFontSize(9);
+        doc.text(String(count), x + thumbSize / 2, y + 4.5, { align: 'center' });
       } catch {}
     }
 
@@ -291,9 +273,9 @@ Deno.serve(async (req) => {
       doc.text(createdByLines, colCreatedBy, textY, { baseline: 'top' });
       doc.text(notesLines, colNotes, textY, { baseline: 'top' });
 
-      // Barcode thumbnails (draw count boxes)
-      drawMiniThumb(colReceipts, textY, 'RCPT', receiptsCount);
-      drawMiniThumb(colRx, textY, 'RX', rxCount);
+      // Barcode counts
+      drawCountCell(colReceipts, textY, receiptsCount);
+      drawCountCell(colRx, textY, rxCount);
 
       // Signature thumbnail
       if (images.signature) {
