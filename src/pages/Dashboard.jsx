@@ -6715,20 +6715,18 @@ function Dashboard() {
 
   useEffect(() => {
     if (!showBreadcrumbs) return;
-    const refreshBreadcrumbs = async (event) => {
-      const { driverId, deliveryDate } = event.detail || {};
-      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-      const activeDate = format(selectedDate, 'yyyy-MM-dd');
-      if ((driverId && activeDriverId && driverId !== activeDriverId) || (deliveryDate && deliveryDate !== activeDate)) return;
-      setBreadcrumbsData(await loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsers));
+    const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+    const activeDate = format(selectedDate, 'yyyy-MM-dd');
+    const matches = ({ driverId, deliveryDate } = {}) => (!driverId || !activeDriverId || driverId === activeDriverId) && (!deliveryDate || deliveryDate === activeDate);
+    const refresh = async (event) => matches(event.detail || {}) && setBreadcrumbsData(await loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsers));
+    const append = (event) => {
+      const { point, ...detail } = event.detail || {};
+      if (!point || !matches(detail)) return;
+      setBreadcrumbsData((prev) => prev?.current?.some((p) => Number(p?.timestamp) === Number(point.timestamp)) ? prev : { historical: prev?.historical || [], current: [...(prev?.current || []), point] });
     };
-    window.addEventListener('deliveriesUpdated', refreshBreadcrumbs);
-    window.addEventListener('routeOptimizationComplete', refreshBreadcrumbs);
-    window.addEventListener('routeReordered', refreshBreadcrumbs);
+    window.addEventListener('deliveriesUpdated', refresh); window.addEventListener('routeOptimizationComplete', refresh); window.addEventListener('routeReordered', refresh); window.addEventListener('breadcrumbCollected', append);
     return () => {
-      window.removeEventListener('deliveriesUpdated', refreshBreadcrumbs);
-      window.removeEventListener('routeOptimizationComplete', refreshBreadcrumbs);
-      window.removeEventListener('routeReordered', refreshBreadcrumbs);
+      window.removeEventListener('deliveriesUpdated', refresh); window.removeEventListener('routeOptimizationComplete', refresh); window.removeEventListener('routeReordered', refresh); window.removeEventListener('breadcrumbCollected', append);
     };
   }, [showBreadcrumbs, selectedDriverId, currentUser?.id, selectedDate, appUsers]);
 
