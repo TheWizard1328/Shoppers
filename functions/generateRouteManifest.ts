@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { driverId, deliveryDate, manifestType, ampm, storeIds } = body || {};
+    const { driverId, deliveryDate, manifestType, ampm, storeIds, selectedCityId } = body || {};
 
     if (!deliveryDate || !manifestType || (!driverId && (!Array.isArray(storeIds) || storeIds.length === 0))) {
       return Response.json({ error: 'Missing parameters' }, { status: 400 });
@@ -27,29 +27,45 @@ Deno.serve(async (req) => {
       ? await base44.asServiceRole.entities.AppUser.filter({ id: { $in: creatorIds } })
       : [];
     const creatorNameMap = new Map((creatorAppUsers || []).map((appUser) => [appUser.id, appUser.user_name || appUser.id]));
+    const driverIds = [...new Set(items.map((item) => item?.driver_id).filter(Boolean))];
+    const driverAppUsers = driverIds.length > 0
+      ? await base44.asServiceRole.entities.AppUser.filter({ user_id: { $in: driverIds } })
+      : [];
+    const driverNameMap = new Map((driverAppUsers || []).map((appUser) => [appUser.user_id, appUser.user_name || appUser.full_name || appUser.user_id]));
 
-    if (driverId) {
-      items = items.filter(d => d?.driver_id === driverId);
+    let effectiveStoreIds = Array.isArray(storeIds) ? storeIds : null;
+    if (selectedCityId && effectiveStoreIds) {
+      const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: selectedCityId });
+      effectiveStoreIds = (cityStores || []).filter((store) => effectiveStoreIds.includes(store.id)).map((store) => store.id);
     }
 
-    // CRITICAL: If storeIds provided (dispatcher export), filter to only those stores
-    if (storeIds && Array.isArray(storeIds) && storeIds.length > 0) {
-      items = items.filter(d => d?.store_id && storeIds.includes(d.store_id));
+    if (driverId) {
+      items = items.filter((d) => d?.driver_id === driverId);
+    }
+
+    if (effectiveStoreIds) {
+      items = items.filter((d) => d?.store_id && effectiveStoreIds.includes(d.store_id));
     }
 
     if (manifestType === 'pre-route') {
       const period = ampm === 'PM' ? 'PM' : 'AM';
-      items = items.filter(d => d?.ampm_deliveries === period && !finished.includes(d?.status));
-      items.sort((a,b) => {
-        const soA = a?.stop_order ?? 9999; const soB = b?.stop_order ?? 9999;
-        if (soA !== soB) return soA - soB;
-        const tA = a?.delivery_time_start || '99:99';
-        const tB = b?.delivery_time_start || '99:99';
-        return tA.localeCompare(tB);
-      });
-    } else {
-      items.sort((a,b) => (a?.stop_order ?? 9999) - (b?.stop_order ?? 9999));
+      items = items.filter((d) => d?.ampm_deliveries === period && !finished.includes(d?.status));
     }
+
+    items.sort((a, b) => {
+      const driverA = driverNameMap.get(a?.driver_id) || a?.driver_name || a?.driver_id || '';
+      const driverB = driverNameMap.get(b?.driver_id) || b?.driver_name || b?.driver_id || '';
+      if (!driverId) {
+        const driverCompare = driverA.localeCompare(driverB);
+        if (driverCompare !== 0) return driverCompare;
+      }
+      const soA = a?.stop_order ?? 9999;
+      const soB = b?.stop_order ?? 9999;
+      if (soA !== soB) return soA - soB;
+      const tA = a?.delivery_time_start || '99:99';
+      const tB = b?.delivery_time_start || '99:99';
+      return tA.localeCompare(tB);
+    });
 
     // Helper: extract just HH:MM time from various time formats
     function extractTime(timeStr) {
@@ -130,18 +146,19 @@ Deno.serve(async (req) => {
 
     let y = 36;
 
-    // Column positions (Stop, TR#, Time, Name/Store, Created By, Notes, Receipts, Rx, Sig, Photos)
+    // Column positions (Stop, TR#, Time, Name/Store, Driver, Created By, Notes, Receipts, Rx, Sig, Photos)
     const colStop = 12;
     const colTR = 26;
     const colTime = 42;
-    const colName = 60;
+    const colName = 58;
     const rightMargin = pageWidth - 12;
     const colPhotos = rightMargin - thumbSize;
     const colSig = colPhotos - (thumbSize + rightGap);
     const colRx = colSig - (thumbSize + rightGap);
     const colReceipts = colRx - (thumbSize + rightGap);
-    const colNotes = colReceipts - 44;
-    const colCreatedBy = colNotes - 34;
+    const colNotes = colReceipts - 34;
+    const colCreatedBy = colNotes - 28;
+    const colDriver = colCreatedBy - 28;
 
     const addHeader = () => {
       doc.setFontSize(9);
@@ -150,6 +167,7 @@ Deno.serve(async (req) => {
       doc.text('TR#', colTR, y);
       doc.text('Time', colTime, y);
       doc.text('Name / Store', colName, y);
+      doc.text('Driver', colDriver, y);
       doc.text('Created By', colCreatedBy, y);
       doc.text('Notes', colNotes, y);
       doc.text('Rcpt', colReceipts + thumbSize / 2, y, { align: 'center' });
@@ -198,19 +216,23 @@ Deno.serve(async (req) => {
       // Calculate row height needed
       const isPickup = !d?.patient_id;
       const name = isPickup ? (d?.delivery_notes || 'Store Pickup') : (d?.patient_name || '');
+      const driverName = driverNameMap.get(d?.driver_id) || d?.driver_name || d?.driver_id || '';
       const createdBy = creatorNameMap.get(d?.created_by_app_user_id) || d?.created_by_app_user_id || '';
       const notes = d?.delivery_instructions || d?.delivery_notes || '';
       
-      const nameWrapWidth = Math.max(22, colCreatedBy - colName - 2);
-      const createdByWrapWidth = Math.max(18, colNotes - colCreatedBy - 2);
-      const notesWrapWidth = Math.max(20, colReceipts - colNotes - 2);
+      const nameWrapWidth = Math.max(20, colDriver - colName - 2);
+      const driverWrapWidth = Math.max(18, colCreatedBy - colDriver - 2);
+      const createdByWrapWidth = Math.max(16, colNotes - colCreatedBy - 2);
+      const notesWrapWidth = Math.max(18, colReceipts - colNotes - 2);
       const nameLines = doc.splitTextToSize(name, nameWrapWidth);
+      const driverLines = doc.splitTextToSize(driverName, driverWrapWidth);
       const createdByLines = doc.splitTextToSize(createdBy, createdByWrapWidth);
       const notesLines = doc.splitTextToSize(notes, notesWrapWidth);
       const nameDims = doc.getTextDimensions(nameLines);
+      const driverDims = doc.getTextDimensions(driverLines);
       const createdByDims = doc.getTextDimensions(createdByLines);
       const notesDims = doc.getTextDimensions(notesLines);
-      const textHeight = Math.max(nameDims.h, createdByDims.h, notesDims.h) + cellPadding;
+      const textHeight = Math.max(nameDims.h, driverDims.h, createdByDims.h, notesDims.h) + cellPadding;
 
       const receiptsCount = Array.isArray(d?.receipt_barcode_values) ? d.receipt_barcode_values.length : 0;
       const rxCount = Array.isArray(d?.barcode_values) ? d.barcode_values.length : 0;
@@ -248,6 +270,7 @@ Deno.serve(async (req) => {
       doc.text(tr, colTR, textY, { baseline: 'top' });
       doc.text(time, colTime, textY, { baseline: 'top' });
       doc.text(nameLines, colName, textY, { baseline: 'top' });
+      doc.text(driverLines, colDriver, textY, { baseline: 'top' });
       doc.text(createdByLines, colCreatedBy, textY, { baseline: 'top' });
       doc.text(notesLines, colNotes, textY, { baseline: 'top' });
 

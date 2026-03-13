@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Download, ChevronDown, Loader2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
 import { userHasRole } from "../utils/userRoles";
+import { globalFilters } from "@/components/utils/globalFilters";
 
 export default function ExportRouteButton({ currentUser, driverFilter, selectedDate, driverFilteredDeliveries }) {
   const finishedStatuses = ['completed','failed','cancelled','returned','picked_up'];
@@ -26,13 +27,35 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
   const isAdmin = userHasRole(currentUser, 'admin');
   const isDriver = userHasRole(currentUser, 'driver') && !isAdmin && !userHasRole(currentUser, 'dispatcher');
+  const selectedCityId = globalFilters.getSelectedCityId();
+  const [dispatcherAllDateDeliveries, setDispatcherAllDateDeliveries] = useState([]);
 
-  // For dispatchers: filter to only their store's stops
+  useEffect(() => {
+    let isActive = true;
+    if (!isDispatcherOnly || !dateStr) {
+      setDispatcherAllDateDeliveries([]);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    base44.entities.Delivery.filter({ delivery_date: dateStr }).then((deliveries) => {
+      if (isActive) {
+        setDispatcherAllDateDeliveries(deliveries || []);
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isDispatcherOnly, dateStr, selectedCityId]);
+
+  // For dispatchers: filter to only their store's stops across all drivers for the selected date
   const dispatcherDayDeliveries = useMemo(() => {
-    const source = dayDeliveries;
+    const source = isDispatcherOnly ? dispatcherAllDateDeliveries : dayDeliveries;
     if (!isDispatcherOnly || dispatcherStoreIds.length === 0) return source;
     return source.filter(d => d && dispatcherStoreIds.includes(d.store_id));
-  }, [dayDeliveries, isDispatcherOnly, dispatcherStoreIds]);
+  }, [dayDeliveries, isDispatcherOnly, dispatcherStoreIds, dispatcherAllDateDeliveries]);
 
   // Route complete check (all stops finished for selected date)
   const isRouteComplete = dayDeliveries.length > 0 &&
@@ -74,7 +97,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     if (isExporting) return;
     setIsExporting(true);
     try {
-      const exportAllDispatcherDrivers = isDispatcherOnly && driverFilter === 'all';
+      const exportAllDispatcherDrivers = isDispatcherOnly;
       const driverId = exportAllDispatcherDrivers ? undefined : driverFilter;
       if (!driverId && !exportAllDispatcherDrivers) { alert('Select a driver first'); return; }
       const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
@@ -85,7 +108,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
       manifestType: type,
       ampm: type === 'pre-route' ? ampm : undefined,
       // Dispatchers: only export their store's stops
-      storeIds: isDispatcherOnly ? dispatcherStoreIds : undefined
+      storeIds: isDispatcherOnly ? dispatcherStoreIds : undefined,
+      selectedCityId: isDispatcherOnly ? selectedCityId : undefined
     };
 
     const res = await base44.functions.invoke('generateRouteManifest', payload);
@@ -128,7 +152,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
   // === DISPATCHERS ===
   if (isDispatcherOnly) {
-    const noDriver = !driverFilter;
+    const noDriver = false;
     const noStoreDeliveries = dispatcherDayDeliveries.length === 0;
 
     // If all dispatcher's store stops are finished → post-route export
