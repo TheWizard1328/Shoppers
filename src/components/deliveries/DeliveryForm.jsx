@@ -758,8 +758,8 @@ export default function DeliveryForm({
 
   // CRITICAL: Track if predictions should be stopped (when Done button is clicked or form is closing)
   const predictionsStopped = useRef(false);
-  // CRITICAL: Store full prediction list from backend (never refetch unless date/user changes)
-  const fullPredictionListRef = useRef([]), lastPredictionsFetchKeyRef = useRef('');
+  // CRITICAL: Store full prediction list from backend for local filtering
+  const fullPredictionListRef = useRef([]);
 
   useEffect(() => {
     if (delivery || !formData.delivery_date || !currentUser || !stores || !allDeliveries) return;
