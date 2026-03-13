@@ -171,14 +171,11 @@ export default function HereType1Polylines({
   };
   const [optimizing, setOptimizing] = useState(false);
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
-  // Clear stale polylines when driver, showAll, or the underlying markers change (e.g. date switch)
-  const markerFingerprint = useMemo(() => `${deliveryMarkers.length}_${pickupMarkers.length}_${deliveryMarkers.map(m => m.id).join(',')}`, [deliveryMarkers, pickupMarkers]);
   useEffect(() => {
     setLastNonEmptyLines([]);
-    setCache({});
     setDeviationSegments({});
     deviationMetaRef.current = {};
-  }, [selectedDriverId, showAll, markerFingerprint]);
+  }, [selectedDriverId, showAll]);
   const requestTimesRef = useRef({});
   const mountTimeRef = useRef(Date.now());
 

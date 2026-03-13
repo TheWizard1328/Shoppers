@@ -67,6 +67,13 @@ export default function RealTimeRouteOptimizer({
       return;
     }
 
+    const optimizationKey = `${selectedDriverId}:${selectedDate}`;
+    if (activeOptimizationKeyRef.current === optimizationKey) {
+      console.log('⏭️ [RealTimeRouteOptimizer] Skipping duplicate optimization request');
+      return;
+    }
+    activeOptimizationKeyRef.current = optimizationKey;
+
     console.log('🔄 [RealTimeRouteOptimizer] Triggering route optimization for driver:', selectedDriverId);
     if (showUIRef.current) {
       window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
@@ -133,8 +140,10 @@ export default function RealTimeRouteOptimizer({
       }
     } catch (error) {
       console.error('❌ [RealTimeRouteOptimizer] Error:', error);
+    } finally {
+      showUIRef.current = false;
+      activeOptimizationKeyRef.current = null;
     }
-    showUIRef.current = false;
   };
 
   // Track when optimization is in progress to prevent duplicate runs
@@ -142,6 +151,7 @@ export default function RealTimeRouteOptimizer({
   const lastOptimizationTimeRef = useRef(0);
   const OPTIMIZATION_COOLDOWN = 15000; // 15 seconds (balanced smoothing)
   const showUIRef = useRef(false);
+  const activeOptimizationKeyRef = useRef(null);
 
   useEffect(() => {
     // Listen for manual optimization triggers

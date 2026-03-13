@@ -86,6 +86,38 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'f
   });
 };
 
+const getDriverIdentityKey = (user) => String(
+  user?.driver?.user_id || user?.driver?.id || user?.user_id || user?.driver_id || user?.driverId || user?.id || ''
+);
+
+const normalizeDriverRecord = (user) => {
+  if (!user) return user;
+  const identityKey = getDriverIdentityKey(user);
+  const markerId = user?.id || user?.driver?.id || identityKey;
+  return {
+    ...user,
+    id: markerId,
+    user_id: identityKey || user?.user_id,
+    driver_id: user?.driver_id || user?.driverId || markerId
+  };
+};
+
+const dedupeVisibleDrivers = (drivers = []) => {
+  const byIdentity = new Map();
+  drivers.filter(Boolean).forEach((item) => {
+    const user = normalizeDriverRecord(item);
+    const key = getDriverIdentityKey(user);
+    if (!key) return;
+    const existing = byIdentity.get(key);
+    const existingTs = new Date(existing?.location_updated_at || existing?.updated_date || 0).getTime();
+    const nextTs = new Date(user?.location_updated_at || user?.updated_date || 0).getTime();
+    if (!existing || nextTs >= existingTs) {
+      byIdentity.set(key, user);
+    }
+  });
+  return Array.from(byIdentity.values());
+};
+
 const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null }) => {
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
@@ -274,7 +306,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       if (updatedAppUsers && updatedAppUsers.length > 0) {
         console.log(`📦 [DriverMarkers] Bulk update - processing ${updatedAppUsers.length} drivers`);
 
-        const validDrivers = updatedAppUsers.filter(shouldShowMarker);
+        const validDrivers = dedupeVisibleDrivers(updatedAppUsers.filter(shouldShowMarker));
 
         console.log(`📍 [DriverMarkers] Setting ${validDrivers.length} visible drivers`);
         setVisibleDrivers(validDrivers);
@@ -315,36 +347,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     });
     
     // CRITICAL: Deduplicate self markers on primary device - only keep ONE (the live one)
-    const deduplicatedDrivers = (() => {
-      const selfMarkers = validDrivers.filter(u => {
-        const userId = u.id || u.user_id;
-        return userId === currentUser?.id || u.user_id === currentUser?.id || userId === currentUser?.user_id;
-      });
-      
-      if (selfMarkers.length > 1 && isPrimaryDevice) {
-        console.warn(`⚠️ [DriverMarkers] Found ${selfMarkers.length} self markers on PRIMARY device - keeping only most recent`);
-        // Keep only the most recent self marker (by location_updated_at)
-        const mostRecent = selfMarkers.reduce((latest, current) => {
-          const latestTime = new Date(latest.location_updated_at || 0).getTime();
-          const currentTime = new Date(current.location_updated_at || 0).getTime();
-          return currentTime > latestTime ? current : latest;
-        });
-        
-        return validDrivers.filter(u => {
-          const userId = u.id || u.user_id;
-          const isSelf = userId === currentUser?.id || u.user_id === currentUser?.id || userId === currentUser?.user_id;
-          return !isSelf || u === mostRecent;
-        });
-      }
-      
-      return validDrivers;
-    })();
+    const deduplicatedDrivers = dedupeVisibleDrivers(validDrivers);
     
     console.log(`📍 [DriverMarkers - users prop] Validated ${deduplicatedDrivers.length}/${users?.length || 0} drivers`);
     
     // CRITICAL: Check if the set of visible driver IDs has actually changed
     // This prevents flickering caused by array reference changes during smart refresh
-    const newVisibleIds = new Set(deduplicatedDrivers.map(d => d.id));
+    const newVisibleIds = new Set(deduplicatedDrivers.map(d => getDriverIdentityKey(d) || d.id));
     const prevIds = prevVisibleIdsRef.current;
     
     const idsChanged = newVisibleIds.size !== prevIds.size || 
@@ -353,7 +362,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     
     // Check if any driver's location OR timestamp has changed
     const locationsChanged = deduplicatedDrivers.some(driver => {
-      const existing = visibleDrivers.find(d => d.id === driver.id);
+      const driverKey = getDriverIdentityKey(driver) || driver.id;
+      const existing = visibleDrivers.find(d => (getDriverIdentityKey(d) || d.id) === driverKey);
       if (!existing) return true;
       // Check if coordinates changed at all
       const latDiff = Math.abs((driver.current_latitude || 0) - (existing.current_latitude || 0));
@@ -377,7 +387,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     
     // Clean up markers for drivers that are no longer visible
     Object.keys(markersRef.current).forEach(userId => {
-      if (!deduplicatedDrivers.find(d => d.id === userId)) {
+      if (!deduplicatedDrivers.find(d => (getDriverIdentityKey(d) || d.id) === userId)) {
         delete markersRef.current[userId];
       }
     });
@@ -517,9 +527,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const isSharedLocation = isSelf && !isPrimaryDevice;
 
         // Use user.id as stable key to prevent flickering during updates
-        const stableKey = user.id;
+        const stableKey = getDriverIdentityKey(user) || user.id;
 
-        markersRef.current[user.id] = true;
+        markersRef.current[stableKey] = true;
         
         // Get staleness info from poller
         const staleness = user._staleness || 'fresh';
