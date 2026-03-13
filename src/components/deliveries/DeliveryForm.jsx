@@ -805,7 +805,6 @@ export default function DeliveryForm({
           return;
         }
 
-        const _pk=`${formData.delivery_date}::${[...storeIdsToPredict].sort().join(',')}::${predictionTrigger}`; if(lastPredictionsFetchKeyRef.current===_pk){setIsLoadingPredictions(false);return;} lastPredictionsFetchKeyRef.current=_pk;
         const response = await base44.functions.invoke('getDeliveryPredictions', {
           selectedDate: formData.delivery_date,
           storeIds: storeIdsToPredict,
