@@ -378,7 +378,8 @@ async function handleCreateCodItem(base44, payload) {
   const lookedUpPatientName = deliveryRecord
     ? await resolveDeliveryPatientName(base44, deliveryRecord, patientById, patientByPid)
     : '';
-  const resolvedPatientName = normalizeText(lookedUpPatientName || patientName || deliveryRecord?.patient_name);
+  const usableLookedUpPatientName = lookedUpPatientName === 'Unknown Patient' ? '' : lookedUpPatientName;
+  const resolvedPatientName = normalizeText(usableLookedUpPatientName || patientName || deliveryRecord?.patient_name);
   if (!resolvedPatientName || resolvedPatientName === 'COD' || resolvedPatientName === 'Unknown Patient') {
     return { success: true, skipped: true, reason: 'missing_patient_name' };
   }
