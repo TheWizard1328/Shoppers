@@ -928,7 +928,8 @@ export default function SquareManagement() {
                           </td>
                           <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
                             {(() => {
-                              const resolvedDate = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+                              const delivery = deliveries.find(d => d?.id === item.delivery_id);
+                              const resolvedDate = delivery?.delivery_date || item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
                               if (resolvedDate) {
                                 const [year, month, day] = resolvedDate.split('-');
                                 const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
@@ -1068,7 +1069,8 @@ export default function SquareManagement() {
                       </div>
                       <div className="truncate text-right">
                         <span className="font-semibold text-slate-900 dark:text-slate-50">Date:</span> {(() => {
-                          const resolvedDate = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+                          const delivery = deliveries.find(d => d?.id === item.delivery_id);
+                          const resolvedDate = delivery?.delivery_date || item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
                           if (resolvedDate) {
                             const [year, month, day] = resolvedDate.split('-');
                             const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
