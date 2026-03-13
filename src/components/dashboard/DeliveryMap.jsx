@@ -449,43 +449,25 @@ export default function DeliveryMap({
     });
   }, [driverLocationMarkers, routeLocationSnapshot]);
 
-  const driversWithCompleteRoute = useMemo(() => {
+  const routeStateByDriver = useMemo(() => {
     const byDriver = new Map();
     [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
       if (!stop?.driver_id) return;
-      if (!byDriver.has(stop.driver_id)) byDriver.set(stop.driver_id, { complete: 0, incomplete: 0 });
-      if (FINISHED_STATUSES.includes(stop.status)) byDriver.get(stop.driver_id).complete += 1;
+      if (!byDriver.has(stop.driver_id)) byDriver.set(stop.driver_id, { completed: 0, incomplete: 0, pickupsRemaining: 0 });
+      if (FINISHED_STATUSES.includes(stop.status)) byDriver.get(stop.driver_id).completed += 1;
       else if (stop.status !== "pending") byDriver.get(stop.driver_id).incomplete += 1;
+      if (stop.markerType === "pickup" && !FINISHED_STATUSES.includes(stop.status)) byDriver.get(stop.driver_id).pickupsRemaining += 1;
     });
+    return byDriver;
+  }, [deliveryMarkers, pickupMarkers]);
+
+  const driversWithCompleteRoute = useMemo(() => {
     const result = new Set();
-    byDriver.forEach((value, key) => {
-      if (value.incomplete === 0 && value.complete > 0) result.add(key);
+    routeStateByDriver.forEach((value, key) => {
+      if (value.incomplete === 0 && value.completed > 0) result.add(key);
     });
     return result;
-  }, [deliveryMarkers, pickupMarkers]);
-
-  const driverHomeVisibilityById = useMemo(() => {
-    const byDriver = new Map();
-    [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
-      if (!stop?.driver_id) return;
-      if (!byDriver.has(stop.driver_id)) byDriver.set(stop.driver_id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
-      const state = byDriver.get(stop.driver_id);
-      if (FINISHED_STATUSES.includes(stop.status)) {
-        state.completed += 1;
-      } else if (stop.markerType === "pickup") {
-        state.remainingPickups += 1;
-      } else if (stop.markerType === "delivery") {
-        state.remainingDeliveries += 1;
-      }
-    });
-
-    const visibilityMap = new Map();
-    byDriver.forEach((state, driverId) => {
-      const shouldShowHomeMarker = state.completed === 0 && state.remainingPickups > 0;
-      visibilityMap.set(driverId, { ...state, shouldShowHomeMarker });
-    });
-    return visibilityMap;
-  }, [deliveryMarkers, pickupMarkers]);
+  }, [routeStateByDriver]);
 
   const driverHomeMarkers = useMemo(() => {
     const hideHomeMarkersForDispatcher = currentUser && userHasRole(currentUser, "dispatcher") && !userHasRole(currentUser, "admin");
@@ -497,20 +479,14 @@ export default function DeliveryMap({
     }
 
     const visibleDriverIds = new Set([...deliveryMarkers, ...pickupMarkers].map((stop) => stop?.driver_id).filter(Boolean));
-    const routeStateByDriver = new Map();
-    [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
-      if (!stop?.driver_id) return;
-      if (!routeStateByDriver.has(stop.driver_id)) routeStateByDriver.set(stop.driver_id, { completed: 0, remaining: 0 });
-      if (FINISHED_STATUSES.includes(stop.status)) routeStateByDriver.get(stop.driver_id).completed += 1;
-      else routeStateByDriver.get(stop.driver_id).remaining += 1;
-    });
 
     const items = safeUsers.filter((user) => visibleDriverIds.has(user.id) && user.home_latitude && user.home_longitude && user.driver_status !== "off_duty").filter((user) => {
       const routeState = routeStateByDriver.get(user.id);
-      const hasStartedRoute = (routeState?.completed || 0) > 0;
-      const hasRemainingStops = (routeState?.remaining || 0) > 0;
+      const hasCompletedFirstStop = (routeState?.completed || 0) > 0;
+      const hasPickupRemaining = (routeState?.pickupsRemaining || 0) > 0;
+      const shouldShowByRouteState = !hasCompletedFirstStop || !hasPickupRemaining;
 
-      if (hasStartedRoute && hasRemainingStops) return false;
+      if (!shouldShowByRouteState) return false;
       if (isPureDriver && user.id !== currentUser.id && !(showOtherDriverDeliveries || isAllDriversMode)) return false;
       if (showOtherDriverDeliveries || isAllDriversMode) return true;
       return user.id === selectedDriverId || user.id === currentUser.id;
@@ -526,12 +502,11 @@ export default function DeliveryMap({
       isRouteComplete: driversWithCompleteRoute.has(user.id)
     }));
 
-    if (items.length > 0) {
-      prevDriverHomeMarkersRef.current = items;
-      return items;
-    }
-    return prevDriverHomeMarkersRef.current;
-  }, [showRoutes, currentUser, selectedDate, deliveryMarkers, pickupMarkers, safeUsers, selectedDriverId, showOtherDriverDeliveries, isAllDriversMode, driversWithCompleteRoute]);
+    prevDriverHomeMarkersRef.current = items;
+    return items;
+  }, [showRoutes, currentUser, selectedDate, deliveryMarkers, pickupMarkers, safeUsers, selectedDriverId, showOtherDriverDeliveries, isAllDriversMode, driversWithCompleteRoute, routeStateByDriver]);
+
+  const visibleHomeMarkerByDriverId = useMemo(() => new Map(driverHomeMarkers.map((marker) => [marker.driverId, marker])), [driverHomeMarkers]);
 
   useEffect(() => {
     window.__mapHomeMarkers = driverHomeMarkers;
@@ -578,7 +553,8 @@ export default function DeliveryMap({
       const firstStop = (isRouteCompleted ? stops : incomplete)[0] || null;
       const lastStop = (isRouteCompleted ? stops : incomplete).slice(-1)[0] || null;
       const routeLocation = routeLocationSnapshot[route.driverId];
-      const startPoint = routeLocation ? [routeLocation.latitude, routeLocation.longitude] : (!completed.length && route.driver?.home_latitude && route.driver?.home_longitude ? [route.driver.home_latitude, route.driver.home_longitude] : null);
+      const visibleHomeMarker = visibleHomeMarkerByDriverId.get(route.driverId);
+      const startPoint = routeLocation ? [routeLocation.latitude, routeLocation.longitude] : (!completed.length && visibleHomeMarker ? [visibleHomeMarker.latitude, visibleHomeMarker.longitude] : null);
       return {
         ...route,
         coordinates,
@@ -599,7 +575,7 @@ export default function DeliveryMap({
 
     prevDriverRoutesRef.current = routes;
     return routes;
-  }, [pickupMarkers, deliveryMarkers, driverLookupMap, showRoutes, showBreadcrumbs, currentZoom, isMobile, routeLocationSnapshot, isViewingCurrentDate]);
+  }, [pickupMarkers, deliveryMarkers, driverLookupMap, showRoutes, showBreadcrumbs, currentZoom, isMobile, routeLocationSnapshot, isViewingCurrentDate, visibleHomeMarkerByDriverId]);
 
   useEffect(() => {
     onDriverRoutesCalculated?.(driverRoutes);
