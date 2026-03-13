@@ -829,7 +829,7 @@ export default function DeliveryForm({
           
           // Filter out staged patients and display
           const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
-          const filteredPredictions = formattedPredictions.filter(pred => !stagedPatientIds.has(pred.patient_id));
+          const filteredPredictions = formattedPredictions.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id));
           setProjectedDeliveries(filteredPredictions);
         }
       } catch (error) {
@@ -1052,7 +1052,7 @@ export default function DeliveryForm({
 
     // CRITICAL: Filter projected deliveries locally (don't refetch from backend)
     const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), patient.id].filter(Boolean));
-    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id));
+    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
 
     // CRITICAL: Clear form completely after adding to staged
@@ -1937,7 +1937,7 @@ export default function DeliveryForm({
 
     // CRITICAL: Filter projected deliveries locally (don't refetch from backend)
     const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), formData.patient_id].filter(Boolean));
-    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id));
+    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
 
     // CRITICAL: Clear form completely after adding to staged
@@ -3689,7 +3689,7 @@ export default function DeliveryForm({
       invalidate('Delivery');
       setStagedDeliveries(prev => prev.filter(item => item.id !== staged.id && item._tempId !== staged._tempId));
       const remainingStagedIds = new Set(stagedDeliveries.filter(item => item.id !== staged.id && item._tempId !== staged._tempId).map(d => d.patient_id).filter(Boolean));
-      setProjectedDeliveries(fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id)));
+      setProjectedDeliveries(fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id)));
       setHasChanges(true);
       setHasPendingDeletes(true);
       if (editingStagedId === staged._tempId) { setEditingStagedId(null); handleClearForm(); }
