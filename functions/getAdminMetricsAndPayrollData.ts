@@ -145,11 +145,7 @@ Deno.serve(async (req) => {
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
 
-      const [storesRaw, appUsersRaw, patientsRaw, citiesRaw, appSettings, allYearDeliveriesRaw, allYearPayrollRaw] = await Promise.all([
-        base44.asServiceRole.entities.Store.list('', 50000),
-        base44.asServiceRole.entities.AppUser.list('', 50000),
-        base44.asServiceRole.entities.Patient.list('', 50000),
-        base44.asServiceRole.entities.City.list('', 50000),
+      const [appSettings, allYearDeliveriesRaw, allYearPayrollRaw] = await Promise.all([
         base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
         fetchDateRangeRecords(base44.asServiceRole.entities.Delivery, 'delivery_date', yearStart, yearEnd, '-delivery_date'),
         fetchDateRangeRecords(base44.asServiceRole.entities.Payroll, 'pay_period_start', yearStart, yearEnd, '-pay_period_start')
@@ -160,26 +156,33 @@ Deno.serve(async (req) => {
         deliveries = deliveries.filter((delivery) => cityStoreIds.has(delivery.store_id));
       }
 
-      const relevantStoreIds = new Set(deliveries.map((delivery) => delivery.store_id).filter(Boolean));
-      const relevantPatientIds = new Set(deliveries.map((delivery) => delivery.patient_id).filter(Boolean));
-      const relevantDriverIds = new Set(deliveries.map((delivery) => delivery.driver_id).filter(Boolean));
+      const relevantStoreIds = Array.from(new Set(deliveries.map((delivery) => delivery.store_id).filter(Boolean)));
+      const relevantPatientIds = Array.from(new Set(deliveries.map((delivery) => delivery.patient_id).filter(Boolean)));
+      const relevantDriverIds = Array.from(new Set(deliveries.map((delivery) => delivery.driver_id).filter(Boolean)));
 
-      const stores = (storesRaw || [])
-        .filter((store) => relevantStoreIds.has(store.id) || !cityStoreIds)
-        .map((store) => pickFields(store, STORE_FIELDS));
+      const [storesRaw, appUsersRaw, patientsRaw] = await Promise.all([
+        relevantStoreIds.length ? base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000) : [],
+        base44.asServiceRole.entities.AppUser.filter({ app_roles: { $in: ['driver'] } }, '', 5000),
+        relevantPatientIds.length ? base44.asServiceRole.entities.Patient.filter({ id: { $in: relevantPatientIds } }, '', 5000) : []
+      ]);
 
+      const stores = (storesRaw || []).map((store) => pickFields(store, STORE_FIELDS));
+
+      const payrollDriverIds = dedupeById(allYearPayrollRaw || []).map((record) => record?.driver_id).filter(Boolean);
+      const driverIdsToKeep = new Set([...relevantDriverIds, ...payrollDriverIds]);
       const appUsers = (appUsersRaw || [])
-        .filter((appUserRecord) => appUserRecord?.app_roles?.includes('driver') || relevantDriverIds.has(appUserRecord.user_id))
+        .filter((appUserRecord) => driverIdsToKeep.size === 0 || driverIdsToKeep.has(appUserRecord.user_id))
         .map((appUserRecord) => pickFields(appUserRecord, DRIVER_FIELDS));
 
-      const patients = (patientsRaw || [])
-        .filter((patient) => relevantPatientIds.has(patient.id))
-        .map((patient) => pickFields(patient, PATIENT_FIELDS));
+      const patients = (patientsRaw || []).map((patient) => pickFields(patient, PATIENT_FIELDS));
 
-      const relevantCityIds = new Set(stores.map((store) => store.city_id).filter(Boolean));
-      const cities = (citiesRaw || [])
-        .filter((city) => relevantCityIds.has(city.id) || city.id === cityId)
-        .map((city) => pickFields(city, CITY_FIELDS));
+      const relevantCityIds = Array.from(new Set(stores.map((store) => store.city_id).filter(Boolean)));
+      const citiesRaw = relevantCityIds.length
+        ? await base44.asServiceRole.entities.City.filter({ id: { $in: cityId && cityId !== 'all' ? Array.from(new Set([...relevantCityIds, cityId])) : relevantCityIds } }, '', 500)
+        : (cityId && cityId !== 'all')
+          ? await base44.asServiceRole.entities.City.filter({ id: cityId }, '', 1)
+          : [];
+      const cities = (citiesRaw || []).map((city) => pickFields(city, CITY_FIELDS));
 
       const payrollRecords = dedupeById(allYearPayrollRaw || []);
       const appFeeRate = parseFloat(appSettings?.[0]?.setting_value?.app_fees_per_delivery) || 0;
