@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, AlertCircle, Clock, Loader2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
-export default function SyncStatusIndicator({ syncStatus, isSyncing, error }) {
+export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codDeliveryCount = 0, catalogItemCount = 0, transactionCount = 0 }) {
   const catalogStatus = syncStatus?.catalog;
   const transactionStatus = syncStatus?.transactions;
 
@@ -73,24 +73,14 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error }) {
                     <span className="text-muted-foreground">(@ {format(new Date(lastSyncTime), 'HH:mm:ss')})</span>
                   </>
                 )}
-                {(catalogStatus?.recordCount !== undefined || transactionStatus?.recordCount !== undefined) && (
-                  <>
-                    <span className="text-muted-foreground">•</span>
-                    {catalogStatus?.recordCount !== undefined && (
-                      <span className="text-muted-foreground">
-                        Catalog Items: {catalogStatus.recordCount}
-                      </span>
-                    )}
-                    {transactionStatus?.recordCount !== undefined && catalogStatus?.recordCount !== undefined && (
-                      <span className="text-muted-foreground">•</span>
-                    )}
-                    {transactionStatus?.recordCount !== undefined && (
-                      <span className="text-muted-foreground">
-                        Transactions: {transactionStatus.recordCount}
-                      </span>
-                    )}
-                  </>
-                )}
+                <>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-muted-foreground">Deliveries with COD's: {codDeliveryCount}</span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-muted-foreground">Catalog Items: {catalogItemCount}</span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-muted-foreground">Transactions: {transactionCount}</span>
+                </>
               </div>
               {error && (
                 <div className="text-xs text-red-600 font-medium mt-1">

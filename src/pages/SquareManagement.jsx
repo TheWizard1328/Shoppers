@@ -323,6 +323,14 @@ export default function SquareManagement() {
 
 
 
+  const storeConfigsByStoreId = React.useMemo(() => {
+    const map = new Map();
+    stores.forEach(store => {
+      if (store?.id) map.set(store.id, store.square_location_config_id);
+    });
+    return map;
+  }, [stores]);
+
   // Get consistent color for each driver
   const getDriverColor = (driverId) => {
     const colors = [
@@ -575,6 +583,15 @@ export default function SquareManagement() {
     });
   }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, patients]);
 
+  const codDeliveriesCount = React.useMemo(() => {
+    const visibleLocationIds = new Set(filteredCatalogItems.map(item => item.location_id).filter(Boolean));
+    return deliveries.filter(delivery => {
+      if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
+      const config = locationConfigs.find(c => c.id === storeConfigsByStoreId.get(delivery.store_id));
+      return !visibleLocationIds.size || (config?.square_location_id && visibleLocationIds.has(config.square_location_id));
+    }).length;
+  }, [deliveries, filteredCatalogItems, locationConfigs]);
+
   // Summary stats
   const stats = {
     total: filteredCatalogItems.length,
@@ -625,6 +642,9 @@ export default function SquareManagement() {
                 syncStatus={syncStatus}
                 isSyncing={isSyncing}
                 error={error}
+                codDeliveryCount={codDeliveriesCount}
+                catalogItemCount={filteredCatalogItems.length}
+                transactionCount={allTransactions.length}
               />
             </div>
           )}
