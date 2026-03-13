@@ -95,6 +95,8 @@ const parseHereTimeToHHMM = (value) => {
   return `${match[1]}:${match[2]}`;
 };
 
+const isValidEntityId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ''));
+
 const getStopCoordinates = (delivery, patientMap, storeMap) => {
   if (delivery.patient_id) {
     const patient = patientMap.get(delivery.patient_id);
@@ -188,7 +190,9 @@ Deno.serve(async (req) => {
       return Response.json({ message: 'No incomplete deliveries to optimize', routeChanged: false });
     }
 
-    const patientIds = [...new Set(incompleteDeliveries.filter((delivery) => delivery.patient_id).map((delivery) => delivery.patient_id))];
+    const patientIds = [...new Set(incompleteDeliveries
+      .filter((delivery) => delivery.patient_id && isValidEntityId(delivery.patient_id))
+      .map((delivery) => delivery.patient_id))];
     const storeIds = [...new Set(incompleteDeliveries.map((delivery) => delivery.store_id).filter(Boolean))];
 
     const [patients, stores] = await Promise.all([
