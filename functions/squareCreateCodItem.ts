@@ -24,9 +24,16 @@ Deno.serve(async (req) => {
     }
 
     const deliveryRecord = await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
-    const patientRecord = deliveryRecord?.patient_id
-      ? await base44.asServiceRole.entities.Patient.get(deliveryRecord.patient_id).catch(() => null)
-      : null;
+    let patientRecord = null;
+    if (deliveryRecord?.patient_id) {
+      patientRecord = await base44.asServiceRole.entities.Patient.get(deliveryRecord.patient_id).catch(() => null);
+      if (!patientRecord) {
+        const patientMatches = await base44.asServiceRole.entities.Patient.filter({
+          patient_id: deliveryRecord.patient_id
+        }, '-updated_date', 1).catch(() => []);
+        patientRecord = Array.isArray(patientMatches) ? patientMatches[0] : null;
+      }
+    }
     const effectiveStoreId = storeId || deliveryRecord?.store_id;
 
     // Get the store's Square location ID from SquareLocationConfig
