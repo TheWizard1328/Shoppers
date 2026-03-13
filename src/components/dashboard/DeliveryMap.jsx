@@ -464,6 +464,29 @@ export default function DeliveryMap({
     return result;
   }, [deliveryMarkers, pickupMarkers]);
 
+  const driverHomeVisibilityById = useMemo(() => {
+    const byDriver = new Map();
+    [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
+      if (!stop?.driver_id) return;
+      if (!byDriver.has(stop.driver_id)) byDriver.set(stop.driver_id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
+      const state = byDriver.get(stop.driver_id);
+      if (FINISHED_STATUSES.includes(stop.status)) {
+        state.completed += 1;
+      } else if (stop.markerType === "pickup") {
+        state.remainingPickups += 1;
+      } else if (stop.markerType === "delivery") {
+        state.remainingDeliveries += 1;
+      }
+    });
+
+    const visibilityMap = new Map();
+    byDriver.forEach((state, driverId) => {
+      const shouldShowHomeMarker = state.completed === 0 && state.remainingPickups > 0;
+      visibilityMap.set(driverId, { ...state, shouldShowHomeMarker });
+    });
+    return visibilityMap;
+  }, [deliveryMarkers, pickupMarkers]);
+
   const driverHomeMarkers = useMemo(() => {
     const hideHomeMarkersForDispatcher = currentUser && userHasRole(currentUser, "dispatcher") && !userHasRole(currentUser, "admin");
     const isPureDriver = currentUser && userHasRole(currentUser, "driver") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "dispatcher");
