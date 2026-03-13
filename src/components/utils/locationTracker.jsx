@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { format } from 'date-fns';
 import { isMobileDevice as checkIsMobileDevice } from './deviceUtils';
 import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
 import { liveDistanceTracker } from './liveDistanceTracker';
@@ -88,6 +89,12 @@ class LocationTracker {
     this.driverStatus = status;
     
     console.log(`📍 [LocationTracker] Driver status changed: ${previousStatus} → ${status}`);
+    
+    if (status === 'on_duty' && previousStatus !== 'on_duty') {
+      this.clearStalePendingBreadcrumbs().catch((error) => {
+        console.warn('⚠️ [LocationTracker] Failed to clear stale pending breadcrumbs:', error?.message || error);
+      });
+    }
     
     // EVENT-DRIVEN: Mark for immediate update on next poll
     this._pendingEventUpdate = true;
@@ -591,6 +598,10 @@ class LocationTracker {
     this.lastBreadcrumbPosition = null;
     this.minBreadcrumbDistance = 100; // 100 meters
 
+    if (this.driverStatus === 'on_duty') {
+      await this.clearStalePendingBreadcrumbs();
+    }
+
     // Test GPS capabilities
     const capabilities = await this.checkGPSCapabilities();
     if (!capabilities.hasGeolocation) {
@@ -836,6 +847,57 @@ class LocationTracker {
     * CRITICAL: Only saves if driver is on_duty
     * Stores [lat, lng, timestamp_ms] in offline DB, associated with driver_id
     */
+  async clearStalePendingBreadcrumbs(targetDate = format(new Date(), 'yyyy-MM-dd')) {
+    if (!this.appUserId) {
+      return;
+    }
+
+    const { offlineDB } = await import('./offlineDatabase');
+    const existingRecord = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, this.appUserId);
+
+    if (!existingRecord?.breadcrumbs || !Array.isArray(existingRecord.breadcrumbs)) {
+      this.lastBreadcrumbPosition = null;
+      return;
+    }
+
+    const todaysBreadcrumbs = existingRecord.breadcrumbs.filter((point) => {
+      if (!Array.isArray(point) || point.length < 3 || !point[2]) {
+        return false;
+      }
+
+      return format(new Date(point[2]), 'yyyy-MM-dd') === targetDate;
+    });
+
+    if (todaysBreadcrumbs.length === existingRecord.breadcrumbs.length) {
+      const lastPoint = todaysBreadcrumbs[todaysBreadcrumbs.length - 1];
+      this.lastBreadcrumbPosition = lastPoint
+        ? { latitude: lastPoint[0], longitude: lastPoint[1], timestamp: lastPoint[2] }
+        : null;
+      return;
+    }
+
+    if (todaysBreadcrumbs.length === 0) {
+      await offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, this.appUserId);
+      this.lastBreadcrumbPosition = null;
+      console.log(`🧹 [LocationTracker] Cleared stale pending breadcrumbs for ${targetDate}`);
+      return;
+    }
+
+    const lastPoint = todaysBreadcrumbs[todaysBreadcrumbs.length - 1];
+    await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, {
+      ...existingRecord,
+      driver_id: this.appUserId,
+      timestamp: lastPoint[2],
+      breadcrumbs: todaysBreadcrumbs
+    });
+    this.lastBreadcrumbPosition = {
+      latitude: lastPoint[0],
+      longitude: lastPoint[1],
+      timestamp: lastPoint[2]
+    };
+    console.log(`🧹 [LocationTracker] Removed stale breadcrumb timestamps and kept ${todaysBreadcrumbs.length} points for ${targetDate}`);
+  }
+
   async collectBreadcrumb(latitude, longitude, timestamp) {
     // CRITICAL: Only collect breadcrumbs if driver is on_duty
     if (this.driverStatus !== 'on_duty') {
