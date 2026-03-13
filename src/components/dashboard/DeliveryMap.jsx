@@ -586,7 +586,7 @@ export default function DeliveryMap({
 
     prevDriverRoutesRef.current = routes;
     return routes;
-  }, [pickupMarkers, deliveryMarkers, driverLookupMap, showRoutes, showBreadcrumbs, currentZoom, isMobile, routeLocationSnapshot, isViewingCurrentDate]);
+  }, [pickupMarkers, deliveryMarkers, driverLookupMap, showRoutes, showBreadcrumbs, currentZoom, isMobile, routeLocationSnapshot, isViewingCurrentDate, driverHomeVisibilityById]);
 
   useEffect(() => {
     onDriverRoutesCalculated?.(driverRoutes);
