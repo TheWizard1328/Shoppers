@@ -685,19 +685,19 @@ export default function DeliveryMap({
           />
         )}
 
-        {routeAwareCurrentDriverMarker && (
+        {currentDriverMarker && (
           <Marker
             key="current-driver-location"
-            position={[routeAwareCurrentDriverMarker.latitude, routeAwareCurrentDriverMarker.longitude]}
+            position={[currentDriverMarker.latitude, currentDriverMarker.longitude]}
             icon={createLiveLocationDot()}
             zIndexOffset={6000}
-            eventHandlers={{ click: () => onMarkerClick?.(routeAwareCurrentDriverMarker, "driver") }}
+            eventHandlers={{ click: () => onMarkerClick?.(currentDriverMarker, "driver") }}
           >
             <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
               <div className="min-w-[150px]">
                 <div className="font-semibold text-xs">Your Location</div>
-                {routeAwareCurrentDriverMarker.timestamp && (
-                  <div className="text-[11px] text-gray-600">Updated: {format(new Date(routeAwareCurrentDriverMarker.timestamp), "HH:mm:ss")}</div>
+                {currentDriverMarker.timestamp && (
+                  <div className="text-[11px] text-gray-600">Updated: {format(new Date(currentDriverMarker.timestamp), "HH:mm:ss")}</div>
                 )}
               </div>
             </Popup>
