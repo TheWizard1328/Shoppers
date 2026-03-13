@@ -323,14 +323,6 @@ export default function SquareManagement() {
 
 
 
-  const storeConfigsByStoreId = React.useMemo(() => {
-    const map = new Map();
-    stores.forEach(store => {
-      if (store?.id) map.set(store.id, store.square_location_config_id);
-    });
-    return map;
-  }, [stores]);
-
   // Get consistent color for each driver
   const getDriverColor = (driverId) => {
     const colors = [
@@ -587,10 +579,11 @@ export default function SquareManagement() {
     const visibleLocationIds = new Set(filteredCatalogItems.map(item => item.location_id).filter(Boolean));
     return deliveries.filter(delivery => {
       if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
-      const config = locationConfigs.find(c => c.id === storeConfigsByStoreId.get(delivery.store_id));
+      const store = stores.find(s => s?.id === delivery.store_id);
+      const config = locationConfigs.find(c => c.id === store?.square_location_config_id);
       return !visibleLocationIds.size || (config?.square_location_id && visibleLocationIds.has(config.square_location_id));
     }).length;
-  }, [deliveries, filteredCatalogItems, locationConfigs]);
+  }, [deliveries, filteredCatalogItems, locationConfigs, stores]);
 
   // Summary stats
   const stats = {
