@@ -18,6 +18,7 @@ export default function QuickRouteAdjustments({
   const [showDelayDialog, setShowDelayDialog] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [delayMinutes, setDelayMinutes] = useState(15);
+  const [, setEtaTrendVersion] = useState(0);
 
   // Get incomplete deliveries sorted by stop order
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
@@ -60,7 +61,7 @@ export default function QuickRouteAdjustments({
 
   useEffect(() => {
     primeEtaTrendBus(incompleteDeliveries);
-    const handleTrendUpdate = () => setDelayMinutes((value) => value);
+    const handleTrendUpdate = () => setEtaTrendVersion((value) => value + 1);
     window.addEventListener('etaTrendUpdated', handleTrendUpdate);
     return () => window.removeEventListener('etaTrendUpdated', handleTrendUpdate);
   }, [incompleteDeliveries]);

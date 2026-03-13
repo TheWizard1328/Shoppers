@@ -6120,16 +6120,10 @@ function Dashboard() {
           console.warn('⚠️ Stop order recalc failed:', error)
         );
 
-        // Background: Update ETAs (mobile drivers only, don't await)
-        if (isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
+        if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
           const now = new Date();
           const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-          base44.functions.invoke('calculateRealTimeETA', {
-            driverId: driverId,
-            deliveryDate: deliveryDate,
-            currentLocalTime: localTimeString
-          }).catch((error) => console.warn('⚠️ ETA update failed:', error));
+          base44.functions.invoke('optimizeRouteRealTime', { driverId, deliveryDate, currentLocalTime: localTimeString, deviceTime: now.toISOString() }).then((response) => { const data = response?.data || response; if (!data?.success || !Array.isArray(data.optimizedRoute) || !data.optimizedRoute.length) return; window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId, updates: data.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } })); window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } })); window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } })); }).catch((error) => console.warn('⚠️ Route auto-optimization failed:', error));
         }
         
         // Payroll stats fetch disabled on Dashboard to avoid rate limits; handled only on DriverPayroll page.
@@ -7523,13 +7517,6 @@ function Dashboard() {
           }} />
 
         }
-
-
-        {/* ETA Change Notifications - Drivers Only */}
-        <ETANotification
-          deliveries={filteredDeliveries}
-          driverId={selectedDriverId}
-          currentUser={currentUser} />
 
 
         <div className="absolute inset-0">

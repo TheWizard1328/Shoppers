@@ -52,7 +52,7 @@ export default function StopCardHeader({
   appUsers = [],
   isReturnDelivery,
 }) {
-  const [etaTrendVersion, setEtaTrendVersion] = React.useState(0);
+  const [, setEtaTrendVersion] = React.useState(0);
   React.useEffect(() => {
     primeEtaTrendBus([delivery]);
     const handler = () => setEtaTrendVersion((value) => value + 1);
