@@ -1,4 +1,3 @@
-import { base44 } from '@/api/base44Client';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
 export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUsers = []) {
@@ -7,7 +6,8 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
   }
 
   const deliveriesForBreadcrumbs = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-  const driverAppUser = (appUsers || []).find((user) => user?.user_id === driverId) || (await base44.entities.AppUser.filter({ user_id: driverId }))[0];
+  const cachedAppUsers = (appUsers && appUsers.length > 0) ? appUsers : await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+  const driverAppUser = (cachedAppUsers || []).find((user) => user?.user_id === driverId);
 
   const historical = (deliveriesForBreadcrumbs || [])
     .filter((delivery) => delivery && delivery.driver_id === driverId && delivery.delivery_date === selectedDateStr && delivery.delivery_route_breadcrumbs)
