@@ -686,6 +686,11 @@ export default function StopCard({
       const now = new Date();
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+      const isValidObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
+      if (!isValidObjectId(delivery.id) || !isValidObjectId(delivery.driver_id)) {
+        throw new Error('This stop is still syncing. Please try again in a moment.');
+      }
+
       await base44.functions.invoke('handleStartDelivery', {
         deliveryId: delivery.id,
         driverId: delivery.driver_id,

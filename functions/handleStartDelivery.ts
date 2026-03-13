@@ -1,4 +1,6 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+
+const isValidObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
 
 Deno.serve(async (req) => {
   try {
@@ -13,6 +15,10 @@ Deno.serve(async (req) => {
 
     if (!deliveryId || !driverId || !deliveryDate) {
       return Response.json({ error: 'Missing required fields: deliveryId, driverId, deliveryDate' }, { status: 400 });
+    }
+
+    if (!isValidObjectId(deliveryId) || !isValidObjectId(driverId)) {
+      return Response.json({ error: 'Start was blocked because this stop is still syncing.' }, { status: 400 });
     }
 
     // Step 1: Find old isNextDelivery flags and clear only the ones we no longer need
