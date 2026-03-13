@@ -872,6 +872,14 @@ class LocationTracker {
 
       await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, breadcrumbData);
       this.lastBreadcrumbPosition = { latitude, longitude, timestamp };
+      window.dispatchEvent(new CustomEvent('breadcrumbCollected', {
+        detail: {
+          driverId: this.currentUser?.id,
+          appUserId: this.appUserId,
+          deliveryDate: this.currentDeliveryDate,
+          point: { lat: latitude, lng: longitude, timestamp }
+        }
+      }));
       console.log(`🍞 [LocationTracker] Collected breadcrumb for driver ${this.appUserId}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
