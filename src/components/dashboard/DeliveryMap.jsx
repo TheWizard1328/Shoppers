@@ -224,9 +224,26 @@ export default function DeliveryMap({
     const map = new Map();
     safeUsers.forEach((user) => {
       if (user?.id) map.set(user.id, user);
+      if (user?.user_id) map.set(user.user_id, user);
     });
     return map;
   }, [safeUsers]);
+
+  const driverNameLookupMap = useMemo(() => {
+    const map = new Map();
+    safeUsers.forEach((user) => {
+      const resolvedName = user?.user_name || user?.full_name || user?.driverName || user?.driver_name;
+      if (!resolvedName) return;
+      if (user?.id) map.set(user.id, resolvedName);
+      if (user?.user_id) map.set(user.user_id, resolvedName);
+    });
+    deliveriesToShow.forEach((delivery) => {
+      const resolvedName = delivery?.driver_name || delivery?.driver?.user_name || delivery?.driver?.full_name;
+      if (!resolvedName || !delivery?.driver_id || map.has(delivery.driver_id)) return;
+      map.set(delivery.driver_id, resolvedName);
+    });
+    return map;
+  }, [safeUsers, deliveriesToShow]);
 
   const deliveriesToShow = useMemo(() => {
     if (!showOtherDriverDeliveries || otherDriverDeliveries.length === 0) return safeDeliveries;
@@ -349,6 +366,7 @@ export default function DeliveryMap({
       if (isMobile && isSelf) return null;
       if (!isSelf && user.location_tracking_enabled !== true) return null;
       if (!isAdmin && currentUserCityId && user.city_id && user.city_id !== currentUserCityId) return null;
+      const resolvedDriverName = driverNameLookupMap.get(user.id) || driverNameLookupMap.get(user.user_id) || user.user_name || user.full_name || "Driver";
 
       if (isDispatcher) {
         const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
@@ -368,10 +386,12 @@ export default function DeliveryMap({
         current_latitude: user.current_latitude,
         current_longitude: user.current_longitude,
         location_updated_at: user.location_updated_at,
+        user_name: resolvedDriverName,
+        full_name: resolvedDriverName,
         driver: user,
         driverColor: getDriverColor(user),
-        driverName: user.user_name || user.full_name || "Unknown Driver",
-        driverInitial: (user.user_name || user.full_name || "U").charAt(0).toUpperCase(),
+        driverName: resolvedDriverName,
+        driverInitial: resolvedDriverName.charAt(0).toUpperCase(),
         isSelf,
         driver_status: user.driver_status,
         location_tracking_enabled: user.location_tracking_enabled,
@@ -385,7 +405,7 @@ export default function DeliveryMap({
       return markers;
     }
     return prevDriverLocationMarkersRef.current;
-  }, [safeUsers, currentUser, deliveriesForLocationFilter, selectedDate, isMobile]);
+  }, [safeUsers, currentUser, deliveriesForLocationFilter, selectedDate, isMobile, driverNameLookupMap]);
 
   const currentDriverMarker = useMemo(() => {
     if (!isMobile || !currentUser) return null;
