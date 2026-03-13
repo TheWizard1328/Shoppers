@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Phone, MessageCircle, QrCode, LogOut } from 'lucide-react';
 import { formatRoles, userHasRole } from '@/components/utils/userRoles';
@@ -22,7 +22,18 @@ export default function SidebarUserFooter({
   filteredDeliveries,
   impersonationArea,
 }) {
-  const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') : false;
+  const canShowExportRoute = currentUser ? (userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) : false;
+  const [selectedDriverId, setSelectedDriverId] = useState(() => globalFilters.getSelectedDriverId() || 'all');
+  const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
+
+  useEffect(() => {
+    const unsubscribe = globalFilters.subscribe(() => {
+      setSelectedDriverId(globalFilters.getSelectedDriverId() || 'all');
+      setSelectedDateStr(globalFilters.getSelectedDate());
+    });
+
+    return unsubscribe;
+  }, []);
 
   if (!currentUser) {
     return (
@@ -49,8 +60,6 @@ export default function SidebarUserFooter({
     );
   }
 
-  const selectedDriverId = globalFilters.getSelectedDriverId() || 'all';
-  const selectedDateStr = globalFilters.getSelectedDate();
   const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
 
   return (
@@ -119,8 +128,7 @@ export default function SidebarUserFooter({
         {/* Impersonation area (provided by parent) */}
         {impersonationArea}
 
-        {/* Dispatcher Export Route button under user info */}
-        {isDispatcher && (
+        {canShowExportRoute && (
           <div className="mt-3">
             <ExportRouteButton
               currentUser={currentUser}

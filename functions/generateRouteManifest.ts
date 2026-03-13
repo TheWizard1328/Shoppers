@@ -50,22 +50,39 @@ Deno.serve(async (req) => {
     if (manifestType === 'pre-route') {
       const period = ampm === 'PM' ? 'PM' : 'AM';
       items = items.filter((d) => d?.ampm_deliveries === period && !finished.includes(d?.status));
-    }
-
-    items.sort((a, b) => {
-      const driverA = driverNameMap.get(a?.driver_id) || a?.driver_name || a?.driver_id || '';
-      const driverB = driverNameMap.get(b?.driver_id) || b?.driver_name || b?.driver_id || '';
-      if (!driverId) {
+      items.sort((a, b) => {
+        const driverA = driverNameMap.get(a?.driver_id) || a?.driver_name || a?.driver_id || '';
+        const driverB = driverNameMap.get(b?.driver_id) || b?.driver_name || b?.driver_id || '';
+        if (!driverId) {
+          const driverCompare = driverA.localeCompare(driverB);
+          if (driverCompare !== 0) return driverCompare;
+        }
+        const soA = a?.stop_order ?? 9999;
+        const soB = b?.stop_order ?? 9999;
+        if (soA !== soB) return soA - soB;
+        const tA = a?.delivery_time_start || '99:99';
+        const tB = b?.delivery_time_start || '99:99';
+        return tA.localeCompare(tB);
+      });
+    } else {
+      items.sort((a, b) => {
+        const deliveredA = a?.actual_delivery_time || a?.arrival_time || a?.updated_date || '';
+        const deliveredB = b?.actual_delivery_time || b?.arrival_time || b?.updated_date || '';
+        if (deliveredA && deliveredB) {
+          const deliveredCompare = deliveredA.localeCompare(deliveredB);
+          if (deliveredCompare !== 0) return deliveredCompare;
+        } else if (deliveredA || deliveredB) {
+          return deliveredA ? -1 : 1;
+        }
+        const driverA = driverNameMap.get(a?.driver_id) || a?.driver_name || a?.driver_id || '';
+        const driverB = driverNameMap.get(b?.driver_id) || b?.driver_name || b?.driver_id || '';
         const driverCompare = driverA.localeCompare(driverB);
         if (driverCompare !== 0) return driverCompare;
-      }
-      const soA = a?.stop_order ?? 9999;
-      const soB = b?.stop_order ?? 9999;
-      if (soA !== soB) return soA - soB;
-      const tA = a?.delivery_time_start || '99:99';
-      const tB = b?.delivery_time_start || '99:99';
-      return tA.localeCompare(tB);
-    });
+        const soA = a?.stop_order ?? 9999;
+        const soB = b?.stop_order ?? 9999;
+        return soA - soB;
+      });
+    }
 
     // Helper: extract just HH:MM time from various time formats
     function extractTime(timeStr) {
