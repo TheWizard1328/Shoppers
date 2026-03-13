@@ -855,47 +855,27 @@ class LocationTracker {
     const { offlineDB } = await import('./offlineDatabase');
     const existingRecord = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, this.appUserId);
 
-    if (!existingRecord?.breadcrumbs || !Array.isArray(existingRecord.breadcrumbs)) {
+    if (!existingRecord?.breadcrumbs || !Array.isArray(existingRecord.breadcrumbs) || existingRecord.breadcrumbs.length === 0) {
       this.lastBreadcrumbPosition = null;
       return;
     }
 
-    const todaysBreadcrumbs = existingRecord.breadcrumbs.filter((point) => {
-      if (!Array.isArray(point) || point.length < 3 || !point[2]) {
-        return false;
-      }
+    const firstPoint = existingRecord.breadcrumbs[0];
+    const firstPointDate = Array.isArray(firstPoint) && firstPoint.length >= 3 && firstPoint[2]
+      ? format(new Date(firstPoint[2]), 'yyyy-MM-dd')
+      : null;
 
-      return format(new Date(point[2]), 'yyyy-MM-dd') === targetDate;
-    });
-
-    if (todaysBreadcrumbs.length === existingRecord.breadcrumbs.length) {
-      const lastPoint = todaysBreadcrumbs[todaysBreadcrumbs.length - 1];
-      this.lastBreadcrumbPosition = lastPoint
-        ? { latitude: lastPoint[0], longitude: lastPoint[1], timestamp: lastPoint[2] }
-        : null;
-      return;
-    }
-
-    if (todaysBreadcrumbs.length === 0) {
+    if (!firstPointDate || firstPointDate !== targetDate) {
       await offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, this.appUserId);
       this.lastBreadcrumbPosition = null;
-      console.log(`🧹 [LocationTracker] Cleared stale pending breadcrumbs for ${targetDate}`);
+      console.log(`🧹 [LocationTracker] Cleared stale pending breadcrumbs based on first timestamp (${firstPointDate || 'invalid'})`);
       return;
     }
 
-    const lastPoint = todaysBreadcrumbs[todaysBreadcrumbs.length - 1];
-    await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, {
-      ...existingRecord,
-      driver_id: this.appUserId,
-      timestamp: lastPoint[2],
-      breadcrumbs: todaysBreadcrumbs
-    });
-    this.lastBreadcrumbPosition = {
-      latitude: lastPoint[0],
-      longitude: lastPoint[1],
-      timestamp: lastPoint[2]
-    };
-    console.log(`🧹 [LocationTracker] Removed stale breadcrumb timestamps and kept ${todaysBreadcrumbs.length} points for ${targetDate}`);
+    const lastPoint = existingRecord.breadcrumbs[existingRecord.breadcrumbs.length - 1];
+    this.lastBreadcrumbPosition = Array.isArray(lastPoint) && lastPoint.length >= 3
+      ? { latitude: lastPoint[0], longitude: lastPoint[1], timestamp: lastPoint[2] }
+      : null;
   }
 
   async collectBreadcrumb(latitude, longitude, timestamp) {
