@@ -159,6 +159,23 @@ export default function CompletedBreadcrumbPolylines({
   const [cache, setCache] = useState({});
   const requestTimesRef = useRef({});
 
+  const storedFinishedSegments = useMemo(() => {
+    const allFinishedStops = [...pickupMarkers, ...deliveryMarkers]
+      .filter((stop) => stop && FINISHED.includes(stop.status))
+      .filter((stop) => typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0)
+      .filter((stop) => isAllDriversMode || selectedDriverId === "all" || stop.driver_id === selectedDriverId);
+
+    return allFinishedStops.map((stop) => ({
+      id: `stored-${stop.id}`,
+      stopId: stop.id,
+      driverId: stop.driver_id,
+      encodedPolyline: stop.finished_leg_encoded_polyline.trim(),
+      opacity: highlightedDeliveryId && stop.id === highlightedDeliveryId ? 0.85 : (selectedDriverId && selectedDriverId !== "all" ? 0.7 : 0.35)
+    }));
+  }, [pickupMarkers, deliveryMarkers, isAllDriversMode, selectedDriverId, highlightedDeliveryId]);
+
+  const storedFinishedStopIds = useMemo(() => new Set(storedFinishedSegments.map((segment) => segment.stopId)), [storedFinishedSegments]);
+
   const completedSegments = useMemo(() => {
     return (driverRoutes || []).flatMap((route) => {
       if (!route?.driverId) return [];
@@ -230,6 +247,7 @@ export default function CompletedBreadcrumbPolylines({
     return completedSegments
       .filter(() => showStoredPolylines)
       .filter((segment) => !segment.hasAnyBreadcrumbs)
+      .filter((segment) => !storedFinishedStopIds.has(segment.destinationStopId))
       .filter((segment) => !blockedStoredDestinationStopIds.has(segment.destinationStopId))
       .filter((segment) => !segment.destinationPointKey || !blockedStoredDestinationPointKeys.has(segment.destinationPointKey))
       .map((segment) => ({
@@ -242,7 +260,7 @@ export default function CompletedBreadcrumbPolylines({
         to: segment.end,
         storedEncodedPolyline: segment.storedEncodedPolyline,
       }));
-  }, [completedSegments, blockedStoredDestinationStopIds, blockedStoredDestinationPointKeys, showStoredPolylines]);
+  }, [completedSegments, storedFinishedStopIds, blockedStoredDestinationStopIds, blockedStoredDestinationPointKeys, showStoredPolylines]);
 
   const breadcrumbRouteLegs = useMemo(() => {
     return completedSegments.flatMap((segment) => {
@@ -301,9 +319,31 @@ export default function CompletedBreadcrumbPolylines({
   const renderedLines = [];
   const breadcrumbRouteColor = getBreadcrumbRouteColor();
 
+  storedFinishedSegments.forEach((segment) => {
+    if (!showStoredPolylines) return;
+    const coords = decodePolyline(segment.encodedPolyline);
+    if (!coords) return;
+
+    renderedLines.push(
+      <Polyline
+        key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
+        positions={coords}
+        pathOptions={{
+          color: STORED_ROUTE_COLOR,
+          weight: 4,
+          opacity: Math.max(segment.opacity, 0.35),
+          lineJoin: "round",
+          lineCap: "round",
+        }}
+        pane="completedBreadcrumbPane"
+      />
+    );
+  });
+
   completedSegments.forEach((segment) => {
     if (!segment.hasAnyBreadcrumbs) {
       if (!showStoredPolylines) return;
+      if (storedFinishedStopIds.has(segment.destinationStopId)) return;
       if (blockedStoredDestinationStopIds.has(segment.destinationStopId)) return;
       if (segment.destinationPointKey && blockedStoredDestinationPointKeys.has(segment.destinationPointKey)) return;
 
