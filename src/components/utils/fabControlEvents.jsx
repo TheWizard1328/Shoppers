@@ -1,2 +1,2 @@
-export * from './fabControlEvents';
-export { fabControlEvents as default } from './fabControlEvents';
+export * from './fabControlEvents.jsx';
+export { fabControlEvents as default } from './fabControlEvents.jsx';
