@@ -1760,17 +1760,6 @@ export default function StopCard({
                                     invalidate('Delivery');
                                     await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
-                                    if (updateDeliveriesLocally) {
-                                      const freshRouteDeliveries = await base44.entities.Delivery.filter({
-                                        driver_id: delivery.driver_id,
-                                        delivery_date: delivery.delivery_date
-                                      });
-                                      const otherDeliveries = allDeliveries.filter((d) =>
-                                        !d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date
-                                      );
-                                      updateDeliveriesLocally([...otherDeliveries, ...freshRouteDeliveries], true);
-                                    }
-
                                     window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                                       detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                                     }));

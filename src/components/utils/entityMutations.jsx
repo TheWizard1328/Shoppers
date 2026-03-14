@@ -506,6 +506,9 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
     const updated = { ...existing, ...sanitizedUpdates, updated_date: new Date().toISOString() };
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updated]);
     console.log('💾 [EntityMutations] Updated IndexedDB for:', deliveryId);
+
+    // STEP 1.5: Notify UI immediately with local version
+    notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
     
     // STEP 2: Update backend (sync to server)
     try {
