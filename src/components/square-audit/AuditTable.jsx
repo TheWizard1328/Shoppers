@@ -10,6 +10,7 @@ export default function AuditTable({ title, description, rows, columns, defaultS
     key: defaultSortKey,
     direction: "asc",
   });
+  const [filters, setFilters] = useState({});
 
   const handleSort = (key) => {
     setSortConfig((current) => ({
@@ -18,8 +19,19 @@ export default function AuditTable({ title, description, rows, columns, defaultS
     }));
   };
 
+  const filteredRows = useMemo(() => {
+    return (rows || []).filter((row) => {
+      return columns.every((column) => {
+        const filterValue = String(filters[column.key] || "").trim().toLowerCase();
+        if (!filterValue) return true;
+        const rawValue = column.filterValue ? column.filterValue(row) : row?.[column.key];
+        return String(rawValue ?? "").toLowerCase().includes(filterValue);
+      });
+    });
+  }, [rows, columns, filters]);
+
   const sortedRows = React.useMemo(() => {
-    const nextRows = [...(rows || [])];
+    const nextRows = [...filteredRows];
     const column = columns.find((item) => item.key === sortConfig.key);
     const getSortValue = column?.sortValue || ((row) => row?.[sortConfig.key]);
 
@@ -36,21 +48,21 @@ export default function AuditTable({ title, description, rows, columns, defaultS
     });
 
     return nextRows;
-  }, [rows, columns, sortConfig]);
+  }, [filteredRows, columns, sortConfig]);
 
   const discrepancyCount = rows.filter((row) => row.hasDiscrepancy).length;
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
+    <Card className="shadow-sm overflow-hidden" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
       <CardHeader className="space-y-2">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <CardTitle className="text-lg text-slate-900">{title}</CardTitle>
-            <p className="text-sm text-slate-500">{description}</p>
+            <CardTitle className="text-lg" style={{ color: "var(--text-slate-900)" }}>{title}</CardTitle>
+            <p className="text-sm" style={{ color: "var(--text-slate-500)" }}>{description}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="bg-slate-100 text-slate-700">
-              {rows.length} rows
+            <Badge variant="secondary" className="border" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)", borderColor: "var(--border-slate-200)" }}>
+              {sortedRows.length} / {rows.length} rows
             </Badge>
             {discrepancyCount > 0 && (
               <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
