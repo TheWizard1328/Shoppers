@@ -1,4 +1,5 @@
 import { offlineDB } from '@/components/utils/offlineDatabase';
+import { getEdmontonDateString, listPendingBreadcrumbRecordsForDriver } from '@/components/utils/pendingBreadcrumbsManager';
 
 export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUsers = []) {
   if (!driverId || !selectedDateStr) {
@@ -6,8 +7,6 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
   }
 
   const deliveriesForBreadcrumbs = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-  const cachedAppUsers = (appUsers && appUsers.length > 0) ? appUsers : await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-  const driverAppUser = (cachedAppUsers || []).find((user) => user?.user_id === driverId);
 
   const historical = (deliveriesForBreadcrumbs || [])
     .filter((delivery) => delivery && delivery.driver_id === driverId && delivery.delivery_date === selectedDateStr && delivery.delivery_route_breadcrumbs)
@@ -21,10 +20,12 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
     })
     .filter(Boolean);
 
-  const currentRecord = driverAppUser?.id ? await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, driverAppUser.id) : null;
-  const current = Array.isArray(currentRecord?.breadcrumbs)
-    ? currentRecord.breadcrumbs.map(([lat, lng, timestamp]) => ({ lat, lng, timestamp })).filter((point) => typeof point.lat === 'number' && typeof point.lng === 'number')
-    : [];
+  const pendingRecords = await listPendingBreadcrumbRecordsForDriver({ driverUserId: driverId, appUsers });
+  const current = pendingRecords
+    .filter((record) => getEdmontonDateString(record?.timestamp || Date.now()) === selectedDateStr)
+    .flatMap((record) => Array.isArray(record?.breadcrumbs) ? record.breadcrumbs : [])
+    .map(([lat, lng, timestamp]) => ({ lat, lng, timestamp }))
+    .filter((point) => typeof point.lat === 'number' && typeof point.lng === 'number');
 
   return { historical, current };
 }
