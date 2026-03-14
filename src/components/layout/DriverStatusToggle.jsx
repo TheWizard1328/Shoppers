@@ -438,7 +438,11 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         // Going on duty - start location tracking and set next delivery
         try {
           console.log('🟢 Starting location tracking (on duty)...');
-          await clearStalePendingBreadcrumbs(appUserId);
+          await reconcilePendingBreadcrumbsOnDuty({
+            driverUserId: currentUser.id,
+            appUsers: [{ id: appUserId, user_id: currentUser.id }],
+            currentDateStr: today
+          });
 
           // CRITICAL: Set driver status BEFORE starting tracker
           locationTracker.setDriverStatus(newStatus);
