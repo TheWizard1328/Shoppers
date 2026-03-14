@@ -50,7 +50,7 @@ import {
   verifyDeliveryStillExists,
   withPausedDriverLocationPoller
 } from "./stopCardActionHelpers";
-import { getPendingBreadcrumbsForDelivery } from '../utils/pendingBreadcrumbsManager';
+import { clearPendingBreadcrumbsForDriver, getPendingBreadcrumbsForDriver } from '../utils/pendingBreadcrumbsManager';
 
 // Global statusConfig
 const statusConfig = {
