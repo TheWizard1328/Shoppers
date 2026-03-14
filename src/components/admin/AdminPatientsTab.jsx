@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { Loader2, MapPin, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PatientGPSUpdatesDialog from './PatientGPSUpdatesDialog';
 
-export default function AdminPatientsTab({ dataViewMode, setDataViewMode, children }) {
+export default function AdminPatientsTab({ dataViewMode, setDataViewMode, children, onBackfillLastDeliveryDates, isBackfilling = false }) {
   const [showPatientGpsUpdates, setShowPatientGpsUpdates] = useState(false);
 
   return (
@@ -17,6 +17,16 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
         >
           <MapPin className="mr-2 h-4 w-4" />
           GPS Updates
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onBackfillLastDeliveryDates}
+          disabled={isBackfilling}
+          className="min-h-10 flex-1 md:flex-none"
+        >
+          {isBackfilling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          Backfill Last Delivery
         </Button>
         <Button
           variant={dataViewMode.patients === 'offline' ? 'default' : 'outline'}
