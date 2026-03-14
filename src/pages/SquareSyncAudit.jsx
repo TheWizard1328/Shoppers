@@ -297,13 +297,13 @@ export default function SquareSyncAudit() {
           rows={tables.transactions}
           defaultSortKey="date"
           columns={[
-            { key: "date", label: "Date" },
+            { key: "date", label: "Date", headerClassName: "whitespace-nowrap w-[120px]", cellClassName: "whitespace-nowrap" },
             { key: "storeName", label: "Store", sortValue: (row) => row.storeName },
             { key: "locationId", label: "Square Location ID" },
-            { key: "amountCents", label: "Amount", render: (row) => row.amountLabel, sortValue: (row) => row.amountCents },
-            { key: "itemName", label: "Item Name" },
-            { key: "paymentId", label: "Payment ID" },
-            { key: "orderId", label: "Order ID" },
+            { key: "amountCents", label: "Amount", render: (row) => row.amountLabel, sortValue: (row) => row.amountCents, headerClassName: "whitespace-nowrap" },
+            { key: "itemName", label: "Item Name", headerClassName: "whitespace-nowrap min-w-[320px]", cellClassName: "whitespace-nowrap" },
+            { key: "paymentId", label: "Payment ID", headerClassName: "whitespace-nowrap" },
+            { key: "orderId", label: "Order ID", headerClassName: "whitespace-nowrap" },
           ]}
         />
 
@@ -313,13 +313,13 @@ export default function SquareSyncAudit() {
           rows={tables.catalogItems}
           defaultSortKey="date"
           columns={[
-            { key: "date", label: "Date" },
+            { key: "date", label: "Date", headerClassName: "whitespace-nowrap w-[120px]", cellClassName: "whitespace-nowrap" },
             { key: "storeName", label: "Store", sortValue: (row) => row.storeName },
             { key: "locationId", label: "Square Location ID" },
-            { key: "amountCents", label: "Amount", render: (row) => row.amountLabel, sortValue: (row) => row.amountCents },
-            { key: "itemName", label: "Item Name" },
-            { key: "catalogObjectId", label: "Catalog Object ID" },
-            { key: "status", label: "Status" },
+            { key: "amountCents", label: "Amount", render: (row) => row.amountLabel, sortValue: (row) => row.amountCents, headerClassName: "whitespace-nowrap" },
+            { key: "itemName", label: "Item Name", headerClassName: "whitespace-nowrap min-w-[320px]", cellClassName: "whitespace-nowrap" },
+            { key: "catalogObjectId", label: "Catalog Object ID", headerClassName: "whitespace-nowrap" },
+            { key: "status", label: "Status", headerClassName: "whitespace-nowrap" },
           ]}
         />
 
@@ -329,13 +329,13 @@ export default function SquareSyncAudit() {
           rows={tables.deliveries}
           defaultSortKey="date"
           columns={[
-            { key: "date", label: "Date" },
+            { key: "date", label: "Date", headerClassName: "whitespace-nowrap w-[120px]", cellClassName: "whitespace-nowrap" },
             { key: "storeName", label: "Store", sortValue: (row) => row.storeName },
             { key: "locationId", label: "Square Location ID" },
-            { key: "amountCents", label: "Amount", render: (row) => row.amountLabel, sortValue: (row) => row.amountCents },
-            { key: "deliveryId", label: "Delivery ID" },
-            { key: "status", label: "Status" },
-            { key: "itemName", label: "Reference" },
+            { key: "amountCents", label: "Amount", render: (row) => row.amountLabel, sortValue: (row) => row.amountCents, headerClassName: "whitespace-nowrap" },
+            { key: "deliveryId", label: "Delivery ID", headerClassName: "whitespace-nowrap" },
+            { key: "status", label: "Status", headerClassName: "whitespace-nowrap" },
+            { key: "itemName", label: "Reference", headerClassName: "whitespace-nowrap min-w-[320px]", cellClassName: "whitespace-nowrap" },
           ]}
         />
           </div>
