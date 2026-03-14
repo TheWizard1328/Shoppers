@@ -654,19 +654,22 @@ export default function StopDetailsPanel({
                   <div className="flex gap-2">
                     <Button 
                       onClick={() => onStatusUpdate(delivery.id, 'completed')}
-                      className="bg-emerald-600 hover:bg-emerald-700"
-                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 h-8 w-8 p-0"
+                      size="icon"
+                      title="Complete"
+                      aria-label="Complete delivery"
                     >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Complete
+                      <CheckCircle className="w-4 h-4" />
                     </Button>
                     <Button 
                       onClick={() => onStatusUpdate(delivery.id, 'failed')}
                       variant="destructive"
-                      size="sm"
+                      className="h-8 w-8 p-0"
+                      size="icon"
+                      title="Failed"
+                      aria-label="Mark delivery failed"
                     >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      Failed
+                      <XCircle className="w-4 h-4" />
                     </Button>
                   </div>
                 )}
