@@ -144,12 +144,12 @@ Deno.serve(async (req) => {
     const storeIds = [...new Set(activeDeliveries.map((delivery) => delivery.store_id).filter(Boolean))];
 
     const [patients, stores] = await Promise.all([
-      patientIds.length ? base44.asServiceRole.entities.Patient.list(undefined, 1000) : Promise.resolve([]),
-      storeIds.length ? base44.asServiceRole.entities.Store.list(undefined, 500) : Promise.resolve([]),
+      Promise.all(patientIds.map((id) => base44.asServiceRole.entities.get('Patient', id))),
+      Promise.all(storeIds.map((id) => base44.asServiceRole.entities.get('Store', id))),
     ]);
 
-    const patientMap = new Map(patients.filter((patient) => patientIds.includes(patient.id)).map((patient) => [patient.id, patient]));
-    const storeMap = new Map(stores.filter((store) => storeIds.includes(store.id)).map((store) => [store.id, store]));
+    const patientMap = new Map(patients.filter(Boolean).map((patient) => [patient.id, patient]));
+    const storeMap = new Map(stores.filter(Boolean).map((store) => [store.id, store]));
 
     const routeStops = [];
     const deliveriesToUpdate = [];
