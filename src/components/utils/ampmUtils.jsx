@@ -231,6 +231,36 @@ export const getStoreAssignedTimeSlot = (store, deliveryDate, allDeliveries = []
   return 'PM';
 };
 
+export const getStoreAssignedTimeSlotForDriver = (store, deliveryDate, driverId, allDeliveries = []) => {
+  if (!store || !deliveryDate || !driverId) return getStoreAssignedTimeSlot(store, deliveryDate, allDeliveries);
+
+  const dateObj = new Date(deliveryDate + 'T00:00:00');
+  const dayOfWeek = dateObj.getDay();
+  const isSaturday = dayOfWeek === 6;
+  const isSunday = dayOfWeek === 0;
+
+  let amDriverId, pmDriverId;
+  if (isSaturday) {
+    amDriverId = store.saturday_am_driver_id;
+    pmDriverId = store.saturday_pm_driver_id;
+  } else if (isSunday) {
+    amDriverId = store.sunday_am_driver_id;
+    pmDriverId = store.sunday_pm_driver_id;
+  } else {
+    amDriverId = store.weekday_am_driver_id;
+    pmDriverId = store.weekday_pm_driver_id;
+  }
+
+  const normalizedDriverId = String(driverId);
+  const isAssignedAM = amDriverId && String(amDriverId) === normalizedDriverId;
+  const isAssignedPM = pmDriverId && String(pmDriverId) === normalizedDriverId;
+
+  if (isAssignedAM && !isAssignedPM) return 'AM';
+  if (isAssignedPM && !isAssignedAM) return 'PM';
+
+  return getStoreAssignedTimeSlot(store, deliveryDate, allDeliveries);
+};
+
 /**
  * Get the PUID (stop_id of the pickup) for a delivery
  */

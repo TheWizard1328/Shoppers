@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
       deliveryDate,
       driverId,
       ampmDeliveries: requestedAmpm = null,
+      primarySlot: legacyPrimarySlot = null,
       allowCreateIfMissing = false,
       skipReuseCheck = false
     } = body || {};
@@ -44,8 +45,10 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required parameters: storeId, deliveryDate, driverId' }, { status: 400 });
     }
 
+    const requestedSlot = requestedAmpm || legacyPrimarySlot || null;
+
     try {
-      const key = `${storeId}|${deliveryDate}|${driverId}`;
+      const key = `${storeId}|${deliveryDate}|${driverId}|${requestedSlot || 'auto'}`;
       const last = ensurePickupRecent.get(key);
       const nowTs = Date.now();
       if (last && (nowTs - last) < 3500) {
@@ -55,7 +58,7 @@ Deno.serve(async (req) => {
     } catch (_) {}
 
     try {
-      const inflightKey = `${storeId}|${deliveryDate}|${driverId}`;
+      const inflightKey = `${storeId}|${deliveryDate}|${driverId}|${requestedSlot || 'auto'}`;
       const lastTs = ensurePickupInFlight.get(inflightKey);
       const nowTs = Date.now();
       if (lastTs && (nowTs - lastTs) < 3500) {
@@ -105,7 +108,7 @@ Deno.serve(async (req) => {
       return slot === 'AM' ? !!store?.sunday_am_enabled : !!store?.sunday_pm_enabled;
     };
 
-    let primarySlot = (requestedAmpm === 'PM' || requestedAmpm === 'AM') && slotEnabled(requestedAmpm) ? requestedAmpm : null;
+    let primarySlot = (requestedSlot === 'PM' || requestedSlot === 'AM') && slotEnabled(requestedSlot) ? requestedSlot : null;
     if (!primarySlot) {
       if (slotEnabled('AM') && slotEnabled('PM')) {
         primarySlot = now.getHours() < 14 ? 'AM' : 'PM';

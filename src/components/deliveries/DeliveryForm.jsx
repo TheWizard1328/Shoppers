@@ -19,7 +19,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { generateStopId, formatId } from '../utils/idGenerator';
 import { getDriverDisplayName, getDriverNameForStorage } from '../utils/driverUtils';
 import { PhoneInput } from "@/components/ui/phone-input";
-import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getPickupStopIdForDelivery, calculateInitialDeliveryTimeStart } from '../utils/ampmUtils';
+import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getStoreAssignedTimeSlotForDriver, getPickupStopIdForDelivery, calculateInitialDeliveryTimeStart } from '../utils/ampmUtils';
 import { base44 } from "@/api/base44Client";
 import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { useAppData } from '../utils/AppDataContext';
@@ -981,7 +981,7 @@ export default function DeliveryForm({
     setFormData(updatedFormData);
     if (!autoAddToStaged) {
       try { if (patientStore && updatedFormData.driver_id && updatedFormData.delivery_date) {
-        const slot = deliveryAMPM || getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries) || 'AM';
+        const slot = deliveryAMPM || getStoreAssignedTimeSlotForDriver(patientStore, formData.delivery_date, updatedFormData.driver_id, allDeliveries) || 'AM';
         const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: patientStore.id, deliveryDate: updatedFormData.delivery_date, driverId: updatedFormData.driver_id, ampmDeliveries: slot, allowCreateIfMissing: true });
         const pu = r?.data?.puid; if (pu) setFormData(prev => ({ ...prev, puid: pu, ampm_deliveries: slot }));
         if (r?.data?.isNew && r?.data?.pickup) {
@@ -1010,7 +1010,7 @@ export default function DeliveryForm({
       }
     }
 
-    const timeSlot = getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries);
+    const timeSlot = getStoreAssignedTimeSlotForDriver(patientStore, formData.delivery_date, autoSelectedDriverId, allDeliveries);
 
     // CRITICAL: Check staged pickups FIRST before calling backend
     const stagedPickup = stagedDeliveries.find((d) =>
@@ -1792,7 +1792,7 @@ export default function DeliveryForm({
     }
 
     const selectedStore = availableStores.find((s) => s && s.id === selectedPickupOption);
-    const timeSlot = selectedStore?._timeSlot || formData.ampm_deliveries || getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries) || 'AM';
+    const timeSlot = selectedStore?._timeSlot || formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, formData.driver_id, allDeliveries) || 'AM';
     let newStagedDelivery;
 
     if (isPickupMode) {
@@ -1875,7 +1875,7 @@ export default function DeliveryForm({
             const pickupPromises = driverAssignedStores
               .filter(assignedStore => assignedStore && assignedStore.id !== formData.store_id)
               .map(async (assignedStore) => {
-                const assignedTimeSlot = getStoreAssignedTimeSlot(assignedStore, formData.delivery_date, allDeliveries);
+                const assignedTimeSlot = getStoreAssignedTimeSlotForDriver(assignedStore, formData.delivery_date, formData.driver_id, allDeliveries);
 
                 // CRITICAL: Check BOTH staged AND allDeliveries for existing pickup
                 const pickupExists = stagedDeliveries.some(d =>
@@ -3469,7 +3469,7 @@ export default function DeliveryForm({
 
     // Check for existing pickup for this store/driver/date
     let puid = null;
-    const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
+    const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, autoDriverId, allDeliveries);
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
 
     // CRITICAL: Check staged pickups FIRST

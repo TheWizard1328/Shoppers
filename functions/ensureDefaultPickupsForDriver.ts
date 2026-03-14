@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       storeId: delivery.store_id,
       deliveryDate: delivery.delivery_date,
       driverId: delivery.driver_id,
-      primarySlot,
+      ampmDeliveries: primarySlot,
     });
 
     return Response.json({
