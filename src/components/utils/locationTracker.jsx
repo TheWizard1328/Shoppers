@@ -838,35 +838,8 @@ class LocationTracker {
     * CRITICAL: Only saves if driver is on_duty
     * Stores [lat, lng, timestamp_ms] in offline DB, associated with driver_id
     */
-  async clearStalePendingBreadcrumbs(targetDate = format(new Date(), 'yyyy-MM-dd')) {
-    if (!this.appUserId) {
-      return;
-    }
-
-    const { offlineDB } = await import('./offlineDatabase');
-    const existingRecord = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, this.appUserId);
-
-    if (!existingRecord?.breadcrumbs || !Array.isArray(existingRecord.breadcrumbs) || existingRecord.breadcrumbs.length === 0) {
-      this.lastBreadcrumbPosition = null;
-      return;
-    }
-
-    const firstPoint = existingRecord.breadcrumbs[0];
-    const firstPointDate = Array.isArray(firstPoint) && firstPoint.length >= 3 && firstPoint[2]
-      ? format(new Date(firstPoint[2]), 'yyyy-MM-dd')
-      : null;
-
-    if (!firstPointDate || firstPointDate !== targetDate) {
-      await offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, this.appUserId);
-      this.lastBreadcrumbPosition = null;
-      console.log(`🧹 [LocationTracker] Cleared stale pending breadcrumbs based on first timestamp (${firstPointDate || 'invalid'})`);
-      return;
-    }
-
-    const lastPoint = existingRecord.breadcrumbs[existingRecord.breadcrumbs.length - 1];
-    this.lastBreadcrumbPosition = Array.isArray(lastPoint) && lastPoint.length >= 3
-      ? { latitude: lastPoint[0], longitude: lastPoint[1], timestamp: lastPoint[2] }
-      : null;
+  async clearStalePendingBreadcrumbs() {
+    this.lastBreadcrumbPosition = null;
   }
 
   async collectBreadcrumb(latitude, longitude, timestamp) {
