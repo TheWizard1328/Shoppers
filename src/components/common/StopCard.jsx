@@ -50,6 +50,7 @@ import {
   verifyDeliveryStillExists,
   withPausedDriverLocationPoller
 } from "./stopCardActionHelpers";
+import { clearPendingBreadcrumbsForDriver, getPendingBreadcrumbsForDriver } from '../utils/pendingBreadcrumbsManager';
 
 // Global statusConfig
 const statusConfig = {
@@ -1342,6 +1343,10 @@ export default function StopCard({
 
                 // CRITICAL: Round completion time to nearest 5-minute mark
                 const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
+                const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({
+                  driverUserId: delivery.driver_id,
+                  appUsers
+                });
                 const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({
                   delivery,
                   allDeliveries,
@@ -1350,7 +1355,8 @@ export default function StopCard({
                   store,
                   patients,
                   stores,
-                  finishedStatuses: FINISHED_STATUSES
+                  finishedStatuses: FINISHED_STATUSES,
+                  breadcrumbPayload: pendingBreadcrumbsString
                 });
 
                 // CRITICAL: Save to both offline and online databases
@@ -1359,7 +1365,8 @@ export default function StopCard({
                     status: status,
                     delivery_notes: updatedNotes,
                     actual_delivery_time: localTimeString,
-                    finished_leg_encoded_polyline: finishedLegEncodedPolyline
+                    finished_leg_encoded_polyline: finishedLegEncodedPolyline,
+                    ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {})
                   }, { skipSmartRefresh: true });
 
                   // Also call onStatusUpdate if available for additional UI updates
@@ -1367,8 +1374,16 @@ export default function StopCard({
                     await onStatusUpdate(delivery.id, status, {
                       delivery_notes: updatedNotes,
                       actual_delivery_time: localTimeString,
-                      finished_leg_encoded_polyline: finishedLegEncodedPolyline
+                      finished_leg_encoded_polyline: finishedLegEncodedPolyline,
+                      ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {})
                     }, false);
+                  }
+
+                  if (pendingBreadcrumbsString) {
+                    await clearPendingBreadcrumbsForDriver({
+                      driverUserId: delivery.driver_id,
+                      appUsers
+                    });
                   }
                 } catch (statusError) {
                   console.error('❌ [FAILURE] Update failed:', statusError);
@@ -1674,6 +1689,11 @@ export default function StopCard({
                                       setCodPayments(autoCODPayment);
                                     }
 
+                                    const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({
+                                      driverUserId: delivery.driver_id,
+                                      appUsers
+                                    });
+
                                     // CRITICAL: For pickups with pending deliveries, trigger Accept All FIRST, then continue to complete pickup
                                     if (isPickup && pendingPickups && pendingPickups.length > 0) {
                                       const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');
@@ -1701,10 +1721,18 @@ export default function StopCard({
                                       actual_delivery_time: localTimeString,
                                       isNextDelivery: false,
                                       finished_leg_encoded_polyline: null,
+                                      ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
                                       ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {})
                                     };
 
                                     await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
+
+                                    if (pendingBreadcrumbsString) {
+                                      await clearPendingBreadcrumbsForDriver({
+                                        driverUserId: delivery.driver_id,
+                                        appUsers
+                                      });
+                                    }
 
                                     const pendingPickupIds = isPickup ? new Set((pendingPickups || []).filter((p) => p?.status === 'pending').map((p) => p.id)) : null;
                                     const optimisticDeliveries = allDeliveries.map((d) => {
@@ -1800,7 +1828,8 @@ export default function StopCard({
                                             store,
                                             patients,
                                             stores,
-                                            finishedStatuses: FINISHED_STATUSES
+                                            finishedStatuses: FINISHED_STATUSES,
+                                            breadcrumbPayload: pendingBreadcrumbsString
                                           });
 
                                           if (finishedLegEncodedPolyline) {

@@ -108,13 +108,11 @@ export async function getFinishedLegEncodedPolyline({
   store,
   patients = [],
   stores = [],
-  finishedStatuses = []
+  finishedStatuses = [],
+  breadcrumbPayload = null
 }) {
-  const origin = getFinishedLegOrigin({ delivery, allDeliveries, driver, patients, stores, finishedStatuses });
-  const destination = getStopCoordinates(delivery, patient, store);
-  if (!origin || !destination) return null;
-
-  const breadcrumbPoints = parseBreadcrumbPoints(delivery?.delivery_route_breadcrumbs);
+...
+  const breadcrumbPoints = parseBreadcrumbPoints(breadcrumbPayload ?? delivery?.delivery_route_breadcrumbs);
   if (breadcrumbPoints.length > 0) {
     const finishedLegPoints = buildFinishedLegPoints(origin, breadcrumbPoints, destination);
     if (finishedLegPoints.length > 1) {
