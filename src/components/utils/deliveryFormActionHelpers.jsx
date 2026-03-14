@@ -3,10 +3,10 @@ let managerControllersPromise;
 const getManagerControllers = async () => {
   if (!managerControllersPromise) {
     managerControllersPromise = Promise.all([
-      import("./smartRefreshManager"),
-      import("./driverLocationPoller"),
-      import("./routePolylineManager"),
-      import("./fabControlEvents")
+      import("./smartRefreshManager.js"),
+      import("./driverLocationPoller.js"),
+      import("./routePolylineManager.js"),
+      import("./fabControlEvents.js")
     ]);
   }
 
@@ -66,6 +66,7 @@ export const getClearedDraftFormData = (prev) => ({
 
 export const resumeDeliveryFormManagers = async () => {
   const { smartRefreshManager, driverLocationPoller, routePolylineManager, fabControlEvents } = await getManagerControllers();
+
   smartRefreshManager.resume();
   driverLocationPoller.resume();
   routePolylineManager?.resume?.();

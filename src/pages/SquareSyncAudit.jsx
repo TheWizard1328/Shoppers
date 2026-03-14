@@ -243,8 +243,8 @@ export default function SquareSyncAudit() {
   }
 
   return (
-    <div className="h-[calc(100vh-1rem)] bg-slate-50 p-4 md:p-6 overflow-hidden">
-      <div className="mx-auto flex h-full w-full max-w-none flex-col space-y-6 overflow-hidden">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Square COD Audit</h1>
@@ -289,9 +289,7 @@ export default function SquareSyncAudit() {
           </CardContent>
         </Card>
 
-        <div className="min-h-0 flex-1 overflow-y-auto space-y-6 pr-1">
         <AuditTable
-          className="flex min-h-[420px] flex-col"
           title="Collected Square Transactions"
           description="Fresh Square payment/order items used as the collected transaction audit source."
           rows={tables.transactions}
@@ -308,7 +306,6 @@ export default function SquareSyncAudit() {
         />
 
         <AuditTable
-          className="flex min-h-[420px] flex-col"
           title="Current Square Catalog Items"
           description="Current active COD-style catalog items available in Square."
           rows={tables.catalogItems}
@@ -325,7 +322,6 @@ export default function SquareSyncAudit() {
         />
 
         <AuditTable
-          className="flex min-h-[420px] flex-col"
           title="In-App COD Deliveries"
           description="Deliveries from the app that still require COD comparison against Square."
           rows={tables.deliveries}
@@ -340,7 +336,6 @@ export default function SquareSyncAudit() {
             { key: "itemName", label: "Reference" },
           ]}
         />
-        </div>
       </div>
     </div>
   );
