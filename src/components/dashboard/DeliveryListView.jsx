@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { format, differenceInMinutes } from 'date-fns';
 import { CheckCircle, Clock, Package, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,20 +18,42 @@ const DeliveryRow = memo(({
   getTimeDisplay,
   getCODDisplay,
   onOpenMedia,
-  isMobile
+  isMobile,
+  bulkEditMode,
+  isBulkSelected,
+  onBulkToggle
 }) => {
   const isPickup = !delivery.patient_id;
   const isNextDelivery = delivery.isNextDelivery === true;
 
+  const desktopGridClass = bulkEditMode
+    ? 'grid grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2'
+    : 'grid grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2';
+
+  const handleRowClick = () => {
+    if (bulkEditMode) {
+      onBulkToggle(delivery.id);
+      return;
+    }
+    onSelect(delivery.id);
+  };
+
   return (
     isMobile ? (
       <div
-        onClick={() => onSelect(delivery.id)}
+        onClick={handleRowClick}
         className={`px-4 py-3 border-b cursor-pointer transition-colors ${
           isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
-        } ${isSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+        } ${isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
         style={{ borderColor: 'var(--border-slate-200)' }}
       >
+        <div className="flex items-start gap-3">
+          {bulkEditMode && (
+            <div className="pt-1" onClick={(event) => event.stopPropagation()}>
+              <Checkbox checked={isBulkSelected} onCheckedChange={() => onBulkToggle(delivery.id)} />
+            </div>
+          )}
+          <div className="flex-1">
         {/* Rows 1-2: Structured two-column layout */}
         <div className="grid grid-cols-[1fr_auto] gap-x-3">
           {/* Row 1 Left: Stop/TR */}
@@ -80,55 +103,25 @@ const DeliveryRow = memo(({
 
         {/* Media + COD */}
         <div className="mt-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            {delivery.signature_image_url ? (
-              <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} />
-            ) : (
-              <span className="text-slate-400 text-sm">—</span>
-            )}
-            {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
-              <div className="flex -space-x-2">
-                {delivery.proof_photo_urls.slice(0,2).map((url, i) => (
-                  <img key={i} src={url} alt={`POD ${i+1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white" />
-                ))}
-                {delivery.proof_photo_urls.length > 2 && (
-                  <div className="w-7 h-7 rounded-md bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 2}</div>
-                )}
-              </div>
-            ) : (
-              <span className="text-slate-400 text-sm">—</span>
-            )}
-
-            {/* Receipt barcodes thumbnail */}
-            {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 && (
-              <div className="flex items-center gap-1">
-                <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
-                  <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={24} className="w-full h-6" />
-                </div>
-                <span className="text-[10px] text-slate-600">x{delivery.receipt_barcode_values.length}</span>
-              </div>
-            )}
-            {/* Rx barcodes thumbnail */}
-            {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 && (
-              <div className="flex items-center gap-1">
-                <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
-                  <BarcodeThumb value={delivery.barcode_values[0]} height={24} className="w-full h-6" />
-                </div>
-                <span className="text-[10px] text-slate-600">x{delivery.barcode_values.length}</span>
-              </div>
-            )}
-          </div>
+...
           <div>{getCODDisplay(delivery)}</div>
+        </div>
+          </div>
         </div>
       </div>
     ) : (
       <div
-        onClick={() => onSelect(delivery.id)}
-        className={`grid grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-3 border-b cursor-pointer transition-colors ${
+        onClick={handleRowClick}
+        className={`${desktopGridClass} px-4 py-3 border-b cursor-pointer transition-colors ${
           isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
-        } ${isSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+        } ${isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
         style={{ borderColor: 'var(--border-slate-200)' }}
       >
+        {bulkEditMode && (
+          <div className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
+            <Checkbox checked={isBulkSelected} onCheckedChange={() => onBulkToggle(delivery.id)} />
+          </div>
+        )}
         <div className="flex items-center justify-center">
           <div className="flex flex-col leading-tight">
             <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
@@ -275,7 +268,11 @@ const DeliveryListView = ({
   allDeliveries,
   selectedDate,
   onDriverStatusChange,
-  isMobile
+  isMobile,
+  bulkEditMode = false,
+  bulkSelectedIds = [],
+  onBulkToggle = () => {},
+  onBulkToggleAllVisible = () => {}
 }) => {
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
   const [mediaPreview, setMediaPreview] = useState(null);
@@ -396,13 +393,30 @@ const DeliveryListView = ({
     selectedDelivery ? storeMap.get(selectedDelivery.store_id) : null
   , [selectedDelivery?.store_id, storeMap]);
 
+  const allVisibleSelected = deliveries.length > 0 && deliveries.every((delivery) => bulkSelectedIds.includes(delivery.id));
+  const someVisibleSelected = deliveries.some((delivery) => bulkSelectedIds.includes(delivery.id));
+
+  useEffect(() => {
+    if (bulkEditMode) {
+      setSelectedDeliveryId(null);
+    }
+  }, [bulkEditMode]);
+
   return (
     <>
       <div className="h-full flex flex-col relative" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
         <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {!isMobile && (
-            <div className="grid grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+            <div className={`${bulkEditMode ? 'grid grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]' : 'grid grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]'} gap-2 px-4 py-3 text-sm font-semibold`} style={{ color: 'var(--text-slate-700)' }}>
+              {bulkEditMode && (
+                <div className="flex items-center justify-center">
+                  <Checkbox
+                    checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+                    onCheckedChange={() => onBulkToggleAllVisible()}
+                  />
+                </div>
+              )}
               <div className="text-center">Stop/TR</div>
               <div className="text-center">Status</div>
               <div className="text-center">Time</div>
@@ -444,6 +458,9 @@ const DeliveryListView = ({
                   getCODDisplay={getCODDisplay}
                   onOpenMedia={handleOpenMedia}
                   isMobile={isMobile}
+                  bulkEditMode={bulkEditMode}
+                  isBulkSelected={bulkSelectedIds.includes(delivery.id)}
+                  onBulkToggle={onBulkToggle}
                 />
               );
             })}
