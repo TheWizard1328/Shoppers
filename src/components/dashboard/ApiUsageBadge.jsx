@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Checkbox } from "@/components/ui/checkbox";
+import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
 import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLog";
 
 // Small self-contained badge that shows Google/HERE API usage for today
 // Props:
 // - currentUser: object (used by parent to gate rendering)
 // - stopCardsHeight: number (px) to position the badge just above stop cards
-export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false }) {
+export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [] }) {
   const [googleCount, setGoogleCount] = useState(null);
   const [hereCount, setHereCount] = useState(null);
 
@@ -75,7 +76,23 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
           🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
         </div>
       </div>
-      {showCompletedRouteControls && <div className="absolute top-4 right-4 z-[180] pointer-events-auto"><div className="rounded-xl border shadow-lg px-4 py-3 space-y-3 min-w-[180px]" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)' }}><label className="flex items-start gap-3 cursor-pointer"><Checkbox checked={showRoutes} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowRoutes?.(checked === true)} className="mt-0.5" /><div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Polylines</div></div></label><label className="flex items-start gap-3 cursor-pointer"><Checkbox checked={showBreadcrumbs} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(checked === true)} className="mt-0.5" /><div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Breadcrumbs</div></div></label></div></div>}
+      {showCompletedRouteControls && (
+        <div className="absolute top-4 right-4 z-[180] pointer-events-auto">
+          <div className="rounded-xl border shadow-lg px-4 py-3 space-y-3 min-w-[220px]" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)' }}>
+            <div className="flex items-center justify-between gap-3">
+              <label className="flex items-start gap-3 cursor-pointer flex-1">
+                <Checkbox checked={showRoutes} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowRoutes?.(checked === true)} className="mt-0.5" />
+                <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Polylines</div></div>
+              </label>
+              <ResetPolylinesButton selectedDriverIds={selectedDriverIds} selectedDate={selectedDate} />
+            </div>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox checked={showBreadcrumbs} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(checked === true)} className="mt-0.5" />
+              <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Breadcrumbs</div></div>
+            </label>
+          </div>
+        </div>
+      )}
     </>);
 
 }
