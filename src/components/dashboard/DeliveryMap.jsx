@@ -591,6 +591,22 @@ export default function DeliveryMap({
     onDriverRoutesCalculated?.(driverRoutes);
   }, [driverRoutes, onDriverRoutesCalculated]);
 
+  const completedRouteDriverIds = useMemo(() => {
+    return new Set((driverRoutes || []).filter((route) => route?.isCompleted).map((route) => route.driverId).filter(Boolean));
+  }, [driverRoutes]);
+
+  const completedRouteDriverRoutes = useMemo(() => {
+    return (driverRoutes || []).filter((route) => route?.isCompleted);
+  }, [driverRoutes]);
+
+  const completedRouteDeliveryMarkers = useMemo(() => {
+    return (deliveryMarkers || []).filter((marker) => completedRouteDriverIds.has(marker?.driver_id));
+  }, [deliveryMarkers, completedRouteDriverIds]);
+
+  const completedRoutePickupMarkers = useMemo(() => {
+    return (pickupMarkers || []).filter((marker) => completedRouteDriverIds.has(marker?.driver_id));
+  }, [pickupMarkers, completedRouteDriverIds]);
+
   useEffect(() => {
     if (hasNotifiedMapReady.current || !map) return;
     if (deliveryMarkers.length > 0 || pickupMarkers.length > 0 || safeDeliveries.length === 0) {
@@ -699,9 +715,9 @@ export default function DeliveryMap({
 
         {(showRoutes || showBreadcrumbs || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
           <CompletedBreadcrumbPolylines
-            driverRoutes={driverRoutes}
-            deliveryMarkers={deliveryMarkers}
-            pickupMarkers={pickupMarkers}
+            driverRoutes={completedRouteDriverRoutes}
+            deliveryMarkers={completedRouteDeliveryMarkers}
+            pickupMarkers={completedRoutePickupMarkers}
             selectedDriverId={selectedDriverId}
             isAllDriversMode={isAllDriversMode}
             highlightedDeliveryId={highlightedDeliveryId}
