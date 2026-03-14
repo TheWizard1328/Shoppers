@@ -34,6 +34,7 @@ import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
 import { generateCompletionTimestamp } from '../utils/timeRoundingHelper';
+import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import StopCardCODCollection from './StopCardCODCollection';
 import StopCardConfirmDialogs from './StopCardConfirmDialogs';
 import StopCardPOD from './StopCardPOD';
@@ -704,6 +705,8 @@ export default function StopCard({
         delivery_time_start: currentLocalTime,
         isNextDelivery: true
       }, { skipSmartRefresh: true });
+
+      await recalculateAndUpdateStopOrders(delivery.driver_id, delivery.delivery_date);
 
       await base44.functions.invoke('handleStartDelivery', {
         deliveryId: delivery.id,
