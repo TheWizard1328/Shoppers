@@ -173,24 +173,26 @@ export default function PatientCard({
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <div className="flex items-center gap-2 mb-1 min-w-0">
               <h3 className="font-semibold text-base truncate" style={{ color: 'var(--text-slate-900)' }}>
                 {patient.full_name}
               </h3>
-              {todayDelivery &&
-              <Badge style={deliveryBadgeConfig.style}>
-                  {deliveryBadgeConfig.label}
-                </Badge>
-              }
               {store && showStoreBadge &&
               <Badge style={{ backgroundColor: store.color, color: 'white' }} className="bg-primary text-primary-foreground px-2.5 py-0.5 text-xs font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80">
                   {store.abbreviation || store.name}
                 </Badge>
               }
             </div>
-            {patient.status === 'inactive' &&
-            <div className="mb-1">
+            {(todayDelivery || patient.status === 'inactive') &&
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                {todayDelivery &&
+                <Badge style={deliveryBadgeConfig.style}>
+                    {deliveryBadgeConfig.label}
+                  </Badge>
+                }
+                {patient.status === 'inactive' &&
                 <Badge className="bg-red-500 text-white border border-red-600">INACTIVE</Badge>
+                }
               </div>
             }
             <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{displayAddress}</p>
