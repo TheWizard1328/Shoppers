@@ -21,7 +21,7 @@ export default function ResetPolylinesButton({
 
     setIsResetting(true);
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         driverIds.map((driverId) =>
           base44.functions.invoke("purgeAndRegeneratePolylines", {
             driverId,
@@ -30,7 +30,8 @@ export default function ResetPolylinesButton({
         )
       );
 
-      driverIds.forEach((driverId) => {
+      driverIds.forEach((driverId, index) => {
+        if (results[index]?.status !== "fulfilled") return;
         window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
           detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
         }));
