@@ -200,13 +200,13 @@ export default function PatientCard({
                 </Badge>
               }
             </div>
-            {(todayDelivery || patient.status === 'inactive') &&
+            {(deliveryBadges.length > 0 || patient.status === 'inactive') &&
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-                {todayDelivery &&
-                <Badge style={deliveryBadgeConfig.style}>
-                    {deliveryBadgeConfig.label}
+                {deliveryBadges.map((badge) =>
+                <Badge key={badge.key} style={badge.style}>
+                    {badge.label}
                   </Badge>
-                }
+                )}
                 {patient.status === 'inactive' &&
                 <Badge className="bg-red-500 text-white border border-red-600">INACTIVE</Badge>
                 }
