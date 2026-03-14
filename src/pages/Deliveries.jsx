@@ -66,6 +66,7 @@ import DeliveryDetails from "../components/deliveries/DeliveryDetails";
 import PatientForm from "../components/patients/PatientForm";
 import DateListPanel from "../components/deliveries/DateListPanel";
 import RouteManagementContent from "../components/deliveries/RouteManagementContent";
+import { deleteDeliveryWithPolylineRefresh } from "../components/deliveries/deleteDeliveryWithPolylineRefresh";
 import { getData, invalidate } from '../components/utils/dataManager';
 
 import { getDriverDisplayName, getDriverNameForStorage, findDriverByName } from '../components/utils/driverUtils';
@@ -2324,28 +2325,17 @@ export default function DeliveriesPage() {
 
   const handleDeleteDelivery = useCallback(async (deliveryId) => {
     try {
-      console.log('🗑️ [Deliveries] Deleting delivery:', deliveryId);
-
-      // CRITICAL: Update UI immediately first (optimistic update)
-      setAllDeliveries((prev) => {
-        const filtered = prev.filter((d) => d.id !== deliveryId);
-        console.log(`✅ [Deliveries] Local state updated: ${prev.length} → ${filtered.length}`);
-        return filtered;
+      await deleteDeliveryWithPolylineRefresh({
+        deliveryId,
+        deliveries: allDeliveries,
+        setAllDeliveries
       });
-
-      // Delete from offline DB and sync to backend
-      // This will trigger mutation listeners to update Layout context
-      await deleteDeliveryLocal(deliveryId);
-
-      invalidate('Delivery');
-      console.log('✅ [Deliveries] Delivery deleted successfully');
     } catch (error) {
       console.error("Error deleting delivery:", error);
       alert("Failed to delete delivery.");
-      // Revert optimistic update on error
       await loadData(true);
     }
-  }, [loadData]);
+  }, [allDeliveries, loadData]);
 
   const handleMapView = useCallback(() => {
     setShowRouteMap(true);
