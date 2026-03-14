@@ -7,9 +7,6 @@ import { base44 } from "@/api/base44Client";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
-import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
-
-const FINISHED_STATUSES = ["completed", "failed", "cancelled", "returned"];
 
 export default function RouteActionButtons({
   currentUser,
@@ -28,8 +25,6 @@ export default function RouteActionButtons({
   setIsMapViewLocked,
   setMapViewTrigger,
 }) {
-  const hasActiveRoute = (filteredDeliveries || []).some((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status));
-
   if (!isAppOwner(currentUser) || selectedDriverId === "all") {
     return null;
   }
@@ -46,15 +41,6 @@ export default function RouteActionButtons({
         right: "64px"
       }}
     >
-      {hasActiveRoute && (
-        <ResetPolylinesButton
-          mode="fab"
-          selectedDriverIds={[selectedDriverId]}
-          selectedDate={format(selectedDate, "yyyy-MM-dd")}
-          disabled={isReoptimizing || isDateFinished}
-        />
-      )}
-
       <Button
         onClick={async () => {
           if (isReoptimizing) return;
