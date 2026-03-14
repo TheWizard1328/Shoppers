@@ -155,17 +155,23 @@ export default function PatientCard({
   }), []);
   const patientDeliveriesForDate = useMemo(() => {
     if (!patient?.id || !todayDelivery?.delivery_date) return [];
-    return (allDeliveries || []).filter((delivery) =>
-      delivery?.patient_id === patient.id && delivery?.delivery_date === todayDelivery.delivery_date
-    );
+    return (allDeliveries || [])
+      .filter((delivery) => delivery?.patient_id === patient.id && delivery?.delivery_date === todayDelivery.delivery_date)
+      .sort((a, b) => {
+        const stopA = Number(a?.stop_order || 0);
+        const stopB = Number(b?.stop_order || 0);
+        if (stopA !== stopB) return stopA - stopB;
+        return String(a?.id || '').localeCompare(String(b?.id || ''));
+      });
   }, [allDeliveries, patient?.id, todayDelivery?.delivery_date]);
   const deliveryBadges = useMemo(() => {
     const deliveriesToShow = patientDeliveriesForDate.length > 1 ? patientDeliveriesForDate : (todayDelivery ? [todayDelivery] : []);
     return deliveriesToShow.map((delivery, index) => {
       const config = deliveryBadgeMap[delivery?.status] || { label: 'On Route', style: { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' } };
+      const stopNumber = delivery?.stop_order ? ` #${delivery.stop_order}` : '';
       return {
         key: delivery?.id || `${delivery?.status || 'delivery'}-${index}`,
-        label: deliveriesToShow.length > 1 ? `${config.label} ${index + 1}` : config.label,
+        label: deliveriesToShow.length > 1 ? `${config.label}${stopNumber}` : config.label,
         style: config.style
       };
     });
