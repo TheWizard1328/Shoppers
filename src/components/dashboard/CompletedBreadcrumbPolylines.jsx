@@ -210,6 +210,7 @@ export default function CompletedBreadcrumbPolylines({
         const end = { latitude: Number(toStop.latitude), longitude: Number(toStop.longitude) };
         const breadcrumbPoints = parseBreadcrumbPoints(toStop.delivery_route_breadcrumbs);
         const routePoints = buildBreadcrumbRoutePoints(start, breadcrumbPoints, end);
+        const hasRealBreadcrumbPoints = breadcrumbPoints.length > 0;
 
         return {
           id: `${route.driverId}-${index}`,
@@ -223,9 +224,10 @@ export default function CompletedBreadcrumbPolylines({
           destinationStopId: toStop.id,
           destinationPointKey: getPointKey(end),
           storedEncodedPolyline: typeof toStop.finished_leg_encoded_polyline === "string" ? toStop.finished_leg_encoded_polyline.trim() : "",
-          breadcrumbPoints: routePoints,
-          hasAnyBreadcrumbs: routePoints.length > 0,
-          hasBreadcrumbs: routePoints.length > 1,
+          breadcrumbPoints,
+          routePoints,
+          hasAnyBreadcrumbs: hasRealBreadcrumbPoints,
+          hasBreadcrumbs: hasRealBreadcrumbPoints && routePoints.length > 1,
         };
       }).filter(Boolean);
     });
@@ -266,8 +268,8 @@ export default function CompletedBreadcrumbPolylines({
     return completedSegments.flatMap((segment) => {
       if (!showBreadcrumbPolylines || !segment.hasBreadcrumbs) return [];
 
-      return segment.breadcrumbPoints.slice(0, -1).map((from, index) => {
-        const to = segment.breadcrumbPoints[index + 1];
+      return segment.routePoints.slice(0, -1).map((from, index) => {
+        const to = segment.routePoints[index + 1];
         const distanceMeters = getDistanceMeters(from, to);
 
         return {
@@ -278,7 +280,7 @@ export default function CompletedBreadcrumbPolylines({
           from,
           to,
           distanceMeters,
-          useHere: distanceMeters > 200,
+          useHere: distanceMeters > 100,
         };
       }).filter(Boolean);
     });
