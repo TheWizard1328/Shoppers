@@ -1,10 +1,36 @@
 import React, { useState } from 'react';
 import { Loader2, MapPin, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { base44 } from '@/api/base44Client';
 import PatientGPSUpdatesDialog from './PatientGPSUpdatesDialog';
 
-export default function AdminPatientsTab({ dataViewMode, setDataViewMode, children, onBackfillLastDeliveryDates, isBackfilling = false }) {
+export default function AdminPatientsTab({ dataViewMode, setDataViewMode, children, onBackfillLastDeliveryDates, isBackfilling: externalBackfillLoading = false }) {
   const [showPatientGpsUpdates, setShowPatientGpsUpdates] = useState(false);
+  const [localBackfillLoading, setLocalBackfillLoading] = useState(false);
+
+  const isBackfilling = externalBackfillLoading || localBackfillLoading;
+
+  const handleBackfillLastDeliveryDates = async () => {
+    if (onBackfillLastDeliveryDates) {
+      onBackfillLastDeliveryDates();
+      return;
+    }
+
+    if (!window.confirm('Update patient last delivery dates using completed and failed deliveries from the last 90 days?')) {
+      return;
+    }
+
+    setLocalBackfillLoading(true);
+    try {
+      const result = await base44.functions.invoke('syncPatientLastDeliveryDate', { backfillDays: 90 });
+      window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+      alert(`Updated ${result?.data?.patientsUpdated ?? 0} patients from the last 90 days.`);
+    } catch (error) {
+      alert(`Failed to update last delivery dates: ${error.message}`);
+    } finally {
+      setLocalBackfillLoading(false);
+    }
+  };
 
   return (
     <>
@@ -21,7 +47,7 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
         <Button
           variant="outline"
           size="sm"
-          onClick={onBackfillLastDeliveryDates}
+          onClick={handleBackfillLastDeliveryDates}
           disabled={isBackfilling}
           className="min-h-10 flex-1 md:flex-none"
         >
