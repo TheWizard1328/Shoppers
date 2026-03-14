@@ -60,13 +60,12 @@ import {
 "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { getEffectiveUser, isUserDataAvailable } from "../components/utils/auth";
-import StopCard from "../components/common/StopCard";
-
 import ExportRouteButton from "../components/deliveries/ExportRouteButton";
 import DeliveryForm from "../components/deliveries/DeliveryForm";
 import DeliveryDetails from "../components/deliveries/DeliveryDetails";
 import PatientForm from "../components/patients/PatientForm";
 import DateListPanel from "../components/deliveries/DateListPanel";
+import RouteManagementContent from "../components/deliveries/RouteManagementContent";
 import { getData, invalidate } from '../components/utils/dataManager';
 
 import { getDriverDisplayName, getDriverNameForStorage, findDriverByName } from '../components/utils/driverUtils';
@@ -2183,9 +2182,9 @@ export default function DeliveriesPage() {
   }, [setShowImportModal]);
 
   const handleEditDelivery = useCallback((delivery) => {
-    setSelectedDeliveryId(null); setEditingDelivery(delivery);
+    setEditingDelivery(delivery);
     setShowDeliveryForm(true);
-  }, [setSelectedDeliveryId, setEditingDelivery, setShowDeliveryForm]);
+  }, [setEditingDelivery, setShowDeliveryForm]);
 
   const handleEditPatient = useCallback((patientId) => {
     const patientToEdit = (allPatients || []).find((p) => p && p.id === patientId);
@@ -3157,183 +3156,44 @@ export default function DeliveriesPage() {
   }, [effectiveDeliveries, navigate, location.pathname]);
 
   const renderDeliveries = useCallback((deliveriesToRender) => {
-    if (!deliveriesToRender || !Array.isArray(deliveriesToRender) || deliveriesToRender.length === 0) {
-      return (
-        <div className="text-center py-12 text-slate-500 col-span-full">
-          <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
-          <p className="text-lg font-medium">No deliveries for this date</p>
-        </div>);
-
-    }
-
-    // Find the selected delivery for the details panel
-    const selectedDelivery = selectedDeliveryId ? deliveriesToRender.find((d) => d.id === selectedDeliveryId) : null;
-    const selectedPatient = selectedDelivery ? (effectivePatients || []).find((p) => p && (p.id === selectedDelivery.patient_id || p.patient_id === selectedDelivery.patient_id)) : null;
-    const selectedStore = selectedDelivery ? (stores || []).find((s) => s && s.id === selectedDelivery.store_id) : null;
-    const selectedDriver = selectedDelivery ?
-    (effectiveDrivers || []).find((d) => d.id === selectedDelivery.driver_id || d.appUserId === selectedDelivery.driver_id) ||
-    (effectiveDrivers || []).find((d) => d.full_name === selectedDelivery.driver_name) ||
-    (effectiveDrivers || []).find((d) => d.user_name === selectedDelivery.driver_name) :
-    null;
-
     return (
-      <>
-        {viewMode === 'cards' ?
-        <div className="flex h-full gap-4">
-            {/* Stop Cards Column - Single column on desktop, full width on narrow mobile */}
-            <div className={`${showSplitView ? 'w-[400px] flex-shrink-0' : 'w-full'} h-full overflow-hidden`}>
-              <div className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-                {deliveriesToRender.map((delivery, index) =>
-              <StopCard
-                key={delivery.id || `${delivery.delivery_date||'unknown'}-${delivery.patient_id ?? 'pickup'}-${delivery.store_id ?? 'store'}-${delivery.tracking_number || index}` }
-                delivery={delivery}
-                patient={(effectivePatients || []).find((p) => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id))}
-                store={(stores || []).find((s) => s && s.id === delivery.store_id)}
-                driver={
-                (effectiveDrivers || []).find((d) => d.id === delivery.driver_id || d.appUserId === delivery.driver_id) ||
-                (effectiveDrivers || []).find((d) => d.full_name === delivery.driver_name) ||
-                (effectiveDrivers || []).find((d) => d.user_name === delivery.driver_name)
-                }
-                currentUser={currentUser}
-                stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
-                isSelected={selectedDeliveryId === delivery.id}
-                onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
-                onStatusUpdate={handleStatusUpdate}
-                onNotesUpdate={handleNotesUpdate}
-                onEdit={handleEditDelivery}
-                onDelete={handleDeleteDelivery}
-                showDriverName={false}
-                onRestart={handleRestartDelivery}
-                allDeliveries={effectiveDeliveries || []}
-                selectedDate={selectedDate}
-                onEditPatient={handleEditPatient}
-                onCODUpdate={handleCODUpdate}
-                onStartDelivery={handleStatusUpdate}
-                onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
-                  try {
-                    const currentDate = format(new Date(), 'yyyy-MM-dd');
-                    await createDeliveryLocal({
-                      patient_id: returnPatient.id,
-                      store_id: originalDelivery.store_id,
-                      driver_id: originalDelivery.driver_id,
-                      driver_name: originalDelivery.driver_name,
-                      delivery_date: currentDate,
-                      delivery_time_start: originalDelivery.delivery_time_start,
-                      delivery_time_end: originalDelivery.delivery_time_end,
-                      status: 'in_transit',
-                      delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
-                      patient_name: returnPatient.full_name,
-                      patient_phone: returnPatient.phone || store?.phone || '',
-                      store_phone: store?.phone || ''
-                    });
-                    await invalidate('Delivery');
-                    await loadData(true);
-                  } catch (error) {
-                    console.error('Error creating return:', error);
-                    throw error;
-                  }
-                }}
-                patients={effectivePatients || []}
-                drivers={effectiveDrivers || []}
-                stores={stores || []}
-                appUsers={contextUsers || []}
-                showDragHandle={false}
-                compact={true} />
-
-              )}
-              </div>
-            </div>
-
-            {/* Details Panel - Show on desktop and wider mobile screens */}
-            {showSplitView &&
-          <div className="flex-1 h-full overflow-hidden rounded-lg border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <StopDetailsPanel
-              delivery={selectedDelivery}
-              patient={selectedPatient}
-              store={selectedStore}
-              driver={selectedDriver}
-              currentUser={currentUser}
-              onClose={() => setSelectedDeliveryId(null)}
-              onStatusUpdate={handleStatusUpdate}
-              onEdit={handleEditDelivery}
-              onDelete={handleDeleteDelivery}
-              onRestart={handleRestartDelivery} />
-
-              </div>
-          }
-          </div> :
-
-        <div className="h-full overflow-hidden px-4 relative">
-            <DeliveryListView
-            deliveries={deliveriesToRender}
-            patients={effectivePatients || []}
-            stores={stores || []}
-            drivers={effectiveDrivers || []}
-            currentUser={currentUser}
-            onEdit={handleEditDelivery}
-            onEditPatient={handleEditPatient}
-            onDelete={handleDeleteDelivery}
-            onRestart={handleRestartDelivery}
-            onStatusUpdate={handleStatusUpdate}
-            onNotesUpdate={handleNotesUpdate}
-            onCODUpdate={handleCODUpdate}
-            onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
-              try {
-                const currentDate = format(new Date(), 'yyyy-MM-dd');
-                await createDeliveryLocal({
-                  patient_id: returnPatient.id,
-                  store_id: originalDelivery.store_id,
-                  driver_id: originalDelivery.driver_id,
-                  driver_name: originalDelivery.driver_name,
-                  delivery_date: currentDate,
-                  delivery_time_start: originalDelivery.delivery_time_start,
-                  delivery_time_end: originalDelivery.delivery_time_end,
-                  status: 'in_transit',
-                  delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
-                  patient_name: returnPatient.full_name,
-                  patient_phone: returnPatient.phone || store?.phone || '',
-                  store_phone: store?.phone || ''
-                });
-                await invalidate('Delivery');
-                await loadData(true);
-              } catch (error) {
-                console.error('Error creating return:', error);
-                throw error;
-              }
-            }}
-            onStartDelivery={handleStatusUpdate}
-            allDeliveries={effectiveDeliveries || []}
-            selectedDate={selectedDate}
-            isMobile={isMobile} />
-
-          </div>
-        }
-      </>);
-
-
+      <RouteManagementContent
+        deliveries={deliveriesToRender}
+        patients={effectivePatients || []}
+        stores={stores || []}
+        drivers={effectiveDrivers || []}
+        currentUser={currentUser}
+        selectedDate={selectedDate}
+        allDeliveries={effectiveDeliveries || []}
+        viewMode={viewMode}
+        canBulkEdit={userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')}
+        onEdit={handleEditDelivery}
+        onEditPatient={handleEditPatient}
+        onDelete={handleDeleteDelivery}
+        onRestart={handleRestartDelivery}
+        onStatusUpdate={handleStatusUpdate}
+        onNotesUpdate={handleNotesUpdate}
+        onCODUpdate={handleCODUpdate}
+        loadData={loadData}
+      />
+    );
   }, [
-  effectivePatients,
-  stores,
-  effectiveDrivers,
-  effectiveDeliveries,
-  handleEditDelivery,
-  handleDeleteDelivery,
-  handleStatusUpdate,
-  handleNotesUpdate,
-  handleRestartDelivery,
-  handleReturn,
-  currentUser,
-  canCreateDeliveries,
-  selectedDate,
-  selectedDeliveryId,
-  handleEditPatient,
-  filteredAndSortedDeliveries,
-  isMobile,
-  loadData,
-  viewMode,
-  handleCODUpdate,
-  windowWidth]
-  );
+    effectivePatients,
+    stores,
+    effectiveDrivers,
+    effectiveDeliveries,
+    currentUser,
+    selectedDate,
+    viewMode,
+    handleEditDelivery,
+    handleEditPatient,
+    handleDeleteDelivery,
+    handleRestartDelivery,
+    handleStatusUpdate,
+    handleNotesUpdate,
+    handleCODUpdate,
+    loadData,
+  ]);
 
   // Track window width for responsive layout
   useEffect(() => {
@@ -4073,49 +3933,6 @@ export default function DeliveriesPage() {
         </div>
 
       </div>
-
-      {/* Mobile popup panel for stop details when screen is too narrow */}
-      <AnimatePresence>
-        {isMobile && !showSplitView && selectedDeliveryId &&
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/50 backdrop-blur-sm"
-          onClick={() => setSelectedDeliveryId(null)}>
-
-            <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="w-full max-h-[85vh] overflow-hidden rounded-t-2xl"
-            style={{ background: 'var(--bg-white)' }}
-            onClick={(e) => e.stopPropagation()}>
-
-            {(() => {
-              const delivery = filteredAndSortedDeliveries.find((d) => d?.id === selectedDeliveryId);
-              if (!delivery) return null;
-              return (
-                <StopDetailsPanel
-                  delivery={delivery}
-                  patient={(effectivePatients || []).find((p) => p && (p.id === delivery?.patient_id || p.patient_id === delivery?.patient_id))}
-                  store={(stores || []).find((s) => s && s.id === delivery?.store_id)}
-                  driver={(effectiveDrivers || []).find((d) => d.id === delivery?.driver_id || d.appUserId === delivery?.driver_id)}
-                  currentUser={currentUser}
-                  onClose={() => setSelectedDeliveryId(null)}
-                  onStatusUpdate={handleStatusUpdate}
-                  onEdit={handleEditDelivery}
-                  onDelete={handleDeleteDelivery}
-                  onRestart={handleRestartDelivery} />);
-
-
-            })()}
-          </motion.div>
-        </motion.div>
-        }
-      </AnimatePresence>
 
       <AnimatePresence>
         {showDeliveryForm &&
