@@ -82,7 +82,7 @@ import { useUser } from '../components/utils/UserContext';
 import { isMobileDevice } from "../components/utils/deviceUtils";
 import { useAppData } from '../components/utils/AppDataContext';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
-import { updateDeliveryLocal, deleteDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
+import { updateDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { ProjectedPickupCard, StatBox } from '../components/deliveries/RouteManagementHelpers';
 
