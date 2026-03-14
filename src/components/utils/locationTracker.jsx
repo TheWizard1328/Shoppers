@@ -843,8 +843,7 @@ class LocationTracker {
   }
 
   async collectBreadcrumb(latitude, longitude, timestamp) {
-    // CRITICAL: Only collect breadcrumbs if driver is on_duty
-    if (this.driverStatus !== 'on_duty') {
+    if (this.driverStatus !== 'on_duty' || !this.appUserId || !this.currentUser?.id) {
       return;
     }
 
@@ -864,15 +863,39 @@ class LocationTracker {
 
     try {
       const { offlineDB } = await import('./offlineDatabase');
+      const { buildPendingBreadcrumbKey } = await import('./pendingBreadcrumbsManager');
 
-      // Get or create breadcrumb collection for this driver
-      const existingBreadcrumbs = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, this.appUserId);
+      const deliveryDate = this.currentDeliveryDate || format(new Date(), 'yyyy-MM-dd');
+      const deliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const driverDeliveries = (deliveries || []).filter((delivery) => delivery?.driver_id === this.currentUser.id);
+      const activeDelivery = driverDeliveries.find((delivery) => delivery?.isNextDelivery === true)
+        || driverDeliveries
+          .filter((delivery) => !finishedStatuses.includes(delivery?.status) && delivery?.status !== 'pending')
+          .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0))[0];
 
+      if (!activeDelivery?.id) {
+        return;
+      }
+
+      const stopOrder = Number(activeDelivery?.stop_order || activeDelivery?.display_stop_order || 0);
+      const pendingKey = buildPendingBreadcrumbKey({
+        appUserId: this.appUserId,
+        deliveryId: activeDelivery.id,
+        stopOrder
+      });
+
+      const existingBreadcrumbs = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, pendingKey);
       const breadcrumbPoint = [latitude, longitude, timestamp];
-
       const breadcrumbData = {
-        driver_id: this.appUserId,
-        timestamp: timestamp,
+        driver_id: pendingKey,
+        owner_driver_id: this.appUserId,
+        driver_user_id: this.currentUser.id,
+        delivery_id: activeDelivery.id,
+        delivery_date: activeDelivery.delivery_date,
+        stop_order: stopOrder,
+        stop_label: `Stop ${stopOrder || 0}`,
+        timestamp,
         breadcrumbs: existingBreadcrumbs?.breadcrumbs ? [...existingBreadcrumbs.breadcrumbs, breadcrumbPoint] : [breadcrumbPoint]
       };
 
@@ -882,11 +905,13 @@ class LocationTracker {
         detail: {
           driverId: this.currentUser?.id,
           appUserId: this.appUserId,
-          deliveryDate: this.currentDeliveryDate,
+          deliveryId: activeDelivery.id,
+          deliveryDate: activeDelivery.delivery_date,
+          stopOrder,
           point: { lat: latitude, lng: longitude, timestamp }
         }
       }));
-      console.log(`🍞 [LocationTracker] Collected breadcrumb for driver ${this.appUserId}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
+      console.log(`🍞 [LocationTracker] Collected breadcrumb for ${pendingKey}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
     }
