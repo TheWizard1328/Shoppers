@@ -1934,13 +1934,8 @@ export default function StopCard({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                          {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
-                              <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                              {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
-                            </DropdownMenuItem>
-                          }
-
+                          {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5"><Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}</DropdownMenuItem>}
+                          {onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner(currentUser) && <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5"><User className="w-5 h-5 md:w-4 md:h-4 mr-2" />Edit Patient</DropdownMenuItem>}
                           {/* Update GPS moved directly under Edit Delivery - only for Next Delivery */}
                           {isNextDelivery && !isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
                             <DropdownMenuItem
