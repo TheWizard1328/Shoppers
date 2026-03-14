@@ -111,10 +111,16 @@ export default function PullToSync({
         console.warn('⚠️ [Pull to Sync] Offline polyline dedup failed:', e?.message);
       }
 
-      // Kick off polyline repair in parallel for ALL drivers on the date
-      const repairPromise = repairMissingPolylines({
-        date: selectedDateStr
-      });
+      // Only repair polylines in the background for a specific driver
+      const shouldRepairPolylines = selectedDriverId && selectedDriverId !== 'all';
+      if (shouldRepairPolylines) {
+        repairMissingPolylines({
+          driverId: selectedDriverId,
+          deliveryDate: selectedDateStr
+        }).catch((error) => {
+          console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', error?.message);
+        });
+      }
       
       console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL deliveries for ${selectedDateStr} from online database...`);
 
@@ -219,8 +225,6 @@ export default function PullToSync({
       
       // CRITICAL: Wait for ALL fetches to complete and save to offline DB
       const [freshPatients, freshAppUsers, freshCities, freshStores] = await Promise.all(syncPromises);
-      // Ensure repair finishes (quietly) before we complete
-      await repairPromise.catch(() => null);
 
       // Post-clean offline polylines after server repair (safety)
       try {
