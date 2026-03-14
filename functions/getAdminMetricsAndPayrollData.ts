@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+
 const CACHE_VERSION = Date.now().toString();
 const statsCache = new Map();
 const CACHE_DISABLED = true;
