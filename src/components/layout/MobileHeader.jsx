@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Menu, X, MoreVertical, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { motion } from 'framer-motion';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import SettingsMenu from './SettingsMenu';
 import DriverStatusToggle from './DriverStatusToggle';
@@ -58,24 +57,22 @@ export default function MobileHeader({
   }
 
   return (
-    <motion.header
-      initial={{ y: -60 }}
-      animate={{ y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
+    <header
       data-mobile-header
-      className="mobile-header border-b sticky top-0 z-50 overflow-hidden"
+      className="mobile-header border-b sticky top-0 z-50 overflow-visible"
       style={{ 
         borderColor: 'var(--border-slate-200)', 
         background: 'var(--bg-white)',
+        paddingTop: 'env(safe-area-inset-top, 0px)'
       }}
     >
-      {/* Safe area spacer - pushes content down on notched devices without offsetting touch targets */}
-      <div style={{ height: 'env(safe-area-inset-top, 0px)' }} />
-      <div className="w-full flex items-center justify-between gap-2 px-4 py-3">
+      <div className="w-full min-h-[56px] flex items-center justify-between gap-2 px-4 py-2">
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
+            type="button"
             onClick={handleMenuButtonClick}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0">
+            aria-label={sidebarOpen ? 'Close side panel' : 'Open side panel'}
+            className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 touch-manipulation flex-shrink-0">
             {sidebarOpen ? (
               <X className="w-6 h-6 text-slate-700" />
             ) : (
@@ -111,7 +108,7 @@ export default function MobileHeader({
             {/* Menu - Left */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation" aria-label="Open header menu">
                   <MoreVertical className="w-5 h-5 text-slate-500" />
                 </Button>
               </DropdownMenuTrigger>
@@ -138,8 +135,10 @@ export default function MobileHeader({
 
             {/* QR Code - Right */}
             <button
+              type="button"
               onClick={onInviteQRClick}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              aria-label="Generate invite QR code"
+              className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 touch-manipulation"
               title="Generate Invite QR Code">
               <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
             </button>
@@ -165,6 +164,6 @@ export default function MobileHeader({
           </div>
         )}
       </div>
-    </motion.header>
+    </header>
   );
 }

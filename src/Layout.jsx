@@ -2889,7 +2889,6 @@ export default function Layout({ children, currentPageName }) {
             z-index: 50 !important;
             background: var(--bg-white);
             border-bottom: 1px solid var(--border-slate-200);
-            padding-top: calc(0.75rem + max(0, env(safe-area-inset-top, 0px))) !important;
           }
 
           .app-container.mobile-device main {
@@ -2966,7 +2965,6 @@ export default function Layout({ children, currentPageName }) {
           z-index: 50 !important;
           background: var(--bg-white);
           border-bottom: 1px solid var(--border-slate-200);
-          padding-top: calc(0.75rem + max(0, env(safe-area-inset-top, 0px))) !important;
         }
 
         .app-container.tablet-portrait .app-sidebar {
