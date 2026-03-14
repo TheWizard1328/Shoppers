@@ -33,6 +33,7 @@ export default function RouteManagementContent({
   onNotesUpdate,
   onCODUpdate,
   loadData,
+  appUsers = [],
 }) {
   const isMobile = useMemo(() => isMobileDevice(), []);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -243,7 +244,7 @@ export default function RouteManagementContent({
                   patients={patients || []}
                   drivers={drivers || []}
                   stores={stores || []}
-                  appUsers={drivers || []}
+                  appUsers={appUsers}
                   showDragHandle={false}
                   compact
                 />

@@ -3175,7 +3175,7 @@ export default function DeliveriesPage() {
         onNotesUpdate={handleNotesUpdate}
         onCODUpdate={handleCODUpdate}
         loadData={loadData}
-      />
+        appUsers={contextUsers || []} />
     );
   }, [
     effectivePatients,
