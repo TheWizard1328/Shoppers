@@ -67,7 +67,8 @@ export async function getPendingBreadcrumbsForDelivery({ driverUserId, deliveryI
   return JSON.stringify(matchingRecord.breadcrumbs);
 }
 
-export async function clearPendingBreadcrumbsForDriver({ driverUserId, appUsers = [] }) {
+export async function clearPendingBreadcrumbsForDriver({ driverUserId, appUsers = [], force = false }) {
+  if (!force) return;
   const records = await listPendingBreadcrumbRecordsForDriver({ driverUserId, appUsers });
   await Promise.all(records.map((record) => offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, record.driver_id)));
 }
