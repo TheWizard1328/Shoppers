@@ -22,7 +22,7 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
 
   const pendingRecords = await listPendingBreadcrumbRecordsForDriver({ driverUserId: driverId, appUsers });
   const current = pendingRecords
-    .filter((record) => getEdmontonDateString(record?.timestamp || Date.now()) === selectedDateStr)
+    .filter((record) => getEdmontonDateString((Array.isArray(record?.breadcrumbs) && record.breadcrumbs[0]?.[2]) || record?.timestamp || Date.now()) === selectedDateStr)
     .flatMap((record) => Array.isArray(record?.breadcrumbs) ? record.breadcrumbs : [])
     .map(([lat, lng, timestamp]) => ({ lat, lng, timestamp }))
     .filter((point) => typeof point.lat === 'number' && typeof point.lng === 'number');
