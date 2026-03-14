@@ -90,11 +90,6 @@ class LocationTracker {
     
     console.log(`📍 [LocationTracker] Driver status changed: ${previousStatus} → ${status}`);
     
-    if (status === 'on_duty' && previousStatus !== 'on_duty') {
-      this.clearStalePendingBreadcrumbs().catch((error) => {
-        console.warn('⚠️ [LocationTracker] Failed to clear stale pending breadcrumbs:', error?.message || error);
-      });
-    }
     
     // EVENT-DRIVEN: Mark for immediate update on next poll
     this._pendingEventUpdate = true;
