@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-export default function AuditTable({ title, description, rows, columns, defaultSortKey }) {
+export default function AuditTable({ title, description, rows, columns, defaultSortKey, className = "" }) {
   const [sortConfig, setSortConfig] = React.useState({
     key: defaultSortKey,
     direction: "asc",
@@ -40,7 +40,7 @@ export default function AuditTable({ title, description, rows, columns, defaultS
   const discrepancyCount = rows.filter((row) => row.hasDiscrepancy).length;
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
+    <Card className={`bg-white border-slate-200 shadow-sm ${className}`}>
       <CardHeader className="space-y-2">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
@@ -60,21 +60,22 @@ export default function AuditTable({ title, description, rows, columns, defaultS
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+      <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
+        <div className="h-full overflow-auto">
+          <table className="w-full min-w-[1200px] text-sm">
             <thead>
-              <tr className="border-b border-slate-200">
+              <tr className="border-b border-slate-200 bg-white">
                 {columns.map((column) => {
                   const isActive = sortConfig.key === column.key;
                   const SortIcon = !isActive ? ArrowUpDown : sortConfig.direction === "asc" ? ArrowUp : ArrowDown;
 
                   return (
-                    <th key={column.key} className="px-3 py-3 text-left font-semibold text-slate-700">
+                    <th key={column.key} className="sticky top-0 z-10 whitespace-nowrap bg-white px-3 py-3 text-left font-semibold text-slate-700">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto px-0 py-0 font-semibold text-slate-700 hover:bg-transparent"
+                        className="h-auto whitespace-nowrap px-0 py-0 font-semibold text-slate-700 hover:bg-transparent"
+                        title={`Sort by ${column.label}`}
                         onClick={() => handleSort(column.key)}
                       >
                         {column.label}
@@ -83,7 +84,7 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                     </th>
                   );
                 })}
-                <th className="px-3 py-3 text-left font-semibold text-slate-700">Audit Flags</th>
+                <th className="sticky top-0 z-10 whitespace-nowrap bg-white px-3 py-3 text-left font-semibold text-slate-700">Audit Flags</th>
               </tr>
             </thead>
             <tbody>
@@ -100,11 +101,11 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                     className={row.hasDiscrepancy ? "border-b border-amber-200 bg-amber-50/70" : "border-b border-slate-100"}
                   >
                     {columns.map((column) => (
-                      <td key={column.key} className="px-3 py-3 align-top text-slate-700">
+                      <td key={column.key} className={`px-3 py-3 align-top text-slate-700 ${column.key === 'date' || column.key === 'itemName' ? 'whitespace-nowrap' : ''}`}>
                         {column.render ? column.render(row) : row[column.key]}
                       </td>
                     ))}
-                    <td className="px-3 py-3 align-top">
+                    <td className="px-3 py-3 align-top whitespace-nowrap">
                       {row.issues?.length ? (
                         <div className="flex flex-wrap gap-1">
                           {row.issues.map((issue) => (
