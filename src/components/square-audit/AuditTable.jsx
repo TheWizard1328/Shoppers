@@ -99,11 +99,28 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                 })}
                 <th className="px-3 py-3 text-left font-semibold whitespace-nowrap" style={{ color: "var(--text-slate-700)" }}>Audit Flags</th>
               </tr>
+              <tr style={{ borderBottom: "1px solid var(--border-slate-200)" }}>
+                {columns.map((column) => (
+                  <th key={`${column.key}-filter`} className={`px-3 pb-3 ${column.headerClassName || ""}`}>
+                    <Input
+                      value={filters[column.key] || ""}
+                      onChange={(event) => setFilters((current) => ({ ...current, [column.key]: event.target.value }))}
+                      placeholder={`Filter ${column.label}`}
+                      className={`h-8 ${column.filterClassName || ""}`}
+                    />
+                  </th>
+                ))}
+                <th className="px-3 pb-3 text-right">
+                  <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setFilters({})}>
+                    Clear
+                  </Button>
+                </th>
+              </tr>
             </thead>
             <tbody>
               {sortedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="px-3 py-10 text-center text-slate-500">
+                  <td colSpan={columns.length + 1} className="px-3 py-10 text-center" style={{ color: "var(--text-slate-500)" }}>
                     No rows found.
                   </td>
                 </tr>
@@ -111,14 +128,17 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                 sortedRows.map((row) => (
                   <tr
                     key={row.id}
-                    className={row.hasDiscrepancy ? "border-b border-amber-200 bg-amber-50/70" : "border-b border-slate-100"}
+                    style={{
+                      borderBottom: row.hasDiscrepancy ? "1px solid rgb(253 230 138)" : "1px solid var(--border-slate-200)",
+                      background: row.hasDiscrepancy ? "rgba(251, 191, 36, 0.12)" : "transparent",
+                    }}
                   >
                     {columns.map((column) => (
-                      <td key={column.key} className="px-3 py-3 align-top text-slate-700">
+                      <td key={column.key} className={`px-3 py-3 align-top ${column.cellClassName || ""}`} style={{ color: "var(--text-slate-700)" }}>
                         {column.render ? column.render(row) : row[column.key]}
                       </td>
                     ))}
-                    <td className="px-3 py-3 align-top">
+                    <td className="px-3 py-3 align-top min-w-[220px]">
                       {row.issues?.length ? (
                         <div className="flex flex-wrap gap-1">
                           {row.issues.map((issue) => (
