@@ -81,10 +81,8 @@ import { useUser } from '../components/utils/UserContext';
 import { isMobileDevice } from "../components/utils/deviceUtils";
 import { useAppData } from '../components/utils/AppDataContext';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
-import { updateDeliveryLocal, deleteDeliveryLocal, createDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
+import { updateDeliveryLocal, deleteDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
-import StopDetailsPanel from '../components/deliveries/StopDetailsPanel';
-import DeliveryListView from '../components/dashboard/DeliveryListView';
 import { ProjectedPickupCard, StatBox } from '../components/deliveries/RouteManagementHelpers';
 
 const addMinutesToTime = (timeString, minutesToAdd) => {
@@ -171,8 +169,6 @@ export default function DeliveriesPage() {
 
   const isMobile = useMemo(() => isMobileDevice(), []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   // Check if bottom nav is visible (matches Layout.js logic)
   const isBottomNavVisible = isMobile && !isMobileMenuOpen;
@@ -3194,17 +3190,6 @@ export default function DeliveriesPage() {
     handleCODUpdate,
     loadData,
   ]);
-
-  // Track window width for responsive layout
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Determine if we should show the split view (cards + details panel)
-  // Show split view on desktop OR on wider mobile screens (>= 640px width)
-  const showSplitView = !isMobile || windowWidth >= 640;
 
   function LogoImage({ className }) {
     const [idx, setIdx] = React.useState(0);
