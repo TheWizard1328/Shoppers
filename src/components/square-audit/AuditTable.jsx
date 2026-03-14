@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function AuditTable({ title, description, rows, columns, defaultSortKey }) {
   const [sortConfig, setSortConfig] = React.useState({

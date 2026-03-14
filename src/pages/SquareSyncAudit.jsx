@@ -243,12 +243,12 @@ export default function SquareSyncAudit() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="h-[calc(100vh-1rem)] overflow-hidden p-4 md:h-[calc(100vh-1.5rem)] md:p-6" style={{ background: "var(--bg-slate-50)" }}>
+      <div className="flex h-full w-full flex-col gap-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Square COD Audit</h1>
-            <p className="text-sm text-slate-500">
+            <h1 className="text-2xl font-bold" style={{ color: "var(--text-slate-900)" }}>Square COD Audit</h1>
+            <p className="text-sm" style={{ color: "var(--text-slate-500)" }}>
               Comparing collected transactions, current Square catalog items, and in-app COD deliveries using Date + Square Location ID + Amount.
             </p>
           </div>
@@ -257,23 +257,23 @@ export default function SquareSyncAudit() {
               <Download className="h-4 w-4" />
               Download CSV
             </Button>
-            <Button onClick={handleReconciliation} disabled={isReconciling} className="gap-2 bg-slate-900 hover:bg-slate-800">
+            <Button onClick={handleReconciliation} disabled={isReconciling} className="gap-2">
               <RefreshCw className={`h-4 w-4 ${isReconciling ? "animate-spin" : ""}`} />
               Trigger Reconciliation
             </Button>
           </div>
         </div>
 
-        <Card className="border-slate-200 bg-white shadow-sm">
+        <Card className="shadow-sm" style={{ borderColor: "var(--border-slate-200)", background: "var(--bg-white)" }}>
           <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="bg-slate-100 text-slate-700">
+              <Badge variant="secondary" className="border" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)", borderColor: "var(--border-slate-200)" }}>
                 {tables.transactions.length} transactions
               </Badge>
-              <Badge variant="secondary" className="bg-slate-100 text-slate-700">
+              <Badge variant="secondary" className="border" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)", borderColor: "var(--border-slate-200)" }}>
                 {tables.catalogItems.length} catalog items
               </Badge>
-              <Badge variant="secondary" className="bg-slate-100 text-slate-700">
+              <Badge variant="secondary" className="border" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)", borderColor: "var(--border-slate-200)" }}>
                 {tables.deliveries.length} in-app deliveries
               </Badge>
               {summary > 0 && (
@@ -283,12 +283,14 @@ export default function SquareSyncAudit() {
                 </Badge>
               )}
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs" style={{ color: "var(--text-slate-500)" }}>
               Last loaded {lastLoadedAt ? format(lastLoadedAt, "MMM d, yyyy h:mm a") : "—"}
             </div>
           </CardContent>
         </Card>
 
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+          <div className="space-y-4">
         <AuditTable
           title="Collected Square Transactions"
           description="Fresh Square payment/order items used as the collected transaction audit source."
@@ -336,6 +338,8 @@ export default function SquareSyncAudit() {
             { key: "itemName", label: "Reference" },
           ]}
         />
+          </div>
+        </div>
       </div>
     </div>
   );
