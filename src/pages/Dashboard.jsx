@@ -85,6 +85,7 @@ import ActivePayStats from '../components/dashboard/ActivePayStats';
 import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
 import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
+import BreadcrumbToggleButton from '@/components/dashboard/BreadcrumbToggleButton';
 import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
 import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
@@ -7279,42 +7280,20 @@ function Dashboard() {
                         </div>
 
                         <div className="flex flex-col items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={async () => {
-                            const newShowBreadcrumbs = !showBreadcrumbs;
-                            setShowBreadcrumbs(newShowBreadcrumbs);
-                            if (!newShowBreadcrumbs) return setBreadcrumbsData({ historical: [], current: [] });
-                            const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                            const driverIdToFetch = (showAllDriverMarkers || selectedDriverId === 'all') ? currentUser?.id : selectedDriverId;
-                            const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selectedDateStr, appUsers);
-                            if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
-                              toast.info('No breadcrumb trails available', { description: 'GPS trails appear after a stop is finished with tracking on' });
-                              setShowBreadcrumbs(false);
-                              return;
-                            }
-                            setBreadcrumbsData(loadedBreadcrumbs);
-                          }}
-                          className={`h-9 w-9 p-0 ${showBreadcrumbs ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                          style={!showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
-                        >
-                          {/* Custom GPS Dots Icon */}
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            {/* GPS dot 1 - top */}
-                            <circle cx="8" cy="3" r="1.5" fill="currentColor" />
-                            {/* GPS dot 2 - middle-left */}
-                            <circle cx="4" cy="8" r="1.5" fill="currentColor" />
-                            {/* GPS dot 3 - middle-right */}
-                            <circle cx="12" cy="9" r="1.5" fill="currentColor" />
-                            {/* GPS dot 4 - bottom */}
-                            <circle cx="8" cy="13" r="1.5" fill="currentColor" />
-                            {/* Connecting lines (swerving path) */}
-                            <path d="M 8 3 Q 6 5, 4 8" stroke="currentColor" strokeWidth="1" fill="none" />
-                            <path d="M 4 8 Q 8 8.5, 12 9" stroke="currentColor" strokeWidth="1" fill="none" />
-                            <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
-                          </svg>
-                        </Button>
+                        <BreadcrumbToggleButton
+                          isMobile={isMobile}
+                          isDriver={isDriver}
+                          isRouteComplete={isRouteComplete}
+                          showBreadcrumbs={showBreadcrumbs}
+                          setShowBreadcrumbs={setShowBreadcrumbs}
+                          setShowRoutes={setShowRoutes}
+                          setBreadcrumbsData={setBreadcrumbsData}
+                          selectedDate={selectedDate}
+                          showAllDriverMarkers={showAllDriverMarkers}
+                          selectedDriverId={selectedDriverId}
+                          currentUser={currentUser}
+                          appUsers={appUsers}
+                        />
                         </div>
                       </div>
                     )}
