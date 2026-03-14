@@ -692,12 +692,6 @@ export default function StopCard({
         throw new Error('This stop is still syncing. Please try again in a moment.');
       }
 
-      await base44.functions.invoke('handleStartDelivery', {
-        deliveryId: delivery.id,
-        driverId: delivery.driver_id,
-        deliveryDate: delivery.delivery_date
-      });
-
       await clearNextDeliveryFlags({
         driverDeliveries: allDeliveries,
         currentDelivery: delivery,
@@ -710,6 +704,12 @@ export default function StopCard({
         delivery_time_start: currentLocalTime,
         isNextDelivery: true
       }, { skipSmartRefresh: true });
+
+      await base44.functions.invoke('handleStartDelivery', {
+        deliveryId: delivery.id,
+        driverId: delivery.driver_id,
+        deliveryDate: delivery.delivery_date
+      });
 
       invalidate('Delivery');
       if (updateDeliveriesLocally) {
