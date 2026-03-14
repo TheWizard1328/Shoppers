@@ -7767,7 +7767,7 @@ function Dashboard() {
                 const data = response?.data || response;
                 if (data?.success) {
                   setOptimizationMessage(`Route optimized! ${(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)} stops updated.`);
-                  invalidateDeliveriesForDate(deliveryDate);
+                  invalidate('Delivery');
                   await refreshData();
                   window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: selectedDriverId, deliveryDate, triggeredBy: 'reoptimizeRoute' } }));
                   setIsMapViewLocked(true);
