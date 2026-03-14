@@ -593,10 +593,6 @@ class LocationTracker {
     this.lastBreadcrumbPosition = null;
     this.minBreadcrumbDistance = 100; // 100 meters
 
-    if (this.driverStatus === 'on_duty') {
-      await this.clearStalePendingBreadcrumbs();
-    }
-
     // Test GPS capabilities
     const capabilities = await this.checkGPSCapabilities();
     if (!capabilities.hasGeolocation) {
