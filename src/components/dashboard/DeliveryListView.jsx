@@ -103,7 +103,41 @@ const DeliveryRow = memo(({
 
         {/* Media + COD */}
         <div className="mt-2 flex items-center justify-between gap-3">
-...
+          <div className="flex items-center gap-2">
+            {delivery.signature_image_url ? (
+              <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} />
+            ) : (
+              <span className="text-slate-400 text-sm">—</span>
+            )}
+            {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
+              <div className="flex -space-x-2">
+                {delivery.proof_photo_urls.slice(0,2).map((url, i) => (
+                  <img key={i} src={url} alt={`POD ${i+1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white" />
+                ))}
+                {delivery.proof_photo_urls.length > 2 && (
+                  <div className="w-7 h-7 rounded-md bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 2}</div>
+                )}
+              </div>
+            ) : (
+              <span className="text-slate-400 text-sm">—</span>
+            )}
+            {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 && (
+              <div className="flex items-center gap-1">
+                <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={24} className="w-full h-6" />
+                </div>
+                <span className="text-[10px] text-slate-600">x{delivery.receipt_barcode_values.length}</span>
+              </div>
+            )}
+            {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 && (
+              <div className="flex items-center gap-1">
+                <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <BarcodeThumb value={delivery.barcode_values[0]} height={24} className="w-full h-6" />
+                </div>
+                <span className="text-[10px] text-slate-600">x{delivery.barcode_values.length}</span>
+              </div>
+            )}
+          </div>
           <div>{getCODDisplay(delivery)}</div>
         </div>
           </div>
