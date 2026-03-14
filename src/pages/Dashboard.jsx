@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 const getEdmDate = () => { const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); return `${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`; };
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDashboardPolylineMaintenance } from "@/components/dashboard/useDashboardPolylineMaintenance";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -222,7 +222,6 @@ function Dashboard() {
   const lastProximitySnapTimeRef = useRef(0); // Timestamp of last proximity snap
   const lastUserInteractionRef = useRef(0); // Timestamp of last user interaction (map/card)
 
-  const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
   const [currentToNextPolyline, setCurrentToNextPolyline] = useState(null);
   const [hasRateLimitError, setHasRateLimitError] = useState(false);
@@ -1613,54 +1612,15 @@ function Dashboard() {
 
 
 
-  // Fetch daily API call count from GoogleAPILog for app owner badge
-  const fetchPolylineCount = useCallback(async () => {
-    if (!currentUser || !isAppOwner(currentUser)) return;
-
-    try {
-      const todayStr = getEdmDate();
-      const todayStart = new Date(todayStr + 'T00:00:00').toISOString();
-      const todayEnd = new Date(todayStr + 'T23:59:59').toISOString();
-
-      const apiLogs = await base44.entities.GoogleAPILog.filter({
-        timestamp: { $gte: todayStart, $lte: todayEnd }
-      });
-
-      setDailyPolylineCount(sumApiLogCalls(apiLogs));
-    } catch (error) {
-      // CRITICAL: Silently fail on rate limits - this is non-essential data
-      if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
-        return;
-      }
-      console.warn('⚠️ [Polyline Count] Error fetching count:', error.message);
-      setDailyPolylineCount(0);
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
-    if (!currentUser || !isAppOwner(currentUser)) return;
-
-    // Fetch shortly after mount (2 second delay)
-    const initialTimer = setTimeout(() => {
-      fetchPolylineCount();
-    }, 2000);
-
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchPolylineCount, 300000);
-    
-    // Listen for smart refresh completion to update counter
-    const handleSmartRefreshComplete = () => {
-      fetchPolylineCount();
-    };
-    
-    window.addEventListener('smartRefreshComplete', handleSmartRefreshComplete);
-    
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-      window.removeEventListener('smartRefreshComplete', handleSmartRefreshComplete);
-    };
-  }, [currentUser, fetchPolylineCount]);
+  const { dailyPolylineCount } = useDashboardPolylineMaintenance({
+    currentUser,
+    selectedDate,
+    deliveries,
+    isDataLoaded,
+    dataReadyForSelectedDate,
+    isSnapshotModeActive,
+    updateDeliveriesLocally
+  });
 
   // Get driver's location for blue dot display
   // MOBILE: Use device GPS
