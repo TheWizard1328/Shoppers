@@ -2058,7 +2058,7 @@ export default function DeliveryForm({
       setIsLoadingPredictions(true);
       
       // CRITICAL: Resume background operations before closing
-      (await import('../utils/deliveryFormActionHelpers.js')).resumeDeliveryFormManagers().catch((error) => {
+      resumeDeliveryFormManagers().catch((error) => {
         console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
       });
       
@@ -2955,11 +2955,9 @@ export default function DeliveryForm({
         hasLoadedPending.current = false; // Reset flag to allow reload
         
         // CRITICAL: Resume background operations before closing
-        import('../utils/deliveryFormActionHelpers.js')
-          .then(({ resumeDeliveryFormManagers }) => resumeDeliveryFormManagers())
-          .catch((error) => {
-            console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
-          });
+        resumeDeliveryFormManagers().catch((error) => {
+          console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
+        });
         (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
         
         try { closeDeliveryFormAfterSave({ handleClearForm, onCancel }); } catch { handleClearForm(); onCancel(); }
