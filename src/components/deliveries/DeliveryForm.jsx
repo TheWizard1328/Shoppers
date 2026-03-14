@@ -1689,8 +1689,8 @@ export default function DeliveryForm({
   }, [formData, selectedPickupOption, isPickupMode, delivery, isFormDisabled, editingStagedId]);
 
   const handleAddToStaging = useCallback(async () => {
-    if (!isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
-      setError('Please fill all required fields.');
+    if (!formData.delivery_date || !formData.driver_id || !isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
+      setError(!formData.delivery_date || !formData.driver_id ? 'Please select both a date and driver before adding.' : 'Please fill all required fields.');
       return;
     }
 
