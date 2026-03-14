@@ -235,11 +235,11 @@ export default function SquareSyncAudit() {
   }, [tables]);
 
   if (isLoadingUser || (isLoading && !lastLoadedAt)) {
-    return <div className="p-6 text-sm text-slate-500">Loading Square COD audit…</div>;
+    return <div className="p-6 text-sm" style={{ color: "var(--text-slate-500)" }}>Loading Square COD audit…</div>;
   }
 
   if (!currentUser || !isAppOwner(currentUser)) {
-    return <div className="p-6 text-sm text-slate-500">This page is only available to the App Owner.</div>;
+    return <div className="p-6 text-sm" style={{ color: "var(--text-slate-500)" }}>This page is only available to the App Owner.</div>;
   }
 
   return (

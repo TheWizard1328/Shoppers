@@ -145,7 +145,8 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                             <Badge
                               key={issue}
                               variant="outline"
-                              className="border-amber-300 bg-white text-amber-800"
+                              className="border-amber-300 text-amber-800"
+                              style={{ background: "var(--bg-white)" }}
                             >
                               {issue}
                             </Badge>
