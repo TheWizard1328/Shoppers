@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, Marker, Pane, Popup, Polyline, TileLayer } from "react-leaflet";
+import { MapContainer, Marker, Pane, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getStoreColor } from "../utils/colorGenerator";
-import { userHasRole, isAppOwner } from "../utils/userRoles";
+import { userHasRole } from "../utils/userRoles";
 import MapCrosshair from "./MapCrosshair";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
@@ -137,11 +137,6 @@ export default function DeliveryMap({
     if (!selectedDriverId || selectedDriverId === "all") return true;
     return new Set(safeDeliveries.map((d) => d?.driver_id).filter(Boolean)).size > 1;
   }, [selectedDriverId, safeDeliveries]);
-  const isSingleDriverMode = !isAllDriversMode;
-  const isDriverViewingSelfToday = useMemo(() => {
-    if (!currentUser || !userHasRole(currentUser, "driver") || !selectedDriverId || selectedDriverId === "all") return false;
-    return currentUser.id === selectedDriverId && (!selectedDate || selectedDate === getEdmDate());
-  }, [currentUser, selectedDriverId, selectedDate]);
 
   const { routeLocationSnapshot, routeRecalcVersion } = useRouteRecalcSignal({
     currentDriverLocation,
@@ -316,9 +311,7 @@ export default function DeliveryMap({
 
     const groupedPickupsMap = new Map();
     const groupedDeliveriesMap = new Map();
-
     const withCounts = (marker) => ({ ...marker, duplicateCount: counts.get(getLocationKey(marker.latitude, marker.longitude, currentZoom)) || 1 });
-
     const pickupMarkersWithCounts = pickups.map(withCounts);
     const deliveryMarkersWithCounts = deliveriesOut.map(withCounts);
 
@@ -469,19 +462,14 @@ export default function DeliveryMap({
       if (!stop?.driver_id) return;
       if (!byDriver.has(stop.driver_id)) byDriver.set(stop.driver_id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
       const state = byDriver.get(stop.driver_id);
-      if (FINISHED_STATUSES.includes(stop.status)) {
-        state.completed += 1;
-      } else if (stop.markerType === "pickup") {
-        state.remainingPickups += 1;
-      } else if (stop.markerType === "delivery") {
-        state.remainingDeliveries += 1;
-      }
+      if (FINISHED_STATUSES.includes(stop.status)) state.completed += 1;
+      else if (stop.markerType === "pickup") state.remainingPickups += 1;
+      else if (stop.markerType === "delivery") state.remainingDeliveries += 1;
     });
 
     const visibilityMap = new Map();
     byDriver.forEach((state, driverId) => {
-      const shouldShowHomeMarker = state.completed === 0 || state.remainingPickups === 0;
-      visibilityMap.set(driverId, { ...state, shouldShowHomeMarker });
+      visibilityMap.set(driverId, { ...state, shouldShowHomeMarker: state.completed === 0 || state.remainingPickups === 0 });
     });
     return visibilityMap;
   }, [deliveryMarkers, pickupMarkers]);
@@ -591,21 +579,10 @@ export default function DeliveryMap({
     onDriverRoutesCalculated?.(driverRoutes);
   }, [driverRoutes, onDriverRoutesCalculated]);
 
-  const completedRouteDriverIds = useMemo(() => {
-    return new Set((driverRoutes || []).filter((route) => route?.isCompleted).map((route) => route.driverId).filter(Boolean));
-  }, [driverRoutes]);
-
-  const completedRouteDriverRoutes = useMemo(() => {
-    return (driverRoutes || []).filter((route) => route?.isCompleted);
-  }, [driverRoutes]);
-
-  const completedRouteDeliveryMarkers = useMemo(() => {
-    return (deliveryMarkers || []).filter((marker) => completedRouteDriverIds.has(marker?.driver_id));
-  }, [deliveryMarkers, completedRouteDriverIds]);
-
-  const completedRoutePickupMarkers = useMemo(() => {
-    return (pickupMarkers || []).filter((marker) => completedRouteDriverIds.has(marker?.driver_id));
-  }, [pickupMarkers, completedRouteDriverIds]);
+  const completedRouteDriverIds = useMemo(() => new Set((driverRoutes || []).filter((route) => route?.isCompleted).map((route) => route.driverId).filter(Boolean)), [driverRoutes]);
+  const completedRouteDriverRoutes = useMemo(() => (driverRoutes || []).filter((route) => route?.isCompleted), [driverRoutes]);
+  const completedRouteDeliveryMarkers = useMemo(() => (deliveryMarkers || []).filter((marker) => completedRouteDriverIds.has(marker?.driver_id)), [deliveryMarkers, completedRouteDriverIds]);
+  const completedRoutePickupMarkers = useMemo(() => (pickupMarkers || []).filter((marker) => completedRouteDriverIds.has(marker?.driver_id)), [pickupMarkers, completedRouteDriverIds]);
 
   useEffect(() => {
     if (hasNotifiedMapReady.current || !map) return;
@@ -728,108 +705,30 @@ export default function DeliveryMap({
         )}
 
         {currentDriverMarker && (
-          <Marker
-            key="current-driver-location"
-            position={[currentDriverMarker.latitude, currentDriverMarker.longitude]}
-            icon={createLiveLocationDot()}
-            zIndexOffset={6000}
-            eventHandlers={{ click: () => onMarkerClick?.(currentDriverMarker, "driver") }}
-          >
+          <Marker key="current-driver-location" position={[currentDriverMarker.latitude, currentDriverMarker.longitude]} icon={createLiveLocationDot()} zIndexOffset={6000} eventHandlers={{ click: () => onMarkerClick?.(currentDriverMarker, "driver") }}>
             <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
               <div className="min-w-[150px]">
                 <div className="font-semibold text-xs">Your Location</div>
-                {currentDriverMarker.timestamp && (
-                  <div className="text-[11px] text-gray-600">Updated: {format(new Date(currentDriverMarker.timestamp), "HH:mm:ss")}</div>
-                )}
+                {currentDriverMarker.timestamp && <div className="text-[11px] text-gray-600">Updated: {format(new Date(currentDriverMarker.timestamp), "HH:mm:ss")}</div>}
               </div>
             </Popup>
           </Marker>
         )}
 
-        <DriverLocationMarkers
-          users={routeAwareDriverLocationMarkers}
-          currentUser={currentUser}
-          activeDriver={null}
-          deliveries={deliveriesForLocationFilter}
-          selectedDate={selectedDate}
-        />
+        <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />
 
         {(showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
           <>
-            <HereType2Polylines
-              key={`type2-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`}
-              isViewingCurrentDate={isViewingCurrentDate}
-              deliveryMarkers={deliveryMarkers}
-              pickupMarkers={pickupMarkers}
-              driverRoutes={driverRoutes}
-              multiDriverMode={selectedDriverId === "all" || showOtherDriverDeliveries}
-              selectedDriverId={selectedDriverId}
-            />
-            <HereType1Polylines
-              key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`}
-              isViewingCurrentDate={isViewingCurrentDate}
-              deliveryMarkers={deliveryMarkers}
-              pickupMarkers={pickupMarkers}
-              driverHomeMarkers={driverHomeMarkers}
-              currentDriverMarker={routeAwareCurrentDriverMarker}
-              selectedDriverId={selectedDriverId}
-              showAll={isAllDriversMode || showOtherDriverDeliveries}
-              driverLocations={routeAwareDriverLocationMarkers}
-            />
+            <HereType2Polylines key={`type2-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={selectedDriverId === "all" || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} />
+            <HereType1Polylines key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={routeAwareCurrentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} driverLocations={routeAwareDriverLocationMarkers} />
           </>
         )}
 
         <HomeMarkers driverHomeMarkers={driverHomeMarkers} map={map} isMobile={isMobile} onMarkerClick={onMarkerClick} />
 
-        <PickupMarkers
-          pickupMarkers={pickupMarkers}
-          groupedPickupMarkers={groupedPickupMarkers}
-          groupedDeliveryMarkers={groupedDeliveryMarkers}
-          routeRenderKey={routeRenderKey}
-          currentZoom={currentZoom}
-          ZOOM_LEVELS={ZOOM_LEVELS}
-          isMobile={isMobile}
-          fannedLocationKey={fannedLocationKey}
-          highlightedDeliveryId={highlightedDeliveryId}
-          fadedMarkerHighlights={fadedMarkerHighlights}
-          setFadedMarkerHighlights={setFadedMarkerHighlights}
-          driversWithCompleteRoute={driversWithCompleteRoute}
-          hasIncompleteStops={hasIncompleteStops}
-          calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper}
-          onMarkerClick={onMarkerClick}
-          handleMarkerClickForFanning={handleMarkerClickForFanning}
-          handleMarkerDragEnd={handleMarkerDragEnd}
-          markerRefs={markerRefs}
-          safeStores={safeStores}
-          safePatients={safePatients}
-          safeUsers={safeUsers}
-        />
+        <PickupMarkers pickupMarkers={pickupMarkers} groupedPickupMarkers={groupedPickupMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClick} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} />
 
-        <DeliveryMarkers
-          deliveryMarkers={deliveryMarkers}
-          groupedDeliveryMarkers={groupedDeliveryMarkers}
-          groupedPickupMarkers={groupedPickupMarkers}
-          routeRenderKey={routeRenderKey}
-          currentZoom={currentZoom}
-          ZOOM_LEVELS={ZOOM_LEVELS}
-          isMobile={isMobile}
-          fannedLocationKey={fannedLocationKey}
-          setFannedLocationKey={setFannedLocationKey}
-          highlightedDeliveryId={highlightedDeliveryId}
-          fadedMarkerHighlights={fadedMarkerHighlights}
-          setFadedMarkerHighlights={setFadedMarkerHighlights}
-          driversWithCompleteRoute={driversWithCompleteRoute}
-          hasIncompleteStops={hasIncompleteStops}
-          calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper}
-          onMarkerClick={onMarkerClick}
-          handleMarkerClickForFanning={handleMarkerClickForFanning}
-          handleMarkerDragEnd={handleMarkerDragEnd}
-          markerRefs={markerRefs}
-          safeStores={safeStores}
-          safePatients={safePatients}
-          safeUsers={safeUsers}
-          stores={stores}
-        />
+        <DeliveryMarkers deliveryMarkers={deliveryMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} groupedPickupMarkers={groupedPickupMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} setFannedLocationKey={setFannedLocationKey} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClick} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} stores={stores} />
 
         {showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} safeUsers={safeUsers} />}
       </MapContainer>
