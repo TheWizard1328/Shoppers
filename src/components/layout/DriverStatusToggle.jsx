@@ -75,6 +75,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
   const appDataContext = useAppData();
   const setIsEntityUpdating = appDataContext?.setIsEntityUpdating || (() => {});
   const isTogglingRef = useRef(false);
+  const lastRequestedStatusRef = useRef(null);
   // Track when we last received a WebSocket update so the prop sync doesn't overwrite it
   const lastWebSocketUpdateRef = useRef(0);
 
@@ -120,16 +121,29 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
   // Sync from currentUser prop changes when not toggling
   // CRITICAL: Skip if a WebSocket update arrived recently (within 5s) - prop may be stale
   useEffect(() => {
-    if (!isTogglingRef.current && currentUser?.driver_status && status !== currentUser.driver_status) {
+    if (!currentUser?.driver_status || status === currentUser.driver_status) {
+      return;
+    }
+
+    if (lastRequestedStatusRef.current && currentUser.driver_status !== lastRequestedStatusRef.current) {
+      console.log(`⏸️ [DriverStatusToggle] Skipping stale prop sync (${currentUser.driver_status}) while waiting for ${lastRequestedStatusRef.current}`);
+      return;
+    }
+
+    if (!isTogglingRef.current) {
       const timeSinceWsUpdate = Date.now() - lastWebSocketUpdateRef.current;
       if (timeSinceWsUpdate < 5000) {
         console.log(`⏸️ [DriverStatusToggle] Skipping stale prop sync (WS update ${timeSinceWsUpdate}ms ago) - keeping WS value: ${status}`);
         return;
       }
-      setStatus(currentUser.driver_status);
-      locationTracker.setDriverStatus(currentUser.driver_status);
-      console.log(`✅ [DriverStatusToggle] Syncing from currentUser prop: ${currentUser.driver_status}`);
     }
+
+    setStatus(currentUser.driver_status);
+    locationTracker.setDriverStatus(currentUser.driver_status);
+    if (currentUser.driver_status === lastRequestedStatusRef.current) {
+      lastRequestedStatusRef.current = null;
+    }
+    console.log(`✅ [DriverStatusToggle] Syncing from currentUser prop: ${currentUser.driver_status}`);
   }, [currentUser?.driver_status, status]);
 
   // Listen for AppUser entity updates to sync status across devices
@@ -148,13 +162,17 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       if (isCurrentUser && typeof appUser.driver_status !== 'undefined') {
         console.log(`📡 [DriverStatusToggle] appUserUpdated event - syncing status to: ${appUser.driver_status}`);
-        
+
+        if (appUser.driver_status === lastRequestedStatusRef.current) {
+          lastRequestedStatusRef.current = null;
+        }
+
         // Skip if still toggling
         if (isTogglingRef.current) {
           console.log('⏸️ [DriverStatusToggle] Still toggling - will sync after toggle completes');
           return;
         }
-        
+
         // CRITICAL: Record WS update time so prop sync doesn't immediately overwrite
         lastWebSocketUpdateRef.current = Date.now();
         
@@ -183,6 +201,10 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       if (isCurrentUser && typeof data.driver_status !== 'undefined') {
         console.log(`📡 [DriverStatusToggle] entityMutationBroadcast fallback - syncing status to: ${data.driver_status}`);
+
+        if (data.driver_status === lastRequestedStatusRef.current) {
+          lastRequestedStatusRef.current = null;
+        }
         
         if (isTogglingRef.current) {
           return;
@@ -270,6 +292,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     
     try {
       console.log(`🔄 Changing driver status: ${status} -> ${newStatus}`);
+      lastRequestedStatusRef.current = newStatus;
       
       // Optimistically update UI
       setStatus(newStatus);
@@ -527,6 +550,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
     } catch (error) {
       console.error('❌ Failed to update driver status:', error);
+      lastRequestedStatusRef.current = null;
       setStatus(previousStatus);
       toast.error('Failed to update status. Please try again.');
       
@@ -543,7 +567,6 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
 
         // CRITICAL: Clear updating flags immediately so UI is responsive
       // Backend status change is already applied
-      setPendingStatus(null);
       setIsUpdating(false);
       setIsEntityUpdating(false);
       
@@ -560,6 +583,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           console.warn('⚠️ [DriverStatusToggle] Failed to resume smart refresh:', e);
         }
         
+        setPendingStatus(null);
         // CRITICAL: Clear toggling flag after delay
         isTogglingRef.current = false;
         console.log('✅ [DRIVER STATUS] Driver status change cycle complete');
