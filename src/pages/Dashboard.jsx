@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar as CalendarIcon, Clock, Truck, CheckCircle, XCircle, Package, Plus, ChevronUp, ChevronDown, RotateCcw as RefreshIcon, Phone, MapPin, X, Settings, Bot, Sparkles, Navigation, Bell, BellOff, Mailbox, ArrowUp, ArrowDown, Binoculars, LocateFixed } from "lucide-react";
 import { format, startOfDay } from 'date-fns';
-import { getData, invalidate, invalidateDeliveriesForDate } from "@/components/utils/dataManager";
+import { getData, invalidate } from "@/components/utils/dataManager";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { offlineFirstManager } from "@/components/utils/offlineFirstManager";
 import DeliveryMap from "@/components/dashboard/DeliveryMap";
@@ -87,7 +87,6 @@ import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
 import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
 import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
-import { sumApiLogCalls } from '@/components/utils/apiUsageLog';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
