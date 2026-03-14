@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
           nextTrackingNumber += 1;
         }
 
-        const expectedTrackingNumber = `${abbreviation}${nextTrackingNumber}`;
+        const expectedTrackingNumber = String(nextTrackingNumber);
         if (delivery.tracking_number !== expectedTrackingNumber) {
           updates.push({ id: delivery.id, tracking_number: expectedTrackingNumber });
         }
