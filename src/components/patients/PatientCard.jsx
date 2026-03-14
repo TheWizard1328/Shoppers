@@ -146,13 +146,30 @@ export default function PatientCard({
   [];
 
   const recurringText = useMemo(() => getRecurringDisplay(patient), [patient]);
-  const deliveryBadgeConfig = useMemo(() => ({
+  const deliveryBadgeMap = useMemo(() => ({
     pending: { label: 'Pending', style: { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' } },
     picked_up: { label: 'In Transit', style: { background: '#dbeafe', color: '#1d4ed8' } },
     in_transit: { label: 'In Transit', style: { background: '#dbeafe', color: '#1d4ed8' } },
     completed: { label: 'Completed', style: { background: '#d1fae5', color: '#065f46' } },
     failed: { label: 'Failed', style: { background: '#fee2e2', color: '#991b1b' } }
-  })[todayDelivery?.status] || { label: 'On Route', style: { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' } }, [todayDelivery?.status]);
+  }), []);
+  const patientDeliveriesForDate = useMemo(() => {
+    if (!patient?.id || !todayDelivery?.delivery_date) return [];
+    return (allDeliveries || []).filter((delivery) =>
+      delivery?.patient_id === patient.id && delivery?.delivery_date === todayDelivery.delivery_date
+    );
+  }, [allDeliveries, patient?.id, todayDelivery?.delivery_date]);
+  const deliveryBadges = useMemo(() => {
+    const deliveriesToShow = patientDeliveriesForDate.length > 1 ? patientDeliveriesForDate : (todayDelivery ? [todayDelivery] : []);
+    return deliveriesToShow.map((delivery, index) => {
+      const config = deliveryBadgeMap[delivery?.status] || { label: 'On Route', style: { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' } };
+      return {
+        key: delivery?.id || `${delivery?.status || 'delivery'}-${index}`,
+        label: deliveriesToShow.length > 1 ? `${config.label} ${index + 1}` : config.label,
+        style: config.style
+      };
+    });
+  }, [deliveryBadgeMap, patientDeliveriesForDate, todayDelivery]);
 
   return (
     <Card
