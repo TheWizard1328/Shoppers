@@ -73,21 +73,22 @@ export default function AuditTable({ title, description, rows, columns, defaultS
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-200">
+      <CardContent className="p-0">
+        <div className="max-h-[62vh] overflow-auto">
+          <table className="w-full min-w-max text-sm">
+            <thead className="sticky top-0 z-10" style={{ background: "var(--bg-white)" }}>
+              <tr style={{ borderBottom: "1px solid var(--border-slate-200)" }}>
                 {columns.map((column) => {
                   const isActive = sortConfig.key === column.key;
                   const SortIcon = !isActive ? ArrowUpDown : sortConfig.direction === "asc" ? ArrowUp : ArrowDown;
 
                   return (
-                    <th key={column.key} className="px-3 py-3 text-left font-semibold text-slate-700">
+                    <th key={column.key} className={`px-3 py-3 text-left font-semibold ${column.headerClassName || ""}`} style={{ color: "var(--text-slate-700)" }}>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto px-0 py-0 font-semibold text-slate-700 hover:bg-transparent"
+                        className="h-auto px-0 py-0 font-semibold hover:bg-transparent"
+                        style={{ color: "var(--text-slate-700)" }}
                         onClick={() => handleSort(column.key)}
                       >
                         {column.label}
@@ -96,7 +97,7 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                     </th>
                   );
                 })}
-                <th className="px-3 py-3 text-left font-semibold text-slate-700">Audit Flags</th>
+                <th className="px-3 py-3 text-left font-semibold whitespace-nowrap" style={{ color: "var(--text-slate-700)" }}>Audit Flags</th>
               </tr>
             </thead>
             <tbody>
