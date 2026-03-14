@@ -10,6 +10,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import SquareSyncAudit from '@/pages/SquareSyncAudit';
 
 const cleanupLocalStorageQuota = () => {
   try {
@@ -90,6 +91,14 @@ const AuthenticatedApp = () => {
           }
         />
       ))}
+      <Route
+        path="/SquareSyncAudit"
+        element={
+          <LayoutWrapper currentPageName="SquareSyncAudit">
+            <SquareSyncAudit />
+          </LayoutWrapper>
+        }
+      />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
