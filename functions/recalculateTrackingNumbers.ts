@@ -51,9 +51,6 @@ Deno.serve(async (req) => {
       const pickupBase = parseTrackingNumber(pickup.tracking_number);
       if (pickupBase === null) continue;
 
-      const store = storeMap.get(pickup.store_id);
-      const abbreviation = store?.abbreviation || '';
-
       const linkedDeliveries = deliveries
         .filter((delivery) => delivery && delivery.patient_id && delivery.puid === pickup.stop_id)
         .sort((a, b) => {
