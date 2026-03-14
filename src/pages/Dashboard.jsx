@@ -88,6 +88,7 @@ import PullToSync from '../components/dashboard/PullToSync';
 import BreadcrumbToggleButton from '@/components/dashboard/BreadcrumbToggleButton';
 import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
 import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
+import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
@@ -7411,7 +7412,7 @@ function Dashboard() {
       </div>
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
-        {currentUser&&isAppOwner(currentUser)&&<ApiUsageBadge currentUser={currentUser} stopCardsHeight={(deliveriesWithStopOrder.length>0?stopCardsBaseHeight:0)} showRoutes={showRoutes} showBreadcrumbs={showBreadcrumbs} showCompletedRouteControls={!isMobile&&selectedDriverId!=='all'&&filteredDeliveries.length>0&&filteredDeliveries.every((delivery)=>delivery&&['completed','failed','cancelled','returned'].includes(delivery.status))} />}
+        {currentUser&&isAppOwner(currentUser)&&<ApiUsageBadge currentUser={currentUser} stopCardsHeight={(deliveriesWithStopOrder.length>0?stopCardsBaseHeight:0)} showRoutes={showRoutes} showBreadcrumbs={showBreadcrumbs} showCompletedRouteControls={!isMobile&&selectedDriverId!=='all'&&filteredDeliveries.length>0&&filteredDeliveries.every((delivery)=>delivery&&['completed','failed','cancelled','returned'].includes(delivery.status))} selectedDate={format(selectedDate, 'yyyy-MM-dd')} selectedDriverIds={selectedDriverId !== 'all' ? [selectedDriverId] : []} />}
 
         {/* Offline Sync Indicator - separate when stats card is in upper left corner */}
         {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
@@ -7733,78 +7734,23 @@ function Dashboard() {
           isLocked={isMapViewLocked}
           stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} />
 
-        {/* Re-optimize Route FAB - Only for app owner (testing phase) */}
-        {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
-        <motion.div
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="fixed z-[100]"
-          style={{
-            bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15}px`,
-            right: '64px'
-          }}>
-            <Button
-            onClick={async () => {
-              if (isReoptimizing) return;
-              setIsReoptimizing(true);
-              setOptimizationMessage('Re-optimizing route...');
-              setIsEntityUpdating(true);
-              pauseOfflineMutations();
-              pauseOfflineSync();
-              await new Promise((resolve) => setTimeout(resolve, 100));
-              try {
-                const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
-                const now = new Date();
-                const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                const response = await base44.functions.invoke('optimizeRouteRealTime', {
-                  driverId: selectedDriverId,
-                  deliveryDate,
-                  currentLocalTime,
-                  deviceTime: now.toISOString()
-                });
-                const data = response?.data || response;
-                if (data?.success) {
-                  setOptimizationMessage(`Route optimized! ${(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)} stops updated.`);
-                  invalidate('Delivery');
-                  await refreshData();
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: selectedDriverId, deliveryDate, triggeredBy: 'reoptimizeRoute' } }));
-                  setIsMapViewLocked(true);
-                  setMapViewTrigger((prev) => prev + 1);
-                  setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
-                } else {
-                  setOptimizationMessage(data?.error || 'Optimization failed');
-                  setTimeout(() => setOptimizationMessage(null), 5000);
-                }
-              } catch (error) {
-                console.error('❌ [handleReoptimizeRoute] Error:', error);
-                setOptimizationMessage(`Error: ${error.message}`);
-                setTimeout(() => setOptimizationMessage(null), 5000);
-              } finally {
-                resumeOfflineMutations();
-                resumeOfflineSync();
-                setIsEntityUpdating(false);
-                await new Promise((resolve) => setTimeout(resolve, 100));
-                setIsReoptimizing(false);
-              }
-            }}
-            disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some((d) => d && d.status === 'in_transit')}
-            title="Re-optimize entire route using Google Maps"
-            className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
-            isReoptimizing ?
-            'bg-amber-500 hover:bg-amber-600' :
-            'bg-emerald-600 hover:bg-emerald-700'}`
-            }
-            style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
-              {isReoptimizing ?
-            <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" /> :
-
-            <Navigation className="w-5 h-5 text-white" />
-            }
-            </Button>
-          </motion.div>
-        }
+        <RouteActionButtons
+          currentUser={currentUser}
+          selectedDriverId={selectedDriverId}
+          selectedDate={selectedDate}
+          deliveriesWithStopOrder={deliveriesWithStopOrder}
+          filteredDeliveries={filteredDeliveries}
+          cardsReadyForFAB={cardsReadyForFAB}
+          stopCardsBaseHeight={stopCardsBaseHeight}
+          isDateFinished={isDateFinished}
+          isReoptimizing={isReoptimizing}
+          setIsReoptimizing={setIsReoptimizing}
+          setOptimizationMessage={setOptimizationMessage}
+          setIsEntityUpdating={setIsEntityUpdating}
+          refreshData={refreshData}
+          setIsMapViewLocked={setIsMapViewLocked}
+          setMapViewTrigger={setMapViewTrigger}
+        />
       </>
       }
 
