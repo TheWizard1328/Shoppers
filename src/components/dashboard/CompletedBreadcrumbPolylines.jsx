@@ -93,6 +93,42 @@ const getCachedPolyline = (key, cache) => {
   }
 };
 
+const decodePolyline = (encoded) => {
+  if (!encoded || typeof encoded !== 'string') return null;
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  const coordinates = [];
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    shift = 0;
+    result = 0;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return coordinates.length > 1 ? coordinates : null;
+};
+
 const parseBreadcrumbPoints = (breadcrumbsValue) => {
   try {
     const parsed = typeof breadcrumbsValue === "string" ? JSON.parse(breadcrumbsValue) : breadcrumbsValue;
@@ -169,6 +205,7 @@ export default function CompletedBreadcrumbPolylines({
           end,
           destinationStopId: toStop.id,
           destinationPointKey: getPointKey(end),
+          storedEncodedPolyline: typeof toStop.finished_leg_encoded_polyline === "string" ? toStop.finished_leg_encoded_polyline.trim() : "",
           breadcrumbPoints: routePoints,
           hasAnyBreadcrumbs: routePoints.length > 0,
           hasBreadcrumbs: routePoints.length > 1,
@@ -203,6 +240,7 @@ export default function CompletedBreadcrumbPolylines({
         deliveryDate: segment.deliveryDate,
         from: segment.start,
         to: segment.end,
+        storedEncodedPolyline: segment.storedEncodedPolyline,
       }));
   }, [completedSegments, blockedStoredDestinationStopIds, blockedStoredDestinationPointKeys, showStoredPolylines]);
 
@@ -235,6 +273,14 @@ export default function CompletedBreadcrumbPolylines({
       const key = getLegKey(leg.from, leg.to);
       if (!key || getCachedPolyline(key, cache)) return;
 
+      if (leg.storedEncodedPolyline) {
+        const decoded = decodePolyline(leg.storedEncodedPolyline);
+        if (decoded) {
+          setCache((previous) => ({ ...previous, [key]: decoded }));
+          return;
+        }
+      }
+
       const now = Date.now();
       if (now - (requestTimesRef.current[key] || 0) < 4000) return;
       requestTimesRef.current[key] = now;
@@ -262,7 +308,7 @@ export default function CompletedBreadcrumbPolylines({
       if (segment.destinationPointKey && blockedStoredDestinationPointKeys.has(segment.destinationPointKey)) return;
 
       const key = getLegKey(segment.start, segment.end);
-      const coords = getCachedPolyline(key, cache);
+      const coords = getCachedPolyline(key, cache) || decodePolyline(segment.storedEncodedPolyline);
       if (!coords) return;
 
       renderedLines.push(
