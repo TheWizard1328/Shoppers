@@ -621,33 +621,55 @@ export default function StopDetailsPanel({
             
             {/* Edit/Delete Buttons */}
             {canManageStop && (
-              <div className="absolute top-4 right-4 flex gap-2">
-                <Button 
-                  onClick={() => onEdit(delivery)}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                >
-                  <Pencil className="w-4 h-4" style={{ color: 'var(--text-slate-500)' }} />
-                </Button>
-                <Button 
-                  onClick={() => {
-                    if (confirm('Are you sure you want to delete this delivery?')) {
-                      if (typeof onDelete === 'function') {
-                        onDelete(delivery.id);
-                      } else {
-                        console.warn('[StopDetailsPanel] onDelete not provided');
+              <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => onEdit(delivery)}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                  >
+                    <Pencil className="w-4 h-4" style={{ color: 'var(--text-slate-500)' }} />
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      if (confirm('Are you sure you want to delete this delivery?')) {
+                        if (typeof onDelete === 'function') {
+                          onDelete(delivery.id);
+                        } else {
+                          console.warn('[StopDetailsPanel] onDelete not provided');
+                        }
                       }
-                    }
-                  }}
-                  disabled={typeof onDelete !== 'function'}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  style={{ color: '#dc2626' }}
-                >
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </Button>
+                    }}
+                    disabled={typeof onDelete !== 'function'}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    style={{ color: '#dc2626' }}
+                  >
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                  </Button>
+                </div>
+                {currentUser?.app_roles?.includes('driver') && !isCompleted && (
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => onStatusUpdate(delivery.id, 'completed')}
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                      size="sm"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Complete
+                    </Button>
+                    <Button 
+                      onClick={() => onStatusUpdate(delivery.id, 'failed')}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Failed
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -829,40 +851,18 @@ export default function StopDetailsPanel({
       </div>
 
       {/* Action Buttons - Drivers */}
-      {currentUser?.app_roles?.includes('driver') && (
+      {currentUser?.app_roles?.includes('driver') && ['completed', 'failed', 'cancelled'].includes(delivery.status) && onRestart && (
         <div className="flex-shrink-0 p-4 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          {!isCompleted ? (
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => onStatusUpdate(delivery.id, 'completed')}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Complete
-              </Button>
-              <Button 
-                onClick={() => onStatusUpdate(delivery.id, 'failed')}
-                variant="destructive"
-                className="flex-1"
-              >
-                <XCircle className="w-4 h-4 mr-2" />
-                Failed
-              </Button>
-            </div>
-          ) : (
-            ['completed', 'failed', 'cancelled'].includes(delivery.status) && onRestart && (
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => onRestart(delivery.id)}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={isUpdating}
-                >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Restart
-                </Button>
-              </div>
-            )
-          )}
+          <div className="flex gap-2">
+            <Button
+              onClick={() => onRestart(delivery.id)}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={isUpdating}
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Restart
+            </Button>
+          </div>
         </div>
       )}
 
