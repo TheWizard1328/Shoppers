@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
-/**
+/***
  * AI-Driven Delivery Prioritization
  * 
  * Analyzes deliveries and suggests optimal route adjustments based on:
@@ -9,7 +9,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * 3. Driver current location
  * 4. Historical delivery success rates
  * 5. Distance clustering (group nearby stops)
- */
+ ***/
 
 Deno.serve(async (req) => {
   try {
