@@ -76,7 +76,7 @@ export async function reconcilePendingBreadcrumbsOnDuty({ driverUserId, appUsers
   const failed = results.filter((status) => status === 'failed').length;
   const cleared = allRecords.length;
 
-  await clearPendingBreadcrumbsForDriver({ driverUserId, appUsers });
+  await clearPendingBreadcrumbsForDriver({ driverUserId, appUsers, force: true });
 
   return {
     synced,
