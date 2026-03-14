@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
 import { fabControlEvents } from "../utils/fabControlEvents";
 import { loadUserSettings, getSetting } from "../utils/userSettingsManager";
+import { reconcilePendingBreadcrumbsOnDuty } from "../utils/pendingBreadcrumbReconciliation";
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
