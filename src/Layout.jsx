@@ -2584,14 +2584,10 @@ export default function Layout({ children, currentPageName }) {
     }
 
     // Square Locations - App Owner only
-    if (realUser && isAppOwner(realUser)) {
-      items.push({
-        title: "Square Locations",
-        pageName: 'SquareLocationConfigs',
-        url: createPageUrl("SquareLocationConfigs"),
-        icon: CreditCard
-      });
-    }
+    if (realUser && isAppOwner(realUser)) items.push(
+      { title: "Square Locations", pageName: 'SquareLocationConfigs', url: createPageUrl("SquareLocationConfigs"), icon: CreditCard },
+      { title: "Square COD Audit", pageName: 'SquareSyncAudit', url: createPageUrl("SquareSyncAudit"), icon: FileText }
+    );
     return items;
   }, [entityCounts.cities, entityCounts.stores, entityCounts.users, realUser, adminImportEnabled, drivers.length]);
 
