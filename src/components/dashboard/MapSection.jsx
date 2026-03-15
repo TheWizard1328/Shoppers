@@ -72,7 +72,12 @@ export default function MapSection({
           onLegendInteraction={handleCardInteraction}
           onDriverRoutesCalculated={setDriverRoutes}
           onMapInteraction={(isUser) => { if (isUser) {} }}
-          onDoubleTap={handleMapViewCycle}
+          onDoubleTap={() => {
+            const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+            if (nextCard?.id) {
+              window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: nextCard.id } }));
+            }
+          }}
           retractClustersRef={retractClustersRef}
           areStopCardsVisible={deliveriesWithStopOrder.length > 0}
           highlightedDeliveryId={highlightedCardId}
