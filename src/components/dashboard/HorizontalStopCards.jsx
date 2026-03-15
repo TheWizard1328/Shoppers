@@ -466,7 +466,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       }}
       onWheel={(e) => {
         if (isDesktopFanLayout) {
-          e.preventDefault();
           const axisDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
           if (Math.abs(axisDelta) < 8) return;
           if (Date.now() - wheelNavLockRef.current < 120) return;
