@@ -131,7 +131,7 @@ export default function ResetPolylinesButton({
       style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-300)", color: "var(--text-slate-900)" }}
     >
       {isResetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-      {isResetting ? "Updating..." : "Reset"}
+      {/** {isResetting ? "Updating..." : "Reset"} **/}
     </Button>
   );
 }
