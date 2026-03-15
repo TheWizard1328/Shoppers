@@ -123,6 +123,37 @@ Deno.serve(async (req) => {
       }
     }
 
+    const encodeBase64Url = (value) => btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+
+    const buildGmailRawMessage = ({ to, subject, body, pdfBytes, fileName }) => {
+      const boundary = `route_manifest_${crypto.randomUUID()}`;
+      const pdfBinary = String.fromCharCode(...new Uint8Array(pdfBytes));
+      const pdfBase64 = btoa(pdfBinary).replace(/(.{76})/g, '$1\r\n');
+      const mimeMessage = [
+        `To: ${to}`,
+        `Subject: ${subject}`,
+        'MIME-Version: 1.0',
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        '',
+        `--${boundary}`,
+        'Content-Type: text/plain; charset="UTF-8"',
+        'Content-Transfer-Encoding: 7bit',
+        '',
+        body,
+        '',
+        `--${boundary}`,
+        `Content-Type: application/pdf; name="${fileName}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${fileName}"`,
+        '',
+        pdfBase64,
+        '',
+        `--${boundary}--`
+      ].join('\r\n');
+
+      return encodeBase64Url(mimeMessage);
+    };
+
     // Pre-fetch all images (signatures and proof photos) in parallel
     const imagePromises = items.map(async (d) => {
       const result = { signature: null, photos: [] };
@@ -331,27 +362,39 @@ Deno.serve(async (req) => {
       }
 
       const fileName = `${manifestType}${ampm ? `-${ampm}` : ''}-${deliveryDate}.pdf`;
-      const pdfFile = new File([pdfBytes], fileName, { type: 'application/pdf' });
-      const uploadResult = await base44.integrations.Core.UploadFile({ file: pdfFile });
-      const fileUrl = uploadResult?.file_url;
-
-      if (!fileUrl) {
-        return Response.json({ error: 'Failed to upload route PDF' });
-      }
+      const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
+      const subject = emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`;
+      const body = `Attached is your route manifest PDF for ${deliveryDate}.`;
 
       try {
-        await Promise.all(uniqueRecipientEmails.map((email) =>
-          base44.integrations.Core.SendEmail({
+        await Promise.all(uniqueRecipientEmails.map(async (email) => {
+          const raw = buildGmailRawMessage({
             to: email,
-            subject: emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`,
-            body: `Your route log is ready. Download it here:\n\n${fileUrl}`,
-          })
-        ));
+            subject,
+            body,
+            pdfBytes,
+            fileName,
+          });
+
+          const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ raw }),
+          });
+
+          if (!gmailResponse.ok) {
+            const errorText = await gmailResponse.text();
+            throw new Error(errorText || 'Failed to send route email');
+          }
+        }));
       } catch (sendError) {
         return Response.json({ error: sendError?.message || 'Failed to send route email' });
       }
 
-      return Response.json({ success: true, file_url: fileUrl });
+      return Response.json({ success: true, sent_to: uniqueRecipientEmails });
     }
 
     return new Response(pdfBytes, {
