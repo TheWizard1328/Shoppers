@@ -16,18 +16,28 @@ const getEdmontonDateString = (value = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const extractDateString = (value) => {
+const normalizeDateString = (value) => {
   if (!value || typeof value !== 'string') return null;
-  const match = value.match(/\d{4}-\d{2}-\d{2}/);
-  return match ? match[0] : null;
+
+  const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/);
+  if (isoMatch) return isoMatch[0];
+
+  const legacyMatch = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (legacyMatch) {
+    const [, month, day, year] = legacyMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : getEdmontonDateString(parsed);
 };
 
 const resolvePatientLastDeliveryDate = (delivery) => {
   return (
-    extractDateString(delivery?.actual_delivery_time) ||
-    extractDateString(delivery?.arrival_time) ||
-    extractDateString(delivery?.updated_date) ||
-    extractDateString(delivery?.delivery_date) ||
+    normalizeDateString(delivery?.actual_delivery_time) ||
+    normalizeDateString(delivery?.arrival_time) ||
+    normalizeDateString(delivery?.updated_date) ||
+    normalizeDateString(delivery?.delivery_date) ||
     null
   );
 };
@@ -56,12 +66,18 @@ const syncSingleDelivery = async (base44, delivery) => {
     return { updated: false, reason: 'Patient not found' };
   }
 
-  if (patient.last_delivery_date && patient.last_delivery_date >= resolvedDate) {
-    return { updated: false, reason: 'Patient already has same/newer date', date: resolvedDate };
+  const currentLastDeliveryDate = normalizeDateString(patient.last_delivery_date);
+  const nextLastDeliveryDate =
+    !currentLastDeliveryDate || resolvedDate > currentLastDeliveryDate
+      ? resolvedDate
+      : currentLastDeliveryDate;
+
+  if (patient.last_delivery_date === nextLastDeliveryDate) {
+    return { updated: false, reason: 'Patient already has same/newer date', date: nextLastDeliveryDate };
   }
 
   await base44.asServiceRole.entities.Patient.update(patient.id, {
-    last_delivery_date: resolvedDate
+    last_delivery_date: nextLastDeliveryDate
   });
 
   return {
@@ -101,10 +117,17 @@ const runBackfill = async (base44, backfillDays) => {
   for (const [patientId, lastDeliveryDate] of latestByPatient.entries()) {
     const patient = await getPatientById(base44, patientId);
     if (!patient) continue;
-    if (patient.last_delivery_date && patient.last_delivery_date >= lastDeliveryDate) continue;
+
+    const currentLastDeliveryDate = normalizeDateString(patient.last_delivery_date);
+    const nextLastDeliveryDate =
+      !currentLastDeliveryDate || lastDeliveryDate > currentLastDeliveryDate
+        ? lastDeliveryDate
+        : currentLastDeliveryDate;
+
+    if (patient.last_delivery_date === nextLastDeliveryDate) continue;
 
     await base44.asServiceRole.entities.Patient.update(patient.id, {
-      last_delivery_date: lastDeliveryDate
+      last_delivery_date: nextLastDeliveryDate
     });
     updatedCount += 1;
   }

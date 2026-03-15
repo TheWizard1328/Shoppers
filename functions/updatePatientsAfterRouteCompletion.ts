@@ -1,4 +1,34 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+
+const getEdmontonDateString = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Edmonton',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date(value));
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeDateString = (value) => {
+  if (!value || typeof value !== 'string') return null;
+
+  const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/);
+  if (isoMatch) return isoMatch[0];
+
+  const legacyMatch = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (legacyMatch) {
+    const [, month, day, year] = legacyMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : getEdmontonDateString(parsed);
+};
 
 Deno.serve(async (req) => {
   try {
@@ -17,7 +47,7 @@ Deno.serve(async (req) => {
       
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+      const sixMonthsAgoStr = getEdmontonDateString(sixMonthsAgo);
       
       const activePatients = await base44.asServiceRole.entities.Patient.filter({
         status: 'active'
@@ -27,12 +57,23 @@ Deno.serve(async (req) => {
       
       for (const patient of activePatients) {
         try {
-          if (!patient.last_delivery_date) continue;
-          if (patient.last_delivery_date >= sixMonthsAgoStr) continue;
+          const normalizedLastDeliveryDate = normalizeDateString(patient.last_delivery_date);
+          if (!normalizedLastDeliveryDate) continue;
+
+          const updateData = {};
+          if (patient.last_delivery_date !== normalizedLastDeliveryDate) {
+            updateData.last_delivery_date = normalizedLastDeliveryDate;
+          }
+
+          if (normalizedLastDeliveryDate < sixMonthsAgoStr) {
+            updateData.status = 'inactive';
+            deactivatedCount++;
+            console.log(`⏸️ Deactivating: ${patient.full_name} (last delivery: ${normalizedLastDeliveryDate})`);
+          }
+
+          if (Object.keys(updateData).length === 0) continue;
           
-          await base44.asServiceRole.entities.Patient.update(patient.id, { status: 'inactive' });
-          deactivatedCount++;
-          console.log(`⏸️ Deactivating: ${patient.full_name} (last delivery: ${patient.last_delivery_date})`);
+          await base44.asServiceRole.entities.Patient.update(patient.id, updateData);
         } catch (error) {
           console.error(`❌ Failed to deactivate ${patient.id}:`, error.message);
         }
@@ -52,10 +93,15 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'deliveryDate is required' }, { status: 400 });
     }
 
-    console.log(`🔄 [UpdatePatients] Processing completed routes for ${deliveryDate}${driverId ? ` (driver: ${driverId})` : ''}`);
+    const normalizedDeliveryDate = normalizeDateString(deliveryDate);
+    if (!normalizedDeliveryDate) {
+      return Response.json({ error: 'deliveryDate must be a valid date' }, { status: 400 });
+    }
+
+    console.log(`🔄 [UpdatePatients] Processing completed routes for ${normalizedDeliveryDate}${driverId ? ` (driver: ${driverId})` : ''}`);
 
     // Get deliveries for this date (optionally filtered by driver)
-    const filter = { delivery_date: deliveryDate };
+    const filter = { delivery_date: normalizedDeliveryDate };
     if (driverId) {
       filter.driver_id = driverId;
     }
@@ -81,15 +127,27 @@ Deno.serve(async (req) => {
         if (!patients || patients.length === 0) continue;
 
         const currentPatient = patients[0];
-        const updateData = {
-          last_delivery_date: deliveryDate
-        };
+        const currentLastDeliveryDate = normalizeDateString(currentPatient.last_delivery_date);
+        const nextLastDeliveryDate =
+          !currentLastDeliveryDate || normalizedDeliveryDate > currentLastDeliveryDate
+            ? normalizedDeliveryDate
+            : currentLastDeliveryDate;
+
+        const updateData = {};
+
+        if (currentPatient.last_delivery_date !== nextLastDeliveryDate) {
+          updateData.last_delivery_date = nextLastDeliveryDate;
+        }
 
         // Activate patient if currently inactive
         if (currentPatient.status === 'inactive') {
           updateData.status = 'active';
           activatedCount++;
           console.log(`✅ Activating patient: ${currentPatient.full_name}`);
+        }
+
+        if (Object.keys(updateData).length === 0) {
+          continue;
         }
 
         await base44.asServiceRole.entities.Patient.update(patientId, updateData);
@@ -104,7 +162,7 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       mode: 'routeCompletion',
-      deliveryDate,
+      deliveryDate: normalizedDeliveryDate,
       driverId: driverId || null,
       patientsUpdated: updatedCount,
       patientsActivated: activatedCount,
