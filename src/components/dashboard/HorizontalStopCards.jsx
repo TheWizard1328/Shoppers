@@ -369,7 +369,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         left: centerLeft + offset * step,
         rotate: isSelectedCard ? 0 : Math.max(-10, Math.min(10, offset * 1.8)),
         translateY: isAnchorCard || isSelectedCard ? 0 : Math.min(18, distance * 3),
-        zIndex: isSelectedCard ? 2000 : 1000 - distance
+        zIndex: isAnchorCard ? 2000 : isSelectedCard ? 1900 : 1000 - distance
       };
     });
   }, [isDesktopFanLayout, sortedPickupCards, containerWidth, selectedCardId]);
