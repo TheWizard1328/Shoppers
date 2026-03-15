@@ -2056,7 +2056,7 @@ function Dashboard() {
         }
         // Skip phase 3 if not on mobile AND no driver markers
         const hasDriverMarkers = allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude;
-        if (newMapViewPhase === 3 && !isMobile && !hasDriverMarkers) {
+        if (newMapViewPhase === 3 && (!hasIncompleteDeliveries || !isMobile && !hasDriverMarkers)) {
           newMapViewPhase = 1;
         }
         // Double-check phase 2 validity
@@ -3005,7 +3005,7 @@ function Dashboard() {
           }
 
           // For phase 3, require driver location (dispatchers can use phase 3 freely)
-          if (phaseToApply === 3 && !isDriver && !isDispatcher) {
+          if (phaseToApply === 3 && ((!isDriver && !isDispatcher) || !deliveriesWithStopOrder.some((d) => d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)))) {
             setMapViewPhase(1);
             setIsMapViewLocked(true);
             setMapViewTrigger((prev) => prev + 1);
