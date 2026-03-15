@@ -339,34 +339,14 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'Failed to upload route PDF' });
       }
 
-      const resendApiKey = Deno.env.get('RESEND_API_KEY');
-      const resendFromEmail = Deno.env.get('RESEND_FROM_EMAIL');
-
-      if (!resendApiKey || !resendFromEmail) {
-        return Response.json({ error: 'Resend email settings are missing' });
-      }
-
       try {
-        await Promise.all(uniqueRecipientEmails.map(async (email) => {
-          const resendResponse = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: resendFromEmail,
-              to: [email],
-              subject: emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`,
-              text: `Your route log is ready. Download it here:\n\n${fileUrl}`,
-            }),
-          });
-
-          if (!resendResponse.ok) {
-            const resendError = await resendResponse.text();
-            throw new Error(resendError || 'Failed to send route email');
-          }
-        }));
+        await Promise.all(uniqueRecipientEmails.map((email) =>
+          base44.integrations.Core.SendEmail({
+            to: email,
+            subject: emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`,
+            body: `Your route log is ready. Download it here:\n\n${fileUrl}`,
+          })
+        ));
       } catch (sendError) {
         return Response.json({ error: sendError?.message || 'Failed to send route email' });
       }
