@@ -11,6 +11,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { driverId, deliveryDate, manifestType, ampm, storeIds, selectedCityId, recipientEmails, emailSubject } = body || {};
+    const isValidEmail = (value) => typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
     if (!deliveryDate || !manifestType || (!driverId && (!Array.isArray(storeIds) || storeIds.length === 0))) {
       return Response.json({ error: 'Missing parameters' }, { status: 400 });
@@ -323,10 +324,15 @@ Deno.serve(async (req) => {
     const pdfBytes = doc.output('arraybuffer');
 
     if (Array.isArray(recipientEmails) && recipientEmails.length > 0) {
-      const uniqueRecipientEmails = [...new Set(recipientEmails.filter(Boolean))];
+      const uniqueRecipientEmails = [...new Set(recipientEmails.map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter(isValidEmail))];
+
+      if (uniqueRecipientEmails.length === 0) {
+        return Response.json({ error: 'No valid recipient emails were provided' }, { status: 400 });
+      }
+
       const fileName = `${manifestType}${ampm ? `-${ampm}` : ''}-${deliveryDate}.pdf`;
       const pdfFile = new File([pdfBytes], fileName, { type: 'application/pdf' });
-      const uploadResult = await base44.asServiceRole.integrations.Core.UploadFile({ file: pdfFile });
+      const uploadResult = await base44.integrations.Core.UploadFile({ file: pdfFile });
       const fileUrl = uploadResult?.file_url;
 
       if (!fileUrl) {
@@ -334,7 +340,7 @@ Deno.serve(async (req) => {
       }
 
       await Promise.all(uniqueRecipientEmails.map((email) =>
-        base44.asServiceRole.integrations.Core.SendEmail({
+        base44.integrations.Core.SendEmail({
           to: email,
           subject: emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`,
           body: `Your route log is ready. Download it here:\n\n${fileUrl}`,

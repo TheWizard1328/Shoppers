@@ -116,6 +116,12 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         ? dispatcherDayDeliveries
         : dispatcherDayDeliveries.filter((d) => d && d.ampm_deliveries === exportConfig.ampm && !finishedStatuses.includes(d.status));
       const driverNames = getDriverNamesForSubject(relevantDeliveries);
+      const validRecipientEmails = [...new Set((recipientEmails || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+
+      if (validRecipientEmails.length === 0) {
+        alert('Please add at least one valid email address.');
+        return;
+      }
 
       const res = await base44.functions.invoke('generateRouteManifest', {
         deliveryDate: exportDate,
@@ -123,7 +129,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         ampm: exportConfig.manifestType === 'pre-route' ? exportConfig.ampm : undefined,
         storeIds: dispatcherStoreIds,
         selectedCityId,
-        recipientEmails,
+        recipientEmails: validRecipientEmails,
         emailSubject: `Route logs for: ${driverNames} ${exportDate}`,
       });
       const data = res?.data || res;
@@ -134,6 +140,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
       }
 
       alert('Route log emailed successfully.');
+    } catch (error) {
+      alert(error?.response?.data?.error || error?.message || 'Route email export failed.');
     } finally {
       setIsExporting(false);
     }
