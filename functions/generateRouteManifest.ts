@@ -327,7 +327,17 @@ Deno.serve(async (req) => {
       const uniqueRecipientEmails = [...new Set(recipientEmails.map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter(isValidEmail))];
 
       if (uniqueRecipientEmails.length === 0) {
-        return Response.json({ error: 'No valid recipient emails were provided' }, { status: 400 });
+        return Response.json({ error: 'No valid recipient emails were provided' });
+      }
+
+      const appUsers = await base44.asServiceRole.entities.User.list();
+      const allowedEmails = new Set((appUsers || []).map((appUser) => String(appUser?.email || '').trim().toLowerCase()).filter(Boolean));
+      const externalEmails = uniqueRecipientEmails.filter((email) => !allowedEmails.has(email));
+
+      if (externalEmails.length > 0) {
+        return Response.json({
+          error: `Route emails can only be sent to invited app users. These emails are outside the app: ${externalEmails.join(', ')}`
+        });
       }
 
       const fileName = `${manifestType}${ampm ? `-${ampm}` : ''}-${deliveryDate}.pdf`;
@@ -336,16 +346,20 @@ Deno.serve(async (req) => {
       const fileUrl = uploadResult?.file_url;
 
       if (!fileUrl) {
-        return Response.json({ error: 'Failed to upload route PDF' }, { status: 500 });
+        return Response.json({ error: 'Failed to upload route PDF' });
       }
 
-      await Promise.all(uniqueRecipientEmails.map((email) =>
-        base44.integrations.Core.SendEmail({
-          to: email,
-          subject: emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`,
-          body: `Your route log is ready. Download it here:\n\n${fileUrl}`,
-        })
-      ));
+      try {
+        await Promise.all(uniqueRecipientEmails.map((email) =>
+          base44.integrations.Core.SendEmail({
+            to: email,
+            subject: emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`,
+            body: `Your route log is ready. Download it here:\n\n${fileUrl}`,
+          })
+        ));
+      } catch (sendError) {
+        return Response.json({ error: sendError?.message || 'Failed to send route email' });
+      }
 
       return Response.json({ success: true, file_url: fileUrl });
     }
