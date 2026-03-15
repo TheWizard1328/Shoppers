@@ -16,7 +16,6 @@ export function useDashboardPolylineMaintenance({
   updateDeliveriesLocally
 }) {
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
-  const repairedDriverDatesRef = useRef(new Set());
   const polylineRepairInFlightRef = useRef(new Set());
 
   useEffect(() => {
