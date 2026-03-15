@@ -104,14 +104,35 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       }
     };
 
+    const handleCenterStopCard = (event) => {
+      const deliveryId = event?.detail?.deliveryId;
+      if (!deliveryId) return;
+      const exists = validCards.some((card) => card?.id === deliveryId);
+      if (!exists) return;
+
+      if (isDesktopFanLayout) {
+        setDesktopCenteredCardId(deliveryId);
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        const element = document.getElementById(`stop-card-${deliveryId}`);
+        if (element) {
+          scrollToCenterCard(element);
+        }
+      });
+    };
+
     window.addEventListener('collapseAllStopCards', handleCollapseAll);
     window.addEventListener('collapseSelectedStopCard', handleCollapseSelected);
+    window.addEventListener('centerStopCard', handleCenterStopCard);
 
     return () => {
       window.removeEventListener('collapseAllStopCards', handleCollapseAll);
       window.removeEventListener('collapseSelectedStopCard', handleCollapseSelected);
+      window.removeEventListener('centerStopCard', handleCenterStopCard);
     };
-  }, [onSelectionChange, onCardClick]);
+  }, [onSelectionChange, onCardClick, validCards, isDesktopFanLayout, scrollToCenterCard]);
 
   // Helper function to smoothly scroll to center a specific card element
   const scrollToCenterCard = React.useCallback((cardElement) => {
