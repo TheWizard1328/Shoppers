@@ -103,6 +103,15 @@ function makeSegmentKey(driverId, date, from, to) {
   ].join('|');
 }
 
+async function markDeliveriesPolylineUpdated(base44, deliveries, value) {
+  if (!Array.isArray(deliveries) || deliveries.length === 0) return;
+  await Promise.all(
+    deliveries.map((delivery) =>
+      base44.asServiceRole.entities.Delivery.update(delivery.id, { PolylineUpdated: value })
+    )
+  );
+}
+
 function getEdmontonDateString(value = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Edmonton',
@@ -283,6 +292,7 @@ Deno.serve(async (req) => {
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
     if (activeStops.length === 0) {
+      await markDeliveriesPolylineUpdated(base44, deliveries, true);
       return Response.json({
         success: true,
         deleted: existingPolylines?.length || 0,
@@ -353,6 +363,8 @@ Deno.serve(async (req) => {
     if (createdSegments.length > 0) {
       await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);
     }
+
+    await markDeliveriesPolylineUpdated(base44, deliveries, true);
 
     return Response.json({
       success: true,

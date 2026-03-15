@@ -23,25 +23,19 @@ export function useDashboardPolylineMaintenance({
     if (!currentUser || !isDataLoaded || !dataReadyForSelectedDate || isSnapshotModeActive) return;
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const hasStoredPolyline = (value) => typeof value === 'string' ? value.trim().length > 0 : !!value;
     const selectedDateDeliveries = (deliveries || []).filter((delivery) => delivery && delivery.delivery_date === dateStr);
-    const finishedDeliveries = selectedDateDeliveries.filter((delivery) => finishedStatuses.includes(delivery.status));
 
-    if (finishedDeliveries.length === 0) return;
+    if (selectedDateDeliveries.length === 0) return;
 
-    const finishedPolylineCount = finishedDeliveries.filter((delivery) => hasStoredPolyline(delivery.finished_leg_encoded_polyline)).length;
-    if (finishedPolylineCount === finishedDeliveries.length) return;
-
-    const uniqueDriverIds = [...new Set(finishedDeliveries.map((delivery) => delivery.driver_id).filter(Boolean))];
+    const uniqueDriverIds = [...new Set(selectedDateDeliveries.map((delivery) => delivery.driver_id).filter(Boolean))];
     const driverIdsToRepair = uniqueDriverIds.filter((driverId) => {
       const repairKey = `${driverId}__${dateStr}`;
       if (repairedDriverDatesRef.current.has(repairKey) || polylineRepairInFlightRef.current.has(repairKey)) {
         return false;
       }
 
-      return finishedDeliveries.some((delivery) =>
-        delivery.driver_id === driverId && !hasStoredPolyline(delivery.finished_leg_encoded_polyline)
+      return selectedDateDeliveries.some((delivery) =>
+        delivery.driver_id === driverId && delivery.PolylineUpdated !== true
       );
     });
 
@@ -56,7 +50,7 @@ export function useDashboardPolylineMaintenance({
 
       const repairResults = await Promise.allSettled(
         driverIdsToRepair.map((driverId) =>
-          base44.functions.invoke('repairMissingPolylines', {
+          base44.functions.invoke('purgeAndRegeneratePolylines', {
             driverId,
             deliveryDate: dateStr
           })
@@ -87,8 +81,11 @@ export function useDashboardPolylineMaintenance({
         updateDeliveriesLocally([...otherDateDeliveries, ...refreshedDeliveries], true);
       }
 
+      window.dispatchEvent(new CustomEvent('polylineCacheCleared', {
+        detail: { driverIds: driverIdsToRepair, deliveryDate: dateStr, triggeredBy: 'polylineAutoUpdate' }
+      }));
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { deliveryDate: dateStr, triggeredBy: 'polylineRepairComplete' }
+        detail: { deliveryDate: dateStr, triggeredBy: 'polylineAutoUpdateComplete' }
       }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     };
