@@ -13,7 +13,6 @@ export default function MapController({
   setVisibleBounds,
   setFannedLocationKey
 }) {
-  const lastTapRef = useRef(0);
   const isDraggingRef = useRef(false);
   const hasMovedRef = useRef(false);
   
@@ -116,19 +115,15 @@ export default function MapController({
     },
     click: () => {
       setFannedLocationKey(null);
-      
-      const now = Date.now();
-      const timeSinceLastTap = now - lastTapRef.current;
-      
-      if (timeSinceLastTap < 300) {
-        base44.analytics.track({
-          eventName: 'map_double_tapped',
-          properties: { zoom_level: mapInstance.getZoom() }
-        });
-        if (onDoubleTap) onDoubleTap(true);
-      }
-      
-      lastTapRef.current = now;
+    },
+    dblclick: (event) => {
+      event?.originalEvent?.preventDefault?.();
+      event?.originalEvent?.stopPropagation?.();
+      base44.analytics.track({
+        eventName: 'map_double_tapped',
+        properties: { zoom_level: mapInstance.getZoom() }
+      });
+      if (onDoubleTap) onDoubleTap(true);
     }
   });
 

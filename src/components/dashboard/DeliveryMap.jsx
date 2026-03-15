@@ -669,6 +669,7 @@ export default function DeliveryMap({
         zoomDelta={0.1}
         style={{ height: "100%", width: "100%" }}
         zoomControl={false}
+        doubleClickZoom={false}
         onClick={() => setFannedLocationKey(null)}
         whenReady={(instance) => {
           setMap(instance.target);
