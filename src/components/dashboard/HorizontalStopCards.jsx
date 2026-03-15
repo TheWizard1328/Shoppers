@@ -45,6 +45,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     }
   }, [ref]);
   const scrollTimeoutRef = React.useRef(null);
+  const [containerWidth, setContainerWidth] = React.useState(0);
 
   // Define finished statuses
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -324,29 +325,83 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const isMobile = isMobileDevice();
   const { deviceType } = getUserAgentInfo();
   const isTabletPortrait = deviceType === 'Tablet' && getOrientation() === 'portrait';
+  const isDesktopFanLayout = !isMobile && !isTabletPortrait;
   const hasBottomNav = isMobile || isTabletPortrait;
+
+  React.useEffect(() => {
+    if (!containerRef.current) return;
+
+    const updateWidth = () => {
+      setContainerWidth(containerRef.current?.offsetWidth || 0);
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(containerRef.current);
+
+    return () => observer.disconnect();
+  }, [sortedPickupCards.length, isDesktopFanLayout]);
+
+  const desktopFanLayout = React.useMemo(() => {
+    if (!isDesktopFanLayout || !sortedPickupCards.length || !containerWidth) return null;
+
+    const cardWidth = 338;
+    const centerLeft = Math.max(0, (containerWidth - cardWidth) / 2);
+    const nextDeliveryIndex = sortedPickupCards.findIndex((card) => card?.isNextDelivery === true);
+    const anchorIndex = nextDeliveryIndex >= 0 ? nextDeliveryIndex : Math.floor(sortedPickupCards.length / 2);
+    const leftCount = anchorIndex;
+    const rightCount = sortedPickupCards.length - anchorIndex - 1;
+    const leftStep = leftCount > 0 ? centerLeft / leftCount : Infinity;
+    const rightStep = rightCount > 0 ? centerLeft / rightCount : Infinity;
+
+    let step = Math.min(leftStep, rightStep, 86);
+    if (!Number.isFinite(step)) step = 86;
+    step = Math.max(18, step);
+
+    return sortedPickupCards.map((card, index) => {
+      const offset = index - anchorIndex;
+      const distance = Math.abs(offset);
+      const isAnchorCard = index === anchorIndex;
+      const isSelectedCard = selectedCardId === card?.id;
+
+      return {
+        left: centerLeft + offset * step,
+        rotate: isSelectedCard ? 0 : Math.max(-10, Math.min(10, offset * 1.8)),
+        translateY: isAnchorCard || isSelectedCard ? 0 : Math.min(18, distance * 3),
+        zIndex: isSelectedCard ? 2000 : 1000 - distance
+      };
+    });
+  }, [isDesktopFanLayout, sortedPickupCards, containerWidth, selectedCardId]);
 
   return (
     <div
       ref={setRefs} className="flex gap-3 overflow-x-auto overflow-y-hidden items-end min-h-[70px] pointer-events-auto z-[200]"
-
       style={{
+        position: isDesktopFanLayout ? 'relative' : 'static',
+        display: isDesktopFanLayout ? 'block' : 'flex',
+        height: isDesktopFanLayout ? '188px' : 'auto',
+        minHeight: isDesktopFanLayout ? '188px' : '70px',
+        overflowX: isDesktopFanLayout ? 'hidden' : 'auto',
+        overflowY: isDesktopFanLayout ? 'visible' : 'hidden',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
         scrollSnapType: isMobile ? 'x mandatory' : 'none',
         scrollSnapStop: isMobile ? 'always' : 'normal',
-        paddingLeft: isMobile ? 'calc(50% - 140px)' : '16px',
-        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px',
+        paddingLeft: isDesktopFanLayout ? '0px' : isMobile ? 'calc(50% - 140px)' : '16px',
+        paddingRight: isDesktopFanLayout ? '0px' : isMobile ? 'calc(50% - 140px)' : '16px',
         paddingBottom: hasBottomNav ? 'calc(var(--bottom-nav-height, 64px))' : undefined
       }}
       onWheel={(e) => {
-        e.currentTarget.scrollLeft += e.deltaY;
+        if (!isDesktopFanLayout) {
+          e.currentTarget.scrollLeft += e.deltaY;
+        }
       }}
-
       onScroll={() => {
-        // Disable auto-scroll when user manually scrolls
-        autoScrollEnabledRef.current = false;
+        if (!isDesktopFanLayout) {
+          autoScrollEnabledRef.current = false;
+        }
       }}>
       
       {sortedPickupCards.map((card) => {
@@ -396,12 +451,20 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
         const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
 
+        const fanStyle = desktopFanLayout?.[sortedPickupCards.findIndex((item) => item?.id === card.id)];
+
         return (
           <div
             key={card.id}
             id={`stop-card-${card.id}`}
             className="flex-shrink-0 pointer-events-auto"
             style={{
+              position: isDesktopFanLayout ? 'absolute' : 'relative',
+              left: isDesktopFanLayout ? `${fanStyle?.left || 0}px` : undefined,
+              top: isDesktopFanLayout ? '0px' : undefined,
+              transform: isDesktopFanLayout ? `translateY(${fanStyle?.translateY || 0}px) rotate(${fanStyle?.rotate || 0}deg)` : undefined,
+              transformOrigin: isDesktopFanLayout ? 'bottom center' : undefined,
+              zIndex: isDesktopFanLayout ? fanStyle?.zIndex : undefined,
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal'
             }}
