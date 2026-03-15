@@ -1143,8 +1143,8 @@ export default function StopCard({
   const shouldFade = useMemo(() => {
     if (!delivery) return false;
 
-    // Don't fade if expanded or hovered
-    if (isExpanded || isHovered) return false;
+    // Don't fade if expanded, hovered, or centered in the rail
+    if (isExpanded || isHovered || isRailCentered) return false;
 
     // Get today and delivery date at start of day
     const today = startOfDay(new Date());
@@ -1156,7 +1156,7 @@ export default function StopCard({
     }
 
     return false;
-  }, [delivery, delivery?.status, isExpanded, isHovered]);
+  }, [delivery, delivery?.status, isExpanded, isHovered, isRailCentered]);
 
   return (
     <motion.div
@@ -1212,10 +1212,10 @@ export default function StopCard({
             />
           </div>
 
-          {/* Show address/phone: NOT driver-stripped AND NOT dispatcher-stripped, AND (not finished OR expanded) */}
-          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {/* Show address/phone for active cards, expanded cards, and the centered card */}
+          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded || isRailCentered) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
+          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded || isRailCentered) && <div className="flex flex-col">
             <div className="flex items-start justify-between">
               <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
                 {finalDisplayAddress ?
@@ -1540,8 +1540,8 @@ export default function StopCard({
             if (isStrippedForDispatcher) return null;
 
             // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
-            // Show if: not finished OR expanded OR (finished but route not complete)
-            const shouldShowFooter = !isFinishedDelivery || isExpanded || (isFinishedDelivery && !routeCompleted);
+            // Show if: not finished OR expanded OR centered OR (finished but route not complete)
+            const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || (isFinishedDelivery && !routeCompleted);
             return isAssignedDriverOrAppOwner && shouldShowFooter;
           })() && <div className="space-y-3 mt-2">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>

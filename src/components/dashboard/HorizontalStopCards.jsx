@@ -470,6 +470,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
+        touchAction: isDesktopFanLayout ? 'none' : 'pan-x',
         scrollSnapType: isMobile ? 'x mandatory' : 'none',
         scrollSnapStop: isMobile ? 'always' : 'normal',
         paddingLeft: isDesktopFanLayout ? '0px' : isMobile ? 'calc(50% - 140px)' : '16px',
