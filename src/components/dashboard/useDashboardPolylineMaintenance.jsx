@@ -30,7 +30,7 @@ export function useDashboardPolylineMaintenance({
     const uniqueDriverIds = [...new Set(selectedDateDeliveries.map((delivery) => delivery.driver_id).filter(Boolean))];
     const driverIdsToRepair = uniqueDriverIds.filter((driverId) => {
       const repairKey = `${driverId}__${dateStr}`;
-      if (repairedDriverDatesRef.current.has(repairKey) || polylineRepairInFlightRef.current.has(repairKey)) {
+      if (polylineRepairInFlightRef.current.has(repairKey)) {
         return false;
       }
 
