@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-const getEdmDate = () => { const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); return `${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`; };
+const getEdmDate = () => {const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());return `${p.find((x) => x.type === 'year').value}-${p.find((x) => x.type === 'month').value}-${p.find((x) => x.type === 'day').value}`;};
 import { base44 } from "@/api/base44Client";
 import { useDashboardPolylineMaintenance } from "@/components/dashboard/useDashboardPolylineMaintenance";
 import { Button } from "@/components/ui/button";
@@ -137,13 +137,13 @@ function Dashboard() {
     // Check saved date
     const saved = globalFilters.getSelectedDate();
     const savedDate = typeof saved === 'string' && saved ? new Date(saved + 'T00:00:00') : null;
-    
+
     // If after 8:00 AM and this is first open of the day (saved date is before today), use today
     if (isAfter8AM && savedDate) {
       const todayStr = getEdmDate();
       const today = new Date(todayStr + 'T00:00:00');
       savedDate.setHours(0, 0, 0, 0);
-      
+
       if (savedDate < today) {
         return new Date(todayStr + 'T00:00:00');
       }
@@ -151,10 +151,10 @@ function Dashboard() {
 
     return savedDate || new Date();
   });
-  
+
   // Track if this is initial page load (not refresh)
   const isInitialPageLoadRef = useRef(true);
-  const [selectedDriverId,setSelectedDriverId]=useState(()=>new URLSearchParams(window.location.search).get('driver')||globalFilters.getSelectedDriverId()||'all');
+  const [selectedDriverId, setSelectedDriverId] = useState(() => new URLSearchParams(window.location.search).get('driver') || globalFilters.getSelectedDriverId() || 'all');
   const [isExpanded, setIsExpanded] = useState(false);
   const [showRoutes, setShowRoutes] = useState(() => {
     const saved = localStorage.getItem('rxdeliver_show_routes');
@@ -267,33 +267,33 @@ function Dashboard() {
   const realtimeTimerRef = useRef(null);
   const processRealtimeBatch = useCallback(() => {
     const batch = pendingRealtimeRef.current;
-    const deliveryUpserts = Array.from(batch.Delivery.upserts.values()), deliveryDeletes = Array.from(batch.Delivery.deletes);
-    const patientUpserts = Array.from(batch.Patient.upserts.values()), patientDeletes = Array.from(batch.Patient.deletes);
-    const appUserUpserts = Array.from(batch.AppUser.upserts.values()), appUserDeletes = Array.from(batch.AppUser.deletes);
+    const deliveryUpserts = Array.from(batch.Delivery.upserts.values()),deliveryDeletes = Array.from(batch.Delivery.deletes);
+    const patientUpserts = Array.from(batch.Patient.upserts.values()),patientDeletes = Array.from(batch.Patient.deletes);
+    const appUserUpserts = Array.from(batch.AppUser.upserts.values()),appUserDeletes = Array.from(batch.AppUser.deletes);
     if (!deliveryUpserts.length && !deliveryDeletes.length && !patientUpserts.length && !patientDeletes.length && !appUserUpserts.length && !appUserDeletes.length) return;
     pendingRealtimeRef.current = { Delivery: { upserts: new Map(), deletes: new Set() }, Patient: { upserts: new Map(), deletes: new Set() }, AppUser: { upserts: new Map(), deletes: new Set() } };
     Promise.all([
-      deliveryUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryUpserts) : Promise.resolve(),
-      patientUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientUpserts) : Promise.resolve(),
-      appUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserUpserts) : Promise.resolve(),
-      ...deliveryDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)),
-      ...patientDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => null)),
-      ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null))
-    ]).catch(console.error);
+    deliveryUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryUpserts) : Promise.resolve(),
+    patientUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientUpserts) : Promise.resolve(),
+    appUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserUpserts) : Promise.resolve(),
+    ...deliveryDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)),
+    ...patientDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => null)),
+    ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null))]
+    ).catch(console.error);
     if (deliveryUpserts.length || deliveryDeletes.length) {
       const byId = new Map((deliveries || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
       deliveryDeletes.forEach((id) => byId.delete(id));
-      deliveryUpserts.forEach((item) => { if (item?.id) byId.set(item.id, item); });
-      updateDeliveriesLocally&&updateDeliveriesLocally(Array.from(byId.values()),true);
+      deliveryUpserts.forEach((item) => {if (item?.id) byId.set(item.id, item);});
+      updateDeliveriesLocally && updateDeliveriesLocally(Array.from(byId.values()), true);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'realtimeBatch', changeCount: deliveryUpserts.length + deliveryDeletes.length } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     }
     if (appUserUpserts.length || appUserDeletes.length) {
       const ts = (item) => new Date(item?.location_updated_at || item?.updated_date || item?.created_date || 0).getTime();
       const byId = new Map((appUsers || []).filter((item) => item?.id && !appUserDeletes.includes(item.id)).map((item) => [item.id, item]));
-      appUserUpserts.forEach((item) => { const current = byId.get(item?.id); if (item?.id && (!current || ts(item) >= ts(current))) byId.set(item.id, item); });
+      appUserUpserts.forEach((item) => {const current = byId.get(item?.id);if (item?.id && (!current || ts(item) >= ts(current))) byId.set(item.id, item);});
       const merged = Array.from(byId.values());
-      updateAppUsersLocally&&updateAppUsersLocally(merged,true);
+      updateAppUsersLocally && updateAppUsersLocally(merged, true);
       if (appUserUpserts.some((item) => item?.user_id === currentUser?.id) && refreshUser) refreshUser();
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: merged, singleUpdate: appUserUpserts.length === 1, fromRealtime: true } }));
     }
@@ -303,11 +303,11 @@ function Dashboard() {
     const recordId = typeof data === 'string' ? data : data?.id;
     if (!recordId) return;
     const target = pendingRealtimeRef.current[entity];
-    if (type === 'delete') { target.upserts.delete(recordId); target.deletes.add(recordId); } else { target.deletes.delete(recordId); target.upserts.set(recordId, data); }
+    if (type === 'delete') {target.upserts.delete(recordId);target.deletes.add(recordId);} else {target.deletes.delete(recordId);target.upserts.set(recordId, data);}
     if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
-    realtimeTimerRef.current = setTimeout(() => { realtimeTimerRef.current = null; processRealtimeBatch(); }, 120);
+    realtimeTimerRef.current = setTimeout(() => {realtimeTimerRef.current = null;processRealtimeBatch();}, 120);
   }, [processRealtimeBatch]);
-  
+
   // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
   useEffect(() => {
     if (!currentUser || !isDataLoaded) return;
@@ -315,35 +315,35 @@ function Dashboard() {
     // CRITICAL: Listen for immediate updates from Done button (includes fresh data)
     const handleImmediateDeliveryUpdate = async (event) => {
       const { immediate, freshDeliveries, deliveryDate, driverId } = event.detail || {};
-      
+
       if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
         // Update UI immediately using flushSync for synchronous render
-        if(updateDeliveriesLocally){const otherDateDeliveries=deliveries.filter(d=>d?.delivery_date!==deliveryDate);updateDeliveriesLocally([...otherDateDeliveries,...freshDeliveries],true);}
-        
+        if (updateDeliveriesLocally) {const otherDateDeliveries = deliveries.filter((d) => d?.delivery_date !== deliveryDate);updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);}
+
         // Force refresh driver locations and markers
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
         const latestAppUsers = locationUpdates?.appUsers || appUsers;
-        
+
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
           detail: { appUsers: latestAppUsers, forceAll: true }
         }));
-        
+
         // CRITICAL: Trigger map re-render with Phase 1 for 500ms
         setMapViewPhase(1);
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
-        
+
         // Auto-unlock after 500ms
         const lockDuration = 500;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
-        
+
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
         }
-        
+
         mapLockTimeoutRef.current = setTimeout(() => {
           if (mapLockExpiresAtRef.current === expiresAt) {
             setIsMapViewLocked(false);
@@ -351,42 +351,42 @@ function Dashboard() {
             mapLockTimeoutRef.current = null;
           }
         }, lockDuration);
-        
+
       }
     };
-    
+
     // CRITICAL: Listen for deliveriesImported events from route importer and real-time sync
     const handleDeliveriesImported = async (event) => {
       const { deliveries: importedDeliveries, source } = event.detail || {};
-      
+
       if (!importedDeliveries || !Array.isArray(importedDeliveries)) return;
-      
+
       // CRITICAL: ALWAYS merge imported deliveries with existing ones (never replace all)
       // This prevents clearing data for non-imported drivers
       if (updateDeliveriesLocally && deliveries) {
         // Get IDs of imported deliveries
-        const importedIds = new Set(importedDeliveries.map(d => d?.id).filter(Boolean));
-        
+        const importedIds = new Set(importedDeliveries.map((d) => d?.id).filter(Boolean));
+
         // Keep deliveries that weren't imported (preserve other drivers' data)
-        const otherDeliveries = deliveries.filter(d => !importedIds.has(d?.id));
-        
+        const otherDeliveries = deliveries.filter((d) => !importedIds.has(d?.id));
+
         // Merge imported with non-imported
         const mergedDeliveries = [...otherDeliveries, ...importedDeliveries];
-        
+
         // Update UI with merged data
         updateDeliveriesLocally(mergedDeliveries, true);
-        
+
         // Force map update
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
+          detail: {
             triggeredBy: 'deliveriesImported',
             source: source
           }
         }));
-        
+
       }
     };
-    
+
     window.addEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
     window.addEventListener('deliveriesImported', handleDeliveriesImported);
 
@@ -414,9 +414,9 @@ function Dashboard() {
       if (!delivery || !fromRealtime) return;
       scheduleRealtimeUpdate('Delivery', type, type === 'delete' ? delivery.id : delivery);
     };
-    
+
     window.addEventListener('deliveryUpdated', handleDeliveryUpdated);
-    
+
     // Subscribe to Delivery entity changes with debouncing
     const unsubscribeDeliveries = base44.entities.Delivery.subscribe((event) => {
       if (event.type === 'delete' && event.id) {
@@ -448,16 +448,16 @@ function Dashboard() {
     const handleDeliveryStatsUpdate = (event) => {
       setDeliveryStats(event.detail);
     };
-    
+
     // CRITICAL: Listen for smart refresh AppUser updates to refresh currentUser for toggles
     const handleRefreshCurrentUser = () => {
       if (refreshUser) {
         refreshUser();
       }
     };
-    
+
     // CRITICAL: Listen for manual refresh payroll stats trigger from SmartRefreshIndicator
-    const handleRefreshPayrollStatsAfterSync = async () => { return; };
+    const handleRefreshPayrollStatsAfterSync = async () => {return;};
 
     // CRITICAL: Listen for live travel_dist updates
     const handleTravelDistUpdate = (event) => {
@@ -533,7 +533,7 @@ function Dashboard() {
 
   // Unified FAB reactivation: Phase 1 never reactivates; Phase 2/3 stay locked and trigger map update
   const reactivateFAB = useCallback((source = 'unknown') => {
-    if (mapViewPhaseRef.current === 1 || (userHasRole(currentUser, 'driver') && isPrimaryDevice === true && (source === 'Smart Refresh Complete' || source === 'Smart Refresh Restarted'))) return;
+    if (mapViewPhaseRef.current === 1 || userHasRole(currentUser, 'driver') && isPrimaryDevice === true && (source === 'Smart Refresh Complete' || source === 'Smart Refresh Restarted')) return;
     lastProgrammaticMapMoveRef.current = Date.now();
     window._lastProgrammaticMapMove = Date.now();
     setMapViewTrigger((prev) => prev + 1);
@@ -544,7 +544,7 @@ function Dashboard() {
   // Check if current device is primary tracker (state declared at line 379)
   useEffect(() => {
     if (!currentUser?.id) return;
-    
+
     const checkPrimaryDevice = async () => {
       try {
         const { getCurrentDevice } = await import('@/components/utils/deviceManager');
@@ -558,7 +558,7 @@ function Dashboard() {
         setIsPrimaryDevice(true); // Default to primary on error
       }
     };
-    
+
     checkPrimaryDevice();
   }, [currentUser?.id]);
 
@@ -760,7 +760,7 @@ function Dashboard() {
             // DISPATCHERS: Auto-select based on drivers with deliveries for their stores on SELECTED date
             const selectedDateStr = settings.selected_date || getEdmDate();
             const dispatcherStoreIds = currentUser.store_ids || [];
-            
+
             // Get drivers with at least 1 pickup or delivery for dispatcher's stores
             const driversWithDeliveries = new Set(
               deliveries?.
@@ -788,8 +788,8 @@ function Dashboard() {
             driverToSelect = settings.selected_driver_id || 'all';
           }
         }
-        if ((currentUser&&userHasRole(currentUser,'driver')&&!userHasRole(currentUser,'admin')&&!userHasRole(currentUser,'dispatcher'))||!selectedDriverId||selectedDriverId==='all'){setSelectedDriverId(driverToSelect);}
-        if ((currentUser&&userHasRole(currentUser,'driver')&&!userHasRole(currentUser,'admin')&&!userHasRole(currentUser,'dispatcher'))||!selectedDriverId||selectedDriverId==='all') globalFilters.setSelectedDriverId(driverToSelect);
+        if (currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') || !selectedDriverId || selectedDriverId === 'all') {setSelectedDriverId(driverToSelect);}
+        if (currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') || !selectedDriverId || selectedDriverId === 'all') globalFilters.setSelectedDriverId(driverToSelect);
 
       } catch (error) {
         console.error('❌ [Dashboard] Error loading user settings:', error);
@@ -807,16 +807,16 @@ function Dashboard() {
     // SNAPSHOT MODE: Use snapshot data instead of live data
     if (isSnapshotModeActive && snapshotData?.deliveries) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      let result = snapshotData.deliveries.filter(d => d && d.delivery_date === dateStr);
-      
+      let result = snapshotData.deliveries.filter((d) => d && d.delivery_date === dateStr);
+
       // Filter by selected driver
       if (selectedDriverId && selectedDriverId !== 'all') {
-        result = result.filter(d => d.driver_id === selectedDriverId);
+        result = result.filter((d) => d.driver_id === selectedDriverId);
       }
-      
+
       return result;
     }
-    
+
     if (!deliveries || !Array.isArray(deliveries)) return [];
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -1088,10 +1088,10 @@ function Dashboard() {
   // Check if current route is complete (for stop cards fade prevention)
   const isRouteComplete = useMemo(() => {
     if (!filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return false;
-    
+
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
     const patientDeliveriesOnly = filteredDeliveries.filter((d) => d && d.patient_id);
-    
+
     const isReturn = (d) => {
       if (!d || !d.patient_id) return false;
       const patient = patients.find((p) => p && p.id === d.patient_id);
@@ -1099,36 +1099,36 @@ function Dashboard() {
       const patientName = d.patient_name || '';
       const patientFullName = patient?.full_name || '';
       return notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') ||
-        patientFullName.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) ||
-        /\breturn\b/i.test(patientName) || /\breturn\b/i.test(patientFullName);
+      patientFullName.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) ||
+      /\breturn\b/i.test(patientName) || /\breturn\b/i.test(patientFullName);
     };
-    
+
     return patientDeliveriesOnly.length > 0 &&
-      patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturn(d));
+    patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturn(d));
   }, [filteredDeliveries, patients]);
 
   // Filter drivers based on role - NEVER based on deliveries (except dispatcher)
   const driversList = useMemo(() => {
     // CRITICAL: Build drivers from AppUsers ONLY (most reliable source)
-    const driversSource = (appUsers || [])
-      .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active')
-      .map((au) => ({
-        id: au.user_id,
-        user_id: au.user_id,
-        user_name: au.user_name,
-        full_name: au.user_name,
-        app_roles: au.app_roles,
-        status: au.status,
-        sort_order: au.sort_order
-      }))
-      .sort((a, b) => {
-        const sortOrderA = a.sort_order ?? Infinity;
-        const sortOrderB = b.sort_order ?? Infinity;
-        if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB;
-        const nameA = (a.user_name || '').toLowerCase();
-        const nameB = (b.user_name || '').toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
+    const driversSource = (appUsers || []).
+    filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active').
+    map((au) => ({
+      id: au.user_id,
+      user_id: au.user_id,
+      user_name: au.user_name,
+      full_name: au.user_name,
+      app_roles: au.app_roles,
+      status: au.status,
+      sort_order: au.sort_order
+    })).
+    sort((a, b) => {
+      const sortOrderA = a.sort_order ?? Infinity;
+      const sortOrderB = b.sort_order ?? Infinity;
+      if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB;
+      const nameA = (a.user_name || '').toLowerCase();
+      const nameB = (b.user_name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
 
     // ADMIN/DRIVER: Show ALL drivers (no filtering)
     if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) {
@@ -1138,20 +1138,20 @@ function Dashboard() {
     // DISPATCHER: Show drivers assigned to dispatcher's stores for selected day OR who have deliveries for dispatcher's stores on selected date
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
-      const dispatcherStores = stores?.filter(s => s && dispatcherStoreIds.includes(s.id)) || [];
-      
+      const dispatcherStores = stores?.filter((s) => s && dispatcherStoreIds.includes(s.id)) || [];
+
       const assignedDriverIds = new Set();
-      
+
       // CRITICAL: Only add drivers assigned to slots for the selected day of the week
       const selectedDateObj = new Date(selectedDate);
       const dayOfWeek = selectedDateObj.getDay(); // 0=Sunday, 6=Saturday
-      
+
       const isSaturday = dayOfWeek === 6;
       const isSunday = dayOfWeek === 0;
       const isWeekday = !isSaturday && !isSunday;
-      
+
       // Add drivers assigned to store slots for THIS DAY ONLY
-      dispatcherStores.forEach(store => {
+      dispatcherStores.forEach((store) => {
         if (isSaturday) {
           if (store.saturday_am_driver_id) assignedDriverIds.add(store.saturday_am_driver_id);
           if (store.saturday_pm_driver_id) assignedDriverIds.add(store.saturday_pm_driver_id);
@@ -1164,17 +1164,17 @@ function Dashboard() {
           if (store.weekday_pm_driver_id) assignedDriverIds.add(store.weekday_pm_driver_id);
         }
       });
-      
+
       // CRITICAL: Also add drivers who have ANY deliveries/pickups for dispatcher's stores on selected date
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      const driversWithDeliveries = deliveries
-        ?.filter(d => d && d.delivery_date === selectedDateStr && dispatcherStoreIds.includes(d.store_id))
-        .map(d => d.driver_id)
-        .filter(Boolean);
-      
-      driversWithDeliveries?.forEach(driverId => assignedDriverIds.add(driverId));
-      
-      const filteredDrivers = driversSource.filter(d => assignedDriverIds.has(d.id));
+      const driversWithDeliveries = deliveries?.
+      filter((d) => d && d.delivery_date === selectedDateStr && dispatcherStoreIds.includes(d.store_id)).
+      map((d) => d.driver_id).
+      filter(Boolean);
+
+      driversWithDeliveries?.forEach((driverId) => assignedDriverIds.add(driverId));
+
+      const filteredDrivers = driversSource.filter((d) => assignedDriverIds.has(d.id));
       return filteredDrivers;
     }
 
@@ -1402,7 +1402,7 @@ function Dashboard() {
   }, []);
 
   // Persist route visibility and expose completed-route display toggles to the map.
-  useEffect(() => { localStorage.setItem('rxdeliver_show_routes', String(showRoutes)); window.__dashboardCompletedRouteControls = { setShowRoutes, setShowBreadcrumbs }; return () => { delete window.__dashboardCompletedRouteControls; }; }, [showRoutes, setShowRoutes, setShowBreadcrumbs]);
+  useEffect(() => {localStorage.setItem('rxdeliver_show_routes', String(showRoutes));window.__dashboardCompletedRouteControls = { setShowRoutes, setShowBreadcrumbs };return () => {delete window.__dashboardCompletedRouteControls;};}, [showRoutes, setShowRoutes, setShowBreadcrumbs]);
 
   // Subscribe to global filter changes AND URL params
   useEffect(() => {
@@ -1410,8 +1410,8 @@ function Dashboard() {
     const urlParams = new URLSearchParams(window.location.search);
     const dateParam = urlParams.get('date');
 
-    if (dateParam) { const dateObj = new Date(dateParam + 'T00:00:00'); if (dateParam !== format(selectedDate, 'yyyy-MM-dd')) { setSelectedDate(dateObj); setCalendarMonth(dateObj); globalFilters.setSelectedDate(dateParam); } }
-    const driverParam = urlParams.get('driver'); if (driverParam && driverParam !== selectedDriverId) { setSelectedDriverId(driverParam); globalFilters.setSelectedDriverId(driverParam); }
+    if (dateParam) {const dateObj = new Date(dateParam + 'T00:00:00');if (dateParam !== format(selectedDate, 'yyyy-MM-dd')) {setSelectedDate(dateObj);setCalendarMonth(dateObj);globalFilters.setSelectedDate(dateParam);}}
+    const driverParam = urlParams.get('driver');if (driverParam && driverParam !== selectedDriverId) {setSelectedDriverId(driverParam);globalFilters.setSelectedDriverId(driverParam);}
     const unsubscribe = globalFilters.subscribe((newFilters) => {
       if (newFilters.selectedDate) {
         const dateObj = typeof newFilters.selectedDate === 'string' ?
@@ -1424,9 +1424,9 @@ function Dashboard() {
       if (newFilters.selectedDriverId !== undefined) {
 
 
+
         // This subscription handles changes from other components
-      }});
-    return unsubscribe;
+      }});return unsubscribe;
   }, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {
         // Save current phase for later restoration
@@ -1472,7 +1472,7 @@ function Dashboard() {
         phaseBeforeBreakRef.current = null;
       } else if (event.type === 'DONE_BUTTON_CLICKED' || event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {
         if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE' && (mapViewPhase !== 2 || isMapViewLocked)) return;
-        if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
+        if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
         mapLockExpiresAtRef.current = null;
         if (event.type === 'DONE_BUTTON_CLICKED') setMapViewPhase(1);
         setIsMapViewLocked(true);
@@ -1484,7 +1484,7 @@ function Dashboard() {
           mapLockExpiresAtRef.current = expiresAt;
           mapLockTimeoutRef.current = window.setTimeout(() => {
             if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null;
+              setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;
             }
           }, 500);
         }
@@ -1582,14 +1582,14 @@ function Dashboard() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [selectedCardId, deliveriesWithStopOrder.length, deliveriesWithStopOrder.map(d => `${d?.id}:${d?.status}`).join(',')]);
-  
+  }, [selectedCardId, deliveriesWithStopOrder.length, deliveriesWithStopOrder.map((d) => `${d?.id}:${d?.status}`).join(',')]);
+
   // CRITICAL: Re-measure stop cards height ONLY after data updates when cards are collapsed
   useEffect(() => {
     const handleHeightRemeasure = () => {
       // CRITICAL: Skip if any card is expanded - only measure collapsed state
       if (!horizontalStopCardsRef.current || selectedCardId) return;
-      
+
       // CRITICAL: Wait 400ms for collapse animation to complete
       setTimeout(() => {
         const element = horizontalStopCardsRef.current;
@@ -1601,10 +1601,10 @@ function Dashboard() {
         }
       }, 400);
     };
-    
+
     window.addEventListener('deliveriesUpdated', handleHeightRemeasure);
     window.addEventListener('smartRefreshComplete', handleHeightRemeasure);
-    
+
     return () => {
       window.removeEventListener('deliveriesUpdated', handleHeightRemeasure);
       window.removeEventListener('smartRefreshComplete', handleHeightRemeasure);
@@ -1661,13 +1661,13 @@ function Dashboard() {
         if (!isMobile || !newLocation.latitude || !newLocation.longitude) return;
         const now = Date.now();
         if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current) {
-          if (now - lastProgrammaticMapMoveRef.current > 1200) { lastProgrammaticMapMoveRef.current = now; window._lastProgrammaticMapMove = now; setMapViewTrigger((prev) => prev + 1); }
+          if (now - lastProgrammaticMapMoveRef.current > 1200) {lastProgrammaticMapMoveRef.current = now;window._lastProgrammaticMapMove = now;setMapViewTrigger((prev) => prev + 1);}
           const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
           if (nextCard) document.getElementById(`stop-card-${nextCard.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
           return;
         }
         if (mapViewPhaseRef.current === 3 && isMapViewLockedRef.current) {
-          if (now - lastProgrammaticMapMoveRef.current > 1800) { lastProgrammaticMapMoveRef.current = now; window._lastProgrammaticMapMove = now; setMapViewTrigger((prev) => prev + 1); }
+          if (now - lastProgrammaticMapMoveRef.current > 1800) {lastProgrammaticMapMoveRef.current = now;window._lastProgrammaticMapMove = now;setMapViewTrigger((prev) => prev + 1);}
           return;
         }
         if (isMapViewLocked || now - lastUserInteractionRef.current < 300000 || now - lastProximitySnapTimeRef.current < 60000) return;
@@ -1683,7 +1683,7 @@ function Dashboard() {
           if (cardElement && container) {
             const c = container.getBoundingClientRect();
             const r = cardElement.getBoundingClientRect();
-            if (Math.abs((r.left + r.width / 2) - (c.left + c.width / 2)) < 50) continue;
+            if (Math.abs(r.left + r.width / 2 - (c.left + c.width / 2)) < 50) continue;
           }
           lastProximitySnapTimeRef.current = Date.now();
           cardElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
@@ -1748,60 +1748,60 @@ function Dashboard() {
         console.warn('⚠️ [Periodic Refresh] Error:', error.message);
       }
     };
-    const initialDelay = setTimeout(() => { runPeriodicSmartRefresh(); if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync(); }, 90000);
+    const initialDelay = setTimeout(() => {runPeriodicSmartRefresh();if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();}, 90000);
     const interval = setInterval(async () => {
       runPeriodicSmartRefresh();
       if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();
       if (showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant) return;
       const ds = format(selectedDate, 'yyyy-MM-dd');
       if (ds !== getEdmDate()) return;
-      const m = await offlineDB.getSyncMetadata('Delivery'), t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
+      const m = await offlineDB.getSyncMetadata('Delivery'),t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
       const active = deliveries.some((d) => d && d.delivery_date === ds && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status));
       if (!t || Date.now() - t >= (active ? 60000 : 300000)) window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'today_active_routes' : 'today_completed_routes' } }));
     }, 60000);
-    return () => { clearTimeout(initialDelay); clearInterval(interval); };
+    return () => {clearTimeout(initialDelay);clearInterval(interval);};
   }, [isDataLoaded, currentUser?.id, isFiltersReady, deliveries, patients, stores, cities, appUsers, drivers, selectedDate, showAllDriverMarkers, showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant]);
 
   // CRITICAL: Listen for real-time AppUser location updates from other drivers
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
       const { appUsers: updatedAppUsers, singleUpdate, fromRealtime, forceAll, fromPoller, mergeMode } = event.detail || {};
-      
+
       // CRITICAL: Skip if this event came from the poller itself (prevent infinite loop)
       if (fromPoller === true) {
         return;
       }
-      
+
       if (!updatedAppUsers || !Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) {
         return;
       }
-      
+
       // CRITICAL: If mergeMode='merge', merge this update with existing appUsers to preserve other drivers
       let appUsersToProcess = updatedAppUsers;
       if (mergeMode === 'merge' && appUsers && appUsers.length > 0) {
         // Create a map of updated drivers by user_id
         const updatedMap = new Map();
-        updatedAppUsers.forEach(au => {
+        updatedAppUsers.forEach((au) => {
           if (au?.user_id) updatedMap.set(au.user_id, au);
         });
-        
+
         // Merge: keep existing drivers, replace only those that were updated
-        appUsersToProcess = appUsers.map(au => {
+        appUsersToProcess = appUsers.map((au) => {
           if (au?.user_id && updatedMap.has(au.user_id)) {
             return updatedMap.get(au.user_id);
           }
           return au;
         });
-        
+
         // Add any new drivers that weren't in existing list
-        updatedAppUsers.forEach(au => {
-          if (au?.user_id && !appUsers.some(existing => existing?.user_id === au.user_id)) {
+        updatedAppUsers.forEach((au) => {
+          if (au?.user_id && !appUsers.some((existing) => existing?.user_id === au.user_id)) {
             appUsersToProcess.push(au);
           }
         });
-        
+
       }
-      
+
       // CRITICAL: Process through poller to update markers
       driverLocationPoller.processLocationData(
         currentUser,
@@ -1815,7 +1815,7 @@ function Dashboard() {
         showAllDriverMarkers
       );
     };
-    
+
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
   }, [currentUser, deliveries, drivers, stores, selectedDate, showAllDriverMarkers, appUsers]);
@@ -1830,26 +1830,26 @@ function Dashboard() {
     driverLocationPoller.start(() => {
 
 
+
       // Callback provided for future use
-    }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {
-      if (!locations || !Array.isArray(locations)) return;
+    }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;
 
-      // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
-      // On all other devices/scenarios, show the shared marker
-      const isTrackingOnThisDevice = locationTracker.isTracking === true;
-      const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;
-      
-      const filteredLocations = shouldFilterSelf ?
-      locations.filter((loc) => {
-        if (loc._isSelf === true) {
-          return false;
-        }
-        return true;
-      }) :
-      locations;
+        // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
+        // On all other devices/scenarios, show the shared marker
+        const isTrackingOnThisDevice = locationTracker.isTracking === true;
+        const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;
 
-      setAllDriverLocations(filteredLocations);
-    });
+        const filteredLocations = shouldFilterSelf ?
+        locations.filter((loc) => {
+          if (loc._isSelf === true) {
+            return false;
+          }
+          return true;
+        }) :
+        locations;
+
+        setAllDriverLocations(filteredLocations);
+      });
 
     return () => {
       unsubscribe();
@@ -1929,13 +1929,13 @@ function Dashboard() {
 
     fetchPolyline();
     const interval = setInterval(fetchPolyline, 30000);
-    
+
     // CRITICAL: Listen for driver location changes to refresh polyline immediately
     const handleLocationChange = () => {
       fetchPolyline();
     };
     window.addEventListener('driverLocationChanged', handleLocationChange);
-    
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('driverLocationChanged', handleLocationChange);
@@ -2011,7 +2011,7 @@ function Dashboard() {
     if (setIsFormOverlayOpen) {
       setIsFormOverlayOpen(isAnyFormOpen);
     }
-    
+
     // CRITICAL: Pause smart refresh when ANY form/overlay is open
     if (isAnyFormOpen) {
       smartRefreshManager.pause();
@@ -2028,7 +2028,7 @@ function Dashboard() {
     }
 
     // Ensure UI panels are collapsed before re-zoom/center
-    setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);
+    setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);
 
     let newMapViewPhase;
 
@@ -2042,12 +2042,12 @@ function Dashboard() {
       newMapViewPhase = nextPhase;
 
       // NOTE: Dispatchers CAN use Phase 2 - it shows active driver locations + their next stops
-      
+
       // CRITICAL: For drivers, check phase validity
       if (isDriver) {
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
-        const hasIncompleteDeliveries = deliveriesWithStopOrder.some((d) => 
-          d && d.driver_id === currentUser?.id && !finishedStatuses.includes(d.status)
+        const hasIncompleteDeliveries = deliveriesWithStopOrder.some((d) =>
+        d && d.driver_id === currentUser?.id && !finishedStatuses.includes(d.status)
         );
 
         // Skip phase 2 if no incomplete deliveries OR no next stop coordinates
@@ -2055,7 +2055,7 @@ function Dashboard() {
           newMapViewPhase = 3;
         }
         // Skip phase 3 if not on mobile AND no driver markers
-        const hasDriverMarkers = allDriverLocations.length > 0 || (driverLocation?.latitude && driverLocation?.longitude);
+        const hasDriverMarkers = allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude;
         if (newMapViewPhase === 3 && !isMobile && !hasDriverMarkers) {
           newMapViewPhase = 1;
         }
@@ -2064,7 +2064,7 @@ function Dashboard() {
           newMapViewPhase = 1;
         }
       }
-      
+
     }
 
     // CRITICAL: Set lock IMMEDIATELY and update phase
@@ -2189,12 +2189,12 @@ function Dashboard() {
         // 1. BLUE DOT: Include driver's live location when visible on mobile
         // CRITICAL: For admins viewing any driver OR drivers viewing themselves
         const shouldIncludeBlueDot =
-          isMobile &&
-          isDriver&&currentUser?.driver_status!=='off_duty' &&
-          isViewingToday &&
-          driverLocation?.latitude &&
-          driverLocation?.longitude &&
-          (selectedDriverId === currentUser?.id || selectedDriverId === 'all');
+        isMobile &&
+        isDriver && currentUser?.driver_status !== 'off_duty' &&
+        isViewingToday &&
+        driverLocation?.latitude &&
+        driverLocation?.longitude && (
+        selectedDriverId === currentUser?.id || selectedDriverId === 'all');
 
         if (shouldIncludeBlueDot) {
           allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
@@ -2204,17 +2204,17 @@ function Dashboard() {
         // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked OR when desktop OR dispatcher
         // CRITICAL: Always include shared locations for desktop OR "show all" mode OR dispatchers OR admins
         const shouldIncludeSharedLocations = !isMobile || shouldShowAllMarkersForBounds || isDispatcher || isAdmin;
-        
+
         // CRITICAL: Also load from window.__mapDriverLocationMarkers (rendered on map)
         const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
 
         if (isViewingToday && shouldIncludeSharedLocations) {
           let addedCount = 0;
-          
+
           // CRITICAL: For dispatchers viewing a single driver, prioritize AppUser data directly
           if (isDispatcher && selectedDriverId && selectedDriverId !== 'all') {
-            const assignedDriverAppUser = appUsers?.find(au => au?.user_id === selectedDriverId);
-            if (assignedDriverAppUser?.driver_status!=='off_duty'&&assignedDriverAppUser?.current_latitude && assignedDriverAppUser?.current_longitude) {
+            const assignedDriverAppUser = appUsers?.find((au) => au?.user_id === selectedDriverId);
+            if (assignedDriverAppUser?.driver_status !== 'off_duty' && assignedDriverAppUser?.current_latitude && assignedDriverAppUser?.current_longitude) {
               allCoordinates.push([assignedDriverAppUser.current_latitude, assignedDriverAppUser.current_longitude]);
               hasDriverMarkers = true;
               addedCount++;
@@ -2227,18 +2227,18 @@ function Dashboard() {
               });
             }
           }
-          
+
           // Combine both sources for shared locations
           const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
-          
+
           // Deduplicate by driver_id
           const uniqueLocations = new Map();
-          allLocationSources.forEach(loc => {
+          allLocationSources.forEach((loc) => {
             if (loc?.driver_id && !uniqueLocations.has(loc.driver_id)) {
               uniqueLocations.set(loc.driver_id, loc);
             }
           });
-          
+
           Array.from(uniqueLocations.values()).forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) {
               return;
@@ -2255,23 +2255,23 @@ function Dashboard() {
             if (isCurrentUserLocation) {
               return;
             }
-            
+
             // CRITICAL: Skip if this is the assigned driver (already added above for dispatchers)
             if (isDispatcher && selectedDriverId && selectedDriverId !== 'all' && location.driver_id === selectedDriverId) {
               return;
             }
 
-            if (appUsers?.find(au=>au?.user_id===location.driver_id)?.driver_status==='off_duty') return;
+            if (appUsers?.find((au) => au?.user_id === location.driver_id)?.driver_status === 'off_duty') return;
             // CRITICAL: Phase 1 "Show All" mode - include rendered markers in bounds
 
             // Dispatcher filtering - check ALL date deliveries, not just selected driver
             if (isDispatcher && !isAdmin) {
-              const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map(id => String(id)));
+              const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map((id) => String(id)));
               const allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
               const hasDeliveryInDispatcherStore = allDateDeliveries.some((delivery) =>
-                delivery &&
-                delivery.driver_id === location.driver_id &&
-                dispatcherStoreIds.has(String(delivery.store_id))
+              delivery &&
+              delivery.driver_id === location.driver_id &&
+              dispatcherStoreIds.has(String(delivery.store_id))
               );
               if (!hasDeliveryInDispatcherStore) {
                 return;
@@ -2282,7 +2282,7 @@ function Dashboard() {
             hasDriverMarkers = true;
             addedCount++;
           });
-          
+
         }
 
         // 3. HOME LOCATIONS: Re-check visibility rules before including homes in FAB bounds
@@ -2292,7 +2292,7 @@ function Dashboard() {
           const remainingPickups = stops.filter((stop) => stop?.markerType === 'pickup' && !['completed', 'failed', 'cancelled', 'returned'].includes(stop.status)).length;
           return !home.excludeFromBounds && (completed === 0 || remainingPickups === 0) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && !(showAllDriverMarkers || selectedDriverId === 'all')) || home.driverId === currentUser.id || home.driverId === selectedDriverId);
         });
-        mapHomeMarkers.forEach((home) => { if (home.latitude && home.longitude) allCoordinates.push([home.latitude, home.longitude]); });
+        mapHomeMarkers.forEach((home) => {if (home.latitude && home.longitude) allCoordinates.push([home.latitude, home.longitude]);});
 
         // 4. Add delivery/pickup markers based on mode
         // CRITICAL: When "Show All" is checked OR "All Drivers" selected, show ALL deliveries for date
@@ -2322,7 +2322,7 @@ function Dashboard() {
           }
         } else {
           // Single driver mode - fallback to full deliveries if filtered view is temporarily empty (race condition)
-          deliveriesToMap = deliveriesWithStopOrder.length > 0 ? deliveriesWithStopOrder : deliveries.filter(d => d && d.delivery_date === selectedDateStr && d.driver_id === selectedDriverId);
+          deliveriesToMap = deliveriesWithStopOrder.length > 0 ? deliveriesWithStopOrder : deliveries.filter((d) => d && d.delivery_date === selectedDateStr && d.driver_id === selectedDriverId);
         }
         let coordsAdded = 0;
 
@@ -2360,11 +2360,11 @@ function Dashboard() {
           let userRefLon = null;
           let locationSource = null;
 
-          if (currentUser?.driver_status!=='off_duty'&&driverLocation?.latitude && driverLocation?.longitude) {
+          if (currentUser?.driver_status !== 'off_duty' && driverLocation?.latitude && driverLocation?.longitude) {
             userRefLat = driverLocation.latitude;
             userRefLon = driverLocation.longitude;
             locationSource = 'current_gps';
-          } else if (currentUser?.driver_status!=='off_duty'&&currentUser?.current_latitude && currentUser?.current_longitude) {
+          } else if (currentUser?.driver_status !== 'off_duty' && currentUser?.current_latitude && currentUser?.current_longitude) {
             userRefLat = currentUser.current_latitude;
             userRefLon = currentUser.current_longitude;
             locationSource = 'last_known';
@@ -2484,33 +2484,33 @@ function Dashboard() {
 
         if (isDispatcher && !isAdmin) {
           // DISPATCHER PHASE 2: Show all active drivers (for dispatcher's stores) + their next stops
-          const dispatcherStoreIds2 = new Set((currentUser?.store_ids || []).map(id => String(id)));
+          const dispatcherStoreIds2 = new Set((currentUser?.store_ids || []).map((id) => String(id)));
           const selectedDateStr2 = format(selectedDate, 'yyyy-MM-dd');
-          const allDateDeliveries2 = deliveries.filter(d => d && d.delivery_date === selectedDateStr2);
+          const allDateDeliveries2 = deliveries.filter((d) => d && d.delivery_date === selectedDateStr2);
           const finishedStatuses2 = ['completed', 'failed', 'cancelled', 'returned'];
 
           // Drivers with active (incomplete) stops in dispatcher's stores
           const activeDriverIds2 = new Set(
-            allDateDeliveries2.filter(d =>
-              d && dispatcherStoreIds2.has(String(d.store_id)) && !finishedStatuses2.includes(d.status) && d.status !== 'pending'
-            ).map(d => d.driver_id).filter(Boolean)
+            allDateDeliveries2.filter((d) =>
+            d && dispatcherStoreIds2.has(String(d.store_id)) && !finishedStatuses2.includes(d.status) && d.status !== 'pending'
+            ).map((d) => d.driver_id).filter(Boolean)
           );
 
           const phase2DispatcherCoords = [];
 
-          activeDriverIds2.forEach(driverId => {
-            const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
-            if (driverAppUser?.driver_status!=='off_duty'&&driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+          activeDriverIds2.forEach((driverId) => {
+            const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
+            if (driverAppUser?.driver_status !== 'off_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
               phase2DispatcherCoords.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
             }
             // Also include each driver's next stop
-            const driverNextStop = allDateDeliveries2.find(d => d && d.driver_id === driverId && d.isNextDelivery);
+            const driverNextStop = allDateDeliveries2.find((d) => d && d.driver_id === driverId && d.isNextDelivery);
             if (driverNextStop) {
               if (driverNextStop.patient_id) {
-                const patient = patients.find(p => p?.id === driverNextStop.patient_id);
+                const patient = patients.find((p) => p?.id === driverNextStop.patient_id);
                 if (patient?.latitude && patient?.longitude) phase2DispatcherCoords.push([patient.latitude, patient.longitude]);
               } else if (driverNextStop.store_id) {
-                const store = stores.find(s => s?.id === driverNextStop.store_id);
+                const store = stores.find((s) => s?.id === driverNextStop.store_id);
                 if (store?.latitude && store?.longitude) phase2DispatcherCoords.push([store.latitude, store.longitude]);
               }
             }
@@ -2531,36 +2531,36 @@ function Dashboard() {
         if (nextStopCoordinates) {
           // CRITICAL: Use actual driver location (blue dot or shared marker), not polyline endpoints
           let driverLat, driverLon;
-          
+
           // Priority 1: Use live GPS location (mobile blue dot)
-          if (currentUser?.driver_status!=='off_duty'&&driverLocation?.latitude && driverLocation?.longitude) {
+          if (currentUser?.driver_status !== 'off_duty' && driverLocation?.latitude && driverLocation?.longitude) {
             driverLat = driverLocation.latitude;
             driverLon = driverLocation.longitude;
           }
           // Priority 2: Use shared location marker (green marker from AppUser)
           else {
             // CRITICAL: Find the AppUser record directly to get fresh location
-            const currentAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
-            if (currentAppUser?.driver_status!=='off_duty'&&currentAppUser?.current_latitude && currentAppUser?.current_longitude) {
+            const currentAppUser = appUsers?.find((au) => au?.user_id === currentUser?.id);
+            if (currentAppUser?.driver_status !== 'off_duty' && currentAppUser?.current_latitude && currentAppUser?.current_longitude) {
               driverLat = currentAppUser.current_latitude;
               driverLon = currentAppUser.current_longitude;
             }
             // Fallback: Use shared marker location
             else {
-              const sharedDriverLocation = allDriverLocations.find(loc => loc.driver_id === currentUser?.id);
-              if (currentUser?.driver_status!=='off_duty'&&sharedDriverLocation?.latitude && sharedDriverLocation?.longitude) {
+              const sharedDriverLocation = allDriverLocations.find((loc) => loc.driver_id === currentUser?.id);
+              if (currentUser?.driver_status !== 'off_duty' && sharedDriverLocation?.latitude && sharedDriverLocation?.longitude) {
                 driverLat = sharedDriverLocation.latitude;
                 driverLon = sharedDriverLocation.longitude;
               }
             }
           }
-          
+
           // Only center if we have valid driver coordinates
           if (driverLat && driverLon) {
             const bounds = [
-              [driverLat, driverLon],
-              [nextStopCoordinates.lat, nextStopCoordinates.lon]
-            ];
+            [driverLat, driverLon],
+            [nextStopCoordinates.lat, nextStopCoordinates.lon]];
+
 
             const padding = getMapPadding();
 
@@ -2568,7 +2568,7 @@ function Dashboard() {
             setMapCenter(null);
             setMapZoom(null);
           }
-        } else if (currentUser?.driver_status!=='off_duty'&&driverLocation?.latitude && driverLocation?.longitude) {
+        } else if (currentUser?.driver_status !== 'off_duty' && driverLocation?.latitude && driverLocation?.longitude) {
           // If no next stop, just center on driver with padding
           const padding = getMapPadding();
 
@@ -2588,66 +2588,66 @@ function Dashboard() {
       case 3: // "Center on Incomplete Stops Only + Their Drivers + Pending"
         console.clear;
         const allCoordinatesPhase3 = [];
-        
+
         // Check if viewing today's date
         const todayStrPhase3 = getEdmDate();
         const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
         const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
-        
+
         // CRITICAL: Determine if "Show All" mode OR "All Drivers" mode is active
         const isShowAllOrAllDriversMode = showAllDriverMarkers || selectedDriverId === 'all';
-        
+
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
         // CRITICAL: DISPATCHER PHASE 3 - pan/zoom to show INCOMPLETE stops for dispatcher's stores
         // plus shared location markers for drivers who still have incomplete stops in those stores
         if (isDispatcher && !isAdmin) {
-          const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map(id => String(id)));
-          const allDateDeliveriesDisp = deliveries.filter(d => d && d.delivery_date === selectedDateStrPhase3);
-          
+          const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map((id) => String(id)));
+          const allDateDeliveriesDisp = deliveries.filter((d) => d && d.delivery_date === selectedDateStrPhase3);
+
           // Incomplete stops from dispatcher's stores (en_route, in_transit — not completed/failed/cancelled)
-          const dispatcherIncompleteStops = allDateDeliveriesDisp.filter(d =>
-            d && dispatcherStoreIds.has(String(d.store_id)) && !finishedStatuses.includes(d.status)
+          const dispatcherIncompleteStops = allDateDeliveriesDisp.filter((d) =>
+          d && dispatcherStoreIds.has(String(d.store_id)) && !finishedStatuses.includes(d.status)
           );
-          
-          dispatcherIncompleteStops.forEach(delivery => {
+
+          dispatcherIncompleteStops.forEach((delivery) => {
             if (delivery.patient_id) {
-              const patient = patients.find(p => p?.id === delivery.patient_id);
+              const patient = patients.find((p) => p?.id === delivery.patient_id);
               if (patient?.latitude && patient?.longitude) {
                 allCoordinatesPhase3.push([patient.latitude, patient.longitude]);
               }
             } else if (delivery.store_id) {
-              const store = stores.find(s => s?.id === delivery.store_id);
+              const store = stores.find((s) => s?.id === delivery.store_id);
               if (store?.latitude && store?.longitude) {
                 allCoordinatesPhase3.push([store.latitude, store.longitude]);
               }
             }
           });
-          
+
           // Driver shared location markers ONLY for drivers who still have incomplete stops in dispatcher's stores
           if (isViewingTodayPhase3) {
             const driversWithIncompleteInDispatcherStores = new Set(
-              dispatcherIncompleteStops.map(d => d.driver_id).filter(Boolean)
+              dispatcherIncompleteStops.map((d) => d.driver_id).filter(Boolean)
             );
-            driversWithIncompleteInDispatcherStores.forEach(driverId => {
-              const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
-              if (driverAppUser?.driver_status!=='off_duty'&&driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+            driversWithIncompleteInDispatcherStores.forEach((driverId) => {
+              const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
+              if (driverAppUser?.driver_status !== 'off_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
               }
             });
           }
-          
+
           if (allCoordinatesPhase3.length > 0) {
             const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
             const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
-            const hasVisibleCards = deliveriesWithStopOrder.some(d => d && d.status !== 'pending');
+            const hasVisibleCards = deliveriesWithStopOrder.some((d) => d && d.status !== 'pending');
             let bottomPadding = 25;
             if (hasVisibleCards) {
               const measuredHeight = stopCardsContainerRef.current?.offsetHeight || stopCardsBaseHeight;
               if (measuredHeight > 0) bottomPadding = measuredHeight + 10;
             }
-            const latSpanD = Math.max(...allCoordinatesPhase3.map(c => c[0])) - Math.min(...allCoordinatesPhase3.map(c => c[0]));
-            const lonSpanD = Math.max(...allCoordinatesPhase3.map(c => c[1])) - Math.min(...allCoordinatesPhase3.map(c => c[1]));
+            const latSpanD = Math.max(...allCoordinatesPhase3.map((c) => c[0])) - Math.min(...allCoordinatesPhase3.map((c) => c[0]));
+            const lonSpanD = Math.max(...allCoordinatesPhase3.map((c) => c[1])) - Math.min(...allCoordinatesPhase3.map((c) => c[1]));
             const spanKmD = Math.max(latSpanD, lonSpanD) * 111.0;
             const maxZoomD = Math.max(12.0, Math.min(19, Math.round((16 - Math.log2(spanKmD + 1) * 1.2) * 10) / 10));
             window._lastProgrammaticMapMove = Date.now();
@@ -2660,33 +2660,33 @@ function Dashboard() {
           }
           break;
         }
-        
+
         if (isShowAllOrAllDriversMode) {
           // MODE 1: Show All / All Drivers - include ALL incomplete + pending stops from ALL drivers
           let allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStrPhase3);
-          
+
           // CRITICAL: Filter by dispatcher stores if applicable
           if (isDispatcher && !isAdmin && currentUser?.store_ids) {
             const dispatcherStoreIds = new Set(currentUser.store_ids);
             const driversWithStoreDeliveries = new Set(
-              allDateDeliveries
-                .filter((d) => d && dispatcherStoreIds.has(d.store_id))
-                .map((d) => d.driver_id)
-                .filter(Boolean)
+              allDateDeliveries.
+              filter((d) => d && dispatcherStoreIds.has(d.store_id)).
+              map((d) => d.driver_id).
+              filter(Boolean)
             );
             allDateDeliveries = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
           }
-          
+
           // CRITICAL: Include BOTH incomplete AND pending stops
           const incompleteAndPendingAllDrivers = allDateDeliveries.filter((d) => {
             if (!d) return false;
             if (finishedStatuses.includes(d.status)) return false;
             return true; // Include both in_transit/en_route AND pending
           });
-          
+
           // CRITICAL: Get unique driver IDs from incomplete + pending deliveries
-          const driversWithIncompleteOrPendingStops = new Set(incompleteAndPendingAllDrivers.map(d => d.driver_id).filter(Boolean));
-          
+          const driversWithIncompleteOrPendingStops = new Set(incompleteAndPendingAllDrivers.map((d) => d.driver_id).filter(Boolean));
+
           // Add incomplete + pending stop coordinates
           incompleteAndPendingAllDrivers.forEach((delivery) => {
             if (delivery.patient_id) {
@@ -2701,36 +2701,36 @@ function Dashboard() {
               }
             }
           });
-          
+
           // CRITICAL: Add driver markers ONLY for drivers with incomplete OR pending stops (only if viewing today)
           if (isViewingTodayPhase3) {
             driversWithIncompleteOrPendingStops.forEach((driverId) => {
-              const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
-              if (driverAppUser?.driver_status!=='off_duty'&&driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
+              if (driverAppUser?.driver_status !== 'off_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
               }
             });
           }
-          
+
         } else {
           // MODE 2: Single Driver - include selected driver's incomplete + pending stops
           const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
-          
+
           const incompleteAndPendingActiveDriver = deliveriesWithStopOrder.filter((d) => {
             if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
             if (finishedStatuses.includes(d.status)) return false;
             // INCLUDE pending deliveries
             if (d.driver_id !== targetDriverId) return false;
-            
+
             // CRITICAL: For dispatchers, only include stops from their stores
             if (isDispatcher && !isAdmin && currentUser?.store_ids) {
               const dispatcherStoreIds = new Set(currentUser.store_ids);
               if (!dispatcherStoreIds.has(d.store_id)) return false;
             }
-            
+
             return true;
           });
-          
+
           // Add incomplete + pending stop coordinates
           incompleteAndPendingActiveDriver.forEach((delivery) => {
             if (delivery.patient_id) {
@@ -2745,24 +2745,24 @@ function Dashboard() {
               }
             }
           });
-          
+
           // CRITICAL: Add driver marker ONLY if they have incomplete OR pending stops (only if viewing today)
           if (isViewingTodayPhase3 && incompleteAndPendingActiveDriver.length > 0) {
-            const driverAppUser = appUsers?.find(au => au?.user_id === targetDriverId);
-            if (driverAppUser?.driver_status!=='off_duty'&&driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+            const driverAppUser = appUsers?.find((au) => au?.user_id === targetDriverId);
+            if (driverAppUser?.driver_status !== 'off_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
               allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
             }
           }
         }
-        
+
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
         if (allCoordinatesPhase3.length > 0) {
           // CRITICAL: Check if there are actually visible cards before using measured height
-          const hasVisibleCards = deliveriesWithStopOrder.some(d => d && d.status !== 'pending');
-          
+          const hasVisibleCards = deliveriesWithStopOrder.some((d) => d && d.status !== 'pending');
+
           const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
           const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
-          
+
           // CRITICAL: Only measure stop cards height if cards are actually visible
           let bottomPadding = 25; // Default when no cards
           if (hasVisibleCards) {
@@ -2776,30 +2776,30 @@ function Dashboard() {
               bottomPadding = stopCardsBaseHeight + 10;
             }
           }
-          
+
           const padding = {
             paddingTopLeft: [25, topPadding],
             paddingBottomRight: [25, bottomPadding]
           };
-          
+
           // Calculate appropriate zoom based on span
-          let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+          let minLat = Infinity,maxLat = -Infinity,minLon = Infinity,maxLon = -Infinity;
           allCoordinatesPhase3.forEach(([lat, lon]) => {
             minLat = Math.min(minLat, lat);
             maxLat = Math.max(maxLat, lat);
             minLon = Math.min(minLon, lon);
             maxLon = Math.max(maxLon, lon);
           });
-          
+
           const latSpan = maxLat - minLat;
           const lonSpan = maxLon - minLon;
           const maxSpan = Math.max(latSpan, lonSpan);
           const spanKm = maxSpan * 111.0;
-          
+
           // CRITICAL: Consistent zoom calculation across all devices
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
           const phase3MaxZoom = Math.max(12.0, Math.min(19, Math.round(baseZoom * 10) / 10));
-          
+
           setShouldFitBounds({
             bounds: allCoordinatesPhase3,
             options: {
@@ -2840,7 +2840,7 @@ function Dashboard() {
     const timer = setTimeout(() => {
       setRenderSequence((prev) => ({ ...prev, fabs: true }));
     }, 300); // Wait 300ms for FABs to mount and render
-    
+
     return () => clearTimeout(timer);
   }, [renderSequence.statsAndCards, renderSequence.fabs]);
 
@@ -2949,7 +2949,7 @@ function Dashboard() {
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence + DOM readiness
   const initialSyncCompletedRef = useRef(false);
-  
+
   useEffect(() => {
     if (!renderSequence.fullDeliveriesLoaded || renderSequence.fabPhaseReady) return;
     // CRITICAL: Wait for stop cards to be measured in the DOM before activating FAB
@@ -2970,122 +2970,122 @@ function Dashboard() {
     fabControlEvents.notifyDataReady();
 
     // CRITICAL: Use double-rAF + buffer to ensure DOM is fully painted before FAB fires
-    requestAnimationFrame(() => { requestAnimationFrame(() => { setTimeout(() => {
-      // CRITICAL: Check BOTH filtered view AND full deliveries array to avoid stale closure clearing markers
-      const _dateCheck = format(selectedDate, 'yyyy-MM-dd');
-      const _hasFullData = selectedDriverId && selectedDriverId !== 'all' ? deliveries.some(d => d && d.delivery_date === _dateCheck && d.driver_id === selectedDriverId) : deliveries.some(d => d && d.delivery_date === _dateCheck);
-      if (deliveriesWithStopOrder.length === 0 && !_hasFullData) {
-        setMapViewPhase(1); setIsMapViewLocked(true); setInitialMapViewApplied(true);
-        setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
-        if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
-        mapLockExpiresAtRef.current = null; setMapViewTrigger((prev) => prev + 1);
-        return;
-      }
-      const phaseToApply = savedFabPhaseRef.current;
+    requestAnimationFrame(() => {requestAnimationFrame(() => {setTimeout(() => {
+          // CRITICAL: Check BOTH filtered view AND full deliveries array to avoid stale closure clearing markers
+          const _dateCheck = format(selectedDate, 'yyyy-MM-dd');
+          const _hasFullData = selectedDriverId && selectedDriverId !== 'all' ? deliveries.some((d) => d && d.delivery_date === _dateCheck && d.driver_id === selectedDriverId) : deliveries.some((d) => d && d.delivery_date === _dateCheck);
+          if (deliveriesWithStopOrder.length === 0 && !_hasFullData) {
+            setMapViewPhase(1);setIsMapViewLocked(true);setInitialMapViewApplied(true);
+            setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
+            mapLockExpiresAtRef.current = null;setMapViewTrigger((prev) => prev + 1);
+            return;
+          }
+          const phaseToApply = savedFabPhaseRef.current;
 
-      // For phase 2, require nextStop coordinates
-      if (phaseToApply === 2 && !nextStopCoordinates) {
-        setMapViewPhase(1);
-        setIsMapViewLocked(true);
-        setMapViewTrigger((prev) => prev + 1);
-        setInitialMapViewApplied(true);
-        setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+          // For phase 2, require nextStop coordinates
+          if (phaseToApply === 2 && !nextStopCoordinates) {
+            setMapViewPhase(1);
+            setIsMapViewLocked(true);
+            setMapViewTrigger((prev) => prev + 1);
+            setInitialMapViewApplied(true);
+            setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
 
-        const lockDuration = 3000;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
+            const lockDuration = 3000;
+            const expiresAt = Date.now() + lockDuration;
+            mapLockExpiresAtRef.current = expiresAt;
+            mapLockTimeoutRef.current = setTimeout(() => {
+              if (mapLockExpiresAtRef.current === expiresAt) {
+                setIsMapViewLocked(false);
+                mapLockExpiresAtRef.current = null;
+                mapLockTimeoutRef.current = null;
+              }
+            }, lockDuration);
+            return;
+          }
+
+          // For phase 3, require driver location (dispatchers can use phase 3 freely)
+          if (phaseToApply === 3 && !isDriver && !isDispatcher) {
+            setMapViewPhase(1);
+            setIsMapViewLocked(true);
+            setMapViewTrigger((prev) => prev + 1);
+            setInitialMapViewApplied(true);
+            setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+
+            const lockDuration = 3000;
+            const expiresAt = Date.now() + lockDuration;
+            mapLockExpiresAtRef.current = expiresAt;
+            mapLockTimeoutRef.current = setTimeout(() => {
+              if (mapLockExpiresAtRef.current === expiresAt) {
+                setIsMapViewLocked(false);
+                mapLockExpiresAtRef.current = null;
+                mapLockTimeoutRef.current = null;
+              }
+            }, lockDuration);
+            return;
+          }
+
+          // CRITICAL: Check if we have a saved phase from previous session (higher priority)
+          let finalPhase = phaseToApply;
+          if (savedFabPhaseOnUnmount) {
+            finalPhase = savedFabPhaseOnUnmount;
+            sessionStorage.removeItem('rxdeliver_dashboard_fab_phase');
+          }
+
+          // Apply the phase
+          setMapViewPhase(finalPhase);
+          setIsMapViewLocked(true);
+          setInitialMapViewApplied(true);
+          setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+
+          // Clear existing timers
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
             mapLockTimeoutRef.current = null;
           }
-        }, lockDuration);
-        return;
-      }
+          mapLockExpiresAtRef.current = null;
 
-      // For phase 3, require driver location (dispatchers can use phase 3 freely)
-      if (phaseToApply === 3 && !isDriver && !isDispatcher) {
-        setMapViewPhase(1);
-        setIsMapViewLocked(true);
-        setMapViewTrigger((prev) => prev + 1);
-        setInitialMapViewApplied(true);
-        setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+          // Trigger map view
+          setMapViewTrigger((prev) => prev + 1);
 
-        const lockDuration = 3000;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
+          // CRITICAL: Clear any existing timers first
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
             mapLockTimeoutRef.current = null;
           }
-        }, lockDuration);
-        return;
-      }
+          mapLockExpiresAtRef.current = null;
 
-      // CRITICAL: Check if we have a saved phase from previous session (higher priority)
-      let finalPhase = phaseToApply;
-      if (savedFabPhaseOnUnmount) {
-        finalPhase = savedFabPhaseOnUnmount;
-        sessionStorage.removeItem('rxdeliver_dashboard_fab_phase');
-      }
+          // CRITICAL: Returning from another page - delay longer before unlocking
+          const wasReturning = !!savedFabPhaseOnUnmount;
 
-      // Apply the phase
-      setMapViewPhase(finalPhase);
-      setIsMapViewLocked(true);
-      setInitialMapViewApplied(true);
-      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+          // CRITICAL: Always use 100ms for initial unlock on page load (Phase 1 ONLY)
+          const lockDuration = 100;
 
-      // Clear existing timers
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
-      mapLockExpiresAtRef.current = null;
+          if (finalPhase === 1) {
+            const expiresAt = Date.now() + lockDuration;
+            mapLockExpiresAtRef.current = expiresAt;
 
-      // Trigger map view
-      setMapViewTrigger((prev) => prev + 1);
-
-      // CRITICAL: Clear any existing timers first
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
-      mapLockExpiresAtRef.current = null;
-
-      // CRITICAL: Returning from another page - delay longer before unlocking
-      const wasReturning = !!savedFabPhaseOnUnmount;
-
-      // CRITICAL: Always use 100ms for initial unlock on page load (Phase 1 ONLY)
-      const lockDuration = 100;
-
-      if (finalPhase === 1) {
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
+            mapLockTimeoutRef.current = setTimeout(() => {
+              if (mapLockExpiresAtRef.current === expiresAt) {
+                setIsMapViewLocked(false);
+                mapLockExpiresAtRef.current = null;
+                mapLockTimeoutRef.current = null;
+              }
+            }, lockDuration);
           }
-        }, lockDuration);
-      }
 
-      // Scroll to card with isNextDelivery=true for all phases (helps user orient)
-      setTimeout(() => {
-        const nextDelivery = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+          // Scroll to card with isNextDelivery=true for all phases (helps user orient)
+          setTimeout(() => {
+            const nextDelivery = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
 
-        if (nextDelivery) {
-          const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          }
-        }
-      }, 500);
-    }, 500); }); });
+            if (nextDelivery) {
+              const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
+              if (cardElement) {
+                cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+              }
+            }
+          }, 500);
+        }, 500);});});
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers, cardsReadyForFAB]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
@@ -3194,7 +3194,7 @@ function Dashboard() {
         return;
       }
 
-      const targetDriverId=(selectedDriverId&&selectedDriverId!=='all')?selectedDriverId:currentUser?.id;if(targetDriverId&&updates?.deliveries&&!updates.deliveries.some(d=>d?.driver_id===targetDriverId))return;
+      const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;if (targetDriverId && updates?.deliveries && !updates.deliveries.some((d) => d?.driver_id === targetDriverId)) return;
 
       // Auto-center to next delivery card
       setTimeout(() => {
@@ -3210,11 +3210,11 @@ function Dashboard() {
       // CRITICAL: Use unified FAB reactivation logic
       // reactivateFAB('Smart Refresh Complete');
     };
-    
+
     const handleSmartRefreshRestartedEvent = () => {
+
       // No map repositioning on smart refresh restart - user controls map manually
     };
-
     window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
     window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
 
@@ -3363,9 +3363,9 @@ function Dashboard() {
 
     // Admin + Driver: saved -> own -> all
     if (isAdmin && isDriverRole) {
-      if (hasSaved) selection = saved;
-      else if (driverExists(currentUser.id)) selection = currentUser.id;
-      else selection = 'all';
+      if (hasSaved) selection = saved;else
+      if (driverExists(currentUser.id)) selection = currentUser.id;else
+      selection = 'all';
     }
     // Pure Driver (not admin/dispatcher): always own
     else if (isDriverRole && !isAdmin && !isDispatcherRole) {
@@ -3373,8 +3373,8 @@ function Dashboard() {
     }
     // Dispatcher (admin or not): saved -> default for day -> all
     else if (isDispatcherRole) {
-      if (hasSaved) selection = saved;
-      else {
+      if (hasSaved) selection = saved;else
+      {
         const defId = getDispatcherDefaultDriverId();
         selection = defId || 'all';
       }
@@ -3413,7 +3413,7 @@ function Dashboard() {
 
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
-    setIsEntityUpdating(true);setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
+    setIsEntityUpdating(true);setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
     // Reset route summary tracking when date changes
     hasShownSummaryRef.current.clear();
 
@@ -3455,10 +3455,10 @@ function Dashboard() {
       if (updateDeliveriesLocally) {
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
         const mergedDeliveries = [...otherDateDeliveries, ...priorityDeliveries];
-        updateDeliveriesLocally(mergedDeliveries,true);
-        
+        updateDeliveriesLocally(mergedDeliveries, true);
+
         // CRITICAL: Protect from smart refresh overwrite
-        priorityDeliveries.forEach(d => {
+        priorityDeliveries.forEach((d) => {
           if (d?.id) {
             smartRefreshManager.registerPendingUpdate(d.id, d.driver_id, dateStr);
           }
@@ -3467,7 +3467,7 @@ function Dashboard() {
 
       // STEP 4: CRITICAL - Load fresh appUsers and process through poller
       let freshAppUsers = appUsers;
-      
+
       // Try to load from offline DB first, fallback to current appUsers if empty
       try {
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
@@ -3477,23 +3477,23 @@ function Dashboard() {
       } catch (dbError) {
         console.warn('⚠️ [Date Change] Failed to load appUsers from offline DB, using context:', dbError.message);
       }
-      
+
       // CRITICAL: Use fresh appUsers from offline DB, fallback to context, but ALWAYS pass valid data
-      const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
-      
+      const appUsersToProcess = freshAppUsers && freshAppUsers.length > 0 ? freshAppUsers : appUsers;
+
       if (appUsersToProcess && appUsersToProcess.length > 0) {
         driverLocationPoller.processLocationData(
-          currentUser, 
-          priorityDeliveries, 
-          drivers, 
-          stores, 
-          appUsersToProcess, 
-          new Date(dateStr + 'T00:00:00'), 
+          currentUser,
+          priorityDeliveries,
+          drivers,
+          stores,
+          appUsersToProcess,
+          new Date(dateStr + 'T00:00:00'),
           true,
           'Dashboard',
           showAllDriverMarkers
         );
-        
+
         // Dispatch location update event
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
           detail: { appUsers: appUsersToProcess, forceAll: true }
@@ -3588,7 +3588,7 @@ function Dashboard() {
     lastAppliedTriggerRef.current = nextTrigger;
 
     try {
-      setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
+      setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
       setIsEntityUpdating(true);
 
       // CRITICAL: Uncheck "Show All" when switching to "All Drivers" mode to prevent duplicate markers
@@ -3632,7 +3632,7 @@ function Dashboard() {
 
       // CRITICAL: Apply state updates without flushSync to avoid render-time warnings
       setSelectedDriverId(driverId);globalFilters.setSelectedDriverId(driverId);
-      if(updateDeliveriesLocally){const otherDeliveries=deliveries.filter((d)=>d&&d.delivery_date!==dateStr);const mergedDeliveries=[...otherDeliveries,...freshDeliveries];updateDeliveriesLocally(mergedDeliveries,true);}
+      if (updateDeliveriesLocally) {const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];updateDeliveriesLocally(mergedDeliveries, true);}
 
       // CRITICAL: Wait for React to finish rendering BEFORE dispatching event or triggering map
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -3794,11 +3794,11 @@ function Dashboard() {
           setTimeout(() => {
             const container = stopCardsContainerRef.current;
             const actualHeight = container?.offsetHeight || stopCardsBaseHeight || 0;
-            
+
             const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
             const topPadding = statsCardCurrHeight + 25;
             const bottomPadding = actualHeight > 0 ? actualHeight + 10 : 25;
-            
+
             const padding = {
               paddingTopLeft: [25, topPadding],
               paddingBottomRight: [25, bottomPadding]
@@ -3840,7 +3840,7 @@ function Dashboard() {
         } else {
           // Desktop: center immediately with standard padding
           const padding = getMapPadding();
-          
+
           if (delivery.patient_id) {
             const patient = patients.find((p) => p.id === delivery.patient_id);
             if (patient?.latitude && patient?.longitude) {
@@ -3981,13 +3981,13 @@ function Dashboard() {
 
           // CRITICAL: Special stores that only get pickups created on-demand (when first delivery is added)
           const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark'];
-          
+
           // CRITICAL: Always create pickups for ALL assigned stores EXCEPT special stores
           const assignedStores = (stores || []).filter((store) => {
             if (!store) return false;
             // Skip special stores - they get pickups created dynamically below
             if (specialStoreNames.includes(store.name)) return false;
-            
+
             if (isSaturday) {
               return isDriverAssignedToSlot(store, 'saturday_am') || isDriverAssignedToSlot(store, 'saturday_pm');
             } else if (isSunday) {
@@ -4099,23 +4099,23 @@ function Dashboard() {
             // CRITICAL: For special stores, create pickup on-demand when first delivery is added
             if (specialStoreNames.includes(deliveryStore.name)) {
               const deliveryAmpm = determineAMPMFromTime(newDelivery.delivery_time_start || '10:00');
-              
+
               // Check if pickup already exists for this store/AM-PM combo
-              const existingPickup = stopsToProcess.find((s) => 
-                s && !s.patient_id && s.store_id === deliveryStore.id && s.ampm_deliveries === deliveryAmpm
+              const existingPickup = stopsToProcess.find((s) =>
+              s && !s.patient_id && s.store_id === deliveryStore.id && s.ampm_deliveries === deliveryAmpm
               );
-              
+
               if (!existingPickup) {
-                
+
                 // Determine pickup time based on AM/PM
-                const pickupTime = deliveryAmpm === 'AM' ? 
-                  (isSaturday ? deliveryStore.saturday_am_start : isSunday ? deliveryStore.sunday_am_start : deliveryStore.weekday_am_start) || '09:00' :
-                  (isSaturday ? deliveryStore.saturday_pm_start : isSunday ? deliveryStore.sunday_pm_start : deliveryStore.weekday_pm_start) || '13:00';
-                
+                const pickupTime = deliveryAmpm === 'AM' ?
+                (isSaturday ? deliveryStore.saturday_am_start : isSunday ? deliveryStore.sunday_am_start : deliveryStore.weekday_am_start) || '09:00' :
+                (isSaturday ? deliveryStore.saturday_pm_start : isSunday ? deliveryStore.sunday_pm_start : deliveryStore.weekday_pm_start) || '13:00';
+
                 const pickupEndTime = deliveryAmpm === 'AM' ?
-                  (isSaturday ? deliveryStore.saturday_am_end : isSunday ? deliveryStore.sunday_am_end : deliveryStore.weekday_am_end) || '12:00' :
-                  (isSaturday ? deliveryStore.saturday_pm_end : isSunday ? deliveryStore.sunday_pm_end : deliveryStore.weekday_pm_end) || '17:00';
-                
+                (isSaturday ? deliveryStore.saturday_am_end : isSunday ? deliveryStore.sunday_am_end : deliveryStore.weekday_am_end) || '12:00' :
+                (isSaturday ? deliveryStore.saturday_pm_end : isSunday ? deliveryStore.sunday_pm_end : deliveryStore.weekday_pm_end) || '17:00';
+
                 stopsToProcess.push({
                   isNew: true,
                   patient_id: null,
@@ -4164,8 +4164,8 @@ function Dashboard() {
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew || !stop.patient_id) continue;
             const correspondingPickup = stopsToProcess.find((p) =>
-              p && !p.patient_id && p.store_id === stop.store_id &&
-              p.ampm_deliveries === stop.ampm_deliveries && p.stop_id
+            p && !p.patient_id && p.store_id === stop.store_id &&
+            p.ampm_deliveries === stop.ampm_deliveries && p.stop_id
             );
             if (correspondingPickup) {
               stop.puid = correspondingPickup.stop_id;
@@ -4265,8 +4265,8 @@ function Dashboard() {
             } else if (correspondingPickup) {
               const p5 = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
               const eta5 = correspondingPickup.estimated_arrival ? addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
-              if (eta5 && eta5 > p5) stop.delivery_time_start = eta5;
-              else if (p5) stop.delivery_time_start = p5;
+              if (eta5 && eta5 > p5) stop.delivery_time_start = eta5;else
+              if (p5) stop.delivery_time_start = p5;
             }
             if (stopPatient?.time_window_end) stop.delivery_time_end = stopPatient.time_window_end;
           }
@@ -4483,10 +4483,10 @@ function Dashboard() {
 
               const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
               const allActive = allDriverDeliveries.every((d) =>
-                d && (d.status === 'in_transit' || d.status === 'en_route' || finishedStatuses.includes(d.status))
+              d && (d.status === 'in_transit' || d.status === 'en_route' || finishedStatuses.includes(d.status))
               );
               const hasIncompleteStops = allDriverDeliveries.some((d) =>
-                d && d.status !== 'pending' && !finishedStatuses.includes(d.status)
+              d && d.status !== 'pending' && !finishedStatuses.includes(d.status)
               );
 
               if (allActive && hasIncompleteStops) {
@@ -4672,15 +4672,15 @@ function Dashboard() {
 
       const isFirstStop = driverDeliveriesForDate.length === 0;
       const deliveryStore = stores.find((s) => s.id === deliveryData.store_id);
-      
+
       // CRITICAL: Special stores - only create pickup when first delivery is added to that specific store
       const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark'];
       const isSpecialStore = deliveryStore && specialStoreNames.includes(deliveryStore.name);
-      
+
       // For special stores: only check the specific delivery's store (not all assigned stores)
       // For regular stores: check all assigned stores on first stop, or just delivery's store otherwise
-      const storesToCheck = isSpecialStore ? (deliveryStore ? [deliveryStore] : []) : 
-                            (isFirstStop ? assignedStores : deliveryStore ? [deliveryStore] : []);
+      const storesToCheck = isSpecialStore ? deliveryStore ? [deliveryStore] : [] :
+      isFirstStop ? assignedStores : deliveryStore ? [deliveryStore] : [];
 
       for (const store of storesToCheck) {
         const isAssignedToAM = isSaturday ? isDriverAssignedToSlot(store, 'saturday_am') :
@@ -4850,15 +4850,15 @@ function Dashboard() {
       // Sort stops by existing stop_order or delivery_time_start
       const optimizedRoute = [...stopsToProcess].sort((a, b) => {
         if (!a || !b) return 0;
-        
+
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         const aFinished = finishedStatuses.includes(a.status);
         const bFinished = finishedStatuses.includes(b.status);
-        
+
         // Completed stops first (sorted by their stop_order)
         if (aFinished && !bFinished) return -1;
         if (!aFinished && bFinished) return 1;
-        
+
         // Both completed - sort by stop_order
         if (aFinished && bFinished && a.stop_order && b.stop_order) {
           return a.stop_order - b.stop_order;
@@ -4875,7 +4875,7 @@ function Dashboard() {
 
         if (stop.patient_id !== null) {
           const stopPatient = patients.find((p) => p.id === stop.patient_id);
-          
+
           // CRITICAL: Find NEW en_route pickup - match by store, ampm_deliveries, exclude finished
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           const correspondingPickup = optimizedRoute.find((s) => {
@@ -5030,7 +5030,7 @@ function Dashboard() {
 
       // CRITICAL: Force stats refresh after save
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      
+
       // CRITICAL: Refresh payroll stats if viewing own route
       if (isDriver && currentUser?.id && selectedDriverId === currentUser.id) {
         setTimeout(async () => {
@@ -5066,10 +5066,10 @@ function Dashboard() {
     } finally {
       // Resume smart refresh and offline sync only
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      
+
       resumeOfflineSync();
       smartRefreshManager.resume();
-      
+
       setIsEntityUpdating(false);
     }
   };
@@ -5161,10 +5161,10 @@ function Dashboard() {
             return new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time);
           });
           for (let i = 0; i < sortedCompleted.length; i++) {
-              const stop = sortedCompleted[i];
-              if (!stop) continue;
-              await updateDeliveryLocal(stop.id, { stop_order: i + 1 });
-            }
+            const stop = sortedCompleted[i];
+            if (!stop) continue;
+            await updateDeliveryLocal(stop.id, { stop_order: i + 1 });
+          }
         }
         continue;
       }
@@ -5262,7 +5262,7 @@ function Dashboard() {
     pauseOfflineMutations();
     pauseOfflineSync();
     smartRefreshManager.pause();
-    
+
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     try {
@@ -5305,11 +5305,11 @@ function Dashboard() {
     } finally {
       // Resume all systems
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      
+
       resumeOfflineMutations();
       resumeOfflineSync();
       smartRefreshManager.resume();
-      
+
       setIsEntityUpdating(false);
     }
   };
@@ -5376,9 +5376,9 @@ function Dashboard() {
       // CRITICAL: If deleting a pickup, also delete any pending deliveries assigned to it
       if (isPickup && targetDelivery.stop_id) {
         const pendingDeliveriesForPickup = deliveriesWithStopOrder.filter((d) =>
-          d && d.puid === targetDelivery.stop_id && d.status === 'pending' && d.patient_id
+        d && d.puid === targetDelivery.stop_id && d.status === 'pending' && d.patient_id
         );
-        
+
         if (pendingDeliveriesForPickup.length > 0) {
           // Delete all pending deliveries first
           const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
@@ -5435,7 +5435,7 @@ function Dashboard() {
       pauseOfflineMutations();
       pauseOfflineSync();
       smartRefreshManager.pause();
-      
+
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Get original delivery from state
@@ -5481,11 +5481,11 @@ function Dashboard() {
         driver_id: driverId,
         delivery_date: deliveryDate
       });
-      
+
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-      
+
       // Protect from smart refresh overwrite
-      freshDeliveries.forEach(d => {
+      freshDeliveries.forEach((d) => {
         if (d?.id) {
           smartRefreshManager.registerPendingUpdate(d.id, driverId, deliveryDate);
         }
@@ -5499,23 +5499,23 @@ function Dashboard() {
     } finally {
       // Resume all systems
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      
+
       resumeOfflineMutations();
       resumeOfflineSync();
       smartRefreshManager.resume();
-      
+
       setIsEntityUpdating(false);
     }
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
-    let driverId = null, deliveryDate = null, pendingBreadcrumbDriverAppUserId = null;
+    let driverId = null,deliveryDate = null,pendingBreadcrumbDriverAppUserId = null;
 
     // STEP 0: Pause smart refresh and offline sync only (NOT mutations - we bypass them)
     setIsEntityUpdating(true);
     pauseOfflineSync();
     smartRefreshManager.pause();
-    
+
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // CRITICAL: Capture current FAB state
@@ -5540,14 +5540,14 @@ function Dashboard() {
       if (!targetDelivery) {
         console.error('❌ [STATUS] Delivery not found in deliveriesWithStopOrder');
         console.error('   Looking for ID:', deliveryId);
-        console.error('   Available IDs:', deliveriesWithStopOrder.map(d => d?.id));
+        console.error('   Available IDs:', deliveriesWithStopOrder.map((d) => d?.id));
         throw new Error('Delivery not found');
       }
-      
+
       // CRITICAL: Assign to outer scope variables
       driverId = targetDelivery.driver_id;
       deliveryDate = targetDelivery.delivery_date;
-      
+
       const currentDate = getEdmDate();
       const isPickup = !targetDelivery.patient_id;
       const isRetry = targetDelivery.status === 'failed' && (newStatus === 'in_transit' || newStatus === 'en_route');
@@ -5597,30 +5597,30 @@ function Dashboard() {
 
       const currentTime = new Date();
       // CRITICAL: Always use local time string - never UTC ISO (avoids timezone offset in stored timestamps)
-      const _h = String(currentTime.getHours()).padStart(2,'0');
-      const _m = String(currentTime.getMinutes()).padStart(2,'0');
-      const _s = String(currentTime.getSeconds()).padStart(2,'0');
+      const _h = String(currentTime.getHours()).padStart(2, '0');
+      const _m = String(currentTime.getMinutes()).padStart(2, '0');
+      const _s = String(currentTime.getSeconds()).padStart(2, '0');
       const _yr = currentTime.getFullYear();
-      const _mo = String(currentTime.getMonth()+1).padStart(2,'0');
-      const _dy = String(currentTime.getDate()).padStart(2,'0');
+      const _mo = String(currentTime.getMonth() + 1).padStart(2, '0');
+      const _dy = String(currentTime.getDate()).padStart(2, '0');
       let currentTimeISO = `${_yr}-${_mo}-${_dy}T${_h}:${_m}:${_s}`;
 
       const updateData = { status: newStatus, ...extraData };
 
       // CRITICAL: Auto-fill COD payment when completing delivery with COD
       if (newStatus === 'completed' && targetDelivery.cod_total_amount_required > 0) {
-        const hasCODPayments = targetDelivery.cod_payments && 
-                               Array.isArray(targetDelivery.cod_payments) && 
-                               targetDelivery.cod_payments.length > 0 &&
-                               targetDelivery.cod_payments.some(p => p?.amount > 0);
-        
+        const hasCODPayments = targetDelivery.cod_payments &&
+        Array.isArray(targetDelivery.cod_payments) &&
+        targetDelivery.cod_payments.length > 0 &&
+        targetDelivery.cod_payments.some((p) => p?.amount > 0);
+
         if (!hasCODPayments) {
           updateData.cod_payments = [
-            {
-              type: 'Cash',
-              amount: targetDelivery.cod_total_amount_required
-            }
-          ];
+          {
+            type: 'Cash',
+            amount: targetDelivery.cod_total_amount_required
+          }];
+
         }
       }
 
@@ -5635,15 +5635,15 @@ function Dashboard() {
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         updateData.isNextDelivery = false;
         const finishedStatuses = ['completed', 'failed', 'cancelled'];
-        const completedStops = deliveriesWithStopOrder
-          .filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status))
-          .sort((a, b) => {
-            if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
-            return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
-          });
+        const completedStops = deliveriesWithStopOrder.
+        filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status)).
+        sort((a, b) => {
+          if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
+          return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
+        });
 
-        if (completedStops.length === 0) updateData.travel_dist = 0;
-        else {
+        if (completedStops.length === 0) updateData.travel_dist = 0;else
+        {
           const lastStop = completedStops[completedStops.length - 1];
           let lastLat, lastLon, currentLat, currentLon;
           if (lastStop.patient_id) {
@@ -5732,21 +5732,21 @@ function Dashboard() {
         }
       }
 
-      
+
       // STEP 2: Update delivery status DIRECTLY to database (bypass offline mutations)
       try {
         await base44.entities.Delivery.update(deliveryId, updateData);
         // CRITICAL: Trigger explicit delivery broadcast for real-time listeners
         window.dispatchEvent(new CustomEvent('deliveryUpdated', {
-          detail: { 
-            deliveryId, 
+          detail: {
+            deliveryId,
             updates: updateData,
             driverId,
             deliveryDate,
             source: 'statusUpdate'
           }
         }));
-        
+
         // Update offline DB using bulkSave (save method may not exist)
         const freshDelivery = await base44.entities.Delivery.filter({ id: deliveryId });
         if (freshDelivery?.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery[0]]);
@@ -5763,11 +5763,11 @@ function Dashboard() {
         console.error('═══════════════════════════════════════════════════');
         throw updateError;
       }
-      
+
       // STEP 3: Update UI state directly (no offline DB refresh to avoid timing issues)
       if (updateDeliveriesLocally) {
         // CRITICAL: Just update the single delivery that changed, don't wipe and replace all deliveries
-        const updatedDelivery = deliveries.find(d => d?.id === deliveryId);
+        const updatedDelivery = deliveries.find((d) => d?.id === deliveryId);
         if (updatedDelivery) {
           updateDeliveriesLocally([{ ...updatedDelivery, ...updateData }], false);
         } else {
@@ -5791,11 +5791,11 @@ function Dashboard() {
             // Get stop coordinates
             let stopLat, stopLon;
             if (targetDelivery.patient_id) {
-              const patient = patients.find(p => p?.id === targetDelivery.patient_id);
+              const patient = patients.find((p) => p?.id === targetDelivery.patient_id);
               stopLat = patient?.latitude;
               stopLon = patient?.longitude;
             } else if (targetDelivery.store_id) {
-              const store = stores.find(s => s?.id === targetDelivery.store_id);
+              const store = stores.find((s) => s?.id === targetDelivery.store_id);
               stopLat = store?.latitude;
               stopLon = store?.longitude;
             }
@@ -5815,7 +5815,7 @@ function Dashboard() {
             }
 
             const nowISO = new Date().toISOString();
-            
+
             // Update AppUser with stop coordinates
             await base44.entities.AppUser.update(appUser.id, {
               current_latitude: stopLat,
@@ -5864,29 +5864,29 @@ function Dashboard() {
       const patientDeliveriesOnly = allDriverDeliveries.filter((d) => d && d.patient_id);
       const routeComplete = patientDeliveriesOnly.length > 0 &&
       patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
-      
+
       // CRITICAL: Check if this was the last incomplete stop
       const incompleteDeliveriesCount = deliveriesWithStopOrder.filter((d) =>
-        d && d.driver_id === driverId && d.delivery_date === deliveryDate &&
-        !finishedStatuses.includes(d.status) && d.status !== 'pending'
+      d && d.driver_id === driverId && d.delivery_date === deliveryDate &&
+      !finishedStatuses.includes(d.status) && d.status !== 'pending'
       ).length;
-      
+
       const wasLastStop = incompleteDeliveriesCount === 1; // Before this update, there was 1 incomplete (the one we just finished)
 
       // CRITICAL: For dispatchers, check if ALL drivers assigned to their stores are now done
       let wasLastDispatcherStop = false;
       if (isDispatcher && !isAdmin && wasLastStop) {
-        const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map(id => String(id)));
-        const allDateDeliveries = deliveriesWithStopOrder.filter(d => d && d.delivery_date === deliveryDate);
+        const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map((id) => String(id)));
+        const allDateDeliveries = deliveriesWithStopOrder.filter((d) => d && d.delivery_date === deliveryDate);
         // Any incomplete stops (excluding the current one being completed) in dispatcher's stores?
-        const remainingDispatcherIncomplete = allDateDeliveries.filter(d =>
-          d && d.id !== deliveryId &&
-          dispatcherStoreIds.has(String(d.store_id)) &&
-          !finishedStatuses.includes(d.status) && d.status !== 'pending'
+        const remainingDispatcherIncomplete = allDateDeliveries.filter((d) =>
+        d && d.id !== deliveryId &&
+        dispatcherStoreIds.has(String(d.store_id)) &&
+        !finishedStatuses.includes(d.status) && d.status !== 'pending'
         );
         wasLastDispatcherStop = remainingDispatcherIncomplete.length === 0;
       }
-      
+
       // CRITICAL: If this was the last stop, always flash Phase 1 for 500ms
       if (wasLastStop || wasLastDispatcherStop) {
         // Clear any existing timers
@@ -5895,24 +5895,24 @@ function Dashboard() {
           mapLockTimeoutRef.current = null;
         }
         mapLockExpiresAtRef.current = null;
-        
+
         // Set to Phase 1 and lock
         setMapViewPhase(1);
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
-        
+
         // Save Phase 1 to user settings
         if (currentUser?.id) {
           saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
         }
-        
+
         // Auto-unlock after 500ms
         const lockDuration = 500;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
-        
+
         mapLockTimeoutRef.current = setTimeout(() => {
           if (mapLockExpiresAtRef.current === expiresAt) {
             setIsMapViewLocked(false);
@@ -5927,10 +5927,10 @@ function Dashboard() {
         const summaryKey = `${driverId}_${deliveryDate}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
           hasShownSummaryRef.current.add(summaryKey);
-          
+
           // STEP 1: Collapse all expanded cards immediately
           setSelectedCardId(null);
-          
+
           // STEP 2: Set map to Phase 1 and lock briefly
           setMapViewPhase(1);
           setIsMapViewLocked(true);
@@ -5951,7 +5951,7 @@ function Dashboard() {
           base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsersList) => {
             const appUser = appUsersList?.[0];
             if (appUser) {
-              return base44.entities.AppUser.update(appUser.id,{driver_status:'off_duty',location_tracking_enabled:false,current_latitude:null,current_longitude:null,location_updated_at:null});
+              return base44.entities.AppUser.update(appUser.id, { driver_status: 'off_duty', location_tracking_enabled: false, current_latitude: null, current_longitude: null, location_updated_at: null });
             }
           }).then(() => {
             // Refresh user to update UI
@@ -5966,10 +5966,10 @@ function Dashboard() {
             setEndOfDayDriver(completedDriver);
             setShowEndOfDayStats(true);
           }, 800);
-          
+
           // STEP 6: Unlock map after brief lock
           setTimeout(() => setIsMapViewLocked(false), 500);
-          
+
           // STEP 7: Re-measure stop cards height after route completion
           setTimeout(() => {
             if (horizontalStopCardsRef.current) {
@@ -6049,10 +6049,10 @@ function Dashboard() {
         driver_id: driverId,
         delivery_date: deliveryDate
       });
-      
+
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
       // Protect deliveries from smart refresh overwrite
-      freshDeliveries.forEach(d => {
+      freshDeliveries.forEach((d) => {
         if (d?.id) {
           smartRefreshManager.registerPendingUpdate(d.id, driverId, deliveryDate);
         }
@@ -6062,15 +6062,15 @@ function Dashboard() {
       if (driverId && deliveryDate) {
         // Background: Recalculate stop orders (don't await)
         recalculateStopOrders(driverId, deliveryDate).catch((error) =>
-          console.warn('⚠️ Stop order recalc failed:', error)
+        console.warn('⚠️ Stop order recalc failed:', error)
         );
 
         if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
           const now = new Date();
           const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          base44.functions.invoke('optimizeRouteRealTime', { driverId, deliveryDate, currentLocalTime: localTimeString, deviceTime: now.toISOString() }).then((response) => { const data = response?.data || response; if (!data?.success || !Array.isArray(data.optimizedRoute) || !data.optimizedRoute.length) return; window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId, updates: data.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } })); window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } })); window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } })); }).catch((error) => console.warn('⚠️ Route auto-optimization failed:', error));
+          base44.functions.invoke('optimizeRouteRealTime', { driverId, deliveryDate, currentLocalTime: localTimeString, deviceTime: now.toISOString() }).then((response) => {const data = response?.data || response;if (!data?.success || !Array.isArray(data.optimizedRoute) || !data.optimizedRoute.length) return;window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId, updates: data.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } }));window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } }));}).catch((error) => console.warn('⚠️ Route auto-optimization failed:', error));
         }
-        
+
         // Payroll stats fetch disabled on Dashboard to avoid rate limits; handled only on DriverPayroll page.
       }
 
@@ -6095,7 +6095,7 @@ function Dashboard() {
       resumeOfflineSync();
       smartRefreshManager.resume();
       setIsEntityUpdating(false);
-      
+
       // CRITICAL: Re-enable theme transitions
       document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
     }
@@ -6119,31 +6119,31 @@ function Dashboard() {
     // CRITICAL: Pause smart refresh to prevent overwrite
     setIsEntityUpdating(true);
     await new Promise((resolve) => setTimeout(resolve, 100));
-    
+
     try {
       const delivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
       if (!delivery) {
         console.error('❌ [COD] Delivery not found in deliveriesWithStopOrder');
         throw new Error('Delivery not found');
       }
-      
+
       // CRITICAL: Only update cod_payments array - don't touch cod_total_amount_required
       const updateData = {
         cod_payments: codPayments
       };
-      
+
       // CRITICAL: Use offline-first mutation system
       await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
-      
+
       // CRITICAL: Update UI state immediately with the changes
       if (updateDeliveriesLocally) {
         const updatedDelivery = { ...delivery, ...updateData };
         updateDeliveriesLocally([updatedDelivery], false);
       }
-      
+
       // Protect from smart refresh overwrite
       smartRefreshManager.registerPendingUpdate(deliveryId, delivery.driver_id, delivery.delivery_date);
-      
+
     } catch (error) {
       console.error('═══════════════════════════════════════════════════');
       console.error('❌ [COD Update] FAILED');
@@ -6166,7 +6166,7 @@ function Dashboard() {
       setIsEntityUpdating(true);
       pauseOfflineSync();
       smartRefreshManager.pause();
-      
+
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const currentDate = getEdmDate();
@@ -6241,7 +6241,7 @@ function Dashboard() {
       invalidateDeliveriesForDate(originalDelivery.delivery_date);
       invalidateDeliveriesForDate(currentDate);
       invalidate('Delivery');
-      try { await forceRefreshDriverDeliveries(originalDelivery.driver_id, currentDate); } catch (_) {}
+      try {await forceRefreshDriverDeliveries(originalDelivery.driver_id, currentDate);} catch (_) {}
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } }));
       window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } }));
       base44.functions.invoke('optimizeRouteRealTime', { driverId: originalDelivery.driver_id, deliveryDate: currentDate, currentLocalTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`, generatePolyline: false }).catch((e) => console.warn('⚠️ [CREATE RETURN] Background optimize failed:', e?.message || e)).finally(() => window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } })));
@@ -6262,7 +6262,7 @@ function Dashboard() {
     pauseOfflineMutations();
     pauseOfflineSync();
     smartRefreshManager.pause();
-    
+
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // CRITICAL: Store the ID we clicked on BEFORE any database changes
@@ -6306,12 +6306,12 @@ function Dashboard() {
         status: newStatus,
         stop_order: nextStopOrderStep2
       };
-      
+
       await base44.entities.Delivery.update(deliveryId, startUpdatePayload);
       // CRITICAL: Trigger explicit broadcast for real-time listeners on other devices
       window.dispatchEvent(new CustomEvent('deliveryUpdated', {
-        detail: { 
-          deliveryId, 
+        detail: {
+          deliveryId,
           updates: startUpdatePayload,
           driverId,
           deliveryDate,
@@ -6480,19 +6480,19 @@ function Dashboard() {
       // STEP 9: Fetch fresh data and save to offline DB BEFORE resuming
       try {
         const finalRefreshedDeliveries = await base44.entities.Delivery.filter({
-          driver_id: deliveriesWithStopOrder.find(d => d?.id === deliveryId)?.driver_id,
-          delivery_date: deliveriesWithStopOrder.find(d => d?.id === deliveryId)?.delivery_date
+          driver_id: deliveriesWithStopOrder.find((d) => d?.id === deliveryId)?.driver_id,
+          delivery_date: deliveriesWithStopOrder.find((d) => d?.id === deliveryId)?.delivery_date
         });
 
         // Save to offline DB
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalRefreshedDeliveries);
 
         // Protect from smart refresh overwrite
-        finalRefreshedDeliveries.forEach(d => {
+        finalRefreshedDeliveries.forEach((d) => {
           if (d?.id) {
             smartRefreshManager.registerPendingUpdate(
-              d.id, 
-              d.driver_id, 
+              d.id,
+              d.driver_id,
               d.delivery_date
             );
           }
@@ -6505,10 +6505,10 @@ function Dashboard() {
 
         // Force map update
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
+          detail: {
             driverId: finalRefreshedDeliveries[0]?.driver_id,
             deliveryDate: finalRefreshedDeliveries[0]?.delivery_date,
-            triggeredBy: 'startDeliveryFinalRefresh' 
+            triggeredBy: 'startDeliveryFinalRefresh'
           }
         }));
 
@@ -6518,12 +6518,12 @@ function Dashboard() {
 
       // STEP 10: Wait longer for all writes and UI updates to complete
       await new Promise((resolve) => setTimeout(resolve, 5000));
-      
+
       // Resume all systems
       resumeOfflineMutations();
       resumeOfflineSync();
       smartRefreshManager.resume();
-      
+
       setIsEntityUpdating(false);
     }
   };
@@ -6653,7 +6653,7 @@ function Dashboard() {
 
   useEffect(() => {
     if (!showBreadcrumbs) return;
-    const activeDriverId = (showAllDriverMarkers || selectedDriverId === 'all') ? currentUser?.id : selectedDriverId;
+    const activeDriverId = showAllDriverMarkers || selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
     const activeDate = format(selectedDate, 'yyyy-MM-dd');
     const matches = ({ driverId, deliveryDate } = {}) => (!driverId || !activeDriverId || driverId === activeDriverId) && (!deliveryDate || deliveryDate === activeDate);
     const refresh = async (event) => matches(event.detail || {}) && setBreadcrumbsData(await loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsers));
@@ -6662,23 +6662,23 @@ function Dashboard() {
       if (!point || !matches(detail)) return;
       setBreadcrumbsData((prev) => prev?.current?.some((p) => Number(p?.timestamp) === Number(point.timestamp)) ? prev : { historical: prev?.historical || [], current: [...(prev?.current || []), point] });
     };
-    window.addEventListener('deliveriesUpdated', refresh); window.addEventListener('routeOptimizationComplete', refresh); window.addEventListener('routeReordered', refresh); window.addEventListener('breadcrumbCollected', append);
+    window.addEventListener('deliveriesUpdated', refresh);window.addEventListener('routeOptimizationComplete', refresh);window.addEventListener('routeReordered', refresh);window.addEventListener('breadcrumbCollected', append);
     return () => {
-      window.removeEventListener('deliveriesUpdated', refresh); window.removeEventListener('routeOptimizationComplete', refresh); window.removeEventListener('routeReordered', refresh); window.removeEventListener('breadcrumbCollected', append);
+      window.removeEventListener('deliveriesUpdated', refresh);window.removeEventListener('routeOptimizationComplete', refresh);window.removeEventListener('routeReordered', refresh);window.removeEventListener('breadcrumbCollected', append);
     };
   }, [showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser?.id, selectedDate, appUsers]);
 
   // Listen for pullToSyncDataReady events - full update regardless of current state
   useEffect(() => {
     const handlePullToSyncDataReady = async (event) => {
-      const { 
+      const {
         deliveries: freshDeliveries,
         appUsers: freshAppUsers,
         cities: freshCities,
         stores: freshStores,
         patients: freshPatients
       } = event.detail || {};
-      
+
       try {
         setCurrentToNextPolyline(null);
         setDriverRoutes([]);
@@ -6688,32 +6688,32 @@ function Dashboard() {
         if (updateAppUsersLocally && freshAppUsers) {
           updateAppUsersLocally(freshAppUsers, true);
         }
-        
+
         // Force complete UI re-render
         setForceRender((prev) => prev + 1);
-        
+
         // CRITICAL: Validate freshAppUsers — offline DB may return junk records with user_id=undefined
-        const validAppUsers = (freshAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined');
+        const validAppUsers = (freshAppUsers || []).filter((u) => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined');
         const appUsersForPoller = validAppUsers.length > 0 ? validAppUsers : appUsers;
-        
+
         if (appUsersForPoller && appUsersForPoller.length > 0) {
           driverLocationPoller.processLocationData(currentUser, freshDeliveries || [], drivers, stores, appUsersForPoller, selectedDate, true, 'Dashboard', showAllDriverMarkers);
         }
-        
+
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: format(selectedDate, 'yyyy-MM-dd'), triggeredBy: 'pullToSyncDataReady', forceFullUpdate: true } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger(prev => prev + 1);
-        setTimeout(() => { setIsMapViewLocked(false); }, 500);
-        
-        
+        setMapViewTrigger((prev) => prev + 1);
+        setTimeout(() => {setIsMapViewLocked(false);}, 500);
+
+
       } catch (error) {
         console.error('❌ [Dashboard] Pull to sync update failed:', error);
       }
     };
-    
+
     window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
     return () => window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
   }, [updateDeliveriesLocally, updateAppUsersLocally, selectedDate, currentUser, drivers, stores, showAllDriverMarkers]);
@@ -6722,51 +6722,51 @@ function Dashboard() {
   useEffect(() => {
     const handleDataSourceChange = async (event) => {
       const { source } = event.detail || {};
-      
+
       setIsEntityUpdating(true);
-      
+
       try {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         let freshDeliveries = [];
-        
+
         if (source === 'online') {
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
           // Update offline DB in background
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
         } else {
           freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-          
+
           if (!freshDeliveries || freshDeliveries.length === 0) {
             freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
           }
         }
-        
+
         // Update context with fresh data
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
         const allDeliveries = [...otherDateDeliveries, ...freshDeliveries];
         updateDeliveriesLocally(allDeliveries, true);
-        
+
         // Force immediate UI refresh
         setForceRender((prev) => prev + 1);
-        
+
         // Force stats refresh with new data
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        
+
         // Force map update with new data
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
-            deliveryDate: selectedDateStr, 
+          detail: {
+            deliveryDate: selectedDateStr,
             triggeredBy: 'dataSourceChange',
-            deliveryCount: freshDeliveries.length 
+            deliveryCount: freshDeliveries.length
           }
         }));
-        
+
         // Show success notification
         toast.success(`Loaded from ${source === 'online' ? 'Online' : 'Offline'} source`, {
           description: `${freshDeliveries.length} deliveries for ${format(selectedDate, 'MMM dd')}`
         });
-        
+
       } catch (error) {
         console.error('❌ [Data Source Change] Failed:', error);
         toast.error('Failed to reload data', {
@@ -6776,24 +6776,24 @@ function Dashboard() {
         setIsEntityUpdating(false);
       }
     };
-    
+
     window.addEventListener('dataSourceChanged', handleDataSourceChange);
     return () => window.removeEventListener('dataSourceChanged', handleDataSourceChange);
   }, [selectedDate, updateDeliveriesLocally, deliveries, setForceRender]);
 
   // CRITICAL: STEP 0 - ALWAYS fetch fresh AppUser data on app load
   const hasPreRenderSyncRef = useRef(false);
-  
+
   useEffect(() => {
     if (!currentUser || !isFiltersReady) return;
     if (hasPreRenderSyncRef.current) return;
-    
+
     hasPreRenderSyncRef.current = true;
-    
+
     const preRenderSync = async () => {
       try {
         const existing = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        const valid = (existing || []).filter(u => u?.user_id && u.user_id !== 'undefined');
+        const valid = (existing || []).filter((u) => u?.user_id && u.user_id !== 'undefined');
         if (valid.length !== (existing || []).length) {
           await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
           if (valid.length > 0) await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, valid);
@@ -6803,17 +6803,17 @@ function Dashboard() {
         const freshAppUsers = await base44.entities.AppUser.list();
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
         await offlineDB.updateCacheSnapshot('AppUser', freshAppUsers || [], { scopeKey: 'global', syncType: 'startup_full' });
-      } catch (error) { console.error('❌ [STEP 0] Pre-render sync failed:', error); }
+      } catch (error) {console.error('❌ [STEP 0] Pre-render sync failed:', error);}
     };
-    
+
     preRenderSync();
   }, [currentUser?.id, isFiltersReady]);
-  
+
   // CRITICAL: STEP 1 - Load everything from offline DB FIRST for instant UI
   // MUST wait for userSettingsLoaded so selectedDate/selectedDriverId are final
   const hasLoadedOfflineDataRef = useRef(false);
   const lastOfflineLoadDateRef = useRef(null);
-  
+
   useEffect(() => {
     if (!currentUser || !isFiltersReady || !userSettingsLoaded) return;
     if (!hasPreRenderSyncRef.current) return;
@@ -6821,11 +6821,11 @@ function Dashboard() {
     if (hasLoadedOfflineDataRef.current && lastOfflineLoadDateRef.current === selectedDateStr) return;
     hasLoadedOfflineDataRef.current = true;
     lastOfflineLoadDateRef.current = selectedDateStr;
-    
+
     const loadOfflineDataFirst = async () => {
       try {
         const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        const mountAppUsers = (await offlineDB.getAll(offlineDB.STORES.APP_USERS) || []).filter(u => u?.user_id && u.user_id !== 'undefined');
+        const mountAppUsers = ((await offlineDB.getAll(offlineDB.STORES.APP_USERS)) || []).filter((u) => u?.user_id && u.user_id !== 'undefined');
         if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
@@ -6842,7 +6842,7 @@ function Dashboard() {
     };
     loadOfflineDataFirst();
   }, [currentUser?.id, isDataLoaded, isFiltersReady, userSettingsLoaded, selectedDateStr, hasPreRenderSyncRef.current]);
-  
+
   const hasTriggeredPrioritySyncRef = useRef('');
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady || !userSettingsLoaded || !hasPreRenderSyncRef.current || !hasLoadedOfflineDataRef.current || hasTriggeredPrioritySyncRef.current === selectedDateStr) return;
@@ -6851,13 +6851,13 @@ function Dashboard() {
       try {
         const today = selectedDateStr === getEdmDate();
         if ((await offlineDB.getCacheValidation('Delivery', { scopeKey: `date:${selectedDateStr}`, maxAgeMs: today ? 60 * 1000 : 10 * 60 * 1000, allowEmpty: true })).isValid) return;
-        const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync'); await performPrioritySyncBeforeRefresh(selectedDateStr, globalFilters.getSelectedCityId(), smartRefreshManager);
-        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr); await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], { scopeKey: `date:${selectedDateStr}`, syncType: 'startup_full' }); if (updateDeliveriesLocally && freshDeliveries) {
+        const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');await performPrioritySyncBeforeRefresh(selectedDateStr, globalFilters.getSelectedCityId(), smartRefreshManager);
+        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], { scopeKey: `date:${selectedDateStr}`, syncType: 'startup_full' });if (updateDeliveriesLocally && freshDeliveries) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         }
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' } }));
-        const isTodaySelected = selectedDateStr === getEdmDate(), m = await offlineDB.getSyncMetadata('Delivery'), t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
+        const isTodaySelected = selectedDateStr === getEdmDate(),m = await offlineDB.getSyncMetadata('Delivery'),t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
         const active = (freshDeliveries || []).some((d) => d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status));
         if (isTodaySelected && (!t || Date.now() - t >= (active ? 60000 : 300000))) setTimeout(() => window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'initial_load_today_active_routes' : 'initial_load_today_completed_routes' } })), 2000);
       } catch (error) {
@@ -6880,7 +6880,7 @@ function Dashboard() {
     }
   }, [isDataLoaded, deliveries, selectedDateStr]);
 
-  if (isLoadingUser || !isFiltersReady || (!isDataLoaded && !userSettingsLoaded)) {
+  if (isLoadingUser || !isFiltersReady || !isDataLoaded && !userSettingsLoaded) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-center">
@@ -6898,16 +6898,16 @@ function Dashboard() {
 
       {/* Snapshot Timeline - Only visible when snapshot mode is active */}
       {isSnapshotModeActive && isAppOwner(currentUser) &&
-        <div className="absolute left-0 top-0 bottom-0 z-[250]">
+      <div className="absolute left-0 top-0 bottom-0 z-[250]">
           <SnapshotTimeline
-            selectedDate={selectedDate}
-            selectedDriverId={selectedDriverId}
-            onSnapshotSelect={handleSnapshotSelect}
-            onClose={() => {
-              setIsSnapshotModeActive(false);
-              setSnapshotData(null);
-            }}
-          />
+          selectedDate={selectedDate}
+          selectedDriverId={selectedDriverId}
+          onSnapshotSelect={handleSnapshotSelect}
+          onClose={() => {
+            setIsSnapshotModeActive(false);
+            setSnapshotData(null);
+          }} />
+
         </div>
       }
 
@@ -6928,64 +6928,64 @@ function Dashboard() {
             showAllDriverMarkers={showAllDriverMarkers}
             statsCardRef={statsCardRef}
             onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
-                // Update deliveries in context
-                if (updateDeliveriesLocally) {
-                  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                  const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
-                  updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-                }
-                
-                // CRITICAL: Process driver locations through poller to update ALL markers
-                // CRITICAL: Filter junk offline DB records (user_id=undefined) before processing — fallback to context
-                const appUsersToProcess = ((freshAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined').length > 0) ? freshAppUsers.filter(u => u?.user_id && u.user_id !== 'undefined') : appUsers;
-                
-                if (appUsersToProcess && appUsersToProcess.length > 0) {
-                  driverLocationPoller.processLocationData(
-                    currentUser, 
-                    freshDeliveries, 
-                    drivers, 
-                    stores, 
-                    appUsersToProcess, 
-                    selectedDate, 
-                    true, // forceNotify
-                    'Dashboard', // currentPageName
-                    showAllDriverMarkers
-                  );
-                } else {
-                  console.warn('⚠️ [Pull to Sync] No appUsers available from sync or context - cannot process locations');
-                }
-                
-                const validSyncAppUsers = ((freshAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined').length > 0) ? freshAppUsers.filter(u => u?.user_id && u.user_id !== 'undefined') : appUsers;
-                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: validSyncAppUsers, forceAll: true } }));
-                
-                // Force map update based on selection mode
+              // Update deliveries in context
+              if (updateDeliveriesLocally) {
                 const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                  detail: { 
-                    deliveryDate: selectedDateStr, 
-                    triggeredBy: 'pullToSyncComplete',
-                    allDrivers: true 
-                  }
-                }));
-                
-                // Trigger map repositioning based on current phase
-                setIsMapViewLocked(true);
-                lastProgrammaticMapMoveRef.current = Date.now();
-                window._lastProgrammaticMapMove = Date.now();
-                setMapViewTrigger(prev => prev + 1);
-                
-                // Auto-unlock after 500ms
-                setTimeout(() => {
-                  setIsMapViewLocked(false);
-                }, 500);
-                
-                // Force stats refresh
-                window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                
-                // Payroll stats refresh disabled on Dashboard.
+                const otherDateDeliveries = deliveries.filter((d) => d?.delivery_date !== selectedDateStr);
+                updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+              }
 
-              }}
-            />
+              // CRITICAL: Process driver locations through poller to update ALL markers
+              // CRITICAL: Filter junk offline DB records (user_id=undefined) before processing — fallback to context
+              const appUsersToProcess = (freshAppUsers || []).filter((u) => u?.user_id && u.user_id !== 'undefined').length > 0 ? freshAppUsers.filter((u) => u?.user_id && u.user_id !== 'undefined') : appUsers;
+
+              if (appUsersToProcess && appUsersToProcess.length > 0) {
+                driverLocationPoller.processLocationData(
+                  currentUser,
+                  freshDeliveries,
+                  drivers,
+                  stores,
+                  appUsersToProcess,
+                  selectedDate,
+                  true, // forceNotify
+                  'Dashboard', // currentPageName
+                  showAllDriverMarkers
+                );
+              } else {
+                console.warn('⚠️ [Pull to Sync] No appUsers available from sync or context - cannot process locations');
+              }
+
+              const validSyncAppUsers = (freshAppUsers || []).filter((u) => u?.user_id && u.user_id !== 'undefined').length > 0 ? freshAppUsers.filter((u) => u?.user_id && u.user_id !== 'undefined') : appUsers;
+              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: validSyncAppUsers, forceAll: true } }));
+
+              // Force map update based on selection mode
+              const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: {
+                  deliveryDate: selectedDateStr,
+                  triggeredBy: 'pullToSyncComplete',
+                  allDrivers: true
+                }
+              }));
+
+              // Trigger map repositioning based on current phase
+              setIsMapViewLocked(true);
+              lastProgrammaticMapMoveRef.current = Date.now();
+              window._lastProgrammaticMapMove = Date.now();
+              setMapViewTrigger((prev) => prev + 1);
+
+              // Auto-unlock after 500ms
+              setTimeout(() => {
+                setIsMapViewLocked(false);
+              }, 500);
+
+              // Force stats refresh
+              window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
+              // Payroll stats refresh disabled on Dashboard.
+
+            }} />
+
 
           <motion.div
             ref={statsCardRef} data-spotlight-anchor
@@ -7000,14 +7000,14 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }} 
-            className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-[340px] max-w-[345px] cursor-pointer" 
-            style={{ 
-              background: 'var(--bg-white)', 
-              borderColor: 'var(--border-slate-200)', 
-              pointerEvents: 'auto', 
+            }} className="px-1 rounded-2xl shadow-xl border min-w-[350px] max-w-[350px] cursor-pointer"
+
+            style={{
+              background: 'var(--bg-white)',
+              borderColor: 'var(--border-slate-200)',
+              pointerEvents: 'auto',
               touchAction: 'none',
-              position: 'relative' 
+              position: 'relative'
             }}>
 
 
@@ -7115,9 +7115,9 @@ function Dashboard() {
                     setEditingDelivery(null);
                     setShowDeliveryForm(true);
                   }}
-                  disabled={((isDriver || isDispatcher) && !isAdmin && !isAppOwner(currentUser) && (() => { const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()); if (selectedDay < today) return true; if (selectedDay.getTime() === today.getTime()) { const currentTime = now.getHours() * 100 + now.getMinutes(); return currentTime >= 1900; } return false; })())}
-                  hasRateLimitError={hasRateLimitError}
-                />
+                  disabled={(isDriver || isDispatcher) && !isAdmin && !isAppOwner(currentUser) && (() => {const now = new Date();const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());if (selectedDay < today) return true;if (selectedDay.getTime() === today.getTime()) {const currentTime = now.getHours() * 100 + now.getMinutes();return currentTime >= 1900;}return false;})()}
+                  hasRateLimitError={hasRateLimitError} />
+
               </div>
             </div>
 
@@ -7176,128 +7176,128 @@ function Dashboard() {
                     </Select>
 
                     {/* Show All and Breadcrumbs Buttons - Only for drivers in single driver mode */}
-                    {isDriver && !isAllDriversMode && (
-                      <div className="flex items-center flex-shrink-0">
+                    {isDriver && !isAllDriversMode &&
+                  <div className="flex items-center flex-shrink-0">
                         <div className="flex flex-col items-center gap-1">
                           <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={async () => {
-                            const checked = !showAllDriverMarkers;
-                        setShowAllDriverMarkers(checked);
-                        if (currentUser?.id) {
-                          saveSetting(currentUser.id, 'show_all_driver_markers', checked);
-                        }
-
-                        // CRITICAL: Close stats card when checkbox is toggled
-                        setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current=null;setAreCardsVisible(false);
-
-                        // CRITICAL: Respect data source preference when checking "Show All"
-                        if (checked) {
-                          setIsEntityUpdating(true);
-
-                          try {
-                            const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                            let allDateDeliveries;
-                            
-                            if (dataSource === 'online') {
-                              allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                              offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
-                            } else {
-                              allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-                              
-                              if (!allDateDeliveries || allDateDeliveries.length === 0) {
-                                allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
-                              }
-                            }
-
-                            // Update context with full deliveries
-                            if (updateDeliveriesLocally) {
-                              const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-                              const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
-                              updateDeliveriesLocally(mergedDeliveries, true);
-                            }
-
-                            // Wait for UI to update
-                            await new Promise((resolve) => setTimeout(resolve, 300));
-
-                            // CRITICAL: Force refresh driver locations to update all markers
-                            const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
-                            if (locationUpdates?.hasChanges) {
-                              // Process through poller to update markers
-                              driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
-                            }
-
-                            // CRITICAL: Force refresh ALL AppUsers when Show All is checked
-                            const showAllLocationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
-                            const showAllLatestAppUsers = showAllLocationUpdates?.appUsers || appUsers;
-                            
-                            // Dispatch event to force map to re-render with new markers
-                            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                              detail: { appUsers: showAllLatestAppUsers, forceAll: true }
-                            }));
-                          } catch (error) {
-                            console.error('❌ [Show All] Failed to load deliveries:', error);
-                          } finally {
-                            setIsEntityUpdating(false);
+                        variant="outline"
+                        size="icon"
+                        onClick={async () => {
+                          const checked = !showAllDriverMarkers;
+                          setShowAllDriverMarkers(checked);
+                          if (currentUser?.id) {
+                            saveSetting(currentUser.id, 'show_all_driver_markers', checked);
                           }
-                        }
 
-                        // CRITICAL: Activate Phase 1 immediately when button is toggled
-                        // Clear any existing timers
-                        if (mapLockTimeoutRef.current) {
-                          clearTimeout(mapLockTimeoutRef.current);
-                          mapLockTimeoutRef.current = null;
-                        }
-                        mapLockExpiresAtRef.current = null;
+                          // CRITICAL: Close stats card when checkbox is toggled
+                          setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);
 
-                        // Set to Phase 1 and lock
-                        setMapViewPhase(1);
-                        setIsMapViewLocked(true);
-                        lastProgrammaticMapMoveRef.current = Date.now();
-                        window._lastProgrammaticMapMove = Date.now();
+                          // CRITICAL: Respect data source preference when checking "Show All"
+                          if (checked) {
+                            setIsEntityUpdating(true);
 
-                        // Trigger immediately
-                        setMapViewTrigger((prev) => prev + 1);
+                            try {
+                              const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                              let allDateDeliveries;
 
-                        // Auto-unlock after 500ms
-                        const lockDuration = 500;
-                        const expiresAt = Date.now() + lockDuration;
-                        mapLockExpiresAtRef.current = expiresAt;
-                        mapLockTimeoutRef.current = setTimeout(() => {
-                          if (mapLockExpiresAtRef.current === expiresAt) {
-                            setIsMapViewLocked(false);
-                            mapLockExpiresAtRef.current = null;
+                              if (dataSource === 'online') {
+                                allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+                                offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
+                              } else {
+                                allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+
+                                if (!allDateDeliveries || allDateDeliveries.length === 0) {
+                                  allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+                                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
+                                }
+                              }
+
+                              // Update context with full deliveries
+                              if (updateDeliveriesLocally) {
+                                const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+                                const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
+                                updateDeliveriesLocally(mergedDeliveries, true);
+                              }
+
+                              // Wait for UI to update
+                              await new Promise((resolve) => setTimeout(resolve, 300));
+
+                              // CRITICAL: Force refresh driver locations to update all markers
+                              const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                              if (locationUpdates?.hasChanges) {
+                                // Process through poller to update markers
+                                driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
+                              }
+
+                              // CRITICAL: Force refresh ALL AppUsers when Show All is checked
+                              const showAllLocationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
+                              const showAllLatestAppUsers = showAllLocationUpdates?.appUsers || appUsers;
+
+                              // Dispatch event to force map to re-render with new markers
+                              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                                detail: { appUsers: showAllLatestAppUsers, forceAll: true }
+                              }));
+                            } catch (error) {
+                              console.error('❌ [Show All] Failed to load deliveries:', error);
+                            } finally {
+                              setIsEntityUpdating(false);
+                            }
+                          }
+
+                          // CRITICAL: Activate Phase 1 immediately when button is toggled
+                          // Clear any existing timers
+                          if (mapLockTimeoutRef.current) {
+                            clearTimeout(mapLockTimeoutRef.current);
                             mapLockTimeoutRef.current = null;
                           }
-                        }, lockDuration);
-                          }}
-                          className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                          style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
-                        >
+                          mapLockExpiresAtRef.current = null;
+
+                          // Set to Phase 1 and lock
+                          setMapViewPhase(1);
+                          setIsMapViewLocked(true);
+                          lastProgrammaticMapMoveRef.current = Date.now();
+                          window._lastProgrammaticMapMove = Date.now();
+
+                          // Trigger immediately
+                          setMapViewTrigger((prev) => prev + 1);
+
+                          // Auto-unlock after 500ms
+                          const lockDuration = 500;
+                          const expiresAt = Date.now() + lockDuration;
+                          mapLockExpiresAtRef.current = expiresAt;
+                          mapLockTimeoutRef.current = setTimeout(() => {
+                            if (mapLockExpiresAtRef.current === expiresAt) {
+                              setIsMapViewLocked(false);
+                              mapLockExpiresAtRef.current = null;
+                              mapLockTimeoutRef.current = null;
+                            }
+                          }, lockDuration);
+                        }}
+                        className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                        style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
+
                           <Binoculars className="w-4 h-4" />
                         </Button>
                         </div>
 
                         <div className="flex flex-col items-center gap-1">
                         <BreadcrumbToggleButton
-                          isMobile={isMobile}
-                          isDriver={isDriver}
-                          isRouteComplete={isRouteComplete}
-                          showBreadcrumbs={showBreadcrumbs}
-                          setShowBreadcrumbs={setShowBreadcrumbs}
-                          setShowRoutes={setShowRoutes}
-                          setBreadcrumbsData={setBreadcrumbsData}
-                          selectedDate={selectedDate}
-                          showAllDriverMarkers={showAllDriverMarkers}
-                          selectedDriverId={selectedDriverId}
-                          currentUser={currentUser}
-                          appUsers={appUsers}
-                        />
+                        isMobile={isMobile}
+                        isDriver={isDriver}
+                        isRouteComplete={isRouteComplete}
+                        showBreadcrumbs={showBreadcrumbs}
+                        setShowBreadcrumbs={setShowBreadcrumbs}
+                        setShowRoutes={setShowRoutes}
+                        setBreadcrumbsData={setBreadcrumbsData}
+                        selectedDate={selectedDate}
+                        showAllDriverMarkers={showAllDriverMarkers}
+                        selectedDriverId={selectedDriverId}
+                        currentUser={currentUser}
+                        appUsers={appUsers} />
+
                         </div>
                       </div>
-                    )}
+                  }
 
                     <Button
                     variant="outline"
@@ -7334,32 +7334,32 @@ function Dashboard() {
                       }} />
                       
                         {/* Route Management Buttons - All drivers on any device */}
-                        {isDriver && (
-                          <>
+                        {isDriver &&
+                    <>
                             {/* Quick Route Adjustments */}
                             <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowQuickAdjustments(true)}
-                              className="h-8 gap-1.5 px-2 flex-shrink-0"
-                              title="Quick route adjustments"
-                              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowQuickAdjustments(true)}
+                        className="h-8 gap-1.5 px-2 flex-shrink-0"
+                        title="Quick route adjustments"
+                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                               <span className="text-xs">Adjust</span>
                             </Button>
                             
                             {/* AI Smart Prioritization */}
                             <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowSmartPrioritization(true)}
-                              className="h-8 gap-1.5 px-2 flex-shrink-0"
-                              title="AI delivery prioritization"
-                              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowSmartPrioritization(true)}
+                        className="h-8 gap-1.5 px-2 flex-shrink-0"
+                        title="AI delivery prioritization"
+                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                               <Sparkles className="w-3 h-3" />
                               <span className="text-xs">AI</span>
                             </Button>
                           </>
-                        )}
+                    }
                       </div>
                     </>
                 }
@@ -7383,18 +7383,18 @@ function Dashboard() {
           onMouseLeave={() => handleCardInteraction(false)}>
               <div className="flex flex-wrap gap-x-1 gap-y-1 items-center justify-center">
                 {[...driverRoutes].sort((a, b) => (a.driverName || '').localeCompare(b.driverName || '')).map((route) => {
-                  // CRITICAL: Use route color and driver name already calculated in DeliveryMap
-                  const displayName = route.driverName || 'Unknown';
-                  const routeColor = route.color;
+                // CRITICAL: Use route color and driver name already calculated in DeliveryMap
+                const displayName = route.driverName || 'Unknown';
+                const routeColor = route.color;
 
-                  return (
-                    <div
-                      key={route.driverId}
-                      className="flex items-center gap-1.5">
+                return (
+                  <div
+                    key={route.driverId}
+                    className="flex items-center gap-1.5">
 
                         <div
-                        className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                        style={{ backgroundColor: routeColor }} />
+                      className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                      style={{ backgroundColor: routeColor }} />
 
                         <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>
                           {displayName}
@@ -7404,7 +7404,7 @@ function Dashboard() {
                         </span>
                       </div>);
 
-                    })}
+              })}
               </div>
             </div>
           }
@@ -7412,7 +7412,7 @@ function Dashboard() {
       </div>
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
-        {currentUser&&isAppOwner(currentUser)&&<ApiUsageBadge currentUser={currentUser} stopCardsHeight={(deliveriesWithStopOrder.length>0?stopCardsBaseHeight:0)} showRoutes={showRoutes} showBreadcrumbs={showBreadcrumbs} showCompletedRouteControls={!isMobile&&selectedDriverId!=='all'&&filteredDeliveries.length>0&&filteredDeliveries.every((delivery)=>delivery&&['completed','failed','cancelled','returned'].includes(delivery.status))} selectedDate={format(selectedDate, 'yyyy-MM-dd')} selectedDriverIds={selectedDriverId !== 'all' ? [selectedDriverId] : []} />}
+        {currentUser && isAppOwner(currentUser) && <ApiUsageBadge currentUser={currentUser} stopCardsHeight={deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0} showRoutes={showRoutes} showBreadcrumbs={showBreadcrumbs} showCompletedRouteControls={!isMobile && selectedDriverId !== 'all' && filteredDeliveries.length > 0 && filteredDeliveries.every((delivery) => delivery && ['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status))} selectedDate={format(selectedDate, 'yyyy-MM-dd')} selectedDriverIds={selectedDriverId !== 'all' ? [selectedDriverId] : []} />}
 
         {/* Offline Sync Indicator - separate when stats card is in upper left corner */}
         {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
@@ -7553,8 +7553,8 @@ function Dashboard() {
             }) : undefined}>
 
               {/* CRITICAL: Hide stop cards when in "All Drivers" mode (except for dispatchers) */}
-              {(!isAllDriversMode || isDispatcher) && (
-              <HorizontalStopCards
+              {(!isAllDriversMode || isDispatcher) &&
+            <HorizontalStopCards
               ref={horizontalStopCardsRef}
               pickupCards={deliveriesWithStopOrder.
               filter((delivery) => delivery && delivery.status !== 'pending') // Hide pending deliveries from cards
@@ -7575,7 +7575,7 @@ function Dashboard() {
                   if (isDispatcher && currentUser?.store_ids && currentUser.store_ids.length > 0) {
                     const dispatcherStoreIds = new Set(currentUser.store_ids);
                     pendingDeliveriesForPickup = pendingDeliveriesForPickup.filter((d) =>
-                      d && dispatcherStoreIds.has(d.store_id)
+                    d && dispatcherStoreIds.has(d.store_id)
                     );
                   }
 
@@ -7667,8 +7667,8 @@ function Dashboard() {
               onDriverStatusChange={async (newStatus) => {
                 await refreshUser();
               }} />
-              )
-              }
+
+            }
 
             </div>
           </div>
@@ -7749,8 +7749,8 @@ function Dashboard() {
           setIsEntityUpdating={setIsEntityUpdating}
           refreshData={refreshData}
           setIsMapViewLocked={setIsMapViewLocked}
-          setMapViewTrigger={setMapViewTrigger}
-        />
+          setMapViewTrigger={setMapViewTrigger} />
+
       </>
       }
 
@@ -7788,7 +7788,7 @@ function Dashboard() {
         }
       </AnimatePresence>
 
-      {false && ( <RouteNotification
+      {false && <RouteNotification
         notification={routeNotification}
         onDismiss={() => setRouteNotification(null)}
         onNavigate={() => {
@@ -7803,7 +7803,7 @@ function Dashboard() {
               cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             }
           }
-        }} /> )}
+        }} />}
 
 
         {/* Proactive Alert System - monitors route for potential issues */}
@@ -7829,8 +7829,8 @@ function Dashboard() {
         stores={stores}
         appUsers={appUsers}
         currentUser={currentUser}
-        isDispatcher={isDispatcher}
-      />
+        isDispatcher={isDispatcher} />
+
 
       {/* Quick Route Adjustments Dialog */}
       {isDriver &&
