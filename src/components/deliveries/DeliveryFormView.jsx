@@ -27,6 +27,7 @@ import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
+import { purgeAndRegeneratePolylines } from '@/functions/purgeAndRegeneratePolylines';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -631,8 +632,11 @@ export default function DeliveryFormView({
                   <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); setFormData(prev => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null })); if (formData?.driver_id && formData?.delivery_date) {
   // Fire-and-forget heavy tasks to keep UI responsive
   Promise.resolve()
-    .then(() => recalculateAndUpdateStopOrders(formData.driver_id, formData.delivery_date))
-    .catch(err => console.warn('Stop order resequence skipped:', err?.response?.status || err?.message || err));
+    .then(async () => {
+      await recalculateAndUpdateStopOrders(formData.driver_id, formData.delivery_date);
+      await purgeAndRegeneratePolylines({ driverId: formData.driver_id, deliveryDate: formData.delivery_date });
+    })
+    .catch(err => console.warn('Stop order/polyline refresh skipped:', err?.response?.status || err?.message || err));
 
   const now = new Date();
   const hh = String(now.getHours()).padStart(2, '0');
