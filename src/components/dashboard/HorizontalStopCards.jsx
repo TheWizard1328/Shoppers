@@ -385,7 +385,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
       return {
         left: centerLeft + offset * step,
-        rotate: isCenteredCard ? 0 : Math.max(-10, Math.min(10, offset * 1.8)),
+        rotate: 0,
         translateY: 0,
         zIndex: isCenteredCard ? 2000 : 1000 - distance
       };
