@@ -16,6 +16,16 @@ export default function ResetPolylinesButton({
     return Array.from(new Set((selectedDriverIds || []).filter(Boolean).filter((id) => id !== "all")));
   }, [selectedDriverIds]);
 
+  const clearPolylineCache = () => {
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("here_")) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (_) {}
+  };
+
   const handleReset = async () => {
     if (isResetting || disabled || driverIds.length === 0 || !selectedDate) return;
 
@@ -29,6 +39,15 @@ export default function ResetPolylinesButton({
           })
         )
       );
+
+      const hasSuccessfulUpdate = results.some((result) => result?.status === "fulfilled");
+
+      if (hasSuccessfulUpdate) {
+        clearPolylineCache();
+        window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
+          detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
+        }));
+      }
 
       driverIds.forEach((driverId, index) => {
         if (results[index]?.status !== "fulfilled") return;

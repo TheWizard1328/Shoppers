@@ -172,12 +172,18 @@ export default function HereType2Polylines({
     const onDeliveryCompleted = () => setRefreshToken((t)=>t+1);
     const onDeliveryFailed = () => setRefreshToken((t)=>t+1);
     const onDeliveryAction = () => setRefreshToken((t)=>t+1);
+    const onPolylineCacheCleared = () => {
+      setCache({});
+      setLastNonEmptyLines([]);
+      setRefreshToken((t) => t + 1);
+    };
 
     window.addEventListener('routeReordered', onReorder);
     window.addEventListener('polylineUpdated', onPolyline);
     window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
     window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    window.addEventListener('polylineCacheCleared', onPolylineCacheCleared);
     window.addEventListener('deliveriesImported', onDeliveriesImported);
     // New triggers for HERE refresh
     window.addEventListener('driverStatusChanged', onDriverStatusChanged);
@@ -193,6 +199,7 @@ export default function HereType2Polylines({
       window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('deliveriesImported', onDeliveriesImported);
+      window.removeEventListener('polylineCacheCleared', onPolylineCacheCleared);
       window.removeEventListener('driverStatusChanged', onDriverStatusChanged);
       window.removeEventListener('deliveryStarted', onDeliveryStarted);
       window.removeEventListener('deliveryCompleted', onDeliveryCompleted);

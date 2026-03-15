@@ -241,11 +241,17 @@ export default function HereType1Polylines({
     const onDeliveryCompleted = invalidate;
     const onDeliveryFailed = invalidate;
     const onDeliveryAction = invalidate;
+    const onPolylineCacheCleared = () => {
+      setCache({});
+      setLastNonEmptyLines([]);
+      invalidate();
+    };
     window.addEventListener('routeReordered', onReorder);
     window.addEventListener('polylineUpdated', onPolyline);
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
     window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
+    window.addEventListener('polylineCacheCleared', onPolylineCacheCleared);
     // New triggers for HERE refresh
     window.addEventListener('driverStatusChanged', onDriverStatusChanged);
     window.addEventListener('deliveryStarted', onDeliveryStarted);
@@ -258,6 +264,7 @@ export default function HereType1Polylines({
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
       window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
+      window.removeEventListener('polylineCacheCleared', onPolylineCacheCleared);
       window.removeEventListener('driverStatusChanged', onDriverStatusChanged);
       window.removeEventListener('deliveryStarted', onDeliveryStarted);
       window.removeEventListener('deliveryCompleted', onDeliveryCompleted);
