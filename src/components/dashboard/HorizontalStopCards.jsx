@@ -500,6 +500,17 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         }
       }}>
       
+      {isDesktopFanLayout && <style>{`
+        .desktop-stop-card-shell[data-rail-condensed="true"] > [id^="stop-card-"] > .rounded-xl {
+          max-height: 96px;
+          overflow: hidden;
+        }
+
+        .desktop-stop-card-shell[data-rail-condensed="false"] > [id^="stop-card-"] > .rounded-xl {
+          min-height: 188px;
+        }
+      `}</style>}
+
       {sortedPickupCards.map((card) => {
         // CRITICAL: Add defensive check for card
         if (!card) return null;
@@ -554,7 +565,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
           <div
             key={card.id}
             id={`stop-card-${card.id}`}
-            className="flex-shrink-0 pointer-events-auto"
+            className="desktop-stop-card-shell flex-shrink-0 pointer-events-auto"
+            data-rail-condensed={isDesktopFanLayout && !isRailCentered ? 'true' : 'false'}
             style={{
               position: isDesktopFanLayout ? 'absolute' : 'relative',
               left: isDesktopFanLayout ? `${fanStyle?.left || 0}px` : undefined,
@@ -562,6 +574,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               transform: isDesktopFanLayout ? `translateY(${fanStyle?.translateY || 0}px) rotate(${fanStyle?.rotate || 0}deg)` : undefined,
               transformOrigin: isDesktopFanLayout ? 'bottom center' : undefined,
               zIndex: isDesktopFanLayout ? fanStyle?.zIndex : undefined,
+              overflow: isDesktopFanLayout && !isRailCentered ? 'hidden' : 'visible',
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal'
             }}
