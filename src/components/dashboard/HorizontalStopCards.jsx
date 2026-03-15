@@ -392,25 +392,37 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
     const selectedId = selectedCardId || desktopCenteredCardId;
     const targetElement = selectedId ? document.getElementById(`stop-card-${selectedId}`) : null;
+    const incompleteElements = sortedPickupCards
+      .filter((card) => card && !finishedStatuses.includes(card.status))
+      .map((card) => document.getElementById(`stop-card-${card.id}`))
+      .filter(Boolean);
 
     const updateHeight = () => {
-      if (!targetElement) {
-        setDesktopContainerHeight(140);
+      const targetHeight = targetElement ? Math.ceil(targetElement.offsetHeight) + 12 : 140;
+
+      if (incompleteElements.length === 0) {
+        setDesktopContainerHeight(targetHeight);
         return;
       }
-      const nextHeight = Math.ceil(targetElement.offsetHeight) + 12;
-      setDesktopContainerHeight(nextHeight);
+
+      const tallestIncompleteHeight = Math.max(
+        ...incompleteElements.map((element) => Math.ceil(element.offsetHeight) + 12),
+        140
+      );
+
+      setDesktopContainerHeight(Math.max(targetHeight, tallestIncompleteHeight));
     };
 
     updateHeight();
 
-    if (!targetElement) return;
-
     const observer = new ResizeObserver(updateHeight);
-    observer.observe(targetElement);
+    if (targetElement) {
+      observer.observe(targetElement);
+    }
+    incompleteElements.forEach((element) => observer.observe(element));
 
     return () => observer.disconnect();
-  }, [isDesktopFanLayout, selectedCardId, desktopCenteredCardId, sortedPickupCards.length]);
+  }, [isDesktopFanLayout, selectedCardId, desktopCenteredCardId, sortedPickupCards, finishedStatuses]);
 
   const desktopFanLayout = React.useMemo(() => {
     if (!isDesktopFanLayout || !sortedPickupCards.length || !containerWidth) return null;
