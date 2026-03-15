@@ -548,6 +548,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
 
         const fanStyle = desktopFanLayout?.[sortedPickupCards.findIndex((item) => item?.id === card.id)];
+        const isRailCentered = !isDesktopFanLayout || card.id === sortedPickupCards[centeredCardIndex]?.id;
 
         return (
           <div
@@ -603,7 +604,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               drivers={drivers}
               stores={stores}
               onDriverStatusChange={onDriverStatusChange}
-              appUsers={appUsers} />
+              appUsers={appUsers}
+              isRailCentered={isRailCentered} />
 
           </div>);
 
