@@ -63,6 +63,7 @@ export const createStopCardsScrollHandler = ({
           const relockPhase = centeredDelivery.isNextDelivery === true && (mapViewPhase === 2 || mapViewPhase === 3) ? mapViewPhase : null;
 
           if (mapViewPhase === 2 || mapViewPhase === 3) {
+            if (typeof window !== 'undefined') window.__fabRelockPhase = mapViewPhase;
             if (mapLockTimeoutRef.current) {
               clearTimeout(mapLockTimeoutRef.current);
               mapLockTimeoutRef.current = null;
