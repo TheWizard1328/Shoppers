@@ -3,6 +3,8 @@ export const createStopCardsScrollHandler = ({
   deliveriesWithStopOrder,
   patients,
   stores,
+  appUsers = [],
+  currentUser = null,
   mapViewPhase,
   isMapViewLocked,
   setIsMapViewLocked,
@@ -12,7 +14,8 @@ export const createStopCardsScrollHandler = ({
   setMapZoom,
   getMapPadding,
   mapLockTimeoutRef,
-  mapLockExpiresAtRef
+  mapLockExpiresAtRef,
+  onCenteredCardChange
 }) => {
   return (e) => {
     if (typeof window !== 'undefined' && !window.__isUserCardSwipe) return;
@@ -49,19 +52,25 @@ export const createStopCardsScrollHandler = ({
         closestCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }
 
-      // CRITICAL: Center map on the centered delivery's marker and unlock FAB only for user swipes
+      // CRITICAL: Center map on the centered delivery's marker + assigned driver's location,
+      // and unlock FAB when the user scrolls to any non-phase-1 centered card.
       if (centeredDeliveryId) {
         const centeredDelivery = deliveriesWithStopOrder.find(d => d?.id === centeredDeliveryId);
         if (centeredDelivery) {
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-            mapLockTimeoutRef.current = null;
-          }
-          mapLockExpiresAtRef.current = null;
-          setMapViewPhase(1);
-          setIsMapViewLocked(false);
+          const appUser = appUsers.find((user) => user?.user_id === centeredDelivery.driver_id || user?.id === centeredDelivery.driver_id);
+          const driverLat = appUser?.current_latitude;
+          const driverLon = appUser?.current_longitude;
 
-          // Center map on this delivery's marker
+          if (mapViewPhase === 2 || mapViewPhase === 3) {
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
+              mapLockTimeoutRef.current = null;
+            }
+            mapLockExpiresAtRef.current = null;
+            setIsMapViewLocked(false);
+          }
+
+          // Center map on this delivery's marker and driver location
           let stopLat, stopLon;
           if (centeredDelivery.patient_id) {
             const patient = patients.find(p => p?.id === centeredDelivery.patient_id);
@@ -73,10 +82,14 @@ export const createStopCardsScrollHandler = ({
             stopLon = store?.longitude;
           }
 
-          if (stopLat && stopLon) {
+          const bounds = [];
+          if (stopLat && stopLon) bounds.push([stopLat, stopLon]);
+          if (driverLat && driverLon) bounds.push([driverLat, driverLon]);
+
+          if (bounds.length > 0) {
             const padding = getMapPadding();
             setShouldFitBounds({
-              bounds: [[stopLat, stopLon]],
+              bounds,
               options: {
                 ...padding,
                 maxZoom: 17,
@@ -85,8 +98,14 @@ export const createStopCardsScrollHandler = ({
             });
             setMapCenter(null);
             setMapZoom(null);
-            console.log('🗺️ [Stop Card Scroll] Centered map on delivery:', centeredDelivery.patient_name || centeredDelivery.delivery_id);
           }
+
+          onCenteredCardChange?.({
+            deliveryId: centeredDelivery.id,
+            driverId: centeredDelivery.driver_id,
+            isNextDelivery: centeredDelivery.isNextDelivery === true,
+            source: 'scroll'
+          });
         }
       }
 

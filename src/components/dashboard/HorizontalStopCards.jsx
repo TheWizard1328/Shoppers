@@ -30,7 +30,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     allDeliveries = [], // NEW: Add allDeliveries prop
     selectedDate, // NEW: Add selectedDate prop
     onDriverStatusChange, // NEW: Add onDriverStatusChange prop
-    appUsers = [] // NEW: Add appUsers prop for messaging
+    appUsers = [], // NEW: Add appUsers prop for messaging
+    onCenteredCardChange
   } = props;
   // CRITICAL: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const containerRef = React.useRef(null);
@@ -376,6 +377,19 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     const nextDeliveryCard = sortedPickupCards.find((card) => card?.isNextDelivery === true);
     setDesktopCenteredCardId(nextDeliveryCard?.id || sortedPickupCards[0]?.id || null);
   }, [isDesktopFanLayout, sortedPickupCards, selectedCardId, desktopCenteredCardId]);
+
+  React.useEffect(() => {
+    if (!onCenteredCardChange || !desktopCenteredCardId) return;
+    const centeredCard = sortedPickupCards.find((card) => card?.id === desktopCenteredCardId);
+    if (!centeredCard) return;
+
+    onCenteredCardChange({
+      deliveryId: centeredCard.id,
+      driverId: centeredCard.driver_id,
+      isNextDelivery: centeredCard.isNextDelivery === true,
+      source: 'desktop_center'
+    });
+  }, [desktopCenteredCardId, sortedPickupCards, onCenteredCardChange]);
 
   const centeredCardIndex = React.useMemo(() => {
     if (!sortedPickupCards.length) return 0;
