@@ -46,6 +46,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   }, [ref]);
   const scrollTimeoutRef = React.useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(0);
+  const [desktopCenteredCardId, setDesktopCenteredCardId] = React.useState(null);
+  const wheelNavLockRef = React.useRef(0);
 
   // Define finished statuses
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -335,13 +337,38 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     return () => observer.disconnect();
   }, [sortedPickupCards.length, isDesktopFanLayout]);
 
+  React.useEffect(() => {
+    if (!isDesktopFanLayout || !sortedPickupCards.length) return;
+
+    const selectedExists = selectedCardId && sortedPickupCards.some((card) => card?.id === selectedCardId);
+    if (selectedExists) {
+      setDesktopCenteredCardId(selectedCardId);
+      return;
+    }
+
+    const existingExists = desktopCenteredCardId && sortedPickupCards.some((card) => card?.id === desktopCenteredCardId);
+    if (existingExists) {
+      return;
+    }
+
+    const nextDeliveryCard = sortedPickupCards.find((card) => card?.isNextDelivery === true);
+    setDesktopCenteredCardId(nextDeliveryCard?.id || sortedPickupCards[0]?.id || null);
+  }, [isDesktopFanLayout, sortedPickupCards, selectedCardId, desktopCenteredCardId]);
+
+  const centeredCardIndex = React.useMemo(() => {
+    if (!sortedPickupCards.length) return 0;
+    const currentIndex = sortedPickupCards.findIndex((card) => card?.id === desktopCenteredCardId);
+    if (currentIndex >= 0) return currentIndex;
+    const nextIndex = sortedPickupCards.findIndex((card) => card?.isNextDelivery === true);
+    return nextIndex >= 0 ? nextIndex : 0;
+  }, [sortedPickupCards, desktopCenteredCardId]);
+
   const desktopFanLayout = React.useMemo(() => {
     if (!isDesktopFanLayout || !sortedPickupCards.length || !containerWidth) return null;
 
     const cardWidth = 338;
     const centerLeft = Math.max(0, (containerWidth - cardWidth) / 2);
-    const nextDeliveryIndex = sortedPickupCards.findIndex((card) => card?.isNextDelivery === true);
-    const anchorIndex = nextDeliveryIndex >= 0 ? nextDeliveryIndex : Math.floor(sortedPickupCards.length / 2);
+    const anchorIndex = centeredCardIndex;
     const leftCount = anchorIndex;
     const rightCount = sortedPickupCards.length - anchorIndex - 1;
     const leftStep = leftCount > 0 ? centerLeft / leftCount : Infinity;
@@ -354,17 +381,16 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     return sortedPickupCards.map((card, index) => {
       const offset = index - anchorIndex;
       const distance = Math.abs(offset);
-      const isAnchorCard = index === anchorIndex;
-      const isSelectedCard = selectedCardId === card?.id;
+      const isCenteredCard = index === anchorIndex;
 
       return {
         left: centerLeft + offset * step,
-        rotate: isSelectedCard ? 0 : Math.max(-10, Math.min(10, offset * 1.8)),
-        translateY: isAnchorCard || isSelectedCard ? 0 : Math.min(18, distance * 3),
-        zIndex: isAnchorCard ? 2000 : isSelectedCard ? 1900 : 1000 - distance
+        rotate: isCenteredCard ? 0 : Math.max(-10, Math.min(10, offset * 1.8)),
+        translateY: 0,
+        zIndex: isCenteredCard ? 2000 : 1000 - distance
       };
     });
-  }, [isDesktopFanLayout, sortedPickupCards, containerWidth, selectedCardId]);
+  }, [isDesktopFanLayout, sortedPickupCards, containerWidth, centeredCardIndex]);
 
   if (!pickupCards || !Array.isArray(pickupCards) || pickupCards.length === 0) {
     return null;
@@ -390,9 +416,23 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         paddingBottom: hasBottomNav ? 'calc(var(--bottom-nav-height, 64px))' : undefined
       }}
       onWheel={(e) => {
-        if (!isDesktopFanLayout) {
-          e.currentTarget.scrollLeft += e.deltaY;
+        if (isDesktopFanLayout) {
+          e.preventDefault();
+          const axisDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+          if (Math.abs(axisDelta) < 8) return;
+          if (Date.now() - wheelNavLockRef.current < 120) return;
+
+          wheelNavLockRef.current = Date.now();
+          const direction = axisDelta > 0 ? 1 : -1;
+          const nextIndex = Math.max(0, Math.min(sortedPickupCards.length - 1, centeredCardIndex + direction));
+          const nextCard = sortedPickupCards[nextIndex];
+          if (nextCard?.id) {
+            setDesktopCenteredCardId(nextCard.id);
+          }
+          return;
         }
+
+        e.currentTarget.scrollLeft += e.deltaY;
       }}
       onScroll={() => {
         if (!isDesktopFanLayout) {
