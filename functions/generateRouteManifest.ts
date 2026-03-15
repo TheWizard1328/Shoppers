@@ -85,6 +85,18 @@ Deno.serve(async (req) => {
       });
     }
 
+    const patientIds = [...new Set(items.map((item) => item?.patient_id).filter(Boolean))];
+    const manifestPatients = patientIds.length > 0
+      ? await base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } })
+      : [];
+    const patientNameMap = new Map((manifestPatients || []).map((patient) => [patient.id, patient.full_name || patient.patient_id || patient.id]));
+
+    const manifestStoreIds = [...new Set(items.map((item) => item?.store_id).filter(Boolean))];
+    const manifestStores = manifestStoreIds.length > 0
+      ? await base44.asServiceRole.entities.Store.filter({ id: { $in: manifestStoreIds } })
+      : [];
+    const storeNameMap = new Map((manifestStores || []).map((store) => [store.id, store.name || store.abbreviation || store.id]));
+
     // Helper: extract just HH:MM time from various time formats
     function extractTime(timeStr) {
       if (!timeStr) return '';
@@ -246,7 +258,9 @@ Deno.serve(async (req) => {
 
       // Calculate row height needed
       const isPickup = !d?.patient_id;
-      const name = isPickup ? (d?.delivery_notes || 'Store Pickup') : (d?.patient_name || '');
+      const name = isPickup
+        ? (storeNameMap.get(d?.store_id) || d?.delivery_notes || 'Store Pickup')
+        : (patientNameMap.get(d?.patient_id) || d?.patient_name || '');
       const driverName = driverNameMap.get(d?.driver_id) || d?.driver_name || d?.driver_id || '';
       const createdBy = creatorNameMap.get(d?.created_by_app_user_id) || d?.created_by_app_user_id || '';
       const notes = d?.delivery_instructions || d?.delivery_notes || '';
