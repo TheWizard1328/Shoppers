@@ -125,7 +125,7 @@ export default function MapController({
           eventName: 'map_double_tapped',
           properties: { zoom_level: mapInstance.getZoom() }
         });
-        if (onDoubleTap) onDoubleTap();
+        if (onDoubleTap) onDoubleTap(true);
       }
       
       lastTapRef.current = now;
