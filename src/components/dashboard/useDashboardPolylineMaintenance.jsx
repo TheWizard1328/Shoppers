@@ -56,12 +56,9 @@ export function useDashboardPolylineMaintenance({
         )
       );
 
-      driverIdsToRepair.forEach((driverId, index) => {
+      driverIdsToRepair.forEach((driverId) => {
         const repairKey = `${driverId}__${dateStr}`;
         polylineRepairInFlightRef.current.delete(repairKey);
-        if (repairResults[index]?.status === 'fulfilled') {
-          repairedDriverDatesRef.current.add(repairKey);
-        }
       });
 
       if (cancelled) return;
