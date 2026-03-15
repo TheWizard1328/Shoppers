@@ -9,6 +9,7 @@ import { sumApiLogCalls } from "@/components/utils/apiUsageLog";
 export function useDashboardPolylineMaintenance({
   currentUser,
   selectedDate,
+  selectedDriverId,
   deliveries,
   isDataLoaded,
   dataReadyForSelectedDate,
@@ -17,14 +18,19 @@ export function useDashboardPolylineMaintenance({
 }) {
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const polylineRepairInFlightRef = useRef(new Set());
+  const autoRepairTriggeredRef = useRef(new Set());
 
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !dataReadyForSelectedDate || isSnapshotModeActive) return;
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const selectedDateDeliveries = (deliveries || []).filter((delivery) => delivery && delivery.delivery_date === dateStr);
+    const selectedScopeKey = `${dateStr}__${selectedDriverId || 'all'}`;
+    const selectedDateDeliveries = (deliveries || [])
+      .filter((delivery) => delivery && delivery.delivery_date === dateStr)
+      .filter((delivery) => selectedDriverId === 'all' || !selectedDriverId || delivery.driver_id === selectedDriverId);
 
     if (selectedDateDeliveries.length === 0) return;
+    if (autoRepairTriggeredRef.current.has(selectedScopeKey)) return;
 
     const uniqueDriverIds = [...new Set(selectedDateDeliveries.map((delivery) => delivery.driver_id).filter(Boolean))];
     const driverIdsToRepair = uniqueDriverIds.filter((driverId) => {
@@ -40,6 +46,7 @@ export function useDashboardPolylineMaintenance({
 
     if (driverIdsToRepair.length === 0) return;
 
+    autoRepairTriggeredRef.current.add(selectedScopeKey);
     let cancelled = false;
 
     const runPolylineRepair = async () => {
@@ -64,7 +71,10 @@ export function useDashboardPolylineMaintenance({
       if (cancelled) return;
 
       const anyRepairCompleted = repairResults.some((result) => result.status === 'fulfilled');
-      if (!anyRepairCompleted) return;
+      if (!anyRepairCompleted) {
+        autoRepairTriggeredRef.current.delete(selectedScopeKey);
+        return;
+      }
 
       const refreshedDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
       if (cancelled) return;
@@ -91,7 +101,7 @@ export function useDashboardPolylineMaintenance({
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally]);
+  }, [currentUser, selectedDate, selectedDriverId, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally]);
 
   const fetchPolylineCount = useCallback(async () => {
     if (!currentUser || !isAppOwner(currentUser)) return;
