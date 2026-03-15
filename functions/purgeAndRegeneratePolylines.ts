@@ -36,7 +36,6 @@ function encodeGooglePolyline(points) {
     lastLat = latE5;
     lastLng = lngE5;
   }
-
   return encoded;
 }
 
