@@ -337,7 +337,33 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   const desktopFanLayout = React.useMemo(() => {
     if (!isDesktopFanLayout || !sortedPickupCards.length || !containerWidth) return null;
-...
+
+    const cardWidth = 338;
+    const centerLeft = Math.max(0, (containerWidth - cardWidth) / 2);
+    const nextDeliveryIndex = sortedPickupCards.findIndex((card) => card?.isNextDelivery === true);
+    const anchorIndex = nextDeliveryIndex >= 0 ? nextDeliveryIndex : Math.floor(sortedPickupCards.length / 2);
+    const leftCount = anchorIndex;
+    const rightCount = sortedPickupCards.length - anchorIndex - 1;
+    const leftStep = leftCount > 0 ? centerLeft / leftCount : Infinity;
+    const rightStep = rightCount > 0 ? centerLeft / rightCount : Infinity;
+
+    let step = Math.min(leftStep, rightStep, 86);
+    if (!Number.isFinite(step)) step = 86;
+    step = Math.max(18, step);
+
+    return sortedPickupCards.map((card, index) => {
+      const offset = index - anchorIndex;
+      const distance = Math.abs(offset);
+      const isAnchorCard = index === anchorIndex;
+      const isSelectedCard = selectedCardId === card?.id;
+
+      return {
+        left: centerLeft + offset * step,
+        rotate: isSelectedCard ? 0 : Math.max(-10, Math.min(10, offset * 1.8)),
+        translateY: isAnchorCard || isSelectedCard ? 0 : Math.min(18, distance * 3),
+        zIndex: isAnchorCard ? 2000 : isSelectedCard ? 1900 : 1000 - distance
+      };
+    });
   }, [isDesktopFanLayout, sortedPickupCards, containerWidth, selectedCardId]);
 
   if (!pickupCards || !Array.isArray(pickupCards) || pickupCards.length === 0) {
