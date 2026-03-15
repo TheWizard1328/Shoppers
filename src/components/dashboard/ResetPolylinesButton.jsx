@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { clearHereCacheForDriverDate } from "@/components/utils/hereRouting";
+import { offlineDB } from "@/components/utils/offlineDatabase";
+import { updateDeliveryLocal } from "@/components/utils/offlineMutations";
 import { Loader2, RotateCcw } from "lucide-react";
 
 export default function ResetPolylinesButton({
@@ -27,12 +29,47 @@ export default function ResetPolylinesButton({
     } catch (_) {}
   };
 
+  const clearFinishedLegPolylinesLocal = async () => {
+    const deliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, "delivery_date", selectedDate);
+    const matches = (deliveries || []).filter((delivery) =>
+      driverIds.includes(delivery?.driver_id) &&
+      typeof delivery?.finished_leg_encoded_polyline === "string" &&
+      delivery.finished_leg_encoded_polyline.trim().length > 0
+    );
+
+    await Promise.all(
+      matches.map((delivery) =>
+        updateDeliveryLocal(
+          delivery.id,
+          { finished_leg_encoded_polyline: "" },
+          { skipSmartRefresh: true, isBatchOperation: true }
+        )
+      )
+    );
+  };
+
+  const syncDriverDateDeliveriesFromBackend = async (successfulDriverIds) => {
+    const deliveryGroups = await Promise.all(
+      successfulDriverIds.map((driverId) =>
+        base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: selectedDate }, undefined, 50000)
+      )
+    );
+
+    const refreshedDeliveries = deliveryGroups.flat().filter(Boolean);
+    if (refreshedDeliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, refreshedDeliveries);
+    }
+
+    return refreshedDeliveries;
+  };
+
   const handleReset = async () => {
     if (isResetting || disabled || driverIds.length === 0 || !selectedDate) return;
 
     setIsResetting(true);
 
     await Promise.all(driverIds.map((driverId) => clearHereCacheForDriverDate(driverId, selectedDate)));
+    await clearFinishedLegPolylinesLocal();
     clearPolylineCache();
     window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
       detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
@@ -48,17 +85,18 @@ export default function ResetPolylinesButton({
         )
       );
 
-      const hasSuccessfulUpdate = results.some((result) => result?.status === "fulfilled");
+      const successfulDriverIds = driverIds.filter((_, index) => results[index]?.status === "fulfilled");
+      const hasSuccessfulUpdate = successfulDriverIds.length > 0;
 
       if (hasSuccessfulUpdate) {
+        await syncDriverDateDeliveriesFromBackend(successfulDriverIds);
         clearPolylineCache();
         window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
-          detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
+          detail: { driverIds: successfulDriverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
         }));
       }
 
-      driverIds.forEach((driverId, index) => {
-        if (results[index]?.status !== "fulfilled") return;
+      successfulDriverIds.forEach((driverId) => {
         window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
           detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
         }));

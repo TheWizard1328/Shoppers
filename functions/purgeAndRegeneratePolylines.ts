@@ -190,8 +190,32 @@ Deno.serve(async (req) => {
       ));
     }
 
+    const deliveriesToClear = Array.isArray(deliveries)
+      ? deliveries.filter((delivery) => typeof delivery?.finished_leg_encoded_polyline === 'string'
+          ? delivery.finished_leg_encoded_polyline.trim().length > 0
+          : !!delivery?.finished_leg_encoded_polyline)
+      : [];
+
+    if (deliveriesToClear.length > 0) {
+      await Promise.all(
+        deliveriesToClear.map((delivery) =>
+          base44.asServiceRole.entities.Delivery.update(delivery.id, {
+            finished_leg_encoded_polyline: ''
+          })
+        )
+      );
+    }
+
     if (!Array.isArray(deliveries) || deliveries.length === 0) {
-      return Response.json({ success: true, deleted: existingPolylines?.length || 0, created: 0, apiCallsMade: 0, segments: [] });
+      return Response.json({
+        success: true,
+        deleted: existingPolylines?.length || 0,
+        created: 0,
+        apiCallsMade: 0,
+        segments: [],
+        clearedFinishedLegs: deliveriesToClear.length,
+        regeneratedFinishedLegs: 0
+      });
     }
 
     const patientIds = [...new Set(deliveries.filter((d) => d?.patient_id).map((d) => d.patient_id))];
@@ -227,20 +251,48 @@ Deno.serve(async (req) => {
       return null;
     };
 
-    const completedStops = deliveries
+    const finishedStops = deliveries
       .filter((delivery) => FINISHED_STATUSES.has(delivery.status))
       .sort((a, b) => {
         const aTime = new Date(a.actual_delivery_time || a.updated_date || a.created_date || 0).getTime();
         const bTime = new Date(b.actual_delivery_time || b.updated_date || b.created_date || 0).getTime();
-        return bTime - aTime;
+        if (aTime !== bTime) return aTime - bTime;
+        return (a.stop_order || 0) - (b.stop_order || 0);
       });
+
+    let apiCallsMade = 0;
+    const regeneratedFinishedLegStopIds = [];
+
+    for (let index = 1; index < finishedStops.length; index += 1) {
+      const fromStop = getLatLon(finishedStops[index - 1]);
+      const toStop = getLatLon(finishedStops[index]);
+      if (!fromStop || !toStop) continue;
+
+      const directions = await getSegmentDirections(base44, fromStop, toStop);
+      apiCallsMade += 1;
+
+      await base44.asServiceRole.entities.Delivery.update(finishedStops[index].id, {
+        finished_leg_encoded_polyline: directions.encoded_polyline || ''
+      });
+
+      regeneratedFinishedLegStopIds.push(finishedStops[index].id);
+    }
 
     const activeStops = deliveries
       .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
     if (activeStops.length === 0) {
-      return Response.json({ success: true, deleted: existingPolylines?.length || 0, created: 0, apiCallsMade: 0, segments: [] });
+      return Response.json({
+        success: true,
+        deleted: existingPolylines?.length || 0,
+        created: 0,
+        apiCallsMade,
+        segments: [],
+        clearedFinishedLegs: deliveriesToClear.length,
+        regeneratedFinishedLegs: regeneratedFinishedLegStopIds.length,
+        regeneratedFinishedLegStopIds
+      });
     }
 
     const segmentSpecs = [];
@@ -278,7 +330,6 @@ Deno.serve(async (req) => {
       pushSegment(lastActive, { lat: homeLat, lon: homeLon });
     }
 
-    let apiCallsMade = 0;
     const createdSegments = [];
 
     for (const spec of segmentSpecs) {
@@ -308,7 +359,10 @@ Deno.serve(async (req) => {
       deleted: existingPolylines?.length || 0,
       created: createdSegments.length,
       apiCallsMade,
-      segments: createdSegments
+      segments: createdSegments,
+      clearedFinishedLegs: deliveriesToClear.length,
+      regeneratedFinishedLegs: regeneratedFinishedLegStopIds.length,
+      regeneratedFinishedLegStopIds
     });
   } catch (error) {
     console.error('[purgeAndRegeneratePolylines] Error:', error?.message || error);
