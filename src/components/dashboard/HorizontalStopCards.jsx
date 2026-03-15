@@ -66,6 +66,27 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const prevSelectedCardIdRef = React.useRef(null);
   const autoScrollEnabledRef = React.useRef(true);
   const touchStartXRef = React.useRef(null);
+  const isMobile = isMobileDevice();
+  const { deviceType } = getUserAgentInfo();
+  const isTabletPortrait = deviceType === 'Tablet' && getOrientation() === 'portrait';
+  const isDesktopFanLayout = !isMobile && !isTabletPortrait;
+  const hasBottomNav = isMobile || isTabletPortrait;
+
+  // Helper function to smoothly scroll to center a specific card element
+  const scrollToCenterCard = React.useCallback((cardElement) => {
+    const container = containerRef.current;
+    if (!container || !cardElement) return;
+
+    const containerWidth = container.offsetWidth;
+    const cardOffsetLeft = cardElement.offsetLeft;
+    const cardWidth = cardElement.offsetWidth;
+    const scrollTarget = cardOffsetLeft - containerWidth / 2 + cardWidth / 2;
+
+    container.scrollTo({
+      left: scrollTarget,
+      behavior: 'smooth'
+    });
+  }, []);
 
   // CRITICAL: Listen for collapseAllStopCards event
   React.useEffect(() => {
