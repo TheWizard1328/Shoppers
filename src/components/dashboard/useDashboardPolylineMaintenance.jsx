@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { invalidateDeliveriesForDate } from "@/components/utils/dataManager";
+import { globalFilters } from "@/components/utils/globalFilters";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { sumApiLogCalls } from "@/components/utils/apiUsageLog";
 
@@ -24,10 +25,11 @@ export function useDashboardPolylineMaintenance({
     if (!currentUser || !isDataLoaded || !dataReadyForSelectedDate || isSnapshotModeActive) return;
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const selectedScopeKey = `${dateStr}__${selectedDriverId || 'all'}`;
+    const activeSelectedDriverId = selectedDriverId || globalFilters.getSelectedDriverId() || 'all';
+    const selectedScopeKey = `${dateStr}__${activeSelectedDriverId}`;
     const selectedDateDeliveries = (deliveries || [])
       .filter((delivery) => delivery && delivery.delivery_date === dateStr)
-      .filter((delivery) => selectedDriverId === 'all' || !selectedDriverId || delivery.driver_id === selectedDriverId);
+      .filter((delivery) => activeSelectedDriverId === 'all' || !activeSelectedDriverId || delivery.driver_id === activeSelectedDriverId);
 
     if (selectedDateDeliveries.length === 0) return;
     if (autoRepairTriggeredRef.current.has(selectedScopeKey)) return;
