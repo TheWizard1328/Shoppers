@@ -1138,25 +1138,7 @@ export default function StopCard({
     }
   };
 
-  // Determine if card should be faded
-  // CRITICAL: Only fade finished stops on delivery date (not past dates or future)
-  const shouldFade = useMemo(() => {
-    if (!delivery) return false;
-
-    // Don't fade if expanded, hovered, or centered in the rail
-    if (isExpanded || isHovered || isRailCentered) return false;
-
-    // Get today and delivery date at start of day
-    const today = startOfDay(new Date());
-    const deliveryDateObj = startOfDay(new Date(delivery.delivery_date + 'T00:00:00'));
-
-    // Only fade if: delivery date matches today AND has finished status
-    if (deliveryDateObj.getTime() === today.getTime() && FINISHED_STATUSES.includes(delivery.status)) {
-      return true;
-    }
-
-    return false;
-  }, [delivery, delivery?.status, isExpanded, isHovered, isRailCentered]);
+  const shouldFade = false;
 
   return (
     <motion.div
