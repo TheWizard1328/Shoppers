@@ -103,6 +103,20 @@ function makeSegmentKey(driverId, date, from, to) {
   ].join('|');
 }
 
+function getEdmontonDateString(value = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Edmonton',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date(value));
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+}
+
 async function getSegmentDirections(base44, from, to) {
   const response = await base44.functions.invoke('getHereDirections', {
     origin: { lat: from.lat, lng: from.lon },
@@ -244,8 +258,9 @@ Deno.serve(async (req) => {
     const firstActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
     const currentLat = Number(driverAppUser?.current_latitude);
     const currentLon = Number(driverAppUser?.current_longitude);
+    const isToday = deliveryDate === getEdmontonDateString();
 
-    if (Number.isFinite(currentLat) && Number.isFinite(currentLon)) {
+    if (isToday && Number.isFinite(currentLat) && Number.isFinite(currentLon)) {
       pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
     }
 

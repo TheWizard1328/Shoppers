@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
+import { clearHereCacheForDriverDate } from "@/components/utils/hereRouting";
 import { Loader2, RotateCcw } from "lucide-react";
 
 export default function ResetPolylinesButton({
@@ -30,6 +31,8 @@ export default function ResetPolylinesButton({
     if (isResetting || disabled || driverIds.length === 0 || !selectedDate) return;
 
     setIsResetting(true);
+
+    await Promise.all(driverIds.map((driverId) => clearHereCacheForDriverDate(driverId, selectedDate)));
     clearPolylineCache();
     window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
       detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }

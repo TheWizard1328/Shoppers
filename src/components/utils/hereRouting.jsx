@@ -36,6 +36,21 @@ export function clearHereCacheForSegment(from, to) {
   } catch (_) {}
 }
 
+export async function clearHereCacheForDriverDate(driverId, deliveryDate) {
+  try {
+    const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
+    const matches = (rows || []).filter((row) => row?.driver_id === driverId);
+
+    for (const row of matches) {
+      clearHereCacheForSegment(
+        { latitude: row.segment_origin_lat, longitude: row.segment_origin_lon },
+        { latitude: row.segment_dest_lat, longitude: row.segment_dest_lon }
+      );
+      try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id); } catch (_) {}
+    }
+  } catch (_) {}
+}
+
 let polylineSubscribed = false;
 export const ensurePolylineSubscription = () => {
   if (polylineSubscribed) return;
