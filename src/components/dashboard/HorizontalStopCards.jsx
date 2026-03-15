@@ -34,7 +34,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   } = props;
   // CRITICAL: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const containerRef = React.useRef(null);
-  
+
   // CRITICAL: Combine refs - both the forwarded ref and internal containerRef
   const setRefs = React.useCallback((node) => {
     containerRef.current = node;
@@ -52,9 +52,9 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   // CRITICAL FIX: Filter out invalid cards and dedupe by id BEFORE sorting/mapping
   const validCards = Array.from(
     new Map(
-      pickupCards
-        .filter((card) => card && card.id)
-        .map((card) => [card.id, card])
+      pickupCards.
+      filter((card) => card && card.id).
+      map((card) => [card.id, card])
     ).values()
   );
 
@@ -73,9 +73,9 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         onCardClick(null);
       }
     };
-    
+
     window.addEventListener('collapseAllStopCards', handleCollapseAll);
-    
+
     return () => {
       window.removeEventListener('collapseAllStopCards', handleCollapseAll);
     };
@@ -99,10 +99,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         onCardClick(null);
       }
     };
-    
+
     window.addEventListener('collapseAllStopCards', handleCollapseAll);
     window.addEventListener('collapseSelectedStopCard', handleCollapseSelected);
-    
+
     return () => {
       window.removeEventListener('collapseAllStopCards', handleCollapseAll);
       window.removeEventListener('collapseSelectedStopCard', handleCollapseSelected);
@@ -117,7 +117,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     const containerWidth = container.offsetWidth;
     const cardOffsetLeft = cardElement.offsetLeft;
     const cardWidth = cardElement.offsetWidth;
-    const scrollTarget = cardOffsetLeft - (containerWidth / 2) + (cardWidth / 2);
+    const scrollTarget = cardOffsetLeft - containerWidth / 2 + cardWidth / 2;
 
     container.scrollTo({
       left: scrollTarget,
@@ -129,20 +129,20 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const isNextDeliveryCardCentered = React.useCallback(() => {
     const container = containerRef.current;
     if (!container) return false;
-    
+
     const nextCard = validCards.find((card) => card?.isNextDelivery === true);
     if (!nextCard) return false;
-    
+
     const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
     if (!cardElement) return false;
-    
+
     const containerRect = container.getBoundingClientRect();
     const cardRect = cardElement.getBoundingClientRect();
-    
+
     const containerCenter = containerRect.left + containerRect.width / 2;
     const cardCenter = cardRect.left + cardRect.width / 2;
     const distanceFromCenter = Math.abs(cardCenter - containerCenter);
-    
+
     // Consider centered if within 50px of center
     return distanceFromCenter < 50;
   }, [validCards]);
@@ -162,7 +162,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         }
       }
     };
-    
+
     const handleSmartRefreshComplete = () => {
       // RULE 2: Collapse all cards, then center next delivery if not centered
       if (!isNextDeliveryCardCentered()) {
@@ -170,7 +170,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
         }
-        
+
         setTimeout(() => {
           const nextCard = validCards.find((card) => card?.isNextDelivery === true);
           if (nextCard) {
@@ -182,10 +182,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         }, 100);
       }
     };
-    
+
     window.addEventListener('incompleteDeliveriesCountChanged', handleIncompleteCountChanged);
     window.addEventListener('smartRefreshComplete', handleSmartRefreshComplete);
-    
+
     return () => {
       window.removeEventListener('incompleteDeliveriesCountChanged', handleIncompleteCountChanged);
       window.removeEventListener('smartRefreshComplete', handleSmartRefreshComplete);
@@ -244,10 +244,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   // NOW we can do the safety check and early return
   if (!pickupCards || !Array.isArray(pickupCards) || pickupCards.length === 0) {
-    return //(
-      //<div className="text-center py-1 text-slate-500 z-[100]">
-      //  No pickups scheduled
-      //</div> ); 
+    return; //(
+    //<div className="text-center py-1 text-slate-500 z-[100]">
+    //  No pickups scheduled
+    //</div> ); 
   }
 
   // Sort pickup cards: completed deliveries first (by actual_delivery_time), then incomplete (by ETA/stop_order)
@@ -328,8 +328,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   return (
     <div
-      ref={setRefs} 
-      className="flex gap-3 overflow-x-auto overflow-y-hidden items-end min-h-[75px] pointer-events-auto z-[200]"
+      ref={setRefs} className="flex gap-3 overflow-x-auto overflow-y-hidden items-end min-h-[70px] pointer-events-auto z-[200]"
+
       style={{
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
@@ -397,11 +397,11 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
 
         return (
-          <div 
-            key={card.id} 
-            id={`stop-card-${card.id}`} 
-            className="flex-shrink-0 pointer-events-auto" 
-            style={{ 
+          <div
+            key={card.id}
+            id={`stop-card-${card.id}`}
+            className="flex-shrink-0 pointer-events-auto"
+            style={{
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal'
             }}
