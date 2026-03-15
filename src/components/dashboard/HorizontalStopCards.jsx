@@ -46,6 +46,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   }, [ref]);
   const scrollTimeoutRef = React.useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(0);
+  const [desktopContainerHeight, setDesktopContainerHeight] = React.useState(188);
   const [desktopCenteredCardId, setDesktopCenteredCardId] = React.useState(null);
   const wheelNavLockRef = React.useRef(0);
 
@@ -363,6 +364,35 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     return nextIndex >= 0 ? nextIndex : 0;
   }, [sortedPickupCards, desktopCenteredCardId]);
 
+  React.useEffect(() => {
+    if (!isDesktopFanLayout) {
+      setDesktopContainerHeight(188);
+      return;
+    }
+
+    const collapsedHeight = 188;
+    const selectedId = selectedCardId || desktopCenteredCardId;
+    const targetElement = selectedId ? document.getElementById(`stop-card-${selectedId}`) : null;
+
+    const updateHeight = () => {
+      if (!targetElement) {
+        setDesktopContainerHeight(collapsedHeight);
+        return;
+      }
+      const nextHeight = Math.max(collapsedHeight, Math.ceil(targetElement.offsetHeight) + 12);
+      setDesktopContainerHeight(nextHeight);
+    };
+
+    updateHeight();
+
+    if (!targetElement) return;
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(targetElement);
+
+    return () => observer.disconnect();
+  }, [isDesktopFanLayout, selectedCardId, desktopCenteredCardId, sortedPickupCards.length]);
+
   const desktopFanLayout = React.useMemo(() => {
     if (!isDesktopFanLayout || !sortedPickupCards.length || !containerWidth) return null;
 
@@ -402,8 +432,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       style={{
         position: isDesktopFanLayout ? 'relative' : 'static',
         display: isDesktopFanLayout ? 'block' : 'flex',
-        height: isDesktopFanLayout ? '188px' : 'auto',
-        minHeight: isDesktopFanLayout ? '188px' : '70px',
+        height: isDesktopFanLayout ? `${desktopContainerHeight}px` : 'auto',
+        minHeight: isDesktopFanLayout ? `${desktopContainerHeight}px` : '70px',
         overflowX: isDesktopFanLayout ? 'hidden' : 'auto',
         overflowY: isDesktopFanLayout ? 'visible' : 'hidden',
         scrollbarWidth: 'none',
