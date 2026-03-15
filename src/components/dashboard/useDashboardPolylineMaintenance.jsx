@@ -22,6 +22,10 @@ export function useDashboardPolylineMaintenance({
   const autoRepairTriggeredRef = useRef(new Set());
 
   useEffect(() => {
+    autoRepairTriggeredRef.current.clear();
+  }, [selectedDate, selectedDriverId]);
+
+  useEffect(() => {
     if (!currentUser || !isDataLoaded || !dataReadyForSelectedDate || isSnapshotModeActive) return;
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
