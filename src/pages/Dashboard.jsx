@@ -2021,117 +2021,57 @@ function Dashboard() {
   }, [showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant, setIsFormOverlayOpen]);
 
   /* Map Cycle FAB rules (condensed) */
-  const handleMapViewCycle = useCallback(() => {
-    // CRITICAL: Allow dispatchers and admins to use FAB
-    if (!isDriver && !isDispatcher && !isAdmin) {
+  const handleMapViewCycle = useCallback((forceReactivate = false) => {
+    if (!isDriver && !isDispatcher && !isAdmin) return;
+    setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);
+
+    const triggerPhase = (phase, unlockMs = null) => {
+      setIsMapViewLocked(true);setMapViewPhase(phase);
+      lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger((prev) => prev + 1);
+      if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', phase);
+      setTimeout(() => {
+        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true) || deliveriesWithStopOrder.find((d) => d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status));
+        const cardElement = nextCard?.id ? document.getElementById(`stop-card-${nextCard.id}`) : null;
+        if (cardElement) cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }, 300);
+      if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null; }
+      mapLockExpiresAtRef.current = null;
+      if (unlockMs != null) {
+        const expiresAt = Date.now() + unlockMs;
+        mapLockExpiresAtRef.current = expiresAt;
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;
+          }
+        }, unlockMs);
+      }
+    };
+
+    if (forceReactivate) {
+      if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null; }
+      mapLockExpiresAtRef.current = null;
+      if (isMapViewLocked) {
+        setIsMapViewLocked(false);
+        setTimeout(() => triggerPhase(mapViewPhase, mapViewPhase === 1 ? 100 : null), 100);
+        return;
+      }
+      triggerPhase(mapViewPhase, mapViewPhase === 1 ? 100 : null);
       return;
     }
 
-    // Ensure UI panels are collapsed before re-zoom/center
-    setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);
-
-    let newMapViewPhase;
-
-    // CLICKING UNLOCKED FAB (gray) → Re-activate current phase
-    if (!isMapViewLocked) {
-      newMapViewPhase = mapViewPhase;
-    } else {
-      // CLICKING LOCKED FAB (blue) → Advance to next phase
-      const nextPhase = mapViewPhase % 3 + 1;
-
-      newMapViewPhase = nextPhase;
-
-      // NOTE: Dispatchers CAN use Phase 2 - it shows active driver locations + their next stops
-
-      // CRITICAL: For drivers, check phase validity
-      if (isDriver) {
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
-        const hasIncompleteDeliveries = deliveriesWithStopOrder.some((d) =>
-        d && d.driver_id === currentUser?.id && !finishedStatuses.includes(d.status)
-        );
-
-        // Skip phase 2 if no incomplete deliveries OR no next stop coordinates
-        if (newMapViewPhase === 2 && (!hasIncompleteDeliveries || !nextStopCoordinates)) {
-          newMapViewPhase = 3;
-        }
-        // Skip phase 3 if not on mobile AND no driver markers
-        const hasDriverMarkers = allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude;
-        if (newMapViewPhase === 3 && (!hasIncompleteDeliveries || !isMobile && !hasDriverMarkers)) {
-          newMapViewPhase = 1;
-        }
-        // Double-check phase 2 validity
-        if (newMapViewPhase === 2 && (!hasIncompleteDeliveries || !nextStopCoordinates)) {
-          newMapViewPhase = 1;
-        }
-      }
-
+    let newMapViewPhase = isMapViewLocked ? mapViewPhase % 3 + 1 : mapViewPhase;
+    if (isDriver) {
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+      const hasIncompleteDeliveries = deliveriesWithStopOrder.some((d) => d && d.driver_id === currentUser?.id && !finishedStatuses.includes(d.status));
+      if (newMapViewPhase === 2 && (!hasIncompleteDeliveries || !nextStopCoordinates)) newMapViewPhase = 3;
+      const hasDriverMarkers = allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude;
+      if (newMapViewPhase === 3 && (!hasIncompleteDeliveries || !isMobile && !hasDriverMarkers)) newMapViewPhase = 1;
+      if (newMapViewPhase === 2 && (!hasIncompleteDeliveries || !nextStopCoordinates)) newMapViewPhase = 1;
     }
 
-    // CRITICAL: Set lock IMMEDIATELY and update phase
-    setIsMapViewLocked(true);
-    setMapViewPhase(newMapViewPhase);
-
-    // CRITICAL: Mark this as programmatic BEFORE triggering map view
-    lastProgrammaticMapMoveRef.current = Date.now();
-    window._lastProgrammaticMapMove = Date.now();
-
-    // Trigger map repositioning AFTER marking as programmatic
-    setMapViewTrigger((prev) => prev + 1);
-
-    // Save to user settings
-    if (currentUser?.id) {
-      saveSetting(currentUser.id, 'fab_map_cycle_phase', newMapViewPhase);
-    }
-
-    // CRITICAL: Auto-center to next delivery card for ALL phases
-    setTimeout(() => {
-      const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-      if (nextCard) {
-        const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-        if (cardElement) {
-          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-      } else {
-        // Fallback: if no next delivery, center on first incomplete
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
-        const firstIncomplete = deliveriesWithStopOrder.find((d) =>
-        d && !finishedStatuses.includes(d.status)
-        );
-        if (firstIncomplete) {
-          const cardElement = document.getElementById(`stop-card-${firstIncomplete.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          }
-        }
-      }
-    }, 300);
-
-    // PHASE 1: Set timer for 3-second auto-unlock
-    // PHASE 2 & 3: NO TIMER - stay locked permanently
-    if (newMapViewPhase === 1) {
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-
-      mapLockTimeoutRef.current = setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-        }
-      }, lockDuration);
-
-    } else if (newMapViewPhase === 2 || newMapViewPhase === 3) {
-      // Phase 2 & 3 - NO timer, stay locked PERMANENTLY until FAB is clicked again
-      // CRITICAL: Clear any existing timers to prevent accidental unlock
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
-      mapLockExpiresAtRef.current = null;
-
-    }
-  }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder]);
+    triggerPhase(newMapViewPhase, newMapViewPhase === 1 ? 3000 : null);
+  }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder, allDriverLocations, driverLocation]);
 
   // Track if the current map positioning was triggered by FAB (not by data refresh)
   const mapPositioningTriggerRef = useRef(null);
