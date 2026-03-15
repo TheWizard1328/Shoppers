@@ -119,6 +119,14 @@ export default function SquareManagement() {
       const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
       const data = response?.data || response || {};
 
+      if (data.rate_limited) {
+        const { items } = await refreshSquareView(locationIds);
+        toast.message(`Square sync is busy — using cached data (${items.length} active items)`);
+        setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
+        setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
+        return;
+      }
+
       if (!data.success) throw new Error(data.error || 'Sync failed');
 
       setBgSyncProgress({ stage: 'payments_sync' });
@@ -255,7 +263,12 @@ export default function SquareManagement() {
           const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
           const data = response?.data || response || {};
 
-          if (data.success) {
+          if (data.rate_limited) {
+            await refreshSquareView(syncedLocationIds);
+            await loadSyncStatus();
+            setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
+            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
+          } else if (data.success) {
             setBgSyncProgress({ stage: 'payments_sync' });
             const { items } = await refreshSquareView(syncedLocationIds);
 
