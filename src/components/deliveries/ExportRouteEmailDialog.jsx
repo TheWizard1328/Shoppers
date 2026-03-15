@@ -104,7 +104,10 @@ export default function ExportRouteEmailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-2xl max-h-[85vh] overflow-y-auto"
+        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
+      >
         <DialogHeader>
           <DialogTitle>Route export emails</DialogTitle>
           <DialogDescription>
@@ -124,19 +127,27 @@ export default function ExportRouteEmailDialog({
         ) : (
           <div className="space-y-4">
             {stores.map((store) => (
-              <div key={store.id} className="rounded-xl border p-4 space-y-3 bg-white">
+              <div
+                key={store.id}
+                className="rounded-xl border p-4 space-y-3"
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+              >
                 <div>
-                  <h3 className="font-semibold text-slate-900">{store.name}</h3>
-                  <p className="text-sm text-slate-500">{store.address}</p>
+                  <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{store.name}</h3>
+                  <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>{store.address}</p>
                 </div>
 
                 <div className="space-y-2">
                   {(emailDrafts[store.id] || []).length === 0 ? (
-                    <p className="text-sm text-slate-500">No email addresses added yet.</p>
+                    <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>No email addresses added yet.</p>
                   ) : (
                     (emailDrafts[store.id] || []).map((email) => (
-                      <div key={email} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
-                        <span className="text-sm text-slate-700 break-all">{email}</span>
+                      <div
+                        key={email}
+                        className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                        style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}
+                      >
+                        <span className="text-sm break-all" style={{ color: 'var(--text-slate-700)' }}>{email}</span>
                         <Button
                           type="button"
                           variant="ghost"
