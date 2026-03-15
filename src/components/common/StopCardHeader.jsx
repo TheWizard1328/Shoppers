@@ -122,7 +122,7 @@ export default function StopCardHeader({
   return (
     <>
       {/* Left badges column */}
-      <div className="my-0.5 mt-1 mb-1 flex flex-col items-center gap-1.5">
+      <div className="flex flex-col py-0. gap-0.5  items-center">
         <Badge
           variant="secondary"
           className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors w-[40px] justify-center"
@@ -148,7 +148,7 @@ export default function StopCardHeader({
         <h3 className="pt-0 text-2xl md:text-xl font-semibold text-center truncate" style={{ color: "var(--text-slate-900)" }}>
           {finalDisplayName}
         </h3>
-        <div className="flex flex-col items-center min-h-[40px]">
+        <div className="flex flex-col items-center min-h-[45px]">
           <div className="text-lg md:text-sm flex items-center justify-center" style={{ color: timeColor }}>
             {timeDisplay}
             {showDriverName && safeDriver &&
@@ -187,7 +187,7 @@ export default function StopCardHeader({
       </div>
 
       {/* Right column */}
-      <div className="my-0.5 mt-1 mb-1 flex flex-col items-center gap-1.5">
+      <div className="flex flex-col py-0.5 gap-0.5 items-center">
         <div className="flex items-center gap-1">
           <Badge
             variant="secondary"
