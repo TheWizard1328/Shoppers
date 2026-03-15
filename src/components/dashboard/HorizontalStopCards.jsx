@@ -66,6 +66,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const prevSelectedCardIdRef = React.useRef(null);
   const autoScrollEnabledRef = React.useRef(true);
   const touchStartXRef = React.useRef(null);
+  const touchStartYRef = React.useRef(null);
   const isMobile = isMobileDevice();
   const { deviceType } = getUserAgentInfo();
   const isTabletPortrait = deviceType === 'Tablet' && getOrientation() === 'portrait';
@@ -384,6 +385,38 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     return nextIndex >= 0 ? nextIndex : 0;
   }, [sortedPickupCards, desktopCenteredCardId]);
 
+  const handleTouchStart = React.useCallback((e) => {
+    if (!isDesktopFanLayout) return;
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    touchStartXRef.current = touch.clientX;
+    touchStartYRef.current = touch.clientY;
+  }, [isDesktopFanLayout]);
+
+  const handleTouchEnd = React.useCallback((e) => {
+    if (!isDesktopFanLayout) return;
+    const touch = e.changedTouches?.[0];
+    const startX = touchStartXRef.current;
+    const startY = touchStartYRef.current;
+
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    if (!touch || startX === null || startY === null) return;
+
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+
+    if (Math.abs(deltaX) < 40 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+    const direction = deltaX < 0 ? 1 : -1;
+    const nextIndex = Math.max(0, Math.min(sortedPickupCards.length - 1, centeredCardIndex + direction));
+    const nextCard = sortedPickupCards[nextIndex];
+    if (nextCard?.id) {
+      setDesktopCenteredCardId(nextCard.id);
+    }
+  }, [isDesktopFanLayout, sortedPickupCards, centeredCardIndex]);
+
   React.useEffect(() => {
     if (!isDesktopFanLayout) {
       setDesktopContainerHeight(140);
@@ -470,13 +503,15 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
-        touchAction: isDesktopFanLayout ? 'none' : 'pan-x',
+        touchAction: isDesktopFanLayout ? 'pan-y' : 'pan-x',
         scrollSnapType: isMobile ? 'x mandatory' : 'none',
         scrollSnapStop: isMobile ? 'always' : 'normal',
         paddingLeft: isDesktopFanLayout ? '0px' : isMobile ? 'calc(50% - 140px)' : '16px',
         paddingRight: isDesktopFanLayout ? '0px' : isMobile ? 'calc(50% - 140px)' : '16px',
         paddingBottom: hasBottomNav ? 'calc(var(--bottom-nav-height, 64px))' : undefined
       }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       onWheel={(e) => {
         if (isDesktopFanLayout) {
           const axisDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
