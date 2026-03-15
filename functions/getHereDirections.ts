@@ -9,6 +9,7 @@ const buildFallback = (origin, destination, extra = {}) => Response.json({
   ...extra
 });
 
+
 Deno.serve(async (req) => {
   let origin = null;
   let destination = null;
