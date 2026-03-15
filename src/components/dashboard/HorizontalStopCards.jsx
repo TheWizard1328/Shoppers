@@ -497,7 +497,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
             style={{
               position: isDesktopFanLayout ? 'absolute' : 'relative',
               left: isDesktopFanLayout ? `${fanStyle?.left || 0}px` : undefined,
-              top: isDesktopFanLayout ? '0px' : undefined,
+              bottom: isDesktopFanLayout ? '0px' : undefined,
               transform: isDesktopFanLayout ? `translateY(${fanStyle?.translateY || 0}px) rotate(${fanStyle?.rotate || 0}deg)` : undefined,
               transformOrigin: isDesktopFanLayout ? 'bottom center' : undefined,
               zIndex: isDesktopFanLayout ? fanStyle?.zIndex : undefined,
