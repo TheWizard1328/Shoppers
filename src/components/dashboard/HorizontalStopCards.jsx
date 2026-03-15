@@ -155,22 +155,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
   }, [onSelectionChange, onCardClick, validCards, isDesktopFanLayout, scrollToCenterCard]);
 
-  // Helper function to smoothly scroll to center a specific card element
-  const scrollToCenterCard = React.useCallback((cardElement) => {
-    const container = containerRef.current;
-    if (!container || !cardElement) return;
-
-    const containerWidth = container.offsetWidth;
-    const cardOffsetLeft = cardElement.offsetLeft;
-    const cardWidth = cardElement.offsetWidth;
-    const scrollTarget = cardOffsetLeft - containerWidth / 2 + cardWidth / 2;
-
-    container.scrollTo({
-      left: scrollTarget,
-      behavior: 'smooth'
-    });
-  }, []);
-
   // CRITICAL: Check if next delivery card is already centered
   const isNextDeliveryCardCentered = React.useCallback(() => {
     const container = containerRef.current;
@@ -358,12 +342,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
     return sortOrderA - sortOrderB;
   });
-
-  const isMobile = isMobileDevice();
-  const { deviceType } = getUserAgentInfo();
-  const isTabletPortrait = deviceType === 'Tablet' && getOrientation() === 'portrait';
-  const isDesktopFanLayout = !isMobile && !isTabletPortrait;
-  const hasBottomNav = isMobile || isTabletPortrait;
 
   React.useEffect(() => {
     if (!containerRef.current) return;
