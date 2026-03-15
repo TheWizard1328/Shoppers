@@ -323,35 +323,57 @@ Deno.serve(async (req) => {
 
     const pdfBytes = doc.output('arraybuffer');
 
+    const fileName = `${manifestType}${ampm ? `-${ampm}` : ''}-${deliveryDate}.pdf`;
+
     if (Array.isArray(recipientEmails) && recipientEmails.length > 0) {
       const uniqueRecipientEmails = [...new Set(recipientEmails.map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter(isValidEmail))];
 
       if (uniqueRecipientEmails.length === 0) {
-        return Response.json({ error: 'No valid recipient emails were provided' });
+        return Response.json({ error: 'No valid recipient emails were provided' }, { status: 400 });
       }
 
-      const fileName = `${manifestType}${ampm ? `-${ampm}` : ''}-${deliveryDate}.pdf`;
-      const pdfFile = new File([pdfBytes], fileName, { type: 'application/pdf' });
-      const uploadResult = await base44.integrations.Core.UploadFile({ file: pdfFile });
-      const fileUrl = uploadResult?.file_url;
+      const resendApiKey = Deno.env.get('RESEND_API_KEY');
+      const resendFromEmail = Deno.env.get('RESEND_FROM_EMAIL');
 
-      if (!fileUrl) {
-        return Response.json({ error: 'Failed to upload route PDF' });
+      if (!resendApiKey || !resendFromEmail) {
+        return Response.json({ error: 'Resend is not configured' }, { status: 500 });
       }
+
+      const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBytes)));
+      const subject = emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`;
+      const html = `<p>Your route log is attached.</p><p>Date: ${deliveryDate}</p>`;
 
       try {
-        await Promise.all(uniqueRecipientEmails.map((email) =>
-          base44.integrations.Core.SendEmail({
-            to: email,
-            subject: emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`,
-            body: `Your route log is ready. Download it here:\n\n${fileUrl}`,
-          })
-        ));
+        await Promise.all(uniqueRecipientEmails.map(async (email) => {
+          const resendResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              from: resendFromEmail,
+              to: [email],
+              subject,
+              html,
+              attachments: [{
+                filename: fileName,
+                content: pdfBase64,
+                content_type: 'application/pdf'
+              }]
+            })
+          });
+
+          if (!resendResponse.ok) {
+            const errorText = await resendResponse.text();
+            throw new Error(errorText || 'Failed to send route email');
+          }
+        }));
       } catch (sendError) {
-        return Response.json({ error: sendError?.message || 'Failed to send route email' });
+        return Response.json({ error: sendError?.message || 'Failed to send route email' }, { status: 500 });
       }
 
-      return Response.json({ success: true, file_url: fileUrl });
+      return Response.json({ success: true });
     }
 
     return new Response(pdfBytes, {
