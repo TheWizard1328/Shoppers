@@ -136,8 +136,8 @@ Deno.serve(async (req) => {
       }
       return result;
     });
-    const allImages = await Promise.all(imagePromises);
 
+    const allImages = await Promise.all(imagePromises);
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
