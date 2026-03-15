@@ -330,16 +330,6 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'No valid recipient emails were provided' });
       }
 
-      const appUsers = await base44.asServiceRole.entities.User.list();
-      const allowedEmails = new Set((appUsers || []).map((appUser) => String(appUser?.email || '').trim().toLowerCase()).filter(Boolean));
-      const externalEmails = uniqueRecipientEmails.filter((email) => !allowedEmails.has(email));
-
-      if (externalEmails.length > 0) {
-        return Response.json({
-          error: `Route emails can only be sent to invited app users. These emails are outside the app: ${externalEmails.join(', ')}`
-        });
-      }
-
       const fileName = `${manifestType}${ampm ? `-${ampm}` : ''}-${deliveryDate}.pdf`;
       const pdfFile = new File([pdfBytes], fileName, { type: 'application/pdf' });
       const uploadResult = await base44.integrations.Core.UploadFile({ file: pdfFile });
