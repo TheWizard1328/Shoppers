@@ -1,4 +1,4 @@
-import { isRouteCompleted } from '@/components/utils/routeCompletionChecker'; import { motion } from 'framer-motion';
+import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';import { motion } from 'framer-motion';
 import React, { useState, useRef, useEffect, useMemo } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from
 "@/components/ui/select";
 import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox, Locate } from "lucide-react";
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
@@ -23,7 +23,7 @@ import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
-import {notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn} from "../utils/deliveryMessaging";
+import { notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
@@ -49,8 +49,8 @@ import {
   incrementTrackingNumber,
   refreshDriverRoute,
   verifyDeliveryStillExists,
-  withPausedDriverLocationPoller
-} from "./stopCardActionHelpers";
+  withPausedDriverLocationPoller } from
+"./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDriver, getPendingBreadcrumbsForDriver } from '../utils/pendingBreadcrumbsManager';
 
 // Global statusConfig
@@ -73,11 +73,11 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 const formatTime12Hour = (timeString) => {
   // Silently handle missing, invalid, or placeholder times (common for pending deliveries)
   if (!timeString ||
-    timeString === '--:--' ||
-    timeString === 'null' ||
-    timeString === 'undefined' ||
-    timeString === 'NaN:NaN' ||
-    String(timeString).includes('NaN')) {
+  timeString === '--:--' ||
+  timeString === 'null' ||
+  timeString === 'undefined' ||
+  timeString === 'NaN:NaN' ||
+  String(timeString).includes('NaN')) {
     return '--:--';
   }
 
@@ -113,7 +113,7 @@ export default function StopCard({
   onSelectionChange, selectedDeliveryIds = [], stopOrder = {},
   onCODUpdate, stores = [], onCreateReturn, onStartDelivery,
   allStopsPending = false, onDriverStatusChange, appUsers = [],
-  showDragHandle = false, dragHandleProps, compact = false, isRailCentered = true}) 
+  showDragHandle = false, dragHandleProps, compact = false, isRailCentered = true })
 {
   // CRITICAL: Use delivery.isNextDelivery from the entity, not the prop
   const isNextDelivery = delivery?.isNextDelivery || false;
@@ -123,7 +123,7 @@ export default function StopCard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [codPayments, setCodPayments] = useState(delivery?.cod_payments || []);
   const [showCODCollection, setShowCODCollection] = useState(false);
-  const [showReturnConfirm, setShowReturnConfirm] = useState(false); const [isCreatingReturn, setIsCreatingReturn] = useState(false);
+  const [showReturnConfirm, setShowReturnConfirm] = useState(false);const [isCreatingReturn, setIsCreatingReturn] = useState(false);
   const [returnPatient, setReturnPatient] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -136,7 +136,7 @@ export default function StopCard({
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState(null); // URL of image to view fullscreen
-  const [selectedTransferPickupId, setSelectedTransferPickupId] = useState(''); const [isHovered, setIsHovered] = useState(false); const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false); const [pendingFailureStatus, setPendingFailureStatus] = useState(null); const [isFailing, setIsFailing] = useState(false); const [isRestarting, setIsRestarting] = useState(false);
+  const [selectedTransferPickupId, setSelectedTransferPickupId] = useState('');const [isHovered, setIsHovered] = useState(false);const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false);const [pendingFailureStatus, setPendingFailureStatus] = useState(null);const [isFailing, setIsFailing] = useState(false);const [isRestarting, setIsRestarting] = useState(false);
   const startTapLockRef = useRef(false);
 
   // Detect if this is a stripped delivery (from other store)
@@ -156,10 +156,10 @@ export default function StopCard({
     // Dispatchers only see full info for stores they're assigned to
     if (!currentUser || !delivery) return false;
     if (!userHasRole(currentUser, 'dispatcher')) return false;
-    
+
     // Admin dispatchers see everything
     if (userHasRole(currentUser, 'admin')) return false;
-    
+
     // Strip if delivery's store is NOT in dispatcher's assigned stores
     const dispatcherStoreIds = currentUser.store_ids || [];
     return !dispatcherStoreIds.includes(delivery.store_id);
@@ -175,19 +175,19 @@ export default function StopCard({
       // CRITICAL: Try offline DB FIRST to prevent rate limits
       const { offlineDB } = await import('../utils/offlineDatabase');
       let appUserData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-      let appUser = appUserData?.find(au => au.user_id === currentUser.id);
-      
+      let appUser = appUserData?.find((au) => au.user_id === currentUser.id);
+
       if (!appUser) {
         // Fallback to API only if offline DB doesn't have data
         const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
         appUser = appUsers?.[0];
-        
+
         // CRITICAL: Always save to offline DB immediately after API fetch
         if (appUsers && appUsers.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
         }
       }
-      
+
       if (appUser && appUser.driver_status !== 'on_duty') {
         await base44.entities.AppUser.update(appUser.id, {
           driver_status: 'on_duty',
@@ -219,7 +219,7 @@ export default function StopCard({
   // CRITICAL: Finished deliveries start collapsed but CAN be expanded when selected
   // CRITICAL: If compact mode is enabled (desktop), never expand the card (details shown in panel)
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);
-  const isExpanded = isStrippedForDispatcher ? false : (compact ? false : isSelected);
+  const isExpanded = isStrippedForDispatcher ? false : compact ? false : isSelected;
 
   // Sync state with delivery prop changes
   useEffect(() => {
@@ -244,20 +244,20 @@ export default function StopCard({
     if (!delivery) return false;
     return !delivery.patient_id && !!delivery.store_id;
   }, [delivery?.patient_id, delivery?.store_id]);
-  
+
   // Calculate available transfer pickups for auto-selection
   const availableTransferPickups = useMemo(() => {
     if (!delivery || !isPickup) return [];
-    return allDeliveries?.filter(d => 
-      d && !d.patient_id && 
-      d.store_id === delivery.store_id && 
-      d.delivery_date === delivery.delivery_date &&
-      d.driver_id === delivery.driver_id &&
-      d.id !== delivery.id &&
-      d.status !== 'completed' && d.status !== 'cancelled'
+    return allDeliveries?.filter((d) =>
+    d && !d.patient_id &&
+    d.store_id === delivery.store_id &&
+    d.delivery_date === delivery.delivery_date &&
+    d.driver_id === delivery.driver_id &&
+    d.id !== delivery.id &&
+    d.status !== 'completed' && d.status !== 'cancelled'
     ) || [];
   }, [delivery, allDeliveries, isPickup]);
-  
+
   // Auto-select on delete confirm dialog open
   useEffect(() => {
     if (showDeleteConfirm && isPickup && pendingPickups?.length > 0) {
@@ -303,8 +303,8 @@ export default function StopCard({
   }, [patient, delivery?.unit_number, isPickup]);
 
   const safeDriver = useMemo(() =>
-    driver && typeof driver === 'object' ? driver : null,
-    [driver]);
+  driver && typeof driver === 'object' ? driver : null,
+  [driver]);
 
   const driverBadgeColor = useMemo(() => {
     if (getDriverColor && safeDriver) {
@@ -335,8 +335,8 @@ export default function StopCard({
     const patientNotes = (patient?.notes || '').toUpperCase();
 
     return patientName.includes('(RTN)') ||
-      deliveryNotes.includes('(RTN)') ||
-      patientNotes.includes('(RTN)');
+    deliveryNotes.includes('(RTN)') ||
+    patientNotes.includes('(RTN)');
   }, [delivery, patient, isPickup]);
 
   // Check if this is a first delivery based on patient's last_delivery_date
@@ -386,42 +386,42 @@ export default function StopCard({
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
 
   const { displayName, displayAddress, displayPhone, shouldRedact, finalDisplayName, finalDisplayAddress, finalDisplayPhone } = useDeliveryDisplayInfo({
-    delivery, patient, store, currentUser, isPickup, isInterStore, isInterStorePickup, isStrippedDelivery, isStrippedForDispatcher,
+    delivery, patient, store, currentUser, isPickup, isInterStore, isInterStorePickup, isStrippedDelivery, isStrippedForDispatcher
   });
 
-// Check if retry/return should be disabled based on duplicate deliveries
+  // Check if retry/return should be disabled based on duplicate deliveries
   const shouldDisableRetryReturn = useMemo(() => {
     if (delivery.status !== 'failed' || isPickup || !patient) return false;
-    
+
     // Get all deliveries for this patient on this date
     const patientDeliveries = allDeliveries.filter((d) =>
-      d && d.patient_id === delivery.patient_id &&
-      d.delivery_date === delivery.delivery_date
+    d && d.patient_id === delivery.patient_id &&
+    d.delivery_date === delivery.delivery_date
     );
-    
+
     // Count total deliveries and failed deliveries
     const totalDeliveries = patientDeliveries.length;
-    const failedDeliveries = patientDeliveries.filter(d => d.status === 'failed');
-    
+    const failedDeliveries = patientDeliveries.filter((d) => d.status === 'failed');
+
     // If 3+ deliveries total (including this one), disable all failed except the highest stop order
     if (totalDeliveries >= 3) {
-      const maxFailedStopOrder = Math.max(...failedDeliveries.map(d => d.stop_order || 0));
+      const maxFailedStopOrder = Math.max(...failedDeliveries.map((d) => d.stop_order || 0));
       return delivery.stop_order !== maxFailedStopOrder;
     }
-    
+
     // If exactly 2 failed deliveries, disable the one with lower stop order
     if (failedDeliveries.length === 2) {
-      const otherFailed = failedDeliveries.find(d => d.id !== delivery.id);
+      const otherFailed = failedDeliveries.find((d) => d.id !== delivery.id);
       if (otherFailed) {
         return delivery.stop_order < otherFailed.stop_order;
       }
     }
-    
+
     // If there's a non-failed duplicate, disable this failed one
-    if (patientDeliveries.some(d => d.id !== delivery.id && d.status !== 'failed' && d.status !== 'cancelled')) {
+    if (patientDeliveries.some((d) => d.id !== delivery.id && d.status !== 'failed' && d.status !== 'cancelled')) {
       return true;
     }
-    
+
     return false;
   }, [delivery, allDeliveries, patient, isPickup]);
 
@@ -742,22 +742,22 @@ export default function StopCard({
         }));
         try {
           const [etaRes, optimizeRes] = await Promise.allSettled([
-            base44.functions.invoke('calculateRealTimeETA', {
-              driverId: delivery.driver_id,
-              deliveryDate: delivery.delivery_date,
-              currentLocalTime,
-              deviceTime: currentLocalTime
-            }),
-            base44.functions.invoke('optimizeRouteRealTime', {
-              driverId: delivery.driver_id,
-              deliveryDate: delivery.delivery_date,
-              currentLocalTime,
-              generatePolyline: false
-            })
-          ]);
+          base44.functions.invoke('calculateRealTimeETA', {
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            currentLocalTime,
+            deviceTime: currentLocalTime
+          }),
+          base44.functions.invoke('optimizeRouteRealTime', {
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            currentLocalTime,
+            generatePolyline: false
+          })]
+          );
 
-          const etaData = etaRes.status === 'fulfilled' ? (etaRes.value?.data || etaRes.value) : null;
-          const optimizeData = optimizeRes.status === 'fulfilled' ? (optimizeRes.value?.data || optimizeRes.value) : null;
+          const etaData = etaRes.status === 'fulfilled' ? etaRes.value?.data || etaRes.value : null;
+          const optimizeData = optimizeRes.status === 'fulfilled' ? optimizeRes.value?.data || optimizeRes.value : null;
           const etaUpdates = etaData?.durationUpdates || etaData?.etas || optimizeData?.optimizedRoute || [];
           if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
             window.dispatchEvent(new CustomEvent('etaUpdated', {
@@ -786,15 +786,15 @@ export default function StopCard({
       });
 
       Promise.all([
-        ensureDriverOnline(),
-        userHasRole(currentUser, 'driver') ? notifyDriverStarted({
-          driver: currentUser,
-          patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-          delivery,
-          store,
-          appUsers
-        }) : Promise.resolve()
-      ]).catch((err) => console.warn('Background tasks failed:', err));
+      ensureDriverOnline(),
+      userHasRole(currentUser, 'driver') ? notifyDriverStarted({
+        driver: currentUser,
+        patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+        delivery,
+        store,
+        appUsers
+      }) : Promise.resolve()]
+      ).catch((err) => console.warn('Background tasks failed:', err));
 
     } catch (error) {
       console.error('❌ [START] Error:', error);
@@ -811,10 +811,10 @@ export default function StopCard({
 
   const handleAcceptAllStops = async () => {
     setIsAcceptingAll(true);
-    
+
     // Import poller early to ensure it's available
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-    
+
     try {
       driverLocationPoller.pause();
       smartRefreshManager.pause();
@@ -829,7 +829,7 @@ export default function StopCard({
 
       // Batch all status updates + TR# assignments
       const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-        (a.patient_name || '').localeCompare(b.patient_name || '')
+      (a.patient_name || '').localeCompare(b.patient_name || '')
       );
 
       sortedPending.forEach((pendingDelivery, i) => {
@@ -842,31 +842,31 @@ export default function StopCard({
       await flushQueuedDeliveryUpdates();
 
       // Prepare Square COD batch for gentle backend processing
-      const codBatch = allPendingDeliveries
-        .filter(pd => pd.cod_total_amount_required > 0 && pd.patient_id)
-        .map((pendingDelivery) => {
-          const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
-          return {
-            deliveryId: pendingDelivery.id,
-            patientName: pendingDelivery.patient_name,
-            storeAbbreviation: storeForCod?.abbreviation || '',
-            codAmount: pendingDelivery.cod_total_amount_required,
-            deliveryDate: pendingDelivery.delivery_date,
-            storeId: pendingDelivery.store_id
-          };
-        });
+      const codBatch = allPendingDeliveries.
+      filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).
+      map((pendingDelivery) => {
+        const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
+        return {
+          deliveryId: pendingDelivery.id,
+          patientName: pendingDelivery.patient_name,
+          storeAbbreviation: storeForCod?.abbreviation || '',
+          codAmount: pendingDelivery.cod_total_amount_required,
+          deliveryDate: pendingDelivery.delivery_date,
+          storeId: pendingDelivery.store_id
+        };
+      });
 
       // ═══════════ PHASE 2: SINGLE UI UPDATE ═══════════
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-      
+
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
       }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', {
         detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
       }));
-      
+
       // ═══════════ PHASE 3: BACKGROUND OPTIMIZATION ═══════════
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
@@ -904,17 +904,17 @@ export default function StopCard({
       // Kick off gentle Square COD creation in backend (fire-and-forget)
       if (typeof codBatch !== 'undefined' && codBatch.length > 0) {
         console.log(`📦 [Square] Queuing ${codBatch.length} COD items to backend...`, codBatch);
-        base44.functions.invoke('syncSquareCods', { items: codBatch })
-          .then(() => {
-            try { toast?.success?.(`Queued ${codBatch.length} CODs to Square`); } catch (_) {}
-          })
-          .catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
+        base44.functions.invoke('syncSquareCods', { items: codBatch }).
+        then(() => {
+          try {toast?.success?.(`Queued ${codBatch.length} CODs to Square`);} catch (_) {}
+        }).
+        catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
       }
-      
+
       // Send notifications
       const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
       if (isDriverAction) {
-        notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(err => console.warn('Notification failed:', err));
+        notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch((err) => console.warn('Notification failed:', err));
       } else {
         const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
         if (assignedDriver) {
@@ -924,7 +924,7 @@ export default function StopCard({
             store,
             deliveries: allPendingDeliveries,
             patients
-          }).catch(err => console.warn('Notification failed:', err));
+          }).catch((err) => console.warn('Notification failed:', err));
         }
       }
 
@@ -953,7 +953,7 @@ export default function StopCard({
       // Find the return patient for this store
       const returnPatientName = `${store.name.replace(/-/g, ' ')} Return`;
       const foundReturnPatient = patients.find((p) =>
-        p && p.full_name === returnPatientName && p.store_id === delivery.store_id
+      p && p.full_name === returnPatientName && p.store_id === delivery.store_id
       );
       if (!foundReturnPatient) {
         alert(`Return patient "${returnPatientName}" not found. Please ensure a patient with this name exists for the store.`);
@@ -1083,7 +1083,7 @@ export default function StopCard({
         await verifyDeliveryStillExists(delivery.id);
 
         const driverDeliveries = allDeliveries.filter((d) =>
-          d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+        d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
         );
 
         await clearNextDeliveryFlags({
@@ -1169,10 +1169,10 @@ export default function StopCard({
         }}>
         <CardContent className={`px-2 py-0 flex flex-col ${showCompletedRouteCenteredCondensed ? 'p-0' : 'p-6'}`}>
           {/* HEADER SECTION - Always Visible */}
-          <div className="flex items-start">
+          <div className="mx-1 flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
             {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) &&
-              <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
+            <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
                 <GripVertical className="w-5 h-5 text-slate-400 hover:text-slate-600" />
               </div>
             }
@@ -1192,8 +1192,8 @@ export default function StopCard({
               driverBadgeTextColor={driverBadgeTextColor}
               currentUser={currentUser}
               appUsers={appUsers}
-              isReturnDelivery={isReturnDelivery}
-            />
+              isReturnDelivery={isReturnDelivery} />
+
           </div>
 
           {/* Show address/phone for active cards, expanded cards, and the centered card */}
@@ -1203,7 +1203,7 @@ export default function StopCard({
             <div className="flex items-start justify-between">
               <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
                 {finalDisplayAddress ?
-                  <>
+                <>
                     {/* Main address without unit/buzzer */}
                     <div className="flex items-start gap-2 text-lg md:text-sm" style={{ color: 'var(--text-slate-700)' }}>
                       <span className="text-2xl md:text-xl font-medium truncate">
@@ -1213,58 +1213,58 @@ export default function StopCard({
 
                     {/* Unit/Buzzer row (phone removed - now in expanded section) */}
                     {!isStrippedDelivery && !shouldRedact &&
-                      <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                  <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
                         {/* Unit and Buzzer info */}
                         {(() => {
-                          const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
-                          const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
-                          const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
-                          const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
+                      const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
+                      const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
+                      const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
+                      const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
 
-                          if (!unitNum && !buzzerNum) return null;
+                      if (!unitNum && !buzzerNum) return null;
 
-                          return (
-                            <>
+                      return (
+                        <>
                               {unitNum && <span className="text-xl md:text-base font-medium">#{unitNum}</span>}
                               {buzzerNum && <span className="text-lg md:text-sm font-medium">Buzz {buzzerNum}</span>}
                             </>);
-                        })()}
+                    })()}
                       </div>
-                    }
+                  }
                   </> :
-                  <div className="w-full h-[26px]" />
+                <div className="w-full h-[26px]" />
                 }
               </div>
 
               {/* Navigation and Phone buttons - Hide for driver-stripped always (stripped item) */}
               {isAssignedDriverOrAppOwner && !isStrippedForDriver &&
-                <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
+              <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
                   {finalDisplayPhone &&
-                    <a
-                      href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
-                      onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+                <a
+                  href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
+                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
                       <Phone className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
-                  }
+                }
                   {/* CRITICAL: Only show GPS button for isNextDelivery cards - always use coordinates */}
-                  {isNextDelivery && ((!isPickup && patient?.latitude && patient?.longitude) || (isPickup && store?.latitude && store?.longitude)) &&
-                    <a
-                      href={(() => {
-                        if (!isPickup && patient?.latitude && patient?.longitude) {
-                          return `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
-                        } else if (isPickup && store?.latitude && store?.longitude) {
-                          return `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
-                        }
-                      })()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        fabControlEvents.reactivatePhaseTwoIfAvailable();
-                      }} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
+                  {isNextDelivery && (!isPickup && patient?.latitude && patient?.longitude || isPickup && store?.latitude && store?.longitude) &&
+                <a
+                  href={(() => {
+                    if (!isPickup && patient?.latitude && patient?.longitude) {
+                      return `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
+                    } else if (isPickup && store?.latitude && store?.longitude) {
+                      return `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
+                    }
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fabControlEvents.reactivatePhaseTwoIfAvailable();
+                  }} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
                       <Navigation className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
-                  }
+                }
                 </div>
               }
             </div>
@@ -1279,8 +1279,8 @@ export default function StopCard({
             allDeliveries={allDeliveries} onDeleteDelivery={onDelete}
             showReturnConfirm={showReturnConfirm} returnPatient={returnPatient}
             handleCancelReturn={handleCancelReturn} handleConfirmReturn={handleConfirmReturn}
-            isCreatingReturn={isCreatingReturn} driver={driver} patient={patient}
-          />
+            isCreatingReturn={isCreatingReturn} driver={driver} patient={patient} />
+
 
           {/* Fullscreen Image Viewer */}
           <StopCardPOD
@@ -1290,8 +1290,8 @@ export default function StopCard({
             showSignatureCapture={showSignatureCapture} setShowSignatureCapture={setShowSignatureCapture}
             showPhotoCapture={showPhotoCapture} setShowPhotoCapture={setShowPhotoCapture}
             forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
-            showButtons={false}
-          />
+            showButtons={false} />
+
 
           {/* Failure Reason Dialog */}
           <FailureReasonDialog
@@ -1325,8 +1325,8 @@ export default function StopCard({
                 // Add reason to delivery notes
                 const existingNotes = delivery.delivery_notes || '';
                 const updatedNotes = existingNotes ?
-                  `${existingNotes}\n[${status.toUpperCase()}] ${reason}` :
-                  `[${status.toUpperCase()}] ${reason}`;
+                `${existingNotes}\n[${status.toUpperCase()}] ${reason}` :
+                `[${status.toUpperCase()}] ${reason}`;
 
                 // CRITICAL: Round completion time to nearest 5-minute mark
                 const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
@@ -1381,10 +1381,10 @@ export default function StopCard({
 
                 // Check if this is the FINAL stop
                 const allDriverDeliveries = allDeliveries.filter((d) =>
-                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                 );
                 const incompleteAfterThis = allDriverDeliveries.filter((d) =>
-                  d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+                d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
                 );
 
                 if (incompleteAfterThis.length === 0) {
@@ -1417,15 +1417,15 @@ export default function StopCard({
 
                 // CRITICAL: Find next incomplete delivery and set isNextDelivery flag
                 const driverDeliveries = allDeliveries.filter((d) =>
-                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                 );
                 const incompleteDeliveries = driverDeliveries.filter((d) =>
-                  d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+                d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
                 ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
                 if (incompleteDeliveries.length > 0) {
                   await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
-                  
+
                   // Final refresh to show isNextDelivery update
                   invalidate('Delivery');
                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -1508,8 +1508,8 @@ export default function StopCard({
             isCompleted={isCompleted}
             userHasRole={userHasRole}
             Textarea={Textarea}
-            isAppOwnerFn={isAppOwner}
-          />}
+            isAppOwnerFn={isAppOwner} />
+          }
 
           {/* FOOTER SECTION - Driver/Dispatcher-stripped: hide UNLESS Retry or Return buttons are available */}
           {(() => {
@@ -1525,390 +1525,390 @@ export default function StopCard({
 
             // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
             // Show if: not finished OR expanded OR centered OR (finished but route not complete)
-            const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || (isFinishedDelivery && !routeCompleted);
+            const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompleted;
             return isAssignedDriverOrAppOwner && shouldShowFooter;
           })() && <div className="space-y-3 mt-2">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
+              <div className="mx-1 my-2 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
-                  <>
+                <>
                     {/* FAILED DELIVERY FOOTER - Special layout */}
                     {delivery.status === 'failed' && !isPickup ?
-                      <div className="flex items-center gap-2 w-full">
+                  <div className="flex items-center gap-2 w-full">
                         {/* 1. Retry button */}
                         {onStatusUpdate &&
-                          <Button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              await handleRetryDelivery();
-                            }}
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
-                            disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery || shouldDisableRetryReturn || isFailing}>
+                    <Button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        await handleRetryDelivery();
+                      }}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
+                      disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery || shouldDisableRetryReturn || isFailing}>
                             {isRetrying || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                             <span className="text-white">Retry</span>
                           </Button>
-                        }
+                    }
 
                         {/* 2. Return button */}
                         <Button
-                          onClick={handleReturnClick}
-                          size="sm"
-                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8 flex-1"
-                          disabled={isPreparingReturn || isCreatingReturn || hasFutureReturn || hasCompletedDelivery || shouldDisableRetryReturn || isFailing}>
+                      onClick={handleReturnClick}
+                      size="sm"
+                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8 flex-1"
+                      disabled={isPreparingReturn || isCreatingReturn || hasFutureReturn || hasCompletedDelivery || shouldDisableRetryReturn || isFailing}>
                           {isPreparingReturn || isCreatingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                           Return
                         </Button>
 
                         {/* 3. Restart button */}
                         {onRestart && ['completed', 'failed', 'cancelled'].includes(delivery.status) && !routeCompleted &&
-                          <Button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              await restartCurrentDelivery(false);
-                            }}
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
-                            disabled={isRestarting || isProcessingBackground || isFailing}>
+                    <Button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        await restartCurrentDelivery(false);
+                      }}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
+                      disabled={isRestarting || isProcessingBackground || isFailing}>
                             {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                             <span className="text-white">Restart</span>
                           </Button>
-                        }
+                    }
 
                         {/* 4. Menu button */}
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Button
-                              variant="ghost"
-                              size="icon"
-                              className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
-                              onClick={(e) => e.stopPropagation()}>
+                          variant="ghost"
+                          size="icon"
+                          className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                          onClick={(e) => e.stopPropagation()}>
                               <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                             {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEdit(delivery);}} className="text-base md:text-sm py-2.5 md:py-1.5">
                                 <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                                 Edit Delivery
                               </DropdownMenuItem>
-                            }
+                        }
 
 
 
                             {/* New: Update GPS above the divider - only for Next Delivery */}
-                            {isNextDelivery && !isPickup && patient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
-                              <DropdownMenuItem
-                                onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
-                                className="text-base md:text-sm py-2.5 md:py-1.5"
-                              >
+                            {isNextDelivery && !isPickup && patient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                        <DropdownMenuItem
+                          onClick={async (e) => {e.stopPropagation();await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores });}}
+                          className="text-base md:text-sm py-2.5 md:py-1.5">
+
                                 <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                                 Update GPS
                               </DropdownMenuItem>
-                            )}
+                        }
 
                             {onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                              <>
+                        <>
                                 <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                                 <DropdownMenuItem
-                                  onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
-                                  className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
-                                  disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
+                            onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
+                            className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                            disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
                                   <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                                   Delete
                                 </DropdownMenuItem>
                               </>
-                            }
+                        }
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </div>
-                    :
-                      /* NON-FAILED DELIVERY FOOTER - Original layout */
-                      <>
+                      </div> :
+
+                  /* NON-FAILED DELIVERY FOOTER - Original layout */
+                  <>
                         {/* Proof of Delivery Buttons - Only on next delivery, OR completed with captured proof */}
                         <StopCardPOD
-                          delivery={delivery} displayName={displayName} isNextDelivery={isNextDelivery}
-                          isFinishedDelivery={isFinishedDelivery} isPickup={isPickup}
-                          viewingImageUrl={viewingImageUrl} setViewingImageUrl={setViewingImageUrl}
-                          showSignatureCapture={showSignatureCapture} setShowSignatureCapture={setShowSignatureCapture}
-                          showPhotoCapture={showPhotoCapture} setShowPhotoCapture={setShowPhotoCapture}
-                          forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
-                        />
+                      delivery={delivery} displayName={displayName} isNextDelivery={isNextDelivery}
+                      isFinishedDelivery={isFinishedDelivery} isPickup={isPickup}
+                      viewingImageUrl={viewingImageUrl} setViewingImageUrl={setViewingImageUrl}
+                      showSignatureCapture={showSignatureCapture} setShowSignatureCapture={setShowSignatureCapture}
+                      showPhotoCapture={showPhotoCapture} setShowPhotoCapture={setShowPhotoCapture}
+                      forceRefreshDriverDeliveries={forceRefreshDriverDeliveries} />
+
 
                         {/* Start/Complete/Restart button and menu - right aligned */}
                         <div className="flex items-center ml-auto">
 
                         {/* Start button for active non-failed deliveries */}
                         {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
-                            isNextDelivery ?
-                              <Button
-                                onClick={async (e) => {
-                                                                  e.stopPropagation();
-                                                                  if (isCompleting || isProcessingBackground || isFailing) return;
+                      isNextDelivery ?
+                      <Button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (isCompleting || isProcessingBackground || isFailing) return;
 
-                                                                  fabControlEvents.deactivateFAB();
-                                                                  setIsCompleting(true);
-                                                                  setIsProcessingBackground(true);
-                                                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                                                  driverLocationPoller.pause();
-                                                                  smartRefreshManager.pause();
+                          fabControlEvents.deactivateFAB();
+                          setIsCompleting(true);
+                          setIsProcessingBackground(true);
+                          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                          driverLocationPoller.pause();
+                          smartRefreshManager.pause();
 
-                                                                  smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                                                                  await new Promise((resolve) => setTimeout(resolve, 50));
+                          smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+                          await new Promise((resolve) => setTimeout(resolve, 50));
 
-                                  try {
-                                    // CRITICAL: Verify delivery still exists before completing
-                                    const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                                    if (!deliveryExists || deliveryExists.length === 0) {
-                                      console.warn('⚠️ [COMPLETE] Delivery no longer exists - aborting');
-                                      throw new Error('This delivery has been deleted. Please refresh the page.');
-                                    }
+                          try {
+                            // CRITICAL: Verify delivery still exists before completing
+                            const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                            if (!deliveryExists || deliveryExists.length === 0) {
+                              console.warn('⚠️ [COMPLETE] Delivery no longer exists - aborting');
+                              throw new Error('This delivery has been deleted. Please refresh the page.');
+                            }
 
-                                    // Auto-toggle driver online if offline
-                                    await ensureDriverOnline();
+                            // Auto-toggle driver online if offline
+                            await ensureDriverOnline();
 
-                                    const autoCODPayment = hasCODRequired && codPayments.length === 0 && onCODUpdate ? [{
-                                      type: 'Cash',
-                                      amount: codTotalRequired
-                                    }] : null;
+                            const autoCODPayment = hasCODRequired && codPayments.length === 0 && onCODUpdate ? [{
+                              type: 'Cash',
+                              amount: codTotalRequired
+                            }] : null;
 
-                                    if (autoCODPayment) {
-                                      setCodPayments(autoCODPayment);
-                                    }
+                            if (autoCODPayment) {
+                              setCodPayments(autoCODPayment);
+                            }
 
-                                    const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({
-                                      driverUserId: delivery.driver_id,
-                                      appUsers
-                                    });
+                            const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({
+                              driverUserId: delivery.driver_id,
+                              appUsers
+                            });
 
-                                    // CRITICAL: For pickups with pending deliveries, trigger Accept All FIRST, then continue to complete pickup
-                                    if (isPickup && pendingPickups && pendingPickups.length > 0) {
-                                      const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');
-                                      if (hasPendingDeliveries) {
-                                        await handleAcceptAllStops();
-                                      }
-                                    }
+                            // CRITICAL: For pickups with pending deliveries, trigger Accept All FIRST, then continue to complete pickup
+                            if (isPickup && pendingPickups && pendingPickups.length > 0) {
+                              const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');
+                              if (hasPendingDeliveries) {
+                                await handleAcceptAllStops();
+                              }
+                            }
 
-                                    // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
-                                    const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-                                    const completionCodPayments = autoCODPayment || codPayments;
-                                    const sameRouteDeliveries = allDeliveries.filter((d) =>
-                                      d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                                    );
+                            // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
+                            const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
+                            const completionCodPayments = autoCODPayment || codPayments;
+                            const sameRouteDeliveries = allDeliveries.filter((d) =>
+                            d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                            );
 
-                                    await clearNextDeliveryFlags({
-                                      driverDeliveries: sameRouteDeliveries,
-                                      currentDelivery: null,
-                                      currentDeliveryId: null,
-                                      updateDeliveryLocal
-                                    });
+                            await clearNextDeliveryFlags({
+                              driverDeliveries: sameRouteDeliveries,
+                              currentDelivery: null,
+                              currentDeliveryId: null,
+                              updateDeliveryLocal
+                            });
 
-                                    const completionUpdate = {
-                                      status: 'completed',
-                                      actual_delivery_time: localTimeString,
-                                      isNextDelivery: false,
-                                      finished_leg_encoded_polyline: null,
-                                      ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
-                                      ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {})
-                                    };
+                            const completionUpdate = {
+                              status: 'completed',
+                              actual_delivery_time: localTimeString,
+                              isNextDelivery: false,
+                              finished_leg_encoded_polyline: null,
+                              ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
+                              ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {})
+                            };
 
-                                    await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
+                            await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
 
-                                    if (pendingBreadcrumbsString) {
-                                      await clearPendingBreadcrumbsForDriver({
-                                        driverUserId: delivery.driver_id,
-                                        appUsers
+                            if (pendingBreadcrumbsString) {
+                              await clearPendingBreadcrumbsForDriver({
+                                driverUserId: delivery.driver_id,
+                                appUsers
+                              });
+                            }
+
+                            const pendingPickupIds = isPickup ? new Set((pendingPickups || []).filter((p) => p?.status === 'pending').map((p) => p.id)) : null;
+                            const optimisticDeliveries = allDeliveries.map((d) => {
+                              if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) {
+                                return d;
+                              }
+                              if (d.id === delivery.id) {
+                                return { ...d, ...completionUpdate, isNextDelivery: false };
+                              }
+                              if (pendingPickupIds?.has(d.id)) {
+                                return { ...d, status: 'in_transit', isNextDelivery: false };
+                              }
+                              return { ...d, isNextDelivery: false };
+                            });
+
+                            const incompleteDeliveries = optimisticDeliveries.
+                            filter((d) => d && d.id !== delivery.id && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').
+                            sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                            const nextStop = incompleteDeliveries[0] || null;
+
+                            if (nextStop) {
+                              await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                              try {
+                                await base44.functions.invoke('setNextDeliveryFlag', {
+                                  driverId: delivery.driver_id,
+                                  deliveryDate: delivery.delivery_date,
+                                  targetDeliveryId: nextStop.id
+                                });
+                              } catch (e) {
+                                console.warn('[NextFlag] Immediate server save failed:', e?.message || e);
+                              }
+                              const nextCardElement = document.getElementById(`stop-card-${nextStop.id}`);
+                              if (nextCardElement) {
+                                nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                              }
+                            } else {
+                              fabControlEvents.notifyDoneButtonClicked();
+                              window.dispatchEvent(new CustomEvent('showRouteSummary', {
+                                detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                              }));
+
+                              try {
+                                locationTracker.stopTracking();
+                              } catch (trackingError) {
+                                console.warn('Could not stop location tracking:', trackingError.message);
+                              }
+
+                              if (onDriverStatusChange) {
+                                onDriverStatusChange('off_duty');
+                              }
+                            }
+
+                            invalidate('Delivery');
+                            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                              detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                            }));
+
+                            if (typeof window !== 'undefined') {
+                              window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
+                            }
+
+                            if (nextStop) {
+                              setTimeout(() => {
+                                const nextCardElement = document.getElementById(`stop-card-${nextStop.id}`);
+                                if (nextCardElement) {
+                                  nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                }
+                              }, 0);
+                            }
+
+                            fabControlEvents.reactivateFAB(true);
+
+                            Promise.resolve().then(async () => {
+                              const backgroundTasks = [];
+
+                              if (autoCODPayment && onCODUpdate) {
+                                backgroundTasks.push(
+                                  onCODUpdate(delivery.id, autoCODPayment, true).catch((err) => {
+                                    console.warn('Background COD sync failed:', err);
+                                  })
+                                );
+                              }
+
+                              backgroundTasks.push(
+                                (async () => {
+                                  const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({
+                                    delivery,
+                                    allDeliveries,
+                                    driver: safeDriver,
+                                    patient,
+                                    store,
+                                    patients,
+                                    stores,
+                                    finishedStatuses: FINISHED_STATUSES,
+                                    breadcrumbPayload: pendingBreadcrumbsString
+                                  });
+
+                                  if (finishedLegEncodedPolyline) {
+                                    await updateDeliveryLocal(delivery.id, {
+                                      finished_leg_encoded_polyline: finishedLegEncodedPolyline
+                                    }, { skipSmartRefresh: true });
+                                  }
+                                })().catch((err) => {
+                                  console.warn('Background polyline generation failed:', err);
+                                })
+                              );
+
+                              if (!nextStop && currentUser?.id) {
+                                backgroundTasks.push(
+                                  (async () => {
+                                    const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+                                    if (appUsers && appUsers.length > 0) {
+                                      await base44.entities.AppUser.update(appUsers[0].id, {
+                                        driver_status: 'off_duty',
+                                        location_tracking_enabled: false
                                       });
                                     }
+                                  })().catch((err) => {
+                                    console.warn('Background driver status update failed:', err);
+                                  })
+                                );
+                              }
 
-                                    const pendingPickupIds = isPickup ? new Set((pendingPickups || []).filter((p) => p?.status === 'pending').map((p) => p.id)) : null;
-                                    const optimisticDeliveries = allDeliveries.map((d) => {
-                                      if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) {
-                                        return d;
-                                      }
-                                      if (d.id === delivery.id) {
-                                        return { ...d, ...completionUpdate, isNextDelivery: false };
-                                      }
-                                      if (pendingPickupIds?.has(d.id)) {
-                                        return { ...d, status: 'in_transit', isNextDelivery: false };
-                                      }
-                                      return { ...d, isNextDelivery: false };
-                                    });
+                              backgroundTasks.push(
+                                (userHasRole(currentUser, 'driver') ? notifyDriverCompleted({
+                                  driver: currentUser,
+                                  patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                  delivery,
+                                  store,
+                                  appUsers
+                                }) : Promise.resolve()).catch((err) => {
+                                  console.warn('Notification failed:', err);
+                                })
+                              );
 
-                                    const incompleteDeliveries = optimisticDeliveries
-                                      .filter((d) => d && d.id !== delivery.id && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
-                                      .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-                                    const nextStop = incompleteDeliveries[0] || null;
+                              await Promise.allSettled(backgroundTasks);
+                            });
 
-                                    if (nextStop) {
-                                      await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
-                                      try {
-                                        await base44.functions.invoke('setNextDeliveryFlag', {
-                                          driverId: delivery.driver_id,
-                                          deliveryDate: delivery.delivery_date,
-                                          targetDeliveryId: nextStop.id
-                                        });
-                                      } catch (e) {
-                                        console.warn('[NextFlag] Immediate server save failed:', e?.message || e);
-                                      }
-                                      const nextCardElement = document.getElementById(`stop-card-${nextStop.id}`);
-                                      if (nextCardElement) {
-                                        nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                      }
-                                    } else {
-                                      fabControlEvents.notifyDoneButtonClicked();
-                                      window.dispatchEvent(new CustomEvent('showRouteSummary', {
-                                        detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                      }));
+                          } catch (error) {
+                            console.error('❌ [COMPLETE] Error:', error);
+                            fabControlEvents.reactivateFAB(true);
+                            setIsProcessingBackground(false);
+                            setIsCompleting(false);
+                          } finally {
+                            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                            driverLocationPoller.resume();
+                            smartRefreshManager.resume();
 
-                                      try {
-                                        locationTracker.stopTracking();
-                                      } catch (trackingError) {
-                                        console.warn('Could not stop location tracking:', trackingError.message);
-                                      }
+                            // Reset UI flags after completion success
+                            setIsCompleting(false);
+                            setIsProcessingBackground(false);
 
-                                      if (onDriverStatusChange) {
-                                        onDriverStatusChange('off_duty');
-                                      }
-                                    }
-
-                                    invalidate('Delivery');
-                                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                      detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                    }));
-
-                                    if (typeof window !== 'undefined') {
-                                      window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
-                                    }
-
-                                    if (nextStop) {
-                                      setTimeout(() => {
-                                        const nextCardElement = document.getElementById(`stop-card-${nextStop.id}`);
-                                        if (nextCardElement) {
-                                          nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                        }
-                                      }, 0);
-                                    }
-
-                                    fabControlEvents.reactivateFAB(true);
-
-                                    Promise.resolve().then(async () => {
-                                      const backgroundTasks = [];
-
-                                      if (autoCODPayment && onCODUpdate) {
-                                        backgroundTasks.push(
-                                          onCODUpdate(delivery.id, autoCODPayment, true).catch((err) => {
-                                            console.warn('Background COD sync failed:', err);
-                                          })
-                                        );
-                                      }
-
-                                      backgroundTasks.push(
-                                        (async () => {
-                                          const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({
-                                            delivery,
-                                            allDeliveries,
-                                            driver: safeDriver,
-                                            patient,
-                                            store,
-                                            patients,
-                                            stores,
-                                            finishedStatuses: FINISHED_STATUSES,
-                                            breadcrumbPayload: pendingBreadcrumbsString
-                                          });
-
-                                          if (finishedLegEncodedPolyline) {
-                                            await updateDeliveryLocal(delivery.id, {
-                                              finished_leg_encoded_polyline: finishedLegEncodedPolyline
-                                            }, { skipSmartRefresh: true });
-                                          }
-                                        })().catch((err) => {
-                                          console.warn('Background polyline generation failed:', err);
-                                        })
-                                      );
-
-                                      if (!nextStop && currentUser?.id) {
-                                        backgroundTasks.push(
-                                          (async () => {
-                                            const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-                                            if (appUsers && appUsers.length > 0) {
-                                              await base44.entities.AppUser.update(appUsers[0].id, {
-                                                driver_status: 'off_duty',
-                                                location_tracking_enabled: false
-                                              });
-                                            }
-                                          })().catch((err) => {
-                                            console.warn('Background driver status update failed:', err);
-                                          })
-                                        );
-                                      }
-
-                                      backgroundTasks.push(
-                                        (userHasRole(currentUser, 'driver') ? notifyDriverCompleted({
-                                          driver: currentUser,
-                                          patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                          delivery,
-                                          store,
-                                          appUsers
-                                        }) : Promise.resolve()).catch((err) => {
-                                          console.warn('Notification failed:', err);
-                                        })
-                                      );
-
-                                      await Promise.allSettled(backgroundTasks);
-                                    });
-
-                                  } catch (error) {
-                                  console.error('❌ [COMPLETE] Error:', error);
-                                  fabControlEvents.reactivateFAB(true);
-                                  setIsProcessingBackground(false);
-                                  setIsCompleting(false);
-                                  } finally {
-                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                  driverLocationPoller.resume();
-                                   smartRefreshManager.resume();
-
-                                   // Reset UI flags after completion success
-                                   setIsCompleting(false);
-                                   setIsProcessingBackground(false);
-
-                                   // CRITICAL: Collapse ALL cards after completion
-                                  if (typeof window !== 'undefined') {
-                                    window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
-                                  }
-                                  }
-                                }}
-                                size="sm"
-                                disabled={isCompleting || isProcessingBackground || isFailing}
-                                className={`rounded-md px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 md:h-8 border-r !text-white ${
-                                  isFailing ? 'bg-red-600 hover:bg-red-700 border-red-500' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'
-                                }`}>
+                            // CRITICAL: Collapse ALL cards after completion
+                            if (typeof window !== 'undefined') {
+                              window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
+                            }
+                          }
+                        }}
+                        size="sm"
+                        disabled={isCompleting || isProcessingBackground || isFailing}
+                        className={`rounded-md px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 md:h-8 border-r !text-white ${
+                        isFailing ? 'bg-red-600 hover:bg-red-700 border-red-500' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'}`
+                        }>
                                 {isCompleting || isFailing ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Complete</span>
                               </Button> :
-                              onStartDelivery &&
-                              <Button data-stopcard-action="start" type="button" onPointerDownCapture={handleStartAction} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
+                      onStartDelivery &&
+                      <Button data-stopcard-action="start" type="button" onPointerDownCapture={handleStartAction} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
                                 {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Start</span>
-                              </Button>
-                          )}
+                              </Button>)
+                      }
                       
                       {/* Restart button for completed/cancelled */}
                       {delivery.status !== 'failed' && ['completed', 'cancelled'].includes(delivery.status) && onRestart && !routeCompleted &&
-                        <Button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            await restartCurrentDelivery(true);
-                            }}
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                            disabled={isRestarting || isProcessingBackground || isFailing}>
+                      <Button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await restartCurrentDelivery(true);
+                        }}
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
+                        disabled={isRestarting || isProcessingBackground || isFailing}>
                             {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                             <span className="text-white">Restart</span>
                             </Button>
-                            }
+                      }
 
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
@@ -1921,32 +1921,32 @@ export default function StopCard({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                          {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5"><Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}</DropdownMenuItem>}
-                          {onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner(currentUser) && <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5"><User className="w-5 h-5 md:w-4 md:h-4 mr-2" />Edit Patient</DropdownMenuItem>}
+                          {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEdit(delivery);}} className="text-base md:text-sm py-2.5 md:py-1.5"><Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}</DropdownMenuItem>}
+                          {onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner(currentUser) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}} className="text-base md:text-sm py-2.5 md:py-1.5"><User className="w-5 h-5 md:w-4 md:h-4 mr-2" />Edit Patient</DropdownMenuItem>}
                           {/* Update GPS moved directly under Edit Delivery - only for Next Delivery */}
-                          {isNextDelivery && !isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
-                            <DropdownMenuItem
-                              onClick={async (e) => { e.stopPropagation(); await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores }); }}
-                              className="text-base md:text-sm py-2.5 md:py-1.5"
-                            >
+                          {isNextDelivery && !isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                          <DropdownMenuItem
+                            onClick={async (e) => {e.stopPropagation();await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores });}}
+                            className="text-base md:text-sm py-2.5 md:py-1.5">
+
                               <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               Update GPS
                             </DropdownMenuItem>
-                          )}
+                          }
 
 
 
                           {/* Failed/Cancel menu item - for active deliveries */}
                           {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
-                            <>
+                          <>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                               <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
-                                  setShowFailureReasonDialog(true);
-                                }}
-                                className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5">
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
+                                setShowFailureReasonDialog(true);
+                              }}
+                              className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5">
                                 <XCircle className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                                 {isPickup ? 'Cancel Pickup' : 'Mark as Failed'}
                               </DropdownMenuItem>
@@ -1957,10 +1957,10 @@ export default function StopCard({
 
                           {onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && (onEdit || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
                           {onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-                            <DropdownMenuItem
-                              onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
-                              className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
-                              disabled={false}>
+                          <DropdownMenuItem
+                            onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
+                            className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                            disabled={false}>
                               <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               Delete
                             </DropdownMenuItem>
@@ -1969,7 +1969,7 @@ export default function StopCard({
                       </DropdownMenu>
                     </div>
                       </>
-                    }
+                  }
                   </>
                 }
               </div>
