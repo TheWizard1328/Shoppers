@@ -362,7 +362,20 @@ export default function StopCard({
     return isRouteCompleted(delivery, allDeliveries, FINISHED_STATUSES, new Date(), "America/Edmonton");
   }, [delivery, allDeliveries]);
 
-  const showCompletedRouteCenteredCondensed = routeCompleted && isFinishedDelivery && isRailCentered && !isExpanded;
+  const routeCompletedForLayout = React.useMemo(() => {
+    if (!delivery || !Array.isArray(allDeliveries)) return false;
+
+    const driverDeliveriesForDate = allDeliveries.filter((d) => {
+      if (!d) return false;
+      return d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id;
+    });
+
+    if (driverDeliveriesForDate.length === 0) return false;
+
+    return driverDeliveriesForDate.every((d) => FINISHED_STATUSES.includes(d.status));
+  }, [delivery, allDeliveries]);
+
+  const showCompletedRouteCenteredCondensed = routeCompletedForLayout && isFinishedDelivery && isRailCentered && !isExpanded;
 
   // Check if this is an InterStore delivery (DropOff or Pickup)
   const isInterStore = useMemo(() => {
@@ -1525,7 +1538,7 @@ export default function StopCard({
 
             // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
             // Show if: not finished OR expanded OR centered OR (finished but route not complete)
-            const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompleted;
+            const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout;
             return isAssignedDriverOrAppOwner && shouldShowFooter;
           })() && <div className="space-y-3 mt-2">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
