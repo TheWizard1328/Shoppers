@@ -362,6 +362,8 @@ export default function StopCard({
     return isRouteCompleted(delivery, allDeliveries, FINISHED_STATUSES, new Date(), "America/Edmonton");
   }, [delivery, allDeliveries]);
 
+  const shouldShowCenteredCardMiddle = !isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded || (isRailCentered && !routeCompleted));
+
   // Check if this is an InterStore delivery (DropOff or Pickup)
   const isInterStore = useMemo(() => {
     if (!delivery) return false;
@@ -1194,10 +1196,10 @@ export default function StopCard({
             />
           </div>
 
-          {/* Show address/phone for active cards, expanded cards, and the centered card */}
-          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded || isRailCentered) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {/* Show middle section for active cards, expanded cards, and centered cards on non-completed routes */}
+          {shouldShowCenteredCardMiddle && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded || isRailCentered) && <div className="flex flex-col">
+          {shouldShowCenteredCardMiddle && <div className="flex flex-col">
             <div className="flex items-start justify-between">
               <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
                 {finalDisplayAddress ?
