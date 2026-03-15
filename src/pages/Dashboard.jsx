@@ -1425,9 +1425,9 @@ function Dashboard() {
 
 
 
+
         // This subscription handles changes from other components
-      }});return unsubscribe;
-  }, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
+      }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {
         // Save current phase for later restoration
         phaseBeforeBreakRef.current = event.previousPhase;
@@ -1831,9 +1831,9 @@ function Dashboard() {
 
 
 
+
       // Callback provided for future use
     }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;
-
         // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
         // On all other devices/scenarios, show the shared marker
         const isTrackingOnThisDevice = locationTracker.isTracking === true;
@@ -3213,9 +3213,9 @@ function Dashboard() {
 
     const handleSmartRefreshRestartedEvent = () => {
 
+
       // No map repositioning on smart refresh restart - user controls map manually
-    };
-    window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
+    };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
     window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
 
     return () => {
@@ -7013,7 +7013,7 @@ function Dashboard() {
 
             
 
-            <div className="mt-1 mb-2 flex items-center justify-between">
+            <div className="mt-1 flex items-center justify-between">
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
