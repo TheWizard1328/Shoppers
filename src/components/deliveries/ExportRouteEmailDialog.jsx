@@ -108,7 +108,7 @@ export default function ExportRouteEmailDialog({
         <DialogHeader>
           <DialogTitle>Route export emails</DialogTitle>
           <DialogDescription>
-            Review, add, or remove store email addresses before exporting the route log by email. Only invited app-user emails can receive these route emails.
+            Review, add, or remove store email addresses before exporting the route log by email.
           </DialogDescription>
         </DialogHeader>
 
