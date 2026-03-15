@@ -30,6 +30,11 @@ export default function ResetPolylinesButton({
     if (isResetting || disabled || driverIds.length === 0 || !selectedDate) return;
 
     setIsResetting(true);
+    clearPolylineCache();
+    window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
+      detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
+    }));
+
     try {
       const results = await Promise.allSettled(
         driverIds.map((driverId) =>
