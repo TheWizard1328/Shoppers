@@ -17,19 +17,29 @@ const getEdmontonDateString = (value = new Date()) => {
 };
 
 const normalizeDateString = (value) => {
-  if (!value || typeof value !== 'string') return null;
+  if (!value) return null;
 
-  const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/);
-  if (isoMatch) return isoMatch[0];
+  if (typeof value === 'string') {
+    const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/);
+    if (isoMatch) return isoMatch[0];
 
-  const legacyMatch = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (legacyMatch) {
-    const [, month, day, year] = legacyMatch;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const legacyMatch = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (legacyMatch) {
+      const [, month, day, year] = legacyMatch;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
   }
 
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : getEdmontonDateString(parsed);
+  return null;
+};
+
+const shiftDateString = (dateString, days) => {
+  const [year, month, day] = dateString.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  const shiftedYear = shifted.getUTCFullYear();
+  const shiftedMonth = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const shiftedDay = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${shiftedYear}-${shiftedMonth}-${shiftedDay}`;
 };
 
 const resolvePatientLastDeliveryDate = (delivery) => {
@@ -90,22 +100,24 @@ const syncSingleDelivery = async (base44, delivery) => {
 
 const runBackfill = async (base44, backfillDays) => {
   const safeDays = Number.isFinite(backfillDays) ? Math.max(1, Math.min(365, backfillDays)) : 90;
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - (safeDays - 1));
-  const cutoffDate = getEdmontonDateString(cutoff);
+  const todayEdmontonDate = getEdmontonDateString();
+  const cutoffDate = shiftDateString(todayEdmontonDate, -(safeDays - 1));
 
-  const deliveries = await base44.asServiceRole.entities.Delivery.filter({
-    delivery_date: { $gte: cutoffDate }
-  }, '-delivery_date', 5000);
+  const deliveries = await base44.asServiceRole.entities.Delivery.list('-delivery_date', 5000);
 
   const latestByPatient = new Map();
+  let deliveriesScanned = 0;
 
   for (const delivery of deliveries) {
     if (!delivery?.patient_id || !TERMINAL_STATUSES.has(delivery.status)) continue;
 
+    const deliveryDate = normalizeDateString(delivery.delivery_date);
+    if (!deliveryDate || deliveryDate < cutoffDate || deliveryDate > todayEdmontonDate) continue;
+
     const resolvedDate = resolvePatientLastDeliveryDate(delivery);
     if (!resolvedDate) continue;
 
+    deliveriesScanned += 1;
     const existingDate = latestByPatient.get(delivery.patient_id);
     if (!existingDate || resolvedDate > existingDate) {
       latestByPatient.set(delivery.patient_id, resolvedDate);
@@ -137,7 +149,7 @@ const runBackfill = async (base44, backfillDays) => {
     mode: 'backfill',
     backfillDays: safeDays,
     cutoffDate,
-    deliveriesScanned: deliveries.length,
+    deliveriesScanned,
     patientsMatched: latestByPatient.size,
     patientsUpdated: updatedCount
   });

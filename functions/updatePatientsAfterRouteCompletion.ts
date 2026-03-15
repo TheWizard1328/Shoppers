@@ -15,19 +15,20 @@ const getEdmontonDateString = (value = new Date()) => {
 };
 
 const normalizeDateString = (value) => {
-  if (!value || typeof value !== 'string') return null;
+  if (!value) return null;
 
-  const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/);
-  if (isoMatch) return isoMatch[0];
+  if (typeof value === 'string') {
+    const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/);
+    if (isoMatch) return isoMatch[0];
 
-  const legacyMatch = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (legacyMatch) {
-    const [, month, day, year] = legacyMatch;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const legacyMatch = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (legacyMatch) {
+      const [, month, day, year] = legacyMatch;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
   }
 
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : getEdmontonDateString(parsed);
+  return null;
 };
 
 Deno.serve(async (req) => {
