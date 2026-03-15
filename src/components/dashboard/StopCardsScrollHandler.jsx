@@ -60,6 +60,7 @@ export const createStopCardsScrollHandler = ({
           const appUser = appUsers.find((user) => user?.user_id === centeredDelivery.driver_id || user?.id === centeredDelivery.driver_id);
           const driverLat = appUser?.current_latitude;
           const driverLon = appUser?.current_longitude;
+          const relockPhase = centeredDelivery.isNextDelivery === true && (mapViewPhase === 2 || mapViewPhase === 3) ? mapViewPhase : null;
 
           if (mapViewPhase === 2 || mapViewPhase === 3) {
             if (mapLockTimeoutRef.current) {
@@ -100,12 +101,12 @@ export const createStopCardsScrollHandler = ({
             setMapZoom(null);
           }
 
-          onCenteredCardChange?.({
-            deliveryId: centeredDelivery.id,
-            driverId: centeredDelivery.driver_id,
-            isNextDelivery: centeredDelivery.isNextDelivery === true,
-            source: 'scroll'
-          });
+          if (relockPhase) {
+            setMapViewPhase(relockPhase);
+            setIsMapViewLocked(true);
+            if (typeof window !== 'undefined') window.__fabRelockPhase = relockPhase;
+          }
+          onCenteredCardChange?.({ deliveryId: centeredDelivery.id, driverId: centeredDelivery.driver_id, isNextDelivery: centeredDelivery.isNextDelivery === true, source: 'scroll' });
         }
       }
 

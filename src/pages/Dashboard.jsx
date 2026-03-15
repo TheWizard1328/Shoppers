@@ -3719,12 +3719,9 @@ function Dashboard() {
       setHighlightedCardId(delivery.id);
       cardExpandedAtRef.current = Date.now();
 
-      // CRITICAL: Clear timers and unlock FAB
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
+      if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
       mapLockExpiresAtRef.current = null;
+      window.__fabRelockPhase = mapViewPhase === 2 || mapViewPhase === 3 ? mapViewPhase : null;
       setIsMapViewLocked(false);
 
       // CRITICAL: Wait for card expansion animation, then measure and center on mobile
@@ -3744,74 +3741,36 @@ function Dashboard() {
               paddingBottomRight: [25, bottomPadding]
             };
 
-            // Center on marker with measured padding
+            const appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id), bounds = [];
             if (delivery.patient_id) {
               const patient = patients.find((p) => p.id === delivery.patient_id);
-              if (patient?.latitude && patient?.longitude) {
-                setShouldFitBounds({
-                  bounds: [[patient.latitude, patient.longitude]],
-                  options: {
-                    ...padding,
-                    maxZoom: 17.5,
-                    animate: true
-                  }
-                });
-                setMapCenter(null);
-                setMapZoom(null);
-                setIsMapViewLocked(true);
-              }
+              if (patient?.latitude && patient?.longitude) bounds.push([patient.latitude, patient.longitude]);
             } else if (delivery.store_id) {
               const store = stores.find((s) => s.id === delivery.store_id);
-              if (store?.latitude && store?.longitude) {
-                setShouldFitBounds({
-                  bounds: [[store.latitude, store.longitude]],
-                  options: {
-                    ...padding,
-                    maxZoom: 17.5,
-                    animate: true
-                  }
-                });
-                setMapCenter(null);
-                setMapZoom(null);
-                setIsMapViewLocked(true);
-              }
+              if (store?.latitude && store?.longitude) bounds.push([store.latitude, store.longitude]);
             }
+            if (appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
+            if (bounds.length) {
+              setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
+              setMapCenter(null); setMapZoom(null);
+            }
+            if (delivery.isNextDelivery && window.__fabRelockPhase) { setMapViewPhase(window.__fabRelockPhase); setIsMapViewLocked(true); }
           }, 350);
         } else {
-          // Desktop: center immediately with standard padding
-          const padding = getMapPadding();
-
+          const padding = getMapPadding(), appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id), bounds = [];
           if (delivery.patient_id) {
             const patient = patients.find((p) => p.id === delivery.patient_id);
-            if (patient?.latitude && patient?.longitude) {
-              setShouldFitBounds({
-                bounds: [[patient.latitude, patient.longitude]],
-                options: {
-                  ...padding,
-                  maxZoom: 17.5,
-                  animate: true
-                }
-              });
-              setMapCenter(null);
-              setMapZoom(null);
-              setIsMapViewLocked(true);
-            }
+            if (patient?.latitude && patient?.longitude) bounds.push([patient.latitude, patient.longitude]);
           } else if (delivery.store_id) {
             const store = stores.find((s) => s.id === delivery.store_id);
-            if (store?.latitude && store?.longitude) {
-              setShouldFitBounds({
-                bounds: [[store.latitude, store.longitude]],
-                options: {
-                  ...padding,
-                  maxZoom: 17.5,
-                  animate: true
-                }
-              });
-              setMapCenter(null);
-              setMapZoom(null);
-              setIsMapViewLocked(true);
-            }
+            if (store?.latitude && store?.longitude) bounds.push([store.latitude, store.longitude]);
           }
+          if (appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
+          if (bounds.length) {
+            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
+            setMapCenter(null); setMapZoom(null);
+          }
+          if (delivery.isNextDelivery && window.__fabRelockPhase) { setMapViewPhase(window.__fabRelockPhase); setIsMapViewLocked(true); }
         }
       };
 
@@ -5935,9 +5894,7 @@ function Dashboard() {
         }, 500);
       }
 
-      // STEP 7: Re-lock FAB if needed (instant)
-      if (currentPhase === 2) {
-        // Keep Phase 2 locked but DO NOT trigger a map render to avoid flicker/recenter
+      if (currentPhase > 1) {
         setIsMapViewLocked(true);
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
@@ -7476,21 +7433,7 @@ function Dashboard() {
               lastUserInteractionRef.current = Date.now();
               window.__isUserCardSwipe = true;
             }}
-            onScroll={isMobile ? createStopCardsScrollHandler({
-              deliveriesWithStopOrder,
-              patients,
-              stores,
-              mapViewPhase,
-              isMapViewLocked,
-              setIsMapViewLocked,
-              setMapViewPhase,
-              setShouldFitBounds,
-              setMapCenter,
-              setMapZoom,
-              getMapPadding,
-              mapLockTimeoutRef,
-              mapLockExpiresAtRef
-            }) : undefined}>
+            onScroll={isMobile ? createStopCardsScrollHandler({ deliveriesWithStopOrder, patients, stores, appUsers, mapViewPhase, isMapViewLocked, setIsMapViewLocked, setMapViewPhase, setShouldFitBounds, setMapCenter, setMapZoom, getMapPadding, mapLockTimeoutRef, mapLockExpiresAtRef }) : undefined}>
 
               {/* CRITICAL: Hide stop cards when in "All Drivers" mode (except for dispatchers) */}
               {(!isAllDriversMode || isDispatcher) &&
