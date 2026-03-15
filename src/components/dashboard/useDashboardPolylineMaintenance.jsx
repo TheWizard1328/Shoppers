@@ -20,16 +20,16 @@ export function useDashboardPolylineMaintenance({
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const polylineRepairInFlightRef = useRef(new Set());
   const autoRepairTriggeredRef = useRef(new Set());
-  const activeSelectedDriverId = selectedDriverId || globalFilters.getSelectedDriverId() || 'all';
 
   useEffect(() => {
     autoRepairTriggeredRef.current.clear();
-  }, [selectedDate, activeSelectedDriverId]);
+  }, [selectedDate, selectedDriverId]);
 
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !dataReadyForSelectedDate || isSnapshotModeActive) return;
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    const activeSelectedDriverId = selectedDriverId || globalFilters.getSelectedDriverId() || 'all';
     const selectedScopeKey = `${dateStr}__${activeSelectedDriverId}`;
     const selectedDateDeliveries = (deliveries || [])
       .filter((delivery) => delivery && delivery.delivery_date === dateStr)
@@ -107,7 +107,7 @@ export function useDashboardPolylineMaintenance({
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedDate, activeSelectedDriverId, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally]);
+  }, [currentUser, selectedDate, selectedDriverId, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally]);
 
   const fetchPolylineCount = useCallback(async () => {
     if (!currentUser || !isAppOwner(currentUser)) return;
