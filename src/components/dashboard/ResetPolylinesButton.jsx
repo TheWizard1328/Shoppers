@@ -3,7 +3,6 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { clearHereCacheForDriverDate } from "@/components/utils/hereRouting";
 import { offlineDB } from "@/components/utils/offlineDatabase";
-import { updateDeliveryLocal } from "@/components/utils/offlineMutations";
 import { Loader2, RotateCcw } from "lucide-react";
 
 export default function ResetPolylinesButton({
@@ -33,19 +32,24 @@ export default function ResetPolylinesButton({
     const deliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, "delivery_date", selectedDate);
     const matches = (deliveries || []).filter((delivery) =>
       driverIds.includes(delivery?.driver_id) &&
-      typeof delivery?.finished_leg_encoded_polyline === "string" &&
-      delivery.finished_leg_encoded_polyline.trim().length > 0
+      ((typeof delivery?.finished_leg_encoded_polyline === "string" && delivery.finished_leg_encoded_polyline.trim().length > 0) ||
+        delivery?.PolylineUpdated === true)
     );
 
-    await Promise.all(
-      matches.map((delivery) =>
-        updateDeliveryLocal(
-          delivery.id,
-          { finished_leg_encoded_polyline: "" },
-          { skipSmartRefresh: true, isBatchOperation: true }
-        )
-      )
-    );
+    if (matches.length === 0) return;
+
+    const updatedDeliveries = matches.map((delivery) => ({
+      ...delivery,
+      finished_leg_encoded_polyline: "",
+      PolylineUpdated: false,
+      updated_date: new Date().toISOString()
+    }));
+
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
+
+    window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
+      detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylinesLocalClear" }
+    }));
   };
 
   const syncDriverDateDeliveriesFromBackend = async (successfulDriverIds) => {
