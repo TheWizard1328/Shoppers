@@ -645,7 +645,15 @@ export default function DeliveryMap({
     setFannedLocationKey(null);
     if (marker.status === "pending" && marker.puid) {
       const assignedPickup = pickupMarkers.find((pickup) => pickup?.stop_id === marker.puid);
-      if (assignedPickup && onMarkerClick) return onMarkerClick(assignedPickup);
+      if (assignedPickup && onMarkerClick) {
+        if (assignedPickup?.id) {
+          window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: assignedPickup.id } }));
+        }
+        return onMarkerClick(assignedPickup);
+      }
+    }
+    if (marker?.id) {
+      window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: marker.id } }));
     }
     onMarkerClick?.(marker, markerType);
     onMapInteraction?.();

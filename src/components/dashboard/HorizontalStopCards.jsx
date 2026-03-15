@@ -387,20 +387,19 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   React.useEffect(() => {
     if (!isDesktopFanLayout) {
-      setDesktopContainerHeight(188);
+      setDesktopContainerHeight(140);
       return;
     }
 
-    const collapsedHeight = 188;
     const selectedId = selectedCardId || desktopCenteredCardId;
     const targetElement = selectedId ? document.getElementById(`stop-card-${selectedId}`) : null;
 
     const updateHeight = () => {
       if (!targetElement) {
-        setDesktopContainerHeight(collapsedHeight);
+        setDesktopContainerHeight(140);
         return;
       }
-      const nextHeight = Math.max(collapsedHeight, Math.ceil(targetElement.offsetHeight) + 12);
+      const nextHeight = Math.ceil(targetElement.offsetHeight) + 12;
       setDesktopContainerHeight(nextHeight);
     };
 
