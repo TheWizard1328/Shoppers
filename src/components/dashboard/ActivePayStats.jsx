@@ -67,42 +67,42 @@ export default function ActivePayStats({
     inTransitDrivers: 0,
     completedDrivers: 0
   };
-
+  
   // Use actual performanceStats (no estimates)
   const displayPay = performanceStats?.totalPay || 0;
-  const displayKm = liveDistance > 0 ? liveDistance : performanceStats?.totalKm || 0;
+  const displayKm = liveDistance > 0 ? liveDistance : (performanceStats?.totalKm || 0);
   const displayExtraKm = performanceStats?.totalExtraKm || 0;
   const displayTime = performanceStats?.totalTimeOnDuty ?? '00:00';
   const extraKmLimit = performanceStats?.extraKmLimit || 0;
-
+  
   // Build tooltips
   const tooltipValues = {
-    total: isDispatcher ?
-    `Total Deliveries: ${stats.total} (${stats.totalDrivers} drivers)` :
-    isDriver && stats.totalPickups > 0 ?
-    `Total Deliveries: ${stats.total}, Total Pickups: ${stats.totalPickups}` :
-    `Total Stops: ${stats.total}`,
-    activeStops: isDispatcher ?
-    `In Transit Deliveries: ${stats.inTransit} (${stats.inTransitDrivers} on-duty drivers)` :
-    isDriver && stats.activePickupsEnRoute > 0 ?
-    `In Transit Deliveries: ${stats.inTransit}, En Route Pickups: ${stats.activePickupsEnRoute}` :
-    `Active Stops: ${stats.inTransit}`,
-    completed: isDispatcher ?
-    `Completed Deliveries: ${stats.completed} (${stats.completedDrivers} drivers)` :
-    isDriver && stats.completedPickups > 0 ?
-    `Completed Deliveries: ${stats.completed}, Completed Pickups: ${stats.completedPickups}` :
-    `Completed Stops: ${stats.completed}`,
+    total: isDispatcher 
+      ? `Total Deliveries: ${stats.total} (${stats.totalDrivers} drivers)` 
+      : isDriver && stats.totalPickups > 0
+        ? `Total Deliveries: ${stats.total}, Total Pickups: ${stats.totalPickups}`
+        : `Total Stops: ${stats.total}`,
+    activeStops: isDispatcher 
+      ? `In Transit Deliveries: ${stats.inTransit} (${stats.inTransitDrivers} on-duty drivers)` 
+      : isDriver && stats.activePickupsEnRoute > 0
+        ? `In Transit Deliveries: ${stats.inTransit}, En Route Pickups: ${stats.activePickupsEnRoute}`
+        : `Active Stops: ${stats.inTransit}`,
+    completed: isDispatcher 
+      ? `Completed Deliveries: ${stats.completed} (${stats.completedDrivers} drivers)` 
+      : isDriver && stats.completedPickups > 0
+        ? `Completed Deliveries: ${stats.completed}, Completed Pickups: ${stats.completedPickups}`
+        : `Completed Stops: ${stats.completed}`,
     failed: `Failed: ${stats.failed}, Returned: ${stats.returned}`,
     pay: isLoadingPayrollStats ? 'Loading...' : `Total Pay: $${displayPay.toFixed(2)} (excl. N/C)`,
-    distance: isLoadingPayrollStats ? 'Loading...' : liveDistance > 0 ? `Total Distance (Live): ${displayKm.toFixed(2)} km` : `Total Distance: ${displayKm.toFixed(2)} km`,
+    distance: isLoadingPayrollStats ? 'Loading...' : (liveDistance > 0 ? `Total Distance (Live): ${displayKm.toFixed(2)} km` : `Total Distance: ${displayKm.toFixed(2)} km`),
     extraKm: isLoadingPayrollStats ? 'Loading...' : `Extra Km (beyond ${extraKmLimit} km limit): ${displayExtraKm.toFixed(2)} km (excl. N/C)`,
     time: isLoadingPayrollStats ? 'Loading...' : `Time on Duty: ${displayTime} (first stop to now, minus breaks)`
   };
-
+  
   return (
     <div className="py-0.5">
       {/* Row 1: Delivery Stats - 4 columns */}
-      <div className="mb-1 grid grid-cols-4 gap-1">
+      <div className="grid grid-cols-4 gap-1 mb-2">
         <StatBadge
           icon={Package}
           value={stats.total}
@@ -136,41 +136,41 @@ export default function ActivePayStats({
       </div>
 
       {/* Row 2: Performance Stats - 4 columns - Show for drivers only, NOT dispatchers */}
-      {!isDispatcher &&
-      <div className="grid grid-cols-4 gap-1">
+      {!isDispatcher && (
+        <div className="grid grid-cols-4 gap-1">
           <StatBadge
-          icon={DollarSign}
-          value={isLoadingPayrollStats ? '...' : `${displayPay.toFixed(2)}`}
-          color="green"
-          label="Pay"
-          tooltip={tooltipValues.pay}
-          small />
+            icon={DollarSign}
+            value={isLoadingPayrollStats ? '...' : `${displayPay.toFixed(2)}`}
+            color="green"
+            label="Pay"
+            tooltip={tooltipValues.pay}
+            small />
 
           <StatBadge
-          icon={Route}
-          value={isLoadingPayrollStats ? '...' : `${displayKm.toFixed(2)}k`}
-          color="blue"
-          label="Km"
-          tooltip={tooltipValues.distance}
-          small />
+            icon={Route}
+            value={isLoadingPayrollStats ? '...' : `${displayKm.toFixed(2)}k`}
+            color="blue"
+            label="Km"
+            tooltip={tooltipValues.distance}
+            small />
 
           <StatBadge
-          icon={TrendingUp}
-          value={isLoadingPayrollStats ? '...' : `${displayExtraKm.toFixed(2)}k`}
-          color="amber"
-          label="Extra"
-          tooltip={tooltipValues.extraKm}
-          small />
+            icon={TrendingUp}
+            value={isLoadingPayrollStats ? '...' : `${displayExtraKm.toFixed(2)}k`}
+            color="amber"
+            label="Extra"
+            tooltip={tooltipValues.extraKm}
+            small />
 
           <StatBadge
-          icon={Clock}
-          value={isLoadingPayrollStats ? '...' : displayTime}
-          color="purple"
-          label="Duty"
-          tooltip={tooltipValues.time}
-          small />
+            icon={Clock}
+            value={isLoadingPayrollStats ? '...' : displayTime}
+            color="purple"
+            label="Duty"
+            tooltip={tooltipValues.time}
+            small />
         </div>
-      }
+      )}
     </div>);
 
 }

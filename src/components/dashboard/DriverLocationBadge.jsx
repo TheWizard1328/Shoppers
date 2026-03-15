@@ -9,17 +9,17 @@ const DriverLocationBadge = ({ users = [] }) => {
   useEffect(() => {
     const handleLocationUpdate = (event) => {
       const { appUsers, singleUpdate } = event.detail || {};
-
+      
       if (!appUsers || appUsers.length === 0) return;
 
       console.log(`🔍 [DriverLocationBadge] Received ${appUsers.length} appUsers, singleUpdate: ${singleUpdate}`);
 
       // CRITICAL: Only update drivers that actually changed
-      setDriverStatus((prevStatus) => {
+      setDriverStatus(prevStatus => {
         const newStatus = { ...prevStatus };
         let hasChanges = false;
-
-        appUsers.forEach((user) => {
+        
+        appUsers.forEach(user => {
           // Only show drivers who are online OR have updated location within last 30 minutes
           if (!user || !user.location_updated_at) {
             return;
@@ -58,14 +58,14 @@ const DriverLocationBadge = ({ users = [] }) => {
           if (!isFirstLoad && (coordsChanged || trackingChanged)) {
             fabControlEvents.notifyDriverLocationChange();
           }
-
+          
           let bulletColor = 'red'; // Both unchanged
           if (coordsChanged && timestampChanged) {
             bulletColor = 'green'; // Both changed
           } else if (timestampChanged) {
             bulletColor = 'yellow'; // Only timestamp changed
           }
-
+          
           newStatus[userId] = {
             name: user.user_name || user.full_name || 'Unknown',
             lat: user.current_latitude,
@@ -113,13 +113,13 @@ const DriverLocationBadge = ({ users = [] }) => {
   };
 
   return (
-    <div className="px-2 py-1 space-y-1 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-      {drivers.map((driver) =>
-      <div key={driver.name} className="flex items-center gap-2 text-xs">
+    <div className="px-4 py-2 space-y-1 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      {drivers.map((driver) => (
+        <div key={driver.name} className="flex items-center gap-2 text-xs">
           <div
-          className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ backgroundColor: bulletColorMap[driver.bulletColor] }} />
-
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: bulletColorMap[driver.bulletColor] }}
+          />
           <span className="font-medium" style={{ color: 'var(--text-slate-700)', minWidth: '80px' }}>
             {driver.name}
           </span>
@@ -136,9 +136,9 @@ const DriverLocationBadge = ({ users = [] }) => {
             {driver.timestamp ? format(new Date(driver.timestamp), 'HH:mm:ss') : '?'}
           </span>
         </div>
-      )}
-    </div>);
-
+      ))}
+    </div>
+  );
 };
 
 export default DriverLocationBadge;

@@ -3469,8 +3469,8 @@ export default function DeliveryForm({
 
     // Check for existing pickup for this store/driver/date
     let puid = null;
-    const autoDriverId = autoSelectedDriverId || formData.driver_id, autoDriverName = autoSelectedDriverName || formData.driver_name;
     const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, autoDriverId, allDeliveries);
+    const autoDriverId = autoSelectedDriverId || formData.driver_id;
 
     // CRITICAL: Check staged pickups FIRST
     const stagedPickup = stagedDeliveries.find((d) =>
@@ -3499,7 +3499,7 @@ export default function DeliveryForm({
       ampm_deliveries: timeSlot,
       status: 'Staged',
       driver_id: autoSelectedDriverId,
-      driver_name: autoDriverName,
+      driver_name: autoSelectedDriverName,
       prescription_number: projected.prescription_number || '',
       delivery_instructions: patient.notes || '',
       delivery_notes: '',

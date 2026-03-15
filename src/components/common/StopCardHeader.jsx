@@ -17,7 +17,7 @@ const statusConfig = {
   delivered: { label: "Complete" },
   failed: { label: "Failed" },
   cancelled: { label: "Cancelled" },
-  returned: { label: "Return" }
+  returned: { label: "Return" },
 };
 
 function formatTime12Hour(timeString) {
@@ -50,7 +50,7 @@ export default function StopCardHeader({
   driverBadgeTextColor,
   currentUser,
   appUsers = [],
-  isReturnDelivery
+  isReturnDelivery,
 }) {
   const [, setEtaTrendVersion] = React.useState(0);
   React.useEffect(() => {
@@ -62,11 +62,11 @@ export default function StopCardHeader({
 
   const isFinished = FINISHED_STATUSES.includes(delivery?.status);
   const etaTrend = !isFinished ? getEtaTrendForDelivery(delivery?.id) : null;
-  const timeColor = etaTrend?.trend === 'improved' ?
-  '#16a34a' :
-  etaTrend?.trend === 'delayed' ?
-  '#dc2626' :
-  'var(--text-slate-600)';
+  const timeColor = etaTrend?.trend === 'improved'
+    ? '#16a34a'
+    : etaTrend?.trend === 'delayed'
+      ? '#dc2626'
+      : 'var(--text-slate-600)';
 
   const timeDisplay = (() => {
     if (isFinished && delivery?.actual_delivery_time) {
@@ -77,8 +77,8 @@ export default function StopCardHeader({
             const arrival = delivery?.arrival_time ? formatTime12Hour(format(new Date(delivery.arrival_time), "HH:mm")) : null;
             return <span className="font-medium">{arrival ? `${arrival} → ${actual}` : actual}</span>;
           })()}
-        </>);
-
+        </>
+      );
     }
     const eta = getCurrentEtaForDelivery(
       delivery?.id,
@@ -87,10 +87,10 @@ export default function StopCardHeader({
     return <span className="font-medium">ETA: {formatTime12Hour(eta)}</span>;
   })();
 
-  const statusLabel = isReturnDelivery ? "Return" : statusConfig[delivery?.status]?.label || delivery?.status;
-  const statusBgClass = isReturnDelivery ?
-  "bg-orange-500" :
-  delivery?.status === "failed" || delivery?.status === "cancelled" ? "bg-red-500" : "bg-emerald-500";
+  const statusLabel = isReturnDelivery ? "Return" : (statusConfig[delivery?.status]?.label || delivery?.status);
+  const statusBgClass = isReturnDelivery
+    ? "bg-orange-500"
+    : (delivery?.status === "failed" || delivery?.status === "cancelled" ? "bg-red-500" : "bg-emerald-500");
 
   // Driver pay (for finished stops shown to drivers/admins)
   const showDriverPay = isFinished && (userHasRole(currentUser, "driver") || userHasRole(currentUser, "admin")) && (delivery?.patient_id || delivery?.after_hours_pickup);
@@ -98,8 +98,8 @@ export default function StopCardHeader({
   if (showDriverPay) {
     let driverAppUser = null;
     if (appUsers && appUsers.length > 0) {
-      if (userHasRole(currentUser, "admin")) driverAppUser = appUsers.find((au) => au?.user_id === delivery?.driver_id);else
-      driverAppUser = appUsers.find((au) => au?.user_id === currentUser?.id);
+      if (userHasRole(currentUser, "admin")) driverAppUser = appUsers.find((au) => au?.user_id === delivery?.driver_id);
+      else driverAppUser = appUsers.find((au) => au?.user_id === currentUser?.id);
     }
     if (!driverAppUser && safeDriver && safeDriver.pay_rate_per_delivery) driverAppUser = safeDriver;
 
@@ -110,35 +110,35 @@ export default function StopCardHeader({
     const isNoCharge = delivery?.no_charge === true;
     const payDisplay = isNoCharge ? 'N/C' : formatPay(pay);
 
-    payBadge = !isAfterHours && !hasExtraPay ?
-    <div className="text-xm font-bold text-emerald-600">{payDisplay}</div> :
-
-    <Badge variant="secondary" className="inline-flex items-center border transition-colors text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
+    payBadge = !isAfterHours && !hasExtraPay ? (
+      <div className="text-xm font-bold text-emerald-600">{payDisplay}</div>
+    ) : (
+      <Badge variant="secondary" className="inline-flex items-center border transition-colors text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
         {payDisplay}
-      </Badge>;
-
+      </Badge>
+    );
   }
 
   return (
     <>
       {/* Left badges column */}
-      <div className="my-0.5 mt-1 mb-1 flex flex-col items-center gap-1.5">
+      <div className="flex flex-col py-0. gap-0.5  items-center">
         <Badge
           variant="secondary"
           className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors w-[40px] justify-center"
-          style={{ backgroundColor: storeColor || "#10B981", color: "white" }}>
-
+          style={{ backgroundColor: storeColor || "#10B981", color: "white" }}
+        >
           #{delivery?.display_stop_order || delivery?.stop_order || 0}
         </Badge>
 
-        {isPickup && pendingPickups && pendingPickups.length > 0 &&
-        <Badge
-          variant="secondary"
-          className="bg-purple-500 text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-lg inline-flex items-center border !text-white justify-center">
-
+        {isPickup && pendingPickups && pendingPickups.length > 0 && (
+          <Badge
+            variant="secondary"
+            className="bg-purple-500 text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-lg inline-flex items-center border !text-white justify-center"
+          >
             P: {pendingPickups.length}
           </Badge>
-        }
+        )}
 
         <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={isPickup} size="card" className="mt-1" />
       </div>
@@ -148,71 +148,71 @@ export default function StopCardHeader({
         <h3 className="pt-0 text-2xl md:text-xl font-semibold text-center truncate" style={{ color: "var(--text-slate-900)" }}>
           {finalDisplayName}
         </h3>
-        <div className="flex flex-col items-center min-h-[45px]">
+        <div className="flex flex-col items-center min-h-[40px]">
           <div className="text-lg md:text-sm flex items-center justify-center" style={{ color: timeColor }}>
             {timeDisplay}
-            {showDriverName && safeDriver &&
-            <>
+            {showDriverName && safeDriver && (
+              <>
                 <span className="px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center" style={{ color: "var(--text-slate-500)" }}>
                   •
                 </span>
                 <Badge
-                variant="secondary"
-                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs !text-white font-semibold"
-                style={{ backgroundColor: driverBadgeColor, color: driverBadgeTextColor }}>
-
+                  variant="secondary"
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs !text-white font-semibold"
+                  style={{ backgroundColor: driverBadgeColor, color: driverBadgeTextColor }}
+                >
                   {getDriverDisplayName(safeDriver)}
                 </Badge>
               </>
-            }
+            )}
           </div>
 
           {/* Time window for active stops */}
-          {!isFinished && (delivery?.delivery_time_start || delivery?.delivery_time_end) &&
-          <div className="text-sm md:text-[11px]" style={{ color: "var(--text-slate-500)" }}>
-              {delivery?.delivery_time_start && delivery?.delivery_time_end ?
-            <>
+          {!isFinished && (delivery?.delivery_time_start || delivery?.delivery_time_end) && (
+            <div className="text-sm md:text-[11px]" style={{ color: "var(--text-slate-500)" }}>
+              {delivery?.delivery_time_start && delivery?.delivery_time_end ? (
+                <>
                   {formatTime12Hour(delivery.delivery_time_start)} → {formatTime12Hour(delivery.delivery_time_end)}
-                </> :
-            delivery?.delivery_time_start ?
-            <>{formatTime12Hour(delivery.delivery_time_start)} →</> :
-            delivery?.delivery_time_end ?
-            <>← {formatTime12Hour(delivery.delivery_time_end)}</> :
-            null}
+                </>
+              ) : delivery?.delivery_time_start ? (
+                <>{formatTime12Hour(delivery.delivery_time_start)} →</>
+              ) : delivery?.delivery_time_end ? (
+                <>← {formatTime12Hour(delivery.delivery_time_end)}</>
+              ) : null}
             </div>
-          }
+          )}
 
           {showDriverPay && payBadge}
         </div>
       </div>
 
       {/* Right column */}
-      <div className="my-0.5 mt-1 mb-1 flex flex-col items-center gap-1.5">
+      <div className="flex flex-col py-0.5 gap-0.5 items-center">
         <div className="flex items-center gap-1">
           <Badge
             variant="secondary"
             className={`text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full ${statusBgClass}`}
-            style={{ color: isPickup && delivery?.after_hours_pickup && isFinished ? "#3b82f6" : "white" }}>
-
+            style={{ color: isPickup && delivery?.after_hours_pickup && isFinished ? "#3b82f6" : "white" }}
+          >
             {statusLabel}
           </Badge>
         </div>
 
-        {delivery?.tracking_number && store?.abbreviation &&
-        <Badge
-          variant="secondary"
-          className="bg-secondary text-secondary-foreground mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center"
-          style={{ backgroundColor: `${storeColor}`, color: `White` }}>
-
+        {delivery?.tracking_number && store?.abbreviation && (
+          <Badge
+            variant="secondary"
+            className="bg-secondary text-secondary-foreground mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center"
+            style={{ backgroundColor: `${storeColor}`, color: `White` }}
+          >
             {(() => {
-            const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
-            const trackingNum = parseInt(delivery.tracking_number) || 0;
-            const formattedNum = trackingNum > 99 ? trackingNum.toString().padStart(3, "0") : trackingNum.toString().padStart(2, "0");
-            return `${storeAbbr}${formattedNum}`;
-          })()}
+              const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
+              const trackingNum = parseInt(delivery.tracking_number) || 0;
+              const formattedNum = trackingNum > 99 ? trackingNum.toString().padStart(3, "0") : trackingNum.toString().padStart(2, "0");
+              return `${storeAbbr}${formattedNum}`;
+            })()}
           </Badge>
-        }
+        )}
       </div>
-    </>);
-
+    </>
+  );
 }
