@@ -1153,9 +1153,9 @@ export default function StopCard({
       style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: 50 }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
-      <Card className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[338px] max-w-[338px] border-blue-500"
-
-
+      <Card
+        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"}
+        className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[338px] max-w-[338px] border-blue-500"
         onClick={(e) => {
           if (startTapLockRef.current || e.target?.closest?.('[data-stopcard-action="start"]')) return;
           // Allow clicking even for stripped deliveries (to show driver notes)
@@ -1167,7 +1167,7 @@ export default function StopCard({
           opacity: shouldFade ? 0.4 : 1,
           transition: 'opacity 0.2s ease-in-out'
         }}>
-        <CardContent className="p-6 px-2 py-0 flex flex-col">
+        <CardContent className={`px-2 py-0 flex flex-col ${showCompletedRouteCenteredCondensed ? 'p-0' : 'p-6'}`}>
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}

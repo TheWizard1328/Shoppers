@@ -559,6 +559,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         .desktop-stop-card-shell[data-rail-condensed="false"] > [id^="stop-card-"] > .rounded-xl {
           min-height: 188px;
         }
+
+        .desktop-stop-card-shell > [id^="stop-card-"] > .rounded-xl[data-route-completed-condensed="true"] {
+          min-height: 0 !important;
+        }
       `}</style>}
 
       {sortedPickupCards.map((card) => {
