@@ -7290,7 +7290,7 @@ function Dashboard() {
             }}
             onTouchStart={() => {
               lastUserInteractionRef.current = Date.now();
-              window.__isUserCardSwipe = true;
+              window.__isUserCardSwipe = true; if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) { if (mapLockTimeoutRef.current) clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; mapLockExpiresAtRef.current = null; setIsMapViewLocked(false); }
             }}
             onScroll={isMobile ? createStopCardsScrollHandler({ deliveriesWithStopOrder, patients, stores, appUsers, mapViewPhase, isMapViewLocked, setIsMapViewLocked, setMapViewPhase, setShouldFitBounds, setMapCenter, setMapZoom, getMapPadding, mapLockTimeoutRef, mapLockExpiresAtRef }) : undefined}>
 
