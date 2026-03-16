@@ -145,11 +145,11 @@ export default function StopCardHeader({
 
       {/* Center section */}
       <div className="flex-1 min-w-0">
-        <h3 className="pt-0 text-2xl md:text-xl font-semibold text-center truncate" style={{ color: "var(--text-slate-900)" }}>
+        <h3 className="pt-0 text-2xl font-semibold text-center truncate" style={{ color: "var(--text-slate-900)" }}>
           {finalDisplayName}
         </h3>
         <div className="flex flex-col items-center min-h-[45px]">
-          <div className="text-lg md:text-sm flex items-center justify-center" style={{ color: timeColor }}>
+          <div className="text-lg flex items-center justify-center" style={{ color: timeColor }}>
             {timeDisplay}
             {showDriverName && safeDriver &&
             <>
@@ -169,7 +169,7 @@ export default function StopCardHeader({
 
           {/* Time window for active stops */}
           {!isFinished && (delivery?.delivery_time_start || delivery?.delivery_time_end) &&
-          <div className="text-sm md:text-[11px]" style={{ color: "var(--text-slate-500)" }}>
+          <div className="text-sm" style={{ color: "var(--text-slate-500)" }}>
               {delivery?.delivery_time_start && delivery?.delivery_time_end ?
             <>
                   {formatTime12Hour(delivery.delivery_time_start)} → {formatTime12Hour(delivery.delivery_time_end)}

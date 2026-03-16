@@ -91,23 +91,23 @@ export default function StopCardBody({
             <div className="mt-1 pt-2 pb-1.5 space-y-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
               {finalDisplayPhone && !(isFinishedDelivery && !isPickup) && (
-                <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                <div className="flex items-center text-lg" style={{ color: 'var(--text-slate-600)' }}>
                   <Phone className="w-4 h-4 mr-2 text-slate-500" />
-                  <span className="text-xl md:text-base font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
+                  <span className="text-xl font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
                 </div>
               )}
 
               {/* COD Information - For active deliveries with COD required (always show, but disable editing for driver-stripped) */}
               {hasCODRequired && !isPickup && !isFinishedDelivery && (
                 <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: '#e5e7eb', borderWidth: '1px', borderColor: '#d1d5db' }}>
-                  <span className="text-lg md:text-xs font-semibold" style={{ color: '#374151' }}>
+                  <span className="text-lg font-semibold" style={{ color: '#374151' }}>
                     COD Required: ${codTotalRequired.toFixed(2)}
                   </span>
                   {userHasRole(currentUser, 'driver') && !isStrippedForDriver && (
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 text-sm md:text-xs hover:bg-gray-300"
+                      className="h-6 text-sm hover:bg-gray-300"
                       style={{ color: '#4b5563' }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -129,7 +129,7 @@ export default function StopCardBody({
                   className="flex items-center justify-between rounded-md px-2 py-1"
                   style={{ background: '#10b981', borderWidth: '1px', borderColor: '#059669' }}
                 >
-                  <span className="text-lg md:text-xs font-semibold" style={{ color: '#ffffff' }}>
+                  <span className="text-lg font-semibold" style={{ color: '#ffffff' }}>
                     COD Collected:{' '}
                     {codPayments.map((payment, index) => (
                       <span key={index}>
@@ -143,7 +143,7 @@ export default function StopCardBody({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 text-sm md:text-xs hover:bg-emerald-700"
+                      className="h-6 text-sm hover:bg-emerald-700"
                       style={{ color: '#ffffff' }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -187,11 +187,11 @@ export default function StopCardBody({
                   <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-base md:text-xs font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>
+                      <p className="text-base font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>
                         Patient Notes:
                       </p>
                       <div
-                        className="text-base md:text-xs rounded px-2 py-1.5"
+                        className="text-base rounded px-2 py-1.5"
                         style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
                       >
                         <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
@@ -206,11 +206,11 @@ export default function StopCardBody({
                   <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-base md:text-xs font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>
+                      <p className="text-base font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>
                         Patient Info:
                       </p>
                       <div
-                        className="text-base md:text-xs rounded px-2 py-1.5 space-y-1"
+                        className="text-base rounded px-2 py-1.5 space-y-1"
                         style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
                       >
                         {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) && (
@@ -283,7 +283,7 @@ export default function StopCardBody({
               {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 && (
                 <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-base md:text-xs font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
+                    <h4 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
                       <Package className="w-3.5 h-3.5" />
                       Pending Pickup List ({pendingPickups.length})
                       <HelpTooltip title={HELP_CONTENT.pendingPickups.title} content={HELP_CONTENT.pendingPickups.content} size="sm" />
@@ -343,12 +343,12 @@ export default function StopCardBody({
                               if (onEdit && projectedDelivery.id) onEdit(projectedDelivery);
                             }}
                           >
-                            <span className="text-base md:text-xs font-medium truncate flex-1" style={{ color: 'var(--text-slate-900)' }}>
+                            <span className="text-base font-medium truncate flex-1" style={{ color: 'var(--text-slate-900)' }}>
                               {projPatient?.full_name || projectedDelivery.patient_name || 'Unknown Patient'}
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <SpecialSymbolsBadges delivery={projectedDelivery} patient={projPatient} isPickup={false} size="sm" />
-                              <span className="text-base md:text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>
+                              <span className="text-base font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                                 {(() => {
                                   const storeAbbr = store?.abbreviation?.slice(0, 2).toUpperCase() || 'XX';
                                   const trackingNum = parseInt(projectedDelivery.tracking_number) || 0;
@@ -382,13 +382,13 @@ export default function StopCardBody({
               {isFinishedDelivery && !isPickup ? (
                 <div className="space-y-1 mt-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>
+                    <Label className="text-base font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>
                       Driver Notes
                     </Label>
                   </div>
                   {delivery.delivery_notes ? (
                     <div
-                      className="text-base md:text-xs rounded px-2 py-1.5 min-h-[60px]"
+                      className="text-base rounded px-2 py-1.5 min-h-[60px]"
                       style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -396,7 +396,7 @@ export default function StopCardBody({
                     </div>
                   ) : (
                     <div
-                      className="text-base md:text-xs rounded px-2 py-1.5 italic min-h-[60px]"
+                      className="text-base rounded px-2 py-1.5 italic min-h-[60px]"
                       style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -407,7 +407,7 @@ export default function StopCardBody({
               ) : (
                 <div className="space-y-1 mt-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>
+                    <Label className="text-base font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>
                       Driver Notes
                     </Label>
                   </div>
@@ -422,7 +422,7 @@ export default function StopCardBody({
                     onKeyDown={handleNotesKeyDown}
                     onClick={(e) => e.stopPropagation()}
                     placeholder=""
-                    className="text-base md:text-xs resize-none h-24"
+                    className="text-base resize-none h-24"
                     style={{
                       background: 'var(--bg-white)',
                       borderColor: 'var(--border-slate-200)',

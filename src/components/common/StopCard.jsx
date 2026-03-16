@@ -1218,15 +1218,15 @@ export default function StopCard({
                 {finalDisplayAddress ?
                 <>
                     {/* Main address without unit/buzzer */}
-                    <div className="flex items-start gap-2 text-lg md:text-sm" style={{ color: 'var(--text-slate-700)' }}>
-                      <span className="text-2xl md:text-xl font-medium truncate">
+                    <div className="flex items-start gap-2 text-lg" style={{ color: 'var(--text-slate-700)' }}>
+                      <span className="text-2xl font-medium truncate">
                         {isPickup ? store?.address || '' : patient?.address || ''}
                       </span>
                     </div>
 
                     {/* Unit/Buzzer row (phone removed - now in expanded section) */}
                     {!isStrippedDelivery && !shouldRedact &&
-                  <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                  <div className="flex items-center text-lg" style={{ color: 'var(--text-slate-600)' }}>
                         {/* Unit and Buzzer info */}
                         {(() => {
                       const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
@@ -1238,8 +1238,8 @@ export default function StopCard({
 
                       return (
                         <>
-                              {unitNum && <span className="text-xl md:text-base font-medium">#{unitNum}</span>}
-                              {buzzerNum && <span className="text-lg md:text-sm font-medium">Buzz {buzzerNum}</span>}
+                              {unitNum && <span className="text-xl font-medium">#{unitNum}</span>}
+                              {buzzerNum && <span className="text-lg font-medium">Buzz {buzzerNum}</span>}
                             </>);
                     })()}
                       </div>
@@ -1255,8 +1255,8 @@ export default function StopCard({
                   {finalDisplayPhone &&
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
-                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
-                      <Phone className="w-6 h-6 md:w-5 md:h-5" />
+                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+                      <Phone className="w-6 h-6" />
                     </a>
                 }
                   {/* CRITICAL: Only show GPS button for isNextDelivery cards - always use coordinates */}
@@ -1274,8 +1274,8 @@ export default function StopCard({
                   onClick={(e) => {
                     e.stopPropagation();
                     fabControlEvents.reactivatePhaseTwoIfAvailable();
-                  }} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
-                      <Navigation className="w-6 h-6 md:w-5 md:h-5" />
+                  }} className="flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
+                      <Navigation className="w-6 h-6" />
                     </a>
                 }
                 </div>
@@ -1556,7 +1556,7 @@ export default function StopCard({
                         await handleRetryDelivery();
                       }}
                       size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
+                      className="bg-blue-600 hover:bg-blue-700 h-10 !text-white text-sm flex-1"
                       disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery || shouldDisableRetryReturn || isFailing}>
                             {isRetrying || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                             <span className="text-white">Retry</span>
@@ -1567,7 +1567,7 @@ export default function StopCard({
                         <Button
                       onClick={handleReturnClick}
                       size="sm"
-                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8 flex-1"
+                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 text-sm bg-orange-600 hover:bg-orange-700 !text-white h-10 flex-1"
                       disabled={isPreparingReturn || isCreatingReturn || hasFutureReturn || hasCompletedDelivery || shouldDisableRetryReturn || isFailing}>
                           {isPreparingReturn || isCreatingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                           Return
@@ -1581,7 +1581,7 @@ export default function StopCard({
                         await restartCurrentDelivery(false);
                       }}
                       size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
+                      className="bg-blue-600 hover:bg-blue-700 h-10 !text-white text-sm flex-1"
                       disabled={isRestarting || isProcessingBackground || isFailing}>
                             {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                             <span className="text-white">Restart</span>
@@ -1594,15 +1594,15 @@ export default function StopCard({
                             <Button
                           variant="ghost"
                           size="icon"
-                          className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                          className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 border border-slate-300 hover:bg-slate-100 relative z-[10]"
                           onClick={(e) => e.stopPropagation()}>
-                              <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
+                              <MoreVertical className="w-5 h-5" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                             {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEdit(delivery);}} className="text-base md:text-sm py-2.5 md:py-1.5">
-                                <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEdit(delivery);}} className="text-base py-2.5 md:py-1.5">
+                                <Edit className="w-5 h-5 mr-2" />
                                 Edit Delivery
                               </DropdownMenuItem>
                         }
@@ -1613,9 +1613,9 @@ export default function StopCard({
                             {isNextDelivery && !isPickup && patient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem
                           onClick={async (e) => {e.stopPropagation();await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores });}}
-                          className="text-base md:text-sm py-2.5 md:py-1.5">
+                          className="text-base py-2.5 md:py-1.5">
 
-                                <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                <Locate className="w-5 h-5 mr-2" />
                                 Update GPS
                               </DropdownMenuItem>
                         }
@@ -1625,9 +1625,9 @@ export default function StopCard({
                                 <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                                 <DropdownMenuItem
                             onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
-                            className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                            className="text-red-600 text-base py-2.5 md:py-1.5"
                             disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
-                                  <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                  <Trash2 className="w-5 h-5 mr-2" />
                                   Delete
                                 </DropdownMenuItem>
                               </>
@@ -1895,14 +1895,14 @@ export default function StopCard({
                         }}
                         size="sm"
                         disabled={isCompleting || isProcessingBackground || isFailing}
-                        className={`rounded-md px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 md:h-8 border-r !text-white ${
+                        className={`rounded-md px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white ${
                         isFailing ? 'bg-red-600 hover:bg-red-700 border-red-500' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'}`
                         }>
                                 {isCompleting || isFailing ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Complete</span>
                               </Button> :
                       onStartDelivery &&
-                      <Button data-stopcard-action="start" type="button" onPointerDownCapture={handleStartAction} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
+                      <Button data-stopcard-action="start" type="button" onPointerDownCapture={handleStartAction} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" title="Start this delivery">
                                 {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Start</span>
                               </Button>)
@@ -1916,7 +1916,7 @@ export default function StopCard({
                           await restartCurrentDelivery(true);
                         }}
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
+                        className="bg-blue-600 hover:bg-blue-700 h-10 rounded-r-none border-r border-blue-500 !text-white text-sm"
                         disabled={isRestarting || isProcessingBackground || isFailing}>
                             {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                             <span className="text-white">Restart</span>
@@ -1927,22 +1927,22 @@ export default function StopCard({
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
-                            size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                            size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 border border-slate-300 hover:bg-slate-100 relative z-[10]"
 
                             onClick={(e) => e.stopPropagation()}>
-                            <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
+                            <MoreVertical className="w-5 h-5" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                          {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEdit(delivery);}} className="text-base md:text-sm py-2.5 md:py-1.5"><Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}</DropdownMenuItem>}
-                          {onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner(currentUser) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}} className="text-base md:text-sm py-2.5 md:py-1.5"><User className="w-5 h-5 md:w-4 md:h-4 mr-2" />Edit Patient</DropdownMenuItem>}
+                          {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEdit(delivery);}} className="text-base py-2.5 md:py-1.5"><Edit className="w-5 h-5 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}</DropdownMenuItem>}
+                          {onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner(currentUser) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}} className="text-base py-2.5 md:py-1.5"><User className="w-5 h-5 mr-2" />Edit Patient</DropdownMenuItem>}
                           {/* Update GPS moved directly under Edit Delivery - only for Next Delivery */}
                           {isNextDelivery && !isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                           <DropdownMenuItem
                             onClick={async (e) => {e.stopPropagation();await updatePatientGPS({ patientId: patient.id, storeId: delivery.store_id, stores });}}
-                            className="text-base md:text-sm py-2.5 md:py-1.5">
+                            className="text-base py-2.5 md:py-1.5">
 
-                              <Locate className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                              <Locate className="w-5 h-5 mr-2" />
                               Update GPS
                             </DropdownMenuItem>
                           }
@@ -1959,8 +1959,8 @@ export default function StopCard({
                                 setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
                                 setShowFailureReasonDialog(true);
                               }}
-                              className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5">
-                                <XCircle className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                              className="text-red-600 text-base py-2.5 md:py-1.5">
+                                <XCircle className="w-5 h-5 mr-2" />
                                 {isPickup ? 'Cancel Pickup' : 'Mark as Failed'}
                               </DropdownMenuItem>
                             </>
@@ -1972,9 +1972,9 @@ export default function StopCard({
                           {onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                           <DropdownMenuItem
                             onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
-                            className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                            className="text-red-600 text-base py-2.5 md:py-1.5"
                             disabled={false}>
-                              <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                              <Trash2 className="w-5 h-5 mr-2" />
                               Delete
                             </DropdownMenuItem>
                           }
