@@ -88,16 +88,16 @@ import DeviceRegistration from './components/devices/DeviceRegistration';
 import { getUserAgentInfo, isMobileDeviceForTheme } from './components/utils/deviceUtils';
 
 
-  import DriverStatusToggle from './components/layout/DriverStatusToggle';
-  import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
-  import { loadUserSettings, saveSetting, clearSettingsCache, getDeviceType, getDeviceIdentifier } from './components/utils/userSettingsManager';
+import DriverStatusToggle from './components/layout/DriverStatusToggle';
+import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
+import { loadUserSettings, saveSetting, clearSettingsCache, getDeviceType, getDeviceIdentifier } from './components/utils/userSettingsManager';
 import DeviceSelectionModal from './components/devices/DeviceSelectionModal';
-  import MessagingPanel from './components/messaging/MessagingPanel';
-  import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
-  import { isMobileDevice } from './components/utils/deviceUtils';
-  import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
-  import InviteQRCodeModal from './components/common/InviteQRCodeModal';
-  import { QrCode } from 'lucide-react';
+import MessagingPanel from './components/messaging/MessagingPanel';
+import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
+import { isMobileDevice } from './components/utils/deviceUtils';
+import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
+import InviteQRCodeModal from './components/common/InviteQRCodeModal';
+import { QrCode } from 'lucide-react';
 import { initializeDailyCleanup } from './components/utils/messageCleaner';
 import { toast } from 'sonner';
 import { performInitialSync, processPendingMutations, performBackgroundSync } from './components/utils/offlineSync';
@@ -212,50 +212,50 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
     const loadStats = async () => {
       setIsLoading(true);
       setHasError(false);
-      
+
       try {
         const selectedDate = new Date(selectedDateStr + 'T00:00:00');
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const monthStr = format(selectedDate, 'yyyy-MM');
-        
+
         // Load deliveries from offline DB
         const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        
+
         if (!allDeliveries || allDeliveries.length === 0) {
           setStats(null);
           setIsLoading(false);
           return;
         }
-        
+
         // Determine store filter for dispatcher
         const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
         const dispatcherStoreIds = isDispatcher ? new Set(currentUser.store_ids || []) : null;
 
         // Filter deliveries for today and month, scoped to dispatcher's stores if applicable
-        const filterByStore = (d) => { if (!d) return false; if (dispatcherStoreIds) return dispatcherStoreIds.has(d.store_id); if (Array.isArray(storeIds) && storeIds.length > 0) return storeIds.includes(d.store_id); return true; };
-        const todayDeliveries = allDeliveries.filter(d => d?.delivery_date === selectedDateStr && filterByStore(d) && (selectedDriverId === 'all' || d?.driver_id === selectedDriverId) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
-        const monthDeliveries = allDeliveries.filter(d => d?.delivery_date?.startsWith(monthStr) && filterByStore(d) && (selectedDriverId === 'all' || d?.driver_id === selectedDriverId) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
-        
+        const filterByStore = (d) => {if (!d) return false;if (dispatcherStoreIds) return dispatcherStoreIds.has(d.store_id);if (Array.isArray(storeIds) && storeIds.length > 0) return storeIds.includes(d.store_id);return true;};
+        const todayDeliveries = allDeliveries.filter((d) => d?.delivery_date === selectedDateStr && filterByStore(d) && (selectedDriverId === 'all' || d?.driver_id === selectedDriverId) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
+        const monthDeliveries = allDeliveries.filter((d) => d?.delivery_date?.startsWith(monthStr) && filterByStore(d) && (selectedDriverId === 'all' || d?.driver_id === selectedDriverId) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
+
         // Calculate today's stats
-        const todayPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
-        const allAppUsersFromDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS); const offDutyIds = new Set((allAppUsersFromDB || []).filter(au => au?.driver_status === 'off_duty').map(au => au.user_id)); const todayActiveDrivers = [...new Set(todayDeliveries.filter(d => d?.driver_id).map(d => d.driver_id))].filter(id => !offDutyIds.has(id)).length;
-        const todayActiveStops = todayPatientDeliveries.filter(d => !['completed','failed','cancelled','returned'].includes(d?.status)).length;
-        const todayCompleted = todayPatientDeliveries.filter(d => d?.status === 'completed').length;
-        const todayFailed = todayPatientDeliveries.filter(d => d?.status === 'failed').length;
-        const todayReturns = todayPatientDeliveries.filter(d => {
+        const todayPatientDeliveries = todayDeliveries.filter((d) => d && d.patient_id);
+        const allAppUsersFromDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);const offDutyIds = new Set((allAppUsersFromDB || []).filter((au) => au?.driver_status === 'off_duty').map((au) => au.user_id));const todayActiveDrivers = [...new Set(todayDeliveries.filter((d) => d?.driver_id).map((d) => d.driver_id))].filter((id) => !offDutyIds.has(id)).length;
+        const todayActiveStops = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled', 'returned'].includes(d?.status)).length;
+        const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
+        const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
+        const todayReturns = todayPatientDeliveries.filter((d) => {
           const notes = d?.delivery_notes || '';
           return notes.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes);
         }).length;
-        
+
         // Calculate month's stats
-        const monthPatientDeliveries = monthDeliveries.filter(d => d && d.patient_id);
-        const monthCompleted = monthPatientDeliveries.filter(d => d?.status === 'completed').length;
-        const monthFailed = monthPatientDeliveries.filter(d => d?.status === 'failed').length;
-        const monthReturns = monthPatientDeliveries.filter(d => {
+        const monthPatientDeliveries = monthDeliveries.filter((d) => d && d.patient_id);
+        const monthCompleted = monthPatientDeliveries.filter((d) => d?.status === 'completed').length;
+        const monthFailed = monthPatientDeliveries.filter((d) => d?.status === 'failed').length;
+        const monthReturns = monthPatientDeliveries.filter((d) => {
           const notes = d?.delivery_notes || '';
           return notes.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes);
         }).length;
-        
+
         setStats({
           today: {
             activeDrivers: todayActiveDrivers,
@@ -277,14 +277,14 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
         setIsLoading(false);
       }
     };
-    
+
     loadStats();
-    
+
     // Listen for delivery changes to refresh stats
     const handleDeliveryChange = () => {
       loadStats();
     };
-    
+
     window.addEventListener('refreshDeliveryStats', handleDeliveryChange);
     window.addEventListener('deliveriesImported', handleDeliveryChange);
     window.addEventListener('offlineSyncComplete', handleDeliveryChange);
@@ -383,7 +383,7 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
   // CRITICAL: Deduplicate users by ID BEFORE sorting to prevent duplicates in View As User menu
   const dedupedUsers = currentUser ? users.filter((u) => u && u.id !== currentUser.id) : users;
   const uniqueUsersMap = new Map();
-  dedupedUsers.forEach(u => {
+  dedupedUsers.forEach((u) => {
     if (u?.id && !uniqueUsersMap.has(u.id)) {
       uniqueUsersMap.set(u.id, u);
     }
@@ -394,7 +394,7 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
     <div className="mt-2 space-y-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full gap-2" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+          <Button variant="outline" className="px-1 py-1 bg-background text-sm font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-9 w-full gap-2" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
             <Eye className="w-4 h-4" style={{ color: 'var(--text-slate-700)' }} /> {impersonatingUser ? 'Switch User' : 'View as User'}
           </Button>
         </PopoverTrigger>
@@ -470,7 +470,7 @@ class ErrorBoundary extends React.Component {
   static getDerivedStateFromError(error) {
     // CRITICAL: Only catch truly fatal errors - let most errors pass through
     // This prevents intermittent error screens during normal operation
-    
+
     // Ignore Leaflet map errors
     if (error.message && (
     error.message.includes('l is not a function') ||
@@ -482,21 +482,21 @@ class ErrorBoundary extends React.Component {
 
     // Ignore network/rate limit errors - these should be handled gracefully
     if (error.message && (
-      error.message.includes('429') ||
-      error.message.includes('Rate limit') ||
-      error.message.includes('Network') ||
-      error.message.includes('fetch')
-    )) {
+    error.message.includes('429') ||
+    error.message.includes('Rate limit') ||
+    error.message.includes('Network') ||
+    error.message.includes('fetch')))
+    {
       console.warn('Network/Rate limit error caught by ErrorBoundary, continuing normally');
       return { hasError: false };
     }
 
     // Ignore React rendering errors during transitions
     if (error.message && (
-      error.message.includes('flushSync') ||
-      error.message.includes('useEffect') ||
-      error.message.includes('setState')
-    )) {
+    error.message.includes('flushSync') ||
+    error.message.includes('useEffect') ||
+    error.message.includes('setState')))
+    {
       console.warn('React state error caught by ErrorBoundary, continuing normally');
       return { hasError: false };
     }
@@ -509,9 +509,9 @@ class ErrorBoundary extends React.Component {
         timestamp: new Date().toISOString()
       }));
     } catch (e) {
+
       // Ignore localStorage errors
     }
-    
     // CRITICAL: Only show error screen for truly fatal errors
     console.error('🔴 FATAL ERROR - Showing error screen:', error);
     return { hasError: true, error };
@@ -529,8 +529,8 @@ class ErrorBoundary extends React.Component {
     error.message.includes('fetch') ||
     error.message.includes('flushSync') ||
     error.message.includes('useEffect') ||
-    error.message.includes('setState')
-    )) {
+    error.message.includes('setState')))
+    {
       console.warn('Non-fatal error caught and neutralized by ErrorBoundary:', error.message);
       // CRITICAL: Reset error state to continue normally
       this.setState({ hasError: false, error: null, errorInfo: null });
@@ -560,9 +560,9 @@ class ErrorBoundary extends React.Component {
         }
       } catch (e) {
 
+
         // Ignore
-      }
-      const errorToShow = this.state.error || cachedError;
+      }const errorToShow = this.state.error || cachedError;
 
       // Check if mobile device
       const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -577,9 +577,9 @@ class ErrorBoundary extends React.Component {
         }
       } catch (e) {
 
+
         // Ignore
-      }
-      const showErrorDetails = isMobileDevice && isOwner && errorToShow;
+      }const showErrorDetails = isMobileDevice && isOwner && errorToShow;
 
       const handleCopyError = () => {
         const errorText = `Error Message:\n${errorToShow?.message || 'Unknown error'}\n\nStack Trace:\n${errorToShow?.stack || 'No stack trace'}`;
@@ -750,7 +750,7 @@ export default function Layout({ children, currentPageName }) {
     // CRITICAL: Use isMobileDeviceForTheme() for theme decisions - ONLY phones get dark mode
     // Desktops and tablets ALWAYS use light mode
     const isMobilePhone = isMobileDeviceForTheme();
-    
+
     if (!isMobilePhone) {
       // Force light mode on desktops and tablets
       document.documentElement.classList.remove('auto-theme', 'dark-theme', 'dark');
@@ -790,16 +790,16 @@ export default function Layout({ children, currentPageName }) {
     }));
   };
   const [showMessaging, setShowMessaging] = useState(false);
-          const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-          const [initialConversation, setInitialConversation] = useState(null);
-          const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
-          const [adminImportEnabled, setAdminImportEnabled] = useState(false);
-          const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
-          const [showInviteQRModal, setShowInviteQRModal] = useState(false);
-          const [deviceRegistered, setDeviceRegistered] = useState(false);
-          const [showDeviceSelectionModal, setShowDeviceSelectionModal] = useState(false);
-          const [deviceTypeDetected, setDeviceTypeDetected] = useState(null);
-          const [isSettingUpDevice, setIsSettingUpDevice] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [initialConversation, setInitialConversation] = useState(null);
+  const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
+  const [adminImportEnabled, setAdminImportEnabled] = useState(false);
+  const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
+  const [showInviteQRModal, setShowInviteQRModal] = useState(false);
+  const [deviceRegistered, setDeviceRegistered] = useState(false);
+  const [showDeviceSelectionModal, setShowDeviceSelectionModal] = useState(false);
+  const [deviceTypeDetected, setDeviceTypeDetected] = useState(null);
+  const [isSettingUpDevice, setIsSettingUpDevice] = useState(false);
 
   // Poll for adminImportEnabled changes (for Kyle J to see updates when toggle changes)
   useEffect(() => {
@@ -819,9 +819,9 @@ export default function Layout({ children, currentPageName }) {
         }
       } catch (error) {
 
+
         // Silent fail
       }};
-
     // Initial check
     pollAdminImportSetting();
 
@@ -862,13 +862,13 @@ export default function Layout({ children, currentPageName }) {
             const existingDevices = await base44.entities.UserDevice.filter({ user_id: fetchedUser.id, device_identifier: deviceIdentifier });
             if (!existingDevices || existingDevices.length === 0) {
               console.log('📱 [Layout] Device not registered, showing registration options');
-              setCurrentUser(fetchedUser); setIsLoadingLayout(false); setDataLoaded(true); return;
+              setCurrentUser(fetchedUser);setIsLoadingLayout(false);setDataLoaded(true);return;
             }
             localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
             console.log('✅ [Layout] Device registered and cached, proceeding');
           } catch (e) {
             console.warn('⚠️ [Layout] Device check failed, showing registration');
-            setCurrentUser(fetchedUser); setIsLoadingLayout(false); setDataLoaded(true); return;
+            setCurrentUser(fetchedUser);setIsLoadingLayout(false);setDataLoaded(true);return;
           }
         } else {
           console.log('✅ [Layout] Device check cached, skipping API call');
@@ -929,9 +929,9 @@ export default function Layout({ children, currentPageName }) {
             }
           } catch (e) {
 
+
             // Silent fail - use defaults
           }}, 10000); // Load app settings 10 seconds after init
-
         const isDispatcher = userHasRole(fetchedUser, 'dispatcher');
         const isInactive = fetchedUser.status === 'inactive';
 
@@ -1048,11 +1048,11 @@ export default function Layout({ children, currentPageName }) {
 
         // Square catalog items will sync via real-time events and delivery updates only
 
-        const _tStr = format(today, 'yyyy-MM-dd'), _isDisp = userHasRole(fetchedUser, 'dispatcher'), _isDrv = userHasRole(fetchedUser, 'driver');
+        const _tStr = format(today, 'yyyy-MM-dd'),_isDisp = userHasRole(fetchedUser, 'dispatcher'),_isDrv = userHasRole(fetchedUser, 'driver');
         // CRITICAL: For dispatchers/drivers, force today BEFORE reading savedDate
-        if (_isDisp) { globalFilters.setSelectedDate(today); } else if (_isDrv && today.getHours() >= 7) { const _k = `rxd_drst_${fetchedUser.id}`; if (localStorage.getItem(_k) !== _tStr) { globalFilters.setSelectedDate(today); localStorage.setItem(_k, _tStr); } }
+        if (_isDisp) {globalFilters.setSelectedDate(today);} else if (_isDrv && today.getHours() >= 7) {const _k = `rxd_drst_${fetchedUser.id}`;if (localStorage.getItem(_k) !== _tStr) {globalFilters.setSelectedDate(today);localStorage.setItem(_k, _tStr);}}
         const savedDate = globalFilters.getSelectedDate();
-        if (!savedDate) { globalFilters.setSelectedDate(today); }
+        if (!savedDate) {globalFilters.setSelectedDate(today);}
         const effectiveDateForDriverAssignment = globalFilters.getSelectedDate() ? new Date(globalFilters.getSelectedDate() + 'T00:00:00') : today;
 
         const currentDriverFilter = globalFilters.getSelectedDriverId();
@@ -1067,40 +1067,40 @@ export default function Layout({ children, currentPageName }) {
         const primeStartTime = Date.now();
         try {
           console.log('🔄 [Layout Init] Priming offline DB with essential data...');
-          
+
           const todayStr = format(new Date(), 'yyyy-MM-dd');
-          
+
           // Fetch and save essential entities to offline DB in parallel
           const [deliveryData, patientData, appUserData, storeData] = await Promise.all([
-            requestThrottler.queue(
-              () => base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []),
-              'priority',
-              'primeDeliveries'
-            ),
-            requestThrottler.queue(
-              () => base44.entities.Patient.list().catch(() => []),
-              'standard',
-              'primePatients'
-            ),
-            requestThrottler.queue(
-              () => base44.entities.AppUser.list().catch(() => []),
-              'priority',
-              'primeAppUsers'
-            ),
-            requestThrottler.queue(
-              () => base44.entities.Store.list().catch(() => []),
-              'priority',
-              'primeStores'
-            )
-          ]);
+          requestThrottler.queue(
+            () => base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []),
+            'priority',
+            'primeDeliveries'
+          ),
+          requestThrottler.queue(
+            () => base44.entities.Patient.list().catch(() => []),
+            'standard',
+            'primePatients'
+          ),
+          requestThrottler.queue(
+            () => base44.entities.AppUser.list().catch(() => []),
+            'priority',
+            'primeAppUsers'
+          ),
+          requestThrottler.queue(
+            () => base44.entities.Store.list().catch(() => []),
+            'priority',
+            'primeStores'
+          )]
+          );
 
           // Save to offline DB AND populate React state immediately so Dashboard has data on first render
-          if (deliveryData?.length) { await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData); setDeliveries(deliveryData); }
-          if (patientData?.length) { await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientData); setPatients(patientData); }
-          if (appUserData?.length) { await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserData); setAppUsers(appUserData); }
-          if (storeData?.length) { await offlineDB.bulkSave(offlineDB.STORES.STORES, storeData); storeData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)); setStores(storeData); }
+          if (deliveryData?.length) {await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);setDeliveries(deliveryData);}
+          if (patientData?.length) {await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientData);setPatients(patientData);}
+          if (appUserData?.length) {await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserData);setAppUsers(appUserData);}
+          if (storeData?.length) {await offlineDB.bulkSave(offlineDB.STORES.STORES, storeData);storeData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));setStores(storeData);}
           console.log(`✅ [Layout Init] Offline DB primed + React state populated in ${Date.now() - primeStartTime}ms`);
-          if (!deliveryData?.length || !patientData?.length || !appUserData?.length) { window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow')); }
+          if (!deliveryData?.length || !patientData?.length || !appUserData?.length) {window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
         } catch (error) {
           console.warn('⚠️ [Layout Init] Offline DB prime failed (non-critical):', error.message);
           // Trigger sync anyway if priming failed
@@ -1188,7 +1188,7 @@ export default function Layout({ children, currentPageName }) {
       bgSyncHasRun = true;
 
       const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-      const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+      const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
 
       console.log('🔄 [Layout] Starting ONE-TIME background sync for current month...');
       const { performBackgroundSync } = await import('./components/utils/offlineSync');
@@ -1242,7 +1242,7 @@ export default function Layout({ children, currentPageName }) {
         if (mutation.entity === 'Delivery') {
           setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
           // Remove all from offline DB
-          mutation.ids.forEach(id => {
+          mutation.ids.forEach((id) => {
             offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
           });
         }
@@ -1316,10 +1316,10 @@ export default function Layout({ children, currentPageName }) {
     const handleOpenMessaging = (event) => {
       const { otherUserId, otherUserName } = event.detail || {};
       setInitialConversation(otherUserId && otherUserName ? { otherUserId, otherUserName } : null);
-      setUnreadMessageCount(0); setShowMessaging(true);
+      setUnreadMessageCount(0);setShowMessaging(true);
     };
-    const handleOpenMessagingPanel = () => { setInitialConversation(null); setUnreadMessageCount(0); setShowMessaging(true); };
-    window.addEventListener('openMessaging', handleOpenMessaging); window.addEventListener('openMessagingPanel', handleOpenMessagingPanel);
+    const handleOpenMessagingPanel = () => {setInitialConversation(null);setUnreadMessageCount(0);setShowMessaging(true);};
+    window.addEventListener('openMessaging', handleOpenMessaging);window.addEventListener('openMessagingPanel', handleOpenMessagingPanel);
 
     // Listen for user role changes and update UI immediately
     const handleUserRolesChanged = async (event) => {
@@ -1463,7 +1463,7 @@ export default function Layout({ children, currentPageName }) {
     const handleDriverLocationUpdated = async (event) => {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const selectedDateStr = globalFilters.getSelectedDate() || todayStr;
-      
+
       if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) {
         return;
       }
@@ -1547,7 +1547,7 @@ export default function Layout({ children, currentPageName }) {
     // NOTE: Preview check temporarily commented for testing WebSocket functionality
     // const isPreview = window.location.hostname.includes('preview') || window.location.hostname.includes('sandbox');
     // if (!isPreview) {
-      realtimeSync.connect();
+    realtimeSync.connect();
     // }
 
     const unsubscribeRealtime = subscribeToRealtime((update) => {
@@ -1602,7 +1602,7 @@ export default function Layout({ children, currentPageName }) {
           const idsToDelete = new Set(update.ids);
           setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
           // CRITICAL: Remove ALL deleted IDs from offline DB
-          update.ids.forEach(id => {
+          update.ids.forEach((id) => {
             offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
           });
           // Refresh catalog items after batch deletion
@@ -1639,7 +1639,7 @@ export default function Layout({ children, currentPageName }) {
           if (update.data?.user_id === currentUser?.id) {
             console.log('🔄 [Layout Real-time] Current user AppUser updated - refreshing context');
             clearUserCache();
-            getEffectiveUser().then(refreshedUser => {
+            getEffectiveUser().then((refreshedUser) => {
               if (refreshedUser) {
                 setCurrentUser(refreshedUser);
               }
@@ -1656,9 +1656,9 @@ export default function Layout({ children, currentPageName }) {
           if (update.data?.current_latitude || update.data?.current_longitude) {
             console.log(`📍 [Layout] Driver ${update.data.user_id} location updated - forcing map refresh (no notification)`);
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: { 
+              detail: {
                 triggeredBy: 'driver_location_update',
-                driverId: update.data.user_id 
+                driverId: update.data.user_id
               }
             }));
           } else {
@@ -1680,7 +1680,7 @@ export default function Layout({ children, currentPageName }) {
           offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
         } else if (update.action === 'update') {
           setPatients((prev) => prev.map((p) =>
-            p?.id === update.id ? { ...p, ...update.data } : p
+          p?.id === update.id ? { ...p, ...update.data } : p
           ));
           // Update offline DB immediately
           offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
@@ -1706,7 +1706,7 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
       window.removeEventListener('dataConflictsDetected', handleConflict);
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
-      window.removeEventListener('openMessaging', handleOpenMessaging); window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
+      window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
     };
   }, [currentUser]);
 
@@ -1920,16 +1920,16 @@ export default function Layout({ children, currentPageName }) {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         await requestWakeLock();
-        
+
         // CRITICAL: Check if smart refresh cycle was missed while app was hidden
         if (appFocusLostAtRef.current) {
           const hiddenDuration = Date.now() - appFocusLostAtRef.current;
           appFocusLostAtRef.current = null;
-          
+
           // If app was hidden longer than a smart refresh cycle, trigger refresh immediately
           if (hiddenDuration >= SMART_REFRESH_CYCLE) {
             console.log(`🔄 [Focus Recovery] App was hidden for ${hiddenDuration}ms (${(hiddenDuration / 1000).toFixed(1)}s) - triggering smart refresh and background sync`);
-            
+
             if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
               // Reset smart refresh timers to force immediate refresh
               smartRefreshManager.lastRefreshTimes = {
@@ -1940,10 +1940,10 @@ export default function Layout({ children, currentPageName }) {
                 patients: 0,
                 stores: 0
               };
-              
+
               // Trigger background sync for any missed mutations
               const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-              const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+              const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
               performBackgroundSync(selectedDateStr, cityStoreIds).catch(() => {});
             }
           }
@@ -1976,7 +1976,7 @@ export default function Layout({ children, currentPageName }) {
         const mod = await import('./components/utils/pageDataReloader');
         const filters = { selectedDate: globalFilters.getSelectedDate(), selectedCityId: globalFilters.getSelectedCityId(), selectedDriverId: globalFilters.getSelectedDriverId(), currentUser };
         await mod.pageDataReloader.reloadPageData(currentPageName, filters);
-      } catch (_) { /* non-critical — pages filter data locally */ }
+      } catch (_) {/* non-critical — pages filter data locally */}
     };
 
     reloadPageData();
@@ -2006,7 +2006,7 @@ export default function Layout({ children, currentPageName }) {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-    }, [sidebarOpen, isMobile]);
+  }, [sidebarOpen, isMobile]);
 
 
 
@@ -2033,9 +2033,9 @@ export default function Layout({ children, currentPageName }) {
       });
     } catch (error) {
 
+
       // Silent fail
     }};
-
   const handleImpersonate = useCallback(async (userId) => {
     sessionStorage.setItem('impersonationId', userId);
     clearUserCache(); // Force refresh on impersonate
@@ -2183,7 +2183,7 @@ export default function Layout({ children, currentPageName }) {
 
           const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
           // CRITICAL: Deduplicate by id to prevent duplicates in View As User
-          const dedupedUsers = Array.from(new Map(mergedUsers.map(u => [u.id, u])).values());
+          const dedupedUsers = Array.from(new Map(mergedUsers.map((u) => [u.id, u])).values());
           setUsers(dedupedUsers);
 
           let activeDrivers = dedupedUsers.filter((user) => {
@@ -2476,7 +2476,7 @@ export default function Layout({ children, currentPageName }) {
   // REMOVED: Backend stats polling for sidebar - now using local data only
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
-    
+
     // Calculate entity counts locally
     setEntityCounts({
       patients: patients.length,
@@ -2515,15 +2515,15 @@ export default function Layout({ children, currentPageName }) {
 
     const onlineNonDriverNonDispatcherUsers = appUsers.filter(
       (au) =>
-        !au?.app_roles?.includes('driver') &&
-        !au?.app_roles?.includes('dispatcher') &&
-        au.driver_status === 'online'
+      !au?.app_roles?.includes('driver') &&
+      !au?.app_roles?.includes('dispatcher') &&
+      au.driver_status === 'online'
     );
 
     return {
       onlineStoresCount: onlineStores.size,
       onlineDriversCount: onlineDrivers.length,
-      onlineNonDriverNonDispatcherUsersCount: onlineNonDriverNonDispatcherUsers.length,
+      onlineNonDriverNonDispatcherUsersCount: onlineNonDriverNonDispatcherUsers.length
     };
   }, [appUsers, stores]);
 
@@ -2824,7 +2824,7 @@ export default function Layout({ children, currentPageName }) {
           --safe-area-inset-right: env(safe-area-inset-right, 0px);
           --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
           --safe-area-inset-left: env(safe-area-inset-left, 0px);
-          --bottom-nav-height: ${(!isSnapshotModeActive && !sidebarOpen && screenWidth < 768) ? 'calc(56px + max(0.5rem, env(safe-area-inset-bottom, 0px)))' : '0px'};
+          --bottom-nav-height: ${!isSnapshotModeActive && !sidebarOpen && screenWidth < 768 ? 'calc(56px + max(0.5rem, env(safe-area-inset-bottom, 0px)))' : '0px'};
           color-scheme: light;
         }
 
@@ -3334,20 +3334,20 @@ export default function Layout({ children, currentPageName }) {
                   
                   {/* Message Notification Balloon */}
                                {currentUser && !showMessaging &&
-                   <MessageNotificationBalloon
-                     currentUser={currentUser}
-                     onOpenConversation={(conversationId, otherUserId, otherUserName) => {
-                       setInitialConversation({ conversationId, otherUserId, otherUserName });
-                       setShowMessaging(true);
-                       setUnreadMessageCount(0);
-                     }} />
+      <MessageNotificationBalloon
+        currentUser={currentUser}
+        onOpenConversation={(conversationId, otherUserId, otherUserName) => {
+          setInitialConversation({ conversationId, otherUserId, otherUserName });
+          setShowMessaging(true);
+          setUnreadMessageCount(0);
+        }} />
 
-                   }
+      }
 
                                {/* WebSocket Diagnostics Card - App Owners only, non-primary devices */}
                                {false && isAppOwner(currentUser) &&
-                   <WebSocketDiagnosticsCard />
-                   }
+      <WebSocketDiagnosticsCard />
+      }
 
 
 
@@ -3395,16 +3395,16 @@ export default function Layout({ children, currentPageName }) {
           setIsSnapshotModeActive: setIsSnapshotModeActive,
           dataSource: dataSource
         }}>
-            <div className={`app-container ${isTabletPortrait ? 'tablet-portrait' : (isMobile ? 'mobile-device' : 'desktop-device')}`}>
+            <div className={`app-container ${isTabletPortrait ? 'tablet-portrait' : isMobile ? 'mobile-device' : 'desktop-device'}`}>
               {(isMobile || isTabletPortrait) && sidebarOpen &&
-              <div
-               className="sidebar-overlay"
-               onClick={() => setSidebarOpen(false)} />
-              }
+            <div
+              className="sidebar-overlay"
+              onClick={() => setSidebarOpen(false)} />
+            }
 
               {/* Sidebar - Hidden in snapshot mode */}
               {!isSnapshotModeActive &&
-              <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200]`} style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+            <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200]`} style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                 <div className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -3440,8 +3440,8 @@ export default function Layout({ children, currentPageName }) {
 
                     <div className="flex items-center gap-2">
                       {/* Show controls in navigation panel when tablet landscape OR desktop admin */}
-                      {((deviceType === 'Tablet' && !isTabletPortrait) || (!isMobile && !isTabletPortrait && userHasRole(currentUser, 'admin') && cities && cities.length > 0)) ?
-                        <>
+                      {deviceType === 'Tablet' && !isTabletPortrait || !isMobile && !isTabletPortrait && userHasRole(currentUser, 'admin') && cities && cities.length > 0 ?
+                    <>
                           {/* Settings Menu */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -3450,52 +3450,52 @@ export default function Layout({ children, currentPageName }) {
                               </Button>
                             </DropdownMenuTrigger>
                             <SettingsMenu
-                              currentUser={currentUser}
-                              realUser={realUser}
-                              isAppOwner={isAppOwner(currentUser)}
-                              adminImportEnabled={adminImportEnabled}
-                              onAdminImportToggle={async (checked) => {
-                                if (currentUser?._isImpersonating) return;
-                                setAdminImportEnabled(checked);
-                                try {
-                                  const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                  if (settings && settings.length > 0) {
-                                    await base44.entities.AppSettings.update(settings[0].id, {
-                                      setting_value: {
-                                        ...settings[0].setting_value,
-                                        adminImportEnabled: checked
-                                      }
-                                    });
+                          currentUser={currentUser}
+                          realUser={realUser}
+                          isAppOwner={isAppOwner(currentUser)}
+                          adminImportEnabled={adminImportEnabled}
+                          onAdminImportToggle={async (checked) => {
+                            if (currentUser?._isImpersonating) return;
+                            setAdminImportEnabled(checked);
+                            try {
+                              const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                              if (settings && settings.length > 0) {
+                                await base44.entities.AppSettings.update(settings[0].id, {
+                                  setting_value: {
+                                    ...settings[0].setting_value,
+                                    adminImportEnabled: checked
                                   }
-                                } catch (error) {
-                                  console.error('Failed to save admin import setting:', error);
-                                }
-                              }}
-                              themePreference={themePreference}
-                              onThemeChange={handleThemeChange}
-                              cities={cities}
-                              onPatientImportClick={() => setShowPatientImport(true)}
-                              onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                              isMobile={isMobile}
-                            />
+                                });
+                              }
+                            } catch (error) {
+                              console.error('Failed to save admin import setting:', error);
+                            }
+                          }}
+                          themePreference={themePreference}
+                          onThemeChange={handleThemeChange}
+                          cities={cities}
+                          onPatientImportClick={() => setShowPatientImport(true)}
+                          onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                          isMobile={isMobile} />
+
                           </DropdownMenu>
 
                           {/* Driver Status Toggle - mobile devices (including tablets) in landscape, drivers only */}
                           {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
-                            <DriverStatusToggle
-                              currentUser={currentUser}
-                              vertical={true}
-                              onStatusChange={async (newStatus) => {
-                                clearUserCache();
-                                const refreshedUser = await getEffectiveUser();
-                                if (refreshedUser) {
-                                  setCurrentUser(refreshedUser);
-                                }
-                              }}
-                            />
+                      <DriverStatusToggle
+                        currentUser={currentUser}
+                        vertical={true}
+                        onStatusChange={async (newStatus) => {
+                          clearUserCache();
+                          const refreshedUser = await getEffectiveUser();
+                          if (refreshedUser) {
+                            setCurrentUser(refreshedUser);
                           }
-                        </> : null
+                        }} />
+
                       }
+                        </> : null
+                    }
                     </div>
                   </div>
                 </div>
@@ -3523,7 +3523,7 @@ export default function Layout({ children, currentPageName }) {
                     <div className="border-t my-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                    <Link
+                  <Link
                     to={createPageUrl('Patients')}
                     onClick={(e) => {
                       if (isSnapshotModeActive) {
@@ -3551,10 +3551,10 @@ export default function Layout({ children, currentPageName }) {
                       patients.filter((p) => p && currentUser?.store_ids?.includes(p.store_id)).length}
                           </Badge>
                           </Link>
-                    }
+                  }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                    <Link
+                  <Link
                     to={getRouteNavigationUrl('Deliveries')}
                     onClick={(e) => {
                       if (isSnapshotModeActive) {
@@ -3578,13 +3578,13 @@ export default function Layout({ children, currentPageName }) {
                           <span className="font-semibold">Routes</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
                           </Link>
-                    }
+                  }
 
                     <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {/* Square COD - Admins and Drivers only */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-                    <Link
+                  <Link
                     to={createPageUrl('SquareManagement')}
                     onClick={(e) => {
                       if (isSnapshotModeActive) {
@@ -3610,11 +3610,11 @@ export default function Layout({ children, currentPageName }) {
                             ${totalCodsDue.toFixed(2)}
                           </Badge>
                           </Link>
-                    }
+                  }
 
                     {/* Driver Payroll - Admins and Drivers */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-                    <Link
+                  <Link
                     to={createPageUrl('DriverPayroll')}
                     onClick={(e) => {
                       if (isSnapshotModeActive) {
@@ -3637,10 +3637,10 @@ export default function Layout({ children, currentPageName }) {
                           <DollarSign className="w-5 h-5" />
                           <span className="font-semibold">Driver Payroll</span>
                           </Link>
-                    }
+                  }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                    <Link
+                  <Link
                     to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
                     onClick={(e) => {
                       if (isSnapshotModeActive) {
@@ -3663,13 +3663,13 @@ export default function Layout({ children, currentPageName }) {
                         <BarChart3 className="w-5 h-5" />
                         <span className="font-semibold">Route Metrics</span>
                       </Link>
-                    }
+                  }
 
                     <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {/* Snapshot Mode - App Owner Only */}
                     {isAppOwner(currentUser) &&
-                    <button
+                  <button
                     onClick={() => {
                       setIsSnapshotModeActive(!isSnapshotModeActive);
                       setSidebarOpen(false);
@@ -3688,10 +3688,10 @@ export default function Layout({ children, currentPageName }) {
                           <Clock className="w-5 h-5" />
                           <span className="font-semibold">Snapshot Mode</span>
                           </button>
-                    }
+                  }
 
                     {(userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-                    <Link
+                  <Link
                     to={createPageUrl('DeviceSettings')}
                     onClick={(e) => {
                       if (isSnapshotModeActive) {
@@ -3714,7 +3714,7 @@ export default function Layout({ children, currentPageName }) {
                         <Smartphone className="w-5 h-5" />
                         <span className="font-semibold">Device Settings</span>
                       </Link>
-                    }
+                  }
 
                     </div>
 
@@ -3751,51 +3751,51 @@ export default function Layout({ children, currentPageName }) {
                 }
 
                   {currentPageName === 'Dashboard' &&
-                  <div className="mt-2">
+                <div className="mt-2">
                         <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
                         <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                           Quick Stats
                         </div>
                         <QuickStats
-                        currentUser={currentUser}
-                        storeIds={stores.filter(s => s && s.city_id === globalFilters.getSelectedCityId()).map(s => s.id)}
-                        isMobile={isMobile}
-                        screenWidth={screenWidth} />
+                    currentUser={currentUser}
+                    storeIds={stores.filter((s) => s && s.city_id === globalFilters.getSelectedCityId()).map((s) => s.id)}
+                    isMobile={isMobile}
+                    screenWidth={screenWidth} />
 
                         {/* Offline DB Monitor - embedded on narrow screens */}
                         {(isMobile || screenWidth < 768) &&
-                        <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                           <OfflineSyncIndicator embedded={true} />
                         </div>
-                        }
-                      </div>
                   }
+                      </div>
+                }
                 </div>
 
                 <SidebarUserFooter
-                  currentUser={currentUser}
-                  realUser={realUser}
-                  impersonatingUser={impersonatingUser}
+                currentUser={currentUser}
+                realUser={realUser}
+                impersonatingUser={impersonatingUser}
+                users={users}
+                unreadMessageCount={unreadMessageCount}
+                onOpenMessaging={() => {setShowMessaging(true);setUnreadMessageCount(0);setSidebarOpen(false);}}
+                onOpenInviteQR={() => {setShowInviteQRModal(true);setSidebarOpen(false);}}
+                onImpersonate={handleImpersonate}
+                onStopImpersonating={handleStopImpersonating}
+                stores={stores}
+                filteredDeliveries={filteredDeliveries}
+                impersonationArea={impersonatingUser || userHasRole(realUser, 'admin') ?
+                <UserImpersonation
                   users={users}
-                  unreadMessageCount={unreadMessageCount}
-                  onOpenMessaging={() => { setShowMessaging(true); setUnreadMessageCount(0); setSidebarOpen(false); }}
-                  onOpenInviteQR={() => { setShowInviteQRModal(true); setSidebarOpen(false); }}
+                  currentUser={currentUser}
                   onImpersonate={handleImpersonate}
                   onStopImpersonating={handleStopImpersonating}
-                  stores={stores}
-                  filteredDeliveries={filteredDeliveries}
-                  impersonationArea={(impersonatingUser || userHasRole(realUser, 'admin')) ? (
-                    <UserImpersonation
-                      users={users}
-                      currentUser={currentUser}
-                      onImpersonate={handleImpersonate}
-                      onStopImpersonating={handleStopImpersonating}
-                      impersonatingUser={impersonatingUser}
-                    />
-                  ) : null}
-                />
+                  impersonatingUser={impersonatingUser} /> :
+
+                null} />
+
                 </div>
-                }
+            }
 
                 {/* Resizable Divider for Sidebar - Only on desktop */}
                 {!isMobile && !isSnapshotModeActive &&
@@ -3819,50 +3819,50 @@ export default function Layout({ children, currentPageName }) {
 
                 {/* Mobile Header - Integrated header with logo/back button + controls */}
                 {!isSnapshotModeActive && (isMobile || isTabletPortrait) &&
-                <MobileHeader
-                  logo={branding.logo_url}
-                  sidebarOpen={sidebarOpen}
-                  onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
-                  branding={branding}
-                  unreadMessageCount={unreadMessageCount}
-                  onMessagingClick={() => setShowMessaging(true)}
-                  isMobile={isMobile}
-                  isTabletPortrait={isTabletPortrait}
-                  currentUser={currentUser}
-                  realUser={realUser}
-                  adminImportEnabled={adminImportEnabled}
-                  onAdminImportToggle={async (checked) => {
-                    if (currentUser?._isImpersonating) return;
-                    setAdminImportEnabled(checked);
-                    try {
-                      const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                      if (settings && settings.length > 0) {
-                        await base44.entities.AppSettings.update(settings[0].id, {
-                          setting_value: {
-                            ...settings[0].setting_value,
-                            adminImportEnabled: checked
-                          }
-                        });
-                      }
-                    } catch (error) {
-                      console.error('Failed to save admin import setting:', error);
+              <MobileHeader
+                logo={branding.logo_url}
+                sidebarOpen={sidebarOpen}
+                onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+                branding={branding}
+                unreadMessageCount={unreadMessageCount}
+                onMessagingClick={() => setShowMessaging(true)}
+                isMobile={isMobile}
+                isTabletPortrait={isTabletPortrait}
+                currentUser={currentUser}
+                realUser={realUser}
+                adminImportEnabled={adminImportEnabled}
+                onAdminImportToggle={async (checked) => {
+                  if (currentUser?._isImpersonating) return;
+                  setAdminImportEnabled(checked);
+                  try {
+                    const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                    if (settings && settings.length > 0) {
+                      await base44.entities.AppSettings.update(settings[0].id, {
+                        setting_value: {
+                          ...settings[0].setting_value,
+                          adminImportEnabled: checked
+                        }
+                      });
                     }
-                  }}
-                  themePreference={themePreference}
-                  onThemeChange={handleThemeChange}
-                  cities={cities}
-                  onPatientImportClick={() => setShowPatientImport(true)}
-                  onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                  onInviteQRClick={() => setShowInviteQRModal(true)}
-                  onCurrentUserUpdate={async (newStatus) => {
-                    clearUserCache();
-                    const refreshedUser = await getEffectiveUser();
-                    if (refreshedUser) {
-                      setCurrentUser(refreshedUser);
-                    }
-                  }}
-                />
-                }
+                  } catch (error) {
+                    console.error('Failed to save admin import setting:', error);
+                  }
+                }}
+                themePreference={themePreference}
+                onThemeChange={handleThemeChange}
+                cities={cities}
+                onPatientImportClick={() => setShowPatientImport(true)}
+                onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                onInviteQRClick={() => setShowInviteQRModal(true)}
+                onCurrentUserUpdate={async (newStatus) => {
+                  clearUserCache();
+                  const refreshedUser = await getEffectiveUser();
+                  if (refreshedUser) {
+                    setCurrentUser(refreshedUser);
+                  }
+                }} />
+
+              }
 
                     <main className="flex-1 overflow-hidden relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
                     <PageTransition>
@@ -3871,12 +3871,12 @@ export default function Layout({ children, currentPageName }) {
                     </main>
 
                     {/* Mobile Bottom Nav - inside main-content-area so flex column shrinks main naturally */}
-                    {!isSnapshotModeActive && !sidebarOpen && currentUser && screenWidth < 768 && (
-                      <MobileBottomNav
-                        currentUser={currentUser}
-                        currentPageName={currentPageName}
-                      />
-                    )}
+                    {!isSnapshotModeActive && !sidebarOpen && currentUser && screenWidth < 768 &&
+              <MobileBottomNav
+                currentUser={currentUser}
+                currentPageName={currentPageName} />
+
+              }
               </div>
             </div>
           </AppDataProvider>
