@@ -1180,7 +1180,7 @@ export default function StopCard({
           opacity: shouldFade ? 0.4 : 1,
           transition: 'opacity 0.2s ease-in-out'
         }}>
-        <CardContent className="flex flex-col">
+        <CardContent className="px-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
@@ -1540,7 +1540,7 @@ export default function StopCard({
             // Show if: not finished OR expanded OR centered OR (finished but route not complete)
             const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout;
             return isAssignedDriverOrAppOwner && shouldShowFooter;
-          })() && <div className="space-y-2 mt-1">
+          })() && <div className="space-y-0 mt-0">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <div className="mx-1 my-1.5 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
