@@ -833,7 +833,7 @@ export default function DeliveryForm({
           setProjectedDeliveries(filteredPredictions);
         }
       } catch (error) {
-        console.error('Error fetching predictions:', error);
+        setProjectedDeliveries([]);
       } finally {
         setIsLoadingPredictions(false);
       }
