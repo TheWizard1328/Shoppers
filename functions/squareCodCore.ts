@@ -1164,19 +1164,23 @@ async function handleSyncSquareCods(base44, payload) {
       return { success: true, processed: 0, results: [{ deliveryId: event?.entity_id, action: 'noop', status: 'skipped' }] };
     }
 
-    if (delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled') {
-      const result = await handleDeleteCodItem(base44, { deliveryId: delivery.id, reason: delivery.status });
-      return { success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result }] };
-    }
+    try {
+      if (delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled') {
+        const result = await handleDeleteCodItem(base44, { deliveryId: delivery.id, reason: delivery.status });
+        return { success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result }] };
+      }
 
-    const result = await handleCreateCodItem(base44, {
-      deliveryId: delivery.id,
-      codAmount: delivery.cod_total_amount_required,
-      deliveryDate: delivery.delivery_date,
-      storeId: delivery.store_id,
-      patientName: delivery.patient_name,
-    });
-    return { success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'upsert', status: result?.skipped ? 'skipped' : 'ok', result }] };
+      const result = await handleCreateCodItem(base44, {
+        deliveryId: delivery.id,
+        codAmount: delivery.cod_total_amount_required,
+        deliveryDate: delivery.delivery_date,
+        storeId: delivery.store_id,
+        patientName: delivery.patient_name,
+      });
+      return { success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'upsert', status: result?.skipped ? 'skipped' : 'ok', result }] };
+    } catch (error) {
+      return { success: false, processed: 1, results: [{ deliveryId: delivery.id, action: delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled' ? 'delete' : 'upsert', status: 'error', error: error?.message || 'Square COD sync failed' }] };
+    }
   }
 
   const items = Array.isArray(payload?.items) ? payload.items : [];
@@ -1188,28 +1192,36 @@ async function handleSyncSquareCods(base44, payload) {
 
   const results = [];
   for (const deletion of deletions) {
-    const result = await handleDeleteCodItem(base44, {
-      deliveryId: deletion?.deliveryId,
-      catalogObjectId: deletion?.catalogObjectId,
-      transactionId: deletion?.transactionId,
-      reason: deletion?.status === 'failed' ? 'failed' : deletion?.reason,
-    });
-    results.push({ deliveryId: deletion?.deliveryId, action: 'delete', status: 'ok', result });
+    try {
+      const result = await handleDeleteCodItem(base44, {
+        deliveryId: deletion?.deliveryId,
+        catalogObjectId: deletion?.catalogObjectId,
+        transactionId: deletion?.transactionId,
+        reason: deletion?.status === 'failed' ? 'failed' : deletion?.reason,
+      });
+      results.push({ deliveryId: deletion?.deliveryId, action: 'delete', status: 'ok', result });
+    } catch (error) {
+      results.push({ deliveryId: deletion?.deliveryId, action: 'delete', status: 'error', error: error?.message || 'Delete failed' });
+    }
   }
 
   for (const item of items) {
-    const result = await handleCreateCodItem(base44, {
-      deliveryId: item?.deliveryId,
-      patientName: item?.patientName,
-      storeAbbreviation: item?.storeAbbreviation,
-      codAmount: item?.codAmount,
-      deliveryDate: item?.deliveryDate,
-      storeId: item?.storeId,
-    });
-    results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: result?.skipped ? 'skipped' : 'ok', result });
+    try {
+      const result = await handleCreateCodItem(base44, {
+        deliveryId: item?.deliveryId,
+        patientName: item?.patientName,
+        storeAbbreviation: item?.storeAbbreviation,
+        codAmount: item?.codAmount,
+        deliveryDate: item?.deliveryDate,
+        storeId: item?.storeId,
+      });
+      results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: result?.skipped ? 'skipped' : 'ok', result });
+    } catch (error) {
+      results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: 'error', error: error?.message || 'Upsert failed' });
+    }
   }
 
-  return { success: true, processed: results.length, results };
+  return { success: !results.some((entry) => entry.status === 'error'), processed: results.length, results };
 }
 
 Deno.serve(async (req) => {
