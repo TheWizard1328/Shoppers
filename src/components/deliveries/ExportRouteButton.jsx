@@ -175,6 +175,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         const storeRecipientEmails = [...new Set(((perStoreEmails?.[storeId]) || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
         if (storeRecipientEmails.length === 0) return;
 
+        const storeName = dayDeliveries.find((delivery) => delivery?.store_id === storeId)?.store_name || storeId;
+
         emailJobs.push(
           base44.functions.invoke('generateRouteManifest', {
             driverId: driverFilter,
@@ -182,7 +184,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
             manifestType: 'post-route',
             storeIds: [storeId],
             recipientEmails: storeRecipientEmails,
-            emailSubject: `Route logs for: ${driverNames} ${exportDate} (${storeId})`
+            emailSubject: `Route logs for: ${driverNames} ${exportDate} (${storeName})`
           })
         );
       });
