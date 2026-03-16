@@ -1180,7 +1180,7 @@ export default function StopCard({
           opacity: shouldFade ? 0.4 : 1,
           transition: 'opacity 0.2s ease-in-out'
         }}>
-        <CardContent className="px-1 flex flex-col">
+        <CardContent className="flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
@@ -1251,7 +1251,7 @@ export default function StopCard({
 
               {/* Navigation and Phone buttons - Hide for driver-stripped always (stripped item) */}
               {isAssignedDriverOrAppOwner && !isStrippedForDriver &&
-              <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
+              <div className="mt-0 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
                   {finalDisplayPhone &&
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
