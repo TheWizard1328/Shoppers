@@ -1479,13 +1479,13 @@ function Dashboard() {
             window._lastProgrammaticMapMove = Date.now();
             setMapViewTrigger((prev) => prev + 1);
             if (event.type === 'DONE_BUTTON_CLICKED') {
-              const expiresAt = Date.now() + 3000;
+              const expiresAt = Date.now() + 500;
               mapLockExpiresAtRef.current = expiresAt;
               mapLockTimeoutRef.current = window.setTimeout(() => {
                 if (mapLockExpiresAtRef.current === expiresAt) {
                   setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;
                 }
-              }, 3000);
+              }, 500);
             }
           }
           // REMOVED: DRIVER_LOCATION_CHANGE handler - Phase 1 should NOT react to GPS updates
@@ -2997,8 +2997,8 @@ function Dashboard() {
           // CRITICAL: Returning from another page - delay longer before unlocking
           const wasReturning = !!savedFabPhaseOnUnmount;
 
-          // Keep phase 1 active long enough for users to cycle to the next phase
-          const lockDuration = 3000;
+          // Programmatic Phase 1 activation uses a short lock; direct FAB taps still use 3 seconds
+          const lockDuration = 500;
 
           if (finalPhase === 1) {
             const expiresAt = Date.now() + lockDuration;
@@ -3487,7 +3487,7 @@ function Dashboard() {
           mapLockExpiresAtRef.current = null;
         } else if (mapViewPhase === 1) {
           // Keep phase 1 active long enough for users to cycle to the next phase
-          const lockDuration = 3000;
+          const lockDuration = 500;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
 
