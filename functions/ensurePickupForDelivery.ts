@@ -10,12 +10,7 @@ function generateShortStopId() {
 }
 
 function generateDeliveryId() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let suffix = '';
-  for (let i = 0; i < 5; i++) {
-    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return `DID-${suffix}`;
+  return `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
 const ensurePickupInFlight = new Map();
