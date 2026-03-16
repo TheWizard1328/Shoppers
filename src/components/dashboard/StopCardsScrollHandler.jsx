@@ -98,11 +98,6 @@ export const createStopCardsScrollHandler = ({
             setMapZoom(null);
           }
 
-          if (relockPhase) {
-            setMapViewPhase(relockPhase);
-            setIsMapViewLocked(true);
-            if (typeof window !== 'undefined') window.__fabRelockPhase = relockPhase;
-          }
           onCenteredCardChange?.({ deliveryId: centeredDelivery.id, driverId: centeredDelivery.driver_id, isNextDelivery: centeredDelivery.isNextDelivery === true, source: 'scroll' });
         }
       }
