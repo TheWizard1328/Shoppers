@@ -394,7 +394,7 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
     <div className="mt-2 space-y-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="bg-background px-4 py-2 text-sm font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-9 w-full gap-2" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+          <Button variant="outline" className="bg-background px-4 text-sm font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-9 w-full gap-2" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
             <Eye className="w-4 h-4" style={{ color: 'var(--text-slate-700)' }} /> {impersonatingUser ? 'Switch User' : 'View as User'}
           </Button>
         </PopoverTrigger>
@@ -511,10 +511,10 @@ class ErrorBoundary extends React.Component {
     } catch (e) {
 
 
+
       // Ignore localStorage errors
     } // CRITICAL: Only show error screen for truly fatal errors
-    console.error('🔴 FATAL ERROR - Showing error screen:', error);
-    return { hasError: true, error };
+    console.error('🔴 FATAL ERROR - Showing error screen:', error);return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
@@ -562,9 +562,9 @@ class ErrorBoundary extends React.Component {
 
 
 
+
         // Ignore
-      }const errorToShow = this.state.error || cachedError;
-      // Check if mobile device
+      }const errorToShow = this.state.error || cachedError; // Check if mobile device
       const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
       // Check if app owner (from localStorage cache)
@@ -579,9 +579,9 @@ class ErrorBoundary extends React.Component {
 
 
 
+
         // Ignore
-      }const showErrorDetails = isMobileDevice && isOwner && errorToShow;
-      const handleCopyError = () => {
+      }const showErrorDetails = isMobileDevice && isOwner && errorToShow;const handleCopyError = () => {
         const errorText = `Error Message:\n${errorToShow?.message || 'Unknown error'}\n\nStack Trace:\n${errorToShow?.stack || 'No stack trace'}`;
         navigator.clipboard.writeText(errorText).then(() => {
           alert('Error copied to clipboard');
@@ -821,10 +821,10 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
         // Silent fail
       }}; // Initial check
     pollAdminImportSetting();
-
     // Poll every 60 seconds to prevent rate limits
     const interval = setInterval(pollAdminImportSetting, 60000);
     return () => clearInterval(interval);
@@ -931,10 +931,10 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
             // Silent fail - use defaults
           }}, 10000); // Load app settings 10 seconds after init
         const isDispatcher = userHasRole(fetchedUser, 'dispatcher');const isInactive = fetchedUser.status === 'inactive';
-
         if (isDispatcher && isInactive) {
 
           sessionStorage.clear();
@@ -2035,12 +2035,12 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Silent fail
-    }};const handleImpersonate = useCallback(async (userId) => {
-    sessionStorage.setItem('impersonationId', userId);
-    clearUserCache(); // Force refresh on impersonate
-    window.location.reload();
-  }, []);
+    }};const handleImpersonate = useCallback(async (userId) => {sessionStorage.setItem('impersonationId', userId);
+      clearUserCache(); // Force refresh on impersonate
+      window.location.reload();
+    }, []);
 
   const handleStopImpersonating = useCallback(() => {
     sessionStorage.removeItem('impersonationId');
