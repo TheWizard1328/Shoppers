@@ -191,7 +191,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   if (isDriver || isAdmin) {
     const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0;
     return (
-      <div className="my-1 w-full flex justify-center">
+      <div className="my-2 w-full flex justify-center">
         <Button
           onClick={() => handleExport('post-route')}
           className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
