@@ -2930,7 +2930,7 @@ function Dashboard() {
             setInitialMapViewApplied(true);
             setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
 
-            const lockDuration = 3000;
+            const lockDuration = 500;
             const expiresAt = Date.now() + lockDuration;
             mapLockExpiresAtRef.current = expiresAt;
             mapLockTimeoutRef.current = setTimeout(() => {
@@ -2951,7 +2951,7 @@ function Dashboard() {
             setInitialMapViewApplied(true);
             setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
 
-            const lockDuration = 3000;
+            const lockDuration = 500;
             const expiresAt = Date.now() + lockDuration;
             mapLockExpiresAtRef.current = expiresAt;
             mapLockTimeoutRef.current = setTimeout(() => {
@@ -3616,7 +3616,7 @@ function Dashboard() {
         mapLockExpiresAtRef.current = null;
       } else if (mapViewPhase === 1) {
         // Keep phase 1 active long enough for users to cycle to the next phase
-        const lockDuration = 3000;
+        const lockDuration = 500;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
 
