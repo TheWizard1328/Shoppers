@@ -328,28 +328,18 @@ function Dashboard() {
           detail: { appUsers: latestAppUsers, forceAll: true }
         }));
 
-        // CRITICAL: Trigger map re-render with Phase 1 and keep it locked long enough to cycle
+        // CRITICAL: Trigger map re-render with Phase 1 as an unlocked, programmatic view
         setMapViewPhase(1);
-        setIsMapViewLocked(true);
+        setIsMapViewLocked(false);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
 
-        const lockDuration = 3000;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
         }
-
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-          }
-        }, lockDuration);
+        mapLockExpiresAtRef.current = null;
 
       }
     };
@@ -1448,25 +1438,15 @@ function Dashboard() {
             const phaseToRestore = event.phaseToRestore || 1;
             setMapViewPhase(phaseToRestore);
 
-            // Lock the FAB and trigger map view
-            setIsMapViewLocked(true);
+            // Phase 1 restores as an unlocked programmatic view; Phase 2 & 3 stay locked
+            setIsMapViewLocked(phaseToRestore !== 1);
             setMapViewTrigger((prev) => prev + 1);
 
-            // Set up appropriate timer based on restored phase
-            if (phaseToRestore === 1) {
-              const lockDuration = 3000;
-              const expiresAt = Date.now() + lockDuration;
-              mapLockExpiresAtRef.current = expiresAt;
-
-              mapLockTimeoutRef.current = window.setTimeout(() => {
-                if (mapLockExpiresAtRef.current === expiresAt) {
-                  setIsMapViewLocked(false);
-                  mapLockExpiresAtRef.current = null;
-                  mapLockTimeoutRef.current = null;
-                }
-              }, lockDuration);
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
+              mapLockTimeoutRef.current = null;
             }
-            // Phase 2 & 3 stay locked permanently
+            mapLockExpiresAtRef.current = null;
 
             phaseBeforeBreakRef.current = null;
           } else if (event.type === 'DONE_BUTTON_CLICKED' || event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {
@@ -1474,19 +1454,10 @@ function Dashboard() {
             if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
             mapLockExpiresAtRef.current = null;
             if (event.type === 'DONE_BUTTON_CLICKED') setMapViewPhase(1);
-            setIsMapViewLocked(true);
+            setIsMapViewLocked(event.type !== 'DONE_BUTTON_CLICKED');
             lastProgrammaticMapMoveRef.current = Date.now();
             window._lastProgrammaticMapMove = Date.now();
             setMapViewTrigger((prev) => prev + 1);
-            if (event.type === 'DONE_BUTTON_CLICKED') {
-              const expiresAt = Date.now() + 500;
-              mapLockExpiresAtRef.current = expiresAt;
-              mapLockTimeoutRef.current = window.setTimeout(() => {
-                if (mapLockExpiresAtRef.current === expiresAt) {
-                  setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;
-                }
-              }, 500);
-            }
           }
           // REMOVED: DRIVER_LOCATION_CHANGE handler - Phase 1 should NOT react to GPS updates
         });
@@ -2052,10 +2023,10 @@ function Dashboard() {
       mapLockExpiresAtRef.current = null;
       if (isMapViewLocked) {
         setIsMapViewLocked(false);
-        setTimeout(() => triggerPhase(mapViewPhase, mapViewPhase === 1 ? 100 : null), 100);
+        setTimeout(() => triggerPhase(mapViewPhase), 100);
         return;
       }
-      triggerPhase(mapViewPhase, mapViewPhase === 1 ? 100 : null);
+      triggerPhase(mapViewPhase);
       return;
     }
 
@@ -2914,7 +2885,7 @@ function Dashboard() {
           const _dateCheck = format(selectedDate, 'yyyy-MM-dd');
           const _hasFullData = selectedDriverId && selectedDriverId !== 'all' ? deliveries.some((d) => d && d.delivery_date === _dateCheck && d.driver_id === selectedDriverId) : deliveries.some((d) => d && d.delivery_date === _dateCheck);
           if (deliveriesWithStopOrder.length === 0 && !_hasFullData) {
-            setMapViewPhase(1);setIsMapViewLocked(true);setInitialMapViewApplied(true);
+            setMapViewPhase(1);setIsMapViewLocked(false);setInitialMapViewApplied(true);
             setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
             if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
             mapLockExpiresAtRef.current = null;setMapViewTrigger((prev) => prev + 1);
@@ -2973,7 +2944,7 @@ function Dashboard() {
 
           // Apply the phase
           setMapViewPhase(finalPhase);
-          setIsMapViewLocked(true);
+          setIsMapViewLocked(finalPhase !== 1);
           setInitialMapViewApplied(true);
           setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
 
@@ -2986,32 +2957,6 @@ function Dashboard() {
 
           // Trigger map view
           setMapViewTrigger((prev) => prev + 1);
-
-          // CRITICAL: Clear any existing timers first
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-            mapLockTimeoutRef.current = null;
-          }
-          mapLockExpiresAtRef.current = null;
-
-          // CRITICAL: Returning from another page - delay longer before unlocking
-          const wasReturning = !!savedFabPhaseOnUnmount;
-
-          // Programmatic Phase 1 activation uses a short lock; direct FAB taps still use 3 seconds
-          const lockDuration = 500;
-
-          if (finalPhase === 1) {
-            const expiresAt = Date.now() + lockDuration;
-            mapLockExpiresAtRef.current = expiresAt;
-
-            mapLockTimeoutRef.current = setTimeout(() => {
-              if (mapLockExpiresAtRef.current === expiresAt) {
-                setIsMapViewLocked(false);
-                mapLockExpiresAtRef.current = null;
-                mapLockTimeoutRef.current = null;
-              }
-            }, lockDuration);
-          }
 
           // Scroll to card with isNextDelivery=true for all phases (helps user orient)
           setTimeout(() => {
@@ -3461,7 +3406,7 @@ function Dashboard() {
 
       // STEP 7: Trigger map view (non-blocking, delayed for rendering)
       setTimeout(() => {
-        setIsMapViewLocked(true);
+        setIsMapViewLocked(mapViewPhase !== 1);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
@@ -3477,28 +3422,11 @@ function Dashboard() {
           }
         }, 300);
 
-        // CRITICAL: Handle timer logic - ONLY Phase 1 gets timer, Phase 2 & 3 stay locked
-        if (mapViewPhase === 2 || mapViewPhase === 3) {
-          // Phase 2 & 3 - NO timer at all, stay locked PERMANENTLY
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-            mapLockTimeoutRef.current = null;
-          }
-          mapLockExpiresAtRef.current = null;
-        } else if (mapViewPhase === 1) {
-          // Keep phase 1 active long enough for users to cycle to the next phase
-          const lockDuration = 500;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-
-          mapLockTimeoutRef.current = setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-            }
-          }, lockDuration);
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
         }
+        mapLockExpiresAtRef.current = null;
 
         // CRITICAL: Notify that date change data is ready
         fabControlEvents.notifyDataReady();
@@ -3591,7 +3519,7 @@ function Dashboard() {
       }
       mapLockExpiresAtRef.current = null;
 
-      setIsMapViewLocked(true);
+      setIsMapViewLocked(mapViewPhase !== 1);
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger(nextTrigger);
@@ -3607,27 +3535,11 @@ function Dashboard() {
         }
       }, 300);
 
-      if (mapViewPhase === 2 || mapViewPhase === 3) {
-        // Phase 2 & 3 - NO timer, stay locked permanently
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-      } else if (mapViewPhase === 1) {
-        // Keep phase 1 active long enough for users to cycle to the next phase
-        const lockDuration = 500;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-          }
-        }, lockDuration);
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
       }
+      mapLockExpiresAtRef.current = null;
     } catch (error) {
       console.error('❌ [Dashboard] Driver change failed:', error);
     } finally {
@@ -6598,11 +6510,15 @@ function Dashboard() {
 
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: format(selectedDate, 'yyyy-MM-dd'), triggeredBy: 'pullToSyncDataReady', forceFullUpdate: true } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        setIsMapViewLocked(true);
+        setIsMapViewLocked(mapViewPhase !== 1);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
-        setTimeout(() => {setIsMapViewLocked(false);}, 500);
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
 
 
       } catch (error) {
@@ -7148,26 +7064,20 @@ function Dashboard() {
                           }
                           mapLockExpiresAtRef.current = null;
 
-                          // Set to Phase 1 and lock
+                          // Set to Phase 1 as an unlocked programmatic view
                           setMapViewPhase(1);
-                          setIsMapViewLocked(true);
+                          setIsMapViewLocked(false);
                           lastProgrammaticMapMoveRef.current = Date.now();
                           window._lastProgrammaticMapMove = Date.now();
 
                           // Trigger immediately
                           setMapViewTrigger((prev) => prev + 1);
 
-                          // Auto-unlock after 500ms
-                          const lockDuration = 500;
-                          const expiresAt = Date.now() + lockDuration;
-                          mapLockExpiresAtRef.current = expiresAt;
-                          mapLockTimeoutRef.current = setTimeout(() => {
-                            if (mapLockExpiresAtRef.current === expiresAt) {
-                              setIsMapViewLocked(false);
-                              mapLockExpiresAtRef.current = null;
-                              mapLockTimeoutRef.current = null;
-                            }
-                          }, lockDuration);
+                          if (mapLockTimeoutRef.current) {
+                            clearTimeout(mapLockTimeoutRef.current);
+                            mapLockTimeoutRef.current = null;
+                          }
+                          mapLockExpiresAtRef.current = null;
                         }}
                         className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                         style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
