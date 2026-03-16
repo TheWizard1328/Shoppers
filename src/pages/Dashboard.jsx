@@ -1479,7 +1479,7 @@ function Dashboard() {
             window._lastProgrammaticMapMove = Date.now();
             setMapViewTrigger((prev) => prev + 1);
             if (event.type === 'DONE_BUTTON_CLICKED') {
-              const expiresAt = Date.now() + 500;
+              const expiresAt = Date.now() + 3000;
               mapLockExpiresAtRef.current = expiresAt;
               mapLockTimeoutRef.current = window.setTimeout(() => {
                 if (mapLockExpiresAtRef.current === expiresAt) {
