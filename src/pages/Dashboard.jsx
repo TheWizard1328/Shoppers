@@ -1485,7 +1485,7 @@ function Dashboard() {
                 if (mapLockExpiresAtRef.current === expiresAt) {
                   setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;
                 }
-              }, 500);
+              }, 3000);
             }
           }
           // REMOVED: DRIVER_LOCATION_CHANGE handler - Phase 1 should NOT react to GPS updates
