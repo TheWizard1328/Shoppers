@@ -1541,8 +1541,8 @@ export default function StopCard({
             const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout;
             return isAssignedDriverOrAppOwner && shouldShowFooter;
           })() && <div className="">
-            <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              <div className={`mx-1 flex justify-between items-center ${isFinishedDelivery ? 'my-1.5' : 'mt-1.5 mb-0'}`}>
+            <div className="my-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <div className="mx-1 flex justify-between items-center mt-1.0 mb-0">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
                     {/* FAILED DELIVERY FOOTER - Special layout */}
