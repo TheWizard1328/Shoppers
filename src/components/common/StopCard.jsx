@@ -1182,7 +1182,7 @@ export default function StopCard({
         }}>
         <CardContent className="flex flex-col">
           {/* HEADER SECTION - Always Visible */}
-          <div className="mx-1 flex items-start">
+          <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
             {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) &&
             <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
