@@ -1180,7 +1180,7 @@ export default function StopCard({
           opacity: shouldFade ? 0.4 : 1,
           transition: 'opacity 0.2s ease-in-out'
         }}>
-        <CardContent className={`flex flex-col ${showCompletedRouteCenteredCondensed ? 'p-0' : 'px-2 py-1.5'}`}>
+        <CardContent className="flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="mx-1 flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
