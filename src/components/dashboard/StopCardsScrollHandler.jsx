@@ -53,24 +53,20 @@ export const createStopCardsScrollHandler = ({
       }
 
       // CRITICAL: Center map on the centered delivery's marker + assigned driver's location,
-      // and unlock FAB when the user scrolls to any non-phase-1 centered card.
+      // and always unlock FAB on manual stop-card scrolling.
       if (centeredDeliveryId) {
         const centeredDelivery = deliveriesWithStopOrder.find(d => d?.id === centeredDeliveryId);
         if (centeredDelivery) {
           const appUser = appUsers.find((user) => user?.user_id === centeredDelivery.driver_id || user?.id === centeredDelivery.driver_id);
           const driverLat = appUser?.current_latitude;
           const driverLon = appUser?.current_longitude;
-          const relockPhase = centeredDelivery.isNextDelivery === true && (mapViewPhase === 2 || mapViewPhase === 3) ? mapViewPhase : null;
 
-          if (mapViewPhase === 2 || mapViewPhase === 3) {
-            if (typeof window !== 'undefined') window.__fabRelockPhase = mapViewPhase;
-            if (mapLockTimeoutRef.current) {
-              clearTimeout(mapLockTimeoutRef.current);
-              mapLockTimeoutRef.current = null;
-            }
-            mapLockExpiresAtRef.current = null;
-            setIsMapViewLocked(false);
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
+            mapLockTimeoutRef.current = null;
           }
+          mapLockExpiresAtRef.current = null;
+          setIsMapViewLocked(false);
 
           // Center map on this delivery's marker and driver location
           let stopLat, stopLon;
