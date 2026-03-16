@@ -145,7 +145,7 @@ export default function StopCardHeader({
 
       {/* Center section */}
       <div className="flex-1 min-w-0">
-        <h3 className="pt-0 text-2xl font-semibold text-center truncate" style={{ color: "var(--text-slate-900)" }}>
+        <h3 className="pt-0 text-xl font-semibold text-center truncate" style={{ color: "var(--text-slate-900)" }}>
           {finalDisplayName}
         </h3>
         <div className="flex flex-col items-center min-h-[45px]">
