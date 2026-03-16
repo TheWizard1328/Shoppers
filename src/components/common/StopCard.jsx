@@ -1540,7 +1540,7 @@ export default function StopCard({
             // Show if: not finished OR expanded OR centered OR (finished but route not complete)
             const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout;
             return isAssignedDriverOrAppOwner && shouldShowFooter;
-          })() && <div className="space-y-0 mt-0">
+          })() && <div className="">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <div className="mx-1 my-1.5 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
