@@ -244,8 +244,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
-  // === DRIVERS: Email full route + per-store route PDFs ===
-  if (isDriver) {
+  // === DRIVERS & ADMINS: Email full route + per-store route PDFs ===
+  if (isDriver || isAdmin) {
     const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0 || driverStoreIds.length === 0;
     return (
       <>
@@ -266,22 +266,6 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
           isExporting={isExporting}
           onExportRoute={handleDriverEmailExport} />
       </>
-    );
-  }
-
-  // === ADMINS: Download PDF ===
-  if (isAdmin) {
-    const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0;
-    return (
-      <div className="my-2 w-full flex justify-center">
-        <Button
-          onClick={() => handleExport('post-route')}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-          disabled={btnDisabled || isExporting}>
-          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          {isExporting ? 'Exporting...' : 'Export Route'}
-        </Button>
-      </div>
     );
   }
 
