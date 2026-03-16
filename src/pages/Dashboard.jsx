@@ -5730,7 +5730,6 @@ function Dashboard() {
           if (currentUser?.id) {
             saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
           }
-...
           if (mapLockTimeoutRef.current) {
             clearTimeout(mapLockTimeoutRef.current);
             mapLockTimeoutRef.current = null;
