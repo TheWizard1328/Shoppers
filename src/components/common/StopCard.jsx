@@ -1274,8 +1274,8 @@ export default function StopCard({
                   onClick={(e) => {
                     e.stopPropagation();
                     fabControlEvents.reactivatePhaseTwoIfAvailable();
-                  }} className="flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
-                      <Navigation className="w-6 h-6" />
+                  }} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
+                      <Navigation className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
                 }
                 </div>
