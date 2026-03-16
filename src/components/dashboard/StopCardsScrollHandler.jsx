@@ -19,6 +19,14 @@ export const createStopCardsScrollHandler = ({
 }) => {
   return (e) => {
     if (typeof window !== 'undefined' && !window.__isUserCardSwipe) return;
+    if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) {
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
+      setIsMapViewLocked(false);
+    }
     // Debounce the scroll snap
     const container = e.currentTarget;
     if (container._scrollTimeout) {
