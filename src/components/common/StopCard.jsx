@@ -1180,7 +1180,7 @@ export default function StopCard({
           opacity: shouldFade ? 0.4 : 1,
           transition: 'opacity 0.2s ease-in-out'
         }}>
-        <CardContent className={`px-2 py-0 flex flex-col ${showCompletedRouteCenteredCondensed ? 'p-0' : 'p-6'}`}>
+        <CardContent className={`flex flex-col ${showCompletedRouteCenteredCondensed ? 'p-0' : 'px-2 py-1.5'}`}>
           {/* HEADER SECTION - Always Visible */}
           <div className="mx-1 flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
@@ -1532,17 +1532,12 @@ export default function StopCard({
               const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
               if (!hasRetryButton && !hasReturnButton) return null;
             }
-
-            // For dispatchers: hide footer completely for non-assigned store deliveries
-            if (isStrippedForDispatcher) return null;
-
-            // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
-            // Show if: not finished OR expanded OR centered OR (finished but route not complete)
+...
             const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout;
             return isAssignedDriverOrAppOwner && shouldShowFooter;
-          })() && <div className="space-y-3 mt-2">
+          })() && <div className="space-y-2 mt-1">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              <div className="mx-1 my-2 flex justify-between items-center">
+              <div className="mx-1 my-1.5 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
                     {/* FAILED DELIVERY FOOTER - Special layout */}

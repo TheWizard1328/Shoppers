@@ -88,7 +88,7 @@ export default function StopCardBody({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="mt-2 pt-3 pb-2 space-y-3 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+            <div className="mt-1 pt-2 pb-1.5 space-y-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
               {finalDisplayPhone && !(isFinishedDelivery && !isPickup) && (
                 <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
