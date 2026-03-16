@@ -2018,7 +2018,7 @@ function Dashboard() {
       }
     };
 
-    if (forceReactivate) {
+    if (forceReactivate===true) {
       if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
       mapLockExpiresAtRef.current = null;
       if (isMapViewLocked) {
