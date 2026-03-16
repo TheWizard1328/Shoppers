@@ -122,7 +122,7 @@ export default function StopCardHeader({
   return (
     <>
       {/* Left badges column */}
-      <div className="my-0.5 mt-1 mb-1 flex flex-col items-center gap-1.5">
+      <div className="my-0.5 mt-0 mb-1 flex flex-col items-center gap-1.5">
         <Badge
           variant="secondary"
           className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors w-[40px] justify-center"
@@ -187,7 +187,7 @@ export default function StopCardHeader({
       </div>
 
       {/* Right column */}
-      <div className="my-0.5 mt-1 mb-1 flex flex-col items-center gap-1.5">
+      <div className="my-0.5 mt-0 mb-1 flex flex-col items-center gap-1.5">
         <div className="flex items-center gap-1">
           <Badge
             variant="secondary"
