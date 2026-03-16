@@ -2059,7 +2059,7 @@ function Dashboard() {
       return;
     }
 
-    let newMapViewPhase = isMapViewLocked ? mapViewPhase % 3 + 1 : mapViewPhase === 1 ? 2 : mapViewPhase;
+    let newMapViewPhase = isMapViewLocked ? mapViewPhase % 3 + 1 : mapViewPhase;
     if (isDriver) {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
       const hasIncompleteDeliveries = deliveriesWithStopOrder.some((d) => d && d.driver_id === currentUser?.id && !finishedStatuses.includes(d.status));
