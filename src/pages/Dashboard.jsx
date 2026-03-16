@@ -2998,8 +2998,8 @@ function Dashboard() {
           // CRITICAL: Returning from another page - delay longer before unlocking
           const wasReturning = !!savedFabPhaseOnUnmount;
 
-          // CRITICAL: Always use 100ms for initial unlock on page load (Phase 1 ONLY)
-          const lockDuration = 100;
+          // Keep phase 1 active long enough for users to cycle to the next phase
+          const lockDuration = 3000;
 
           if (finalPhase === 1) {
             const expiresAt = Date.now() + lockDuration;
@@ -3487,8 +3487,8 @@ function Dashboard() {
           }
           mapLockExpiresAtRef.current = null;
         } else if (mapViewPhase === 1) {
-          // Phase 1 - Set 500ms unlock timer (auto-activation from date change)
-          const lockDuration = 500;
+          // Keep phase 1 active long enough for users to cycle to the next phase
+          const lockDuration = 3000;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
 
@@ -3616,8 +3616,8 @@ function Dashboard() {
         }
         mapLockExpiresAtRef.current = null;
       } else if (mapViewPhase === 1) {
-        // Phase 1 - Set 500ms unlock timer (auto-activation from driver change)
-        const lockDuration = 500;
+        // Keep phase 1 active long enough for users to cycle to the next phase
+        const lockDuration = 3000;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
 

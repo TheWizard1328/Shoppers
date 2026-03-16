@@ -111,7 +111,7 @@ export default function DashboardView({
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger(prev => prev + 1);
-        const lockDuration = 500;
+        const lockDuration = 3000;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
         mapLockTimeoutRef.current = setTimeout(() => {
