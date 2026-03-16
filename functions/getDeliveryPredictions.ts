@@ -167,6 +167,9 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error('Error fetching delivery predictions:', error);
+    if (error?.status === 429 || error?.response?.status === 429 || error?.message?.includes('Rate limit exceeded')) {
+      return Response.json({ predictions: [], count: 0, selectedDate: null, dayOfWeek: null, rate_limited: true });
+    }
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
