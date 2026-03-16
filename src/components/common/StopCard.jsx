@@ -1255,8 +1255,8 @@ export default function StopCard({
                   {finalDisplayPhone &&
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
-                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
-                      <Phone className="w-6 h-6" />
+                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+                      <Phone className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
                 }
                   {/* CRITICAL: Only show GPS button for isNextDelivery cards - always use coordinates */}
