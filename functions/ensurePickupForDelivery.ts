@@ -67,6 +67,8 @@ Deno.serve(async (req) => {
 
     const stores = await base44.entities.Store.filter({ id: storeId });
     const store = stores[0];
+    const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
+    const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || '';
     const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
 
     if (store && specialStoreNames.includes(store.name)) {
