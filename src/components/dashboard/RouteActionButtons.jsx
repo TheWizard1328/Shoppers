@@ -63,8 +63,11 @@ export default function RouteActionButtons({
             const data = response?.data || response;
             if (data?.success) {
               setOptimizationMessage(`Route optimized! ${(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)} stops updated.`);
-              await refreshData();
-              window.dispatchEvent(new CustomEvent("deliveriesUpdated", { detail: { driverId: selectedDriverId, deliveryDate, triggeredBy: "reoptimizeRoute" } }));
+              refreshData().catch((error) => {
+                console.warn("⚠️ [handleReoptimizeRoute] Background refresh failed:", error?.message || error);
+              });
+              window.dispatchEvent(new CustomEvent("deliveriesUpdated", { detail: { driverId: selectedDriverId, deliveryDate, triggeredBy: "reoptimizeRoute", alreadyOptimized: true } }));
+              window.dispatchEvent(new CustomEvent("routeReordered", { detail: { driverId: selectedDriverId, deliveryDate, source: "reoptimizeRoute" } }));
               setIsMapViewLocked(true);
               setMapViewTrigger((prev) => prev + 1);
               setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
