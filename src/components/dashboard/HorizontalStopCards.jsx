@@ -445,7 +445,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       .filter(Boolean);
 
     const updateHeight = () => {
-      const targetHeight = targetElement ? Math.ceil(targetElement.offsetHeight) + 12 : 140;
+      const targetHeight = targetElement ? Math.ceil(targetElement.offsetHeight) + 0 : 140;
 
       if (incompleteElements.length === 0) {
         setDesktopContainerHeight(targetHeight);
@@ -453,7 +453,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       }
 
       const tallestIncompleteHeight = Math.max(
-        ...incompleteElements.map((element) => Math.ceil(element.offsetHeight) + 12),
+        ...incompleteElements.map((element) => Math.ceil(element.offsetHeight) + 0),
         140
       );
 
