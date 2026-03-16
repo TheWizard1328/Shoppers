@@ -2030,16 +2030,9 @@ function Dashboard() {
       return;
     }
 
-    let newMapViewPhase = isMapViewLocked ? mapViewPhase % 3 + 1 : mapViewPhase;
-    if (isDriver) {
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
-      const hasIncompleteDeliveries = deliveriesWithStopOrder.some((d) => d && d.driver_id === currentUser?.id && !finishedStatuses.includes(d.status));
-      if (newMapViewPhase === 2 && (!hasIncompleteDeliveries || !nextStopCoordinates)) newMapViewPhase = 3;
-      const hasDriverMarkers = allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude;
-      if (newMapViewPhase === 3 && (!hasIncompleteDeliveries || !isMobile && !hasDriverMarkers)) newMapViewPhase = 1;
-      if (newMapViewPhase === 2 && (!hasIncompleteDeliveries || !nextStopCoordinates)) newMapViewPhase = 1;
-    }
-
+    const phase2Unavailable = isDriver && (!deliveriesWithStopOrder.some((d) => d && d.driver_id === currentUser?.id && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)) || !nextStopCoordinates);
+    let newMapViewPhase = mapViewPhase === 1 ? isMapViewLocked ? phase2Unavailable ? 3 : 2 : 1 : isMapViewLocked ? mapViewPhase % 3 + 1 : mapViewPhase;
+    if (isDriver && newMapViewPhase === 3 && (phase2Unavailable || !isMobile && !(allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude))) newMapViewPhase = 1;
     triggerPhase(newMapViewPhase, newMapViewPhase === 1 ? 3000 : null);
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder, allDriverLocations, driverLocation]);
 
