@@ -1426,74 +1426,74 @@ function Dashboard() {
 
 
 
+
         // This subscription handles changes from other components
       }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {
-        // Save current phase for later restoration
-        phaseBeforeBreakRef.current = event.previousPhase;
-        // Clear any timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-
-        // Unlock FAB and set to phase 1
-        setIsMapViewLocked(false);
-        setMapViewPhase(1);
-        setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
-
-      } else if (event.type === 'BREAK_END') {
-
-        // Restore the saved phase
-        const phaseToRestore = event.phaseToRestore || 1;
-        setMapViewPhase(phaseToRestore);
-
-        // Lock the FAB and trigger map view
-        setIsMapViewLocked(true);
-        setMapViewTrigger((prev) => prev + 1);
-
-        // Set up appropriate timer based on restored phase
-        if (phaseToRestore === 1) {
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-
-          mapLockTimeoutRef.current = window.setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
+  useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {// Save current phase for later restoration
+            phaseBeforeBreakRef.current = event.previousPhase;
+            // Clear any timers
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
               mapLockTimeoutRef.current = null;
             }
-          }, lockDuration);
-        }
-        // Phase 2 & 3 stay locked permanently
+            mapLockExpiresAtRef.current = null;
 
-        phaseBeforeBreakRef.current = null;
-      } else if (event.type === 'DONE_BUTTON_CLICKED' || event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {
-        if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE' && (mapViewPhase !== 2 || isMapViewLocked)) return;
-        if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
-        mapLockExpiresAtRef.current = null;
-        if (event.type === 'DONE_BUTTON_CLICKED') setMapViewPhase(1);
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-        if (event.type === 'DONE_BUTTON_CLICKED') {
-          const expiresAt = Date.now() + 500;
-          mapLockExpiresAtRef.current = expiresAt;
-          mapLockTimeoutRef.current = window.setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;
+            // Unlock FAB and set to phase 1
+            setIsMapViewLocked(false);
+            setMapViewPhase(1);
+            setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
+
+          } else if (event.type === 'BREAK_END') {
+
+            // Restore the saved phase
+            const phaseToRestore = event.phaseToRestore || 1;
+            setMapViewPhase(phaseToRestore);
+
+            // Lock the FAB and trigger map view
+            setIsMapViewLocked(true);
+            setMapViewTrigger((prev) => prev + 1);
+
+            // Set up appropriate timer based on restored phase
+            if (phaseToRestore === 1) {
+              const lockDuration = 3000;
+              const expiresAt = Date.now() + lockDuration;
+              mapLockExpiresAtRef.current = expiresAt;
+
+              mapLockTimeoutRef.current = window.setTimeout(() => {
+                if (mapLockExpiresAtRef.current === expiresAt) {
+                  setIsMapViewLocked(false);
+                  mapLockExpiresAtRef.current = null;
+                  mapLockTimeoutRef.current = null;
+                }
+              }, lockDuration);
             }
-          }, 500);
-        }
-      }
-      // REMOVED: DRIVER_LOCATION_CHANGE handler - Phase 1 should NOT react to GPS updates
-    });
+            // Phase 2 & 3 stay locked permanently
 
-    return unsubscribe;
-  }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
+            phaseBeforeBreakRef.current = null;
+          } else if (event.type === 'DONE_BUTTON_CLICKED' || event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {
+            if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE' && (mapViewPhase !== 2 || isMapViewLocked)) return;
+            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
+            mapLockExpiresAtRef.current = null;
+            if (event.type === 'DONE_BUTTON_CLICKED') setMapViewPhase(1);
+            setIsMapViewLocked(true);
+            lastProgrammaticMapMoveRef.current = Date.now();
+            window._lastProgrammaticMapMove = Date.now();
+            setMapViewTrigger((prev) => prev + 1);
+            if (event.type === 'DONE_BUTTON_CLICKED') {
+              const expiresAt = Date.now() + 500;
+              mapLockExpiresAtRef.current = expiresAt;
+              mapLockTimeoutRef.current = window.setTimeout(() => {
+                if (mapLockExpiresAtRef.current === expiresAt) {
+                  setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;
+                }
+              }, 500);
+            }
+          }
+          // REMOVED: DRIVER_LOCATION_CHANGE handler - Phase 1 should NOT react to GPS updates
+        });
+
+      return unsubscribe;
+    }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
 
   useEffect(() => {
     return () => {
@@ -1832,9 +1832,9 @@ function Dashboard() {
 
 
 
+
       // Callback provided for future use
-    }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;
-        // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
+    }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
         // On all other devices/scenarios, show the shared marker
         const isTrackingOnThisDevice = locationTracker.isTracking === true;
         const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;
@@ -2035,7 +2035,7 @@ function Dashboard() {
         const cardElement = nextCard?.id ? document.getElementById(`stop-card-${nextCard.id}`) : null;
         if (cardElement) cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }, 300);
-      if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null; }
+      if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
       mapLockExpiresAtRef.current = null;
       if (unlockMs != null) {
         const expiresAt = Date.now() + unlockMs;
@@ -2049,7 +2049,7 @@ function Dashboard() {
     };
 
     if (forceReactivate) {
-      if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null; }
+      if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
       mapLockExpiresAtRef.current = null;
       if (isMapViewLocked) {
         setIsMapViewLocked(false);
@@ -2945,7 +2945,7 @@ function Dashboard() {
           }
 
           // For phase 3, require driver location (dispatchers can use phase 3 freely)
-          if (phaseToApply === 3 && ((!isDriver && !isDispatcher) || !deliveriesWithStopOrder.some((d) => d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)))) {
+          if (phaseToApply === 3 && (!isDriver && !isDispatcher || !deliveriesWithStopOrder.some((d) => d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)))) {
             setMapViewPhase(1);
             setIsMapViewLocked(true);
             setMapViewTrigger((prev) => prev + 1);
@@ -3154,9 +3154,9 @@ function Dashboard() {
     const handleSmartRefreshRestartedEvent = () => {
 
 
+
       // No map repositioning on smart refresh restart - user controls map manually
-    };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
-    window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
+    };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
 
     return () => {
       window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
@@ -3719,7 +3719,7 @@ function Dashboard() {
       setHighlightedCardId(delivery.id);
       cardExpandedAtRef.current = Date.now();
 
-      if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
+      if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
       mapLockExpiresAtRef.current = null;
       window.__fabRelockPhase = mapViewPhase === 2 || mapViewPhase === 3 ? mapViewPhase : null;
       setIsMapViewLocked(false);
@@ -3741,7 +3741,7 @@ function Dashboard() {
               paddingBottomRight: [25, bottomPadding]
             };
 
-            const appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id), bounds = [];
+            const appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
             if (delivery.patient_id) {
               const patient = patients.find((p) => p.id === delivery.patient_id);
               if (patient?.latitude && patient?.longitude) bounds.push([patient.latitude, patient.longitude]);
@@ -3752,12 +3752,12 @@ function Dashboard() {
             if (appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
             if (bounds.length) {
               setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
-              setMapCenter(null); setMapZoom(null);
+              setMapCenter(null);setMapZoom(null);
             }
-            if (delivery.isNextDelivery && window.__fabRelockPhase) { setMapViewPhase(window.__fabRelockPhase); setIsMapViewLocked(true); }
+            if (delivery.isNextDelivery && window.__fabRelockPhase) {setMapViewPhase(window.__fabRelockPhase);setIsMapViewLocked(true);}
           }, 350);
         } else {
-          const padding = getMapPadding(), appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id), bounds = [];
+          const padding = getMapPadding(),appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
           if (delivery.patient_id) {
             const patient = patients.find((p) => p.id === delivery.patient_id);
             if (patient?.latitude && patient?.longitude) bounds.push([patient.latitude, patient.longitude]);
@@ -3768,9 +3768,9 @@ function Dashboard() {
           if (appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
           if (bounds.length) {
             setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
-            setMapCenter(null); setMapZoom(null);
+            setMapCenter(null);setMapZoom(null);
           }
-          if (delivery.isNextDelivery && window.__fabRelockPhase) { setMapViewPhase(window.__fabRelockPhase); setIsMapViewLocked(true); }
+          if (delivery.isNextDelivery && window.__fabRelockPhase) {setMapViewPhase(window.__fabRelockPhase);setIsMapViewLocked(true);}
         }
       };
 
@@ -7002,7 +7002,7 @@ function Dashboard() {
                             </Tooltip>
                           </TooltipProvider>
                         </div>
-                      } className="rdp p-3" style={{ color: 'var(--text-slate-900)' }} />
+                      } className="px-2 py-2 rdp" style={{ color: 'var(--text-slate-900)' }} />
 
                   </PopoverContent>
                 </Popover>
