@@ -8,14 +8,14 @@ import { userHasRole } from "../utils/userRoles";
 import { globalFilters } from "@/components/utils/globalFilters";
 
 export default function ExportRouteButton({ currentUser, driverFilter, selectedDate, driverFilteredDeliveries }) {
-  const finishedStatuses = ['completed','failed','cancelled','returned','picked_up'];
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'picked_up'];
   const allDeliveries = driverFilteredDeliveries || [];
 
   const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
 
   const dayDeliveries = useMemo(() => {
     if (!dateStr) return [];
-    return allDeliveries.filter(d => d && d.delivery_date === dateStr);
+    return allDeliveries.filter((d) => d && d.delivery_date === dateStr);
   }, [allDeliveries, dateStr]);
 
   // Dispatcher's store IDs
@@ -54,16 +54,16 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const dispatcherDayDeliveries = useMemo(() => {
     const source = isDispatcherOnly ? dispatcherAllDateDeliveries : dayDeliveries;
     if (!isDispatcherOnly || dispatcherStoreIds.length === 0) return source;
-    return source.filter(d => d && dispatcherStoreIds.includes(d.store_id));
+    return source.filter((d) => d && dispatcherStoreIds.includes(d.store_id));
   }, [dayDeliveries, isDispatcherOnly, dispatcherStoreIds, dispatcherAllDateDeliveries]);
 
   // Route complete check (all stops finished for selected date)
   const isRouteComplete = dayDeliveries.length > 0 &&
-    dayDeliveries.every(d => d && finishedStatuses.includes(d.status));
+  dayDeliveries.every((d) => d && finishedStatuses.includes(d.status));
 
   // Dispatcher: all of THEIR store's stops finished
   const isDispatcherRouteComplete = dispatcherDayDeliveries.length > 0 &&
-    dispatcherDayDeliveries.every(d => d && finishedStatuses.includes(d.status));
+  dispatcherDayDeliveries.every((d) => d && finishedStatuses.includes(d.status));
 
   // Dispatcher AM/PM qualification logic:
   // A period qualifies if there's a pickup (no patient_id) for dispatcher's store
@@ -71,18 +71,18 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const getPeriodQualification = (period) => {
     if (!isDispatcherOnly) return false;
     // Find pickups for dispatcher's stores in this period that are en_route
-    const enRoutePickups = dispatcherDayDeliveries.filter(d =>
-      d && !d.patient_id &&
-      d.ampm_deliveries === period &&
-      d.status === 'en_route'
+    const enRoutePickups = dispatcherDayDeliveries.filter((d) =>
+    d && !d.patient_id &&
+    d.ampm_deliveries === period &&
+    d.status === 'en_route'
     );
     if (enRoutePickups.length === 0) return false;
 
     // Check if there are pending stops attached to these pickups (matching puid = pickup's stop_id)
-    const pickupStopIds = enRoutePickups.map(p => p.stop_id).filter(Boolean);
-    const hasPendingStops = dispatcherDayDeliveries.some(d =>
-      d && d.patient_id && d.status === 'pending' &&
-      pickupStopIds.includes(d.puid)
+    const pickupStopIds = enRoutePickups.map((p) => p.stop_id).filter(Boolean);
+    const hasPendingStops = dispatcherDayDeliveries.some((d) =>
+    d && d.patient_id && d.status === 'pending' &&
+    pickupStopIds.includes(d.puid)
     );
     return hasPendingStops;
   };
@@ -103,18 +103,18 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     if (isExporting || !recipientEmails?.length) return;
     setIsExporting(true);
     try {
-      const exportConfig = isDispatcherRouteComplete
-        ? { manifestType: 'post-route' }
-        : qualifiedCount > 0
-          ? { manifestType: 'pre-route', ampm: qualifiedPeriod }
-          : null;
+      const exportConfig = isDispatcherRouteComplete ?
+      { manifestType: 'post-route' } :
+      qualifiedCount > 0 ?
+      { manifestType: 'pre-route', ampm: qualifiedPeriod } :
+      null;
 
       if (!exportConfig) return;
 
       const exportDate = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-      const relevantDeliveries = exportConfig.manifestType === 'post-route'
-        ? dispatcherDayDeliveries
-        : dispatcherDayDeliveries.filter((d) => d && d.ampm_deliveries === exportConfig.ampm && !finishedStatuses.includes(d.status));
+      const relevantDeliveries = exportConfig.manifestType === 'post-route' ?
+      dispatcherDayDeliveries :
+      dispatcherDayDeliveries.filter((d) => d && d.ampm_deliveries === exportConfig.ampm && !finishedStatuses.includes(d.status));
       const driverNames = getDriverNamesForSubject(relevantDeliveries);
       const validRecipientEmails = [...new Set((recipientEmails || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
 
@@ -130,7 +130,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         storeIds: dispatcherStoreIds,
         selectedCityId,
         recipientEmails: validRecipientEmails,
-        emailSubject: `Route logs for: ${driverNames} ${exportDate}`,
+        emailSubject: `Route logs for: ${driverNames} ${exportDate}`
       });
       const data = res?.data || res;
 
@@ -153,35 +153,35 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     try {
       const exportAllDispatcherDrivers = isDispatcherOnly;
       const driverId = exportAllDispatcherDrivers ? undefined : driverFilter;
-      if (!driverId && !exportAllDispatcherDrivers) { alert('Select a driver first'); return; }
+      if (!driverId && !exportAllDispatcherDrivers) {alert('Select a driver first');return;}
       const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
 
-    const payload = {
-      driverId,
-      deliveryDate: dateStr,
-      manifestType: type,
-      ampm: type === 'pre-route' ? ampm : undefined,
-      // Dispatchers: only export their store's stops
-      storeIds: isDispatcherOnly ? dispatcherStoreIds : undefined,
-      selectedCityId: isDispatcherOnly ? selectedCityId : undefined
-    };
+      const payload = {
+        driverId,
+        deliveryDate: dateStr,
+        manifestType: type,
+        ampm: type === 'pre-route' ? ampm : undefined,
+        // Dispatchers: only export their store's stops
+        storeIds: isDispatcherOnly ? dispatcherStoreIds : undefined,
+        selectedCityId: isDispatcherOnly ? selectedCityId : undefined
+      };
 
-    const res = await base44.functions.invoke('generateRouteManifest', payload);
-    const data = res?.data || res;
+      const res = await base44.functions.invoke('generateRouteManifest', payload);
+      const data = res?.data || res;
 
-    if (data && typeof data === 'object' && !(data instanceof ArrayBuffer) && !('byteLength' in (data || {}))) {
-      if (data?.error) { alert(data.error); return; }
-    }
+      if (data && typeof data === 'object' && !(data instanceof ArrayBuffer) && !('byteLength' in (data || {}))) {
+        if (data?.error) {alert(data.error);return;}
+      }
 
-    const blob = new Blob([data], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${type}${ampm ? `-${ampm}` : ''}-${dateStr}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${type}${ampm ? `-${ampm}` : ''}-${dateStr}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     } finally {
       setIsExporting(false);
     }
@@ -191,17 +191,17 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   if (isDriver || isAdmin) {
     const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0;
     return (
-      <div className="w-full flex justify-center">
+      <div className="my-1 w-full flex justify-center">
         <Button
           onClick={() => handleExport('post-route')}
           className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-          disabled={btnDisabled || isExporting}
-        >
+          disabled={btnDisabled || isExporting}>
+
           {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           {isExporting ? 'Exporting...' : 'Export Route'}
         </Button>
-      </div>
-    );
+      </div>);
+
   }
 
   // === DISPATCHERS ===
@@ -220,8 +220,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
             onClick={() => setIsEmailDialogOpen(true)}
             variant={isDispatcherRouteComplete ? 'default' : 'outline'}
             className={isDispatcherRouteComplete ? 'bg-emerald-600 hover:bg-emerald-700 text-white gap-2' : 'gap-2 text-white bg-slate-900 hover:bg-slate-800'}
-            disabled={(!canPostRouteExport && !canPreRouteExport) || isExporting}
-          >
+            disabled={!canPostRouteExport && !canPreRouteExport || isExporting}>
+
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {isExporting ? 'Exporting...' : 'Export Route'}
           </Button>
@@ -232,10 +232,10 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
           onOpenChange={setIsEmailDialogOpen}
           storeIds={dispatcherStoreIds}
           isExporting={isExporting}
-          onExportRoute={handleDispatcherEmailExport}
-        />
-      </>
-    );
+          onExportRoute={handleDispatcherEmailExport} />
+
+      </>);
+
   }
 
   return null;
