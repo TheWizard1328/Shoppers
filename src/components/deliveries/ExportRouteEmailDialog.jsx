@@ -97,9 +97,13 @@ export default function ExportRouteEmailDialog({
 
   const handleExportRoute = async () => {
     await saveEmails();
+    const perStoreEmails = stores.reduce((acc, store) => {
+      acc[store.id] = emailDrafts[store.id] || [];
+      return acc;
+    }, {});
     const recipientEmails = [...new Set(stores.flatMap((store) => emailDrafts[store.id] || []))];
     onOpenChange(false);
-    await onExportRoute(recipientEmails);
+    await onExportRoute({ recipientEmails, perStoreEmails });
   };
 
   return (

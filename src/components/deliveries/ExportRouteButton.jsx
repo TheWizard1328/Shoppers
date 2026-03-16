@@ -93,13 +93,14 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
   const [isExporting, setIsExporting] = useState(false);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const driverStoreIds = useMemo(() => [...new Set(dayDeliveries.map((d) => d?.store_id).filter(Boolean))], [dayDeliveries]);
 
   const getDriverNamesForSubject = (deliveries) => {
     const names = [...new Set((deliveries || []).map((delivery) => delivery?.driver_name || delivery?.driver_id).filter(Boolean))];
     return names.length > 0 ? names.join(', ') : 'Unassigned';
   };
 
-  const handleDispatcherEmailExport = async (recipientEmails) => {
+  const handleDispatcherEmailExport = async ({ recipientEmails }) => {
     if (isExporting || !recipientEmails?.length) return;
     setIsExporting(true);
     try {
@@ -147,6 +148,60 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
+  const handleDriverEmailExport = async ({ recipientEmails, perStoreEmails }) => {
+    if (isExporting || !recipientEmails?.length) return;
+    setIsExporting(true);
+    try {
+      const exportDate = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+      const validRecipientEmails = [...new Set((recipientEmails || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+
+      if (validRecipientEmails.length === 0) {
+        alert('Please add at least one valid email address.');
+        return;
+      }
+
+      const driverNames = getDriverNamesForSubject(dayDeliveries);
+      const emailJobs = [
+        base44.functions.invoke('generateRouteManifest', {
+          driverId: driverFilter,
+          deliveryDate: exportDate,
+          manifestType: 'post-route',
+          recipientEmails: validRecipientEmails,
+          emailSubject: `Route logs for: ${driverNames} ${exportDate}`
+        })
+      ];
+
+      driverStoreIds.forEach((storeId) => {
+        const storeRecipientEmails = [...new Set(((perStoreEmails?.[storeId]) || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+        if (storeRecipientEmails.length === 0) return;
+
+        emailJobs.push(
+          base44.functions.invoke('generateRouteManifest', {
+            driverId: driverFilter,
+            deliveryDate: exportDate,
+            manifestType: 'post-route',
+            storeIds: [storeId],
+            recipientEmails: storeRecipientEmails,
+            emailSubject: `Route logs for: ${driverNames} ${exportDate} (${storeId})`
+          })
+        );
+      });
+
+      const results = await Promise.all(emailJobs);
+      const failedResult = results.map((res) => res?.data || res).find((data) => data?.error);
+      if (failedResult?.error) {
+        alert(failedResult.error);
+        return;
+      }
+
+      alert('Route logs emailed successfully.');
+    } catch (error) {
+      alert(error?.response?.data?.error || error?.message || 'Route email export failed.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleExport = async (type, ampm) => {
     if (isExporting) return;
     setIsExporting(true);
@@ -187,8 +242,33 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
-  // === DRIVERS & ADMINS: Post-route only, enabled when route complete ===
-  if (isDriver || isAdmin) {
+  // === DRIVERS: Email full route + per-store route PDFs ===
+  if (isDriver) {
+    const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0 || driverStoreIds.length === 0;
+    return (
+      <>
+        <div className="my-2 w-full flex justify-center">
+          <Button
+            onClick={() => setIsEmailDialogOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            disabled={btnDisabled || isExporting}>
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {isExporting ? 'Exporting...' : 'Export Route'}
+          </Button>
+        </div>
+
+        <ExportRouteEmailDialog
+          open={isEmailDialogOpen}
+          onOpenChange={setIsEmailDialogOpen}
+          storeIds={driverStoreIds}
+          isExporting={isExporting}
+          onExportRoute={handleDriverEmailExport} />
+      </>
+    );
+  }
+
+  // === ADMINS: Download PDF ===
+  if (isAdmin) {
     const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0;
     return (
       <div className="my-2 w-full flex justify-center">
@@ -196,12 +276,11 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
           onClick={() => handleExport('post-route')}
           className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
           disabled={btnDisabled || isExporting}>
-
           {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           {isExporting ? 'Exporting...' : 'Export Route'}
         </Button>
-      </div>);
-
+      </div>
+    );
   }
 
   // === DISPATCHERS ===
