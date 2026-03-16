@@ -1167,8 +1167,8 @@ export default function StopCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
       <Card
-        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[340px] max-w-[340px] border-blue-500"
-
+        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"}
+        className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[338px] max-w-[338px] border-blue-500"
         onClick={(e) => {
           if (startTapLockRef.current || e.target?.closest?.('[data-stopcard-action="start"]')) return;
           // Allow clicking even for stripped deliveries (to show driver notes)
@@ -1180,7 +1180,7 @@ export default function StopCard({
           opacity: shouldFade ? 0.4 : 1,
           transition: 'opacity 0.2s ease-in-out'
         }}>
-        <CardContent className={`px-1 pt-1 flex flex-col ${isFinishedDelivery ? 'pb-1' : 'pb-0'}`}>
+        <CardContent className="px-1 py-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
@@ -1540,9 +1540,9 @@ export default function StopCard({
             // Show if: not finished OR expanded OR centered OR (finished but route not complete)
             const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout;
             return isAssignedDriverOrAppOwner && shouldShowFooter;
-          })() && <div className="">
-            <div className={`border-t ${!isFinishedDelivery && !isExpanded ? 'mt-1 mb-0 pt-1 pb-0' : 'my-1'}`} style={{ borderColor: 'var(--border-slate-200)' }}>
-              <div className={`mx-1 flex justify-between items-center ${!isFinishedDelivery && !isExpanded ? 'my-0' : 'my-1'}`}>
+          })() && <div className="space-y-0 mt-0">
+            <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <div className="mx-1 my-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
                     {/* FAILED DELIVERY FOOTER - Special layout */}
