@@ -328,14 +328,13 @@ function Dashboard() {
           detail: { appUsers: latestAppUsers, forceAll: true }
         }));
 
-        // CRITICAL: Trigger map re-render with Phase 1 and keep it locked long enough to cycle phases
+        // CRITICAL: Trigger map re-render with Phase 1 and keep it locked long enough to cycle
         setMapViewPhase(1);
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
 
-        // Keep phase 1 active long enough for users to cycle to the next phase
         const lockDuration = 3000;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
@@ -5786,7 +5785,7 @@ function Dashboard() {
         wasLastDispatcherStop = remainingDispatcherIncomplete.length === 0;
       }
 
-      // CRITICAL: If this was the last stop, keep Phase 1 locked long enough to cycle phases
+      // CRITICAL: If this was the last stop, always flash Phase 1 for 500ms
       if (wasLastStop || wasLastDispatcherStop) {
         // Clear any existing timers
         if (mapLockTimeoutRef.current) {
@@ -5807,8 +5806,8 @@ function Dashboard() {
           saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
         }
 
-        // Keep phase 1 active long enough for users to cycle to the next phase
-        const lockDuration = 3000;
+        // Auto-unlock after 500ms
+        const lockDuration = 500;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
 
