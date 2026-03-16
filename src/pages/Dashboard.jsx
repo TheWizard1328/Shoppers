@@ -7286,7 +7286,7 @@ function Dashboard() {
             className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
             style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
             onWheel={(e) => {
-              e.currentTarget.scrollLeft += e.deltaY;
+              window.__isUserCardSwipe = true; if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) { if (mapLockTimeoutRef.current) clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; mapLockExpiresAtRef.current = null; setIsMapViewLocked(false); } e.currentTarget.scrollLeft += e.deltaY;
             }}
             onTouchStart={() => {
               lastUserInteractionRef.current = Date.now();
