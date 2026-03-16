@@ -2917,21 +2917,16 @@ function Dashboard() {
           // For phase 3, require driver location (dispatchers can use phase 3 freely)
           if (phaseToApply === 3 && (!isDriver && !isDispatcher || !deliveriesWithStopOrder.some((d) => d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)))) {
             setMapViewPhase(1);
-            setIsMapViewLocked(true);
+            setIsMapViewLocked(false);
             setMapViewTrigger((prev) => prev + 1);
             setInitialMapViewApplied(true);
             setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
 
-            const lockDuration = 500;
-            const expiresAt = Date.now() + lockDuration;
-            mapLockExpiresAtRef.current = expiresAt;
-            mapLockTimeoutRef.current = setTimeout(() => {
-              if (mapLockExpiresAtRef.current === expiresAt) {
-                setIsMapViewLocked(false);
-                mapLockExpiresAtRef.current = null;
-                mapLockTimeoutRef.current = null;
-              }
-            }, lockDuration);
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
+              mapLockTimeoutRef.current = null;
+            }
+            mapLockExpiresAtRef.current = null;
             return;
           }
 
@@ -5699,37 +5694,21 @@ function Dashboard() {
 
       // CRITICAL: If this was the last stop, always flash Phase 1 for 500ms
       if (wasLastStop || wasLastDispatcherStop) {
-        // Clear any existing timers
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
           mapLockTimeoutRef.current = null;
         }
         mapLockExpiresAtRef.current = null;
 
-        // Set to Phase 1 and lock
         setMapViewPhase(1);
-        setIsMapViewLocked(true);
+        setIsMapViewLocked(false);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
 
-        // Save Phase 1 to user settings
         if (currentUser?.id) {
           saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
         }
-
-        // Auto-unlock after 500ms
-        const lockDuration = 500;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-          }
-        }, lockDuration);
       }
 
       // CRITICAL: Check if route is complete (current driver only)
@@ -5741,9 +5720,9 @@ function Dashboard() {
           // STEP 1: Collapse all expanded cards immediately
           setSelectedCardId(null);
 
-          // STEP 2: Set map to Phase 1 and lock briefly
+          // STEP 2: Set map to Phase 1 as an unlocked programmatic view
           setMapViewPhase(1);
-          setIsMapViewLocked(true);
+          setIsMapViewLocked(false);
           lastProgrammaticMapMoveRef.current = Date.now();
           window._lastProgrammaticMapMove = Date.now();
           setMapViewTrigger((prev) => prev + 1);
@@ -5751,34 +5730,12 @@ function Dashboard() {
           if (currentUser?.id) {
             saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
           }
-
-          // STEP 3: Stop location tracking
-          if (locationTracker.isTracking) {
-            locationTracker.stopTracking();
+...
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
+            mapLockTimeoutRef.current = null;
           }
-
-          // STEP 4: Set driver status to off_duty and disable location tracking
-          base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsersList) => {
-            const appUser = appUsersList?.[0];
-            if (appUser) {
-              return base44.entities.AppUser.update(appUser.id, { driver_status: 'off_duty', location_tracking_enabled: false, current_latitude: null, current_longitude: null, location_updated_at: null });
-            }
-          }).then(() => {
-            // Refresh user to update UI
-            if (refreshUser) {
-              refreshUser();
-            }
-          }).catch((error) => console.warn('⚠️ AppUser update failed:', error));
-
-          // STEP 5: Show end of day stats dialog after a brief delay
-          setTimeout(() => {
-            const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
-            setEndOfDayDriver(completedDriver);
-            setShowEndOfDayStats(true);
-          }, 800);
-
-          // STEP 6: Unlock map after brief lock
-          setTimeout(() => setIsMapViewLocked(false), 500);
+          mapLockExpiresAtRef.current = null;
 
           // STEP 7: Re-measure stop cards height after route completion
           setTimeout(() => {
@@ -6781,15 +6738,16 @@ function Dashboard() {
               }));
 
               // Trigger map repositioning based on current phase
-              setIsMapViewLocked(true);
+              setIsMapViewLocked(mapViewPhase !== 1);
               lastProgrammaticMapMoveRef.current = Date.now();
               window._lastProgrammaticMapMove = Date.now();
               setMapViewTrigger((prev) => prev + 1);
 
-              // Auto-unlock after 500ms
-              setTimeout(() => {
-                setIsMapViewLocked(false);
-              }, 500);
+              if (mapLockTimeoutRef.current) {
+                clearTimeout(mapLockTimeoutRef.current);
+                mapLockTimeoutRef.current = null;
+              }
+              mapLockExpiresAtRef.current = null;
 
               // Force stats refresh
               window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
