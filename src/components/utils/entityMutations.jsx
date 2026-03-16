@@ -289,16 +289,25 @@ export const updatePatient = async (patientId, updates, options = {}) => {
     
     if (!existing) {
       // Not in IndexedDB - update backend directly, then sync to local
-      const backendPatient = await base44.entities.Patient.update(patientId, updates);
-      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
-      
-      // CRITICAL: Update cache directly to prevent UI flickering
-      const { updateCache } = await import('./dataManager');
-      updateCache('Patient', patientId, backendPatient);
-      
-      notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
-      await restartSmartRefresh();
-      return backendPatient;
+      try {
+        const backendPatient = await base44.entities.Patient.update(patientId, updates);
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
+        
+        // CRITICAL: Update cache directly to prevent UI flickering
+        const { updateCache } = await import('./dataManager');
+        updateCache('Patient', patientId, backendPatient);
+        
+        notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
+        await restartSmartRefresh();
+        return backendPatient;
+      } catch (error) {
+        if (error.message?.includes('not found') || error.message?.includes('404') || error.response?.status === 404) {
+          notifyMutation({ type: 'delete', entity: 'Patient', id: patientId, data: null });
+          await restartSmartRefresh();
+          return null;
+        }
+        throw error;
+      }
     }
 
     // STEP 1: Update IndexedDB locally first
@@ -332,6 +341,20 @@ export const updatePatient = async (patientId, updates, options = {}) => {
       broadcastMutation('Patient', 'update', patientId, backendPatient);
       
     } catch (error) {
+      if (error.message?.includes('not found') || error.message?.includes('404') || error.response?.status === 404) {
+        console.warn('⚠️ [EntityMutations] Patient no longer exists, removing stale local record:', patientId);
+        const db = await offlineDB.openDatabase();
+        const tx = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
+        await new Promise((resolve, reject) => {
+          const req = tx.objectStore(offlineDB.STORES.PATIENTS).delete(patientId);
+          req.onsuccess = resolve;
+          req.onerror = () => reject(req.error);
+        });
+        notifyMutation({ type: 'delete', entity: 'Patient', id: patientId, data: null });
+        await restartSmartRefresh();
+        return null;
+      }
+
       console.warn('⚠️ [EntityMutations] Patient update sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'update', entity: 'Patient', recordId: patientId, payload: updates });
       

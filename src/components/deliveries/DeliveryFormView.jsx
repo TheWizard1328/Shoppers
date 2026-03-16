@@ -374,7 +374,8 @@ export default function DeliveryFormView({
                             onBlur={async e => {
                               const newPid = e.target.value;
                               const currentPatient = patients?.find(p => p && p.id === formData.patient_id);
-                              if (newPid !== currentPatient?.patient_id && formData.patient_id && newPid.length > 0 && pidLookupStatus !== 'not_found') {
+                              if (!currentPatient || !formData.patient_id) return;
+                              if (newPid !== currentPatient.patient_id && newPid.length > 0 && pidLookupStatus !== 'not_found') {
                                 await updatePatientLocal(formData.patient_id, { patient_id: newPid });
                               }
                             }}
