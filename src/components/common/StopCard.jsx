@@ -1251,7 +1251,7 @@ export default function StopCard({
 
               {/* Navigation and Phone buttons - Hide for driver-stripped always (stripped item) */}
               {isAssignedDriverOrAppOwner && !isStrippedForDriver &&
-              <div className="mt-0 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
+              <div className="mt-0 flex items-center gap-2 flex-shrink-0 min-h-[60px]">
                   {finalDisplayPhone &&
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
