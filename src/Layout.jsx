@@ -3225,9 +3225,9 @@ export default function Layout({ children, currentPageName }) {
         padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
         }
 
-        /* Ensure dialogs/sheets/drawers account for bottom nav without affecting popovers */
-        [role="dialog"][data-state="open"],
-        [role="alertdialog"][data-state="open"] {
+        /* Ensure fixed dialogs/sheets/drawers account for bottom nav without affecting popovers */
+        .fixed[role="dialog"][data-state="open"],
+        .fixed[role="alertdialog"][data-state="open"] {
           padding-bottom: var(--bottom-nav-height) !important;
         }
 
