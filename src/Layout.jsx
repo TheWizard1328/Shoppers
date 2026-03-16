@@ -3225,8 +3225,7 @@ export default function Layout({ children, currentPageName }) {
         padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
         }
 
-        /* Ensure Radix UI dialogs/sheets/drawers account for bottom nav */
-        [data-radix-popper-content-wrapper],
+        /* Ensure dialogs/sheets/drawers account for bottom nav without affecting popovers */
         [role="dialog"][data-state="open"],
         [role="alertdialog"][data-state="open"] {
           padding-bottom: var(--bottom-nav-height) !important;
