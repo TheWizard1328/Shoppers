@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { base44 } from '@/api/base44Client';
 import ConversationsList from './ConversationsList';
 import ChatWindow from './ChatWindow';
@@ -12,33 +12,31 @@ import {
   hideSystemBroadcastMessageForThisDevice,
 } from './updateBroadcastConfig';
 
-export default function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange }) {
+function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange }) {
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
   const [isBroadcastingUpdate, setIsBroadcastingUpdate] = useState(false);
   const [updateBroadcastSent, setUpdateBroadcastSent] = useState(false);
   const canBroadcastUpdate = isAppOwner(currentUser);
   
-  const handleMessagesRead = (count) => {
-    // Immediately notify parent that messages were read
+  const handleMessagesRead = useCallback((count) => {
     if (onUnreadCountChange) {
       onUnreadCountChange(prev => Math.max(0, prev - count));
     }
-  };
+  }, [onUnreadCountChange]);
 
-  const handleSelectConversation = (conversationId, otherUserId, otherUserName) => {
+  const handleSelectConversation = useCallback((conversationId, otherUserId, otherUserName) => {
     setSelectedConversation({ conversationId, otherUserId, otherUserName });
-  };
+  }, []);
 
-  const handleCloseMessaging = () => {
-    // Mark all messages as read when closing
+  const handleCloseMessaging = useCallback(() => {
     onClose();
-  };
+  }, [onClose]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     setSelectedConversation(null);
-  };
+  }, []);
 
-  const handleBroadcastUpdate = async () => {
+  const handleBroadcastUpdate = useCallback(async () => {
     if (!currentUser?.id || isBroadcastingUpdate) return;
 
     const recipients = (users || []).filter((user) => user?.id);
@@ -74,7 +72,7 @@ export default function MessagingPanel({ currentUser, users, onClose, initialCon
     setIsBroadcastingUpdate(false);
     setUpdateBroadcastSent(true);
     window.setTimeout(() => setUpdateBroadcastSent(false), 4000);
-  };
+  }, [currentUser?.id, isBroadcastingUpdate, users]);
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4">
@@ -143,3 +141,24 @@ export default function MessagingPanel({ currentUser, users, onClose, initialCon
     </div>
   );
 }
+
+const getMessagingUsersSignature = (users = []) =>
+  (users || [])
+    .map((user) => `${user?.id || ''}:${user?.user_name || user?.full_name || ''}:${user?.status || ''}`)
+    .join('|');
+
+const areMessagingPanelPropsEqual = (prevProps, nextProps) => {
+  return (
+    prevProps.currentUser?.id === nextProps.currentUser?.id &&
+    (prevProps.currentUser?.user_name || prevProps.currentUser?.full_name) === (nextProps.currentUser?.user_name || nextProps.currentUser?.full_name) &&
+    prevProps.currentUser?.role === nextProps.currentUser?.role &&
+    prevProps.onClose === nextProps.onClose &&
+    prevProps.onUnreadCountChange === nextProps.onUnreadCountChange &&
+    prevProps.initialConversation?.conversationId === nextProps.initialConversation?.conversationId &&
+    prevProps.initialConversation?.otherUserId === nextProps.initialConversation?.otherUserId &&
+    prevProps.initialConversation?.otherUserName === nextProps.initialConversation?.otherUserName &&
+    getMessagingUsersSignature(prevProps.users) === getMessagingUsersSignature(nextProps.users)
+  );
+};
+
+export default memo(MessagingPanel, areMessagingPanelPropsEqual);

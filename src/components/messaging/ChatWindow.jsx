@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import {
   isHiddenSystemBroadcastMessageForThisDevice,
 } from './updateBroadcastConfig';
 
-export default function ChatWindow({
+function ChatWindow({
   currentUser,
   conversationId,
   otherUserId,
@@ -23,11 +23,47 @@ export default function ChatWindow({
   const [isSending, setIsSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+  const focusRestoreTimeoutRef = useRef(null);
+  const shouldRestoreFocusRef = useRef(false);
+  const intentionalBlurRef = useRef(false);
+  const lastFocusAtRef = useRef(0);
+  const isMobileRef = useRef(false);
   const isSystemUpdatesConversation = otherUserId === SYSTEM_UPDATES_SENDER_ID;
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
+
+  const restoreInputFocus = useCallback((delay = 0) => {
+    if (focusRestoreTimeoutRef.current) {
+      window.clearTimeout(focusRestoreTimeoutRef.current);
+    }
+
+    focusRestoreTimeoutRef.current = window.setTimeout(() => {
+      if (!shouldRestoreFocusRef.current || intentionalBlurRef.current || isSystemUpdatesConversation) return;
+      const inputElement = inputRef.current;
+      if (!inputElement || document.activeElement === inputElement) return;
+
+      inputElement.focus({ preventScroll: true });
+      const cursorPosition = inputElement.value?.length || 0;
+      try {
+        inputElement.setSelectionRange(cursorPosition, cursorPosition);
+      } catch (_error) {
+        // Ignore selection restore failures on unsupported inputs
+      }
+    }, delay);
+  }, [isSystemUpdatesConversation]);
+
+  useEffect(() => {
+    isMobileRef.current = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    return () => {
+      if (focusRestoreTimeoutRef.current) {
+        window.clearTimeout(focusRestoreTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -97,7 +133,13 @@ export default function ChatWindow({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    if (!shouldRestoreFocusRef.current || isSending || isSystemUpdatesConversation) return;
+    if (document.activeElement === inputRef.current) return;
+    restoreInputFocus(isMobileRef.current ? 60 : 0);
+  }, [messages.length, conversationId, isSending, isSystemUpdatesConversation, restoreInputFocus]);
 
   const handleSend = async () => {
     if (!newMessage.trim() || isSending) return;
@@ -115,6 +157,8 @@ export default function ChatWindow({
       });
       setNewMessage('');
       setMessages((prev) => [...prev, createdMessage]);
+      shouldRestoreFocusRef.current = true;
+      restoreInputFocus(isMobileRef.current ? 60 : 0);
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
@@ -142,7 +186,16 @@ export default function ChatWindow({
       {/* Header */}
       <div className="p-3 flex items-center gap-3" style={{ background: 'var(--bg-white)', borderBottom: '1px solid var(--border-slate-200)' }}>
         {onBack && (
-          <Button variant="ghost" size="icon" onClick={onBack} className="lg:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            onMouseDown={() => {
+              intentionalBlurRef.current = true;
+              shouldRestoreFocusRef.current = false;
+            }}
+            onClick={onBack}
+            className="lg:hidden"
+          >
             <ArrowLeft className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
           </Button>
         )}
@@ -193,14 +246,44 @@ export default function ChatWindow({
       <div className="p-3" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)' }}>
         <div className="flex gap-2">
           <Input
+            ref={inputRef}
             placeholder={isSystemUpdatesConversation ? "Replies are disabled for System Updates" : "Type a message..."}
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={handleKeyPress}
+            onFocus={() => {
+              shouldRestoreFocusRef.current = true;
+              intentionalBlurRef.current = false;
+              lastFocusAtRef.current = Date.now();
+            }}
+            onBlur={(e) => {
+              if (intentionalBlurRef.current) {
+                shouldRestoreFocusRef.current = false;
+                intentionalBlurRef.current = false;
+                return;
+              }
+
+              const nextFocusedElement = e.relatedTarget;
+              if (nextFocusedElement) {
+                shouldRestoreFocusRef.current = false;
+                return;
+              }
+
+              const recentlyFocused = Date.now() - lastFocusAtRef.current < 1500;
+              if (recentlyFocused || isSending) {
+                shouldRestoreFocusRef.current = true;
+                restoreInputFocus(isMobileRef.current ? 80 : 0);
+              } else {
+                shouldRestoreFocusRef.current = false;
+              }
+            }}
             className="flex-1"
             disabled={isSending || isSystemUpdatesConversation}
           />
           <Button
+            onMouseDown={() => {
+              intentionalBlurRef.current = false;
+            }}
             onClick={handleSend}
             disabled={!newMessage.trim() || isSending || isSystemUpdatesConversation}
             className="bg-emerald-500 hover:bg-emerald-600"
@@ -212,3 +295,17 @@ export default function ChatWindow({
     </div>
   );
 }
+
+const areChatWindowPropsEqual = (prevProps, nextProps) => {
+  return (
+    prevProps.conversationId === nextProps.conversationId &&
+    prevProps.otherUserId === nextProps.otherUserId &&
+    prevProps.otherUserName === nextProps.otherUserName &&
+    prevProps.currentUser?.id === nextProps.currentUser?.id &&
+    (prevProps.currentUser?.user_name || prevProps.currentUser?.full_name) === (nextProps.currentUser?.user_name || nextProps.currentUser?.full_name) &&
+    prevProps.onBack === nextProps.onBack &&
+    prevProps.onMessagesRead === nextProps.onMessagesRead
+  );
+};
+
+export default memo(ChatWindow, areChatWindowPropsEqual);
