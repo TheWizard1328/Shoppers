@@ -1532,7 +1532,12 @@ export default function StopCard({
               const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
               if (!hasRetryButton && !hasReturnButton) return null;
             }
-...
+
+            // For dispatchers: hide footer completely for non-assigned store deliveries
+            if (isStrippedForDispatcher) return null;
+
+            // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
+            // Show if: not finished OR expanded OR centered OR (finished but route not complete)
             const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout;
             return isAssignedDriverOrAppOwner && shouldShowFooter;
           })() && <div className="space-y-2 mt-1">
