@@ -1542,7 +1542,7 @@ export default function StopCard({
             return isAssignedDriverOrAppOwner && shouldShowFooter;
           })() && <div className="">
             <div className="my-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              <div className="mx-1 my-2 flex justify-between items-center">
+              <div className="mx-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
                     {/* FAILED DELIVERY FOOTER - Special layout */}
