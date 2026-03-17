@@ -466,23 +466,39 @@ export default function SquareManagement() {
   };
 
   // Normalize item name for comparison (must match backend normalization)
-  const normalizeName = (n) => {
-    const s = (n || '').trim();
-    const noAmt = s.replace(/\s-\s\$\d+(?:\.\d{2})?$/, '');
-    const unified = noAmt.replace(/^(\d{2})-(\d{2})/, '$1/$2');
-    return unified.toLowerCase();
+  const getMonthDayKey = (value) => {
+    if (!value) return '';
+    const isoMatch = String(value).match(/^\d{4}-(\d{2})-(\d{2})$/);
+    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
+    const parsed = parseSquareItemName(value);
+    if (parsed?.deliveryDate) {
+      const [, month, day] = parsed.deliveryDate.split('-');
+      return `${month}-${day}`;
+    }
+    return '';
+  };
+
+  const buildLocationDateAmountSignature = (locationId, dateValue, amountValue) => {
+    const amountCents = Math.round(Number(amountValue || 0) * 100);
+    return `${locationId || ''}::${getMonthDayKey(dateValue) || 'unknown-date'}::${amountCents}`;
   };
 
   // Check if catalog item has been sold in Square transactions
   const hasBeenSoldInSquare = (catalogItem) => {
-    const normalizedCatalogName = normalizeName(catalogItem.name);
-    const catalogPriceCents = catalogItem.price_cents || Math.round((catalogItem.price_dollars || 0) * 100);
+    const catalogPrice = catalogItem.price_dollars || ((catalogItem.price_cents || 0) / 100);
+    const catalogSignature = buildLocationDateAmountSignature(
+      catalogItem.location_id,
+      catalogItem.delivery_date || catalogItem.name,
+      catalogPrice
+    );
+
     return soldCatalogItems.some(payment => {
-      const normalizedPaymentName = normalizeName(payment.item_name);
-      const paymentPriceCents = Math.round((Number(payment.amount) || 0) * 100);
-      return payment.location_id === catalogItem.location_id &&
-             normalizedPaymentName === normalizedCatalogName &&
-             Math.abs(paymentPriceCents - catalogPriceCents) < 2; // 1 cent tolerance for rounding
+      const paymentSignature = buildLocationDateAmountSignature(
+        payment.location_id,
+        payment.item_name,
+        payment.amount
+      );
+      return paymentSignature === catalogSignature;
     });
   };
 

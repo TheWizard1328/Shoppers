@@ -31,6 +31,19 @@ function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   return `${mm}/${dd}(${storeAbbreviation || 'NA'})-${patientName || 'Unknown Patient'}`;
 }
 
+function getMonthDayKey(value) {
+  const normalized = normalizeText(value);
+  const isoMatch = normalized.match(/^\d{4}-(\d{2})-(\d{2})$/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
+  const itemMatch = normalized.match(/^(\d{2})[\/-](\d{2})/);
+  if (itemMatch) return `${itemMatch[1]}-${itemMatch[2]}`;
+  return '';
+}
+
+function buildLocationDateAmountSignature(locationId, dateValue, amountCents) {
+  return `${normalizeText(locationId)}::${getMonthDayKey(dateValue) || 'unknown-date'}::${toAmountCents(amountCents)}`;
+}
+
 function isRecentDelivery(deliveryDate) {
   if (!deliveryDate) return false;
   const deliveryTime = new Date(`${deliveryDate}T00:00:00Z`).getTime();
@@ -892,24 +905,19 @@ async function handleSyncCatalogItems(base44) {
   const paidOrderItems = flattenPaidOrderItems(completedOrders);
   const paidCatalogObjectIds = new Set(paidOrderItems.map((item) => item.catalog_object_id).filter(Boolean));
   const paidOrderItemsBySignature = new Map();
-  const paidOrderItemsByLocationSignature = new Map();
-  const paidOrderItemsByComparableLocationSignature = new Map();
+  const paidOrderItemsByDateLocationAmountSignature = new Map();
   for (const item of paidOrderItems) {
     const signature = buildItemSignature(item.item_name, item.amount_cents);
-    const locationSignature = buildLocationSignature(item.item_name, item.amount_cents, item.location_id);
-    const comparableLocationSignature = buildComparableLocationSignature(item.item_name, item.amount_cents, item.location_id);
+    const dateLocationAmountSignature = buildLocationDateAmountSignature(item.location_id, item.item_name, item.amount_cents);
     if (!paidOrderItemsBySignature.has(signature)) paidOrderItemsBySignature.set(signature, []);
-    if (!paidOrderItemsByLocationSignature.has(locationSignature)) paidOrderItemsByLocationSignature.set(locationSignature, []);
-    if (!paidOrderItemsByComparableLocationSignature.has(comparableLocationSignature)) paidOrderItemsByComparableLocationSignature.set(comparableLocationSignature, []);
+    if (!paidOrderItemsByDateLocationAmountSignature.has(dateLocationAmountSignature)) paidOrderItemsByDateLocationAmountSignature.set(dateLocationAmountSignature, []);
     paidOrderItemsBySignature.get(signature).push(item);
-    paidOrderItemsByLocationSignature.get(locationSignature).push(item);
-    paidOrderItemsByComparableLocationSignature.get(comparableLocationSignature).push(item);
+    paidOrderItemsByDateLocationAmountSignature.get(dateLocationAmountSignature).push(item);
   }
 
   const transactionsByDeliveryId = new Map();
   const completedTransactionCatalogObjectIds = new Set();
-  const completedTransactionLocationSignatures = new Set();
-  const completedTransactionComparableLocationSignatures = new Set();
+  const completedTransactionDateLocationAmountSignatures = new Set();
   for (const transaction of squareTransactions || []) {
     const amountCents = transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100);
     if (!normalizeText(transaction?.item_name)) continue;
@@ -919,8 +927,8 @@ async function handleSyncCatalogItems(base44) {
     }
     if (['completed', 'refunded'].includes(transaction?.status)) {
       if (transaction?.square_catalog_object_id) completedTransactionCatalogObjectIds.add(transaction.square_catalog_object_id);
-      completedTransactionLocationSignatures.add(buildLocationSignature(transaction?.item_name, amountCents, transaction?.location_id));
-      completedTransactionComparableLocationSignatures.add(buildComparableLocationSignature(transaction?.item_name, amountCents, transaction?.location_id));
+      const transactionDelivery = deliveryById.get(transaction?.delivery_id);
+      completedTransactionDateLocationAmountSignatures.add(buildLocationDateAmountSignature(transaction?.location_id, transactionDelivery?.delivery_date || transaction?.item_name, amountCents));
     }
   }
 
@@ -929,8 +937,7 @@ async function handleSyncCatalogItems(base44) {
   const transactionsToComplete = [];
   const deliveriesToCreate = [];
   const directlyMatchedCatalogItemIds = new Set();
-  const directlyMatchedLocationSignatures = new Set();
-  const directlyMatchedComparableLocationSignatures = new Set();
+  const directlyMatchedDateLocationAmountSignatures = new Set();
 
   for (const item of catalogItems) {
     const itemName = normalizeText(item?.item_data?.name);
@@ -943,25 +950,22 @@ async function handleSyncCatalogItems(base44) {
     const variationIds = (item?.item_data?.variations || []).map((variation) => variation?.id).filter(Boolean);
     const matchedByCatalogObjectId = paidCatalogObjectIds.has(item.id) || variationIds.some((variationId) => paidCatalogObjectIds.has(variationId));
     const matchedByCompletedTransactionId = completedTransactionCatalogObjectIds.has(item.id) || variationIds.some((variationId) => completedTransactionCatalogObjectIds.has(variationId));
-    const matchedByLocationSignature = itemLocationIds.some((locationId) => paidOrderItemsByLocationSignature.has(buildLocationSignature(itemName, amountCents, locationId)));
-    const matchedByComparableLocationSignature = itemLocationIds.some((locationId) => paidOrderItemsByComparableLocationSignature.has(buildComparableLocationSignature(itemName, amountCents, locationId)));
-    const matchedByCompletedTransactionSignature = itemLocationIds.some((locationId) => completedTransactionLocationSignatures.has(buildLocationSignature(itemName, amountCents, locationId)));
-    const matchedByCompletedComparableSignature = itemLocationIds.some((locationId) => completedTransactionComparableLocationSignatures.has(buildComparableLocationSignature(itemName, amountCents, locationId)));
+    const matchedByDateLocationAmount = itemLocationIds.some((locationId) => paidOrderItemsByDateLocationAmountSignature.has(buildLocationDateAmountSignature(locationId, itemName, amountCents)));
+    const matchedByCompletedTransactionDateLocationAmount = itemLocationIds.some((locationId) => completedTransactionDateLocationAmountSignatures.has(buildLocationDateAmountSignature(locationId, itemName, amountCents)));
 
-    if (matchedByCatalogObjectId || matchedByCompletedTransactionId || matchedByLocationSignature || matchedByComparableLocationSignature || matchedByCompletedTransactionSignature || matchedByCompletedComparableSignature) {
+    if (matchedByCatalogObjectId || matchedByCompletedTransactionId || matchedByDateLocationAmount || matchedByCompletedTransactionDateLocationAmount) {
       directlyMatchedCatalogItemIds.add(item.id);
       itemLocationIds.forEach((locationId) => {
-        directlyMatchedLocationSignatures.add(buildLocationSignature(itemName, amountCents, locationId));
-        directlyMatchedComparableLocationSignatures.add(buildComparableLocationSignature(itemName, amountCents, locationId));
+        directlyMatchedDateLocationAmountSignatures.add(buildLocationDateAmountSignature(locationId, itemName, amountCents));
       });
       itemsToDelete.push(item.id);
     }
   }
 
   for (const transaction of squareTransactions || []) {
-    const locationSignature = buildLocationSignature(transaction?.item_name, transaction?.amount_cents, transaction?.location_id);
-    const comparableLocationSignature = buildComparableLocationSignature(transaction?.item_name, transaction?.amount_cents, transaction?.location_id);
-    if (transaction?.status === 'pending' && (directlyMatchedCatalogItemIds.has(transaction?.square_catalog_object_id) || directlyMatchedLocationSignatures.has(locationSignature) || directlyMatchedComparableLocationSignatures.has(comparableLocationSignature))) {
+    const transactionDelivery = deliveryById.get(transaction?.delivery_id);
+    const dateLocationAmountSignature = buildLocationDateAmountSignature(transaction?.location_id, transactionDelivery?.delivery_date || transaction?.item_name, transaction?.amount_cents);
+    if (transaction?.status === 'pending' && (directlyMatchedCatalogItemIds.has(transaction?.square_catalog_object_id) || directlyMatchedDateLocationAmountSignatures.has(dateLocationAmountSignature))) {
       transactionsToComplete.push(transaction.id);
     }
   }
@@ -974,13 +978,12 @@ async function handleSyncCatalogItems(base44) {
     const itemName = formatItemName(delivery.delivery_date, store?.abbreviation, resolvedPatientName);
     const amountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
     const signature = buildItemSignature(itemName, amountCents);
-    const locationSignature = buildLocationSignature(itemName, amountCents, activeConfig?.square_location_id);
-    const comparableLocationSignature = buildComparableLocationSignature(itemName, amountCents, activeConfig?.square_location_id);
+    const dateLocationAmountSignature = buildLocationDateAmountSignature(activeConfig?.square_location_id, delivery.delivery_date, amountCents);
     let catalogItem = catalogBySignature.get(signature);
-    const paidMatches = paidOrderItemsBySignature.get(signature) || [];
+    const paidMatches = paidOrderItemsByDateLocationAmountSignature.get(dateLocationAmountSignature) || [];
     const catalogVariationIds = (catalogItem?.item_data?.variations || []).map((variation) => variation?.id).filter(Boolean);
     const isPaidByCatalogObjectId = catalogItem ? paidCatalogObjectIds.has(catalogItem.id) || catalogVariationIds.some((variationId) => paidCatalogObjectIds.has(variationId)) : false;
-    const isPaidByDirectCatalogMatch = (catalogItem && directlyMatchedCatalogItemIds.has(catalogItem.id)) || directlyMatchedLocationSignatures.has(locationSignature) || directlyMatchedComparableLocationSignatures.has(comparableLocationSignature);
+    const isPaidByDirectCatalogMatch = (catalogItem && directlyMatchedCatalogItemIds.has(catalogItem.id)) || directlyMatchedDateLocationAmountSignatures.has(dateLocationAmountSignature);
     const existingTransactions = transactionsByDeliveryId.get(delivery.id) || [];
     const placeholderNames = new Set(buildPlaceholderItemNames(delivery.delivery_date, store?.abbreviation));
 
