@@ -75,7 +75,7 @@ export default function StopCardHeader({
           {(() => {
             const actual = formatTime12Hour(format(new Date(delivery.actual_delivery_time), "HH:mm"));
             const arrival = delivery?.arrival_time ? formatTime12Hour(format(new Date(delivery.arrival_time), "HH:mm")) : null;
-            return <span className="font-medium">{arrival ? `${arrival} → ${actual}` : actual}</span>;
+            return <span className="Text-sm">{arrival ? `${arrival} → ${actual}` : actual}</span>;
           })()}
         </>);
 
@@ -111,7 +111,7 @@ export default function StopCardHeader({
     const payDisplay = isNoCharge ? 'N/C' : formatPay(pay);
 
     payBadge = !isAfterHours && !hasExtraPay ?
-    <div className="text-xm font-bold text-emerald-600">{payDisplay}</div> :
+    <div className="text-xs font-bold text-emerald-600">{payDisplay}</div> :
 
     <Badge variant="secondary" className="inline-flex items-center border transition-colors text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
         {payDisplay}
