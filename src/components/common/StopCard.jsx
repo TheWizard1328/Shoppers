@@ -1214,7 +1214,7 @@ export default function StopCard({
 
           {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded || isRailCentered) && !showCompletedRouteCenteredCondensed && <div className="flex flex-col">
             <div className="flex items-start justify-between">
-              <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[60px]">
+              <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
                 {finalDisplayAddress ?
                 <>
                     {/* Main address without unit/buzzer */}
@@ -1251,7 +1251,7 @@ export default function StopCard({
 
               {/* Navigation and Phone buttons - Hide for driver-stripped always (stripped item) */}
               {isAssignedDriverOrAppOwner && !isStrippedForDriver &&
-              <div className="mt-0 flex items-center gap-2 flex-shrink-0 min-h-[60px]">
+              <div className="flex-shrink-0 flex items-center gap-2 min-h-[50px]">
                   {finalDisplayPhone &&
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
