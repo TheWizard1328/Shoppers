@@ -3660,31 +3660,26 @@ export default function DeliveryForm({
 
   const handleConfirmDelete = useCallback(async () => {
     const staged = deleteConfirmation.staged;
-    if (!staged || !staged.id) return;
-    const isPickup = !staged.patient_id;
-    const transferPickupId = deleteConfirmation.transferPickupId;
+    if (!staged?.id) return;
     setIsDeletingPending(true);
     try {
-      if (isPickup && transferPickupId) {
-        const linkedStops = sortedStagedDeliveries.filter(s => s.id && s.patient_id && s.puid === staged.stop_id);
-        if (linkedStops.length > 0) {
-          const targetPickup = sortedStagedDeliveries.find(s => s.id === transferPickupId);
+      if (!staged.patient_id && deleteConfirmation.transferPickupId) {
+        const linkedStops = sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === staged.stop_id);
+        if (linkedStops.length) {
+          const targetPickup = sortedStagedDeliveries.find((s) => s.id === deleteConfirmation.transferPickupId);
           if (!targetPickup) throw new Error('Target pickup not found');
           const targetPickupTR = parseInt(targetPickup.tracking_number, 10) || 0;
-          const existingTargetStops = sortedStagedDeliveries.filter(s => s.id && s.patient_id && s.puid === targetPickup.stop_id).length;
-          for (let i = 0; i < linkedStops.length; i++) {
-            const stop = linkedStops[i];
-            const newTR = String(targetPickupTR + existingTargetStops + i + 1);
-            await updateDeliveryLocal(stop.id, { puid: targetPickup.stop_id, tracking_number: newTR, store_id: targetPickup.store_id, ampm_deliveries: targetPickup.ampm_deliveries });
-          }
+          const existingTargetStops = sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === targetPickup.stop_id).length;
+          for (let i = 0; i < linkedStops.length; i += 1) await updateDeliveryLocal(linkedStops[i].id, { puid: targetPickup.stop_id, tracking_number: String(targetPickupTR + existingTargetStops + i + 1), store_id: targetPickup.store_id, ampm_deliveries: targetPickup.ampm_deliveries });
         }
       }
       await deleteDeliveryLocal(staged.id);
+      if (staged.driver_id && staged.delivery_date && !['completed', 'failed', 'cancelled', 'returned'].includes(staged.status)) await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: staged.driver_id, deliveryDate: staged.delivery_date, scope: 'active_only' });
       const { invalidate } = await import('../utils/dataManager');
       invalidate('Delivery');
-      setStagedDeliveries(prev => prev.filter(item => item.id !== staged.id && item._tempId !== staged._tempId));
-      const remainingStagedIds = new Set(stagedDeliveries.filter(item => item.id !== staged.id && item._tempId !== staged._tempId).map(d => d.patient_id).filter(Boolean));
-      setProjectedDeliveries(fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id)));
+      setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
+      const remainingStagedIds = new Set(stagedDeliveries.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId).map((d) => d.patient_id).filter(Boolean));
+      setProjectedDeliveries(fullPredictionListRef.current.filter((pred) => !remainingStagedIds.has(pred.patient_id) && !(allDeliveries || []).some((d) => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id)));
       setHasChanges(true);
       setHasPendingDeletes(true);
       if (editingStagedId === staged._tempId) { setEditingStagedId(null); handleClearForm(); }
@@ -3694,7 +3689,7 @@ export default function DeliveryForm({
     } finally {
       setIsDeletingPending(false);
     }
-  }, [deleteConfirmation, sortedStagedDeliveries, stores, stagedDeliveries, editingStagedId, handleClearForm]);
+  }, [deleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm]);
 
   return (
     <DeliveryFormView
