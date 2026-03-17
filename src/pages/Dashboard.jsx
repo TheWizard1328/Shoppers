@@ -92,7 +92,7 @@ import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
-import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";
+import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";import { shouldRefreshUserFromAppUser } from "@/components/utils/appUserRefreshUtils";
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
@@ -107,7 +107,7 @@ function Dashboard() {
     isDataLoaded,
     refreshData,
     updateDeliveriesLocally,
-    updateAppUsersLocally,
+    updateAppUsersLocally, applyDeliveryChangesLocally, applyAppUserChangesLocally, applyPatientChangesLocally,
     forceRefreshDriverDeliveries,
     setIsFormOverlayOpen,
     setIsEntityUpdating,
@@ -281,10 +281,7 @@ function Dashboard() {
     ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null))]
     ).catch(console.error);
     if (deliveryUpserts.length || deliveryDeletes.length) {
-      const byId = new Map((deliveries || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
-      deliveryDeletes.forEach((id) => byId.delete(id));
-      deliveryUpserts.forEach((item) => {if (item?.id) byId.set(item.id, item);});
-      updateDeliveriesLocally && updateDeliveriesLocally(Array.from(byId.values()), true);
+      applyDeliveryChangesLocally ? applyDeliveryChangesLocally({ upserts: deliveryUpserts, deleteIds: deliveryDeletes }) : updateDeliveriesLocally && updateDeliveriesLocally(deliveryUpserts, false);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'realtimeBatch', changeCount: deliveryUpserts.length + deliveryDeletes.length } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     }
@@ -292,12 +289,12 @@ function Dashboard() {
       const ts = (item) => new Date(item?.location_updated_at || item?.updated_date || item?.created_date || 0).getTime();
       const byId = new Map((appUsers || []).filter((item) => item?.id && !appUserDeletes.includes(item.id)).map((item) => [item.id, item]));
       appUserUpserts.forEach((item) => {const current = byId.get(item?.id);if (item?.id && (!current || ts(item) >= ts(current))) byId.set(item.id, item);});
-      const merged = Array.from(byId.values());
-      updateAppUsersLocally && updateAppUsersLocally(merged, true);
-      if (appUserUpserts.some((item) => item?.user_id === currentUser?.id) && refreshUser) refreshUser();
+      const merged = Array.from(byId.values()),currentUserUpdate = appUserUpserts.find((item) => item?.user_id === currentUser?.id),previousCurrentUserAppUser = currentUserUpdate ? (appUsers || []).find((item) => item?.id === currentUserUpdate.id || item?.user_id === currentUserUpdate.user_id) : null;
+      applyAppUserChangesLocally ? applyAppUserChangesLocally({ upserts: appUserUpserts, deleteIds: appUserDeletes }) : updateAppUsersLocally && updateAppUsersLocally(merged, true);
+      if (currentUserUpdate && refreshUser && shouldRefreshUserFromAppUser(previousCurrentUserAppUser, currentUserUpdate)) refreshUser();
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: merged, singleUpdate: appUserUpserts.length === 1, fromRealtime: true } }));
     }
-    if (patientUpserts.length || patientDeletes.length) window.dispatchEvent(new CustomEvent('patientsUpdated', { detail: { patients: patientUpserts, deletedIds: patientDeletes, deletedId: patientDeletes.length === 1 ? patientDeletes[0] : undefined, source: 'realtimeBatch' } }));
+    if (patientUpserts.length || patientDeletes.length) {applyPatientChangesLocally && applyPatientChangesLocally({ upserts: patientUpserts, deleteIds: patientDeletes });window.dispatchEvent(new CustomEvent('patientsUpdated', { detail: { patients: patientUpserts, deletedIds: patientDeletes, deletedId: patientDeletes.length === 1 ? patientDeletes[0] : undefined, source: 'realtimeBatch' } }));}
   }, [deliveries, appUsers, updateDeliveriesLocally, updateAppUsersLocally, currentUser?.id, refreshUser]);
   const scheduleRealtimeUpdate = useCallback((entity, type, data) => {
     const recordId = typeof data === 'string' ? data : data?.id;
