@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { flushSync } from 'react-dom';
+import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { smartRefreshManager } from './smartRefreshManager';
 import { base44 } from '@/api/base44Client';
+import { shouldRefreshUserFromAppUser } from './appUserRefreshUtils';
 import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
 import { ensurePolylineSubscription } from './hereRouting';
 
@@ -14,6 +14,9 @@ export const AppDataProvider = ({ children, value }) => {
   // without needing to re-subscribe on every render
   const updateDeliveriesLocallyRef = useRef(value.updateDeliveriesLocally);
   const updateAppUsersLocallyRef = useRef(value.updateAppUsersLocally);
+  const applyDeliveryChangesLocallyRef = useRef(value.applyDeliveryChangesLocally);
+  const applyAppUserChangesLocallyRef = useRef(value.applyAppUserChangesLocally);
+  const applyPatientChangesLocallyRef = useRef(value.applyPatientChangesLocally);
   const deliveriesRef = useRef(value.deliveries);
   const appUsersRef = useRef(value.appUsers);
   const patientsRef = useRef(value.patients);
@@ -110,19 +113,25 @@ export const AppDataProvider = ({ children, value }) => {
       console.warn('[AppDataContext] Realtime offline sync batch failed:', error.message);
     }
 
-    flushSync(() => {
-      if (deliveryChanged && updateDeliveriesLocallyRef.current) {
+    if (deliveryChanged) {
+      if (applyDeliveryChangesLocallyRef.current) {
+        applyDeliveryChangesLocallyRef.current({ upserts: deliveryUpserts, deleteIds: deliveryDeletes });
+      } else if (updateDeliveriesLocallyRef.current) {
         updateDeliveriesLocallyRef.current(nextDeliveries, true);
       }
+    }
 
-      if (appUsersChanged && updateAppUsersLocallyRef.current) {
+    if (appUsersChanged) {
+      if (applyAppUserChangesLocallyRef.current) {
+        applyAppUserChangesLocallyRef.current({ upserts: appUserUpserts, deleteIds: appUserDeletes });
+      } else if (updateAppUsersLocallyRef.current) {
         updateAppUsersLocallyRef.current(nextAppUsers, true);
       }
+    }
 
-      if (patientsChanged && value.updatePatientsLocally) {
-        value.updatePatientsLocally(nextPatients, true);
-      }
-    });
+    if (patientsChanged && applyPatientChangesLocallyRef.current) {
+      applyPatientChangesLocallyRef.current({ upserts: patientUpserts, deleteIds: patientDeletes });
+    }
 
     if (deliveryChanged) {
       lastDeliveryWsUpdateRef.current = Date.now();
@@ -146,7 +155,15 @@ export const AppDataProvider = ({ children, value }) => {
         }
       }
 
-      if (appUserUpserts.some((item) => item?.user_id === value.currentUser?.id) || appUserDeletes.length > 0) {
+      const currentUserUpdate = appUserUpserts.find((item) => item?.user_id === value.currentUser?.id);
+      const previousCurrentUserAppUser = currentUserUpdate
+        ? (appUsersRef.current || []).find((item) => item?.id === currentUserUpdate.id || item?.user_id === currentUserUpdate.user_id)
+        : null;
+      const deletedCurrentUser = appUserDeletes.some((id) => (
+        appUsersRef.current || []
+      ).some((item) => item?.id === id && item?.user_id === value.currentUser?.id));
+
+      if ((currentUserUpdate && shouldRefreshUserFromAppUser(previousCurrentUserAppUser, currentUserUpdate)) || deletedCurrentUser) {
         value.refreshUser?.();
       }
 
@@ -197,6 +214,9 @@ export const AppDataProvider = ({ children, value }) => {
   // Keep refs in sync with latest values
   useEffect(() => { updateDeliveriesLocallyRef.current = value.updateDeliveriesLocally; }, [value.updateDeliveriesLocally]);
   useEffect(() => { updateAppUsersLocallyRef.current = value.updateAppUsersLocally; }, [value.updateAppUsersLocally]);
+  useEffect(() => { applyDeliveryChangesLocallyRef.current = value.applyDeliveryChangesLocally; }, [value.applyDeliveryChangesLocally]);
+  useEffect(() => { applyAppUserChangesLocallyRef.current = value.applyAppUserChangesLocally; }, [value.applyAppUserChangesLocally]);
+  useEffect(() => { applyPatientChangesLocallyRef.current = value.applyPatientChangesLocally; }, [value.applyPatientChangesLocally]);
   useEffect(() => { deliveriesRef.current = value.deliveries; }, [value.deliveries]);
   useEffect(() => { appUsersRef.current = value.appUsers; }, [value.appUsers]);
   useEffect(() => { patientsRef.current = value.patients; }, [value.patients]);
@@ -554,14 +574,19 @@ export const AppDataProvider = ({ children, value }) => {
     };
   }, [ensurePatientsForSelectedDate]);
 
-  const wrappedValue = {
+  const wrappedValue = useMemo(() => ({
     ...value,
     updateDeliveriesLocally: wrappedUpdateDeliveriesLocally,
     updateAppUsersLocally: wrappedUpdateAppUsersLocally,
     forceRefreshDriverDeliveries,
     onSelectedDateDataReady: value.onSelectedDateDataReady,
     setOnSelectedDateDataReady: value.setOnSelectedDateDataReady
-  };
+  }), [
+    value,
+    wrappedUpdateDeliveriesLocally,
+    wrappedUpdateAppUsersLocally,
+    forceRefreshDriverDeliveries
+  ]);
   
   return (
     <AppDataContext.Provider value={wrappedValue}>
@@ -590,6 +615,9 @@ export const useAppData = () => {
       refreshData: () => {},
       updateDeliveriesLocally: () => {},
       updateAppUsersLocally: () => {},
+      applyDeliveryChangesLocally: () => {},
+      applyAppUserChangesLocally: () => {},
+      applyPatientChangesLocally: () => {},
       forceRefreshDriverDeliveries: async () => {},
       isFormOverlayOpen: false,
       setIsFormOverlayOpen: () => {},
