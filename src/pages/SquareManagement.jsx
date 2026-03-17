@@ -93,11 +93,15 @@ export default function SquareManagement() {
     };
   }, []);
 
-  const refreshSquareView = async (fallbackLocationIds = []) => {
+  const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
+    const { onStageChange } = options;
+
     const [catalogRecords, transactions] = await Promise.all([
       base44.entities.SquareCatalogItems.list('-updated_date', 500),
       base44.entities.SquareTransaction.list('-created_date', 500),
     ]);
+
+    onStageChange?.({ stage: 'saving_offline', detail: 'Updating local COD cache…' });
 
     await syncSquareCODSnapshotOffline({
       catalogItems: catalogRecords || [],
@@ -120,7 +124,8 @@ export default function SquareManagement() {
       const data = response?.data || response || {};
 
       if (data.rate_limited) {
-        const { items } = await refreshSquareView(locationIds);
+        setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading cached COD data…' });
+        const { items } = await refreshSquareView(locationIds, { onStageChange: setBgSyncProgress });
         toast.message(`Square sync is busy — using cached data (${items.length} active items)`);
         setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
         setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
@@ -129,8 +134,8 @@ export default function SquareManagement() {
 
       if (!data.success) throw new Error(data.error || 'Sync failed');
 
-      setBgSyncProgress({ stage: 'payments_sync' });
-      const { items } = await refreshSquareView(locationIds);
+      setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading latest synced COD data…' });
+      const { items } = await refreshSquareView(locationIds, { onStageChange: setBgSyncProgress });
 
       const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
       const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
@@ -264,13 +269,14 @@ export default function SquareManagement() {
           const data = response?.data || response || {};
 
           if (data.rate_limited) {
-            await refreshSquareView(syncedLocationIds);
+            setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading cached COD data…' });
+            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
             await loadSyncStatus();
             setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
             setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
           } else if (data.success) {
-            setBgSyncProgress({ stage: 'payments_sync' });
-            const { items } = await refreshSquareView(syncedLocationIds);
+            setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading latest synced COD data…' });
+            const { items } = await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
 
             await loadSyncStatus();
 

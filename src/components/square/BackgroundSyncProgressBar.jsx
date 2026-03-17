@@ -8,9 +8,9 @@ export default function BackgroundSyncProgressBar({ progress }) {
   const stages = {
     starting: { label: 'Starting background sync...', percent: 5 },
     cleanup: { label: 'Running COD cleanup scan...', percent: 20 },
-    catalog_sync: { label: 'Syncing catalog items...', percent: 50 },
-    payments_sync: { label: 'Fetching recent payments...', percent: 70 },
-    saving_offline: { label: 'Saving to offline database...', percent: 90 },
+    catalog_sync: { label: 'Syncing with Square...', percent: 50 },
+    payments_sync: { label: 'Loading synced COD records...', percent: 75 },
+    saving_offline: { label: 'Saving synced data locally...', percent: 90 },
     complete: { label: 'Background sync complete', percent: 100 },
     error: { label: `Sync error: ${progress.error || 'unknown'}`, percent: progress.lastPercent || 0 },
   };
