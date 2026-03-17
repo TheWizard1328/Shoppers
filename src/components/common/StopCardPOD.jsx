@@ -5,7 +5,7 @@ import { X, Pen, Camera, Eye } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { invalidate } from '../utils/dataManager';
-import { updateDeliveryLocal } from '../utils/entityMutations';
+import { persistDeliveryProof } from '../utils/persistDeliveryProof';
 import SignatureCapture from './SignatureCapture';
 import PhotoCapture from './PhotoCapture';
 
@@ -29,7 +29,7 @@ export default function StopCardPOD({
       const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
       const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureFile });
       const fileUrl = uploadResult?.file_url || uploadResult?.data?.file_url;
-      await updateDeliveryLocal(delivery.id, { signature_image_url: fileUrl });
+      await persistDeliveryProof(delivery.id, { signature_image_url: fileUrl });
       setShowSignatureCapture(false);
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -52,7 +52,7 @@ export default function StopCardPOD({
       const { offlineDB } = await import('../utils/offlineDatabase');
       const latestDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id);
       const existingPhotos = latestDelivery?.proof_photo_urls || delivery.proof_photo_urls || [];
-      await updateDeliveryLocal(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
+      await persistDeliveryProof(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
       setShowPhotoCapture(false);
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -132,7 +132,7 @@ export default function StopCardPOD({
                 <Button
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await updateDeliveryLocal(delivery.id, { signature_image_url: null });
+                    await persistDeliveryProof(delivery.id, { signature_image_url: null });
                     invalidate('Delivery');
                     await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   }}
@@ -172,7 +172,7 @@ export default function StopCardPOD({
                 <Button
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await updateDeliveryLocal(delivery.id, { proof_photo_urls: [] });
+                    await persistDeliveryProof(delivery.id, { proof_photo_urls: [] });
                     invalidate('Delivery');
                     await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   }}

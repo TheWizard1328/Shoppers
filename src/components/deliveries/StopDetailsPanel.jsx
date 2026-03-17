@@ -41,7 +41,7 @@ import ImageViewer from "../common/ImageViewer";
 import BarcodeThumb from "./BarcodeThumb";
 import BarcodeOverlay from "./BarcodeOverlay";
 import { base44 } from "@/api/base44Client";
-import { updateDeliveryLocal } from "../utils/entityMutations";
+import { persistDeliveryProof } from "../utils/persistDeliveryProof";
 import { calculateRealTimeETA } from "@/functions/calculateRealTimeETA";
 import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
 import { isRouteCompleted } from "../utils/routeCompletionChecker";
@@ -102,7 +102,7 @@ export default function StopDetailsPanel({
       const fileUrl = uploadResponse?.file_url || uploadResponse?.data?.file_url;
       
       if (fileUrl) {
-        await updateDeliveryLocal(delivery.id, {
+        await persistDeliveryProof(delivery.id, {
           signature_image_url: fileUrl
         });
         setShowSignatureCapture(false);
@@ -130,7 +130,7 @@ export default function StopDetailsPanel({
       
       if (uploadedUrls.length > 0) {
         const existingUrls = delivery.proof_photo_urls || [];
-        await updateDeliveryLocal(delivery.id, {
+        await persistDeliveryProof(delivery.id, {
           proof_photo_urls: [...existingUrls, ...uploadedUrls]
         });
         setShowPhotoCapture(false);
@@ -146,7 +146,7 @@ export default function StopDetailsPanel({
     try {
       setIsUpdating(true);
       const updatedUrls = delivery.proof_photo_urls.filter((_, i) => i !== indexToDelete);
-      await updateDeliveryLocal(delivery.id, {
+      await persistDeliveryProof(delivery.id, {
         proof_photo_urls: updatedUrls
       });
     } catch (error) {
@@ -159,7 +159,7 @@ export default function StopDetailsPanel({
   const clearSignature = async () => {
     try {
       setIsUpdating(true);
-      await updateDeliveryLocal(delivery.id, {
+      await persistDeliveryProof(delivery.id, {
         signature_image_url: null
       });
     } catch (error) {
