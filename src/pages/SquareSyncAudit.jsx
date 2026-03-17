@@ -87,7 +87,7 @@ export default function SquareSyncAudit() {
       const deliveryById = new Map(deliveries.map((delivery) => [delivery.id, delivery]));
 
       const transactionRowsBase = squareTransactions
-        .filter((transaction) => transaction?.status !== "pending")
+        .filter((transaction) => ["completed", "refunded"].includes(transaction?.status))
         .map((transaction, index) => {
           const parsed = parseSquareItemName(transaction.item_name);
           const delivery = transaction.delivery_id ? deliveryById.get(transaction.delivery_id) : null;
