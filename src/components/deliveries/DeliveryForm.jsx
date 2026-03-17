@@ -688,7 +688,7 @@ export default function DeliveryForm({
       ...patient,
       _isAlreadyStaged: stagedPatientIds.has(patient.id)
     }));
-  }, [patientSearch, patients, currentUser, formData.patient_id, stagedDeliveries]);
+  }, [patientSearch, patients, stores, currentUser, formData.patient_id, stagedDeliveries]);
 
   const hasAnyDaySelected = useMemo(() => {
     return formData.recurring_weekly_mon || formData.recurring_weekly_tue ||
