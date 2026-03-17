@@ -383,7 +383,7 @@ export default function DeliveryMap({
 
       return {
         id: user.id,
-        user_id: user.id,
+        user_id: user.user_id || user.id,
         driver_id: user.id,
         driverId: user.id,
         latitude: user.current_latitude,
