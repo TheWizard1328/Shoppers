@@ -18,6 +18,12 @@ const isRecentSquareTransaction = (transaction) => {
   return Number.isFinite(timestamp) && timestamp >= getLookbackStartMs();
 };
 
+const isRecentCatalogItem = (record) => {
+  const sourceDate = record?.delivery_date ? `${record.delivery_date}T00:00:00` : (record?.created_date || record?.updated_date || 0);
+  const timestamp = new Date(sourceDate).getTime();
+  return Number.isFinite(timestamp) && timestamp >= getLookbackStartMs();
+};
+
 const normalizeCatalogEntityRecord = (record) => ({
   ...record,
   amount: Number(record?.amount || 0),
@@ -65,6 +71,21 @@ const updateTransactionSyncStatus = async () => {
   });
 };
 
+const pruneStoredCatalogItems = async () => {
+  const items = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
+  const recentItems = (items || []).filter(isRecentCatalogItem);
+
+  if (recentItems.length !== (items || []).length) {
+    await offlineDB.clearStore(SQUARE_COD_STORES.CATALOG_ITEMS);
+    if (recentItems.length > 0) {
+      await offlineDB.bulkSave(SQUARE_COD_STORES.CATALOG_ITEMS, recentItems);
+    }
+  }
+
+  await updateCatalogSyncStatus();
+  return recentItems;
+};
+
 const pruneStoredSquareTransactions = async () => {
   const transactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
   const recentTransactions = (transactions || []).filter(isRecentSquareTransaction);
@@ -82,7 +103,7 @@ const pruneStoredSquareTransactions = async () => {
 
 export const saveCatalogItemsOffline = async (items) => {
   try {
-    const normalizedItems = (items || []).filter(Boolean).map(normalizeCatalogEntityRecord);
+    const normalizedItems = (items || []).filter(Boolean).map(normalizeCatalogEntityRecord).filter(isRecentCatalogItem);
     await offlineDB.clearStore(SQUARE_COD_STORES.CATALOG_ITEMS);
 
     if (normalizedItems.length > 0) {
@@ -129,7 +150,7 @@ export const syncSquareCODSnapshotOffline = async ({ catalogItems = [], transact
 
 export const getCatalogItemsOffline = async () => {
   try {
-    const items = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
+    const items = await pruneStoredCatalogItems();
     return (items || []).map(mapCatalogEntityToUIItem);
   } catch (error) {
     console.error('❌ [SquareCODOffline] Error retrieving catalog items:', error);
@@ -172,10 +193,15 @@ export const handleSquareCatalogItemRealtimeEvent = async (event) => {
   if (event.type === 'delete') {
     await offlineDB.deleteRecord(SQUARE_COD_STORES.CATALOG_ITEMS, event.id);
   } else if (event.data?.id) {
-    await offlineDB.save(SQUARE_COD_STORES.CATALOG_ITEMS, normalizeCatalogEntityRecord(event.data));
+    const normalizedRecord = normalizeCatalogEntityRecord(event.data);
+    if (isRecentCatalogItem(normalizedRecord)) {
+      await offlineDB.save(SQUARE_COD_STORES.CATALOG_ITEMS, normalizedRecord);
+    } else {
+      await offlineDB.deleteRecord(SQUARE_COD_STORES.CATALOG_ITEMS, event.data.id);
+    }
   }
 
-  await updateCatalogSyncStatus();
+  await pruneStoredCatalogItems();
 };
 
 export const handleSquareTransactionRealtimeEvent = async (event) => {
