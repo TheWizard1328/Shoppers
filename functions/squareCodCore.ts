@@ -2,8 +2,11 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
-const CATALOG_LOOKBACK_DAYS = 14;
+const CATALOG_LOOKBACK_DAYS = 30;
 const TRANSACTION_RETENTION_DAYS = 30;
+const MATCH_DATE_OFFSET_DAYS = 2;
+const SQUARE_API_MAX_RETRIES = 3;
+const SQUARE_RETRY_BASE_DELAY_MS = 400;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -31,24 +34,88 @@ function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   return `${mm}/${dd}(${storeAbbreviation || 'NA'})-${patientName || 'Unknown Patient'}`;
 }
 
-function getMonthDayKey(value) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableSquareStatus(status) {
+  return [408, 409, 429, 500, 502, 503, 504].includes(Number(status));
+}
+
+function extractCatalogMonthDay(value) {
   const normalized = normalizeText(value);
   const isoMatch = normalized.match(/^\d{4}-(\d{2})-(\d{2})$/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
-  const itemMatch = normalized.match(/^(\d{2})[\/-](\d{2})/);
+
+  const prefix = normalized.slice(0, 5);
+  const itemMatch = prefix.match(/^(\d{2})\/(\d{2})$/);
   if (itemMatch) return `${itemMatch[1]}-${itemMatch[2]}`;
+
   return '';
 }
 
-function buildLocationDateAmountSignature(locationId, dateValue, amountCents) {
-  return `${normalizeText(locationId)}::${getMonthDayKey(dateValue) || 'unknown-date'}::${toAmountCents(amountCents)}`;
+function parseDateValue(value, referenceDate = new Date()) {
+  const normalized = normalizeText(value);
+  const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return new Date(Date.UTC(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3])));
+  }
+
+  const monthDayKey = extractCatalogMonthDay(normalized);
+  if (!monthDayKey) return null;
+
+  const [month, day] = monthDayKey.split('-').map(Number);
+  const referenceUtc = new Date(Date.UTC(
+    referenceDate.getUTCFullYear(),
+    referenceDate.getUTCMonth(),
+    referenceDate.getUTCDate(),
+  ));
+
+  const candidates = [referenceUtc.getUTCFullYear() - 1, referenceUtc.getUTCFullYear(), referenceUtc.getUTCFullYear() + 1]
+    .map((year) => new Date(Date.UTC(year, month - 1, day)));
+
+  return candidates.sort((a, b) => Math.abs(a.getTime() - referenceUtc.getTime()) - Math.abs(b.getTime() - referenceUtc.getTime()))[0] || null;
+}
+
+function getMonthDayKey(value, referenceDate = new Date()) {
+  const parsed = parseDateValue(value, referenceDate);
+  if (!parsed || Number.isNaN(parsed.getTime())) return '';
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getUTCDate()).padStart(2, '0');
+  return `${month}-${day}`;
+}
+
+function buildLocationDateAmountSignature(locationId, dateValue, amountCents, referenceDate = new Date()) {
+  return `${normalizeText(locationId)}::${getMonthDayKey(dateValue, referenceDate) || 'unknown-date'}::${toAmountCents(amountCents)}`;
+}
+
+function buildLocationDateAmountSignatureCandidates(locationId, dateValue, amountCents, offsetDays = MATCH_DATE_OFFSET_DAYS, referenceDate = new Date()) {
+  const parsed = parseDateValue(dateValue, referenceDate);
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return [buildLocationDateAmountSignature(locationId, dateValue, amountCents, referenceDate)];
+  }
+
+  const signatures = [];
+  for (let offset = -offsetDays; offset <= offsetDays; offset += 1) {
+    const candidate = new Date(parsed.getTime() + offset * 24 * 60 * 60 * 1000);
+    const month = String(candidate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(candidate.getUTCDate()).padStart(2, '0');
+    signatures.push(`${normalizeText(locationId)}::${month}-${day}::${toAmountCents(amountCents)}`);
+  }
+
+  return Array.from(new Set(signatures));
 }
 
 function isRecentDelivery(deliveryDate) {
-  if (!deliveryDate) return false;
-  const deliveryTime = new Date(`${deliveryDate}T00:00:00Z`).getTime();
+  const deliveryTime = parseDateValue(deliveryDate)?.getTime();
   const cutoff = Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
   return Number.isFinite(deliveryTime) && deliveryTime >= cutoff;
+}
+
+function isRecentCatalogItemName(itemName) {
+  const itemTime = parseDateValue(itemName)?.getTime();
+  const cutoff = Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+  return Number.isFinite(itemTime) && itemTime >= cutoff;
 }
 
 function getLookbackStartAt() {
@@ -129,57 +196,116 @@ async function requireAdminIfAuthenticated(base44) {
 }
 
 async function squareFetch(path, method, accessToken, body) {
-  const response = await fetch(`${SQUARE_BASE_URL}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      'Square-Version': SQUARE_VERSION,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let lastError = null;
 
-  const json = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(json?.errors?.map((error) => error.detail).join(', ') || `Square API error ${response.status}`);
+  for (let attempt = 1; attempt <= SQUARE_API_MAX_RETRIES; attempt += 1) {
+    try {
+      const response = await fetch(`${SQUARE_BASE_URL}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Square-Version': SQUARE_VERSION,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      const responseText = await response.text();
+      const json = responseText ? JSON.parse(responseText) : {};
+      if (!response.ok) {
+        const message = json?.errors?.map((error) => error.detail).join(', ') || `Square API error ${response.status}`;
+        lastError = new Error(message);
+        if (attempt < SQUARE_API_MAX_RETRIES && isRetryableSquareStatus(response.status)) {
+          await sleep(SQUARE_RETRY_BASE_DELAY_MS * attempt);
+          continue;
+        }
+        throw lastError;
+      }
+
+      return json;
+    } catch (error) {
+      lastError = error;
+      if (attempt < SQUARE_API_MAX_RETRIES) {
+        await sleep(SQUARE_RETRY_BASE_DELAY_MS * attempt);
+        continue;
+      }
+      throw lastError;
+    }
   }
 
-  return json;
+  throw lastError || new Error('Square API request failed');
 }
 
 async function safeDeleteSquareCatalogObject(catalogObjectId, accessToken) {
   if (!catalogObjectId) return { attempted: false, ok: false };
 
-  try {
-    const response = await fetch(`${SQUARE_BASE_URL}/v2/catalog/object/${catalogObjectId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Square-Version': SQUARE_VERSION,
-      },
-    });
-
-    const responseText = await response.text();
-    let responseBody = null;
+  let lastFailure = null;
+  for (let attempt = 1; attempt <= SQUARE_API_MAX_RETRIES; attempt += 1) {
     try {
-      responseBody = responseText ? JSON.parse(responseText) : null;
-    } catch {
-      responseBody = responseText || null;
-    }
+      const response = await fetch(`${SQUARE_BASE_URL}/v2/catalog/object/${catalogObjectId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Square-Version': SQUARE_VERSION,
+        },
+      });
 
-    if (!response.ok) {
-      return { attempted: true, ok: false, status: response.status, body: responseBody };
-    }
+      const responseText = await response.text();
+      let responseBody = null;
+      try {
+        responseBody = responseText ? JSON.parse(responseText) : null;
+      } catch {
+        responseBody = responseText || null;
+      }
 
-    return { attempted: true, ok: true, body: responseBody };
-  } catch (error) {
-    return { attempted: true, ok: false, error: error?.message || String(error) };
+      if (response.ok || response.status === 404) {
+        return { attempted: true, ok: true, status: response.status, body: responseBody };
+      }
+
+      lastFailure = { attempted: true, ok: false, status: response.status, body: responseBody };
+      if (attempt < SQUARE_API_MAX_RETRIES && isRetryableSquareStatus(response.status)) {
+        await sleep(SQUARE_RETRY_BASE_DELAY_MS * attempt);
+        continue;
+      }
+      return lastFailure;
+    } catch (error) {
+      lastFailure = { attempted: true, ok: false, error: error?.message || String(error) };
+      if (attempt < SQUARE_API_MAX_RETRIES) {
+        await sleep(SQUARE_RETRY_BASE_DELAY_MS * attempt);
+        continue;
+      }
+      return lastFailure;
+    }
   }
+
+  return lastFailure || { attempted: true, ok: false, error: 'Delete failed' };
 }
 
 async function deleteCatalogObjects(objectIds, accessToken) {
-  if (!objectIds.length) return;
-  await squareFetch('/v2/catalog/batch-delete', 'POST', accessToken, { object_ids: objectIds });
+  if (!objectIds.length) return { deleted: [], failed: [] };
+
+  try {
+    await squareFetch('/v2/catalog/batch-delete', 'POST', accessToken, { object_ids: objectIds });
+    return { deleted: objectIds, failed: [] };
+  } catch {
+    const deleted = [];
+    const failed = [];
+
+    for (const objectId of objectIds) {
+      const result = await safeDeleteSquareCatalogObject(objectId, accessToken);
+      if (result?.ok) {
+        deleted.push(objectId);
+      } else {
+        failed.push({ objectId, result });
+      }
+    }
+
+    if (failed.length) {
+      throw new Error(`Failed to delete Square catalog items: ${failed.map((entry) => entry.objectId).join(', ')}`);
+    }
+
+    return { deleted, failed: [] };
+  }
 }
 
 async function createCatalogItem({ itemName, amountCents, locationId, deliveryId, patientName, accessToken }) {
@@ -429,7 +555,10 @@ async function handleCreateCodItem(base44, payload) {
   }
 
   if (existingPending?.length && existingPending[0]?.square_catalog_object_id && (existingPending[0]?.item_name !== itemName || existingPending[0]?.amount_cents !== amountCents)) {
-    await safeDeleteSquareCatalogObject(existingPending[0].square_catalog_object_id, accessToken);
+    const outdatedDeleteResult = await safeDeleteSquareCatalogObject(existingPending[0].square_catalog_object_id, accessToken);
+    if (!outdatedDeleteResult?.ok) {
+      throw new Error(`Failed to delete outdated Square catalog item for delivery ${deliveryId}`);
+    }
   }
 
   const catalogItem = await createCatalogItem({
@@ -443,6 +572,9 @@ async function handleCreateCodItem(base44, payload) {
 
   const catalogObjectId = catalogItem?.id || null;
   const catalogVersion = catalogItem?.version || null;
+  if (!catalogObjectId) {
+    throw new Error(`Square did not return a catalog item for delivery ${deliveryId}`);
+  }
 
   const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.filter({
     delivery_id: deliveryId,
@@ -536,6 +668,9 @@ async function handleDeleteCodItem(base44, payload) {
 
   const catalogIdToDelete = catalogObjectId || primaryTransaction?.square_catalog_object_id || relatedTransactions[0]?.square_catalog_object_id || null;
   const squareDeleteResult = await safeDeleteSquareCatalogObject(catalogIdToDelete, accessToken);
+  if (catalogIdToDelete && !squareDeleteResult?.ok) {
+    throw new Error(`Failed to delete Square catalog item ${catalogIdToDelete}`);
+  }
 
   const newStatus = reason === 'failed' ? 'failed' : 'cancelled';
   await Promise.all(
