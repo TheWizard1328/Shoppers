@@ -295,7 +295,7 @@ function Dashboard() {
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: merged, singleUpdate: appUserUpserts.length === 1, fromRealtime: true } }));
     }
     if (patientUpserts.length || patientDeletes.length) {applyPatientChangesLocally && applyPatientChangesLocally({ upserts: patientUpserts, deleteIds: patientDeletes });window.dispatchEvent(new CustomEvent('patientsUpdated', { detail: { patients: patientUpserts, deletedIds: patientDeletes, deletedId: patientDeletes.length === 1 ? patientDeletes[0] : undefined, source: 'realtimeBatch' } }));}
-  }, [deliveries, appUsers, updateDeliveriesLocally, updateAppUsersLocally, currentUser?.id, refreshUser]);
+  }, [deliveries, appUsers, updateDeliveriesLocally, updateAppUsersLocally, applyDeliveryChangesLocally, applyAppUserChangesLocally, applyPatientChangesLocally, currentUser?.id, refreshUser]);
   const scheduleRealtimeUpdate = useCallback((entity, type, data) => {
     const recordId = typeof data === 'string' ? data : data?.id;
     if (!recordId) return;
