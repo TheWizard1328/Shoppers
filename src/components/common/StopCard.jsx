@@ -1219,7 +1219,7 @@ export default function StopCard({
                 <>
                     {/* Main address without unit/buzzer */}
                     <div className="flex items-start gap-2 text-lg" style={{ color: 'var(--text-slate-700)' }}>
-                      <span className="text-2xl font-medium truncate">
+                      <span className="text-xl font-medium truncate">
                         {isPickup ? store?.address || '' : patient?.address || ''}
                       </span>
                     </div>
