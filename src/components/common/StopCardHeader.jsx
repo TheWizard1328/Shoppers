@@ -169,7 +169,7 @@ export default function StopCardHeader({
 
           {/* Time window for active stops */}
           {!isFinished && (delivery?.delivery_time_start || delivery?.delivery_time_end) &&
-          <div className="text-xs" style={{ color: "var(--text-slate-500)" }}>
+          <div className="text-xs font-bold" style={{ color: "var(--text-slate-500)" }}>
               {delivery?.delivery_time_start && delivery?.delivery_time_end ?
             <>
                   {formatTime12Hour(delivery.delivery_time_start)} → {formatTime12Hour(delivery.delivery_time_end)}
