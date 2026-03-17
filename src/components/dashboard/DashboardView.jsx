@@ -201,7 +201,7 @@ export default function DashboardView({
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
         <MapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
-          deliveries={deliveries} patients={patients} stores={stores} drivers={drivers}
+          deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers}
           filteredDeliveries={filteredDeliveries} deliveriesWithStopOrder={deliveriesWithStopOrder}
           selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
           mapCenter={mapCenter} mapZoom={mapZoom} shouldFitBounds={shouldFitBounds}

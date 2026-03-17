@@ -8,7 +8,7 @@ import RealTimeRouteOptimizer from '@/components/dashboard/RealTimeRouteOptimize
 
 export default function MapSection({
   currentUser, isDriver, isDispatcher, isMobile,
-  deliveries, patients, stores, drivers, filteredDeliveries, deliveriesWithStopOrder,
+  deliveries, patients, stores, drivers, appUsers, filteredDeliveries, deliveriesWithStopOrder,
   selectedDate, selectedDateStr, selectedDriverId,
   mapCenter, mapZoom, shouldFitBounds, setShouldFitBounds, setMapCenter, setMapZoom,
   mapMode, setMapMode, driverLocation, allDriverLocations, currentToNextPolyline,
@@ -49,7 +49,7 @@ export default function MapSection({
           selectedDate={format(selectedDate, 'yyyy-MM-dd')}
           patients={patients}
           stores={stores}
-          users={drivers}
+          users={appUsers}
           currentUser={currentUser}
           driverLocations={allDriverLocations}
           deliveriesForLocationFilter={filteredDeliveries}
