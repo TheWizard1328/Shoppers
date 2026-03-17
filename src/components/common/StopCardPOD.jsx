@@ -5,6 +5,7 @@ import { X, Pen, Camera, Eye } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { invalidate } from '../utils/dataManager';
+import { updateDeliveryLocal } from '../utils/offlineMutations';
 import SignatureCapture from './SignatureCapture';
 import PhotoCapture from './PhotoCapture';
 
@@ -27,7 +28,7 @@ export default function StopCardPOD({
     try {
       const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
       const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureFile });
-      await base44.entities.Delivery.update(delivery.id, { signature_image_url: uploadResult.file_url });
+      await updateDeliveryLocal(delivery.id, { signature_image_url: uploadResult.file_url });
       setShowSignatureCapture(false);
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -48,7 +49,7 @@ export default function StopCardPOD({
       const results = await Promise.all(uploadPromises);
       const newPhotoUrls = results.map((r) => r.file_url);
       const existingPhotos = delivery.proof_photo_urls || [];
-      await base44.entities.Delivery.update(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
+      await updateDeliveryLocal(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
       setShowPhotoCapture(false);
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -128,7 +129,7 @@ export default function StopCardPOD({
                 <Button
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await base44.entities.Delivery.update(delivery.id, { signature_image_url: null });
+                    await updateDeliveryLocal(delivery.id, { signature_image_url: null });
                     invalidate('Delivery');
                     await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   }}
@@ -168,7 +169,7 @@ export default function StopCardPOD({
                 <Button
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await base44.entities.Delivery.update(delivery.id, { proof_photo_urls: [] });
+                    await updateDeliveryLocal(delivery.id, { proof_photo_urls: [] });
                     invalidate('Delivery');
                     await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   }}
