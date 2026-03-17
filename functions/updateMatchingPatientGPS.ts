@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const MATCH_RADIUS_KM = 0.15;
-
+ 
 const STREET_TYPE_MAP = {
   avenue: 'ave',
   ave: 'ave',
