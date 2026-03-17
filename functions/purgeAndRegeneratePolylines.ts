@@ -108,6 +108,16 @@ function samePoint(a, b) {
   return round5(a.lat) === round5(b.lat) && round5(a.lon) === round5(b.lon);
 }
 
+function findExactCachedSegment(rows, from, to) {
+  return (rows || []).find((row) =>
+    round5(row?.segment_origin_lat) === round5(from.lat) &&
+    round5(row?.segment_origin_lon) === round5(from.lon) &&
+    round5(row?.segment_dest_lat) === round5(to.lat) &&
+    round5(row?.segment_dest_lon) === round5(to.lon) &&
+    typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0
+  ) || null;
+}
+
 async function markDeliveriesPolylineUpdated(base44, deliveries, value) {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return;
   await Promise.all(
@@ -289,8 +299,15 @@ Deno.serve(async (req) => {
         const toStop = getLatLon(finishedStops[index]);
         if (!fromStop || !toStop) continue;
 
-        const directions = await getSegmentDirections(base44, fromStop, toStop);
-        apiCallsMade += 1;
+        const cachedSegment = findExactCachedSegment(existingPolylines, fromStop, toStop);
+        const directions = cachedSegment ? {
+          encoded_polyline: cachedSegment.encoded_polyline,
+          estimated_distance_km: cachedSegment.estimated_distance_km ?? null,
+          estimated_duration_minutes: cachedSegment.estimated_duration_minutes ?? null
+        } : await getSegmentDirections(base44, fromStop, toStop);
+        if (!cachedSegment) {
+          apiCallsMade += 1;
+        }
 
         await base44.asServiceRole.entities.Delivery.update(finishedStops[index].id, {
           finished_leg_encoded_polyline: directions.encoded_polyline || ''
@@ -355,8 +372,15 @@ Deno.serve(async (req) => {
         }
 
         for (const spec of segmentSpecs) {
-          const directions = await getSegmentDirections(base44, spec.from, spec.to);
-          apiCallsMade += 1;
+          const cachedSegment = findExactCachedSegment(existingPolylines, spec.from, spec.to);
+          const directions = cachedSegment ? {
+            encoded_polyline: cachedSegment.encoded_polyline,
+            estimated_distance_km: cachedSegment.estimated_distance_km ?? null,
+            estimated_duration_minutes: cachedSegment.estimated_duration_minutes ?? null
+          } : await getSegmentDirections(base44, spec.from, spec.to);
+          if (!cachedSegment) {
+            apiCallsMade += 1;
+          }
           createdSegments.push({
             driver_id: driverId,
             delivery_date: deliveryDate,

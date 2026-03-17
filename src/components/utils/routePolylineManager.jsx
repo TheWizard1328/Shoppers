@@ -3,6 +3,7 @@
 import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
 import { queueEntityRequest } from "./requestQueue";
+import { offlineDB } from "./offlineDatabase";
 
 /**
  * Configuration for route polyline management
@@ -36,6 +37,22 @@ const calculateDistanceBetweenCoords = (lat1, lon1, lat2, lon2) => {
  */
 const roundCoordinate = (coord, precision = POLYLINE_CONFIG.COORDINATE_PRECISION) => {
   return parseFloat(coord.toFixed(precision));
+};
+
+const findLatestExactStoredSegment = (rows, startLat, startLon, endLat, endLon) => {
+  const originLat = Number(startLat.toFixed(5));
+  const originLon = Number(startLon.toFixed(5));
+  const destLat = Number(endLat.toFixed(5));
+  const destLon = Number(endLon.toFixed(5));
+
+  return (rows || [])
+    .filter((row) => row?.encoded_polyline &&
+      Number(row.segment_origin_lat)?.toFixed(5) === originLat.toFixed(5) &&
+      Number(row.segment_origin_lon)?.toFixed(5) === originLon.toFixed(5) &&
+      Number(row.segment_dest_lat)?.toFixed(5) === destLat.toFixed(5) &&
+      Number(row.segment_dest_lon)?.toFixed(5) === destLon.toFixed(5)
+    )
+    .sort((a, b) => new Date(b.last_generated_at || b.updated_date || 0).getTime() - new Date(a.last_generated_at || a.updated_date || 0).getTime())[0] || null;
 };
 
 /**
@@ -144,6 +161,10 @@ const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleA
  */
 const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = null, startLon = null, endLat = null, endLon = null) => {
   try {
+    const offlineRows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+    const offlineMatch = findLatestExactStoredSegment(offlineRows, startLat, startLon, endLat, endLon);
+    if (offlineMatch) return offlineMatch;
+
     const rounded = (n) => Number(n.toFixed(5));
     const recs = await base44.entities.DriverRoutePolyline.filter({
       driver_id: driverId,
