@@ -75,7 +75,7 @@ export default function StopCardHeader({
           {(() => {
             const actual = formatTime12Hour(format(new Date(delivery.actual_delivery_time), "HH:mm"));
             const arrival = delivery?.arrival_time ? formatTime12Hour(format(new Date(delivery.arrival_time), "HH:mm")) : null;
-            return <span className="Text-sm">{arrival ? `${arrival} → ${actual}` : actual}</span>;
+            return <span className="text-sm font-bold">{arrival ? `${arrival} → ${actual}` : actual}</span>;
           })()}
         </>);
 
