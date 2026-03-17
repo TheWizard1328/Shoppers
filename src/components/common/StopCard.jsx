@@ -1214,7 +1214,7 @@ export default function StopCard({
 
           {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded || isRailCentered) && !showCompletedRouteCenteredCondensed && <div className="flex flex-col">
             <div className="flex items-start justify-between">
-              <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
+              <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[55px]">
                 {finalDisplayAddress ?
                 <>
                     {/* Main address without unit/buzzer */}
@@ -1238,7 +1238,7 @@ export default function StopCard({
 
                       return (
                         <>
-                              {unitNum && <span className="text-xl font-medium">#{unitNum}</span>}
+                              {unitNum && <span className="text-md">#{unitNum}</span>}
                               {buzzerNum && <span className="text-lg font-medium">Buzz {buzzerNum}</span>}
                             </>);
                     })()}
