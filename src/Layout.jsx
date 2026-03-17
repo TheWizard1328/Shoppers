@@ -729,6 +729,7 @@ export default function Layout({ children, currentPageName }) {
   const refreshIntervalRef = useRef(null);
   const wakeLockRef = useRef(null);
   const onSmartRefreshCompleteRef = useRef(null);
+  const type1PolylineRefreshRef = useRef(new Map());
 
   // Remove unused driverLocationIntervalRef - now handled by unified refresh
 
@@ -1463,11 +1464,15 @@ export default function Layout({ children, currentPageName }) {
     const handleDriverLocationUpdated = async (event) => {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const selectedDateStr = globalFilters.getSelectedDate() || todayStr;
+      if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) return;
 
-      if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) {
-        return;
-      }
-      // Skip data refresh on every location update to avoid rate limits
+      const singleUpdate = event?.detail?.singleUpdate;
+      if (!singleUpdate?.user_id || singleUpdate.current_latitude == null || singleUpdate.current_longitude == null) return;
+
+      await updatePolylineOnRefresh(singleUpdate.user_id, todayStr, {
+        lat: Number(singleUpdate.current_latitude),
+        lon: Number(singleUpdate.current_longitude)
+      });
     };
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
 
@@ -1577,15 +1582,6 @@ export default function Layout({ children, currentPageName }) {
           d?.id === update.id ? { ...d, ...update.data } : d
           ));
           console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
-          // CRITICAL: Force polyline update when delivery status changes
-          if (update.data?.driver_id && update.data?.delivery_date) {
-            updatePolylineOnRefresh(update.data.driver_id, update.data.delivery_date);
-          }
-          console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
-          // CRITICAL: Force polyline update when delivery status changes
-          if (update.data?.driver_id && update.data?.delivery_date) {
-            updatePolylineOnRefresh(update.data.driver_id, update.data.delivery_date);
-          }
         } else if (update.action === 'delete') {
           setDeliveries((prev) => prev.filter((d) => d?.id !== update.id));
           // CRITICAL: Remove from offline DB to prevent residual memory on other devices
@@ -2010,34 +2006,36 @@ export default function Layout({ children, currentPageName }) {
 
 
 
-  const updatePolylineOnRefresh = async (driverId, dateStr) => {
+  const updatePolylineOnRefresh = async (driverId, dateStr, currentLocation = null) => {
     if (!driverId || driverId === 'all') return;
 
     try {
       const deliveryDate = dateStr || format(new Date(), 'yyyy-MM-dd');
+      const refreshKey = `${driverId}:${deliveryDate}`;
+      const lastRefreshAt = type1PolylineRefreshRef.current.get(refreshKey) || 0;
+      if (Date.now() - lastRefreshAt < 30000) return;
 
-      // Get driver's current location
-      const appUsers = await base44.entities.AppUser.filter({ user_id: driverId });
-      const driverAppUser = appUsers?.[0];
+      let nextLocation = currentLocation;
+      if (!nextLocation?.lat || !nextLocation?.lon) {
+        const appUsers = await base44.entities.AppUser.filter({ user_id: driverId });
+        const driverAppUser = appUsers?.[0];
+        if (!driverAppUser?.current_latitude || !driverAppUser?.current_longitude) return;
+        nextLocation = {
+          lat: Number(driverAppUser.current_latitude),
+          lon: Number(driverAppUser.current_longitude)
+        };
+      }
 
-      if (!driverAppUser?.current_latitude || !driverAppUser?.current_longitude) return;
-
-      await base44.functions.invoke('optimizeDriverRoute', {
-        driverId: driverId,
-        deliveryDate: deliveryDate,
-        generatePolyline: true,
-        currentLocation: {
-          latitude: driverAppUser.current_latitude,
-          longitude: driverAppUser.current_longitude
-        }
+      type1PolylineRefreshRef.current.set(refreshKey, Date.now());
+      await base44.functions.invoke('regenerateType1Polyline', {
+        driverId,
+        deliveryDate,
+        currentLocation: nextLocation
       });
     } catch (error) {
-
-
-
-
       // Silent fail
-    }};const handleImpersonate = useCallback(async (userId) => {sessionStorage.setItem('impersonationId', userId);
+    }
+  };const handleImpersonate = useCallback(async (userId) => {sessionStorage.setItem('impersonationId', userId);
       clearUserCache(); // Force refresh on impersonate
       window.location.reload();
     }, []);
