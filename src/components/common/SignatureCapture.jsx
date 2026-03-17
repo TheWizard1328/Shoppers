@@ -6,11 +6,9 @@ import { X, RotateCcw, Check, Loader2 } from 'lucide-react';
 export default function SignatureCapture({ onSave, onCancel, customerName = '', isSaved = false }) {
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
-  const autoSaveTimerRef = useRef(null);
   const [hasSignature, setHasSignature] = useState(false);
-  const [showClear, setShowClear] = useState(isSaved);
+  const [showClear, setShowClear] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [autoSaved, setAutoSaved] = useState(false);
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -38,11 +36,6 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     };
   }, [setupCanvas]);
 
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    };
-  }, []);
 
   const getCoords = (e) => {
     const canvas = canvasRef.current;
@@ -81,17 +74,6 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   const stopDrawing = () => {
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const hasPixels = imageData.data.some((val, i) => i % 4 === 3 && val > 0);
-      if (hasPixels) {
-        handleSave();
-      }
-    }, 1500);
   };
 
   const clearSignature = () => {
@@ -102,7 +84,6 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasSignature(false);
     setShowClear(false);
-    setAutoSaved(false);
   };
 
   const handleSave = async () => {
@@ -128,7 +109,6 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
       if (!blob.size) throw new Error('Signature blob is empty');
       await onSave(blob);
       setShowClear(true);
-      setAutoSaved(true);
     } catch (error) {
       console.error('❌ [SignatureCapture] Save error:', error);
       throw error;
@@ -196,9 +176,6 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
           style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
         >
           <div>
-            {autoSaved && !isSaving && (
-              <span className="text-sm font-medium text-emerald-600">✓ Saved — tap Close when done</span>
-            )}
             {isSaving && (
               <span className="text-sm text-slate-500 flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> Saving...
@@ -224,6 +201,9 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                 </Button>
                 <Button variant="outline" size="sm" onClick={onCancel} disabled={isSaving}>
                   Cancel
+                </Button>
+                <Button size="sm" onClick={handleSave} disabled={!hasSignature || isSaving} className="bg-emerald-600 hover:bg-emerald-700">
+                  <Check className="w-4 h-4 mr-2" />Save
                 </Button>
               </>
             )}
