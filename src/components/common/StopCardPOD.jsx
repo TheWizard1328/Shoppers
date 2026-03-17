@@ -5,7 +5,7 @@ import { X, Pen, Camera, Eye } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { invalidate } from '../utils/dataManager';
-import { updateDeliveryLocal } from '../utils/offlineMutations';
+import { updateDeliveryLocal } from '../utils/entityMutations';
 import SignatureCapture from './SignatureCapture';
 import PhotoCapture from './PhotoCapture';
 

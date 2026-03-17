@@ -125,7 +125,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
       if (!dataURL || dataURL === 'data:,') throw new Error('Canvas produced empty dataURL');
       const response = await fetch(dataURL);
       const blob = await response.blob();
-      if (blob.size < 500) throw new Error('Signature blob too small - likely empty canvas');
+      if (!blob.size) throw new Error('Signature blob is empty');
       await onSave(blob);
       setShowClear(true);
       setAutoSaved(true);
@@ -183,7 +183,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
             />
             {!hasSignature && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-2xl select-none" style={{ color: 'var(--text-slate-300)' }}>
+                <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(90deg)' }}>
                   ✍️ Sign here
                 </span>
               </div>
