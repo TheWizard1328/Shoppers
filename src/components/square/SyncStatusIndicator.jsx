@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, AlertCircle, Clock, Loader2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
-export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codDeliveryCount = 0, catalogItemCount = 0, cardSpendCount = 0, salesCount = 0 }) {
+export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codDeliveryCount = 0, catalogItemCount = 0, cardSpendCount = 0, salesCount = 0, collectedCodTypeBreakdown = { Cash: 0, Debit: 0, Credit: 0, Check: 0 } }) {
   const catalogStatus = syncStatus?.catalog;
   const transactionStatus = syncStatus?.transactions;
 
@@ -75,12 +75,21 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                 )}
                 <>
                   <span className="text-muted-foreground">•</span>
-                  <span className="text-muted-foreground">Deliveries with COD's: {codDeliveryCount}</span>
-                  <span className="text-muted-foreground">•</span>
                   <span className="text-muted-foreground">Catalog Items: {catalogItemCount}</span>
                   <span className="text-muted-foreground">•</span>
                   <span className="text-muted-foreground">Transactions: Card Spend: {cardSpendCount} Sales: {salesCount}</span>
                 </>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 flex-wrap text-xs">
+                <span className="text-muted-foreground">Deliveries with COD's: {codDeliveryCount}</span>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-muted-foreground">Cash: {collectedCodTypeBreakdown.Cash}</span>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-muted-foreground">Debit: {collectedCodTypeBreakdown.Debit}</span>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-muted-foreground">Credit: {collectedCodTypeBreakdown.Credit}</span>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-muted-foreground">Check: {collectedCodTypeBreakdown.Check}</span>
               </div>
               {error && (
                 <div className="text-xs text-red-600 font-medium mt-1">

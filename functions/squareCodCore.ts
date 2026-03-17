@@ -1007,7 +1007,8 @@ async function handleSyncCatalogItems(base44) {
     const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
     const hasCollectedPayment = codPayments.some((payment) => ['Cash', 'Debit', 'Credit', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
       || ['Cash', 'Debit', 'Credit', 'Check'].includes(delivery?.cod_payment_type);
-    const readyToCloseCollectedPayment = delivery.status === 'completed' && hasCollectedPayment;
+    const hasCollectedCard = hasCollectedCardPayment(delivery);
+    const readyToCloseCollectedCard = delivery.status === 'completed' && hasCollectedCard;
     const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled';
 
     if (shouldDeleteForInvalidState) {
@@ -1025,8 +1026,8 @@ async function handleSyncCatalogItems(base44) {
       catalogItem = null;
     }
 
-    if (paidMatches.length || isPaidByCatalogObjectId || isPaidByDirectCatalogMatch || hasCollectedPayment) {
-      if (readyToCloseCollectedPayment) {
+    if (paidMatches.length || isPaidByCatalogObjectId || isPaidByDirectCatalogMatch || hasCollectedCard) {
+      if (readyToCloseCollectedCard) {
         if (catalogItem) itemsToDelete.push(catalogItem.id);
         for (const transaction of existingTransactions) {
           if (transaction.status === 'pending') transactionsToComplete.push(transaction.id);
@@ -1108,7 +1109,7 @@ async function handleSyncCatalogItems(base44) {
   const allTransactionsAfterSync = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000);
   const transactionsToRemoveFromCatalog = (allTransactionsAfterSync || [])
     .filter((transaction) => transaction?.square_catalog_object_id)
-    .filter((transaction) => transaction?.status === 'completed' || transaction?.status === 'refunded' || isOfflineCollectedPaymentMethod(transaction?.payment_method));
+    .filter((transaction) => transaction?.status === 'completed' || transaction?.status === 'refunded');
   const extraCatalogIdsToDelete = Array.from(new Set(transactionsToRemoveFromCatalog.map((transaction) => transaction.square_catalog_object_id).filter(Boolean)))
     .filter((catalogId) => !uniqueItemIdsToDelete.includes(catalogId));
 
