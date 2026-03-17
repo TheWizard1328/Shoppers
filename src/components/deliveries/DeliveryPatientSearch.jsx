@@ -17,33 +17,6 @@ const userHasRole = (user, role) => {
   return false;
 };
 
-const getCrowFlyDistanceKm = (lat1, lon1, lat2, lon2) => {
-  const values = [lat1, lon1, lat2, lon2].map(Number);
-  if (values.some((value) => !Number.isFinite(value))) return Infinity;
-
-  const [startLat, startLon, endLat, endLon] = values;
-  const toRadians = (degrees) => degrees * (Math.PI / 180);
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(endLat - startLat);
-  const dLon = toRadians(endLon - startLon);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(startLat)) * Math.cos(toRadians(endLat)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
-const getNearestStoreDistanceKm = (patient, stores = []) => {
-  const availableStores = (stores || []).filter((store) => store && store.status !== 'inactive');
-  if (!availableStores.length) return Infinity;
-
-  return availableStores.reduce((nearestDistance, store) => {
-    const distance = getCrowFlyDistanceKm(patient?.latitude, patient?.longitude, store?.latitude, store?.longitude);
-    return Math.min(nearestDistance, distance);
-  }, Infinity);
-};
-
 export default function DeliveryPatientSearch({
   patientSearch,
   setPatientSearch,
@@ -70,24 +43,6 @@ export default function DeliveryPatientSearch({
   setIsPatientFormOpen,
   handleSearchKeyDown,
 }) {
-  const displayedPatients = React.useMemo(() => {
-    if (!Array.isArray(filteredPatients) || !userHasRole(currentUser, 'admin')) return filteredPatients;
-
-    return filteredPatients
-      .map((patient, index) => ({
-        patient,
-        index,
-        nearestStoreDistance: getNearestStoreDistanceKm(patient, stores),
-      }))
-      .sort((a, b) => {
-        if (a.nearestStoreDistance !== b.nearestStoreDistance) {
-          return a.nearestStoreDistance - b.nearestStoreDistance;
-        }
-        return a.index - b.index;
-      })
-      .map(({ patient }) => patient);
-  }, [filteredPatients, currentUser, stores]);
-
   return (
     <div className="relative flex-[2] space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
       <div className="flex items-center justify-between mb-1">
@@ -151,7 +106,7 @@ export default function DeliveryPatientSearch({
             </div>
           )}
 
-          {displayedPatients.length === 0 ? (
+          {filteredPatients.length === 0 ? (
             <div className="p-4 text-center text-slate-500 text-sm">
               No patients found
               {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
@@ -175,7 +130,7 @@ export default function DeliveryPatientSearch({
             </div>
           ) : (
             <div className="divide-y">
-              {displayedPatients.map((patient, index) => {
+              {filteredPatients.map((patient, index) => {
                 const patientStore = stores?.find(s => s && s.id === patient.store_id);
                 const storeAbbr = patientStore?.abbreviation || '';
                 const isHighlighted = index === highlightedPatientIndex;
