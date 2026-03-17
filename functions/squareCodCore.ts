@@ -1074,9 +1074,13 @@ async function handleSyncCatalogItems(base44) {
   }
 
   const paidCatalogObjectIds = new Set(paidOrderItems.map((item) => item.catalog_object_id).filter(Boolean));
+  const paidOrderItemSignatures = new Set();
+  const paidOrderComparableSignatures = new Set();
   const paidOrderItemsByDateLocationAmountSignature = new Map();
   for (const item of paidOrderItems) {
     const signature = buildLocationDateAmountSignature(item.location_id, item.item_name, item.amount_cents);
+    paidOrderItemSignatures.add(buildItemSignature(item.item_name, item.amount_cents));
+    paidOrderComparableSignatures.add(buildComparableLocationSignature(item.item_name, item.amount_cents, item.location_id));
     if (!paidOrderItemsByDateLocationAmountSignature.has(signature)) {
       paidOrderItemsByDateLocationAmountSignature.set(signature, []);
     }
@@ -1085,6 +1089,8 @@ async function handleSyncCatalogItems(base44) {
 
   const transactionsByDeliveryId = new Map();
   const settledTransactionCatalogObjectIds = new Set();
+  const settledTransactionItemSignatures = new Set();
+  const settledTransactionComparableSignatures = new Set();
   const settledTransactionDateLocationAmountSignatures = new Set();
   for (const transaction of recentSquareTransactions) {
     const amountCents = transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100);
@@ -1097,6 +1103,8 @@ async function handleSyncCatalogItems(base44) {
       if (transaction?.square_catalog_object_id) {
         settledTransactionCatalogObjectIds.add(transaction.square_catalog_object_id);
       }
+      settledTransactionItemSignatures.add(buildItemSignature(transaction?.item_name, amountCents));
+      settledTransactionComparableSignatures.add(buildComparableLocationSignature(transaction?.item_name, amountCents, transaction?.location_id));
       for (const signature of buildLocationDateAmountSignatureCandidates(transaction?.location_id, transaction?.item_name, amountCents)) {
         settledTransactionDateLocationAmountSignatures.add(signature);
       }
@@ -1114,14 +1122,20 @@ async function handleSyncCatalogItems(base44) {
     const itemName = normalizeText(item?.item_data?.name);
     if (!itemName) continue;
     const amountCents = getCatalogItemAmountCents(item);
+    const itemSignature = buildItemSignature(itemName, amountCents);
     const itemLocationIds = getCatalogItemLocationIds(item);
+    const itemComparableSignatures = itemLocationIds.map((locationId) => buildComparableLocationSignature(itemName, amountCents, locationId));
     const variationIds = (item?.item_data?.variations || []).map((variation) => variation?.id).filter(Boolean);
     const itemDateSignatures = itemLocationIds.map((locationId) => buildLocationDateAmountSignature(locationId, itemName, amountCents));
     const matchedByPaidOrder = paidCatalogObjectIds.has(item.id)
       || variationIds.some((variationId) => paidCatalogObjectIds.has(variationId))
+      || paidOrderItemSignatures.has(itemSignature)
+      || itemComparableSignatures.some((signature) => paidOrderComparableSignatures.has(signature))
       || itemDateSignatures.some((signature) => paidOrderItemsByDateLocationAmountSignature.has(signature));
     const matchedBySettledTransaction = settledTransactionCatalogObjectIds.has(item.id)
       || variationIds.some((variationId) => settledTransactionCatalogObjectIds.has(variationId))
+      || settledTransactionItemSignatures.has(itemSignature)
+      || itemComparableSignatures.some((signature) => settledTransactionComparableSignatures.has(signature))
       || itemDateSignatures.some((signature) => settledTransactionDateLocationAmountSignatures.has(signature));
 
     if (matchedByPaidOrder || matchedBySettledTransaction) {
@@ -1179,8 +1193,14 @@ async function handleSyncCatalogItems(base44) {
     const hasCollectedCard = hasCollectedCardPayment(delivery);
     const hasCollectedOffline = hasCollectedOfflinePayment(delivery);
     const hasAnyCollectedPayment = hasCollectedCard || hasCollectedOffline;
-    const hasPaidOrderMatch = deliveryDateSignatures.some((signatureKey) => paidOrderItemsByDateLocationAmountSignature.has(signatureKey));
-    const hasSettledTransactionMatch = settledTransactions.length > 0 || deliveryDateSignatures.some((signatureKey) => settledTransactionDateLocationAmountSignatures.has(signatureKey));
+    const itemComparableSignature = buildComparableLocationSignature(itemName, amountCents, activeConfig?.square_location_id);
+    const hasPaidOrderMatch = paidOrderItemSignatures.has(signature)
+      || paidOrderComparableSignatures.has(itemComparableSignature)
+      || deliveryDateSignatures.some((signatureKey) => paidOrderItemsByDateLocationAmountSignature.has(signatureKey));
+    const hasSettledTransactionMatch = settledTransactions.length > 0
+      || settledTransactionItemSignatures.has(signature)
+      || settledTransactionComparableSignatures.has(itemComparableSignature)
+      || deliveryDateSignatures.some((signatureKey) => settledTransactionDateLocationAmountSignatures.has(signatureKey));
     const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || ['pending', 'failed', 'cancelled'].includes(delivery?.status);
     const hasSquareConfirmedPayment = hasPaidOrderMatch || hasSettledTransactionMatch;
     const shouldDeleteCatalogItem = shouldDeleteForInvalidState || hasSquareConfirmedPayment;
