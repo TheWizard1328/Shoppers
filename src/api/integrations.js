@@ -6,7 +6,11 @@ export const InvokeLLM = (payload, tracking = {}) =>
     integrationName: 'Core',
     operationName: 'InvokeLLM',
     feature: tracking.feature || null,
-    metadata: tracking.metadata || {},
+    metadata: {
+      ...(tracking.metadata || {}),
+      model: payload?.model || 'automatic'
+    },
+    estimatedCreditsUsed: tracking.estimatedCreditsUsed || 1,
     call: () => base44.integrations.Core.InvokeLLM(payload)
   });
 
@@ -16,6 +20,7 @@ export const SendEmail = (payload, tracking = {}) =>
     operationName: 'SendEmail',
     feature: tracking.feature || null,
     metadata: tracking.metadata || {},
+    estimatedCreditsUsed: tracking.estimatedCreditsUsed || 1,
     call: () => base44.integrations.Core.SendEmail(payload)
   });
 
@@ -25,6 +30,7 @@ export const SendSMS = (payload, tracking = {}) =>
     operationName: 'SendSMS',
     feature: tracking.feature || null,
     metadata: tracking.metadata || {},
+    estimatedCreditsUsed: tracking.estimatedCreditsUsed || 1,
     call: () => base44.integrations.Core.SendSMS(payload)
   });
 
@@ -34,6 +40,7 @@ export const UploadFile = (payload, tracking = {}) =>
     operationName: 'UploadFile',
     feature: tracking.feature || null,
     metadata: tracking.metadata || {},
+    estimatedCreditsUsed: tracking.estimatedCreditsUsed || 1,
     call: () => base44.integrations.Core.UploadFile(payload)
   });
 
@@ -43,6 +50,7 @@ export const GenerateImage = (payload, tracking = {}) =>
     operationName: 'GenerateImage',
     feature: tracking.feature || null,
     metadata: tracking.metadata || {},
+    estimatedCreditsUsed: tracking.estimatedCreditsUsed || 1,
     call: () => base44.integrations.Core.GenerateImage(payload)
   });
 
@@ -52,6 +60,7 @@ export const ExtractDataFromUploadedFile = (payload, tracking = {}) =>
     operationName: 'ExtractDataFromUploadedFile',
     feature: tracking.feature || null,
     metadata: tracking.metadata || {},
+    estimatedCreditsUsed: tracking.estimatedCreditsUsed || 1,
     call: () => base44.integrations.Core.ExtractDataFromUploadedFile(payload)
   });
 
