@@ -24,7 +24,7 @@ const TIMEFRAME_OPTIONS = [
   { value: '1440', label: 'Last 24 hours' }
 ];
 
-const LOG_FETCH_LIMIT = 3000;
+const LOG_FETCH_LIMIT = 10000;
 
 const formatDuration = (value) => {
   if (!value) return '—';
