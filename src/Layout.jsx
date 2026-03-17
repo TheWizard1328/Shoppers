@@ -1167,7 +1167,7 @@ export default function Layout({ children, currentPageName }) {
       clearTimeout(timer);
       backgroundSyncManager.stop();
     };
-  }, [currentUser, dataLoaded]);
+  }, [currentUser, dataLoaded, currentPageName]);
 
   // Pause background sync when forms are open
   useEffect(() => {
@@ -1185,7 +1185,7 @@ export default function Layout({ children, currentPageName }) {
     // CRITICAL: Background sync - run ONCE after init, skip if already running
     let bgSyncHasRun = false;
     const bgSyncTimer = setTimeout(async () => {
-      if (!initialGlobalFiltersSet || !currentUser || !dataLoaded || isFormOverlayOpen || bgSyncHasRun) return;
+      if (currentPageName !== 'Dashboard' || !initialGlobalFiltersSet || !currentUser || !dataLoaded || isFormOverlayOpen || bgSyncHasRun) return;
       bgSyncHasRun = true;
 
       const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
@@ -1926,7 +1926,7 @@ export default function Layout({ children, currentPageName }) {
           if (hiddenDuration >= SMART_REFRESH_CYCLE) {
             console.log(`🔄 [Focus Recovery] App was hidden for ${hiddenDuration}ms (${(hiddenDuration / 1000).toFixed(1)}s) - triggering smart refresh and background sync`);
 
-            if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
+            if (currentPageName === 'Dashboard' && initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
               // Reset smart refresh timers to force immediate refresh
               smartRefreshManager.lastRefreshTimes = {
                 driverLocation: 0,
