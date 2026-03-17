@@ -38,7 +38,7 @@ import PolylineViewer from '../components/admin/PolylineViewer';
 import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
-import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';
+import PatientAnalysisReview from '../components/admin/PatientAnalysisReview'; import IntegrationCreditsTab from '../components/admin/IntegrationCreditsTab'; import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';
 
 // Wrapper to reload data when Routes tab is opened
 const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
@@ -4457,15 +4457,14 @@ export default function AdminUtilities() {
             ) : (
               <div className="space-y-6">
                 <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full">
-                   <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
-                     <TabsList className="flex w-full gap-1 md:gap-0 h-auto md:h-10">
+                   <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="flex w-full gap-1 md:gap-0 h-auto md:h-10">
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-2 md:px-3 py-2 flex-1 min-w-0 justify-center text-center">Deliveries</TabsTrigger>
                        <TabsTrigger value="patients" className="text-xs md:text-sm px-2 md:px-3 py-2 flex-1 min-w-0 justify-center text-center">Patients</TabsTrigger>
                        <TabsTrigger value="stores" className="text-xs md:text-sm px-2 md:px-3 py-2 flex-1 min-w-0 justify-center text-center">Stores</TabsTrigger>
                        <TabsTrigger value="users" className="text-xs md:text-sm px-2 md:px-3 py-2 flex-1 min-w-0 justify-center text-center">Users</TabsTrigger>
                        <TabsTrigger value="cities" className="text-xs md:text-sm px-2 md:px-3 py-2 flex-1 min-w-0 justify-center text-center">Cities</TabsTrigger>
-                     </TabsList>
-                   </div>
+                       <TabsTrigger value="credits" className="text-xs md:text-sm px-2 md:px-3 py-2 flex-1 min-w-0 justify-center text-center">Credits</TabsTrigger>
+                     </TabsList></div>
 
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
@@ -4623,6 +4622,7 @@ export default function AdminUtilities() {
                       />
                     </SimpleDataViewTab>
                   </TabsContent>
+                  <TabsContent value="credits" className="mt-6"><IntegrationCreditsTab /></TabsContent>
                 </Tabs>
               </div>
             )}
