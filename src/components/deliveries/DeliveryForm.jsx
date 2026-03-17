@@ -2709,7 +2709,8 @@ export default function DeliveryForm({
       }
 
       // Check if status changed to a completion status (completed, cancelled, failed)
-      const statusChangedToCompletion = delivery && ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) && delivery.status !== formData.status;
+      const statusChangedToCompletion = !!(delivery && ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) && delivery.status !== formData.status);
+      const actualDeliveryTimeChanged = !!(delivery && ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) && dataToSave.actual_delivery_time && dataToSave.actual_delivery_time !== (delivery.actual_delivery_time || ''));
       if (statusChangedToCompletion) dataToSave.isNextDelivery = false;
 
       // SQUARE INTEGRATION: Delete COD item when delivery is completed or failed
@@ -2748,15 +2749,9 @@ export default function DeliveryForm({
         
         // CRITICAL: Force stats refresh AND deliveries update after any delivery update
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
-            deliveryId: delivery.id,
-            deliveryDate: formData.delivery_date, 
-            driverId: formData.driver_id,
-            triggeredBy: 'deliveryFormUpdate'
-          }
-        }));
-        
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));
+        if (statusChangedToCompletion) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'active_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Active polyline refresh failed:', e?.message || e)); }, 0);
+        if (statusChangedToCompletion || actualDeliveryTimeChanged) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'completed_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Completed polyline refresh failed:', e?.message || e)); }, 0);
         import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
         // NOTE: updateDeliveryLocal already notifies mutation listeners immediately after local save
       } else {
