@@ -24,6 +24,8 @@ const TIMEFRAME_OPTIONS = [
   { value: '1440', label: 'Last 24 hours' }
 ];
 
+const LOG_FETCH_LIMIT = 3000;
+
 const formatDuration = (value) => {
   if (!value) return '—';
   if (value < 1000) return `${value}ms`;
@@ -42,7 +44,7 @@ export default function IntegrationCreditsTab() {
     setIsLoading(true);
     try {
       const [logData, config] = await Promise.all([
-        base44.entities.IntegrationUsageLog.list('-timestamp', 250),
+        base44.entities.IntegrationUsageLog.list('-timestamp', LOG_FETCH_LIMIT),
         base44.entities.AppSettings.filter({ setting_key: 'integration_credit_monitor' })
       ]);
 
@@ -68,7 +70,7 @@ export default function IntegrationCreditsTab() {
   useEffect(() => {
     const unsubscribe = base44.entities.IntegrationUsageLog.subscribe((event) => {
       if (event.type === 'create' && event.data) {
-        setLogs((prev) => [event.data, ...prev.filter((item) => item?.id !== event.data.id)].slice(0, 250));
+        setLogs((prev) => [event.data, ...prev.filter((item) => item?.id !== event.data.id)].slice(0, LOG_FETCH_LIMIT));
       }
       if (event.type === 'update' && event.data) {
         setLogs((prev) => prev.map((item) => item?.id === event.data.id ? event.data : item));
@@ -105,12 +107,33 @@ export default function IntegrationCreditsTab() {
       .sort((a, b) => b.credits - a.credits)
       .slice(0, 5);
 
+    const failureHotspots = Object.values(
+      filteredLogs
+        .filter((log) => log.success === false)
+        .reduce((acc, log) => {
+          const key = `${log.integration_name}.${log.operation_name}__${log.error_message || 'Unknown error'}`;
+          if (!acc[key]) {
+            acc[key] = {
+              key,
+              integration: `${log.integration_name}.${log.operation_name}`,
+              error: log.error_message || 'Unknown error',
+              count: 0
+            };
+          }
+          acc[key].count += 1;
+          return acc;
+        }, {})
+    )
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
     return {
       totalEstimatedCredits,
       successfulCalls,
       failedCalls,
       avgDuration,
-      topTasks
+      topTasks,
+      failureHotspots
     };
   }, [filteredLogs]);
 
@@ -164,6 +187,7 @@ export default function IntegrationCreditsTab() {
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Integration Credits</h2>
           <p className="text-sm text-slate-500">Monitor estimated credit usage by task, user, and integration call.</p>
+          <p className="text-xs text-slate-400 mt-1">Loaded {logs.length} recent logs, showing {filteredLogs.length} in the selected window.</p>
         </div>
         <div className="w-full lg:w-56">
           <Select value={timeframeMinutes} onValueChange={setTimeframeMinutes}>
@@ -241,6 +265,24 @@ export default function IntegrationCreditsTab() {
                   </div>
                 </div>
               ))}
+
+              <div className="pt-3 border-t">
+                <div className="text-sm font-semibold text-slate-900 mb-2">Failure Hotspots</div>
+                <div className="space-y-2">
+                  {summary.failureHotspots.length === 0 && (
+                    <div className="text-sm text-slate-500">No repeated failures in this window.</div>
+                  )}
+                  {summary.failureHotspots.map((item) => (
+                    <div key={item.key} className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium text-slate-900">{item.integration}</div>
+                        <Badge variant="destructive">{item.count} failures</Badge>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1 break-words">{item.error}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -327,12 +369,12 @@ export default function IntegrationCreditsTab() {
                 </tr>
               </thead>
               <tbody>
-                {logs.length === 0 && (
+                {filteredLogs.length === 0 && (
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-slate-500">No integration usage has been logged yet.</td>
                   </tr>
                 )}
-                {logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <tr key={log.id} className="border-t">
                     <td className="p-3 text-slate-600">{formatDistanceToNowStrict(new Date(log.timestamp || log.created_date), { addSuffix: true })}</td>
                     <td className="p-3 text-slate-900">{log.app_user_name || 'Unknown user'}</td>
