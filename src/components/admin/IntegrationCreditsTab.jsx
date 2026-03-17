@@ -86,6 +86,7 @@ export default function IntegrationCreditsTab() {
   const summary = useMemo(() => {
     const totalEstimatedCredits = filteredLogs.reduce((sum, log) => sum + Number(log.estimated_credits_used || 0), 0);
     const successfulCalls = filteredLogs.filter((log) => log.success).length;
+    const failedCalls = filteredLogs.filter((log) => log.success === false).length;
     const avgDuration = filteredLogs.length
       ? Math.round(filteredLogs.reduce((sum, log) => sum + Number(log.duration_ms || 0), 0) / filteredLogs.length)
       : 0;
@@ -107,6 +108,7 @@ export default function IntegrationCreditsTab() {
     return {
       totalEstimatedCredits,
       successfulCalls,
+      failedCalls,
       avgDuration,
       topTasks
     };
@@ -154,7 +156,7 @@ export default function IntegrationCreditsTab() {
     <div className="space-y-6">
       <Alert>
         <AlertDescription>
-          This tracks estimated credits used by the app’s wrapped integrations. Actual platform/account credit totals are not exposed here yet.
+          This now tracks every wrapped app integration call, including failures, so you can spot retry loops and runaway credit usage faster.
         </AlertDescription>
       </Alert>
 
@@ -177,7 +179,7 @@ export default function IntegrationCreditsTab() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2"><Zap className="w-4 h-4" />Estimated Credits</CardTitle>
@@ -194,6 +196,15 @@ export default function IntegrationCreditsTab() {
           <CardContent>
             <div className="text-3xl font-bold text-slate-900">{summary.successfulCalls}</div>
             <p className="text-xs text-slate-500 mt-1">Out of {filteredLogs.length} tracked calls</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2"><Activity className="w-4 h-4" />Failed Calls</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-red-600">{summary.failedCalls}</div>
+            <p className="text-xs text-slate-500 mt-1">Calls that ended in failure</p>
           </CardContent>
         </Card>
         <Card>
@@ -312,6 +323,7 @@ export default function IntegrationCreditsTab() {
                   <th className="p-3 font-semibold">Credits</th>
                   <th className="p-3 font-semibold">Duration</th>
                   <th className="p-3 font-semibold">Status</th>
+                  <th className="p-3 font-semibold">Error</th>
                 </tr>
               </thead>
               <tbody>
@@ -330,6 +342,9 @@ export default function IntegrationCreditsTab() {
                     <td className="p-3 text-slate-600">{formatDuration(log.duration_ms)}</td>
                     <td className="p-3">
                       <Badge variant={log.success ? 'default' : 'destructive'}>{log.success ? 'Success' : 'Failed'}</Badge>
+                    </td>
+                    <td className="p-3 text-slate-600 max-w-[280px] truncate" title={log.error_message || ''}>
+                      {log.error_message || '—'}
                     </td>
                   </tr>
                 ))}
