@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import AuditTable from "@/components/square-audit/AuditTable";
 import {
-  LOOKBACK_DAYS,
   attachDiscrepancies,
   buildStoreMaps,
   downloadAuditCsv,
@@ -20,8 +19,7 @@ import {
   parseSquareItemName,
   toAmountCents,
 } from "@/components/square-audit/squareAuditHelpers";
-import { squareFetchPayments } from "@/functions/squareFetchPayments";
-import { squareGetCODData } from "@/functions/squareGetCODData";
+import { syncSquareCODSnapshotOffline } from "@/components/utils/squareCODOfflineManager";
 import { squareSyncCatalogItems } from "@/functions/squareSyncCatalogItems";
 
 export default function SquareSyncAudit() {
@@ -40,7 +38,13 @@ export default function SquareSyncAudit() {
     setIsLoading(true);
 
     try {
-      const [locationConfigs, stores, patients, deliveriesResponse] = await Promise.all([
+      const syncResponse = await squareSyncCatalogItems({ skipLock: true });
+      const syncData = syncResponse?.data || syncResponse || {};
+      if (syncData?.success === false) {
+        throw new Error(syncData.error || "Square reconciliation failed");
+      }
+
+      const [locationConfigs, stores, patients, deliveriesResponse, squareTransactionsResponse, squareCatalogItemsResponse] = await Promise.all([
         base44.entities.SquareLocationConfig.filter({ status: "active" }),
         base44.entities.Store.list(),
         base44.entities.Patient.list(),
@@ -50,61 +54,78 @@ export default function SquareSyncAudit() {
             $lte: range.endDate,
           },
         }),
+        base44.entities.SquareTransaction.list("-updated_date", 2000),
+        base44.entities.SquareCatalogItems.list("-updated_date", 2000),
       ]);
 
-      const locationIds = (locationConfigs || []).map((config) => config.square_location_id).filter(Boolean);
-      const [paymentsResponse, codDataResponse] = await Promise.all([
-        squareFetchPayments({ locationIds, daysBack: LOOKBACK_DAYS, maxPerLocation: 100 }),
-        squareGetCODData({}),
-      ]);
-
-      const paymentsData = paymentsResponse?.data || paymentsResponse || {};
-      const codData = codDataResponse?.data || codDataResponse || {};
       const deliveries = (deliveriesResponse || []).filter(
         (delivery) => Number(delivery?.cod_total_amount_required || 0) > 0,
       );
+      const squareTransactions = (squareTransactionsResponse || []).filter((transaction) => {
+        const parsed = parseSquareItemName(transaction?.item_name);
+        const transactionDate = normalizeDate(
+          deliveries.find((delivery) => delivery.id === transaction?.delivery_id)?.delivery_date ||
+          parsed?.delivery_date ||
+          transaction?.updated_date ||
+          transaction?.created_date,
+        );
+        return transactionDate >= range.startDate && transactionDate <= range.endDate;
+      });
+      const squareCatalogItems = (squareCatalogItemsResponse || []).filter((item) => {
+        const parsed = parseSquareItemName(item?.item_name);
+        const itemDate = normalizeDate(item?.delivery_date || parsed?.delivery_date || item?.updated_date || item?.created_date);
+        return itemDate >= range.startDate && itemDate <= range.endDate;
+      });
+
+      await syncSquareCODSnapshotOffline({
+        catalogItems: squareCatalogItems,
+        transactions: squareTransactions,
+      });
 
       const { locationIdByStoreId, storeByLocationId, storeById, storeByAbbreviation } = buildStoreMaps(stores || [], locationConfigs || []);
       const patientById = new Map((patients || []).map((patient) => [patient.id, patient]));
       const deliveryById = new Map(deliveries.map((delivery) => [delivery.id, delivery]));
 
-      const transactionRowsBase = (paymentsData.soldCatalogItems || []).map((item, index) => {
+      const transactionRowsBase = squareTransactions
+        .filter((transaction) => transaction?.status !== "pending")
+        .map((transaction, index) => {
+          const parsed = parseSquareItemName(transaction.item_name);
+          const delivery = transaction.delivery_id ? deliveryById.get(transaction.delivery_id) : null;
+          const locationId = transaction.location_id || locationIdByStoreId.get(transaction.store_id) || "";
+          const inferredStore = storeById.get(transaction.store_id) || storeByLocationId.get(locationId) || (parsed?.store_abbreviation ? storeByAbbreviation.get(parsed.store_abbreviation) : null);
+          const amountCents = Number(transaction.amount_cents ?? toAmountCents(transaction.amount));
+
+          return {
+            id: `tx-${transaction.id || transaction.square_payment_id || index}`,
+            itemName: transaction.item_name || "Unnamed Transaction",
+            date: normalizeDate(delivery?.delivery_date || parsed?.delivery_date || transaction.updated_date || transaction.created_date),
+            locationId,
+            storeId: inferredStore?.id || transaction.store_id || "",
+            storeName: inferredStore?.name || "Unknown Store",
+            amountCents,
+            amountLabel: formatCurrencyFromCents(amountCents),
+            paymentId: transaction.square_payment_id || "",
+            orderId: transaction.square_transaction_id || "",
+          };
+        });
+
+      const catalogRowsBase = squareCatalogItems.map((item, index) => {
         const parsed = parseSquareItemName(item.item_name);
-        const inferredStore = parsed?.store_abbreviation ? storeByAbbreviation.get(parsed.store_abbreviation) : null;
-        const locationId = item.location_id || locationIdByStoreId.get(inferredStore?.id) || "";
-        const amountCents = toAmountCents(item.amount);
-
-        return {
-          id: `tx-${item.payment_id || item.order_id || index}`,
-          itemName: item.item_name || "Unnamed Transaction",
-          date: normalizeDate(parsed?.delivery_date || item.payment_date),
-          locationId,
-          storeId: inferredStore?.id || "",
-          storeName: inferredStore?.name || storeByLocationId.get(locationId)?.name || "Unknown Store",
-          amountCents,
-          amountLabel: formatCurrencyFromCents(amountCents),
-          paymentId: item.payment_id || "",
-          orderId: item.order_id || "",
-        };
-      });
-
-      const catalogRowsBase = (codData.catalogItems || []).map((item, index) => {
-        const parsed = parseSquareItemName(item.name || item.item_name);
         const delivery = item.delivery_id ? deliveryById.get(item.delivery_id) : null;
         const locationId = item.location_id || "";
-        const store = storeByLocationId.get(locationId) || storeByAbbreviation.get(parsed?.store_abbreviation || "");
-        const amountCents = Number(item.price_cents ?? item.amount_cents ?? 0);
+        const store = storeById.get(item.store_id) || storeByLocationId.get(locationId) || storeByAbbreviation.get(parsed?.store_abbreviation || "");
+        const amountCents = Number(item.amount_cents ?? toAmountCents(item.amount));
 
         return {
-          id: `catalog-${item.catalog_object_id || index}`,
-          itemName: item.name || item.item_name || "Unnamed Catalog Item",
-          date: normalizeDate(item.delivery_date || delivery?.delivery_date || parsed?.delivery_date),
+          id: `catalog-${item.square_catalog_object_id || item.id || index}`,
+          itemName: item.item_name || "Unnamed Catalog Item",
+          date: normalizeDate(item.delivery_date || delivery?.delivery_date || parsed?.delivery_date || item.updated_date || item.created_date),
           locationId,
-          storeId: store?.id || delivery?.store_id || "",
+          storeId: store?.id || delivery?.store_id || item.store_id || "",
           storeName: store?.name || "Unknown Store",
           amountCents,
           amountLabel: formatCurrencyFromCents(amountCents),
-          catalogObjectId: item.catalog_object_id || "",
+          catalogObjectId: item.square_catalog_object_id || "",
           status: item.status || "active",
         };
       });
@@ -169,13 +190,8 @@ export default function SquareSyncAudit() {
   const handleReconciliation = async () => {
     setIsReconciling(true);
     try {
-      const response = await squareSyncCatalogItems({ skipLock: true });
-      const data = response?.data || response || {};
-      if (!data.success) {
-        throw new Error(data.error || "Reconciliation failed");
-      }
-      toast.success("Square reconciliation completed");
       await loadAuditData();
+      toast.success("Square reconciliation completed");
     } catch (error) {
       console.error("Square reconciliation failed:", error);
       toast.error(error?.message || "Failed to trigger reconciliation");
