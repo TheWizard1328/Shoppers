@@ -1004,9 +1004,6 @@ async function handleSyncCatalogItems(base44) {
       itemsToDelete.push(existingPending.square_catalog_object_id);
     }
 
-    const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
-    const hasCollectedPayment = codPayments.some((payment) => ['Cash', 'Debit', 'Credit', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
-      || ['Cash', 'Debit', 'Credit', 'Check'].includes(delivery?.cod_payment_type);
     const hasCollectedCard = hasCollectedCardPayment(delivery);
     const readyToCloseCollectedCard = delivery.status === 'completed' && hasCollectedCard;
     const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled';
