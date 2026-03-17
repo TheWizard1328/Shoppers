@@ -40,9 +40,10 @@ export default function SquareSyncAudit() {
     setIsLoading(true);
 
     try {
-      const [locationConfigs, stores, deliveriesResponse] = await Promise.all([
+      const [locationConfigs, stores, patients, deliveriesResponse] = await Promise.all([
         base44.entities.SquareLocationConfig.filter({ status: "active" }),
         base44.entities.Store.list(),
+        base44.entities.Patient.list(),
         base44.entities.Delivery.filter({
           delivery_date: {
             $gte: range.startDate,
@@ -64,6 +65,7 @@ export default function SquareSyncAudit() {
       );
 
       const { locationIdByStoreId, storeByLocationId, storeById, storeByAbbreviation } = buildStoreMaps(stores || [], locationConfigs || []);
+      const patientById = new Map((patients || []).map((patient) => [patient.id, patient]));
       const deliveryById = new Map(deliveries.map((delivery) => [delivery.id, delivery]));
 
       const transactionRowsBase = (paymentsData.soldCatalogItems || []).map((item, index) => {
@@ -110,7 +112,11 @@ export default function SquareSyncAudit() {
       const deliveryRowsBase = deliveries.map((delivery) => {
         const locationId = locationIdByStoreId.get(delivery.store_id) || "";
         const store = storeById.get(delivery.store_id);
+        const patient = patientById.get(delivery.patient_id);
         const amountCents = toAmountCents(delivery.cod_total_amount_required);
+        const exportReference = store?.abbreviation && patient?.full_name
+          ? `${String(delivery.delivery_date || "").slice(5, 7)}/${String(delivery.delivery_date || "").slice(8, 10)}(${store.abbreviation})-${patient.full_name}`
+          : delivery.delivery_id || delivery.id;
 
         return {
           id: `delivery-${delivery.id}`,
@@ -122,6 +128,7 @@ export default function SquareSyncAudit() {
           amountCents,
           amountLabel: formatCurrencyFromCents(amountCents),
           deliveryId: delivery.id,
+          exportReference,
           status: delivery.status || "pending",
         };
       });
@@ -210,15 +217,14 @@ export default function SquareSyncAudit() {
         },
         {
           title: "In-App COD Deliveries",
-          headers: ["Date", "Store", "Square Location ID", "Amount", "Delivery ID", "Status", "Reference", "Issues"],
+          headers: ["Date", "Store", "Square Location ID", "Amount", "Reference", "Status", "Issues"],
           rows: tables.deliveries.map((row) => [
             row.date,
             row.storeName,
             row.locationId,
             row.amountLabel,
-            row.deliveryId,
+            row.exportReference,
             row.status,
-            row.itemName,
             row.issues.join(" | "),
           ]),
         },
