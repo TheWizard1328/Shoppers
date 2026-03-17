@@ -48,7 +48,9 @@ export default function StopCardPOD({
       });
       const results = await Promise.all(uploadPromises);
       const newPhotoUrls = results.map((r) => r.file_url);
-      const existingPhotos = delivery.proof_photo_urls || [];
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const latestDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id);
+      const existingPhotos = latestDelivery?.proof_photo_urls || delivery.proof_photo_urls || [];
       await updateDeliveryLocal(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
       setShowPhotoCapture(false);
       invalidate('Delivery');
