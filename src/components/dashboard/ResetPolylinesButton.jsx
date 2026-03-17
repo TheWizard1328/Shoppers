@@ -81,6 +81,7 @@ export default function ResetPolylinesButton({
           base44.functions.invoke("purgeAndRegeneratePolylines", {
             driverId,
             deliveryDate: selectedDate,
+            scope: "all",
           })
         )
       );

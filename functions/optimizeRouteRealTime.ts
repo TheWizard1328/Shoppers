@@ -484,7 +484,7 @@ Deno.serve(async (req) => {
     }
 
     try {
-      await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate });
+      await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate, scope: 'active_only' });
       console.log('🧹 [optimizeRouteRealTime] Polylines purged and regenerated');
     } catch (polylineError) {
       console.warn('[optimizeRouteRealTime] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
