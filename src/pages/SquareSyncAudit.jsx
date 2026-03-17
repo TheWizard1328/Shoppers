@@ -182,10 +182,10 @@ export default function SquareSyncAudit() {
       [
         {
           title: "Collected Square Transactions",
-          headers: ["Date", "Store ID", "Square Location ID", "Amount", "Item Name", "Payment ID", "Order ID", "Issues"],
+          headers: ["Date", "Store", "Square Location ID", "Amount", "Item Name", "Payment ID", "Order ID", "Issues"],
           rows: tables.transactions.map((row) => [
             row.date,
-            row.storeId,
+            row.storeName,
             row.locationId,
             row.amountLabel,
             row.itemName,
@@ -196,10 +196,10 @@ export default function SquareSyncAudit() {
         },
         {
           title: "Current Square Catalog Items",
-          headers: ["Date", "Store ID", "Square Location ID", "Amount", "Item Name", "Catalog Object ID", "Status", "Issues"],
+          headers: ["Date", "Store", "Square Location ID", "Amount", "Item Name", "Catalog Object ID", "Status", "Issues"],
           rows: tables.catalogItems.map((row) => [
             row.date,
-            row.storeId,
+            row.storeName,
             row.locationId,
             row.amountLabel,
             row.itemName,
@@ -210,10 +210,10 @@ export default function SquareSyncAudit() {
         },
         {
           title: "In-App COD Deliveries",
-          headers: ["Date", "Store ID", "Square Location ID", "Amount", "Delivery ID", "Status", "Reference", "Issues"],
+          headers: ["Date", "Store", "Square Location ID", "Amount", "Delivery ID", "Status", "Reference", "Issues"],
           rows: tables.deliveries.map((row) => [
             row.date,
-            row.storeId,
+            row.storeName,
             row.locationId,
             row.amountLabel,
             row.deliveryId,
