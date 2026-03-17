@@ -140,7 +140,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const lastPropUpdateRef = useRef(0);
   const markersRef = useRef({});
   const prevVisibleIdsRef = useRef(new Set());
-  const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
+  const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
 
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
   const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
@@ -153,7 +153,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const currentUserId = currentUser?.id;
     const currentUserUserId = currentUser?.user_id;
     const userId = user.id || user.user_id;
-    const isSelf = user._isSelf === true || 
+    const isSelf = user.isSelf === true ||
+                   user._isSelf === true || 
                    userId === currentUserId || 
                    userId === currentUserUserId ||
                    user.user_id === currentUserId;
@@ -298,7 +299,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const userKey = getDriverIdentityKey(user);
         console.log(`🔔 [DriverMarkers] Single update - ${user.user_name}, coords: ${user.current_latitude}, ${user.current_longitude}, time: ${user.location_updated_at}`);
         
-        if (user.current_latitude && user.current_longitude) {
+        if (user.current_latitude && user.current_longitude && shouldShowMarker(user)) {
           setVisibleDrivers(prev => {
             const nextDrivers = prev.filter((driver) => (getDriverIdentityKey(driver) || driver?.id) !== userKey);
             console.log(`✏️ [DriverMarkers] Upserting marker for ${user.user_name}`);
@@ -530,7 +531,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const currentUserId = currentUser?.id;
         const currentUserUserId = currentUser?.user_id;
         const userId = user.id || user.user_id;
-        const isSelf = userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
+        const isSelf = user.isSelf === true || user._isSelf === true || userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
         const isSharedLocation = isSelf && !isPrimaryDevice;
 
         // Use user.id as stable key to prevent flickering during updates
