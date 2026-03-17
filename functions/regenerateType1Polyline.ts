@@ -203,6 +203,18 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'missing_next_stop_coordinates' });
     }
 
+    const exactExistingType1 = (existingPolylines || []).find((row) =>
+      round5(row?.segment_origin_lat) === round5(currentLat) &&
+      round5(row?.segment_origin_lon) === round5(currentLon) &&
+      round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
+      round5(row?.segment_dest_lon) === round5(nextStopCoords.lon) &&
+      typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0
+    ) || null;
+
+    if (exactExistingType1) {
+      return Response.json({ success: true, skipped: true, reason: 'cached_exact_segment', driverId, deliveryDate, nextStopId: nextActiveStop.id });
+    }
+
     const existingType1 = (existingPolylines || []).find((row) =>
       round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
       round5(row?.segment_dest_lon) === round5(nextStopCoords.lon)

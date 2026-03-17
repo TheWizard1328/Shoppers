@@ -23,6 +23,21 @@ function clearLegacyHereLocalStorageCache() {
 
 clearLegacyHereLocalStorageCache();
 
+function round5(value) {
+  return Number(Number(value).toFixed(5));
+}
+
+function buildSegmentKey(fromStop, toStop) {
+  return `${round5(fromStop.latitude)}_${round5(fromStop.longitude)}_${round5(toStop.latitude)}_${round5(toStop.longitude)}`;
+}
+
+function findLatestExactOfflineSegment(rows, fromStop, toStop) {
+  const targetKey = buildSegmentKey(fromStop, toStop);
+  return (rows || [])
+    .filter((row) => row?.encoded_polyline && `${round5(row.segment_origin_lat)}_${round5(row.segment_origin_lon)}_${round5(row.segment_dest_lat)}_${round5(row.segment_dest_lon)}` === targetKey)
+    .sort((a, b) => new Date(b.last_generated_at || b.updated_date || 0).getTime() - new Date(a.last_generated_at || a.updated_date || 0).getTime())[0] || null;
+}
+
 // Clear route cache for a specific segment
 export function clearHereCacheForSegment(from, to) {
   try {
@@ -363,29 +378,16 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
   // in-flight dedupe handled earlier above (no-op here)
 
-  // Try offline DB cache before hitting network/entity (indexed by delivery_date for speed)
+  // Try offline DB cache before hitting network/entity
   try {
-    const rounded = (n) => Number(n.toFixed(5));
-    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
-    const parts = formatter.formatToParts(new Date());
-    const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
-    const deliveryDateSafe = deliveryDate || todayStr;
-
-    const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDateSafe);
-    if (Array.isArray(rows) && rows.length) {
-      const rec = rows.find(r => r.driver_id === driverId &&
-        Number(r.segment_origin_lat)?.toFixed(5) === rounded(fromStop.latitude).toFixed(5) &&
-        Number(r.segment_origin_lon)?.toFixed(5) === rounded(fromStop.longitude).toFixed(5) &&
-        Number(r.segment_dest_lat)?.toFixed(5) === rounded(toStop.latitude).toFixed(5) &&
-        Number(r.segment_dest_lon)?.toFixed(5) === rounded(toStop.longitude).toFixed(5)
-      );
-      if (rec?.encoded_polyline) {
-        const coords = decodeGooglePolyline(rec.encoded_polyline);
-        if (Array.isArray(coords) && coords.length > 1) {
-          memoryCache.set(cacheKey, coords);
-          fetchingKeys.delete(cacheKey);
-          return coords;
-        }
+    const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+    const rec = findLatestExactOfflineSegment(rows, fromStop, toStop);
+    if (rec?.encoded_polyline) {
+      const coords = decodeGooglePolyline(rec.encoded_polyline);
+      if (Array.isArray(coords) && coords.length > 1) {
+        memoryCache.set(cacheKey, coords);
+        fetchingKeys.delete(cacheKey);
+        return coords;
       }
     }
   } catch (e) {
