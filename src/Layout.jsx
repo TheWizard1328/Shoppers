@@ -1147,7 +1147,7 @@ export default function Layout({ children, currentPageName }) {
 
   // Initialize background sync manager
   useEffect(() => {
-    if (!currentUser || !dataLoaded) return;
+    if (!currentUser || !dataLoaded || currentPageName !== 'Dashboard') return backgroundSyncManager.stop();
 
     // Start background sync manager after data is loaded
     const startBackgroundSync = async () => {
