@@ -66,6 +66,24 @@ const dedupeById = (items) => {
   return Array.from(map.values());
 };
 
+const getAppUserTimestamp = (user) => {
+  const value = user?.location_updated_at || user?.updated_date || user?.created_date;
+  return value ? new Date(value).getTime() : 0;
+};
+
+const mergeAppUsersByFreshness = (currentUsers = [], incomingUsers = []) => {
+  const merged = new Map((currentUsers || []).map((user) => [user?.id || user?.user_id, user]).filter(([key]) => !!key));
+  (incomingUsers || []).forEach((user) => {
+    const key = user?.id || user?.user_id;
+    if (!key) return;
+    const existing = merged.get(key);
+    if (!existing || getAppUserTimestamp(user) >= getAppUserTimestamp(existing)) {
+      merged.set(key, existing ? { ...existing, ...user } : user);
+    }
+  });
+  return Array.from(merged.values());
+};
+
 export default function DeliveryMap({
   deliveries = [],
   allDeliveriesForDate = [],
@@ -145,7 +163,9 @@ export default function DeliveryMap({
   });
 
   useEffect(() => {
-    if (Array.isArray(users) && users.length > 0) setRealtimeAppUsers(users);
+    if (Array.isArray(users) && users.length > 0) {
+      setRealtimeAppUsers((prev) => mergeAppUsersByFreshness(prev, users));
+    }
   }, [users]);
 
   useEffect(() => {
@@ -162,14 +182,7 @@ export default function DeliveryMap({
     const handleDriverLocationUpdate = (event) => {
       const appUsers = event?.detail?.appUsers;
       if (!Array.isArray(appUsers) || appUsers.length === 0) return;
-      setRealtimeAppUsers((prev) => {
-        const next = new Map((prev || []).map((user) => [user?.id || user?.user_id, user]));
-        appUsers.forEach((user) => {
-          const key = user?.id || user?.user_id;
-          if (key) next.set(key, { ...(next.get(key) || {}), ...user });
-        });
-        return Array.from(next.values());
-      });
+      setRealtimeAppUsers((prev) => mergeAppUsersByFreshness(prev, appUsers));
     };
 
     const handleDeliveriesUpdate = () => {
