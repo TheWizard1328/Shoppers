@@ -176,6 +176,7 @@ export default function SquareSyncAudit() {
     } catch (error) {
       console.error("Square COD audit load failed:", error);
       toast.error(error?.message || "Failed to load Square COD audit data");
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -183,7 +184,7 @@ export default function SquareSyncAudit() {
 
   React.useEffect(() => {
     if (!isLoadingUser && currentUser && isAppOwner(currentUser)) {
-      loadAuditData();
+      loadAuditData().catch(() => {});
     }
   }, [currentUser, isLoadingUser, loadAuditData]);
 
