@@ -1,6 +1,6 @@
 import { offlineDB } from './offlineDatabase';
 
-const LOOKBACK_DAYS = 14;
+const LOOKBACK_DAYS = 30;
 const SQUARE_COD_STORES = {
   CATALOG_ITEMS: offlineDB.STORES.SQUARE_CATALOG_ITEMS,
   PAYMENT_TRANSACTIONS: offlineDB.STORES.SQUARE_TRANSACTIONS

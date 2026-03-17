@@ -2,7 +2,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
-const LOOKBACK_DAYS = 14;
+const CATALOG_LOOKBACK_DAYS = 14;
+const TRANSACTION_RETENTION_DAYS = 30;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -33,12 +34,16 @@ function formatItemName(deliveryDate, storeAbbreviation, patientName) {
 function isRecentDelivery(deliveryDate) {
   if (!deliveryDate) return false;
   const deliveryTime = new Date(`${deliveryDate}T00:00:00Z`).getTime();
-  const cutoff = Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
   return Number.isFinite(deliveryTime) && deliveryTime >= cutoff;
 }
 
 function getLookbackStartAt() {
-  return new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  return new Date(Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function getTransactionRetentionStartMs() {
+  return Date.now() - TRANSACTION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 }
 
 function hasCollectedCardPayment(delivery) {
@@ -1002,7 +1007,7 @@ async function handleSyncCatalogItems(base44) {
     const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
     const hasCollectedPayment = codPayments.some((payment) => ['Cash', 'Debit', 'Credit', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
       || ['Cash', 'Debit', 'Credit', 'Check'].includes(delivery?.cod_payment_type);
-    const readyToCloseCollectedCard = delivery.status === 'completed' && hasCollectedCardPayment(delivery);
+    const readyToCloseCollectedPayment = delivery.status === 'completed' && hasCollectedPayment;
     const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled';
 
     if (shouldDeleteForInvalidState) {
@@ -1021,7 +1026,7 @@ async function handleSyncCatalogItems(base44) {
     }
 
     if (paidMatches.length || isPaidByCatalogObjectId || isPaidByDirectCatalogMatch || hasCollectedPayment) {
-      if (readyToCloseCollectedCard) {
+      if (readyToCloseCollectedPayment) {
         if (catalogItem) itemsToDelete.push(catalogItem.id);
         for (const transaction of existingTransactions) {
           if (transaction.status === 'pending') transactionsToComplete.push(transaction.id);
@@ -1101,10 +1106,20 @@ async function handleSyncCatalogItems(base44) {
   }
 
   const allTransactionsAfterSync = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000);
-  const lookbackStartMs = new Date(lookbackStartAt).getTime();
+  const transactionsToRemoveFromCatalog = (allTransactionsAfterSync || [])
+    .filter((transaction) => transaction?.square_catalog_object_id)
+    .filter((transaction) => transaction?.status === 'completed' || transaction?.status === 'refunded' || isOfflineCollectedPaymentMethod(transaction?.payment_method));
+  const extraCatalogIdsToDelete = Array.from(new Set(transactionsToRemoveFromCatalog.map((transaction) => transaction.square_catalog_object_id).filter(Boolean)))
+    .filter((catalogId) => !uniqueItemIdsToDelete.includes(catalogId));
+
+  if (extraCatalogIdsToDelete.length) {
+    await deleteCatalogObjects(extraCatalogIdsToDelete, accessToken);
+  }
+
+  const transactionRetentionStartMs = getTransactionRetentionStartMs();
   const staleTransactions = (allTransactionsAfterSync || []).filter((transaction) => {
     const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
-    return Number.isFinite(transactionTime) && transactionTime < lookbackStartMs;
+    return Number.isFinite(transactionTime) && transactionTime < transactionRetentionStartMs;
   });
 
   for (const transaction of staleTransactions) {
@@ -1115,7 +1130,7 @@ async function handleSyncCatalogItems(base44) {
   const syncedCatalogTransactions = (allTransactionsAfterSync || [])
     .filter((transaction) => !staleIds.has(transaction.id))
     .filter((transaction) => transaction?.square_catalog_object_id)
-    .filter((transaction) => transaction?.status === 'pending' || (transaction?.status === 'completed' && isOfflineCollectedPaymentMethod(transaction?.payment_method)));
+    .filter((transaction) => transaction?.status === 'pending');
   const existingSquareCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
   for (const record of existingSquareCatalogItems || []) {
     await base44.asServiceRole.entities.SquareCatalogItems.delete(record.id);

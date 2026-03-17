@@ -382,20 +382,24 @@ export default function SquareManagement() {
     if (!itemName) return null;
     
     try {
-      // Extract date (MM/DD or MM-DD)
       const dateMatch = itemName.match(/^(\d{2})[\/-](\d{2})/);
       if (!dateMatch) return null;
       
-      const month = dateMatch[1];
-      const day = dateMatch[2];
-      const currentYear = new Date().getFullYear();
-      const deliveryDate = `${currentYear}-${month}-${day}`;
+      const month = Number(dateMatch[1]);
+      const day = Number(dateMatch[2]);
+      const today = new Date();
+      const inferredDate = new Date(today.getFullYear(), month - 1, day);
+      const msInDay = 24 * 60 * 60 * 1000;
+
+      if (inferredDate.getTime() - today.getTime() > 45 * msInDay) {
+        inferredDate.setFullYear(inferredDate.getFullYear() - 1);
+      }
+
+      const deliveryDate = format(inferredDate, 'yyyy-MM-dd');
       
-      // Extract store abbreviation (inside parentheses)
       const storeMatch = itemName.match(/\(([^)]+)\)/);
       const storeAbbr = storeMatch ? storeMatch[1] : null;
       
-      // Extract patient name (after dash)
       const nameMatch = itemName.match(/\)-(.+)$/);
       const patientName = nameMatch ? nameMatch[1].trim() : null;
       
