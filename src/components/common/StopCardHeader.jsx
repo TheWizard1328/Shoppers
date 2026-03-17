@@ -84,7 +84,7 @@ export default function StopCardHeader({
       delivery?.id,
       delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--"
     );
-    return <span className="font-medium">ETA: {formatTime12Hour(eta)}</span>;
+    return <span className="text-sm font-bold">ETA: {formatTime12Hour(eta)}</span>;
   })();
 
   const statusLabel = isReturnDelivery ? "Return" : statusConfig[delivery?.status]?.label || delivery?.status;
@@ -122,7 +122,7 @@ export default function StopCardHeader({
   return (
     <>
       {/* Left badges column */}
-      <div className="my-0.5 mt-0 mb-1 flex flex-col items-center gap-1.5">
+      <div className="my-0.5 mt-0 mb-1 flex flex-col items-center gap-1.0">
         <Badge
           variant="secondary"
           className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors w-[40px] justify-center"
@@ -148,7 +148,7 @@ export default function StopCardHeader({
         <h3 className="pt-0 text-xl font-semibold text-center truncate" style={{ color: "var(--text-slate-900)" }}>
           {finalDisplayName}
         </h3>
-        <div className="flex flex-col items-center min-h-[50px]">
+        <div className="flex flex-col items-center min-h-[35px]">
           <div className="text-lg flex items-center justify-center" style={{ color: timeColor }}>
             {timeDisplay}
             {showDriverName && safeDriver &&
@@ -169,7 +169,7 @@ export default function StopCardHeader({
 
           {/* Time window for active stops */}
           {!isFinished && (delivery?.delivery_time_start || delivery?.delivery_time_end) &&
-          <div className="text-sm" style={{ color: "var(--text-slate-500)" }}>
+          <div className="text-xs" style={{ color: "var(--text-slate-500)" }}>
               {delivery?.delivery_time_start && delivery?.delivery_time_end ?
             <>
                   {formatTime12Hour(delivery.delivery_time_start)} → {formatTime12Hour(delivery.delivery_time_end)}
@@ -187,7 +187,7 @@ export default function StopCardHeader({
       </div>
 
       {/* Right column */}
-      <div className="my-0.5 mt-0 mb-1 flex flex-col items-center gap-1.5">
+      <div className="my-0.5 mt-0 mb-1 flex flex-col items-center gap-1.0">
         <div className="flex items-center gap-1">
           <Badge
             variant="secondary"
