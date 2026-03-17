@@ -1704,7 +1704,7 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
       window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
     };
-  }, [currentUser]);
+  }, [currentUser, currentPageName]);
 
   // Recalculate COD total whenever catalog items or user changes
   useEffect(() => {
