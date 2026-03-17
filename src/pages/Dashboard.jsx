@@ -1729,60 +1729,24 @@ function Dashboard() {
     return () => {clearTimeout(initialDelay);clearInterval(interval);};
   }, [isDataLoaded, currentUser?.id, isFiltersReady, deliveries, patients, stores, cities, appUsers, drivers, selectedDate, showAllDriverMarkers, showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant]);
 
-  // CRITICAL: Listen for real-time AppUser location updates from other drivers
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
-      const { appUsers: updatedAppUsers, singleUpdate, fromRealtime, forceAll, fromPoller, mergeMode } = event.detail || {};
-
-      // CRITICAL: Skip if this event came from the poller itself (prevent infinite loop)
-      if (fromPoller === true) {
-        return;
-      }
-
-      if (!updatedAppUsers || !Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) {
-        return;
-      }
-
-      // CRITICAL: If mergeMode='merge', merge this update with existing appUsers to preserve other drivers
+      const { appUsers: updatedAppUsers, fromPoller, mergeMode } = event.detail || {};
+      if (fromPoller || !Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) return;
       let appUsersToProcess = updatedAppUsers;
-      if (mergeMode === 'merge' && appUsers && appUsers.length > 0) {
-        // Create a map of updated drivers by user_id
-        const updatedMap = new Map();
-        updatedAppUsers.forEach((au) => {
-          if (au?.user_id) updatedMap.set(au.user_id, au);
-        });
-
-        // Merge: keep existing drivers, replace only those that were updated
-        appUsersToProcess = appUsers.map((au) => {
-          if (au?.user_id && updatedMap.has(au.user_id)) {
-            return updatedMap.get(au.user_id);
-          }
-          return au;
-        });
-
-        // Add any new drivers that weren't in existing list
-        updatedAppUsers.forEach((au) => {
-          if (au?.user_id && !appUsers.some((existing) => existing?.user_id === au.user_id)) {
-            appUsersToProcess.push(au);
-          }
-        });
-
+      if (mergeMode === 'merge' && appUsers?.length) {
+        const updatedMap = new Map(updatedAppUsers.filter((au) => au?.user_id).map((au) => [au.user_id, au]));
+        appUsersToProcess = appUsers.map((au) => updatedMap.get(au?.user_id) || au);
+        updatedAppUsers.forEach((au) => { if (au?.user_id && !appUsers.some((existing) => existing?.user_id === au.user_id)) appUsersToProcess.push(au); });
       }
-
-      // CRITICAL: Process through poller to update markers
-      driverLocationPoller.processLocationData(
-        currentUser,
-        deliveries,
-        drivers,
-        stores,
-        appUsersToProcess,
-        selectedDate,
-        true, // forceNotify
-        'Dashboard',
-        showAllDriverMarkers
-      );
+      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
+      const phase = mapViewPhaseRef.current, now = Date.now();
+      if (format(selectedDate, 'yyyy-MM-dd') === getEdmDate() && isMapViewLockedRef.current && (phase === 2 || phase === 3) && now - lastProgrammaticMapMoveRef.current >= (phase === 2 ? 1200 : 1800)) {
+        lastProgrammaticMapMoveRef.current = now;
+        window._lastProgrammaticMapMove = now;
+        setMapViewTrigger((prev) => prev + 1);
+      }
     };
-
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
   }, [currentUser, deliveries, drivers, stores, selectedDate, showAllDriverMarkers, appUsers]);
