@@ -329,7 +329,7 @@ export default function IntegrationCreditsTab() {
               <tbody>
                 {logs.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-slate-500">No integration usage has been logged yet.</td>
+                    <td colSpan={8} className="p-6 text-center text-slate-500">No integration usage has been logged yet.</td>
                   </tr>
                 )}
                 {logs.map((log) => (
