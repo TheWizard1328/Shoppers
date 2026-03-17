@@ -657,32 +657,29 @@ export default function DeliveryForm({
       patient.notes?.toLowerCase().includes(searchLower);
     });
 
-    // Sort: Inactive to bottom, staged to bottom, (Temp to bottom, then by recent delivery
+    // Sort: Inactive to bottom, staged to bottom, (Temp to bottom, then admin nearest-store distance, then recent delivery
     results.sort((a, b) => {
-      // Inactive patients always to the bottom
-      const aIsInactive = a.status === 'inactive';
-      const bIsInactive = b.status === 'inactive';
-      if (!aIsInactive && bIsInactive) return -1;
-      if (aIsInactive && !bIsInactive) return 1;
+      const aIsInactive = a.status === 'inactive', bIsInactive = b.status === 'inactive';
+      if (aIsInactive !== bIsInactive) return aIsInactive ? 1 : -1;
 
-      const aIsStaged = stagedPatientIds.has(a.id);
-      const bIsStaged = stagedPatientIds.has(b.id);
-      
-      // Staged items to the bottom
-      if (aIsStaged && !bIsStaged) return 1;
-      if (!aIsStaged && bIsStaged) return -1;
-      
+      const aIsStaged = stagedPatientIds.has(a.id), bIsStaged = stagedPatientIds.has(b.id);
+      if (aIsStaged !== bIsStaged) return aIsStaged ? 1 : -1;
+
       const aIsTemp = a.full_name?.toLowerCase().includes('(temp') || false;
       const bIsTemp = b.full_name?.toLowerCase().includes('(temp') || false;
+      if (aIsTemp !== bIsTemp) return aIsTemp ? 1 : -1;
 
-      // (Temp items always to the bottom
-      if (aIsTemp && !bIsTemp) return 1;
-      if (!aIsTemp && bIsTemp) return -1;
+      if (userHasRole(currentUser, 'admin')) {
+        const getNearestStoreDistance = (patient) => (stores || []).reduce((nearest, store) => {
+          const distance = store && store.status !== 'inactive' ? calculateDistance(patient?.latitude, patient?.longitude, store?.latitude, store?.longitude) : null;
+          return distance === null ? nearest : Math.min(nearest, distance);
+        }, Infinity);
+        const distanceDiff = getNearestStoreDistance(a) - getNearestStoreDistance(b);
+        if (distanceDiff !== 0) return distanceDiff;
+      }
 
-      // Sort by most recent delivery date (descending)
       const aDate = a.last_delivery_date ? new Date(a.last_delivery_date).getTime() : 0;
       const bDate = b.last_delivery_date ? new Date(b.last_delivery_date).getTime() : 0;
-
       return bDate - aDate;
     });
 
