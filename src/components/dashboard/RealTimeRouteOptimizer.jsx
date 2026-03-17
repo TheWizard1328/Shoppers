@@ -90,6 +90,15 @@ export default function RealTimeRouteOptimizer({
       const data = response?.data || response;
 
       if (data?.success) {
+        base44.analytics.track({
+          eventName: "route_optimization_run",
+          properties: {
+            source: "realtime_optimizer",
+            success: true,
+            route_changed: Boolean(data.routeChanged),
+            optimized_stop_count: Number(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)
+          }
+        });
         console.log(`✅ [RealTimeRouteOptimizer] Route ${data.routeChanged ? 'OPTIMIZED' : 'unchanged'}`);
         
         if (data.routeChanged) {
@@ -139,6 +148,13 @@ export default function RealTimeRouteOptimizer({
         }
       }
     } catch (error) {
+      base44.analytics.track({
+        eventName: "route_optimization_run",
+        properties: {
+          source: "realtime_optimizer",
+          success: false
+        }
+      });
       console.error('❌ [RealTimeRouteOptimizer] Error:', error);
     } finally {
       showUIRef.current = false;

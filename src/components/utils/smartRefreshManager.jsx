@@ -67,6 +67,7 @@ class LightweightRefreshManager {
 
     this.isRefreshing = false;
     this.refreshCallbacks = new Set();
+    this.lastTrackedRefreshAt = 0;
   }
 
   /**
@@ -541,6 +542,20 @@ class LightweightRefreshManager {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
         
+        const previousTrackedAt = this.lastTrackedRefreshAt;
+        const trackedAt = Date.now();
+        base44.analytics.track({
+          eventName: "driver_location_refresh_run",
+          properties: {
+            success: true,
+            force_notify: Boolean(forceNotify),
+            immediate: Boolean(immediate),
+            app_user_count: Number(freshAppUsers.length),
+            interval_since_last_refresh_ms: previousTrackedAt ? trackedAt - previousTrackedAt : 0
+          }
+        });
+        this.lastTrackedRefreshAt = trackedAt;
+        
         // Update current user dependent UI
         window.dispatchEvent(new CustomEvent('refreshCurrentUserFromSmartRefresh', {
           detail: { updatedAppUsers: freshAppUsers }
@@ -552,6 +567,14 @@ class LightweightRefreshManager {
       
       return { hasChanges: false, appUsers: currentAppUsers };
     } catch (error) {
+      base44.analytics.track({
+        eventName: "driver_location_refresh_run",
+        properties: {
+          success: false,
+          force_notify: Boolean(forceNotify),
+          immediate: Boolean(immediate)
+        }
+      });
       this.recordError();
       // Exponential backoff: 1m → 2m → 5m, reset on success
       const next = this.driverRefreshBackoffMs === 0 ? 60000 : (this.driverRefreshBackoffMs === 60000 ? 120000 : 300000);

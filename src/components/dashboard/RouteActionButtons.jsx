@@ -62,6 +62,15 @@ export default function RouteActionButtons({
             });
             const data = response?.data || response;
             if (data?.success) {
+              base44.analytics.track({
+                eventName: "route_optimization_run",
+                properties: {
+                  source: "manual_fab",
+                  success: true,
+                  route_changed: Boolean(data.routeChanged),
+                  optimized_stop_count: Number(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)
+                }
+              });
               setOptimizationMessage(`Route optimized! ${(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)} stops updated.`);
               refreshData().catch((error) => {
                 console.warn("⚠️ [handleReoptimizeRoute] Background refresh failed:", error?.message || error);
@@ -76,6 +85,13 @@ export default function RouteActionButtons({
               setTimeout(() => setOptimizationMessage(null), 5000);
             }
           } catch (error) {
+            base44.analytics.track({
+              eventName: "route_optimization_run",
+              properties: {
+                source: "manual_fab",
+                success: false
+              }
+            });
             console.error("❌ [handleReoptimizeRoute] Error:", error);
             setOptimizationMessage(`Error: ${error.message}`);
             setTimeout(() => setOptimizationMessage(null), 5000);
