@@ -1161,7 +1161,7 @@ async function handleSyncCatalogItems(base44) {
     scanned_deliveries: relevantDeliveries.length,
     catalog_items_seen: catalogItems.length,
     paid_order_items_seen: paidOrderItems.length,
-    deleted_catalog_items: uniqueItemIdsToDelete.length,
+    deleted_catalog_items: uniqueItemIdsToDelete.length + extraCatalogIdsToDelete.length,
     cancelled_transactions: Array.from(new Set(transactionsToCancel.filter(Boolean))).length,
     completed_transactions: Array.from(new Set(transactionsToComplete.filter(Boolean))).length,
     created_catalog_items: createdCount,
