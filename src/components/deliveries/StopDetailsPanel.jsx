@@ -41,6 +41,7 @@ import ImageViewer from "../common/ImageViewer";
 import BarcodeThumb from "./BarcodeThumb";
 import BarcodeOverlay from "./BarcodeOverlay";
 import { base44 } from "@/api/base44Client";
+import { updateDeliveryLocal } from "../utils/entityMutations";
 import { calculateRealTimeETA } from "@/functions/calculateRealTimeETA";
 import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
 import { isRouteCompleted } from "../utils/routeCompletionChecker";
@@ -98,10 +99,11 @@ export default function StopDetailsPanel({
       setIsUpdating(true);
       const file = new File([blob], 'signature.png', { type: 'image/png' });
       const uploadResponse = await base44.integrations.Core.UploadFile({ file });
+      const fileUrl = uploadResponse?.file_url || uploadResponse?.data?.file_url;
       
-      if (uploadResponse?.data?.file_url) {
-        await base44.entities.Delivery.update(delivery.id, {
-          signature_image_url: uploadResponse.data.file_url
+      if (fileUrl) {
+        await updateDeliveryLocal(delivery.id, {
+          signature_image_url: fileUrl
         });
         setShowSignatureCapture(false);
       }
@@ -120,14 +122,15 @@ export default function StopDetailsPanel({
       for (const blob of photoBlobs) {
         const file = new File([blob], `proof-${Date.now()}.jpg`, { type: 'image/jpeg' });
         const uploadResponse = await base44.integrations.Core.UploadFile({ file });
-        if (uploadResponse?.data?.file_url) {
-          uploadedUrls.push(uploadResponse.data.file_url);
+        const fileUrl = uploadResponse?.file_url || uploadResponse?.data?.file_url;
+        if (fileUrl) {
+          uploadedUrls.push(fileUrl);
         }
       }
       
       if (uploadedUrls.length > 0) {
         const existingUrls = delivery.proof_photo_urls || [];
-        await base44.entities.Delivery.update(delivery.id, {
+        await updateDeliveryLocal(delivery.id, {
           proof_photo_urls: [...existingUrls, ...uploadedUrls]
         });
         setShowPhotoCapture(false);
@@ -143,7 +146,7 @@ export default function StopDetailsPanel({
     try {
       setIsUpdating(true);
       const updatedUrls = delivery.proof_photo_urls.filter((_, i) => i !== indexToDelete);
-      await base44.entities.Delivery.update(delivery.id, {
+      await updateDeliveryLocal(delivery.id, {
         proof_photo_urls: updatedUrls
       });
     } catch (error) {
@@ -156,7 +159,7 @@ export default function StopDetailsPanel({
   const clearSignature = async () => {
     try {
       setIsUpdating(true);
-      await base44.entities.Delivery.update(delivery.id, {
+      await updateDeliveryLocal(delivery.id, {
         signature_image_url: null
       });
     } catch (error) {

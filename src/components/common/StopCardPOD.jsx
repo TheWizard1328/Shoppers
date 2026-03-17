@@ -28,7 +28,8 @@ export default function StopCardPOD({
     try {
       const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
       const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureFile });
-      await updateDeliveryLocal(delivery.id, { signature_image_url: uploadResult.file_url });
+      const fileUrl = uploadResult?.file_url || uploadResult?.data?.file_url;
+      await updateDeliveryLocal(delivery.id, { signature_image_url: fileUrl });
       setShowSignatureCapture(false);
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -47,7 +48,7 @@ export default function StopCardPOD({
         return base44.integrations.Core.UploadFile({ file });
       });
       const results = await Promise.all(uploadPromises);
-      const newPhotoUrls = results.map((r) => r.file_url);
+      const newPhotoUrls = results.map((r) => r?.file_url || r?.data?.file_url).filter(Boolean);
       const { offlineDB } = await import('../utils/offlineDatabase');
       const latestDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id);
       const existingPhotos = latestDelivery?.proof_photo_urls || delivery.proof_photo_urls || [];
