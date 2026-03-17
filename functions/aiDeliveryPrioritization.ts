@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /***
- * AI-Driven Delivery Prioritization
+ * AI-Driven Delivery Prioritization.
  * 
  * Analyzes deliveries and suggests optimal route adjustments based on:
  * 1. Time window urgency (deliveries close to deadline get priority)
