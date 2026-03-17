@@ -8,7 +8,6 @@ export async function persistDeliveryProof(deliveryId, updates) {
   const mergedDelivery = {
     ...existingDelivery,
     ...backendDelivery,
-    ...updates,
     id: deliveryId,
     updated_date: backendDelivery?.updated_date || new Date().toISOString()
   };
