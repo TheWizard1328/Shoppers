@@ -136,6 +136,12 @@ function isOfflineCollectedPaymentMethod(paymentMethod) {
   return ['cash', 'check'].includes(String(paymentMethod || '').toLowerCase());
 }
 
+function hasCollectedOfflinePayment(delivery) {
+  const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+  return codPayments.some((payment) => isOfflineCollectedPaymentMethod(payment?.type) && Number(payment?.amount || 0) > 0)
+    || isOfflineCollectedPaymentMethod(delivery?.cod_payment_type);
+}
+
 function buildPlaceholderItemNames(deliveryDate, storeAbbreviation) {
   const [_, month, day] = String(deliveryDate || '').split('-');
   const mm = month?.padStart(2, '0') || '00';
@@ -1015,97 +1021,129 @@ async function handleSyncCatalogItems(base44) {
   const storeById = new Map((stores || []).map((store) => [store.id, store]));
   const deliveryById = new Map((deliveries || []).map((delivery) => [delivery.id, delivery]));
   const allSquareLocationIds = Array.from(new Set((squareConfigs || []).map((config) => config?.square_location_id).filter(Boolean)));
-
-  const relevantDeliveries = (deliveries || []).filter((delivery) => {
+  const transactionRetentionStartMs = getTransactionRetentionStartMs();
+  const recentCodDeliveries = (deliveries || []).filter((delivery) => {
     return isRecentDelivery(delivery?.delivery_date)
-      && Number(delivery?.cod_total_amount_required || 0) > 0
-      && delivery?.status !== 'pending';
+      && Number(delivery?.cod_total_amount_required || 0) > 0;
   });
 
-  const { patientById, patientByPid } = await buildPatientMaps(base44, relevantDeliveries);
+  const { patientById, patientByPid } = await buildPatientMaps(base44, recentCodDeliveries);
   const lookbackStartAt = getLookbackStartAt();
-  const [catalogItems, completedOrders] = await Promise.all([
+  const [allCatalogItems, completedOrders] = await Promise.all([
     listActiveCatalogItems(accessToken),
     listCompletedOrders(allSquareLocationIds, lookbackStartAt, accessToken),
   ]);
 
+  const recentCatalogItems = (allCatalogItems || []).filter((item) => isRecentCatalogItemName(item?.item_data?.name));
+  const paidOrderItems = flattenPaidOrderItems(completedOrders).filter((item) => isRecentCatalogItemName(item?.item_name));
+  const recentSquareTransactions = (squareTransactions || []).filter((transaction) => {
+    const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
+    return Number.isFinite(transactionTime) && transactionTime >= transactionRetentionStartMs;
+  });
+
+  const getCatalogItemLocationIds = (item) => Array.from(new Set([
+    ...(item?.present_at_location_ids || []),
+    ...(item?.item_data?.variations || []).flatMap((variation) => variation?.present_at_location_ids || []),
+  ].filter(Boolean)));
+
+  const isCatalogItemAtLocation = (item, locationId) => {
+    if (!item || !locationId) return false;
+    if (item?.present_at_all_locations) return true;
+    return getCatalogItemLocationIds(item).includes(locationId);
+  };
+
+  const toIsoDate = (value) => {
+    const parsed = parseDateValue(value);
+    if (!parsed || Number.isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().slice(0, 10);
+  };
+
   const catalogBySignature = new Map();
-  for (const item of catalogItems) {
+  const catalogByDateLocationAmount = new Map();
+  for (const item of recentCatalogItems) {
     const itemName = normalizeText(item?.item_data?.name);
     if (!itemName) continue;
     const amountCents = getCatalogItemAmountCents(item);
     catalogBySignature.set(buildItemSignature(itemName, amountCents), item);
+    for (const locationId of getCatalogItemLocationIds(item)) {
+      const signature = buildLocationDateAmountSignature(locationId, itemName, amountCents);
+      if (!catalogByDateLocationAmount.has(signature)) {
+        catalogByDateLocationAmount.set(signature, item);
+      }
+    }
   }
 
-  const paidOrderItems = flattenPaidOrderItems(completedOrders);
   const paidCatalogObjectIds = new Set(paidOrderItems.map((item) => item.catalog_object_id).filter(Boolean));
-  const paidOrderItemsBySignature = new Map();
   const paidOrderItemsByDateLocationAmountSignature = new Map();
   for (const item of paidOrderItems) {
-    const signature = buildItemSignature(item.item_name, item.amount_cents);
-    const dateLocationAmountSignature = buildLocationDateAmountSignature(item.location_id, item.item_name, item.amount_cents);
-    if (!paidOrderItemsBySignature.has(signature)) paidOrderItemsBySignature.set(signature, []);
-    if (!paidOrderItemsByDateLocationAmountSignature.has(dateLocationAmountSignature)) paidOrderItemsByDateLocationAmountSignature.set(dateLocationAmountSignature, []);
-    paidOrderItemsBySignature.get(signature).push(item);
-    paidOrderItemsByDateLocationAmountSignature.get(dateLocationAmountSignature).push(item);
+    const signature = buildLocationDateAmountSignature(item.location_id, item.item_name, item.amount_cents);
+    if (!paidOrderItemsByDateLocationAmountSignature.has(signature)) {
+      paidOrderItemsByDateLocationAmountSignature.set(signature, []);
+    }
+    paidOrderItemsByDateLocationAmountSignature.get(signature).push(item);
   }
 
   const transactionsByDeliveryId = new Map();
-  const completedTransactionCatalogObjectIds = new Set();
-  const completedTransactionDateLocationAmountSignatures = new Set();
-  for (const transaction of squareTransactions || []) {
+  const settledTransactionCatalogObjectIds = new Set();
+  const settledTransactionDateLocationAmountSignatures = new Set();
+  for (const transaction of recentSquareTransactions) {
     const amountCents = transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100);
-    if (!normalizeText(transaction?.item_name)) continue;
     if (transaction?.delivery_id) {
       if (!transactionsByDeliveryId.has(transaction.delivery_id)) transactionsByDeliveryId.set(transaction.delivery_id, []);
       transactionsByDeliveryId.get(transaction.delivery_id).push(transaction);
     }
-    if (['completed', 'refunded'].includes(transaction?.status)) {
-      if (transaction?.square_catalog_object_id) completedTransactionCatalogObjectIds.add(transaction.square_catalog_object_id);
-      const transactionDelivery = deliveryById.get(transaction?.delivery_id);
-      completedTransactionDateLocationAmountSignatures.add(buildLocationDateAmountSignature(transaction?.location_id, transactionDelivery?.delivery_date || transaction?.item_name, amountCents));
+
+    if (transaction?.status && transaction.status !== 'pending') {
+      if (transaction?.square_catalog_object_id) {
+        settledTransactionCatalogObjectIds.add(transaction.square_catalog_object_id);
+      }
+      for (const signature of buildLocationDateAmountSignatureCandidates(transaction?.location_id, transaction?.item_name, amountCents)) {
+        settledTransactionDateLocationAmountSignatures.add(signature);
+      }
     }
   }
 
   const itemsToDelete = [];
   const transactionsToCancel = [];
   const transactionsToComplete = [];
-  const deliveriesToCreate = [];
+  const deliveriesToSync = [];
   const directlyMatchedCatalogItemIds = new Set();
   const directlyMatchedDateLocationAmountSignatures = new Set();
 
-  for (const item of catalogItems) {
+  for (const item of recentCatalogItems) {
     const itemName = normalizeText(item?.item_data?.name);
     if (!itemName) continue;
     const amountCents = getCatalogItemAmountCents(item);
-    const itemLocationIds = Array.from(new Set([
-      ...(item?.present_at_location_ids || []),
-      ...(item?.item_data?.variations || []).flatMap((variation) => variation?.present_at_location_ids || []),
-    ].filter(Boolean)));
+    const itemLocationIds = getCatalogItemLocationIds(item);
     const variationIds = (item?.item_data?.variations || []).map((variation) => variation?.id).filter(Boolean);
-    const matchedByCatalogObjectId = paidCatalogObjectIds.has(item.id) || variationIds.some((variationId) => paidCatalogObjectIds.has(variationId));
-    const matchedByCompletedTransactionId = completedTransactionCatalogObjectIds.has(item.id) || variationIds.some((variationId) => completedTransactionCatalogObjectIds.has(variationId));
-    const matchedByDateLocationAmount = itemLocationIds.some((locationId) => paidOrderItemsByDateLocationAmountSignature.has(buildLocationDateAmountSignature(locationId, itemName, amountCents)));
-    const matchedByCompletedTransactionDateLocationAmount = itemLocationIds.some((locationId) => completedTransactionDateLocationAmountSignatures.has(buildLocationDateAmountSignature(locationId, itemName, amountCents)));
+    const itemDateSignatures = itemLocationIds.map((locationId) => buildLocationDateAmountSignature(locationId, itemName, amountCents));
+    const matchedByPaidOrder = paidCatalogObjectIds.has(item.id)
+      || variationIds.some((variationId) => paidCatalogObjectIds.has(variationId))
+      || itemDateSignatures.some((signature) => paidOrderItemsByDateLocationAmountSignature.has(signature));
+    const matchedBySettledTransaction = settledTransactionCatalogObjectIds.has(item.id)
+      || variationIds.some((variationId) => settledTransactionCatalogObjectIds.has(variationId))
+      || itemDateSignatures.some((signature) => settledTransactionDateLocationAmountSignatures.has(signature));
 
-    if (matchedByCatalogObjectId || matchedByCompletedTransactionId || matchedByDateLocationAmount || matchedByCompletedTransactionDateLocationAmount) {
+    if (matchedByPaidOrder || matchedBySettledTransaction) {
       directlyMatchedCatalogItemIds.add(item.id);
-      itemLocationIds.forEach((locationId) => {
-        directlyMatchedDateLocationAmountSignatures.add(buildLocationDateAmountSignature(locationId, itemName, amountCents));
-      });
+      itemDateSignatures.forEach((signature) => directlyMatchedDateLocationAmountSignatures.add(signature));
       itemsToDelete.push(item.id);
     }
   }
 
-  for (const transaction of squareTransactions || []) {
-    const transactionDelivery = deliveryById.get(transaction?.delivery_id);
-    const dateLocationAmountSignature = buildLocationDateAmountSignature(transaction?.location_id, transactionDelivery?.delivery_date || transaction?.item_name, transaction?.amount_cents);
-    if (transaction?.status === 'pending' && (directlyMatchedCatalogItemIds.has(transaction?.square_catalog_object_id) || directlyMatchedDateLocationAmountSignatures.has(dateLocationAmountSignature))) {
+  for (const transaction of recentSquareTransactions) {
+    if (transaction?.status !== 'pending') continue;
+    const candidateSignatures = buildLocationDateAmountSignatureCandidates(
+      transaction?.location_id,
+      deliveryById.get(transaction?.delivery_id)?.delivery_date || transaction?.item_name,
+      transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100),
+    );
+    if (directlyMatchedCatalogItemIds.has(transaction?.square_catalog_object_id) || candidateSignatures.some((signature) => directlyMatchedDateLocationAmountSignatures.has(signature))) {
       transactionsToComplete.push(transaction.id);
     }
   }
 
-  for (const delivery of relevantDeliveries) {
+  for (const delivery of recentCodDeliveries) {
     const store = storeById.get(delivery.store_id);
     const activeConfig = store?.square_location_config_id ? activeConfigById.get(store.square_location_config_id) : null;
     const resolvedPatient = await resolveDeliveryPatient(base44, delivery, patientById, patientByPid);
@@ -1113,25 +1151,18 @@ async function handleSyncCatalogItems(base44) {
     const itemName = formatItemName(delivery.delivery_date, store?.abbreviation, resolvedPatientName);
     const amountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
     const signature = buildItemSignature(itemName, amountCents);
-    const dateLocationAmountSignature = buildLocationDateAmountSignature(activeConfig?.square_location_id, delivery.delivery_date, amountCents);
-    let catalogItem = catalogBySignature.get(signature);
-    const paidMatches = paidOrderItemsByDateLocationAmountSignature.get(dateLocationAmountSignature) || [];
-    const catalogVariationIds = (catalogItem?.item_data?.variations || []).map((variation) => variation?.id).filter(Boolean);
-    const isPaidByCatalogObjectId = catalogItem ? paidCatalogObjectIds.has(catalogItem.id) || catalogVariationIds.some((variationId) => paidCatalogObjectIds.has(variationId)) : false;
-    const isPaidByDirectCatalogMatch = (catalogItem && directlyMatchedCatalogItemIds.has(catalogItem.id)) || directlyMatchedDateLocationAmountSignatures.has(dateLocationAmountSignature);
+    const deliveryDateSignatures = buildLocationDateAmountSignatureCandidates(activeConfig?.square_location_id, delivery.delivery_date, amountCents);
+    let catalogItem = catalogBySignature.get(signature) || deliveryDateSignatures.map((entry) => catalogByDateLocationAmount.get(entry)).find(Boolean) || null;
     const existingTransactions = transactionsByDeliveryId.get(delivery.id) || [];
+    const settledTransactions = existingTransactions.filter((transaction) => transaction?.status && transaction.status !== 'pending');
     const placeholderNames = new Set(buildPlaceholderItemNames(delivery.delivery_date, store?.abbreviation));
 
     if (resolvedPatientName !== 'Unknown Patient' && activeConfig?.square_location_id) {
-      for (const placeholderItem of catalogItems || []) {
+      for (const placeholderItem of recentCatalogItems) {
         const placeholderName = normalizeText(placeholderItem?.item_data?.name);
         if (!placeholderNames.has(placeholderName)) continue;
         if (getCatalogItemAmountCents(placeholderItem) !== amountCents) continue;
-        const placeholderLocationIds = Array.from(new Set([
-          ...(placeholderItem?.present_at_location_ids || []),
-          ...(placeholderItem?.item_data?.variations || []).flatMap((variation) => variation?.present_at_location_ids || []),
-        ].filter(Boolean)));
-        if (placeholderLocationIds.includes(activeConfig.square_location_id)) {
+        if (isCatalogItemAtLocation(placeholderItem, activeConfig.square_location_id)) {
           itemsToDelete.push(placeholderItem.id);
         }
       }
@@ -1140,51 +1171,55 @@ async function handleSyncCatalogItems(base44) {
     const existingPending = existingTransactions.find((transaction) => transaction.status === 'pending');
     if (existingPending?.square_catalog_object_id && (existingPending.item_name !== itemName || toAmountCents(existingPending.amount_cents) !== amountCents)) {
       itemsToDelete.push(existingPending.square_catalog_object_id);
+      if (catalogItem?.id === existingPending.square_catalog_object_id) {
+        catalogItem = null;
+      }
     }
 
     const hasCollectedCard = hasCollectedCardPayment(delivery);
-    const readyToCloseCollectedCard = delivery.status === 'completed' && hasCollectedCard;
-    const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled';
+    const hasCollectedOffline = hasCollectedOfflinePayment(delivery);
+    const hasAnyCollectedPayment = hasCollectedCard || hasCollectedOffline;
+    const hasPaidOrderMatch = deliveryDateSignatures.some((signatureKey) => paidOrderItemsByDateLocationAmountSignature.has(signatureKey));
+    const hasSettledTransactionMatch = settledTransactions.length > 0 || deliveryDateSignatures.some((signatureKey) => settledTransactionDateLocationAmountSignatures.has(signatureKey));
+    const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || ['pending', 'failed', 'cancelled'].includes(delivery?.status);
 
-    if (shouldDeleteForInvalidState) {
-      if (catalogItem) itemsToDelete.push(catalogItem.id);
-      for (const transaction of existingTransactions) {
-        if (transaction.status === 'pending') transactionsToCancel.push(transaction.id);
-      }
-      continue;
-    }
-
-    const isCorrectLocation = catalogItem?.present_at_location_ids?.includes(activeConfig.square_location_id);
-    if (catalogItem && !isCorrectLocation) {
+    if (catalogItem && !isCatalogItemAtLocation(catalogItem, activeConfig?.square_location_id)) {
       itemsToDelete.push(catalogItem.id);
-      catalogBySignature.delete(signature);
       catalogItem = null;
     }
 
-    if (paidMatches.length || isPaidByCatalogObjectId || isPaidByDirectCatalogMatch || hasCollectedCard) {
-      if (readyToCloseCollectedCard) {
-        if (catalogItem) itemsToDelete.push(catalogItem.id);
-        for (const transaction of existingTransactions) {
-          if (transaction.status === 'pending') transactionsToComplete.push(transaction.id);
+    if (shouldDeleteForInvalidState || hasAnyCollectedPayment || hasPaidOrderMatch || hasSettledTransactionMatch) {
+      if (catalogItem?.id) {
+        itemsToDelete.push(catalogItem.id);
+      }
+
+      for (const transaction of existingTransactions) {
+        if (transaction.status !== 'pending') continue;
+        const shouldComplete = hasAnyCollectedPayment || hasPaidOrderMatch || settledTransactions.some((entry) => ['completed', 'refunded'].includes(entry?.status));
+        if (shouldComplete) {
+          transactionsToComplete.push(transaction.id);
+        } else {
+          transactionsToCancel.push(transaction.id);
         }
       }
       continue;
     }
 
-    deliveriesToCreate.push({
+    deliveriesToSync.push({
       delivery,
       itemName,
       patientName: resolvedPatientName,
       patientId: resolvedPatient?.id || (isValidEntityId(delivery.patient_id) ? delivery.patient_id : null),
       amountCents,
       locationId: activeConfig.square_location_id,
+      existingCatalogItem: catalogItem,
     });
   }
 
   const uniqueItemIdsToDelete = Array.from(new Set(itemsToDelete.filter(Boolean)));
-  if (uniqueItemIdsToDelete.length) {
-    await deleteCatalogObjects(uniqueItemIdsToDelete, accessToken);
-  }
+  const deleteResult = uniqueItemIdsToDelete.length
+    ? await deleteCatalogObjects(uniqueItemIdsToDelete, accessToken)
+    : { deleted: [], failed: [] };
 
   for (const transactionId of Array.from(new Set(transactionsToCancel.filter(Boolean)))) {
     await base44.asServiceRole.entities.SquareTransaction.update(transactionId, { status: 'cancelled' });
@@ -1196,12 +1231,12 @@ async function handleSyncCatalogItems(base44) {
   let createdCount = 0;
   let updatedPendingCount = 0;
 
-  for (const entry of deliveriesToCreate) {
-    const { delivery, itemName, patientName, patientId, amountCents, locationId } = entry;
+  for (const entry of deliveriesToSync) {
+    const { delivery, itemName, patientName, patientId, amountCents, locationId, existingCatalogItem } = entry;
     const signature = buildItemSignature(itemName, amountCents);
-    let catalogItem = catalogBySignature.get(signature);
+    let catalogItem = existingCatalogItem || catalogBySignature.get(signature) || null;
 
-    if (!catalogItem || !catalogItem?.present_at_location_ids?.includes(locationId)) {
+    if (!catalogItem?.id) {
       catalogItem = await createCatalogItem({
         itemName,
         amountCents,
@@ -1210,10 +1245,12 @@ async function handleSyncCatalogItems(base44) {
         patientName,
         accessToken,
       });
-      if (catalogItem) {
-        catalogBySignature.set(signature, catalogItem);
-        createdCount += 1;
+      if (!catalogItem?.id) {
+        throw new Error(`Square did not return a catalog item for delivery ${delivery.id}`);
       }
+      catalogBySignature.set(signature, catalogItem);
+      catalogByDateLocationAmount.set(buildLocationDateAmountSignature(locationId, delivery.delivery_date, amountCents), catalogItem);
+      createdCount += 1;
     }
 
     const existingPending = (transactionsByDeliveryId.get(delivery.id) || []).find((transaction) => transaction.status === 'pending');
@@ -1229,8 +1266,8 @@ async function handleSyncCatalogItems(base44) {
       location_id: locationId,
       driver_id: delivery.driver_id || null,
       dispatcher_id: delivery.dispatcher_id || null,
-      square_catalog_object_id: catalogItem?.id || null,
-      square_catalog_version: catalogItem?.version || null,
+      square_catalog_object_id: catalogItem.id,
+      square_catalog_version: catalogItem.version || null,
     };
 
     if (existingPending) {
@@ -1244,15 +1281,13 @@ async function handleSyncCatalogItems(base44) {
   const allTransactionsAfterSync = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000);
   const transactionsToRemoveFromCatalog = (allTransactionsAfterSync || [])
     .filter((transaction) => transaction?.square_catalog_object_id)
-    .filter((transaction) => transaction?.status === 'completed' || transaction?.status === 'refunded');
+    .filter((transaction) => transaction?.status && transaction.status !== 'pending');
   const extraCatalogIdsToDelete = Array.from(new Set(transactionsToRemoveFromCatalog.map((transaction) => transaction.square_catalog_object_id).filter(Boolean)))
-    .filter((catalogId) => !uniqueItemIdsToDelete.includes(catalogId));
+    .filter((catalogId) => !deleteResult.deleted.includes(catalogId));
+  const extraDeleteResult = extraCatalogIdsToDelete.length
+    ? await deleteCatalogObjects(extraCatalogIdsToDelete, accessToken)
+    : { deleted: [], failed: [] };
 
-  if (extraCatalogIdsToDelete.length) {
-    await deleteCatalogObjects(extraCatalogIdsToDelete, accessToken);
-  }
-
-  const transactionRetentionStartMs = getTransactionRetentionStartMs();
   const staleTransactions = (allTransactionsAfterSync || []).filter((transaction) => {
     const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
     return Number.isFinite(transactionTime) && transactionTime < transactionRetentionStartMs;
@@ -1266,7 +1301,11 @@ async function handleSyncCatalogItems(base44) {
   const syncedCatalogTransactions = (allTransactionsAfterSync || [])
     .filter((transaction) => !staleIds.has(transaction.id))
     .filter((transaction) => transaction?.square_catalog_object_id)
-    .filter((transaction) => transaction?.status === 'pending');
+    .filter((transaction) => transaction?.status === 'pending')
+    .filter((transaction) => {
+      const delivery = deliveryById.get(transaction.delivery_id);
+      return isRecentDelivery(delivery?.delivery_date || transaction?.item_name);
+    });
   const existingSquareCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
   for (const record of existingSquareCatalogItems || []) {
     await base44.asServiceRole.entities.SquareCatalogItems.delete(record.id);
@@ -1283,21 +1322,21 @@ async function handleSyncCatalogItems(base44) {
         amount: Number(transaction.amount || 0),
         amount_cents: transaction.amount_cents || Math.round(Number(transaction.amount || 0) * 100),
         delivery_id: transaction.delivery_id,
-        delivery_date: delivery?.delivery_date || null,
+        delivery_date: delivery?.delivery_date || toIsoDate(transaction.item_name),
         patient_id: transaction.patient_id || null,
         store_id: transaction.store_id || null,
         location_id: transaction.location_id || null,
-        status: transaction?.status === 'pending' ? 'active' : 'completed',
+        status: 'active',
       };
     }));
   }
 
   return {
     success: true,
-    scanned_deliveries: relevantDeliveries.length,
-    catalog_items_seen: catalogItems.length,
+    scanned_deliveries: recentCodDeliveries.length,
+    catalog_items_seen: recentCatalogItems.length,
     paid_order_items_seen: paidOrderItems.length,
-    deleted_catalog_items: uniqueItemIdsToDelete.length + extraCatalogIdsToDelete.length,
+    deleted_catalog_items: deleteResult.deleted.length + extraDeleteResult.deleted.length,
     cancelled_transactions: Array.from(new Set(transactionsToCancel.filter(Boolean))).length,
     completed_transactions: Array.from(new Set(transactionsToComplete.filter(Boolean))).length,
     created_catalog_items: createdCount,
