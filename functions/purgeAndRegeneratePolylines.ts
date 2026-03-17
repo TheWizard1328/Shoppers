@@ -103,6 +103,11 @@ function makeSegmentKey(driverId, date, from, to) {
   ].join('|');
 }
 
+function samePoint(a, b) {
+  if (!a || !b) return false;
+  return round5(a.lat) === round5(b.lat) && round5(a.lon) === round5(b.lon);
+}
+
 async function markDeliveriesPolylineUpdated(base44, deliveries, value) {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return;
   await Promise.all(
@@ -170,7 +175,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { driverId, deliveryDate } = body || {};
+    const { driverId, deliveryDate, scope = 'all' } = body || {};
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
@@ -190,39 +195,24 @@ Deno.serve(async (req) => {
       ? Math.max(...existingPolylines.map((row) => Number(row?.daily_generation_count || 0)))
       : 0;
 
-    if (Array.isArray(existingPolylines) && existingPolylines.length) {
-      await Promise.all(existingPolylines.map((row) =>
-        base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
-          if (isNotFoundError(error)) return null;
-          throw error;
-        })
-      ));
-    }
-
-    const deliveriesToClear = Array.isArray(deliveries)
-      ? deliveries.filter((delivery) => typeof delivery?.finished_leg_encoded_polyline === 'string'
-          ? delivery.finished_leg_encoded_polyline.trim().length > 0
-          : !!delivery?.finished_leg_encoded_polyline)
-      : [];
-
-    if (deliveriesToClear.length > 0) {
-      await Promise.all(
-        deliveriesToClear.map((delivery) =>
-          base44.asServiceRole.entities.Delivery.update(delivery.id, {
-            finished_leg_encoded_polyline: ''
-          })
-        )
-      );
-    }
-
     if (!Array.isArray(deliveries) || deliveries.length === 0) {
+      if (Array.isArray(existingPolylines) && existingPolylines.length > 0 && scope !== 'completed_only') {
+        await Promise.all(existingPolylines.map((row) =>
+          base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          })
+        ));
+      }
+
       return Response.json({
         success: true,
+        scope,
         deleted: existingPolylines?.length || 0,
         created: 0,
         apiCallsMade: 0,
         segments: [],
-        clearedFinishedLegs: deliveriesToClear.length,
+        clearedFinishedLegs: 0,
         regeneratedFinishedLegs: 0
       });
     }
@@ -269,110 +259,135 @@ Deno.serve(async (req) => {
         return (a.stop_order || 0) - (b.stop_order || 0);
       });
 
-    let apiCallsMade = 0;
-    const regeneratedFinishedLegStopIds = [];
-
-    for (let index = 1; index < finishedStops.length; index += 1) {
-      const fromStop = getLatLon(finishedStops[index - 1]);
-      const toStop = getLatLon(finishedStops[index]);
-      if (!fromStop || !toStop) continue;
-
-      const directions = await getSegmentDirections(base44, fromStop, toStop);
-      apiCallsMade += 1;
-
-      await base44.asServiceRole.entities.Delivery.update(finishedStops[index].id, {
-        finished_leg_encoded_polyline: directions.encoded_polyline || ''
-      });
-
-      regeneratedFinishedLegStopIds.push(finishedStops[index].id);
-    }
-
     const activeStops = deliveries
       .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-    if (activeStops.length === 0) {
-      await markDeliveriesPolylineUpdated(base44, deliveries, true);
-      return Response.json({
-        success: true,
-        deleted: existingPolylines?.length || 0,
-        created: 0,
-        apiCallsMade,
-        segments: [],
-        clearedFinishedLegs: deliveriesToClear.length,
-        regeneratedFinishedLegs: regeneratedFinishedLegStopIds.length,
-        regeneratedFinishedLegStopIds
-      });
-    }
+    let apiCallsMade = 0;
+    let deletedPolylineCount = 0;
+    let clearedFinishedLegs = 0;
+    const regeneratedFinishedLegStopIds = [];
 
-    const segmentSpecs = [];
-    const seen = new Set();
+    if (scope === 'all' || scope === 'completed_only') {
+      const finishedLegsToClear = finishedStops.filter((delivery) => typeof delivery?.finished_leg_encoded_polyline === 'string'
+        ? delivery.finished_leg_encoded_polyline.trim().length > 0
+        : !!delivery?.finished_leg_encoded_polyline);
 
-    const pushSegment = (from, to) => {
-      if (!from || !to) return;
-      if (![from.lat, from.lon, to.lat, to.lon].every((value) => Number.isFinite(value))) return;
-      const key = makeSegmentKey(driverId, deliveryDate, from, to);
-      if (seen.has(key)) return;
-      seen.add(key);
-      segmentSpecs.push({ from, to });
-    };
+      if (finishedLegsToClear.length > 0) {
+        await Promise.all(
+          finishedLegsToClear.map((delivery) =>
+            base44.asServiceRole.entities.Delivery.update(delivery.id, {
+              finished_leg_encoded_polyline: ''
+            })
+          )
+        );
+      }
+      clearedFinishedLegs = finishedLegsToClear.length;
 
-    const firstActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
-    const currentLat = Number(driverAppUser?.current_latitude);
-    const currentLon = Number(driverAppUser?.current_longitude);
-    const isToday = deliveryDate === getEdmontonDateString();
+      for (let index = 1; index < finishedStops.length; index += 1) {
+        const fromStop = getLatLon(finishedStops[index - 1]);
+        const toStop = getLatLon(finishedStops[index]);
+        if (!fromStop || !toStop) continue;
 
-    if (isToday && Number.isFinite(currentLat) && Number.isFinite(currentLon)) {
-      pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
-    }
+        const directions = await getSegmentDirections(base44, fromStop, toStop);
+        apiCallsMade += 1;
 
-    for (let index = 0; index < activeStops.length - 1; index += 1) {
-      const from = getLatLon(activeStops[index]);
-      const to = getLatLon(activeStops[index + 1]);
-      pushSegment(from, to);
-    }
+        await base44.asServiceRole.entities.Delivery.update(finishedStops[index].id, {
+          finished_leg_encoded_polyline: directions.encoded_polyline || ''
+        });
 
-    const lastActive = getLatLon(activeStops[activeStops.length - 1]);
-    const homeLat = Number(driverAppUser?.home_latitude);
-    const homeLon = Number(driverAppUser?.home_longitude);
-
-    if (Number.isFinite(homeLat) && Number.isFinite(homeLon)) {
-      pushSegment(lastActive, { lat: homeLat, lon: homeLon });
+        regeneratedFinishedLegStopIds.push(finishedStops[index].id);
+      }
     }
 
     const createdSegments = [];
 
-    for (const spec of segmentSpecs) {
-      const directions = await getSegmentDirections(base44, spec.from, spec.to);
-      apiCallsMade += 1;
-      createdSegments.push({
-        driver_id: driverId,
-        delivery_date: deliveryDate,
-        encoded_polyline: directions.encoded_polyline,
-        segment_origin_lat: round5(spec.from.lat),
-        segment_origin_lon: round5(spec.from.lon),
-        segment_dest_lat: round5(spec.to.lat),
-        segment_dest_lon: round5(spec.to.lon),
-        estimated_distance_km: directions.estimated_distance_km,
-        estimated_duration_minutes: directions.estimated_duration_minutes,
-        daily_generation_count: previousGenerationCount + apiCallsMade,
-        last_generated_at: new Date().toISOString()
-      });
-    }
+    if (scope === 'all' || scope === 'active_only') {
+      const firstActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
+      const preservedType1Row = scope === 'active_only' && firstActive
+        ? (existingPolylines || []).find((row) => samePoint({ lat: row?.segment_dest_lat, lon: row?.segment_dest_lon }, firstActive)) || null
+        : null;
 
-    if (createdSegments.length > 0) {
-      await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);
+      const rowsToDelete = (existingPolylines || []).filter((row) => row?.id !== preservedType1Row?.id);
+      if (rowsToDelete.length > 0) {
+        await Promise.all(rowsToDelete.map((row) =>
+          base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          })
+        ));
+      }
+      deletedPolylineCount = rowsToDelete.length;
+
+      if (activeStops.length > 0) {
+        const segmentSpecs = [];
+        const seen = new Set();
+
+        const pushSegment = (from, to) => {
+          if (!from || !to) return;
+          if (![from.lat, from.lon, to.lat, to.lon].every((value) => Number.isFinite(value))) return;
+          const key = makeSegmentKey(driverId, deliveryDate, from, to);
+          if (seen.has(key)) return;
+          seen.add(key);
+          segmentSpecs.push({ from, to });
+        };
+
+        const currentLat = Number(driverAppUser?.current_latitude);
+        const currentLon = Number(driverAppUser?.current_longitude);
+        const isToday = deliveryDate === getEdmontonDateString();
+
+        if (scope === 'all' && firstActive && isToday && Number.isFinite(currentLat) && Number.isFinite(currentLon)) {
+          pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
+        }
+
+        for (let index = 0; index < activeStops.length - 1; index += 1) {
+          const from = getLatLon(activeStops[index]);
+          const to = getLatLon(activeStops[index + 1]);
+          pushSegment(from, to);
+        }
+
+        const lastActive = getLatLon(activeStops[activeStops.length - 1]);
+        const homeLat = Number(driverAppUser?.home_latitude);
+        const homeLon = Number(driverAppUser?.home_longitude);
+
+        if (Number.isFinite(homeLat) && Number.isFinite(homeLon)) {
+          pushSegment(lastActive, { lat: homeLat, lon: homeLon });
+        }
+
+        for (const spec of segmentSpecs) {
+          const directions = await getSegmentDirections(base44, spec.from, spec.to);
+          apiCallsMade += 1;
+          createdSegments.push({
+            driver_id: driverId,
+            delivery_date: deliveryDate,
+            encoded_polyline: directions.encoded_polyline,
+            segment_origin_lat: round5(spec.from.lat),
+            segment_origin_lon: round5(spec.from.lon),
+            segment_dest_lat: round5(spec.to.lat),
+            segment_dest_lon: round5(spec.to.lon),
+            estimated_distance_km: directions.estimated_distance_km,
+            estimated_duration_minutes: directions.estimated_duration_minutes,
+            daily_generation_count: previousGenerationCount + apiCallsMade,
+            last_generated_at: new Date().toISOString()
+          });
+        }
+
+        if (createdSegments.length > 0) {
+          await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);
+        }
+      }
     }
 
     await markDeliveriesPolylineUpdated(base44, deliveries, true);
 
     return Response.json({
       success: true,
-      deleted: existingPolylines?.length || 0,
+      scope,
+      deleted: deletedPolylineCount,
       created: createdSegments.length,
       apiCallsMade,
       segments: createdSegments,
-      clearedFinishedLegs: deliveriesToClear.length,
+      clearedFinishedLegs,
       regeneratedFinishedLegs: regeneratedFinishedLegStopIds.length,
       regeneratedFinishedLegStopIds
     });
