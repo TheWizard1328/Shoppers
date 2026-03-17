@@ -4589,87 +4589,39 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="stores" className="mt-6">
-                    <div className="mb-4 flex justify-start md:justify-end gap-2">
-                      <Button
-                        variant={dataViewMode.stores === 'offline' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDataViewMode(prev => ({ ...prev, stores: 'offline' }))}
-                        className="flex-1 md:flex-none min-h-10"
-                      >
-                        Offline
-                      </Button>
-                      <Button
-                        variant={dataViewMode.stores !== 'offline' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDataViewMode(prev => ({ ...prev, stores: 'online' }))}
-                        className="flex-1 md:flex-none min-h-10"
-                      >
-                        Online
-                      </Button>
-                    </div>
-                    <StoreDataTable
-                      stores={stores || []}
-                      onEdit={handleEditEntity}
-                      onDelete={handleDeleteEntity}
-                      onDeleteSelected={_confirmDeleteSelectedStores}
-                      isLoadingData={storesLoading}
-                    />
+                    <SimpleDataViewTab viewKey="stores" dataViewMode={dataViewMode} setDataViewMode={setDataViewMode}>
+                      <StoreDataTable
+                        stores={stores || []}
+                        onEdit={handleEditEntity}
+                        onDelete={handleDeleteEntity}
+                        onDeleteSelected={_confirmDeleteSelectedStores}
+                        isLoadingData={storesLoading}
+                      />
+                    </SimpleDataViewTab>
                   </TabsContent>
 
                   <TabsContent value="users" className="mt-6">
-                    <div className="mb-4 flex justify-start md:justify-end gap-2">
-                      <Button
-                        variant={dataViewMode.users === 'offline' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDataViewMode(prev => ({ ...prev, users: 'offline' }))}
-                        className="flex-1 md:flex-none min-h-10"
-                      >
-                        Offline
-                      </Button>
-                      <Button
-                        variant={dataViewMode.users !== 'offline' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDataViewMode(prev => ({ ...prev, users: 'online' }))}
-                        className="flex-1 md:flex-none min-h-10"
-                      >
-                        Online
-                      </Button>
-                    </div>
-                    <UserDataTable
-                      users={appUsers || []}
-                      onEdit={handleEditEntity}
-                      onDelete={handleDeleteEntity}
-                      onDeleteSelected={_confirmDeleteSelectedUsers}
-                      isLoadingData={appUsersLoading}
-                    />
+                    <SimpleDataViewTab viewKey="users" dataViewMode={dataViewMode} setDataViewMode={setDataViewMode}>
+                      <UserDataTable
+                        users={appUsers || []}
+                        onEdit={handleEditEntity}
+                        onDelete={handleDeleteEntity}
+                        onDeleteSelected={_confirmDeleteSelectedUsers}
+                        isLoadingData={appUsersLoading}
+                      />
+                    </SimpleDataViewTab>
                   </TabsContent>
 
                   <TabsContent value="cities" className="mt-6">
-                    <div className="mb-4 flex justify-start md:justify-end gap-2">
-                      <Button
-                        variant={dataViewMode.cities === 'offline' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDataViewMode(prev => ({ ...prev, cities: 'offline' }))}
-                        className="flex-1 md:flex-none min-h-10"
-                      >
-                        Offline
-                      </Button>
-                      <Button
-                        variant={dataViewMode.cities !== 'offline' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDataViewMode(prev => ({ ...prev, cities: 'online' }))}
-                        className="flex-1 md:flex-none min-h-10"
-                      >
-                        Online
-                      </Button>
-                    </div>
-                    <CityDataTable
-                      cities={cities || []}
-                      onEdit={handleEditEntity}
-                      onDelete={handleDeleteEntity}
-                      onDeleteSelected={_confirmDeleteSelectedCities}
-                      isLoadingData={citiesLoading}
-                    />
+                    <SimpleDataViewTab viewKey="cities" dataViewMode={dataViewMode} setDataViewMode={setDataViewMode}>
+                      <CityDataTable
+                        cities={cities || []}
+                        onEdit={handleEditEntity}
+                        onDelete={handleDeleteEntity}
+                        onDeleteSelected={_confirmDeleteSelectedCities}
+                        isLoadingData={citiesLoading}
+                      />
+                    </SimpleDataViewTab>
                   </TabsContent>
                 </Tabs>
               </div>
