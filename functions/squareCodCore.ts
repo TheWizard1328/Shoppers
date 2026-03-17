@@ -1182,24 +1182,26 @@ async function handleSyncCatalogItems(base44) {
     const hasPaidOrderMatch = deliveryDateSignatures.some((signatureKey) => paidOrderItemsByDateLocationAmountSignature.has(signatureKey));
     const hasSettledTransactionMatch = settledTransactions.length > 0 || deliveryDateSignatures.some((signatureKey) => settledTransactionDateLocationAmountSignatures.has(signatureKey));
     const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || ['pending', 'failed', 'cancelled'].includes(delivery?.status);
+    const hasSquareConfirmedPayment = hasPaidOrderMatch || hasSettledTransactionMatch;
+    const shouldDeleteCatalogItem = shouldDeleteForInvalidState || hasSquareConfirmedPayment;
 
     if (catalogItem && !isCatalogItemAtLocation(catalogItem, activeConfig?.square_location_id)) {
       itemsToDelete.push(catalogItem.id);
       catalogItem = null;
     }
 
-    if (shouldDeleteForInvalidState || hasAnyCollectedPayment || hasPaidOrderMatch || hasSettledTransactionMatch) {
+    if (shouldDeleteCatalogItem) {
       if (catalogItem?.id) {
         itemsToDelete.push(catalogItem.id);
       }
 
       for (const transaction of existingTransactions) {
         if (transaction.status !== 'pending') continue;
-        const shouldComplete = hasAnyCollectedPayment || hasPaidOrderMatch || settledTransactions.some((entry) => ['completed', 'refunded'].includes(entry?.status));
-        if (shouldComplete) {
-          transactionsToComplete.push(transaction.id);
-        } else {
+
+        if (shouldDeleteForInvalidState) {
           transactionsToCancel.push(transaction.id);
+        } else if (hasSquareConfirmedPayment) {
+          transactionsToComplete.push(transaction.id);
         }
       }
       continue;
