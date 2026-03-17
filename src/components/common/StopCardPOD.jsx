@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import { Button } from "@/components/ui/button";
 import { X, Pen, Camera, Eye } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { UploadFile } from "@/api/integrations";
 import { toast } from "sonner";
 import { invalidate } from '../utils/dataManager';
 import { persistDeliveryProof } from '../utils/persistDeliveryProof';
@@ -25,16 +26,28 @@ export default function StopCardPOD({
   showButtons = true,
 }) {
   const handleSignatureSave = async (signatureBlob) => {
+    let failureStage = 'upload_file';
     try {
       const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
-      const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureFile });
+      const uploadResult = await UploadFile(
+        { file: signatureFile },
+        { feature: 'proof_of_delivery_signature' }
+      );
       const fileUrl = uploadResult?.file_url || uploadResult?.data?.file_url;
+      failureStage = 'persist_delivery_proof';
       await persistDeliveryProof(delivery.id, { signature_image_url: fileUrl });
       setShowSignatureCapture(false);
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
       toast.success('Signature saved!');
     } catch (error) {
+      base44.analytics.track({
+        eventName: 'proof_of_delivery_upload_error',
+        properties: {
+          proof_type: 'signature',
+          stage: failureStage
+        }
+      });
       console.error('❌ [Signature] Save failed:', error);
       toast.error(`Failed to save signature: ${error.message}`);
       setShowSignatureCapture(false);
@@ -42,22 +55,41 @@ export default function StopCardPOD({
   };
 
   const handlePhotoSave = async (photoBlobs) => {
+    let failureStage = 'upload_file';
     try {
       const uploadPromises = photoBlobs.map((blob, i) => {
         const file = new File([blob], `photo_${i + 1}.jpg`, { type: 'image/jpeg' });
-        return base44.integrations.Core.UploadFile({ file });
+        return UploadFile(
+          { file },
+          {
+            feature: 'proof_of_delivery_photo',
+            metadata: {
+              file_index: i + 1,
+              total_files: photoBlobs.length
+            }
+          }
+        );
       });
       const results = await Promise.all(uploadPromises);
       const newPhotoUrls = results.map((r) => r?.file_url || r?.data?.file_url).filter(Boolean);
       const { offlineDB } = await import('../utils/offlineDatabase');
       const latestDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id);
       const existingPhotos = latestDelivery?.proof_photo_urls || delivery.proof_photo_urls || [];
+      failureStage = 'persist_delivery_proof';
       await persistDeliveryProof(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
       setShowPhotoCapture(false);
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
       toast.success(`${photoBlobs.length} photo(s) saved!`);
     } catch (error) {
+      base44.analytics.track({
+        eventName: 'proof_of_delivery_upload_error',
+        properties: {
+          proof_type: 'photo',
+          stage: failureStage,
+          photo_count: photoBlobs.length
+        }
+      });
       console.error('❌ [Photos] Save failed:', error);
       toast.error(`Failed to save photos: ${error.message}`);
       setShowPhotoCapture(false);
