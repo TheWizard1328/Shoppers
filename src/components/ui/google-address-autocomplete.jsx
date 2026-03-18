@@ -68,7 +68,6 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   const initialValue = useRef(value);
   const hasUserTyped = useRef(false);
   const inputRef = useRef(null);
-  const lastSearchText = useRef(null); // Cache last search to prevent duplicate API calls
   const requestCount = useRef(0); // Track requests for debugging
 
   // Fetch suggestions from Google Places Autocomplete
@@ -79,14 +78,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       return;
     }
 
-    // CRITICAL: Skip duplicate searches (exact same text)
-    if (lastSearchText.current === searchText) {
-      console.log(`🚫 [GoogleAddressAutocomplete] Skipping duplicate search for: "${searchText}"`);
-      return;
-    }
-
     try {
-      lastSearchText.current = searchText;
       requestCount.current++;
       console.log(`📍 [GoogleAddressAutocomplete] Request #${requestCount.current} for: "${searchText}"`);
       setIsLoading(true);
@@ -138,7 +130,6 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       }
     } catch (error) {
       console.error('Error fetching address suggestions:', error);
-      lastSearchText.current = null;
       setSuggestions([]);
       onSearchStateChange?.(false);
     } finally {
@@ -158,7 +149,6 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         clearTimeout(debounceTimer.current);
         debounceTimer.current = null;
       }
-      lastSearchText.current = null;
       
       // CRITICAL: Close dropdown immediately
       setOpen(false);
@@ -231,7 +221,6 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       // Reset typing/search guards so no follow-up fetch occurs on blur
       hasUserTyped.current = false;
       initialValue.current = streetAddress;
-      lastSearchText.current = streetAddress;
 
       // Prevent blur formatter from altering the value during the immediate refocus to unit field
       justSelected.current = true;
@@ -286,7 +275,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       clearTimeout(debounceTimer.current);
     }
 
-    // Debounce by 1500ms (wait for user to finish typing)
+    // Debounce by 400ms so lookup feels responsive and reliable
     debounceTimer.current = setTimeout(() => {
     if (value && value.length >= 3 && hasUserTyped.current) {
       fetchSuggestions(value);
@@ -295,7 +284,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       setOpen(false);
       onSearchStateChange?.(false);
     }
-    }, 1500);
+    }, 400);
 
     return () => {
       if (debounceTimer.current) {
@@ -357,7 +346,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       
       {/* Dropdown for suggestions */}
       {open && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-50 max-h-60 overflow-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', border: '1px solid var(--border-slate-200)' }}>
+        <div className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-[10050] max-h-60 overflow-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', border: '1px solid var(--border-slate-200)' }}>
           {suggestions.map((prediction, index) => (
             <button
               key={prediction.place_id}
