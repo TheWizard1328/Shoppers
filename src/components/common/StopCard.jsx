@@ -1166,12 +1166,12 @@ export default function StopCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className={`w-full cursor-pointer transition-all ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
+      className={`w-full cursor-pointer transition-all ${showCenteredIncompleteCollapsed ? 'self-start' : ''} ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
       style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: cardZIndex }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
       <Card
-        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 ${showIncompleteRouteSideCondensed ? 'min-h-[120px]' : showCenteredIncompleteCollapsed ? 'min-h-0' : 'min-h-[120px]'} min-w-[338px] max-w-[338px] border-blue-500`}
+        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 ${showIncompleteRouteSideCondensed ? 'min-h-[120px]' : showCenteredIncompleteCollapsed ? 'min-h-0 h-auto self-start' : 'min-h-[120px]'} min-w-[338px] max-w-[338px] border-blue-500`}
 
         onClick={(e) => {
           if (startTapLockRef.current || e.target?.closest?.('[data-stopcard-action="start"]')) return;
