@@ -376,6 +376,9 @@ export default function StopCard({
   }, [delivery, allDeliveries]);
 
   const showCompletedRouteCenteredCondensed = routeCompletedForLayout && isFinishedDelivery && isRailCentered && !isExpanded;
+  const showIncompleteRouteSideCondensed = !routeCompletedForLayout && !isExpanded && !isRailCentered;
+  const showCenteredIncompleteCollapsed = !routeCompletedForLayout && !isExpanded && isRailCentered;
+  const showMiddleSection = !isStrippedForDriver && !isStrippedForDispatcher && !showIncompleteRouteSideCondensed && (!isFinishedDelivery || isExpanded || isRailCentered) && !showCompletedRouteCenteredCondensed;
 
   // Check if this is an InterStore delivery (DropOff or Pickup)
   const isInterStore = useMemo(() => {
@@ -1168,7 +1171,7 @@ export default function StopCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
       <Card
-        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-h-[100px] min-w-[338px] max-w-[338px] border-blue-500"
+        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 ${showCenteredIncompleteCollapsed ? 'min-h-[90px]' : 'min-h-[100px]'} min-w-[338px] max-w-[338px] border-blue-500`}
 
         onClick={(e) => {
           if (startTapLockRef.current || e.target?.closest?.('[data-stopcard-action="start"]')) return;
@@ -1211,9 +1214,9 @@ export default function StopCard({
           </div>
 
           {/* Show address/phone for active cards, expanded cards, and the centered card */}
-          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded || isRailCentered) && !showCompletedRouteCenteredCondensed && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {showMiddleSection && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded || isRailCentered) && !showCompletedRouteCenteredCondensed && <div className="flex flex-col">
+          {showMiddleSection && <div className="flex flex-col">
             <div className="flex items-start justify-between">
               <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[55px]">
                 {finalDisplayAddress ?
@@ -1481,7 +1484,7 @@ export default function StopCard({
 
 
 
-          {!showCompletedRouteCenteredCondensed && <StopCardBody
+          {!showCompletedRouteCenteredCondensed && !showIncompleteRouteSideCondensed && <StopCardBody
             isExpanded={isExpanded}
             isStrippedForDispatcher={isStrippedForDispatcher}
             finalDisplayPhone={finalDisplayPhone}
