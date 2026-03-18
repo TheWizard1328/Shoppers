@@ -206,6 +206,41 @@ export async function clearNextDeliveryFlags({ driverDeliveries, currentDelivery
   );
 }
 
+export function getDriverRouteDeliveries(allDeliveries = [], delivery) {
+  if (!delivery) return [];
+  return (allDeliveries || []).filter((item) =>
+    item &&
+    item.driver_id === delivery.driver_id &&
+    item.delivery_date === delivery.delivery_date
+  );
+}
+
+export function getNextActiveDelivery(driverDeliveries = [], currentDeliveryId = null, finishedStatuses = []) {
+  return (driverDeliveries || [])
+    .filter((item) =>
+      item &&
+      item.id !== currentDeliveryId &&
+      !finishedStatuses.includes(item.status) &&
+      item.status !== 'pending'
+    )
+    .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0] || null;
+}
+
+export function centerDeliveryCard(deliveryId) {
+  if (!deliveryId || typeof window === 'undefined') return;
+
+  const scrollToCard = () => {
+    const nextCardElement = document.getElementById(`stop-card-${deliveryId}`);
+    if (nextCardElement) {
+      nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  };
+
+  scrollToCard();
+  requestAnimationFrame(scrollToCard);
+  setTimeout(scrollToCard, 0);
+}
+
 export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy }) {
   invalidate("Delivery");
   await forceRefreshDriverDeliveries(driverId, deliveryDate);
