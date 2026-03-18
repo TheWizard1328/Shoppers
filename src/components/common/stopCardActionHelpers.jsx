@@ -167,9 +167,12 @@ export function getNextTrackingNumberInGroup(trackingNumber, allDeliveries, driv
 }
 
 export function buildRetryDelivery(delivery, nextTrackingNumber, deliveryDate = delivery?.delivery_date) {
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const effectiveDeliveryDate = delivery?.delivery_date && todayDate > delivery.delivery_date ? todayDate : deliveryDate;
+
   const retryDelivery = {
     ...delivery,
-    delivery_date: deliveryDate,
+    delivery_date: effectiveDeliveryDate,
     status: "in_transit",
     tracking_number: String(nextTrackingNumber),
     delivery_notes: "[Redelivered]",
