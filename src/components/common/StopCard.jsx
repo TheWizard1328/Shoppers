@@ -1537,8 +1537,8 @@ export default function StopCard({
               if (!hasRetryButton && !hasReturnButton) return null;
             }
 
-            // For dispatchers: hide footer completely for non-assigned store deliveries
-            if (isStrippedForDispatcher) return null;
+            // For dispatchers: hide footer completely for non-assigned store deliveries unless admin/app owner
+            if (!isAppOwner(currentUser) && !userHasRole(currentUser, 'admin') && isStrippedForDispatcher) return null;
 
             // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
             // Show if: not finished OR expanded OR centered OR (finished but route not complete)
