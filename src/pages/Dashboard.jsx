@@ -535,9 +535,7 @@ function Dashboard() {
       try {
         const { getCurrentDevice } = await import('@/components/utils/deviceManager');
         const device = await getCurrentDevice(currentUser.id);
-        // If no device record found, treat as primary (default behavior)
-        // Only non-primary if record explicitly has is_primary_tracker === false
-        const isPrimary = device === null || device?.is_primary_tracker !== false;
+        const isPrimary = device === null || (device?.status !== 'inactive' && device?.is_primary_tracker !== false);
         setIsPrimaryDevice(isPrimary);
       } catch (error) {
         console.warn('⚠️ [Primary Device Check] Failed - defaulting to primary:', error.message);
@@ -7025,7 +7023,7 @@ function Dashboard() {
                     }}
                     className="gap-2 h-8 flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
                       <Truck className="w-3.5 h-3.5" />
-                      {showRoutes ? 'Hide' : 'Show'}
+                      {showRoutes ? 'Hide Routes' : 'Show Routes'}
                     </Button>
                   </div>
 
@@ -7156,7 +7154,7 @@ function Dashboard() {
             selectedDate={format(selectedDate, 'yyyy-MM-dd')}
             patients={patients}
             stores={stores}
-            users={drivers}
+            users={appUsers}
             currentUser={currentUser}
             driverLocations={isAllDriversMode ? allDriverLocations : showAllDriverMarkers ? allDriverLocations : allDriverLocations}
             deliveriesForLocationFilter={filteredDeliveries}

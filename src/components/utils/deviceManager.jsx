@@ -22,13 +22,12 @@ export async function getCurrentDevice(userId) {
   try {
     const devices = await base44.entities.UserDevice.filter({
       user_id: userId,
-      device_identifier: deviceId,
-      status: 'active'
+      device_identifier: deviceId
     });
 
     if (devices && devices.length > 0) {
       const device = devices[0];
-      console.log(`📱 [DeviceManager] Found device: ${device.device_name} (Primary: ${device.is_primary_tracker ? 'YES' : 'NO'})`);
+      console.log(`📱 [DeviceManager] Found device: ${device.device_name} (Status: ${device.status || 'active'}, Primary: ${device.is_primary_tracker ? 'YES' : 'NO'})`);
       return device;
     } else {
       console.log(`⚠️ [DeviceManager] No UserDevice record found for this device - assuming PRIMARY by default`);
