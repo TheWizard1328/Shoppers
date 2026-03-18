@@ -5956,8 +5956,6 @@ function Dashboard() {
         console.warn('⚠️ [RETURN] Failed to send notification:', notifyError);
       }
 
-      invalidateDeliveriesForDate(originalDelivery.delivery_date);
-      invalidateDeliveriesForDate(currentDate);
       invalidate('Delivery');
       try {await forceRefreshDriverDeliveries(originalDelivery.driver_id, currentDate);} catch (_) {}
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } }));
