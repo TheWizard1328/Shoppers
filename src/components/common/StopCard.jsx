@@ -449,7 +449,8 @@ export default function StopCard({
     const failedDate = startOfDay(new Date(delivery.delivery_date));
     const toDate = addDays(failedDate, 7); // delivery day + 6 more days
 
-    const failedPatientName = patient.full_name;
+    const failedPatientName = patient.full_name || '';
+    const failedPatientNameNormalized = failedPatientName.trim().toLowerCase();
 
     let futureRetryExists = false;
     let futureReturnExists = false;
@@ -472,27 +473,25 @@ export default function StopCard({
           futureRetryExists = true;
         }
 
-        // Check for a successful completed delivery for the same patient on same date or future
-        if (d.patient_id === delivery.patient_id && d.status === 'completed') {
+        // Check for a successful completed delivery for the same patient on the same date by any driver
+        const deliveryPatientNameNormalized = (d.patient_name || '').trim().toLowerCase();
+        const matchesSamePatient = d.patient_id === delivery.patient_id || !!failedPatientNameNormalized && deliveryPatientNameNormalized === failedPatientNameNormalized;
+        if (d.delivery_date === delivery.delivery_date && matchesSamePatient && d.status === 'completed') {
           completedDeliveryExists = true;
         }
 
-        // Check for a return delivery - look for "Patient Return" in notes with failed patient's name
+        // Check for another return stop tied to this failed stop's patient on the same date
         const notesLower = (d.delivery_notes || '').toLowerCase();
         const patientNotesLower = (() => {
           const returnPatient = patients.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));
           return (returnPatient?.notes || '').toLowerCase();
         })();
-
-        // Check if this delivery's notes contain "Patient Return" AND the failed patient's name
         const hasPatientReturnMarker = notesLower.includes('patient return') || patientNotesLower.includes('patient return');
-        const hasFailedPatientName = notesLower.includes(failedPatientName.toLowerCase()) || patientNotesLower.includes(failedPatientName.toLowerCase());
-
-        // Legacy check: old style return detection
-        const legacyNotesMatch = notesLower.includes(failedPatientName.toLowerCase());
+        const hasFailedPatientName = !!failedPatientNameNormalized && (notesLower.includes(failedPatientNameNormalized) || patientNotesLower.includes(failedPatientNameNormalized));
         const sidMatch = d.stop_id === delivery.stop_id;
+        const sameDate = d.delivery_date === delivery.delivery_date;
 
-        if (hasPatientReturnMarker && hasFailedPatientName || (legacyNotesMatch || sidMatch) && !d.patient_id) {
+        if (sameDate && (hasPatientReturnMarker && hasFailedPatientName || sidMatch && !d.patient_id)) {
           futureReturnExists = true;
         }
       }
@@ -1542,7 +1541,7 @@ export default function StopCard({
 
             // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
             // Show if: not finished OR expanded OR centered OR (finished but route not complete)
-            const shouldShowFooter = !(isPickup && routeCompletedForLayout) && (!isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout);
+            const shouldShowFooter = !(routeCompletedForLayout && (isPickup || delivery.status === 'failed')) && (!isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout);
             return isAssignedDriverOrAppOwner && shouldShowFooter;
           })() && <div className="">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
