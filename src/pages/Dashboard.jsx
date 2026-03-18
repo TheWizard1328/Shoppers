@@ -3386,7 +3386,7 @@ function Dashboard() {
     }
   };
 
-  const driverChangeInProgressRef = useRef(false);
+  const driverChangeInProgressRef = useRef(false), driverChangeRequestIdRef = useRef(0);
 
   const handleDriverChange = async (driverId) => {
     // CRITICAL: Prevent overlapping driver changes
