@@ -474,7 +474,8 @@ export default function StopCard({
         }
 
         // Check for a successful completed delivery for the same patient on the same date by any driver
-        const deliveryPatientNameNormalized = (d.patient_name || '').trim().toLowerCase();
+        const matchedPatient = patients.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));
+        const deliveryPatientNameNormalized = ((d.patient_name || matchedPatient?.full_name || '')).trim().toLowerCase();
         const matchesSamePatient = d.patient_id === delivery.patient_id || !!failedPatientNameNormalized && deliveryPatientNameNormalized === failedPatientNameNormalized;
         if (d.delivery_date === delivery.delivery_date && matchesSamePatient && d.status === 'completed') {
           completedDeliveryExists = true;
