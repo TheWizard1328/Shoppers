@@ -1637,9 +1637,9 @@ export default function StopCard({
                                 </DropdownMenuItem>
                               </>
                         }
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div> :
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div> :
 
                   /* NON-FAILED DELIVERY FOOTER - Original layout */
                   <>
