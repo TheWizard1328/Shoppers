@@ -1542,7 +1542,7 @@ export default function StopCard({
 
             // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
             // Show if: not finished OR expanded OR centered OR (finished but route not complete)
-            const shouldShowFooter = !isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout;
+            const shouldShowFooter = !(isPickup && routeCompletedForLayout) && (!isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout);
             return isAssignedDriverOrAppOwner && shouldShowFooter;
           })() && <div className="">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
