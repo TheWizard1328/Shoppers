@@ -1171,7 +1171,7 @@ export default function StopCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
       <Card
-        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 ${showIncompleteRouteSideCondensed ? 'min-h-[120px]' : showCenteredIncompleteCollapsed ? 'min-h-0 h-auto self-start' : 'min-h-[120px]'} min-w-[338px] max-w-[338px] border-blue-500`}
+        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden ${showIncompleteRouteSideCondensed ? 'h-[86px] min-h-[86px]' : showCenteredIncompleteCollapsed ? 'min-h-0 h-auto self-start' : 'min-h-[120px]'} min-w-[338px] max-w-[338px] border-blue-500`}
 
         onClick={(e) => {
           if (startTapLockRef.current || e.target?.closest?.('[data-stopcard-action="start"]')) return;
@@ -1530,7 +1530,6 @@ export default function StopCard({
 
           {/* FOOTER SECTION - Driver/Dispatcher-stripped: hide UNLESS Retry or Return buttons are available */}
           {(() => {
-            if (!isRailCentered && !isExpanded) return null;
             if (isStrippedForDriver && !isAppOwner(currentUser) && !userHasRole(currentUser, 'admin')) {
               const hasRetryButton = delivery.status === 'failed' && canRetry && !hasFutureRetry && !hasCompletedDelivery;
               const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
