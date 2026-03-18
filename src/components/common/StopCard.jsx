@@ -1171,7 +1171,7 @@ export default function StopCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
       <Card
-        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden ${showIncompleteRouteSideCondensed ? 'h-[86px] min-h-[86px]' : showCenteredIncompleteCollapsed ? 'min-h-0 h-auto self-start' : 'min-h-[120px]'} min-w-[338px] max-w-[338px] border-blue-500`}
+        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden ${!isRailCentered && !isExpanded ? 'h-[72px] min-h-[72px]' : showCenteredIncompleteCollapsed ? 'min-h-0 h-auto self-start' : 'min-h-[120px]'} min-w-[338px] max-w-[338px] border-blue-500`}
 
         onClick={(e) => {
           if (startTapLockRef.current || e.target?.closest?.('[data-stopcard-action="start"]')) return;
@@ -1184,7 +1184,7 @@ export default function StopCard({
           opacity: shouldFade ? 0.4 : 1,
           transition: 'opacity 0.2s ease-in-out'
         }}>
-        <CardContent className={`px-1 flex flex-col ${showCenteredIncompleteCollapsed ? 'pt-1 pb-0' : 'py-1'}`}>
+        <CardContent className={`px-1 flex flex-col ${!isRailCentered && !isExpanded || showCenteredIncompleteCollapsed ? 'pt-1 pb-0' : 'py-1'}`}>
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
