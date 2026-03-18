@@ -1530,7 +1530,7 @@ export default function StopCard({
 
           {/* FOOTER SECTION - Driver/Dispatcher-stripped: hide UNLESS Retry or Return buttons are available */}
           {(() => {
-            // For drivers: hide footer unless Retry or Return buttons are available
+            if (!isRailCentered && !isExpanded) return null; // Hide footer on fanned-out cards for all users
             if (isStrippedForDriver && !isAppOwner(currentUser) && !userHasRole(currentUser, 'admin')) {
               const hasRetryButton = delivery.status === 'failed' && canRetry && !hasFutureRetry && !hasCompletedDelivery;
               const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
