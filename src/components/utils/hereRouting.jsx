@@ -5,7 +5,9 @@ const fetchingKeys = new Set();
 const memoryCache = new Map();
 const backoffCache = new Map();
 const backoffNoticeCache = new Map();
-const USE_ENTITY_LOOKUP = false;
+const polylineDateSyncInflight = new Map();
+const polylineDateSyncCache = new Map();
+const USE_ENTITY_LOOKUP = true;
 const USE_CROSS_DEVICE_LOCK = false;
 
 function clearLegacyHereLocalStorageCache() {
@@ -29,6 +31,95 @@ function round5(value) {
 
 function buildSegmentKey(fromStop, toStop) {
   return `${round5(fromStop.latitude)}_${round5(fromStop.longitude)}_${round5(toStop.latitude)}_${round5(toStop.longitude)}`;
+}
+
+function buildDriverDateKey(driverId, deliveryDate) {
+  return `${String(driverId || '')}|${String(deliveryDate || '')}`;
+}
+
+async function syncDriverRoutePolylinesForDate(driverId, deliveryDate, force = false) {
+  if (!driverId || !deliveryDate) return [];
+
+  const syncKey = buildDriverDateKey(driverId, deliveryDate);
+  if (!force) {
+    const lastSyncedAt = polylineDateSyncCache.get(syncKey) || 0;
+    if (Date.now() - lastSyncedAt < 15000) return [];
+  }
+
+  if (polylineDateSyncInflight.has(syncKey)) {
+    return polylineDateSyncInflight.get(syncKey);
+  }
+
+  const promise = (async () => {
+    try {
+      const rows = await base44.entities.DriverRoutePolyline.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      }, '-updated_date', 5000);
+
+      if (Array.isArray(rows) && rows.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, rows);
+        await offlineDB.deduplicateDriverRoutePolylines(deliveryDate);
+      }
+
+      polylineDateSyncCache.set(syncKey, Date.now());
+      return rows || [];
+    } catch (error) {
+      console.warn('[HERE][client] DriverRoutePolyline date sync failed', { driverId, deliveryDate, error: error?.message || error });
+      return [];
+    } finally {
+      polylineDateSyncInflight.delete(syncKey);
+    }
+  })();
+
+  polylineDateSyncInflight.set(syncKey, promise);
+  return promise;
+}
+
+async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, metadata = {}) {
+  if (!driverId || !deliveryDate || !Array.isArray(coords) || coords.length < 2) return null;
+
+  const payload = {
+    driver_id: driverId,
+    delivery_date: deliveryDate,
+    encoded_polyline: encodeGooglePolyline(coords),
+    segment_origin_lat: round5(fromStop.latitude),
+    segment_origin_lon: round5(fromStop.longitude),
+    segment_dest_lat: round5(toStop.latitude),
+    segment_dest_lon: round5(toStop.longitude),
+    estimated_distance_km: metadata.estimated_distance_km ?? null,
+    estimated_duration_minutes: metadata.estimated_duration_minutes ?? null,
+    last_generated_at: new Date().toISOString()
+  };
+
+  const existing = await base44.entities.DriverRoutePolyline.filter({
+    driver_id: driverId,
+    delivery_date: deliveryDate,
+    segment_origin_lat: payload.segment_origin_lat,
+    segment_origin_lon: payload.segment_origin_lon,
+    segment_dest_lat: payload.segment_dest_lat,
+    segment_dest_lon: payload.segment_dest_lon
+  }, '-updated_date', 1);
+
+  const savedRecord = Array.isArray(existing) && existing[0]
+    ? await base44.entities.DriverRoutePolyline.update(existing[0].id, payload)
+    : await base44.entities.DriverRoutePolyline.create(payload);
+
+  await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [savedRecord]);
+  await offlineDB.deduplicateDriverRoutePolylines(deliveryDate);
+  polylineDateSyncCache.set(buildDriverDateKey(driverId, deliveryDate), Date.now());
+
+  try {
+    window.dispatchEvent(new CustomEvent('polylineUpdated', {
+      detail: {
+        driverId,
+        deliveryDate,
+        key: `here_${payload.segment_origin_lat.toFixed(5)}_${payload.segment_origin_lon.toFixed(5)}_${payload.segment_dest_lat.toFixed(5)}_${payload.segment_dest_lon.toFixed(5)}`
+      }
+    }));
+  } catch (_) {}
+
+  return savedRecord;
 }
 
 function findLatestExactOfflineSegment(rows, fromStop, toStop) {
@@ -63,6 +154,8 @@ export async function clearHereCacheForDriverDate(driverId, deliveryDate) {
       );
       try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id); } catch (_) {}
     }
+
+    polylineDateSyncCache.delete(buildDriverDateKey(driverId, deliveryDate));
   } catch (_) {}
 }
 
@@ -394,6 +487,25 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     console.warn('[HERE][client] Offline polyline lookup failed', e);
   }
 
+  // Hydrate offline cache from online entity before external API calls
+  if (driverId && deliveryDate) {
+    try {
+      await syncDriverRoutePolylinesForDate(driverId, deliveryDate);
+      const dateRows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
+      const syncedRecord = findLatestExactOfflineSegment(dateRows, fromStop, toStop);
+      if (syncedRecord?.encoded_polyline) {
+        const coords = decodeGooglePolyline(syncedRecord.encoded_polyline);
+        if (Array.isArray(coords) && coords.length > 1) {
+          memoryCache.set(cacheKey, coords);
+          fetchingKeys.delete(cacheKey);
+          return coords;
+        }
+      }
+    } catch (error) {
+      console.warn('[HERE][client] Online-to-offline polyline hydration failed', { cacheKey, error: error?.message || error });
+    }
+  }
+
   // Check entity cache (DriverRoutePolyline) before hitting external APIs
   if (USE_ENTITY_LOOKUP) {
   try {
@@ -465,7 +577,16 @@ const deliveryDateSafe = deliveryDate || todayStr;
 
       ensurePolylineSubscription();
 
-      // Skip frontend entity persistence here to avoid rate-limit storms; server-side regeneration remains the source of truth.
+      if (driverId && deliveryDate && await canGenerateForDriver(driverId)) {
+        try {
+          await persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, {
+            estimated_distance_km: res?.data?.estimated_distance_km ?? null,
+            estimated_duration_minutes: res?.data?.estimated_duration_minutes ?? null
+          });
+        } catch (persistError) {
+          console.warn('[HERE][client] Persist generated polyline failed', { cacheKey, error: persistError?.message || persistError });
+        }
+      }
 
       // Clear lock after success
       try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
