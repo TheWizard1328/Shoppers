@@ -65,8 +65,6 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   const [selectedIndex, setSelectedIndex] = useState(0);
   const debounceTimer = useRef(null);
   const justSelected = useRef(false);
-  const initialValue = useRef(value);
-  const hasUserTyped = useRef(false);
   const inputRef = useRef(null);
   const requestCount = useRef(0); // Track requests for debugging
 
@@ -154,9 +152,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       setOpen(false);
       setSuggestions([]);
       
-      // Prevent the input from immediately re-triggering a fetch due to value equality
-      hasUserTyped.current = false;
-      
+
       console.log('[GoogleAddressAutocomplete] Fetching details for:', prediction.place_id);
       
       // Get detailed place information
@@ -218,9 +214,6 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       // Update the input value with street address only (preserves directionals like NW, SE)
       onChange(streetAddress);
 
-      // Reset typing/search guards so no follow-up fetch occurs on blur
-      hasUserTyped.current = false;
-      initialValue.current = streetAddress;
 
       // Prevent blur formatter from altering the value during the immediate refocus to unit field
       justSelected.current = true;
@@ -255,35 +248,26 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
 
   // Debounced search on input change
   useEffect(() => {
-    // Skip search if we just selected an address (also cancel any pending debounce)
     if (justSelected.current) {
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
         debounceTimer.current = null;
       }
-      console.log('[GoogleAddressAutocomplete] Skipping search - just selected an address');
       return;
     }
-    
-    // Skip search if this is the initial value (form opened with pre-populated address)
-    if (value === initialValue.current && !hasUserTyped.current) {
-      console.log('[GoogleAddressAutocomplete] Skipping search - initial value, user has not typed yet');
-      return;
-    }
-    
+
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
 
-    // Debounce by 400ms so lookup feels responsive and reliable
     debounceTimer.current = setTimeout(() => {
-    if (value && value.length >= 3 && hasUserTyped.current) {
-      fetchSuggestions(value);
-    } else {
-      setSuggestions([]);
-      setOpen(false);
-      onSearchStateChange?.(false);
-    }
+      if (value && value.trim().length >= 3) {
+        fetchSuggestions(value.trim());
+      } else {
+        setSuggestions([]);
+        setOpen(false);
+        onSearchStateChange?.(false);
+      }
     }, 400);
 
     return () => {
@@ -305,9 +289,13 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         }}
         value={value}
         onChange={(e) => {
-          hasUserTyped.current = true;
           onChange(e.target.value);
           onSearchStateChange?.(e.target.value.trim().length > 0);
+        }}
+        onFocus={() => {
+          if (suggestions.length > 0) {
+            setOpen(true);
+          }
         }}
         onBlur={() => {
           // Do not change text on blur; just close the list after a short delay
@@ -317,7 +305,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
             if (!justSelected.current) {
               onSearchStateChange?.(false);
             }
-          }, 120);
+          }, 200);
         }}
         onKeyDown={(e) => {
           if (!open || suggestions.length === 0) return;
