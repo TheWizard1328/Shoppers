@@ -1164,7 +1164,7 @@ export default function StopCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className={`w-full cursor-pointer transition-all ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
-      style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: 50 }}
+      style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: cardZIndex }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
       <Card
