@@ -1,6 +1,8 @@
 import React from "react";
 import StopCard from '../common/StopCard';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, isDeliveryActionLocked } from '../utils/deliveryActionLock';
 import { isMobileDevice, getUserAgentInfo, getOrientation } from '../utils/deviceUtils';
 
 const HorizontalPickupCards = React.forwardRef((props, ref) => {
@@ -50,6 +52,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const [desktopContainerHeight, setDesktopContainerHeight] = React.useState(120);
   const [desktopCenteredCardId, setDesktopCenteredCardId] = React.useState(null);
   const wheelNavLockRef = React.useRef(0);
+  const deliveryActionReleaseTimerRef = React.useRef(null);
 
   // Define finished statuses
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -226,6 +229,33 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   // Enable native scroll with CSS scroll-snap for smooth card-by-card scrolling
   // Removed custom touch handlers that were preventing native scrolling
+
+  React.useEffect(() => {
+    const handleDeliveryActionSettled = (event) => {
+      const triggeredBy = event?.detail?.triggeredBy;
+      const source = event?.detail?.source;
+      if (!['start', 'complete', 'startOptimized', 'acceptAll', 'acceptAllOptimized'].includes(triggeredBy) && !['start', 'accept_all'].includes(source)) return;
+      if (deliveryActionReleaseTimerRef.current) {
+        clearTimeout(deliveryActionReleaseTimerRef.current);
+        deliveryActionReleaseTimerRef.current = null;
+      }
+      const activeLock = getActiveDeliveryAction();
+      if (activeLock) {
+        setTimeout(() => releaseDeliveryActionLock(activeLock), 250);
+      }
+    };
+
+    window.addEventListener('deliveriesUpdated', handleDeliveryActionSettled);
+    window.addEventListener('routeOptimizationComplete', handleDeliveryActionSettled);
+
+    return () => {
+      window.removeEventListener('deliveriesUpdated', handleDeliveryActionSettled);
+      window.removeEventListener('routeOptimizationComplete', handleDeliveryActionSettled);
+      if (deliveryActionReleaseTimerRef.current) {
+        clearTimeout(deliveryActionReleaseTimerRef.current);
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     // Skip if no selection or container
@@ -526,6 +556,40 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onClickCapture={(e) => {
+        const actionButton = e.target?.closest?.('[data-stopcard-action="start"], button');
+        if (!actionButton) return;
+
+        const buttonText = (actionButton.textContent || '').trim().toLowerCase();
+        const isStartAction = actionButton.matches?.('[data-stopcard-action="start"]') || buttonText === 'start';
+        const isCompleteAction = buttonText === 'complete';
+
+        if (!isStartAction && !isCompleteAction) return;
+
+        if (isDeliveryActionLocked()) {
+          e.preventDefault();
+          e.stopPropagation();
+          toast.message('Please wait for the current delivery action to finish.');
+          return;
+        }
+
+        const lock = acquireDeliveryActionLock(isStartAction ? 'start_delivery' : 'complete_delivery');
+        if (!lock) {
+          e.preventDefault();
+          e.stopPropagation();
+          toast.message('Please wait for the current delivery action to finish.');
+          return;
+        }
+
+        if (deliveryActionReleaseTimerRef.current) {
+          clearTimeout(deliveryActionReleaseTimerRef.current);
+        }
+
+        deliveryActionReleaseTimerRef.current = setTimeout(() => {
+          releaseDeliveryActionLock(lock);
+          deliveryActionReleaseTimerRef.current = null;
+        }, 20000);
+      }}
       onWheel={(e) => {
         if (isDesktopFanLayout) {
           const axisDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;

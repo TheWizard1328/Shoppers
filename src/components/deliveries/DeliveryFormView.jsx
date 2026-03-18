@@ -28,6 +28,8 @@ import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteCo
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
 import { purgeAndRegeneratePolylines } from '@/functions/purgeAndRegeneratePolylines';
+import { toast } from 'sonner';
+import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -99,6 +101,24 @@ export default function DeliveryFormView({
     new: sortedStagedDeliveries.filter(s => !s.id).length,
     pending: sortedStagedDeliveries.filter(s => s.id).length,
   };
+  const [activeDeliveryAction, setActiveDeliveryAction] = React.useState(getActiveDeliveryAction());
+  const effectiveDeliveryActionBusy = isDeliveryActionBusy || !!activeDeliveryAction;
+
+  React.useEffect(() => subscribeDeliveryActionLock(setActiveDeliveryAction), []);
+
+  const runLockedAction = React.useCallback(async (actionName, action) => {
+    const lock = acquireDeliveryActionLock(actionName);
+    if (!lock) {
+      toast.message('Please wait for the current delivery action to finish.');
+      return;
+    }
+
+    try {
+      await action();
+    } finally {
+      releaseDeliveryActionLock(lock);
+    }
+  }, []);
 
   // Require driver selection when no regular pickup exists for the patient's store/date/slot
   const requiresDriverSelection = (() => {
@@ -613,24 +633,24 @@ export default function DeliveryFormView({
                   } else {
                     handleCancelClick();
                   }
-                }} disabled={isSaving || isDeliveryActionBusy} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                }} disabled={isSaving || effectiveDeliveryActionBusy} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
                 </Button>
 
                 {buttonState === 'done' ? (
-                  <Button type="button" size="sm" onClick={() => handleBatchSave()} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || isDeliveryActionBusy || !hasChanges}>
+                  <Button type="button" size="sm" onClick={() => runLockedAction('batch_save', handleBatchSave)} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasChanges}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button>
                 ) : buttonState === 'updateStaged' ? (
-                  <Button type="button" size="sm" onClick={handleUpdateStaged} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || isDeliveryActionBusy || !isFormValid}>
+                  <Button type="button" size="sm" onClick={() => runLockedAction('update_staged_delivery', handleUpdateStaged)} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid}>
                     <Edit2 className="w-4 h-4" />Update
                   </Button>
                 ) : buttonState === 'add' ? (
-                  <Button type="button" size="sm" onClick={handleAddToStaging} className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || isDeliveryActionBusy || !hasSelectedLocationAndDriver || (!isFormValid && !hasSelectedLocationAndDriver) || (requiresDriverSelection && !hasSelectedLocationAndDriver)} title={!hasSelectedLocationAndDriver ? 'Select both a date and driver before adding' : requiresDriverSelection && !hasSelectedLocationAndDriver ? 'Select a driver to create a pickup for this store/date' : undefined}>
+                  <Button type="button" size="sm" onClick={() => runLockedAction('add_staged_delivery', handleAddToStaging)} className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || (!isFormValid && !hasSelectedLocationAndDriver) || (requiresDriverSelection && !hasSelectedLocationAndDriver)} title={!hasSelectedLocationAndDriver ? 'Select both a date and driver before adding' : requiresDriverSelection && !hasSelectedLocationAndDriver ? 'Select a driver to create a pickup for this store/date' : undefined}>
                     <Plus className="w-4 h-4" />Add
                   </Button>
                 ) : (
-                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await handleSubmit(e); setFormData(prev => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null })); if (formData?.driver_id && formData?.delivery_date) {
+                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await runLockedAction('update_delivery', async () => { await handleSubmit(e); }); setFormData(prev => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null })); if (formData?.driver_id && formData?.delivery_date) {
   // Fire-and-forget heavy tasks to keep UI responsive
   Promise.resolve()
     .then(async () => {
@@ -650,7 +670,7 @@ export default function DeliveryFormView({
 
   // Immediate UI signal for updated sequencing
   window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'stopOrderResequence', driverId: formData.driver_id, deliveryDate: formData.delivery_date } }));
-} window.dispatchEvent(new CustomEvent('collapseSelectedStopCard')); window.dispatchEvent(new CustomEvent('deliveriesUpdated')); if (closeOnSave) onCancel(); setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')), 300); }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || isDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
+} window.dispatchEvent(new CustomEvent('collapseSelectedStopCard')); window.dispatchEvent(new CustomEvent('deliveriesUpdated')); if (closeOnSave) onCancel(); setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')), 300); }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
                 )}
