@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { shouldRefreshUserFromAppUser } from './appUserRefreshUtils';
 import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
 import { ensurePolylineSubscription } from './hereRouting';
+import ImmediateNextDeliveryController from './ImmediateNextDeliveryController';
 
 const AppDataContext = createContext(null);
 
@@ -595,6 +596,7 @@ export const AppDataProvider = ({ children, value }) => {
           Syncing…
         </div>
       )}
+      <ImmediateNextDeliveryController />
       {children}
     </AppDataContext.Provider>
   );
