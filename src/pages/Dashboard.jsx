@@ -3389,18 +3389,13 @@ function Dashboard() {
   const driverChangeInProgressRef = useRef(false), driverChangeRequestIdRef = useRef(0);
 
   const handleDriverChange = async (driverId) => {
-    // CRITICAL: Prevent overlapping driver changes
-    if (driverChangeInProgressRef.current) {
-      return;
-    }
-
+    const reqId = Date.now();
+    driverChangeRequestIdRef.current = reqId;
     driverChangeInProgressRef.current = true;
     hasShownSummaryRef.current.clear();
-
-    // CRITICAL: Increment trigger IMMEDIATELY to block map effect
     const nextTrigger = mapViewTrigger + 1;
     lastAppliedTriggerRef.current = nextTrigger;
-
+    setSelectedDriverId(driverId);globalFilters.setSelectedDriverId(driverId);
     try {
       setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
       setIsEntityUpdating(true);
@@ -3438,18 +3433,18 @@ function Dashboard() {
         }
       }
 
+      if (driverChangeRequestIdRef.current !== reqId) return;
       if (driverId && driverId !== 'all') {
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, dateStr);
       } else {
         smartRefreshManager.clearPendingUpdates();
       }
 
-      // CRITICAL: Apply state updates without flushSync to avoid render-time warnings
-      setSelectedDriverId(driverId);globalFilters.setSelectedDriverId(driverId);
       if (updateDeliveriesLocally) {const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];updateDeliveriesLocally(mergedDeliveries, true);}
 
       // CRITICAL: Wait for React to finish rendering BEFORE dispatching event or triggering map
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (driverChangeRequestIdRef.current !== reqId) return;
 
       // CRITICAL: NO route optimization on driver change - preserve imported stop order
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -3490,8 +3485,10 @@ function Dashboard() {
     } catch (error) {
       console.error('❌ [Dashboard] Driver change failed:', error);
     } finally {
-      setIsEntityUpdating(false);
-      driverChangeInProgressRef.current = false;
+      if (driverChangeRequestIdRef.current === reqId) {
+        setIsEntityUpdating(false);
+        driverChangeInProgressRef.current = false;
+      }
     }
   };
 
