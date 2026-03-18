@@ -74,7 +74,6 @@ export default function DeviceSettings() {
 
   const handleSetPrimary = async (device) => {
     try {
-      // Unset all other primary devices
       const primaryDevices = devices.filter(d => d.is_primary_tracker && d.id !== device.id);
       await Promise.all(
         primaryDevices.map(d => 
@@ -82,15 +81,15 @@ export default function DeviceSettings() {
         )
       );
 
-      // Set this device as primary
       await base44.entities.UserDevice.update(device.id, {
-        is_primary_tracker: true
+        is_primary_tracker: true,
+        status: 'active'
       });
 
-      // Update local state
       setDevices(prev => prev.map(d => ({
         ...d,
-        is_primary_tracker: d.id === device.id
+        is_primary_tracker: d.id === device.id,
+        status: d.id === device.id ? 'active' : d.status
       })));
 
       toast.success('Primary tracker updated');
@@ -100,18 +99,70 @@ export default function DeviceSettings() {
     }
   };
 
+  const handleClearPrimary = async (device) => {
+    try {
+      await base44.entities.UserDevice.update(device.id, {
+        is_primary_tracker: false
+      });
+
+      setDevices(prev => prev.map(d => 
+        d.id === device.id ? { ...d, is_primary_tracker: false } : d
+      ));
+
+      toast.success('Primary tracker removed');
+    } catch (error) {
+      console.error('Failed to clear primary:', error);
+      toast.error('Failed to remove primary tracker');
+    }
+  };
+
+  const handleToggleDeviceStatus = async (device) => {
+    const nextStatus = device.status === 'inactive' ? 'active' : 'inactive';
+    const updates = {
+      status: nextStatus,
+      ...(nextStatus === 'inactive' ? { is_primary_tracker: false } : {})
+    };
+
+    try {
+      await base44.entities.UserDevice.update(device.id, updates);
+      setDevices(prev => prev.map(d =>
+        d.id === device.id ? { ...d, ...updates } : d
+      ));
+
+      if (device.id === currentDeviceId && nextStatus === 'inactive') {
+        localStorage.removeItem(DEVICE_ID_KEY);
+        setCurrentDeviceId(null);
+      }
+
+      toast.success(nextStatus === 'active' ? 'Device enabled' : 'Device disabled');
+    } catch (error) {
+      console.error('Failed to toggle device status:', error);
+      toast.error('Failed to update device status');
+    }
+  };
+
   const handleApplySettings = async (device) => {
     try {
-      const updates = deviceSettings[device.id] || {};
-      if (Object.keys(updates).length === 0) {
+      const pendingUpdates = deviceSettings[device.id] || {};
+      if (Object.keys(pendingUpdates).length === 0) {
         toast.info('No changes to save');
         return;
       }
+
+      const updates = {
+        ...pendingUpdates,
+        ...(pendingUpdates.status === 'inactive' ? { is_primary_tracker: false } : {})
+      };
 
       await base44.entities.UserDevice.update(device.id, updates);
       setDevices(prev => prev.map(d => 
         d.id === device.id ? { ...d, ...updates } : d
       ));
+
+      if (device.id === currentDeviceId && updates.status === 'inactive') {
+        localStorage.removeItem(DEVICE_ID_KEY);
+        setCurrentDeviceId(null);
+      }
       
       setEditingSettings(prev => ({ ...prev, [device.id]: false }));
       setDeviceSettings(prev => ({ ...prev, [device.id]: {} }));
@@ -383,7 +434,17 @@ export default function DeviceSettings() {
                           </Button>
                         )}
 
-                        {!device.is_primary_tracker && (
+                        {device.is_primary_tracker ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleClearPrimary(device)}
+                            className="gap-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Remove Primary
+                          </Button>
+                        ) : (
                           <Button
                             variant="outline"
                             size="sm"
@@ -394,6 +455,15 @@ export default function DeviceSettings() {
                             Set as Primary
                           </Button>
                         )}
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleToggleDeviceStatus(device)}
+                          className="gap-2"
+                        >
+                          {device.status === 'inactive' ? 'Enable' : 'Disable'}
+                        </Button>
 
                         <Button
                           variant="destructive"
