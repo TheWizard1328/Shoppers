@@ -47,7 +47,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   }, [ref]);
   const scrollTimeoutRef = React.useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(0);
-  const [desktopContainerHeight, setDesktopContainerHeight] = React.useState(150);
+  const [desktopContainerHeight, setDesktopContainerHeight] = React.useState(120);
   const [desktopCenteredCardId, setDesktopCenteredCardId] = React.useState(null);
   const wheelNavLockRef = React.useRef(0);
 
@@ -433,7 +433,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   React.useEffect(() => {
     if (!isDesktopFanLayout) {
-      setDesktopContainerHeight(140);
+      setDesktopContainerHeight(120);
       return;
     }
 
@@ -445,7 +445,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       .filter(Boolean);
 
     const updateHeight = () => {
-      const targetHeight = targetElement ? Math.ceil(targetElement.offsetHeight) + 0 : 140;
+      const targetHeight = targetElement ? Math.ceil(targetElement.offsetHeight) + 0 : 122;
 
       if (incompleteElements.length === 0) {
         setDesktopContainerHeight(targetHeight);
@@ -454,7 +454,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
       const tallestIncompleteHeight = Math.max(
         ...incompleteElements.map((element) => Math.ceil(element.offsetHeight) + 0),
-        140
+        120
       );
 
       setDesktopContainerHeight(Math.max(targetHeight, tallestIncompleteHeight));
