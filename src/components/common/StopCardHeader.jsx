@@ -111,7 +111,7 @@ export default function StopCardHeader({
     const payDisplay = isNoCharge ? 'N/C' : formatPay(pay);
 
     payBadge = !isAfterHours && !hasExtraPay ?
-    <div className="text-xs font-bold text-emerald-600">{payDisplay}</div> :
+    <div className="text-emerald-600 pt-1 text-xs font-bold">{payDisplay}</div> :
 
     <Badge variant="secondary" className="inline-flex items-center border transition-colors text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
         {payDisplay}
