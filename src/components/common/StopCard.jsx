@@ -1154,6 +1154,7 @@ export default function StopCard({
   };
 
   const shouldFade = false;
+  const cardZIndex = isHovered && !isRailCentered ? 52 : isRailCentered ? 51 : 50;
 
   return (
     <motion.div
