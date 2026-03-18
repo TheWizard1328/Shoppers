@@ -191,6 +191,8 @@ export default function StopCardHeader({
         <div className="flex items-center gap-1">
           <Badge
             variant="secondary"
+            data-stop-status={isReturnDelivery ? "returned" : delivery?.status || "unknown"}
+            data-stop-kind={isPickup ? "pickup" : "delivery"}
             className={`text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full ${statusBgClass}`}
             style={{ color: isPickup && delivery?.after_hours_pickup && isFinished ? "#3b82f6" : "white" }}>
 

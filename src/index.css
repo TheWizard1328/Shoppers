@@ -156,3 +156,24 @@ button:focus-visible {
     @apply bg-background text-foreground;
   }
 }
+
+div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop-kind="delivery"]) {
+  border-color: #16a34a !important;
+  border-width: 3px !important;
+}
+
+div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="failed"]),
+div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="cancelled"]) {
+  border-color: #dc2626 !important;
+  border-width: 3px !important;
+}
+
+div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="returned"]) {
+  border-color: #ea580c !important;
+  border-width: 3px !important;
+}
+
+div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop-kind="pickup"]) {
+  border-color: #2563eb !important;
+  border-width: 3px !important;
+}
