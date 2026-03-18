@@ -40,6 +40,7 @@ import DeliveryFormStaged from './DeliveryFormStaged';
 import BarcodeScanner from './BarcodeScanner';
 import { checkPayrollLock } from '../utils/payrollLockManager';
 import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
+import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -2688,21 +2689,9 @@ export default function DeliveryForm({
       formData.status === 'in_transit' &&
       delivery.status !== 'in_transit';
 
-      // SQUARE INTEGRATION: Create COD item when delivery transitions to in_transit
-      // Note: formData.cod_total_amount_required is in CENTS (multiplied by 100 in form)
       if (statusChangedToInTransit && delivery?.id && formData.cod_total_amount_required > 0) {
-        setTimeout(() => {
-          const store = stores?.find(s => s && s.id === formData.store_id);
-          const codAmountDollars = formData.cod_total_amount_required / 100;
-          base44.functions.invoke('squareCreateCodItem', {
-            deliveryId: delivery.id,
-            patientName: formData.patient_name,
-            storeAbbreviation: store?.abbreviation || '',
-            codAmount: codAmountDollars,
-            deliveryDate: formData.delivery_date,
-            storeId: formData.store_id
-          }).then(()=>console.log('✅ [Square] COD item created (bg)')).catch((e)=>console.error('⚠️ [Square] Failed to create COD item (bg):', e));
-        }, 0);
+        const store = stores?.find(s => s && s.id === formData.store_id);
+        triggerSquareCodCreate({ deliveryId: delivery.id, patientName: formData.patient_name, storeAbbreviation: store?.abbreviation || '', codAmount: formData.cod_total_amount_required / 100, deliveryDate: formData.delivery_date, storeId: formData.store_id });
       }
 
       // Check if status changed to a completion status (completed, cancelled, failed)
@@ -2710,15 +2699,8 @@ export default function DeliveryForm({
       const actualDeliveryTimeChanged = !!(delivery && ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) && dataToSave.actual_delivery_time && dataToSave.actual_delivery_time !== (delivery.actual_delivery_time || ''));
       if (statusChangedToCompletion) dataToSave.isNextDelivery = false;
 
-      // SQUARE INTEGRATION: Delete COD item when delivery is completed or failed
-      if (statusChangedToCompletion && delivery?.id && (formData.status === 'failed' || (formData.status === 'completed' && (((Array.isArray(formData.cod_payments) && formData.cod_payments.some(payment => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)) || ['Debit', 'Credit'].includes(formData.cod_payment_type)))))) {
-        setTimeout(() => {
-          base44.functions.invoke('squareDeleteCodItem', {
-            deliveryId: delivery.id,
-            reason: formData.status
-          }).then(()=>console.log('✅ [Square] COD item deleted (bg)'))
-          .catch((squareError)=>console.warn('⚠️ [Square] Failed to delete COD item (bg):', squareError?.message));
-        }, 0);
+      if (statusChangedToCompletion) {
+        triggerSquareCodDelete({ deliveryId: delivery?.id, nextStatus: formData.status, delivery: { ...delivery, ...dataToSave, cod_payments: formData.cod_payments, cod_payment_type: formData.cod_payment_type } });
       }
 
       // SQUARE INTEGRATION: Delete COD item if COD was removed (checkbox unchecked)
@@ -2726,24 +2708,17 @@ export default function DeliveryForm({
         (formData.cod_total_amount_required === 0 || !formData.cod_total_amount_required);
       
       if (codWasRemoved && delivery?.id) {
-        // CRITICAL: Clear cod_payments array when COD is removed
         dataToSave.cod_payments = [];
         dataToSave.cod_payment_type = 'No Payment';
         dataToSave.cod_amount = '';
-        setTimeout(() => {
-          base44.functions.invoke('squareDeleteCodItem', {
-            deliveryId: delivery.id,
-            reason: 'cod_removed'
-          }).then(()=>console.log('✅ [Square] COD item deleted (bg, COD removed)'))
-          .catch((squareError)=>console.warn('⚠️ [Square] Failed to delete COD item (bg):', squareError?.message));
-        }, 0);
+        triggerSquareCodDelete({ deliveryId: delivery.id, reason: 'cod_removed' });
       }
 
       // CRITICAL: Save to both offline and online databases using local-first approach
       // offlineMutations handles: pausing smart refresh, saving to offline DB, syncing to backend, restarting smart refresh
       if (delivery?.id) {
         const updatedDelivery = await updateDeliveryLocal(delivery.id, { ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
-        
+        if (statusChangedToCompletion) triggerPatientLastDeliverySync({ delivery: { ...delivery, ...dataToSave, status: formData.status, patient_id: delivery.patient_id, delivery_date: formData.delivery_date }, previousStatus: delivery.status });
         // CRITICAL: Force stats refresh AND deliveries update after any delivery update
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));

@@ -52,6 +52,7 @@ import {
   withPausedDriverLocationPoller } from
 "./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDriver, getPendingBreadcrumbsForDriver } from '../utils/pendingBreadcrumbsManager';
+import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
 
 // Global statusConfig
 const statusConfig = {
@@ -1379,12 +1380,8 @@ export default function StopCard({
                     }, false);
                   }
 
-                  if (pendingBreadcrumbsString) {
-                    await clearPendingBreadcrumbsForDriver({
-                      driverUserId: delivery.driver_id,
-                      appUsers
-                    });
-                  }
+                  if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
+                  runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: status, overrides: { delivery_notes: updatedNotes, actual_delivery_time: localTimeString, finished_leg_encoded_polyline: finishedLegEncodedPolyline, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}) } });
                 } catch (statusError) {
                   console.error('❌ [FAILURE] Update failed:', statusError);
                   toast.error(`Failed to update status: ${statusError.message}`);
@@ -1728,12 +1725,8 @@ export default function StopCard({
 
                             await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
 
-                            if (pendingBreadcrumbsString) {
-                              await clearPendingBreadcrumbsForDriver({
-                                driverUserId: delivery.driver_id,
-                                appUsers
-                              });
-                            }
+                            if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
+                            runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: 'completed', overrides: completionUpdate });
 
                             const pendingPickupIds = isPickup ? new Set((pendingPickups || []).filter((p) => p?.status === 'pending').map((p) => p.id)) : null;
                             const optimisticDeliveries = allDeliveries.map((d) => {
