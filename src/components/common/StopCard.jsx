@@ -488,11 +488,11 @@ export default function StopCard({
           return (returnPatient?.notes || '').toLowerCase();
         })();
         const hasPatientReturnMarker = notesLower.includes('patient return') || patientNotesLower.includes('patient return');
-        const hasFailedPatientName = !!failedPatientNameNormalized && (notesLower.includes(failedPatientNameNormalized) || patientNotesLower.includes(failedPatientNameNormalized));
+        const hasFailedPatientName = d.patient_id === delivery.patient_id || !!failedPatientNameNormalized && (((d.patient_name || '').trim().toLowerCase()) === failedPatientNameNormalized || notesLower.includes(failedPatientNameNormalized) || patientNotesLower.includes(failedPatientNameNormalized));
         const sidMatch = d.stop_id === delivery.stop_id;
         const sameDate = d.delivery_date === delivery.delivery_date;
 
-        if (sameDate && (hasPatientReturnMarker && hasFailedPatientName || sidMatch && !d.patient_id)) {
+        if (sameDate && ((hasPatientReturnMarker && hasFailedPatientName) || sidMatch && !d.patient_id)) {
           futureReturnExists = true;
         }
       }
