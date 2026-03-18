@@ -166,9 +166,10 @@ export function getNextTrackingNumberInGroup(trackingNumber, allDeliveries, driv
   return existingTRsInGroup.length > 0 ? Math.max(...existingTRsInGroup) + 1 : groupStart;
 }
 
-export function buildRetryDelivery(delivery, nextTrackingNumber) {
+export function buildRetryDelivery(delivery, nextTrackingNumber, deliveryDate = delivery?.delivery_date) {
   const retryDelivery = {
     ...delivery,
+    delivery_date: deliveryDate,
     status: "in_transit",
     tracking_number: String(nextTrackingNumber),
     delivery_notes: "[Redelivered]",
