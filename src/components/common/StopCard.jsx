@@ -1531,7 +1531,7 @@ export default function StopCard({
           {/* FOOTER SECTION - Driver/Dispatcher-stripped: hide UNLESS Retry or Return buttons are available */}
           {(() => {
             // For drivers: hide footer unless Retry or Return buttons are available
-            if (isStrippedForDriver) {
+            if (isStrippedForDriver && !isAppOwner(currentUser) && !userHasRole(currentUser, 'admin')) {
               const hasRetryButton = delivery.status === 'failed' && canRetry && !hasFutureRetry && !hasCompletedDelivery;
               const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
               if (!hasRetryButton && !hasReturnButton) return null;
@@ -1542,8 +1542,8 @@ export default function StopCard({
 
             // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
             // Show if: not finished OR expanded OR centered OR (finished but route not complete)
-            const shouldShowFooter = !(routeCompletedForLayout && (isPickup || delivery.status === 'failed' || delivery.status === 'cancelled')) && (!isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout);
-            return isAssignedDriverOrAppOwner && shouldShowFooter;
+            const shouldShowFooter = isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || !(routeCompletedForLayout && (isPickup || delivery.status === 'failed' || delivery.status === 'cancelled')) && (!isFinishedDelivery || isExpanded || isRailCentered || isFinishedDelivery && !routeCompletedForLayout);
+            return (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || isAssignedDriverOrAppOwner) && shouldShowFooter;
           })() && <div className="">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <div className={`mx-1 flex justify-between items-center ${showCenteredIncompleteCollapsed ? 'mt-1 mb-0' : 'my-1'}`}>
