@@ -1577,33 +1577,34 @@ export default function StopCard({
                           Return
                         </Button>
 
-                        {/* 3. Restart button */}
-                        {onRestart && ['completed', 'failed', 'cancelled'].includes(delivery.status) && !routeCompleted &&
-                    <Button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        await restartCurrentDelivery(false);
-                      }}
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 h-10 !text-white text-sm flex-1"
-                      disabled={isRestarting || isProcessingBackground || isFailing}>
-                            {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-                            <span className="text-white">Restart</span>
-                          </Button>
-                    }
-
-                        {/* 4. Menu button */}
-                        <DropdownMenu modal={false}>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                          variant="ghost"
-                          size="icon"
-                          className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 border border-slate-300 hover:bg-slate-100 relative z-[10]"
-                          onClick={(e) => e.stopPropagation()}>
-                              <MoreVertical className="w-5 h-5" />
+                        <div className="flex items-center ml-auto">
+                          {/* 3. Restart button */}
+                          {onRestart && ['completed', 'failed', 'cancelled'].includes(delivery.status) && !routeCompleted &&
+                      <Button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await restartCurrentDelivery(false);
+                        }}
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 h-10 rounded-r-none border-r border-blue-500 !text-white text-sm"
+                        disabled={isRestarting || isProcessingBackground || isFailing}>
+                              {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                              <span className="text-white">Restart</span>
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                      }
+
+                          {/* 4. Menu button */}
+                          <DropdownMenu modal={false}>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                            variant="ghost"
+                            size="icon"
+                            className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                            onClick={(e) => e.stopPropagation()}>
+                                <MoreVertical className="w-5 h-5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                             {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEdit(delivery);}} className="text-base py-2.5 md:py-1.5">
                                 <Edit className="w-5 h-5 mr-2" />
