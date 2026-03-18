@@ -5917,7 +5917,7 @@ function Dashboard() {
         store_id: finalStoreId,
         driver_id: originalDelivery.driver_id,
         driver_name: originalDelivery.driver_name,
-        delivery_date: currentDate,
+        delivery_date: prep.deliveryDate || currentDate,
         delivery_time_start: originalDelivery.delivery_time_start,
         delivery_time_end: originalDelivery.delivery_time_end,
         status: 'in_transit',
