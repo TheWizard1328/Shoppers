@@ -175,6 +175,9 @@ const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = n
       segment_dest_lon: rounded(endLon)
     }, '-updated_date', 1);
     const rec = Array.isArray(recs) ? recs[0] : null;
+    if (rec) {
+      await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]);
+    }
     return rec || null;
   } catch (e) {
     console.log('⏭️ [RoutePolyline] getStoredPolyline lookup failed', e?.message || e);
@@ -222,10 +225,16 @@ const savePolyline = async ({
       expires_at: new Date(Date.now() + POLYLINE_CONFIG.EXPIRY_MINUTES * 60000).toISOString()
     };
 
+    let savedRecord = null;
+
     if (Array.isArray(exists) && exists.length) {
-      await base44.entities.DriverRoutePolyline.update(exists[0].id, payload);
+      savedRecord = await base44.entities.DriverRoutePolyline.update(exists[0].id, payload);
     } else {
-      await base44.entities.DriverRoutePolyline.create(payload);
+      savedRecord = await base44.entities.DriverRoutePolyline.create(payload);
+    }
+
+    if (savedRecord) {
+      await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [savedRecord]);
     }
   } catch (e) {
     console.log('⏭️ [RoutePolyline] savePolyline failed', e?.message || e);
@@ -469,12 +478,23 @@ const POLYLINE_CACHE_DURATION = 5000; // 5 seconds
  */
 export const getStoredRouteCoordinates = async (driverId, deliveryDate, routeType) => {
   try {
+    const offlineRows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
+    const offlineMatch = (offlineRows || [])
+      .filter((row) => row?.driver_id === driverId && row?.encoded_polyline)
+      .sort((a, b) => new Date(b.last_generated_at || b.updated_date || 0).getTime() - new Date(a.last_generated_at || a.updated_date || 0).getTime())[0] || null;
+
+    if (offlineMatch?.encoded_polyline) {
+      return decodePolyline(offlineMatch.encoded_polyline).map((p) => ({ lat: p.lat, lng: p.lng }));
+    }
+
     const recs = await base44.entities.DriverRoutePolyline.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-updated_date', 20);
     if (!Array.isArray(recs) || !recs.length) return null;
-    // Return the most recent polyline for display
+
+    await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, recs);
+
     const rec = recs[0];
     if (!rec?.encoded_polyline) return null;
-    return decodePolyline(rec.encoded_polyline).map(p => ({ lat: p.lat, lng: p.lng }));
+    return decodePolyline(rec.encoded_polyline).map((p) => ({ lat: p.lat, lng: p.lng }));
   } catch (e) {
     console.log('⏭️ [RoutePolyline] getStoredRouteCoordinates failed', e?.message || e);
     return null;
