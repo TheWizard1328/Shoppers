@@ -1547,7 +1547,7 @@ export default function StopCard({
           })() && <div className="">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <div className={`mx-1 flex justify-between items-center ${showCenteredIncompleteCollapsed ? 'mt-1 mb-0' : 'my-1'}`}>
-                {(isAssignedDriverOrAppOwner || canEdit) &&
+                {(isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || isAssignedDriverOrAppOwner || canEdit) &&
                 <>
                     {/* FAILED DELIVERY FOOTER - Special layout */}
                     {delivery.status === 'failed' && !isPickup ?
