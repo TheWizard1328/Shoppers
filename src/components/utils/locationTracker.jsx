@@ -56,6 +56,10 @@ class LocationTracker {
 
         // Track current delivery date for arrival detection
         this.currentDeliveryDate = null;
+        this.lastEtaRefreshPosition = null;
+        this.lastEtaRefreshAt = 0;
+        this.minEtaRefreshDistance = 500;
+        this.minTimeBetweenEtaRefresh = 120000;
 
       // Load settings from RouteOptimizationSettings
       this.loadSettings();
@@ -402,6 +406,34 @@ class LocationTracker {
         );
       }
 
+      if (!timestampOnly && this.driverStatus === 'on_duty' && this.currentDeliveryDate && this.currentUser?.id) {
+        const previousEtaPosition = this.lastEtaRefreshPosition;
+        const distanceSinceEtaRefresh = previousEtaPosition
+          ? this.calculateDistanceInMeters(
+              previousEtaPosition.latitude,
+              previousEtaPosition.longitude,
+              latitude,
+              longitude
+            )
+          : Infinity;
+        const enoughTimePassed = now - this.lastEtaRefreshAt >= this.minTimeBetweenEtaRefresh;
+        const movedEnough = !previousEtaPosition || distanceSinceEtaRefresh >= this.minEtaRefreshDistance;
+
+        if (movedEnough && enoughTimePassed) {
+          this.lastEtaRefreshPosition = { latitude, longitude };
+          this.lastEtaRefreshAt = now;
+          base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
+            data: updatedAppUser,
+            old_data: previousEtaPosition ? {
+              current_latitude: previousEtaPosition.latitude,
+              current_longitude: previousEtaPosition.longitude
+            } : null
+          }).catch((etaError) => {
+            console.warn('⚠️ [LocationTracker] ETA refresh skipped:', etaError?.message || etaError);
+          });
+        }
+      }
+
       console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
 
       window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
@@ -735,6 +767,8 @@ class LocationTracker {
     this.backoffTime = 0;
     this.currentDeliveryDate = null;
     this.lastBreadcrumbPosition = null;
+    this.lastEtaRefreshPosition = null;
+    this.lastEtaRefreshAt = 0;
     
     // Clear arrival detection state
     arrivalTimeDetector.clearRecordedArrivals();
