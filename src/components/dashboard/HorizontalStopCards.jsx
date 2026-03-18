@@ -47,7 +47,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   }, [ref]);
   const scrollTimeoutRef = React.useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(0);
-  const [desktopContainerHeight, setDesktopContainerHeight] = React.useState(170);
+  const [desktopContainerHeight, setDesktopContainerHeight] = React.useState(150);
   const [desktopCenteredCardId, setDesktopCenteredCardId] = React.useState(null);
   const wheelNavLockRef = React.useRef(0);
 
