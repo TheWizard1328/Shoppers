@@ -1171,7 +1171,7 @@ export default function StopCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
       <Card
-        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 ${showIncompleteRouteSideCondensed ? 'min-h-[108px]' : showCenteredIncompleteCollapsed ? 'min-h-[84px]' : 'min-h-[100px]'} min-w-[338px] max-w-[338px] border-blue-500`}
+        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 ${showIncompleteRouteSideCondensed ? 'min-h-[120px]' : showCenteredIncompleteCollapsed ? 'min-h-[95px]' : 'min-h-[100px]'} min-w-[338px] max-w-[338px] border-blue-500`}
 
         onClick={(e) => {
           if (startTapLockRef.current || e.target?.closest?.('[data-stopcard-action="start"]')) return;
