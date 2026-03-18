@@ -1184,7 +1184,7 @@ export default function StopCard({
           opacity: shouldFade ? 0.4 : 1,
           transition: 'opacity 0.2s ease-in-out'
         }}>
-        <CardContent className="px-1 py-1 flex flex-col">
+        <CardContent className={`px-1 flex flex-col ${showCenteredIncompleteCollapsed ? 'pt-1 pb-0' : 'py-1'}`}>
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
@@ -1546,7 +1546,7 @@ export default function StopCard({
             return isAssignedDriverOrAppOwner && shouldShowFooter;
           })() && <div className="">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              <div className="mx-1 my-1 flex justify-between items-center">
+              <div className={`mx-1 flex justify-between items-center ${showCenteredIncompleteCollapsed ? 'mt-1 mb-0' : 'my-1'}`}>
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
                     {/* FAILED DELIVERY FOOTER - Special layout */}
