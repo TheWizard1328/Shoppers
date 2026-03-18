@@ -5892,10 +5892,6 @@ function Dashboard() {
       // CRITICAL: Find the patient from the failed delivery
       const failedPatient = patients.find((p) => p?.id === originalDelivery.patient_id);
 
-      // CRITICAL: Generate unique SID
-      const existingDeliveriesForDate = deliveries.filter((d) => d && d.delivery_date === currentDate);
-      const newSID = generateUniqueSID(existingDeliveriesForDate);
-
       // CRITICAL: Use PUID from failed delivery to determine correct store and AM/PM
       const puid = originalDelivery.puid;
       let finalStoreId = originalDelivery.store_id;
@@ -5910,13 +5906,8 @@ function Dashboard() {
         }
       }
 
-      // CRITICAL: Get store abbreviation for TR#
-      const returnStore = stores.find((s) => s?.id === finalStoreId);
-      const storeAbbr = returnStore?.abbreviation || 'XX';
-
-      // CRITICAL: Generate TR# using same range as failed delivery (store abbr + failed delivery's TR number)
-      const failedTR = parseInt(originalDelivery.tracking_number, 10);
-      const newTR = isNaN(failedTR) ? `${storeAbbr}99` : `${storeAbbr}${failedTR}`;
+      const prepRes = await base44.functions.invoke('prepareRetryOrReturnRouteDate', { driverId: originalDelivery.driver_id, deliveryDate: originalDelivery.delivery_date, targetStoreId: finalStoreId, ampmDeliveries: finalAmpm, originalTrackingNumber: originalDelivery.tracking_number });
+      const prep = prepRes?.data || prepRes || {};
 
       // CRITICAL: Format driver notes with each item on separate lines
       const driverNotes = `From: ${originalDelivery.delivery_date}\nFor: ${failedPatient?.full_name || originalDelivery.patient_name || 'Unknown'}`;
@@ -5934,10 +5925,10 @@ function Dashboard() {
         patient_name: returnPatient.full_name,
         patient_phone: returnPatient.phone || store?.phone || '',
         store_phone: store?.phone || '',
-        stop_id: newSID,
-        puid: puid,
-        tracking_number: newTR,
-        ampm_deliveries: finalAmpm
+        stop_id: prep.stopId,
+        puid: prep.puid || puid,
+        tracking_number: prep.trackingNumber,
+        ampm_deliveries: prep.ampmDeliveries || finalAmpm
       };
 
       // Create the return delivery for today
@@ -5957,10 +5948,11 @@ function Dashboard() {
       }
 
       invalidate('Delivery');
-      try {await forceRefreshDriverDeliveries(originalDelivery.driver_id, currentDate);} catch (_) {}
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } }));
-      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } }));
-      base44.functions.invoke('optimizeRouteRealTime', { driverId: originalDelivery.driver_id, deliveryDate: currentDate, currentLocalTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`, generatePolyline: false }).catch((e) => console.warn('⚠️ [CREATE RETURN] Background optimize failed:', e?.message || e)).finally(() => window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: currentDate } })));
+      const routeDate = prep.deliveryDate || currentDate;
+      try {await forceRefreshDriverDeliveries(originalDelivery.driver_id, routeDate);} catch (_) {}
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } }));
+      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } }));
+      base44.functions.invoke('optimizeRouteRealTime', { driverId: originalDelivery.driver_id, deliveryDate: routeDate, currentLocalTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`, generatePolyline: false }).catch((e) => console.warn('⚠️ [CREATE RETURN] Background optimize failed:', e?.message || e)).finally(() => window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } })));
 
     } catch (error) {
       console.error('❌ [CREATE RETURN] Error:', error);

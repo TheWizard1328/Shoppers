@@ -1043,19 +1043,15 @@ export default function StopCard({
         await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
         await ensureDriverOnline();
 
-        const nextTR = getNextTrackingNumberInGroup(
-          delivery.tracking_number,
-          allDeliveries,
-          delivery.driver_id,
-          delivery.delivery_date
-        );
-
-        await base44.entities.Delivery.create(buildRetryDelivery(delivery, nextTR));
+        const prepRes = await base44.functions.invoke('prepareRetryOrReturnRouteDate', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, targetStoreId: delivery.store_id, ampmDeliveries: delivery.ampm_deliveries, originalTrackingNumber: delivery.tracking_number });
+        const prep = prepRes?.data || prepRes || {};
+        const retryDate = prep.deliveryDate || delivery.delivery_date;
+        await base44.entities.Delivery.create({ ...buildRetryDelivery(delivery, prep.trackingNumber || getNextTrackingNumberInGroup(delivery.tracking_number, allDeliveries, delivery.driver_id, retryDate), retryDate), stop_id: prep.stopId, puid: prep.puid || delivery.puid, ampm_deliveries: prep.ampmDeliveries || delivery.ampm_deliveries, tracking_number: prep.trackingNumber || undefined });
 
         try {
           await base44.functions.invoke('optimizeRouteRealTime', {
             driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date,
+            deliveryDate: retryDate,
             currentLocalTime: getCurrentLocalTimeString(),
             generatePolyline: false
           });
@@ -1065,7 +1061,7 @@ export default function StopCard({
 
         await refreshDriverRoute({
           driverId: delivery.driver_id,
-          deliveryDate: delivery.delivery_date,
+          deliveryDate: retryDate,
           forceRefreshDriverDeliveries,
           triggeredBy: 'retry'
         });
