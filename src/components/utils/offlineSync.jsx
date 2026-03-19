@@ -25,6 +25,7 @@ import {
   fetchStoresDedup,
   invalidateEntityCache
 } from './dataSyncCoordinator';
+import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
@@ -32,8 +33,6 @@ const PATIENT_SYNC_COOLDOWN = 10000; // 10 second cooldown between patient batch
 const BATCH_COOLDOWN = 1000;
 const DELIVERY_DATE_RANGE_DAYS = 90;
 const PATIENT_SYNC_INTERVAL_HOURS = 48; // Only sync patients once per 48 hours in background
-
-const getMutationEntityClient = (entityName) => OFFLINE_SYNC_ENTITY_CLIENTS[entityName] || null;
 
 let syncInProgress = false;
 let syncPaused = false;
@@ -140,11 +139,8 @@ const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter
     const records = await Entity.filter(filter, '-updated_date', 5000);
     
     if (records.length > 0) {
-      const storeName = getOfflineStoreName(offlineDB, entityName);
-      
-      if (storeName) {
-        await offlineDB.bulkSave(storeName, records);
-      }
+      const storeName = getOfflineStoreName(offlineDB, entityName) || offlineDB.STORES.STORES;
+      await offlineDB.bulkSave(storeName, records);
     }
     
     // CRITICAL: Always update sync metadata even if no records, to mark check timestamp
@@ -596,33 +592,30 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     }
     
     // CRITICAL: Verify data was actually saved before marking as synced
-    const [finalAppUsers, finalCities, finalStores, finalCompanies, finalPatients, finalDeliveries] = await Promise.all([
+    const [finalAppUsers, finalCities, finalStores, finalPatients, finalDeliveries] = await Promise.all([
       offlineDB.getAll(offlineDB.STORES.APP_USERS),
       offlineDB.getAll(offlineDB.STORES.CITIES),
       offlineDB.getAll(offlineDB.STORES.STORES),
-      offlineDB.getAll(offlineDB.STORES.COMPANIES),
       offlineDB.getAll(offlineDB.STORES.PATIENTS),
       offlineDB.getAll(offlineDB.STORES.DELIVERIES)
     ]);
     
-    console.log(`✅ [LoadPriorityData] Final DB counts: Users=${finalAppUsers?.length || 0}, Cities=${finalCities?.length || 0}, Stores=${finalStores?.length || 0}, Companies=${finalCompanies?.length || 0}, Patients=${finalPatients?.length || 0}, Deliveries=${finalDeliveries?.length || 0}`);
+    console.log(`✅ [LoadPriorityData] Final DB counts: Users=${finalAppUsers?.length || 0}, Cities=${finalCities?.length || 0}, Stores=${finalStores?.length || 0}, Patients=${finalPatients?.length || 0}, Deliveries=${finalDeliveries?.length || 0}`);
     
     await Promise.all([
       offlineDB.updateSyncStatus('City', { recordCount: finalCities?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
       offlineDB.updateSyncStatus('Store', { recordCount: finalStores?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('Company', { recordCount: finalCompanies?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
       offlineDB.updateSyncStatus('AppUser', { recordCount: finalAppUsers?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
       offlineDB.updateSyncStatus('Delivery', { recordCount: finalDeliveries?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
       offlineDB.updateSyncStatus('Patient', { recordCount: finalPatients?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() })
     ]);
 
-    notifySyncStatus({ status: 'priority_loaded', cities: finalCities?.length, stores: finalStores?.length, companies: finalCompanies?.length, appUsers: finalAppUsers?.length, deliveries: finalDeliveries?.length, patients: finalPatients?.length });
+    notifySyncStatus({ status: 'priority_loaded', cities: finalCities?.length, stores: finalStores?.length, appUsers: finalAppUsers?.length, deliveries: finalDeliveries?.length, patients: finalPatients?.length });
 
     syncInProgress = false;
     return { 
       cities: finalCities || cities, 
-      stores: finalStores || stores,
-      companies: finalCompanies || [], 
+      stores: finalStores || stores, 
       appUsers: finalAppUsers || appUsers, 
       deliveries: finalDeliveries || deliveries, 
       patients: finalPatients?.filter(p => p && p.id && !p.id.startsWith('temp_')) || patients 
@@ -957,7 +950,7 @@ export const processPendingMutations = async () => {
         return Promise.resolve({ success: true, skip: true });
       }
       
-      const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
+      const Entity = OFFLINE_SYNC_ENTITY_CLIENTS[mutation.entity];
       return Entity.delete(mutation.recordId)
         .then(() => ({ success: true, mutationId: mutation.mutationId }))
         .catch(deleteError => {
@@ -981,14 +974,18 @@ export const processPendingMutations = async () => {
       if (result.success && result.mutationId) {
         const mutation = deletes.find(m => m.mutationId === result.mutationId);
         if (mutation) {
+          // Always remove from pending queue on success
           offlineDeletePromises.push(
             offlineDB.removePendingMutation(result.mutationId)
           );
-          const storeName = getOfflineStoreName(offlineDB, mutation.entity);
-          if (storeName && !mutation.recordId?.startsWith('temp_')) {
-            offlineDeletePromises.push(
-              offlineDB.deleteRecord(storeName, mutation.recordId)
-            );
+          // Only delete from offline DB if not a temp record
+          if (!mutation.recordId?.startsWith('temp_')) {
+            const storeName = getOfflineStoreName(offlineDB, mutation.entity);
+            if (storeName) {
+              offlineDeletePromises.push(
+                offlineDB.deleteRecord(storeName, mutation.recordId)
+              );
+            }
           }
         }
         successCount++;
@@ -1023,7 +1020,7 @@ export const processPendingMutations = async () => {
     if (syncPaused) break;
     
     try {
-      const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
+      const Entity = OFFLINE_SYNC_ENTITY_CLIENTS[mutation.entity];
       const deliveryPayload = mutation.entity === 'Delivery' ? (() => {
         const source = mutation.payload?._isBatchSave && Array.isArray(mutation.payload?._stagedDeliveries)
           ? mutation.payload._stagedDeliveries[0]
@@ -1060,9 +1057,20 @@ export const processPendingMutations = async () => {
       }
       
       if (mutation.operation === 'create') {
-        await Entity.create(mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+        const createdRecord = await Entity.create(mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+        const storeName = getOfflineStoreName(offlineDB, mutation.entity);
+        if (storeName && createdRecord) {
+          if (mutation.recordId?.startsWith('temp_')) {
+            await offlineDB.deleteRecord(storeName, mutation.recordId);
+          }
+          await offlineDB.bulkSave(storeName, [createdRecord]);
+        }
       } else if (mutation.operation === 'update') {
-        await Entity.update(mutation.recordId, mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+        const updatedRecord = await Entity.update(mutation.recordId, mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+        const storeName = getOfflineStoreName(offlineDB, mutation.entity);
+        if (storeName && updatedRecord) {
+          await offlineDB.bulkSave(storeName, [updatedRecord]);
+        }
       }
       
       await offlineDB.removePendingMutation(mutation.mutationId);
@@ -1311,7 +1319,7 @@ export const handleDeleteBroadcast = async (entityName, recordId) => {
   if (!entityName || !recordId) return;
   
   try {
-    const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+    const storeName = getOfflineStoreName(offlineDB, entityName) || (entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES);
     await offlineDB.deleteRecord(storeName, recordId);
     return true;
   } catch (error) {
@@ -1572,6 +1580,16 @@ export const initializeOfflineDBBeforeRender = async (smartRefreshMgr = null, cu
     return { success: false, appUsers: [], cities: [], error: error.message };
   }
 };
+
+if (typeof window !== 'undefined' && !window.__rxDeliverOfflineReconnectSync) {
+  window.__rxDeliverOfflineReconnectSync = true;
+  window.addEventListener('online', () => {
+    setTimeout(() => {
+      processPendingMutations().catch(() => {});
+      performBackgroundSync(format(new Date(), 'yyyy-MM-dd')).catch(() => {});
+    }, 1500);
+  });
+}
 
 export const getSyncStats = async () => {
   const stats = await offlineDB.getStats();
