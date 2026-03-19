@@ -5,6 +5,9 @@
  * - Delivery entities
  * - Patient entities
  * - AppUser entities
+ * - City entities
+ * - Store entities
+ * - Company entities
  * 
  * Broadcasts changes to the app and notifies all listeners.
  */
@@ -20,6 +23,9 @@ const eventBuffers = {
   Delivery: new Map(),
   Patient: new Map(),
   AppUser: new Map(),
+  City: new Map(),
+  Store: new Map(),
+  Company: new Map(),
   Message: new Map(),
 };
 const flushTimers = {};
@@ -212,6 +218,7 @@ const subscribeToEntity = (entityName) => {
                            entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
                            entityName === 'City' ? offlineDB.STORES.CITIES :
                            entityName === 'Store' ? offlineDB.STORES.STORES :
+                           entityName === 'Company' ? offlineDB.STORES.COMPANIES :
                            entityName === 'Message' ? null : null;
           
           if (storeName) {
@@ -222,6 +229,9 @@ const subscribeToEntity = (entityName) => {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                            entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                            entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
+                           entityName === 'City' ? offlineDB.STORES.CITIES :
+                           entityName === 'Store' ? offlineDB.STORES.STORES :
+                           entityName === 'Company' ? offlineDB.STORES.COMPANIES :
                            null;
           
           if (storeName) {
@@ -255,6 +265,9 @@ export const connect = () => {
     subscribeToEntity('Delivery');
     subscribeToEntity('Patient');
     subscribeToEntity('AppUser');
+    subscribeToEntity('City');
+    subscribeToEntity('Store');
+    subscribeToEntity('Company');
     subscribeToEntity('Message');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
