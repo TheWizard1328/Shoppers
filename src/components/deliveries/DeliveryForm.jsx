@@ -1607,10 +1607,10 @@ export default function DeliveryForm({
     setEditingStagedId(staged._tempId);
 
     let formDataToSet = {
-      ...staged,
-      puid: staged.puid || '', // Ensure PUID is explicitly set from staged item
-      driver_id: staged.driver_id || '', // CRITICAL: Ensure driver_id is explicitly set from staged item
-      driver_name: staged.driver_name || '', // CRITICAL: Ensure driver_name is explicitly set from staged item
+      ...staged, patient_phone: staged.patient_phone || (patients.find((p) => p && p.id === staged.patient_id)?.phone) || '',
+      puid: staged.puid || '',
+      driver_id: staged.driver_id || '',
+      driver_name: staged.driver_name || '',
       cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0
     };
 
