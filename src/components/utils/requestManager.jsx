@@ -10,10 +10,10 @@ export const requestManager = {
   get(key) {
     const cacheKey = toCacheKey(key);
     const cached = responseCache.get(cacheKey);
-    if (!cached) return null;
+    if (!cached) return undefined;
     if (cached.expiresAt && cached.expiresAt <= Date.now()) {
       responseCache.delete(cacheKey);
-      return null;
+      return undefined;
     }
     return cached.value;
   },
@@ -37,7 +37,7 @@ export const requestManager = {
     const { ttlMs = 0, cacheNull = false } = options;
 
     const cached = this.get(cacheKey);
-    if (cached !== null) {
+    if (cached !== undefined) {
       return cached;
     }
 
