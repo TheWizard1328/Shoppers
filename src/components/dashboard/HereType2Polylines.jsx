@@ -103,7 +103,7 @@ export default function HereType2Polylines({
   const mapBlueToNonBlue = (hex, id) => {
     // Always avoid blue hues for Type 2 regardless of mode
     if (!isBlueHex(hex)) return hex;
-    const palette = ['#8A2BE2', '#EC4899', '#F59E0B', '#A855F7', '#F43F5E', '#FF7F50', '#A0522D']; // no blues
+    const palette = ['#8A2BE2', '#EC4899', '#A855F7', '#F43F5E', '#A0522D', '#7C3AED', '#BE185D']; // no blues, no oranges
     const idx = Math.abs(hashId(id || 'x')) % palette.length;
     return palette[idx];
   };

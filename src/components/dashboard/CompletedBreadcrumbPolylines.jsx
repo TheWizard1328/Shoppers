@@ -35,7 +35,7 @@ const hashId = (value) => Array.from(String(value || "x")).reduce((acc, char) =>
 
 const mapBlueToNonBlue = (hex, id) => {
   if (!isBlueHex(hex)) return hex || "#607D8B";
-  const palette = ["#8A2BE2", "#EC4899", "#F59E0B", "#A855F7", "#F43F5E", "#FF7F50", "#A0522D"];
+  const palette = ["#8A2BE2", "#EC4899", "#A855F7", "#F43F5E", "#A0522D", "#7C3AED", "#BE185D"];
   return palette[Math.abs(hashId(id)) % palette.length];
 };
 
