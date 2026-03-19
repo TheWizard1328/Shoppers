@@ -5,7 +5,7 @@
 
 // CRITICAL: Use stable database name and version to prevent recreation
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
-const DB_VERSION = 8; // Incremented to add SQUARE_CATALOG_ITEMS store
+const DB_VERSION = 9; // Incremented to add Company offline store
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 
@@ -16,6 +16,7 @@ const STORES = {
   APP_USERS: 'app_users',
   CITIES: 'cities',
   STORES: 'stores',
+  COMPANIES: 'companies',
   SQUARE_LOCATION_CONFIGS: 'square_location_configs',
   SQUARE_CATALOG_ITEMS: 'square_catalog_items',
   SQUARE_TRANSACTIONS: 'square_transactions',
@@ -140,6 +141,13 @@ const openDatabase = () => {
         storeStore.createIndex('city_id', 'city_id', { unique: false });
         storeStore.createIndex('name', 'name', { unique: false });
         storeStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.COMPANIES)) {
+        const companyStore = db.createObjectStore(STORES.COMPANIES, { keyPath: 'id' });
+        companyStore.createIndex('name', 'name', { unique: false });
+        companyStore.createIndex('status', 'status', { unique: false });
+        companyStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
       if (!db.objectStoreNames.contains(STORES.SQUARE_LOCATION_CONFIGS)) {
@@ -468,12 +476,13 @@ const needsInitialSync = async (entityName) => {
  */
 const getStats = async () => {
   try {
-    const [patients, deliveries, appUsers, cities, stores, squareTx, driverStats, patientSync, deliverySync, appUserSync, citySync, storeSync, squareTxSync] = await Promise.all([
+    const [patients, deliveries, appUsers, cities, stores, companies, squareTx, driverStats, patientSync, deliverySync, appUserSync, citySync, storeSync, companySync, squareTxSync] = await Promise.all([
       getAll(STORES.PATIENTS),
       getAll(STORES.DELIVERIES),
       getAll(STORES.APP_USERS),
       getAll(STORES.CITIES),
       getAll(STORES.STORES),
+      getAll(STORES.COMPANIES),
       getAll(STORES.SQUARE_TRANSACTIONS),
       getAll(STORES.DRIVER_OVERVIEW_STATS),
       getSyncStatus('Patient'),
@@ -481,6 +490,7 @@ const getStats = async () => {
       getSyncStatus('AppUser'),
       getSyncStatus('City'),
       getSyncStatus('Store'),
+      getSyncStatus('Company'),
       getSyncStatus('SquareTransaction')
     ]);
 
@@ -505,6 +515,10 @@ const getStats = async () => {
         count: stores?.length || 0,
         lastSync: storeSync?.lastSync || storeSync?.lastSyncDate || 'Never'
       },
+      companies: {
+        count: companies?.length || 0,
+        lastSync: companySync?.lastSync || companySync?.lastSyncDate || 'Never'
+      },
       squareTransactions: {
         count: squareTx?.length || 0,
         lastSync: squareTxSync?.lastSync || squareTxSync?.lastSyncDate || 'Never'
@@ -523,6 +537,7 @@ const getStats = async () => {
       appUsers: { count: 0, lastSync: 'Never' },
       cities: { count: 0, lastSync: 'Never' },
       stores: { count: 0, lastSync: 'Never' },
+      companies: { count: 0, lastSync: 'Never' },
       squareTransactions: { count: 0, lastSync: 'Never' },
       driverOverviewStats: { count: 0, lastSync: 'Never' }
     };
