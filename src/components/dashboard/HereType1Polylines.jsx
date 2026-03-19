@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRouting";
+import useDriverRoutePolylineBackgroundSync from "../utils/useDriverRoutePolylineBackgroundSync";
 import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
 
 const FINISHED = ["completed", "failed", "cancelled", "returned"];
@@ -210,6 +211,25 @@ export default function HereType1Polylines({
     });
     return out;
   }, [driverStops]);
+
+  const polylineSyncTargets = useMemo(() => {
+    const targets = [];
+    driverStops.forEach((stops, driverId) => {
+      const dateSet = new Set();
+      [...(stops.complete || []), ...(stops.incomplete || []), ...(stops.pending || [])].forEach((stop) => {
+        if (stop?.delivery_date) dateSet.add(stop.delivery_date);
+      });
+      dateSet.forEach((deliveryDate) => targets.push({ driverId, deliveryDate }));
+    });
+    return targets;
+  }, [driverStops]);
+
+  useDriverRoutePolylineBackgroundSync({
+    targets: polylineSyncTargets,
+    enabled: polylineSyncTargets.length > 0,
+    intervalMs: 30000,
+    onSync: () => setRefreshToken((token) => token + 1)
+  });
 
   // Listen for route reorder/optimization events to refresh polylines
   useEffect(() => {

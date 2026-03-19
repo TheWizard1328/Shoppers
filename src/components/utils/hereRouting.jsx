@@ -37,7 +37,7 @@ function buildDriverDateKey(driverId, deliveryDate) {
   return `${String(driverId || '')}|${String(deliveryDate || '')}`;
 }
 
-async function syncDriverRoutePolylinesForDate(driverId, deliveryDate, force = false) {
+export async function syncDriverRoutePolylinesForDate(driverId, deliveryDate, force = false) {
   if (!driverId || !deliveryDate) return [];
 
   const syncKey = buildDriverDateKey(driverId, deliveryDate);
