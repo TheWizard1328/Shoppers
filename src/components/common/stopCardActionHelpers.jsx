@@ -241,6 +241,27 @@ export function centerDeliveryCard(deliveryId) {
   setTimeout(scrollToCard, 0);
 }
 
+export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], nextDeliveryId = null, updateDeliveriesLocally }) {
+  const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
+  if (scopedDeliveries.length === 0) return;
+
+  const updatedDeliveries = scopedDeliveries.map((item) => ({
+    ...item,
+    isNextDelivery: !!nextDeliveryId && item.id === nextDeliveryId
+  }));
+
+  try {
+    const { offlineDB } = await import('../utils/offlineDatabase');
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
+  } catch (error) {
+    console.warn('[stopCardActionHelpers] Failed to sync next-delivery flags to offline DB:', error?.message || error);
+  }
+
+  if (updateDeliveriesLocally) {
+    updateDeliveriesLocally(updatedDeliveries, false);
+  }
+}
+
 export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy }) {
   invalidate("Delivery");
   await forceRefreshDriverDeliveries(driverId, deliveryDate);
