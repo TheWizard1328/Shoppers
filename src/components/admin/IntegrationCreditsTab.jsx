@@ -203,46 +203,46 @@ export default function IntegrationCreditsTab() {
         </div>
       </div>
 
-      <div className="grid gap-2 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Zap className="w-4 h-4" />Estimated Credits</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">{summary.totalEstimatedCredits}</div>
-            <p className="text-xs text-slate-500 mt-1">In the selected timeframe</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Activity className="w-4 h-4" />Successful Calls</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">{summary.successfulCalls}</div>
-            <p className="text-xs text-slate-500 mt-1">Out of {filteredLogs.length} tracked calls</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Activity className="w-4 h-4" />Failed Calls</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-red-600">{summary.failedCalls}</div>
-            <p className="text-xs text-slate-500 mt-1">Calls that ended in failure</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Clock3 className="w-4 h-4" />Average Duration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">{formatDuration(summary.avgDuration)}</div>
-            <p className="text-xs text-slate-500 mt-1">Average integration runtime</p>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="grid gap-2 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><Zap className="w-4 h-4" />Estimated Credits</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-slate-900">{summary.totalEstimatedCredits}</div>
+              <p className="text-xs text-slate-500 mt-1">In the selected timeframe</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><Activity className="w-4 h-4" />Successful Calls</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-slate-900">{summary.successfulCalls}</div>
+              <p className="text-xs text-slate-500 mt-1">Out of {filteredLogs.length} tracked calls</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><Activity className="w-4 h-4" />Failed Calls</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">{summary.failedCalls}</div>
+              <p className="text-xs text-slate-500 mt-1">Calls that ended in failure</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><Clock3 className="w-4 h-4" />Average Duration</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-slate-900">{formatDuration(summary.avgDuration)}</div>
+              <p className="text-xs text-slate-500 mt-1">Average integration runtime</p>
+            </CardContent>
+          </Card>
+        </div>
 
-      <div className="grid gap-2 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader className="pt-3 pr-6 pb-1 pl-6 flex flex-col space-y-1.5">
             <CardTitle>Usage by Task</CardTitle>
