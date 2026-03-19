@@ -93,6 +93,7 @@ import DispatcherPickupNotification from '../components/dashboard/DispatcherPick
 import ReconcileToast from '../components/dashboard/ReconcileToast';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";import { shouldRefreshUserFromAppUser } from "@/components/utils/appUserRefreshUtils";
+import { saveDriverChangedDelivery } from "@/components/utils/saveDriverChangedDelivery";
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
@@ -4293,11 +4294,9 @@ function Dashboard() {
       };
 
       if (isEditing && driverWasChanged) {
-        await base44.entities.Delivery.update(editingDelivery.id, deliveryData);
+        await saveDriverChangedDelivery({ base44, deliveries, editingDelivery, deliveryData, deliveryDate, driverId, driver });
         invalidate('Delivery');
-
         await handleDualDriverOptimization(originalDriverId, driverId, deliveryDate);
-
         await refreshData();
         setShowDeliveryForm(false);
         setEditingDelivery(null);
