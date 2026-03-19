@@ -12,10 +12,13 @@ import BarcodeThumb from './BarcodeThumb';
 const classifyBarcode = (value) => {
   const raw = String(value || '').trim();
   const normalized = raw.replace(/\s+/g, '');
+  const compact = normalized.replace(/^RX[#:\-]*/i, '');
 
+  if (!compact) return 'receipt';
   if (/^rx[#:\-\s]*/i.test(raw)) return 'rx';
-  if (/^\d{5,8}$/.test(normalized)) return 'rx';
-  if (/^[A-Za-z]{0,2}\d{5,8}$/.test(normalized) && !/-/.test(normalized)) return 'rx';
+  if (/^\d{4,12}$/.test(compact)) return 'rx';
+  if (/^[A-Za-z]{0,3}\d{4,12}$/.test(compact) && !/[-/.]/.test(compact)) return 'rx';
+  if (/^[A-Za-z0-9]{4,12}$/.test(compact) && !/[\-/.]/.test(compact)) return 'rx';
   return 'receipt';
 };
 
@@ -83,6 +86,7 @@ export default function SmartBarcodeScanner({
   const isReaderActiveRef = useRef(false);
   const streamRef = useRef(null);
   const scannerBufferRef = useRef('');
+  const scannerLeadCharRef = useRef('');
   const scannerModeRef = useRef(false);
   const lastKeyAtRef = useRef(0);
   const scannerResetTimerRef = useRef(null);
@@ -115,6 +119,7 @@ export default function SmartBarcodeScanner({
 
   const addBarcode = useCallback((value) => {
     const trimmed = String(value || '').trim();
+    scannerLeadCharRef.current = '';
     if (!trimmed || allValues.includes(trimmed)) {
       setManualInput('');
       setTimeout(() => inputRef.current?.focus(), 0);
@@ -146,19 +151,40 @@ export default function SmartBarcodeScanner({
     const now = Date.now();
     const delta = now - (lastKeyAtRef.current || 0);
 
-    if (isChar && (delta < fastThreshold || scannerModeRef.current)) {
+    if (isChar && scannerModeRef.current) {
       e.preventDefault();
       e.stopPropagation();
-      scannerModeRef.current = true;
       lastKeyAtRef.current = now;
       scannerBufferRef.current += key;
-
       if (scannerResetTimerRef.current) clearTimeout(scannerResetTimerRef.current);
       scannerResetTimerRef.current = setTimeout(() => {
         scannerModeRef.current = false;
         scannerBufferRef.current = '';
+        scannerLeadCharRef.current = '';
       }, 400);
       return;
+    }
+
+    if (isChar && delta < fastThreshold) {
+      e.preventDefault();
+      e.stopPropagation();
+      scannerModeRef.current = true;
+      lastKeyAtRef.current = now;
+      scannerBufferRef.current = `${scannerLeadCharRef.current || manualInput || ''}${key}`;
+      scannerLeadCharRef.current = '';
+      if (manualInput) setManualInput('');
+      if (scannerResetTimerRef.current) clearTimeout(scannerResetTimerRef.current);
+      scannerResetTimerRef.current = setTimeout(() => {
+        scannerModeRef.current = false;
+        scannerBufferRef.current = '';
+        scannerLeadCharRef.current = '';
+      }, 400);
+      return;
+    }
+
+    if (isChar) {
+      scannerLeadCharRef.current = key;
+      lastKeyAtRef.current = now;
     }
 
     if (key === 'Enter') {
@@ -170,7 +196,7 @@ export default function SmartBarcodeScanner({
         scannerModeRef.current = false;
         return;
       }
-      addBarcode(manualInput);
+      addBarcode(manualInput || scannerLeadCharRef.current);
       return;
     }
 
