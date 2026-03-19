@@ -5,20 +5,21 @@ export async function saveDriverChangedDelivery({
   deliveryData,
   deliveryDate,
   driverId,
-  driver
+  driver,
+  originalDriverId
 }) {
   await base44.entities.Delivery.update(editingDelivery.id, deliveryData);
 
   const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
-  const pickupStopId = editingDelivery.stop_id || deliveryData.stop_id;
+  const pickupLinkId = editingDelivery.puid || editingDelivery.stop_id || deliveryData.puid || deliveryData.stop_id;
   const isIncompletePickup = !editingDelivery.patient_id && !finishedStatuses.has(editingDelivery.status);
 
-  if (!isIncompletePickup || !pickupStopId) return;
+  if (!isIncompletePickup || !pickupLinkId) return;
 
   const pendingDeliveriesForPickup = (deliveries || []).filter((delivery) =>
     delivery &&
-    delivery.delivery_date === deliveryDate &&
-    delivery.puid === pickupStopId &&
+    delivery.driver_id === originalDriverId &&
+    delivery.puid === pickupLinkId &&
     delivery.status === 'pending' &&
     delivery.patient_id
   );
@@ -27,7 +28,8 @@ export async function saveDriverChangedDelivery({
     pendingDeliveriesForPickup.map((pendingDelivery) =>
       base44.entities.Delivery.update(pendingDelivery.id, {
         driver_id: driverId,
-        driver_name: driver.user_name || driver.full_name
+        driver_name: driver.user_name || driver.full_name,
+        delivery_date: deliveryDate
       })
     )
   );
