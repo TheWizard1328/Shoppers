@@ -530,6 +530,21 @@ export const localWrites = {
   updateDelivery: updateDeliveryLocal,
   deleteDelivery: deleteDeliveryLocal,
   batchCreateDeliveries: batchCreateDeliveriesLocal,
+
+  // City operations
+  createCity: createCityLocal,
+  updateCity: updateCityLocal,
+  deleteCity: deleteCityLocal,
+
+  // Store operations
+  createStore: createStoreLocal,
+  updateStore: updateStoreLocal,
+  deleteStore: deleteStoreLocal,
+
+  // Company operations
+  createCompany: createCompanyLocal,
+  updateCompany: updateCompanyLocal,
+  deleteCompany: deleteCompanyLocal,
   
   // Subscribe to mutation events for UI updates
   subscribeMutations
