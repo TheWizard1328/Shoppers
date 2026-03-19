@@ -1013,21 +1013,15 @@ export default function Layout({ children, currentPageName }) {
 
         setInitialGlobalFiltersSet(true);
 
-        // CRITICAL: Prime only the large, active datasets here.
-        // Reference data is already loaded above and now updates through realtime subscriptions.
+        // CRITICAL: Prime only the fast-changing dashboard data here
         const primeStartTime = Date.now();
         try {
-          console.log('🔄 [Layout Init] Priming active dashboard data...');
+          console.log('🔄 [Layout Init] Priming critical dashboard data...');
 
           const todayStr = format(new Date(), 'yyyy-MM-dd');
           const offlineTodayDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', todayStr);
           if (offlineTodayDeliveries?.length) {
             setDeliveries(offlineTodayDeliveries);
-          }
-
-          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-          if (offlinePatients?.length) {
-            setPatients(offlinePatients);
           }
 
           const deliveryData = await requestThrottler.queue(
@@ -1041,12 +1035,19 @@ export default function Layout({ children, currentPageName }) {
             setDeliveries(deliveryData);
           }
 
-          console.log(`✅ [Layout Init] Active dashboard data primed in ${Date.now() - primeStartTime}ms`);
-          if (!deliveryData?.length) {
-            window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
+          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+          if (offlinePatients?.length) {
+            setPatients(offlinePatients);
           }
+
+          if (appUsersData?.length) {
+            setAppUsers(appUsersData);
+          }
+
+          console.log(`✅ [Layout Init] Critical dashboard data primed in ${Date.now() - primeStartTime}ms`);
+          if (!deliveryData?.length) {window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
         } catch (error) {
-          console.warn('⚠️ [Layout Init] Active data prime failed (non-critical):', error.message);
+          console.warn('⚠️ [Layout Init] Critical data prime failed (non-critical):', error.message);
           window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
         }
 
@@ -1510,27 +1511,16 @@ export default function Layout({ children, currentPageName }) {
       if (entity === 'Delivery') {
         if (action === 'create') {
           setDeliveries((prev) => {
-            if (prev.some((d) => d?.id === id)) return prev;
+            if (prev.some((delivery) => delivery?.id === id)) return prev;
             return [...prev, data];
           });
         } else if (action === 'update') {
-          setDeliveries((prev) => prev.map((d) => d?.id === id ? { ...d, ...data } : d));
-          console.log(`📥 [Layout] Real-time delivery update: ${id}, status: ${data?.status}`);
+          setDeliveries((prev) => prev.map((delivery) =>
+          delivery?.id === id ? { ...delivery, ...data } : delivery
+          ));
         } else if (action === 'delete') {
-          setDeliveries((prev) => prev.filter((d) => d?.id !== id));
+          setDeliveries((prev) => prev.filter((delivery) => delivery?.id !== id));
           offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
-          setTimeout(() => {
-            base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
-              const items = response?.data?.items || response?.items || [];
-              setCatalogItems(items);
-            });
-          }, 500);
-        } else if (action === 'batch_delete' && update.ids) {
-          const idsToDelete = new Set(update.ids);
-          setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
-          update.ids.forEach((deletedId) => {
-            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, deletedId).catch(() => {});
-          });
           setTimeout(() => {
             base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
               const items = response?.data?.items || response?.items || [];
@@ -1541,8 +1531,13 @@ export default function Layout({ children, currentPageName }) {
       }
 
       if (entity === 'AppUser' && action === 'update') {
-        setAppUsers((prev) => prev.map((au) => au?.id === id ? { ...au, ...data } : au));
-        setUsers((prev) => prev.map((u) => u?.id === data?.user_id ? { ...u, ...data } : u));
+        setAppUsers((prev) => prev.map((appUser) =>
+        appUser?.id === id ? { ...appUser, ...data } : appUser
+        ));
+
+        setUsers((prev) => prev.map((user) =>
+        user?.id === data?.user_id ? { ...user, ...data } : user
+        ));
 
         import('./components/utils/offlineDatabase').then(({ offlineDB }) => {
           if (data) {
@@ -1551,7 +1546,6 @@ export default function Layout({ children, currentPageName }) {
         });
 
         if (data?.user_id === currentUser?.id) {
-          console.log('🔄 [Layout Real-time] Current user AppUser updated - refreshing context');
           clearUserCache();
           getEffectiveUser().then((refreshedUser) => {
             if (refreshedUser) {
@@ -1565,30 +1559,29 @@ export default function Layout({ children, currentPageName }) {
         }));
 
         if (data?.current_latitude || data?.current_longitude) {
-          console.log(`📍 [Layout] Driver ${data.user_id} location updated - forcing map refresh (no notification)`);
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
             detail: {
               triggeredBy: 'driver_location_update',
               driverId: data.user_id
             }
           }));
-        } else {
-          toast.success(`${data.user_name || 'Driver'} updated`);
         }
       }
 
       if (entity === 'Patient') {
         if (action === 'create') {
           setPatients((prev) => {
-            if (prev.some((p) => p?.id === id)) return prev;
+            if (prev.some((patient) => patient?.id === id)) return prev;
             return [...prev, data];
           });
           offlineDB.save(offlineDB.STORES.PATIENTS, data).catch(() => {});
         } else if (action === 'update') {
-          setPatients((prev) => prev.map((p) => p?.id === id ? { ...p, ...data } : p));
+          setPatients((prev) => prev.map((patient) =>
+          patient?.id === id ? { ...patient, ...data } : patient
+          ));
           offlineDB.save(offlineDB.STORES.PATIENTS, data).catch(() => {});
         } else if (action === 'delete') {
-          setPatients((prev) => prev.filter((p) => p?.id !== id));
+          setPatients((prev) => prev.filter((patient) => patient?.id !== id));
           offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => {});
         }
       }
@@ -1600,6 +1593,7 @@ export default function Layout({ children, currentPageName }) {
           setCities((prev) => prev.map((city) => city?.id === id ? { ...city, ...data } : city).sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
         } else if (action === 'delete') {
           setCities((prev) => prev.filter((city) => city?.id !== id));
+          offlineDB.deleteRecord(offlineDB.STORES.CITIES, id).catch(() => {});
         }
       }
 
@@ -1610,6 +1604,7 @@ export default function Layout({ children, currentPageName }) {
           setStores((prev) => prev.map((store) => store?.id === id ? { ...store, ...data } : store).sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
         } else if (action === 'delete') {
           setStores((prev) => prev.filter((store) => store?.id !== id));
+          offlineDB.deleteRecord(offlineDB.STORES.STORES, id).catch(() => {});
         }
       }
 
@@ -2024,8 +2019,6 @@ export default function Layout({ children, currentPageName }) {
       let workingCities = cities;
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      // CRITICAL: Stagger initial data loads to prevent rate limiting
-      // Load Cities first (usually cached), then others with delays
       const citiesData = workingCities?.length > 0 ? workingCities : await getData('City', null, null, forceRefresh);
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
       const allStores = await getData('Store', null, null, forceRefresh);
@@ -2072,13 +2065,11 @@ export default function Layout({ children, currentPageName }) {
           setDataLoaded(true);
 
           setTimeout(async () => {
+            const cityScopedPatientStoreIds = new Set(cityStoreIds);
             let patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-            if (cityStoreIds.length > 0) {
-              const allowedStoreIds = new Set(cityStoreIds);
-              patientsData = (patientsData || []).filter((patient) => allowedStoreIds.has(patient?.store_id));
-            }
+            patientsData = (patientsData || []).filter((patient) => cityScopedPatientStoreIds.has(patient?.store_id));
 
-            if ((!patientsData || patientsData.length === 0) && cityStoreIds.length > 0) {
+            if (!patientsData.length && cityStoreIds.length > 0) {
               patientsData = await requestThrottler.queue(
                 () => base44.entities.Patient.filter({ store_id: { $in: cityStoreIds } }).catch(() => []),
                 'standard',
