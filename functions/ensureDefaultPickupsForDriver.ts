@@ -51,6 +51,35 @@ function getAssignedSlotsForStore(store, deliveryDate, driverId) {
   return slots;
 }
 
+function getDriverStoreFields(deliveryDate) {
+  const dayOfWeek = new Date(`${deliveryDate}T00:00:00`).getDay();
+
+  if (dayOfWeek === 6) {
+    return { am: 'saturday_am_driver_id', pm: 'saturday_pm_driver_id' };
+  }
+
+  if (dayOfWeek === 0) {
+    return { am: 'sunday_am_driver_id', pm: 'sunday_pm_driver_id' };
+  }
+
+  return { am: 'weekday_am_driver_id', pm: 'weekday_pm_driver_id' };
+}
+
+async function loadAssignedStores(base44, deliveryDate, driverId) {
+  const fields = getDriverStoreFields(deliveryDate);
+  const [amStores, pmStores] = await Promise.all([
+    base44.asServiceRole.entities.Store.filter({ [fields.am]: driverId }, '-created_date', 100),
+    base44.asServiceRole.entities.Store.filter({ [fields.pm]: driverId }, '-created_date', 100),
+  ]);
+
+  const deduped = new Map();
+  [...(amStores || []), ...(pmStores || [])].forEach((store) => {
+    if (store?.id) deduped.set(store.id, store);
+  });
+
+  return Array.from(deduped.values());
+}
+
 function getSlotTimes(store, deliveryDate, slot) {
   const dayOfWeek = new Date(`${deliveryDate}T00:00:00`).getDay();
   const safeTime = (value) => typeof value === 'string' && /^\d{2}:\d{2}$/.test(value) ? value : null;
