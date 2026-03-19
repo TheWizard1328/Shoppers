@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { getPickupStopIdForDelivery, determineDeliveryAMPM, getStoreAssignedTimeSlot } from '../utils/ampmUtils';
 import { isAppOwner } from '../utils/userRoles';
-import BarcodeScanner from './BarcodeScanner';
+import SmartBarcodeScanner from './SmartBarcodeScanner';
 import PatientMatchPopup from './PatientMatchPopup';
 import DeliveryPatientSearch from './DeliveryPatientSearch';
 import DeliveryRecurringOptions from './DeliveryRecurringOptions';
@@ -499,31 +499,14 @@ export default function DeliveryFormView({
                   {/* Barcode Scanner */}
                   {!isPickupMode && (
                     <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
-                          <BarcodeScanner
-                             title="Receipt Barcodes"
-                             placeholder="Scan receipt barcode..."
-                             barcodeValues={formData.receipt_barcode_values || []}
-                             onChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
-                             onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
-                             disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
-                             silentEntry={true}
-                           />
-                        </div>
-                        <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
-                          <BarcodeScanner
-                              title="Rx Barcodes"
-                              placeholder="Scan Rx barcode..."
-                              barcodeValues={formData.barcode_values || []}
-                              onChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
-                              onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
-                              disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
-                              twoPerRow
-                              silentEntry={true}
-                            />
-                        </div>
-                      </div>
+                      <SmartBarcodeScanner
+                        receiptValues={formData.receipt_barcode_values || []}
+                        rxValues={formData.barcode_values || []}
+                        onReceiptChange={(vals) => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
+                        onRxChange={(vals) => setFormData(prev => ({ ...prev, barcode_values: vals }))}
+                        onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
+                        disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
+                      />
 
                       {formData._preview_barcode && (
                         <div className="mt-2 p-2 rounded-md border bg-card border-emerald-300/60 dark:bg-slate-900/40 dark:border-emerald-700">
