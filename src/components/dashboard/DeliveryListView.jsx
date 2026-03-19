@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { format, differenceInMinutes } from 'date-fns';
@@ -27,8 +27,8 @@ const DeliveryRow = memo(({
   const isNextDelivery = delivery.isNextDelivery === true;
 
   const desktopGridClass = bulkEditMode
-    ? 'grid grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2'
-    : 'grid grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2';
+    ? 'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2'
+    : 'grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2';
 
   const handleRowClick = () => {
     if (bulkEditMode) {
@@ -310,6 +310,9 @@ const DeliveryListView = ({
 }) => {
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
   const [mediaPreview, setMediaPreview] = useState(null);
+  const headerScrollRef = useRef(null);
+  const bodyScrollRef = useRef(null);
+  const syncScrollSourceRef = useRef(null);
 
   // Memoize patient lookup map for O(1) access
   const patientMap = useMemo(() => {
@@ -436,72 +439,102 @@ const DeliveryListView = ({
     }
   }, [bulkEditMode]);
 
+  const syncHeaderScroll = useCallback((event) => {
+    if (syncScrollSourceRef.current === 'body') {
+      syncScrollSourceRef.current = null;
+      return;
+    }
+    if (!bodyScrollRef.current) return;
+    syncScrollSourceRef.current = 'header';
+    bodyScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
+  }, []);
+
+  const syncBodyScroll = useCallback((event) => {
+    if (syncScrollSourceRef.current === 'header') {
+      syncScrollSourceRef.current = null;
+      return;
+    }
+    if (!headerScrollRef.current) return;
+    syncScrollSourceRef.current = 'body';
+    headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
+  }, []);
+
   return (
     <>
-      <div className="h-full flex flex-col relative" style={{ background: 'var(--bg-white)' }}>
+      <div className="h-full min-h-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
-        <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+        <div className="flex-shrink-0 border-b z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {!isMobile && (
-            <div className={`${bulkEditMode ? 'grid grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]' : 'grid grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]'} gap-2 px-4 py-3 text-sm font-semibold`} style={{ color: 'var(--text-slate-700)' }}>
-              {bulkEditMode && (
-                <div className="flex items-center justify-center">
-                  <Checkbox
-                    checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
-                    onCheckedChange={() => onBulkToggleAllVisible()}
-                  />
-                </div>
-              )}
-              <div className="text-center">Stop/TR</div>
-              <div className="text-center">Status</div>
-              <div className="text-center">Time</div>
-              <div className="text-left">Patient/Pickup</div>
-              <div className="text-left">Notes</div>
-              <div className="text-center">Receipts</div>
-              <div className="text-center">Rx</div>
-              <div className="text-center">Signature</div>
-              <div className="text-center">Photos</div>
-              <div className="text-center">COD</div>
+            <div
+              ref={headerScrollRef}
+              onScroll={syncHeaderScroll}
+              className="overflow-x-auto overflow-y-hidden"
+            >
+              <div className={`${bulkEditMode ? 'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]' : 'grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]'} gap-2 px-4 py-3 text-sm font-semibold`} style={{ color: 'var(--text-slate-700)' }}>
+                {bulkEditMode && (
+                  <div className="flex items-center justify-center">
+                    <Checkbox
+                      checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+                      onCheckedChange={() => onBulkToggleAllVisible()}
+                    />
+                  </div>
+                )}
+                <div className="text-center">Stop/TR</div>
+                <div className="text-center">Status</div>
+                <div className="text-center">Time</div>
+                <div className="text-left">Patient/Pickup</div>
+                <div className="text-left">Notes</div>
+                <div className="text-center">Receipts</div>
+                <div className="text-center">Rx</div>
+                <div className="text-center">Signature</div>
+                <div className="text-center">Photos</div>
+                <div className="text-center">COD</div>
+              </div>
             </div>
           )}
         </div>
 
         {/* Scrollable List */}
-        <div className="flex-1 overflow-y-auto">
-        {deliveries.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-slate-500">
-            No deliveries found
-          </div>
-        ) : (
-          <>
-            {deliveries.map((delivery, idx) => {
-              if (!delivery) return null;
+        <div
+          ref={bodyScrollRef}
+          onScroll={syncBodyScroll}
+          className="flex-1 min-h-0 overflow-auto"
+        >
+          {deliveries.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-slate-500">
+              No deliveries found
+            </div>
+          ) : (
+            <div className={!isMobile ? 'min-w-max' : ''}>
+              {deliveries.map((delivery, idx) => {
+                if (!delivery) return null;
 
-              const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-              const store = storeMap.get(delivery.store_id);
+                const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+                const store = storeMap.get(delivery.store_id);
 
-              return (
-                <DeliveryRow
-                  key={delivery.id || `${delivery.delivery_date||'unknown'}-${delivery.patient_id ?? 'pickup'}-${delivery.store_id ?? 'store'}-${delivery.tracking_number || idx}` }
-                  delivery={delivery}
-                  patient={patient}
-                  store={store}
-                  isSelected={selectedDeliveryId === delivery.id}
-                  onSelect={handleSelect}
-                  getStatusBadge={getStatusBadge}
-                  getTimeDisplay={getTimeDisplay}
-                  getCODDisplay={getCODDisplay}
-                  onOpenMedia={handleOpenMedia}
-                  isMobile={isMobile}
-                  bulkEditMode={bulkEditMode}
-                  isBulkSelected={bulkSelectedIds.includes(delivery.id)}
-                  onBulkToggle={onBulkToggle}
-                />
-              );
-            })}
-          </>
-        )}
+                return (
+                  <DeliveryRow
+                    key={delivery.id || `${delivery.delivery_date||'unknown'}-${delivery.patient_id ?? 'pickup'}-${delivery.store_id ?? 'store'}-${delivery.tracking_number || idx}` }
+                    delivery={delivery}
+                    patient={patient}
+                    store={store}
+                    isSelected={selectedDeliveryId === delivery.id}
+                    onSelect={handleSelect}
+                    getStatusBadge={getStatusBadge}
+                    getTimeDisplay={getTimeDisplay}
+                    getCODDisplay={getCODDisplay}
+                    onOpenMedia={handleOpenMedia}
+                    isMobile={isMobile}
+                    bulkEditMode={bulkEditMode}
+                    isBulkSelected={bulkSelectedIds.includes(delivery.id)}
+                    onBulkToggle={onBulkToggle}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
-        </div>
+      </div>
 
         {/* Centered media preview */}
         <AnimatePresence>
