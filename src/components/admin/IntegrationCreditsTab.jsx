@@ -399,7 +399,7 @@ export default function IntegrationCreditsTab() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="rounded-xl border bg-card text-card-foreground shadow min-h-0 h-full overflow-y-auto">
         <CardHeader>
           <CardTitle>Recent Integration Usage</CardTitle>
           <CardDescription>Latest wrapped integration calls with user, task, duration, and estimated credits.</CardDescription>
