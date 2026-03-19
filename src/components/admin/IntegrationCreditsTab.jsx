@@ -286,12 +286,13 @@ export default function IntegrationCreditsTab() {
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        <Card>
-          <CardHeader className="pt-3 pr-6 pb-1 pl-6 flex flex-col space-y-1.5">
-            <CardTitle>Credit Alert Settings</CardTitle>
-            <CardDescription>Send an in-app message to Robert T when usage spikes within a short window.</CardDescription>
-          </CardHeader>
+      <Card>
+        <CardHeader className="pt-3 pr-6 pb-1 pl-6 flex flex-col space-y-1.5">
+          <CardTitle>Credit Alert Settings</CardTitle>
+          <CardDescription>Send an in-app message to Robert T when usage spikes within a short window.</CardDescription>
+        </CardHeader>
           <CardContent className="p-6 pt-0 space-y-2">
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
