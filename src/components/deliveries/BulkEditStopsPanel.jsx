@@ -5,16 +5,88 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
+import { userHasRole } from "@/components/utils/userRoles";
 
-function BulkEditStopsForm({ selectedCount, drivers, values, setValues, onApply, onCancel, isSaving }) {
+const getStoreSlotOptions = (store, deliveryDate, driverId = null) => {
+  if (!store || !deliveryDate) return [];
+
+  const day = new Date(`${deliveryDate}T00:00:00`).getDay();
+  const slotConfigs = day === 0 ? [
+    { slot: "AM", enabled: !!store.sunday_am_enabled, slotDriverId: store.sunday_am_driver_id },
+    { slot: "PM", enabled: !!store.sunday_pm_enabled, slotDriverId: store.sunday_pm_driver_id },
+  ] : day === 6 ? [
+    { slot: "AM", enabled: !!store.saturday_am_enabled, slotDriverId: store.saturday_am_driver_id },
+    { slot: "PM", enabled: !!store.saturday_pm_enabled, slotDriverId: store.saturday_pm_driver_id },
+  ] : [
+    { slot: "AM", enabled: !!store.weekday_am_enabled, slotDriverId: store.weekday_am_driver_id },
+    { slot: "PM", enabled: !!store.weekday_pm_enabled, slotDriverId: store.weekday_pm_driver_id },
+  ];
+
+  return slotConfigs
+    .filter(({ enabled, slotDriverId }) => enabled && (!driverId || !slotDriverId || String(slotDriverId) === String(driverId)))
+    .map(({ slot }) => ({
+      value: `${store.id}::${slot}`,
+      storeId: store.id,
+      slot,
+      label: `${store.name} [${slot}]`
+    }));
+};
+
+function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, values, setValues, onApply, onCancel, isSaving }) {
+  const isAdmin = userHasRole(currentUser, "admin");
+  const effectiveDriverId = values.driverChoice !== "unchanged" && values.driverChoice !== "unassigned" ? values.driverChoice : null;
+
+  const allowedStores = useMemo(() => {
+    if (isAdmin) return stores || [];
+    const assignedStoreIds = new Set(currentUser?.store_ids || []);
+    return (stores || []).filter((store) => assignedStoreIds.has(store.id));
+  }, [currentUser, isAdmin, stores]);
+
+  const pickupOptions = useMemo(() => {
+    if (!values.delivery_date) return [];
+    return allowedStores.flatMap((store) => getStoreSlotOptions(store, values.delivery_date, effectiveDriverId));
+  }, [allowedStores, effectiveDriverId, values.delivery_date]);
+
+  useEffect(() => {
+    if (pickupOptions.length === 1 && values.storeChoice !== pickupOptions[0].value) {
+      setValues((current) => ({ ...current, storeChoice: pickupOptions[0].value }));
+      return;
+    }
+
+    if (values.storeChoice !== "unchanged" && pickupOptions.length > 0 && !pickupOptions.some((option) => option.value === values.storeChoice)) {
+      setValues((current) => ({ ...current, storeChoice: "unchanged", puid: isAdmin ? "" : current.puid }));
+    }
+  }, [isAdmin, pickupOptions, setValues, values.storeChoice]);
+
+  useEffect(() => {
+    if (!values.delivery_date || values.storeChoice === "unchanged") return;
+    const selectedPickupOption = pickupOptions.find((option) => option.value === values.storeChoice);
+    if (!selectedPickupOption) return;
+
+    const nextPuid = getPickupStopIdForDelivery(
+      selectedPickupOption.storeId,
+      values.delivery_date,
+      selectedPickupOption.slot,
+      allDeliveries || []
+    ) || "";
+
+    if (values.puid !== nextPuid) {
+      setValues((current) => ({ ...current, puid: nextPuid }));
+    }
+  }, [allDeliveries, pickupOptions, setValues, values.delivery_date, values.puid, values.storeChoice]);
+
   const hasChanges = useMemo(() => {
     return Boolean(
       values.delivery_date ||
       values.delivery_time_start ||
       values.delivery_time_end ||
-      values.driverChoice !== "unchanged"
+      values.driverChoice !== "unchanged" ||
+      values.statusChoice !== "unchanged" ||
+      values.storeChoice !== "unchanged" ||
+      (isAdmin && values.puid)
     );
-  }, [values]);
+  }, [isAdmin, values]);
 
   return (
     <form
@@ -35,34 +107,89 @@ function BulkEditStopsForm({ selectedCount, drivers, values, setValues, onApply,
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label style={{ color: "var(--text-slate-900)" }}>Delivery Date</Label>
-          <Input
-            type="date"
-            value={values.delivery_date}
-            onChange={(event) => setValues((current) => ({ ...current, delivery_date: event.target.value }))}
-          />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label style={{ color: "var(--text-slate-900)" }}>Assigned Driver</Label>
+            <Select
+              value={values.driverChoice}
+              onValueChange={(value) => setValues((current) => ({ ...current, driverChoice: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unchanged">Keep current</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {drivers.map((driver) => (
+                  <SelectItem key={driver.id} value={driver.id}>
+                    {driver.user_name || driver.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label style={{ color: "var(--text-slate-900)" }}>Delivery Date</Label>
+            <Input
+              type="date"
+              value={values.delivery_date}
+              onChange={(event) => setValues((current) => ({ ...current, delivery_date: event.target.value }))}
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label style={{ color: "var(--text-slate-900)" }}>Assigned Driver</Label>
-          <Select
-            value={values.driverChoice}
-            onValueChange={(value) => setValues((current) => ({ ...current, driverChoice: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="unchanged">Keep current</SelectItem>
-              <SelectItem value="unassigned">Unassigned</SelectItem>
-              {drivers.map((driver) => (
-                <SelectItem key={driver.id} value={driver.id}>
-                  {driver.user_name || driver.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className={`grid grid-cols-1 gap-4 ${isAdmin ? "lg:grid-cols-3" : "sm:grid-cols-2"}`}>
+          <div className="space-y-2">
+            <Label style={{ color: "var(--text-slate-900)" }}>Status</Label>
+            <Select
+              value={values.statusChoice}
+              onValueChange={(value) => setValues((current) => ({ ...current, statusChoice: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unchanged">Keep current</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_transit_or_en_route">In Transit / En Route</SelectItem>
+                <SelectItem value="completed">Complete</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label style={{ color: "var(--text-slate-900)" }}>Pickup Location</Label>
+            <Select
+              value={values.storeChoice}
+              onValueChange={(value) => setValues((current) => ({ ...current, storeChoice: value }))}
+              disabled={isSaving || pickupOptions.length === 0 || pickupOptions.length === 1}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={pickupOptions.length === 0 ? "No store slots available" : "Select store [AM/PM]"} />
+              </SelectTrigger>
+              <SelectContent>
+                {pickupOptions.length > 1 && <SelectItem value="unchanged">Keep current</SelectItem>}
+                {pickupOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isAdmin && (
+            <div className="space-y-2">
+              <Label style={{ color: "var(--text-slate-900)" }}>PUID</Label>
+              <Input
+                value={values.puid}
+                onChange={(event) => setValues((current) => ({ ...current, puid: event.target.value }))}
+                disabled={isSaving}
+              />
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -99,24 +226,44 @@ function BulkEditStopsForm({ selectedCount, drivers, values, setValues, onApply,
   );
 }
 
-export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selectedCount, drivers, onApply, isSaving }) {
+export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selectedCount, selectedDeliveries = [], drivers, stores = [], allDeliveries = [], currentUser, onApply, isSaving }) {
   const [values, setValues] = useState({
     delivery_date: "",
     driverChoice: "unchanged",
     delivery_time_start: "",
     delivery_time_end: "",
+    statusChoice: "unchanged",
+    storeChoice: "unchanged",
+    puid: "",
   });
 
   useEffect(() => {
-    if (!open) {
+    const selectedDates = [...new Set((selectedDeliveries || []).map((delivery) => delivery?.delivery_date).filter(Boolean))];
+    const nextDate = selectedDates.length === 1 ? selectedDates[0] : (selectedDates[0] || "");
+
+    if (open) {
       setValues({
-        delivery_date: "",
+        delivery_date: nextDate,
         driverChoice: "unchanged",
         delivery_time_start: "",
         delivery_time_end: "",
+        statusChoice: "unchanged",
+        storeChoice: "unchanged",
+        puid: "",
       });
+      return;
     }
-  }, [open]);
+
+    setValues({
+      delivery_date: "",
+      driverChoice: "unchanged",
+      delivery_time_start: "",
+      delivery_time_end: "",
+      statusChoice: "unchanged",
+      storeChoice: "unchanged",
+      puid: "",
+    });
+  }, [open, selectedDeliveries]);
 
   const content = (
     <BulkEditStopsForm
