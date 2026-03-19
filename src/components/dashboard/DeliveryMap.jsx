@@ -368,7 +368,6 @@ export default function DeliveryMap({
       if (!user?.id || user.status === "inactive") return null;
       if (!user.current_latitude || !user.current_longitude) return null;
       const isSelf = user.id === currentUserId || user.user_id === currentUserId;
-      if (isMobile && isSelf) return null;
       if (!isSelf && user.location_tracking_enabled !== true) return null;
       if (!isAdmin && currentUserCityId && user.city_id && user.city_id !== currentUserCityId) return null;
       const resolvedDriverName = driverNameLookupMap.get(user.id) || driverNameLookupMap.get(user.user_id) || user.user_name || user.full_name || "Driver";
