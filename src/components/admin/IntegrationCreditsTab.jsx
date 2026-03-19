@@ -176,7 +176,7 @@ export default function IntegrationCreditsTab() {
   }
 
   return (
-    <div className="h-full min-h-0 space-y-6 overflow-y-auto pr-1 max-h-[85vh]">
+    <div className="min-h-0 space-y-2 overflow-y-auto pr-1 max-h-[80vh] h-full">
       <Alert>
         <AlertDescription>
           This now tracks every wrapped app integration call, including failures, so you can spot retry loops and runaway credit usage faster.
@@ -203,7 +203,7 @@ export default function IntegrationCreditsTab() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-2 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2"><Zap className="w-4 h-4" />Estimated Credits</CardTitle>
@@ -242,7 +242,7 @@ export default function IntegrationCreditsTab() {
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-2 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader>
             <CardTitle>Usage by Task</CardTitle>
