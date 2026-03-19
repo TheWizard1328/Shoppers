@@ -343,7 +343,6 @@ export default function IntegrationCreditsTab() {
             </Button>
           </CardContent>
         </Card>
-      </div>
 
       <Card>
         <CardHeader>
