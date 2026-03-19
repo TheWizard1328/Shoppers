@@ -5,7 +5,6 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { repairMissingPolylines } from '@/functions/repairMissingPolylines';
 
 export default function PullToSync({ 
   selectedDate, 
@@ -111,17 +110,6 @@ export default function PullToSync({
         console.warn('⚠️ [Pull to Sync] Offline polyline dedup failed:', e?.message);
       }
 
-      // Only repair polylines in the background for a specific driver
-      const shouldRepairPolylines = selectedDriverId && selectedDriverId !== 'all';
-      if (shouldRepairPolylines) {
-        repairMissingPolylines({
-          driverId: selectedDriverId,
-          deliveryDate: selectedDateStr
-        }).catch((error) => {
-          console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', error?.message);
-        });
-      }
-      
       console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL deliveries for ${selectedDateStr} from online database...`);
 
       // STEP 1: Fetch ALL deliveries for selected date directly from online database (all drivers)
