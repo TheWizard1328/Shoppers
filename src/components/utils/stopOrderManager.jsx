@@ -102,6 +102,16 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
         console.warn('[StopOrderManager] Partial backend update failed (continuing):', err?.message || err);
       }
     }
+
+    try {
+      await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId,
+        deliveryDate,
+        scope: 'active_only'
+      });
+    } catch (err) {
+      console.warn('[StopOrderManager] Polyline regeneration failed (non-fatal):', err?.message || err);
+    }
   }
 
   try { window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate } })); } catch (_) {}

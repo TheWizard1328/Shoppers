@@ -974,84 +974,29 @@ export default function DriverPayroll() {
     periodSelectionDoneWithRecordsRef.current = true;
   }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData, selectedPeriodIndex]);
 
-  // Subscribe to real-time websocket updates
+  // Refresh payroll only on explicit manual refreshes or when a route shift completes.
   useEffect(() => {
     if (!hasInitialized || !isPayrollPageActive) return;
 
-    const unsubscribers = [];
-
-    // Subscribe to Payroll changes only - refetch entire year on change
-    try {
-      const unsubPayroll = base44.entities.Payroll.subscribe((event) => {
-        // Force fresh fetch on payroll changes to get latest records
-        fetchPayroll(true, true);
-      });
-      unsubscribers.push(unsubPayroll);
-    } catch (e) {
-      console.warn('Failed to subscribe to Payroll updates:', e);
-    }
-
-    // Cleanup subscriptions on unmount
-    return () => {
-      unsubscribers.forEach(unsub => {
-        try {
-          unsub();
-        } catch (e) {
-          console.warn('Failed to unsubscribe:', e);
-        }
-      });
-    };
-  }, [hasInitialized, isPayrollPageActive, fetchPayroll]);
-
-  // Real-time Delivery updates with 3s throttle, triggers background refresh and small indicator
-  useEffect(() => {
-    if (!hasInitialized || !isPayrollPageActive) return;
-    let isMounted = true;
-    let lastRefreshTs = 0;
     let hideTimer = null;
 
-    let unsubscribe;
-    try {
-      unsubscribe = base44.entities.Delivery.subscribe(async (event) => {
-        if (!isMounted) return;
-        const now = Date.now();
-        if (now - lastRefreshTs < 3000) return; // throttle
-        lastRefreshTs = now;
-        try {
-          await fetchPayroll(true, true);
-          setShowUpdated(true);
-          if (hideTimer) clearTimeout(hideTimer);
-          hideTimer = setTimeout(() => setShowUpdated(false), 3000);
-        } catch (e) {
-          console.warn('Delivery live refresh failed:', e);
-        }
-      });
-    } catch (e) {
-      console.warn('Failed to subscribe to Delivery updates:', e);
-    }
-
-    return () => {
-      isMounted = false;
-      if (unsubscribe) {
-        try { unsubscribe(); } catch {}
-      }
-      if (hideTimer) clearTimeout(hideTimer);
-    };
-  }, [hasInitialized, isPayrollPageActive, fetchPayroll]);
-
-  // 60s fallback polling
-  useEffect(() => {
-    if (!hasInitialized || !isPayrollPageActive) return;
-    const interval = setInterval(async () => {
+    const handleRouteShiftCompleted = async () => {
       try {
         await fetchPayroll(true, true);
         setShowUpdated(true);
-        setTimeout(() => setShowUpdated(false), 2000);
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => setShowUpdated(false), 3000);
       } catch (e) {
-        console.warn('Fallback refresh failed:', e);
+        console.warn('Route-complete payroll refresh failed:', e);
       }
-    }, 60000);
-    return () => clearInterval(interval);
+    };
+
+    window.addEventListener('routeShiftCompleted', handleRouteShiftCompleted);
+
+    return () => {
+      window.removeEventListener('routeShiftCompleted', handleRouteShiftCompleted);
+      if (hideTimer) clearTimeout(hideTimer);
+    };
   }, [hasInitialized, isPayrollPageActive, fetchPayroll]);
 
   // Filter payroll records when period changes (don't re-fetch since all year data is loaded)

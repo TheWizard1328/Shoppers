@@ -28,85 +28,8 @@ export function useDashboardPolylineMaintenance({
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !dataReadyForSelectedDate || isSnapshotModeActive) return;
 
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const activeSelectedDriverId = selectedDriverId || globalFilters.getSelectedDriverId() || 'all';
-    const selectedScopeKey = `${dateStr}__${activeSelectedDriverId}`;
-    const selectedDateDeliveries = (deliveries || [])
-      .filter((delivery) => delivery && delivery.delivery_date === dateStr)
-      .filter((delivery) => activeSelectedDriverId === 'all' || !activeSelectedDriverId || delivery.driver_id === activeSelectedDriverId);
-
-    if (selectedDateDeliveries.length === 0) return;
-    if (autoRepairTriggeredRef.current.has(selectedScopeKey)) return;
-
-    const uniqueDriverIds = [...new Set(selectedDateDeliveries.map((delivery) => delivery.driver_id).filter(Boolean))];
-    const driverIdsToRepair = uniqueDriverIds.filter((driverId) => {
-      const repairKey = `${driverId}__${dateStr}`;
-      if (polylineRepairInFlightRef.current.has(repairKey)) {
-        return false;
-      }
-
-      return selectedDateDeliveries.some((delivery) =>
-        delivery.driver_id === driverId && delivery.PolylineUpdated !== true
-      );
-    });
-
-    if (driverIdsToRepair.length === 0) return;
-
-    autoRepairTriggeredRef.current.add(selectedScopeKey);
-    let cancelled = false;
-
-    const runPolylineRepair = async () => {
-      driverIdsToRepair.forEach((driverId) => {
-        polylineRepairInFlightRef.current.add(`${driverId}__${dateStr}`);
-      });
-
-      const repairResults = await Promise.allSettled(
-        driverIdsToRepair.map((driverId) =>
-          base44.functions.invoke('purgeAndRegeneratePolylines', {
-            driverId,
-            deliveryDate: dateStr
-          })
-        )
-      );
-
-      driverIdsToRepair.forEach((driverId) => {
-        const repairKey = `${driverId}__${dateStr}`;
-        polylineRepairInFlightRef.current.delete(repairKey);
-      });
-
-      if (cancelled) return;
-
-      const anyRepairCompleted = repairResults.some((result) => result.status === 'fulfilled');
-      if (!anyRepairCompleted) {
-        autoRepairTriggeredRef.current.delete(selectedScopeKey);
-        return;
-      }
-
-      const refreshedDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-      if (cancelled) return;
-
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, refreshedDeliveries);
-      invalidateDeliveriesForDate(dateStr);
-
-      if (updateDeliveriesLocally) {
-        const otherDateDeliveries = (deliveries || []).filter((delivery) => delivery && delivery.delivery_date !== dateStr);
-        updateDeliveriesLocally([...otherDateDeliveries, ...refreshedDeliveries], true);
-      }
-
-      window.dispatchEvent(new CustomEvent('polylineCacheCleared', {
-        detail: { driverIds: driverIdsToRepair, deliveryDate: dateStr, triggeredBy: 'polylineAutoUpdate' }
-      }));
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { deliveryDate: dateStr, triggeredBy: 'polylineAutoUpdateComplete' }
-      }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-    };
-
-    runPolylineRepair();
-
-    return () => {
-      cancelled = true;
-    };
+    // Polylines are regenerated only by explicit post-optimization / route-change side effects.
+    // This disables the old dashboard-wide auto-repair loop that was causing repeated HERE calls.
   }, [currentUser, selectedDate, selectedDriverId, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally]);
 
   const fetchPolylineCount = useCallback(async () => {

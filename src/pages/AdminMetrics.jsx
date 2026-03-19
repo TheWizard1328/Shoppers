@@ -124,25 +124,19 @@ export default function AdminMetrics() {
     }
   }, [hasAccess, initialCitySet, selectedCityId]); // Wait for city selection
 
-  // Listen for delivery updates from smart refresh and refresh metrics
+  // Refresh metrics only on explicit manual refreshes or when a route shift completes.
   useEffect(() => {
-    const handleDeliveriesUpdated = () => {
-      // Only refresh if currently viewing this page and viewing current year
+    const handleRouteShiftCompleted = () => {
       const currentYear = new Date().getFullYear();
       if (selectedYear === currentYear.toString() && hasAccess && selectedCityId) {
-        console.log('📊 [AdminMetrics] Deliveries updated - refreshing metrics');
         fetchMetrics(selectedYear, selectedCityId, false);
       }
     };
 
-    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
-    window.addEventListener('deliveriesImported', handleDeliveriesUpdated);
-    window.addEventListener('refreshDeliveryStats', handleDeliveriesUpdated);
+    window.addEventListener('routeShiftCompleted', handleRouteShiftCompleted);
 
     return () => {
-      window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
-      window.removeEventListener('deliveriesImported', handleDeliveriesUpdated);
-      window.removeEventListener('refreshDeliveryStats', handleDeliveriesUpdated);
+      window.removeEventListener('routeShiftCompleted', handleRouteShiftCompleted);
     };
   }, [selectedYear, hasAccess, selectedCityId, fetchMetrics]);
 
