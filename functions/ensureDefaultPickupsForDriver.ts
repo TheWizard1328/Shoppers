@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
 
     const isFirstStopOnRoute = otherActivePatientStops.length === 0;
     if (isFirstStopOnRoute) {
-      (stores || []).forEach((store) => {
+      (assignedStores || []).forEach((store) => {
         if (!store || SPECIAL_STORE_NAMES.has(store.name || '')) return;
         const slots = getAssignedSlotsForStore(store, delivery.delivery_date, delivery.driver_id);
         slots.forEach((slot) => addTarget(store, slot));
