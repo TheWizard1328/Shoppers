@@ -124,8 +124,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const navigateToLogin = () => {
-    // Use the SDK's redirectToLogin method
-    base44.auth.redirectToLogin(window.location.href);
+    // Use an internal app path to avoid external redirect issues
+    const nextUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    base44.auth.redirectToLogin(nextUrl);
   };
 
   return (
