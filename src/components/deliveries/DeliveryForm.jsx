@@ -1607,10 +1607,10 @@ export default function DeliveryForm({
     setEditingStagedId(staged._tempId);
 
     let formDataToSet = {
-      ...staged, patient_phone: staged.patient_phone || (patients.find((p) => p && p.id === staged.patient_id)?.phone) || '',
+      ...staged,
       puid: staged.puid || '',
-      driver_id: staged.driver_id || '',
-      driver_name: staged.driver_name || '',
+      driver_id: staged.driver_id || '', driver_name: staged.driver_name || '',
+      patient_phone: staged.patient_phone || patients?.find((p) => p && p.id === staged.patient_id)?.phone || '', unit_number: staged.unit_number || patients?.find((p) => p && p.id === staged.patient_id)?.unit_number || '', delivery_instructions: staged.delivery_instructions || patients?.find((p) => p && p.id === staged.patient_id)?.notes || '',
       cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0
     };
 
@@ -3319,8 +3319,8 @@ export default function DeliveryForm({
         _tempId: Date.now() + Math.random() + index,
         _wasEdited: false, // Track if user explicitly edited this pending item
         patient_name: delivery.patient_name || patient?.full_name || 'Unknown',
-        store_id: finalStoreId,
-        store_name: store?.name || 'Unknown Store',
+        patient_phone: delivery.patient_phone || patient?.phone || '', unit_number: delivery.unit_number || patient?.unit_number || '',
+        store_id: finalStoreId, store_name: store?.name || 'Unknown Store',
         store_abbreviation: store?.abbreviation || '',
         distanceFromStore: distanceFromStore,
         delivery_address: patient?.address || '',
