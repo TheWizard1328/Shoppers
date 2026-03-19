@@ -495,7 +495,7 @@ export default function DeliveryFormView({
                   )}
 
                   {/* Barcode Scanner */}
-                  {(!delivery ? !isPickupMode : true) && (
+                  {!isPickupMode && (
                     <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
