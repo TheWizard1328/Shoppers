@@ -167,22 +167,41 @@ export default function PullToSync({
       }));
       console.log('   ✅ UI update event dispatched')
 
-      // STEP 5: Fetch and save Patients, AppUsers, Cities, Stores to offline DB FIRST
+      // STEP 5: Fetch and save only the entities needed for the selected date
       console.log('🔄 [Pull to Sync] Step 5: Fetching fresh Patients, AppUsers, Cities, Stores...');
+
+      const patientIds = Array.from(
+        new Set((freshDeliveries || []).filter((delivery) => delivery?.patient_id).map((delivery) => delivery.patient_id))
+      );
+
+      const patientPromise = (async () => {
+        if (patientIds.length === 0) {
+          console.log('✅ [Pull to Sync] No delivery-linked patients to refresh');
+          return [];
+        }
+
+        const batchSize = 50;
+        const syncedPatients = [];
+
+        for (let i = 0; i < patientIds.length; i += batchSize) {
+          const batchIds = patientIds.slice(i, i + batchSize);
+          const batchPatients = await base44.entities.Patient.filter({ id: { $in: batchIds } });
+
+          if (batchPatients && batchPatients.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+            syncedPatients.push(...batchPatients);
+          }
+        }
+
+        console.log(`✅ [Pull to Sync] Saved ${syncedPatients.length} delivery-linked patients to offline DB`);
+        return syncedPatients;
+      })().catch((error) => {
+        console.warn('⚠️ [Pull to Sync] Patients sync failed:', error.message);
+        return [];
+      });
       
       const syncPromises = [
-        // Fetch Patients
-        base44.entities.Patient.list().then(async (freshPatients) => {
-          if (freshPatients && freshPatients.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-            console.log(`✅ [Pull to Sync] Saved ${freshPatients.length} patients to offline DB`);
-          }
-          return freshPatients || [];
-        }).catch((error) => {
-          console.warn('⚠️ [Pull to Sync] Patients sync failed:', error.message);
-          return [];
-        }),
-        
+        patientPromise,
         // CRITICAL: Preserve existing AppUsers from offline DB (kept in sync by WebSocket subscriptions)
          // AppUser.list() has RLS restrictions and returns limited data
          // Only refetch if WebSocket sync isn't working
