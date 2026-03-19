@@ -199,14 +199,17 @@ Deno.serve(async (req) => {
       item?.id !== delivery.id && item?.patient_id && ACTIVE_DELIVERY_STATUSES.has(item?.status)
     );
 
-    const stores = await base44.asServiceRole.entities.Store.list();
-    const storeById = new Map((stores || []).map((store) => [store.id, store]));
-    const currentStore = storeById.get(delivery.store_id);
+    const [currentStoreMatches, assignedStores, driverAppUsers] = await Promise.all([
+      base44.asServiceRole.entities.Store.filter({ id: delivery.store_id }, '-created_date', 1),
+      loadAssignedStores(base44, delivery.delivery_date, delivery.driver_id),
+      base44.asServiceRole.entities.AppUser.filter({ user_id: delivery.driver_id }, '-created_date', 1),
+    ]);
+
+    const currentStore = currentStoreMatches?.[0] || null;
     if (!currentStore) {
       return Response.json({ skipped: true, reason: 'Store not found' });
     }
 
-    const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: delivery.driver_id }, '-created_date', 1);
     const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || delivery.driver_name || '';
 
     const ensureTargets = [];
