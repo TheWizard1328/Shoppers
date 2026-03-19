@@ -797,9 +797,9 @@ export default function DeliveriesPage() {
     }
 
     // Dispatchers with only 1 driver: auto-select that driver
-    if (userHasRole(currentUser,'dispatcher') && !userHasRole(currentUser,'admin') && driverFilter === 'all') {
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && driverFilter === 'all') {
       const firstId = uniqueDriversForDispatcher?.driverIds?.[0];
-      if (firstId) { console.log('👔 [Deliveries] Dispatcher auto-selecting first driver:', firstId); setDriverFilter(firstId); }
+      if (firstId) {console.log('👔 [Deliveries] Dispatcher auto-selecting first driver:', firstId);setDriverFilter(firstId);}
     }
   }, [currentUser, hasAccess, driverFilter, uniqueDriversForDispatcher]);
 
@@ -825,7 +825,7 @@ export default function DeliveriesPage() {
   const prevYMRef = useRef({ y: selectedYear, m: selectedMonth });
   useEffect(() => {
     if (prevModeRef.current === null) return;
-    if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') { loadData(true).catch(() => {}); prevYMRef.current = { y: selectedYear, m: selectedMonth }; return; }
+    if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') {loadData(true).catch(() => {});prevYMRef.current = { y: selectedYear, m: selectedMonth };return;}
     if (isDriverOverviewMode || !initialLoadDone.current) return;
     if (prevYMRef.current.y === selectedYear && prevYMRef.current.m === selectedMonth) return;
     prevYMRef.current = { y: selectedYear, m: selectedMonth };
@@ -2639,7 +2639,7 @@ export default function DeliveriesPage() {
       if (isNaN(dateObj.getTime())) return;
       setSelectedDate(dateObj);
       // CRITICAL: Switch year/month if clicked date is in a different month so groupedDeliveries includes it
-      if (year !== selectedYear || (month - 1) !== selectedMonth) {
+      if (year !== selectedYear || month - 1 !== selectedMonth) {
         setSelectedYear(year);
         setSelectedMonth(month - 1);
         updateUrl({ year: year.toString(), month: month.toString() });
@@ -3161,25 +3161,25 @@ export default function DeliveriesPage() {
         onNotesUpdate={handleNotesUpdate}
         onCODUpdate={handleCODUpdate}
         loadData={loadData}
-        appUsers={contextUsers || []} />
-    );
+        appUsers={contextUsers || []} />);
+
   }, [
-    effectivePatients,
-    stores,
-    effectiveDrivers,
-    effectiveDeliveries,
-    currentUser,
-    selectedDate,
-    viewMode,
-    handleEditDelivery,
-    handleEditPatient,
-    handleDeleteDelivery,
-    handleRestartDelivery,
-    handleStatusUpdate,
-    handleNotesUpdate,
-    handleCODUpdate,
-    loadData,
-  ]);
+  effectivePatients,
+  stores,
+  effectiveDrivers,
+  effectiveDeliveries,
+  currentUser,
+  selectedDate,
+  viewMode,
+  handleEditDelivery,
+  handleEditPatient,
+  handleDeleteDelivery,
+  handleRestartDelivery,
+  handleStatusUpdate,
+  handleNotesUpdate,
+  handleCODUpdate,
+  loadData]
+  );
 
   function LogoImage({ className }) {
     const [idx, setIdx] = React.useState(0);
@@ -3270,11 +3270,11 @@ export default function DeliveriesPage() {
               </div>
               <div className="flex gap-3 flex-wrap items-center">
                 <ExportRouteButton
-                  currentUser={currentUser}
-                  driverFilter={driverFilter}
-                  selectedDate={selectedDate}
-                  driverFilteredDeliveries={driverFilteredDeliveries}
-                />
+                currentUser={currentUser}
+                driverFilter={driverFilter}
+                selectedDate={selectedDate}
+                driverFilteredDeliveries={driverFilteredDeliveries} />
+              
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -3295,7 +3295,7 @@ export default function DeliveriesPage() {
                 </SelectTrigger>
                 <SelectContent>
                  <SelectItem value="all">All Drivers</SelectItem>
-                 {sortUsers((effectiveDrivers||[]).filter(d=>userHasRole(d,'driver')&&(()=>{const S=selectedDate?format(selectedDate,'yyyy-MM-dd'):null;if(!S)return true;const disp=userHasRole(currentUser,'dispatcher')&&!userHasRole(currentUser,'admin');const ss=disp?new Set(currentUser.store_ids||[]):null;const ok=(effectiveDeliveries||[]).some(del=>del&&del.delivery_date===S&&(!ss||!del.store_id||ss.has(del.store_id))&&((del.driver_id&&(del.driver_id===d.id||del.driver_id===d.appUserId))||(del.driver_name&&(del.driver_name===d.full_name||del.driver_name===d.user_name))));return ok||(driverFilter!=='all'&&d.id===driverFilter);})())).map((driver) => {
+                 {sortUsers((effectiveDrivers || []).filter((d) => userHasRole(d, 'driver') && (() => {const S = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;if (!S) return true;const disp = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');const ss = disp ? new Set(currentUser.store_ids || []) : null;const ok = (effectiveDeliveries || []).some((del) => del && del.delivery_date === S && (!ss || !del.store_id || ss.has(del.store_id)) && (del.driver_id && (del.driver_id === d.id || del.driver_id === d.appUserId) || del.driver_name && (del.driver_name === d.full_name || del.driver_name === d.user_name)));return ok || driverFilter !== 'all' && d.id === driverFilter;})())).map((driver) => {
                   // Check if there are duplicate names
                   const duplicateNames = (effectiveDrivers || []).filter((d) =>
                   getDriverDisplayName(d) === getDriverDisplayName(driver)
@@ -3549,7 +3549,7 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ ...(isBottomNavVisible ? { maxHeight: 'calc(100vh - 180px)' } : {}), ['--driver-info-offset']: (!isDriverOverviewMode ? (isMobile ? '56px' : '120px') : '88px') }}>
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ ...(isBottomNavVisible ? { maxHeight: 'calc(100vh - 180px)' } : {}), ['--driver-info-offset']: !isDriverOverviewMode ? isMobile ? '56px' : '120px' : '88px' }}>
 
            {isDriverOverviewMode ?
           <div className="flex flex-col h-full overflow-hidden">
@@ -3867,7 +3867,7 @@ export default function DeliveriesPage() {
                               </SelectTrigger>
                               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                                 <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
-                                  {sortUsers((effectiveDrivers||[]).filter(d=>userHasRole(d,'driver')&&(()=>{const S=selectedDate?format(selectedDate,'yyyy-MM-dd'):null;if(!S)return true;const disp=userHasRole(currentUser,'dispatcher')&&!userHasRole(currentUser,'admin');const ss=disp?new Set(currentUser.store_ids||[]):null;const ok=(effectiveDeliveries||[]).some(del=>del&&del.delivery_date===S&&(!ss||!del.store_id||ss.has(del.store_id))&&((del.driver_id&&(del.driver_id===d.id||del.driver_id===d.appUserId))||(del.driver_name&&(del.driver_name===d.full_name||del.driver_name===d.user_name))));return ok||(driverFilter!=='all'&&d.id===driverFilter);})())).map((driver)=>{const dup=(effectiveDrivers||[]).filter(x=>getDriverDisplayName(x)===getDriverDisplayName(driver));const name=dup.length>1?`${getDriverDisplayName(driver)} (${driver.id.slice(-4)})`:getDriverDisplayName(driver);return (<SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>{name}</SelectItem>);})}}
+                                  {sortUsers((effectiveDrivers || []).filter((d) => userHasRole(d, 'driver') && (() => {const S = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;if (!S) return true;const disp = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');const ss = disp ? new Set(currentUser.store_ids || []) : null;const ok = (effectiveDeliveries || []).some((del) => del && del.delivery_date === S && (!ss || !del.store_id || ss.has(del.store_id)) && (del.driver_id && (del.driver_id === d.id || del.driver_id === d.appUserId) || del.driver_name && (del.driver_name === d.full_name || del.driver_name === d.user_name)));return ok || driverFilter !== 'all' && d.id === driverFilter;})())).map((driver) => {const dup = (effectiveDrivers || []).filter((x) => getDriverDisplayName(x) === getDriverDisplayName(driver));const name = dup.length > 1 ? `${getDriverDisplayName(driver)} (${driver.id.slice(-4)})` : getDriverDisplayName(driver);return <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>{name}</SelectItem>;})}}
                               </SelectContent>
                             </Select><div className="mt-2"><ExportRouteButton currentUser={currentUser} driverFilter={driverFilter} selectedDate={selectedDate} driverFilteredDeliveries={driverFilteredDeliveries} /></div>
                           </div>
@@ -3900,7 +3900,7 @@ export default function DeliveriesPage() {
                 </Card>
             }
 
-              <div className="flex-1 min-h-0 max-h-full overflow-y-auto">
+              <div className="flex-1 min-h-0 max-h-full overflow-y-hidden">
                 {renderDeliveries(filteredAndSortedDeliveries)}
               </div>
             </>
