@@ -17,6 +17,15 @@ import {
   updateDeliveryLocal,
   deleteDeliveryLocal,
   batchCreateDeliveriesLocal,
+  createCityLocal,
+  updateCityLocal,
+  deleteCityLocal,
+  createStoreLocal,
+  updateStoreLocal,
+  deleteStoreLocal,
+  createCompanyLocal,
+  updateCompanyLocal,
+  deleteCompanyLocal,
   subscribeMutations
 } from './offlineMutations';
 import { connectionMonitor } from './connectionMonitor';
