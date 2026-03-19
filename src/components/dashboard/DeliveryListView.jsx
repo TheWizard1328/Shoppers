@@ -497,7 +497,7 @@ const DeliveryListView = ({
         {/* Scrollable List */}
         <div
           ref={bodyScrollRef}
-          onScroll={syncBodyScroll} className="flex-1 min-h-0 overflow-hidden">
+          onScroll={syncBodyScroll} className="flex-1 min-h-0 overflow-auto">
 
           
           {deliveries.length === 0 ?
