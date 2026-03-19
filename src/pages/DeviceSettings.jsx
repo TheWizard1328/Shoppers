@@ -210,6 +210,22 @@ export default function DeviceSettings() {
     }
   };
 
+  const handleSwitchToDeviceProfile = async (device) => {
+    try {
+      localStorage.setItem(DEVICE_ID_KEY, device.device_identifier);
+      localStorage.setItem(`rxdeliver_device_registered_${device.device_identifier}`, 'true');
+      await base44.entities.UserDevice.update(device.id, {
+        last_active_at: new Date().toISOString()
+      });
+      setCurrentDeviceId(device.id);
+      toast.success(`Now using ${device.device_name} on this device`);
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to switch device profile:', error);
+      toast.error('Failed to switch device profile');
+    }
+  };
+
   const handleFormSubmit = async (deviceData, deviceId) => {
     try {
       if (deviceId) {
@@ -280,7 +296,7 @@ export default function DeviceSettings() {
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Device Settings</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
-            Manage your registered devices and location tracking
+            Manage your registered devices, location tracking, and which saved device profile this device is using
           </p>
         </div>
         <Button
@@ -421,6 +437,18 @@ export default function DeviceSettings() {
                           <Edit2 className="w-4 h-4" />
                           Edit Settings
                         </Button>
+
+                        {!isCurrentDevice && device.status !== 'inactive' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSwitchToDeviceProfile(device)}
+                            className="gap-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Use on This Device
+                          </Button>
+                        )}
 
                         {isCurrentDevice && devices.length > 1 && (
                           <Button
