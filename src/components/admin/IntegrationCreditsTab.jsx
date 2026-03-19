@@ -26,6 +26,37 @@ const TIMEFRAME_OPTIONS = [
 
 const LOG_FETCH_LIMIT = 10000;
 
+const getLogCallWeight = (log) => {
+  const rawValue = Number(log?.metadata?.call_count ?? log?.metadata?.api_calls ?? 1);
+  return Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 1;
+};
+
+const normalizeApiLogToIntegrationLog = (log) => {
+  const provider = String(log?.metadata?.api_provider || '').toLowerCase();
+  const integrationName = provider === 'here' || String(log?.api_type || '').toLowerCase().includes('here') ? 'HERE' : 'Google';
+  const errorMessage = log?.metadata?.error || null;
+  const statusCode = Number(log?.metadata?.status_code);
+
+  return {
+    ...log,
+    id: `api-log-${log.id}`,
+    integration_name: integrationName,
+    operation_name: log.api_type || 'API Call',
+    feature: log.purpose || log.function_name || log.api_type || 'External API',
+    app_user_id: log.user_id || null,
+    app_user_name: log.user_name || null,
+    auth_user_id: log.user_id || null,
+    duration_ms: null,
+    success: errorMessage ? false : !(Number.isFinite(statusCode) && statusCode >= 400),
+    estimated_credits_used: 0,
+    error_message: errorMessage,
+    metadata: {
+      ...(log.metadata || {}),
+      source_entity: 'GoogleAPILog'
+    }
+  };
+};
+
 const formatDuration = (value) => {
   if (!value) return '—';
   if (value < 1000) return `${value}ms`;
@@ -43,12 +74,19 @@ export default function IntegrationCreditsTab() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [logData, config] = await Promise.all([
+      const [logData, apiLogData, config] = await Promise.all([
       base44.entities.IntegrationUsageLog.list('-timestamp', LOG_FETCH_LIMIT),
+      base44.entities.GoogleAPILog.list('-timestamp', LOG_FETCH_LIMIT),
       base44.entities.AppSettings.filter({ setting_key: 'integration_credit_monitor' })]
       );
 
-      setLogs(logData || []);
+      const mergedLogs = [
+      ...(logData || []),
+      ...((apiLogData || []).map(normalizeApiLogToIntegrationLog))]
+      .sort((a, b) => new Date(b.timestamp || b.created_date).getTime() - new Date(a.timestamp || a.created_date).getTime())
+      .slice(0, LOG_FETCH_LIMIT);
+
+      setLogs(mergedLogs);
 
       const loadedSettings = {
         ...DEFAULT_SETTINGS,
@@ -87,10 +125,11 @@ export default function IntegrationCreditsTab() {
 
   const summary = useMemo(() => {
     const totalEstimatedCredits = filteredLogs.reduce((sum, log) => sum + Number(log.estimated_credits_used || 0), 0);
-    const successfulCalls = filteredLogs.filter((log) => log.success).length;
-    const failedCalls = filteredLogs.filter((log) => log.success === false).length;
-    const avgDuration = filteredLogs.length ?
-    Math.round(filteredLogs.reduce((sum, log) => sum + Number(log.duration_ms || 0), 0) / filteredLogs.length) :
+    const successfulCalls = filteredLogs.reduce((sum, log) => log.success ? sum + getLogCallWeight(log) : sum, 0);
+    const failedCalls = filteredLogs.reduce((sum, log) => log.success === false ? sum + getLogCallWeight(log) : sum, 0);
+    const logsWithDuration = filteredLogs.filter((log) => Number(log.duration_ms) > 0);
+    const avgDuration = logsWithDuration.length ?
+    Math.round(logsWithDuration.reduce((sum, log) => sum + Number(log.duration_ms || 0), 0) / logsWithDuration.length) :
     0;
 
     const groupedTasks = filteredLogs.reduce((acc, log) => {
@@ -99,12 +138,12 @@ export default function IntegrationCreditsTab() {
         acc[key] = { name: key, credits: 0, calls: 0, integration: `${log.integration_name}.${log.operation_name}` };
       }
       acc[key].credits += Number(log.estimated_credits_used || 0);
-      acc[key].calls += 1;
+      acc[key].calls += getLogCallWeight(log);
       return acc;
     }, {});
 
     const topTasks = Object.values(groupedTasks).
-    sort((a, b) => b.credits - a.credits).
+    sort((a, b) => (b.credits - a.credits) || (b.calls - a.calls)).
     slice(0, 5);
 
     const failureHotspots = Object.values(
@@ -120,7 +159,7 @@ export default function IntegrationCreditsTab() {
             count: 0
           };
         }
-        acc[key].count += 1;
+        acc[key].count += getLogCallWeight(log);
         return acc;
       }, {})
     ).
@@ -179,7 +218,7 @@ export default function IntegrationCreditsTab() {
     <div className="flex-1 min-h-0 h-full space-y-2 overflow-y-auto pr-1">
       <Alert>
         <AlertDescription>
-          This now tracks every wrapped app integration call, including failures, so you can spot retry loops and runaway credit usage faster.
+          This now combines wrapped app integrations with Google and HERE API activity, including failures, so you can spot gaps, retry loops, and runaway usage faster.
         </AlertDescription>
       </Alert>
 

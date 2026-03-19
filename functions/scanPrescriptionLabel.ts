@@ -11,6 +11,41 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { base64Image, fileUrl, selectedCityId } = body;
+    const callerAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }).catch(() => []);
+    const appUser = callerAppUsers?.[0] || null;
+
+    const logIntegrationUsage = async ({ operationName, feature, startedAt, success, errorMessage = null, metadata = {}, estimatedCreditsUsed = 1 }) => {
+      try {
+        await base44.asServiceRole.entities.IntegrationUsageLog.create({
+          timestamp: new Date(startedAt).toISOString(),
+          integration_name: 'Core',
+          operation_name: operationName,
+          feature,
+          app_user_id: appUser?.id || null,
+          app_user_name: appUser?.user_name || user.full_name || null,
+          auth_user_id: user.id,
+          duration_ms: Date.now() - startedAt,
+          success,
+          estimated_credits_used: estimatedCreditsUsed,
+          error_message: errorMessage,
+          metadata
+        });
+      } catch (trackingError) {
+        console.warn('[scanPrescriptionLabel] Tracking failed:', trackingError?.message || trackingError);
+      }
+    };
+
+    const runTrackedIntegration = async ({ operationName, feature, metadata = {}, estimatedCreditsUsed = 1, call }) => {
+      const startedAt = Date.now();
+      try {
+        const result = await call();
+        await logIntegrationUsage({ operationName, feature, startedAt, success: true, metadata, estimatedCreditsUsed });
+        return result;
+      } catch (error) {
+        await logIntegrationUsage({ operationName, feature, startedAt, success: false, errorMessage: error?.message || 'Unknown error', metadata, estimatedCreditsUsed });
+        throw error;
+      }
+    };
 
     if (!base64Image && !fileUrl) {
       return Response.json({ error: 'No image data provided' }, { status: 400 });
@@ -46,7 +81,12 @@ Deno.serve(async (req) => {
         const blob = new Blob([byteArray], { type: mimeType });
         const file = new File([blob], 'prescription_label.jpg', { type: mimeType });
         
-        const uploadResult = await base44.integrations.Core.UploadFile({ file });
+        const uploadResult = await runTrackedIntegration({
+          operationName: 'UploadFile',
+          feature: 'prescription_label_upload',
+          metadata: { source: 'scanPrescriptionLabel', upload_source: 'base64_image' },
+          call: () => base44.integrations.Core.UploadFile({ file })
+        });
         if (uploadResult && uploadResult.file_url) {
           uploadedFileUrl = uploadResult.file_url;
           console.log('✅ [scanPrescriptionLabel] Image uploaded:', uploadedFileUrl);
@@ -60,19 +100,24 @@ Deno.serve(async (req) => {
     if (!uploadedFileUrl.startsWith('data:')) {
       try {
         console.log('🔄 [scanPrescriptionLabel] Using ExtractDataFromUploadedFile...');
-        const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
-          file_url: uploadedFileUrl,
-          json_schema: {
-            type: "object",
-            properties: {
-              patient_name: { type: "string", description: "Patient's full name" },
-              street_address: { type: "string", description: "Street address" },
-              city: { type: "string", description: "City name" },
-              state: { type: "string", description: "State or province" },
-              zip_code: { type: "string", description: "Zip or postal code" },
-              phone_number: { type: "string", description: "Phone number" }
+        const extractResult = await runTrackedIntegration({
+          operationName: 'ExtractDataFromUploadedFile',
+          feature: 'prescription_label_extract_data',
+          metadata: { source: 'scanPrescriptionLabel', has_uploaded_url: true },
+          call: () => base44.integrations.Core.ExtractDataFromUploadedFile({
+            file_url: uploadedFileUrl,
+            json_schema: {
+              type: "object",
+              properties: {
+                patient_name: { type: "string", description: "Patient's full name" },
+                street_address: { type: "string", description: "Street address" },
+                city: { type: "string", description: "City name" },
+                state: { type: "string", description: "State or province" },
+                zip_code: { type: "string", description: "Zip or postal code" },
+                phone_number: { type: "string", description: "Phone number" }
+              }
             }
-          }
+          })
         });
         
         console.log('📄 [scanPrescriptionLabel] ExtractData response:', extractResult);
@@ -94,13 +139,18 @@ Deno.serve(async (req) => {
     if (!extractionResult) {
       console.log('🔄 [scanPrescriptionLabel] Trying LLM vision approach...');
       try {
-        const textResponse = await base44.integrations.Core.InvokeLLM({
-          prompt: `Look at this prescription label image carefully. Extract the patient information and return ONLY a valid JSON object with no additional text before or after:
+        const textResponse = await runTrackedIntegration({
+          operationName: 'InvokeLLM',
+          feature: 'prescription_label_llm_extraction',
+          metadata: { source: 'scanPrescriptionLabel', model: 'automatic', file_count: 1 },
+          call: () => base44.integrations.Core.InvokeLLM({
+            prompt: `Look at this prescription label image carefully. Extract the patient information and return ONLY a valid JSON object with no additional text before or after:
 
 {"patient_name": "full name here", "street_address": "street address here", "city": "city here", "state": "state/province here", "zip_code": "postal code here", "phone_number": "phone here"}
 
 Use null for any field you cannot read. Return ONLY the JSON, nothing else.`,
-          file_urls: [uploadedFileUrl]
+            file_urls: [uploadedFileUrl]
+          })
         });
         
         console.log('📄 [scanPrescriptionLabel] LLM response type:', typeof textResponse);
@@ -159,9 +209,6 @@ Use null for any field you cannot read. Return ONLY the JSON, nothing else.`,
     // Now search for matching patients
     // Get user's role and store access
     console.log('👤 [scanPrescriptionLabel] Fetching user roles...');
-    const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
-    const appUser = appUsers[0];
-
     if (!appUser) {
       console.error('❌ [scanPrescriptionLabel] AppUser not found for user:', user.id);
       return Response.json({ error: 'User not found' }, { status: 404 });

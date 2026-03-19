@@ -12,6 +12,29 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { driverId, deliveryDate, manifestType, ampm, storeIds, selectedCityId, recipientEmails, emailSubject } = body || {};
     const isValidEmail = (value) => typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+    const callerAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1).catch(() => []);
+    const callerAppUser = callerAppUsers?.[0] || null;
+
+    const logEmailIntegrationUsage = async ({ success, startedAt, errorMessage = null, metadata = {} }) => {
+      try {
+        await base44.asServiceRole.entities.IntegrationUsageLog.create({
+          timestamp: new Date(startedAt).toISOString(),
+          integration_name: 'gmail',
+          operation_name: 'send_message',
+          feature: 'route_manifest_email_export',
+          app_user_id: callerAppUser?.id || null,
+          app_user_name: callerAppUser?.user_name || user.full_name || null,
+          auth_user_id: user.id,
+          duration_ms: Date.now() - startedAt,
+          success,
+          estimated_credits_used: 0,
+          error_message: errorMessage,
+          metadata
+        });
+      } catch (trackingError) {
+        console.warn('[generateRouteManifest] Tracking failed:', trackingError?.message || trackingError);
+      }
+    };
 
     if (!deliveryDate || !manifestType || (!driverId && (!Array.isArray(storeIds) || storeIds.length === 0))) {
       return Response.json({ error: 'Missing parameters' }, { status: 400 });
@@ -380,6 +403,7 @@ Deno.serve(async (req) => {
       const subject = emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`;
       const body = `Attached is your route manifest PDF for ${deliveryDate}.`;
 
+      const emailStartedAt = Date.now();
       try {
         await Promise.all(uniqueRecipientEmails.map(async (email) => {
           const raw = buildGmailRawMessage({
@@ -404,7 +428,29 @@ Deno.serve(async (req) => {
             throw new Error(errorText || 'Failed to send route email');
           }
         }));
+
+        await logEmailIntegrationUsage({
+          success: true,
+          startedAt: emailStartedAt,
+          metadata: {
+            call_count: uniqueRecipientEmails.length,
+            recipient_count: uniqueRecipientEmails.length,
+            manifest_type: manifestType,
+            delivery_date: deliveryDate
+          }
+        });
       } catch (sendError) {
+        await logEmailIntegrationUsage({
+          success: false,
+          startedAt: emailStartedAt,
+          errorMessage: sendError?.message || 'Failed to send route email',
+          metadata: {
+            call_count: uniqueRecipientEmails.length,
+            recipient_count: uniqueRecipientEmails.length,
+            manifest_type: manifestType,
+            delivery_date: deliveryDate
+          }
+        });
         return Response.json({ error: sendError?.message || 'Failed to send route email' });
       }
 
