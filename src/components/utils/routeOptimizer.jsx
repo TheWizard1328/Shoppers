@@ -54,6 +54,72 @@ const minutesToTime = (minutes) => {
   return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 };
 
+const normalizeText = (value) => String(value || '').trim().toLowerCase();
+
+const getUnitSortValue = (stop) => {
+  const raw = normalizeText(stop?.unit_number);
+  if (!raw) return { numeric: Number.POSITIVE_INFINITY, text: '' };
+  const numericMatch = raw.match(/\d+/);
+  return {
+    numeric: numericMatch ? Number(numericMatch[0]) : Number.POSITIVE_INFINITY,
+    text: raw
+  };
+};
+
+const compareSameAddressStops = (a, b) => {
+  const unitA = getUnitSortValue(a);
+  const unitB = getUnitSortValue(b);
+
+  if (unitA.numeric !== unitB.numeric) {
+    return unitA.numeric - unitB.numeric;
+  }
+
+  if (unitA.text !== unitB.text) {
+    return unitA.text.localeCompare(unitB.text, undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  return normalizeText(a?.patient_name || a?.full_name).localeCompare(
+    normalizeText(b?.patient_name || b?.full_name),
+    undefined,
+    { numeric: true, sensitivity: 'base' }
+  );
+};
+
+const sortSameAddressGroups = (stops = []) => {
+  const result = [];
+  let index = 0;
+
+  while (index < stops.length) {
+    const current = stops[index];
+    if (!current) {
+      index += 1;
+      continue;
+    }
+
+    const group = [current];
+    let nextIndex = index + 1;
+
+    while (nextIndex < stops.length) {
+      const candidate = stops[nextIndex];
+      if (!candidate || !current.patient_id || !candidate.patient_id) break;
+      if (normalizeText(current.address) !== normalizeText(candidate.address)) break;
+      if (Math.abs(Number(current.latitude) - Number(candidate.latitude)) >= 1e-5) break;
+      if (Math.abs(Number(current.longitude) - Number(candidate.longitude)) >= 1e-5) break;
+      group.push(candidate);
+      nextIndex += 1;
+    }
+
+    if (group.length > 1) {
+      group.sort(compareSameAddressStops);
+    }
+
+    result.push(...group);
+    index = nextIndex;
+  }
+
+  return result;
+};
+
 /**
  * Calculate the centroid (average center point) of a set of locations
  */
@@ -372,8 +438,9 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
     }
   }
   
-  console.log(`  ✅ Route optimized: ${optimized.length} stops (distance-first with pickup-before-delivery constraint)`);
-  return optimized;
+  const reorderedOptimized = sortSameAddressGroups(optimized);
+  console.log(`  ✅ Route optimized: ${reorderedOptimized.length} stops (distance-first with pickup-before-delivery constraint)`);
+  return reorderedOptimized;
 };
 
 /**
@@ -514,6 +581,10 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
       if (patient?.latitude && patient?.longitude) {
         enriched.latitude = patient.latitude;
         enriched.longitude = patient.longitude;
+        enriched.address = patient.address || '';
+        enriched.unit_number = patient.unit_number || '';
+        enriched.patient_name = patient.full_name || stop.patient_name || '';
+        enriched.full_name = patient.full_name || '';
         console.log(`   📦 Delivery: ${patient.full_name} -> [${enriched.latitude.toFixed(7)}, ${enriched.longitude.toFixed(7)}]`);
       } else {
         console.error(`   ❌ Delivery missing coordinates: Patient ID ${stop.patient_id}`);
