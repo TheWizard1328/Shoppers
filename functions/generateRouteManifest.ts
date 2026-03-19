@@ -160,10 +160,18 @@ Deno.serve(async (req) => {
 
     const encodeBase64Url = (value) => btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
+    const uint8ToBase64 = (bytes) => {
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      return btoa(binary);
+    };
+
     const buildGmailRawMessage = ({ to, subject, body, pdfBytes, fileName }) => {
       const boundary = `route_manifest_${crypto.randomUUID()}`;
-      const pdfBinary = String.fromCharCode(...new Uint8Array(pdfBytes));
-      const pdfBase64 = btoa(pdfBinary).replace(/(.{76})/g, '$1\r\n');
+      const pdfBase64 = uint8ToBase64(new Uint8Array(pdfBytes)).replace(/(.{76})/g, '$1\r\n');
       const mimeMessage = [
         `To: ${to}`,
         `Subject: ${subject}`,
