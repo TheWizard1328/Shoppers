@@ -34,7 +34,7 @@ export default function RouteManagementContent({
   onNotesUpdate,
   onCODUpdate,
   loadData,
-  appUsers = [],
+  appUsers = []
 }) {
   const isMobile = useMemo(() => isMobileDevice(), []);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -76,9 +76,9 @@ export default function RouteManagementContent({
 
   const handleToggleBulkDelivery = useCallback((deliveryId) => {
     setSelectedBulkDeliveryIds((current) =>
-      current.includes(deliveryId)
-        ? current.filter((id) => id !== deliveryId)
-        : [...current, deliveryId]
+    current.includes(deliveryId) ?
+    current.filter((id) => id !== deliveryId) :
+    [...current, deliveryId]
     );
   }, []);
 
@@ -119,18 +119,18 @@ export default function RouteManagementContent({
       return Promise.resolve();
     }
 
-    const selectedStoreOption = values.storeChoice && values.storeChoice !== "unchanged"
-      ? (() => {
-          const [storeId, slot] = values.storeChoice.split("::");
-          return { storeId, slot };
-        })()
-      : null;
+    const selectedStoreOption = values.storeChoice && values.storeChoice !== "unchanged" ?
+    (() => {
+      const [storeId, slot] = values.storeChoice.split("::");
+      return { storeId, slot };
+    })() :
+    null;
 
     const hasMeaningfulChanges =
-      Object.keys(baseUpdates).length > 0 ||
-      values.statusChoice !== "unchanged" ||
-      !!selectedStoreOption ||
-      (isAdmin && !!values.puid);
+    Object.keys(baseUpdates).length > 0 ||
+    values.statusChoice !== "unchanged" ||
+    !!selectedStoreOption ||
+    isAdmin && !!values.puid;
 
     if (!hasMeaningfulChanges) {
       return Promise.resolve();
@@ -144,9 +144,9 @@ export default function RouteManagementContent({
         const nextUpdates = { ...baseUpdates };
 
         if (values.statusChoice !== "unchanged") {
-          nextUpdates.status = values.statusChoice === "in_transit_or_en_route"
-            ? (selectedDelivery?.patient_id ? "in_transit" : "en_route")
-            : values.statusChoice;
+          nextUpdates.status = values.statusChoice === "in_transit_or_en_route" ?
+          selectedDelivery?.patient_id ? "in_transit" : "en_route" :
+          values.statusChoice;
         }
 
         if (selectedStoreOption) {
@@ -160,24 +160,24 @@ export default function RouteManagementContent({
 
           nextUpdates.store_id = selectedStoreOption.storeId;
           nextUpdates.ampm_deliveries = selectedStoreOption.slot;
-          nextUpdates.puid = isAdmin ? (values.puid || nextPuid) : nextPuid;
+          nextUpdates.puid = isAdmin ? values.puid || nextPuid : nextPuid;
         } else if (isAdmin && values.puid) {
           nextUpdates.puid = values.puid;
         }
 
         return updateDeliveryLocal(deliveryId, nextUpdates, { isBatchOperation: true });
       })
-    )
-      .then(async () => {
-        smartRefreshManager.restart();
-        invalidate("Delivery");
-        await loadData(true);
-        setSelectedBulkDeliveryIds([]);
-        setBulkEditMode(false);
-      })
-      .finally(() => {
-        setIsBulkUpdating(false);
-      });
+    ).
+    then(async () => {
+      smartRefreshManager.restart();
+      invalidate("Delivery");
+      await loadData(true);
+      setSelectedBulkDeliveryIds([]);
+      setBulkEditMode(false);
+    }).
+    finally(() => {
+      setIsBulkUpdating(false);
+    });
   }, [allDeliveries, bulkEditableDrivers, currentUser, deliveries, loadData, selectedBulkDeliveryIds]);
 
   const handleCreateReturn = useCallback(async ({ originalDelivery, returnPatient, store }) => {
@@ -194,7 +194,7 @@ export default function RouteManagementContent({
       delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
       patient_name: returnPatient.full_name,
       patient_phone: returnPatient.phone || store?.phone || "",
-      store_phone: store?.phone || "",
+      store_phone: store?.phone || ""
     });
     await invalidate("Delivery");
     await loadData(true);
@@ -203,44 +203,44 @@ export default function RouteManagementContent({
   const selectedDelivery = selectedDeliveryId ? deliveries.find((delivery) => delivery?.id === selectedDeliveryId) : null;
   const selectedPatient = selectedDelivery ? (patients || []).find((patient) => patient && (patient.id === selectedDelivery.patient_id || patient.patient_id === selectedDelivery.patient_id)) : null;
   const selectedStore = selectedDelivery ? (stores || []).find((store) => store && store.id === selectedDelivery.store_id) : null;
-  const selectedDriver = selectedDelivery
-    ? (drivers || []).find((driver) => driver.id === selectedDelivery.driver_id || driver.appUserId === selectedDelivery.driver_id) ||
-      (drivers || []).find((driver) => driver.full_name === selectedDelivery.driver_name) ||
-      (drivers || []).find((driver) => driver.user_name === selectedDelivery.driver_name)
-    : null;
+  const selectedDriver = selectedDelivery ?
+  (drivers || []).find((driver) => driver.id === selectedDelivery.driver_id || driver.appUserId === selectedDelivery.driver_id) ||
+  (drivers || []).find((driver) => driver.full_name === selectedDelivery.driver_name) ||
+  (drivers || []).find((driver) => driver.user_name === selectedDelivery.driver_name) :
+  null;
 
   if (!deliveries || deliveries.length === 0) {
     return (
       <div className="text-center py-12 text-slate-500 col-span-full">
         <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
         <p className="text-lg font-medium">No deliveries for this date</p>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
     <>
-      {canBulkEdit && (
-        <Card className="sticky top-0 z-10 flex-shrink-0 shadow-sm mb-2" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
+      {canBulkEdit &&
+      <Card className="sticky top-0 z-10 flex-shrink-0 shadow-sm mb-2" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
           <CardContent className="px-3 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-medium" style={{ color: "var(--text-slate-700)" }}>
                 {bulkEditMode ? "Select the stops you want to update." : "Bulk edit driver, date, status, pickup location, and time windows for multiple stops."}
               </p>
-              {bulkEditMode && (
-                <Badge variant="secondary" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)" }}>
+              {bulkEditMode &&
+            <Badge variant="secondary" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)" }}>
                   {selectedBulkDeliveryIds.length} selected
                 </Badge>
-              )}
+            }
             </div>
             <div className="flex flex-wrap gap-2">
-              {!bulkEditMode ? (
-                <Button variant="outline" className="gap-2" onClick={() => setBulkEditMode(true)}>
+              {!bulkEditMode ?
+            <Button variant="outline" className="gap-2" onClick={() => setBulkEditMode(true)}>
                   <Pencil className="w-4 h-4" />
                   Bulk Edit Stops
-                </Button>
-              ) : (
-                <>
+                </Button> :
+
+            <>
                   <Button variant="outline" className="gap-2" onClick={handleToggleAllVisibleBulkDeliveries}>
                     {areAllVisibleBulkDeliveriesSelected ? "Clear Visible" : "Select Visible"}
                   </Button>
@@ -252,126 +252,126 @@ export default function RouteManagementContent({
                     Cancel
                   </Button>
                 </>
-              )}
+            }
             </div>
           </CardContent>
         </Card>
-      )}
+      }
 
-      {resolvedViewMode === "cards" ? (
-        <div className="flex h-full gap-4">
+      {resolvedViewMode === "cards" ?
+      <div className="flex h-full gap-4">
           <div className={`${showSplitView ? "w-[400px] flex-shrink-0" : "w-full"} h-full overflow-hidden`}>
             <div className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center" style={{ maxHeight: "calc(100vh - 280px)" }}>
-              {deliveries.map((delivery, index) => (
-                <StopCard
-                  key={delivery.id || `${delivery.delivery_date || "unknown"}-${delivery.patient_id ?? "pickup"}-${delivery.store_id ?? "store"}-${delivery.tracking_number || index}`}
-                  delivery={delivery}
-                  patient={(patients || []).find((patient) => patient && (patient.id === delivery.patient_id || patient.patient_id === delivery.patient_id))}
-                  store={(stores || []).find((store) => store && store.id === delivery.store_id)}
-                  driver={
-                    (drivers || []).find((driver) => driver.id === delivery.driver_id || driver.appUserId === delivery.driver_id) ||
-                    (drivers || []).find((driver) => driver.full_name === delivery.driver_name) ||
-                    (drivers || []).find((driver) => driver.user_name === delivery.driver_name)
-                  }
-                  currentUser={currentUser}
-                  stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
-                  isSelected={selectedDeliveryId === delivery.id}
-                  onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
-                  onStatusUpdate={onStatusUpdate}
-                  onNotesUpdate={onNotesUpdate}
-                  onEdit={(nextDelivery) => {
-                    setSelectedDeliveryId(null);
-                    onEdit(nextDelivery);
-                  }}
-                  onDelete={onDelete}
-                  showDriverName={false}
-                  onRestart={onRestart}
-                  allDeliveries={allDeliveries || []}
-                  selectedDate={selectedDate}
-                  onEditPatient={onEditPatient}
-                  onCODUpdate={onCODUpdate}
-                  onStartDelivery={onStatusUpdate}
-                  onCreateReturn={handleCreateReturn}
-                  patients={patients || []}
-                  drivers={drivers || []}
-                  stores={stores || []}
-                  appUsers={appUsers}
-                  showDragHandle={false}
-                  compact
-                />
-              ))}
-            </div>
-          </div>
-
-          {showSplitView && (
-            <div className="flex-1 h-full overflow-hidden rounded-lg border" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
-              <StopDetailsPanel
-                delivery={selectedDelivery}
-                patient={selectedPatient}
-                store={selectedStore}
-                driver={selectedDriver}
-                currentUser={currentUser}
-                onClose={() => setSelectedDeliveryId(null)}
-                onStatusUpdate={onStatusUpdate}
-                onEdit={(nextDelivery) => {
-                  setSelectedDeliveryId(null);
-                  onEdit(nextDelivery);
-                }}
-                onDelete={onDelete}
-                onRestart={onRestart}
-              />
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="h-full min-h-0 max-h-full overflow-hidden px-4 relative">
-          <DeliveryListView
-            deliveries={deliveries}
-            patients={patients || []}
-            stores={stores || []}
-            drivers={drivers || []}
-            currentUser={currentUser}
-            bulkEditMode={bulkEditMode}
-            bulkSelectedIds={selectedBulkDeliveryIds}
-            onBulkToggle={handleToggleBulkDelivery}
-            onBulkToggleAllVisible={handleToggleAllVisibleBulkDeliveries}
-            onEdit={onEdit}
-            onEditPatient={onEditPatient}
-            onDelete={onDelete}
-            onRestart={onRestart}
-            onStatusUpdate={onStatusUpdate}
-            onNotesUpdate={onNotesUpdate}
-            onCODUpdate={onCODUpdate}
-            onCreateReturn={handleCreateReturn}
-            onStartDelivery={onStatusUpdate}
-            allDeliveries={allDeliveries || []}
-            selectedDate={selectedDate}
-            isMobile={isMobile}
-          />
-        </div>
-      )}
-
-      {isMobile && !showSplitView && resolvedViewMode === "cards" && selectedDeliveryId && (
-        <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSelectedDeliveryId(null)}>
-          <div className="w-full max-h-[85vh] overflow-hidden rounded-t-2xl" style={{ background: "var(--bg-white)" }} onClick={(event) => event.stopPropagation()}>
-            <StopDetailsPanel
-              delivery={selectedDelivery}
-              patient={selectedPatient}
-              store={selectedStore}
-              driver={selectedDriver}
+              {deliveries.map((delivery, index) =>
+            <StopCard
+              key={delivery.id || `${delivery.delivery_date || "unknown"}-${delivery.patient_id ?? "pickup"}-${delivery.store_id ?? "store"}-${delivery.tracking_number || index}`}
+              delivery={delivery}
+              patient={(patients || []).find((patient) => patient && (patient.id === delivery.patient_id || patient.patient_id === delivery.patient_id))}
+              store={(stores || []).find((store) => store && store.id === delivery.store_id)}
+              driver={
+              (drivers || []).find((driver) => driver.id === delivery.driver_id || driver.appUserId === delivery.driver_id) ||
+              (drivers || []).find((driver) => driver.full_name === delivery.driver_name) ||
+              (drivers || []).find((driver) => driver.user_name === delivery.driver_name)
+              }
               currentUser={currentUser}
-              onClose={() => setSelectedDeliveryId(null)}
+              stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
+              isSelected={selectedDeliveryId === delivery.id}
+              onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
               onStatusUpdate={onStatusUpdate}
+              onNotesUpdate={onNotesUpdate}
               onEdit={(nextDelivery) => {
                 setSelectedDeliveryId(null);
                 onEdit(nextDelivery);
               }}
               onDelete={onDelete}
+              showDriverName={false}
               onRestart={onRestart}
-            />
+              allDeliveries={allDeliveries || []}
+              selectedDate={selectedDate}
+              onEditPatient={onEditPatient}
+              onCODUpdate={onCODUpdate}
+              onStartDelivery={onStatusUpdate}
+              onCreateReturn={handleCreateReturn}
+              patients={patients || []}
+              drivers={drivers || []}
+              stores={stores || []}
+              appUsers={appUsers}
+              showDragHandle={false}
+              compact />
+
+            )}
+            </div>
+          </div>
+
+          {showSplitView &&
+        <div className="flex-1 h-full overflow-hidden rounded-lg border" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
+              <StopDetailsPanel
+            delivery={selectedDelivery}
+            patient={selectedPatient}
+            store={selectedStore}
+            driver={selectedDriver}
+            currentUser={currentUser}
+            onClose={() => setSelectedDeliveryId(null)}
+            onStatusUpdate={onStatusUpdate}
+            onEdit={(nextDelivery) => {
+              setSelectedDeliveryId(null);
+              onEdit(nextDelivery);
+            }}
+            onDelete={onDelete}
+            onRestart={onRestart} />
+          
+            </div>
+        }
+        </div> :
+
+      <div className="min-h-0 max-h-full overflow-auto px-4 relative">
+          <DeliveryListView
+          deliveries={deliveries}
+          patients={patients || []}
+          stores={stores || []}
+          drivers={drivers || []}
+          currentUser={currentUser}
+          bulkEditMode={bulkEditMode}
+          bulkSelectedIds={selectedBulkDeliveryIds}
+          onBulkToggle={handleToggleBulkDelivery}
+          onBulkToggleAllVisible={handleToggleAllVisibleBulkDeliveries}
+          onEdit={onEdit}
+          onEditPatient={onEditPatient}
+          onDelete={onDelete}
+          onRestart={onRestart}
+          onStatusUpdate={onStatusUpdate}
+          onNotesUpdate={onNotesUpdate}
+          onCODUpdate={onCODUpdate}
+          onCreateReturn={handleCreateReturn}
+          onStartDelivery={onStatusUpdate}
+          allDeliveries={allDeliveries || []}
+          selectedDate={selectedDate}
+          isMobile={isMobile} />
+        
+        </div>
+      }
+
+      {isMobile && !showSplitView && resolvedViewMode === "cards" && selectedDeliveryId &&
+      <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSelectedDeliveryId(null)}>
+          <div className="w-full max-h-[85vh] overflow-hidden rounded-t-2xl" style={{ background: "var(--bg-white)" }} onClick={(event) => event.stopPropagation()}>
+            <StopDetailsPanel
+            delivery={selectedDelivery}
+            patient={selectedPatient}
+            store={selectedStore}
+            driver={selectedDriver}
+            currentUser={currentUser}
+            onClose={() => setSelectedDeliveryId(null)}
+            onStatusUpdate={onStatusUpdate}
+            onEdit={(nextDelivery) => {
+              setSelectedDeliveryId(null);
+              onEdit(nextDelivery);
+            }}
+            onDelete={onDelete}
+            onRestart={onRestart} />
+          
           </div>
         </div>
-      )}
+      }
 
       <BulkEditStopsPanel
         open={isBulkEditPanelOpen}
@@ -384,8 +384,8 @@ export default function RouteManagementContent({
         allDeliveries={allDeliveries || []}
         currentUser={currentUser}
         onApply={handleBulkEditApply}
-        isSaving={isBulkUpdating}
-      />
-    </>
-  );
+        isSaving={isBulkUpdating} />
+      
+    </>);
+
 }
