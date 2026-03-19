@@ -500,10 +500,10 @@ export default function DeliveryFormView({
                   {!isPickupMode && (
                     <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <SmartBarcodeScanner
-                        receiptValues={formData.receipt_barcode_values || []}
-                        rxValues={formData.barcode_values || []}
-                        onReceiptChange={(vals) => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
-                        onRxChange={(vals) => setFormData(prev => ({ ...prev, barcode_values: vals }))}
+                        receiptBarcodeValues={formData.receipt_barcode_values || []}
+                        rxBarcodeValues={formData.barcode_values || []}
+                        onReceiptChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
+                        onRxChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
                         onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
                         disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
                       />

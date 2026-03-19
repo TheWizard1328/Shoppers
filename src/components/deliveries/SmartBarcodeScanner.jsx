@@ -3,33 +3,69 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { X, Camera, Barcode, Minus, Sun, ZoomIn } from 'lucide-react';
+import { Camera, Barcode, Minus, Sun, ZoomIn, X } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 import BarcodeThumb from './BarcodeThumb';
 
 const classifyBarcode = (value) => {
-  const normalized = String(value || '').trim();
-  const upper = normalized.toUpperCase();
-  const digits = normalized.replace(/\D/g, '');
+  const raw = String(value || '').trim();
+  const normalized = raw.replace(/\s+/g, '');
 
-  if (!normalized) return 'rx';
-  if (/^(TR|RCPT|RECEIPT|REC|PAY|SALE|POS)/.test(upper) || /RECEIPT|PAYMENT|TERMINAL/.test(upper)) return 'receipt';
-  if (/^(RX|DIN|NDC)/.test(upper) || /PRESCRIPTION|SCRIPT/.test(upper)) return 'rx';
-  if (/^[A-Z]{2,}\d{4,}$/.test(upper)) return 'receipt';
-  if (/^\d+$/.test(digits)) return digits.length <= 8 ? 'receipt' : 'rx';
-
-  return 'rx';
+  if (/^rx[#:\-\s]*/i.test(raw)) return 'rx';
+  if (/^\d{5,8}$/.test(normalized)) return 'rx';
+  if (/^[A-Za-z]{0,2}\d{5,8}$/.test(normalized) && !/-/.test(normalized)) return 'rx';
+  return 'receipt';
 };
 
+function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor }) {
+  return (
+    <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</Label>
+        {values.length > 0 && (
+          <Badge className={`text-xs px-1.5 py-0 h-5 ${countColor}`}>{values.length}</Badge>
+        )}
+      </div>
+      {values.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2">
+          {values.map((val, idx) => (
+            <div
+              key={`${title}-${idx}-${val}`}
+              className="relative rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+              style={{ borderColor: 'var(--border-slate-200)' }}
+              onClick={() => onSelectBarcode(val)}
+              title={val}
+            >
+              <BarcodeThumb value={val} />
+              <button
+                type="button"
+                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
+                onClick={(e) => { e.stopPropagation(); onRemove(idx); }}
+                aria-label="Remove barcode"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="h-[52px] rounded-md border border-dashed flex items-center justify-center text-xs text-slate-400">
+          No barcodes yet
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SmartBarcodeScanner({
-  receiptValues = [],
-  rxValues = [],
+  receiptBarcodeValues = [],
+  rxBarcodeValues = [],
   onReceiptChange,
   onRxChange,
   disabled = false,
-  onSelectBarcode = () => {}
+  onSelectBarcode = () => {},
 }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
@@ -41,48 +77,22 @@ export default function SmartBarcodeScanner({
   const [torchOn, setTorchOn] = useState(false);
 
   const inputRef = useRef(null);
-  const hiddenInputRef = useRef(null);
   const videoRef = useRef(null);
+  const hiddenInputRef = useRef(null);
   const codeReaderRef = useRef(null);
   const isReaderActiveRef = useRef(false);
   const streamRef = useRef(null);
-  const audioCtxRef = useRef(null);
-  const lastValueRef = useRef('');
-  const lastScanAtRef = useRef(0);
   const scannerBufferRef = useRef('');
   const scannerModeRef = useRef(false);
   const lastKeyAtRef = useRef(0);
   const scannerResetTimerRef = useRef(null);
+  const lastValueRef = useRef('');
+  const lastScanAtRef = useRef(0);
+  const audioCtxRef = useRef(null);
 
   const isMobile = isMobileDevice();
   const fastThreshold = isMobile ? 50 : 35;
-  const allValues = [...receiptValues, ...rxValues];
-
-  const appendBarcode = useCallback((value) => {
-    const trimmed = String(value || '').trim();
-    if (!trimmed || allValues.includes(trimmed)) {
-      setManualInput('');
-      setTimeout(() => inputRef.current?.focus?.(), 0);
-      return;
-    }
-
-    if (classifyBarcode(trimmed) === 'receipt') {
-      onReceiptChange([...(receiptValues || []), trimmed]);
-    } else {
-      onRxChange([...(rxValues || []), trimmed]);
-    }
-
-    setManualInput('');
-    setTimeout(() => inputRef.current?.focus?.(), 0);
-  }, [allValues, onReceiptChange, onRxChange, receiptValues, rxValues]);
-
-  const removeBarcode = useCallback((type, index) => {
-    if (type === 'receipt') {
-      onReceiptChange(receiptValues.filter((_, i) => i !== index));
-      return;
-    }
-    onRxChange(rxValues.filter((_, i) => i !== index));
-  }, [onReceiptChange, onRxChange, receiptValues, rxValues]);
+  const allValues = [...receiptBarcodeValues, ...rxBarcodeValues];
 
   const beep = () => {
     try {
@@ -102,6 +112,32 @@ export default function SmartBarcodeScanner({
       osc.stop(ctx.currentTime + 0.14);
     } catch {}
   };
+
+  const addBarcode = useCallback((value) => {
+    const trimmed = String(value || '').trim();
+    if (!trimmed || allValues.includes(trimmed)) {
+      setManualInput('');
+      setTimeout(() => inputRef.current?.focus(), 0);
+      return;
+    }
+
+    if (classifyBarcode(trimmed) === 'rx') {
+      onRxChange([...(rxBarcodeValues || []), trimmed]);
+    } else {
+      onReceiptChange([...(receiptBarcodeValues || []), trimmed]);
+    }
+
+    setManualInput('');
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [allValues, onReceiptChange, onRxChange, receiptBarcodeValues, rxBarcodeValues]);
+
+  const removeReceiptBarcode = useCallback((index) => {
+    onReceiptChange(receiptBarcodeValues.filter((_, i) => i !== index));
+  }, [onReceiptChange, receiptBarcodeValues]);
+
+  const removeRxBarcode = useCallback((index) => {
+    onRxChange(rxBarcodeValues.filter((_, i) => i !== index));
+  }, [onRxChange, rxBarcodeValues]);
 
   const handleInputKeyDown = (e) => {
     if (disabled) return;
@@ -129,12 +165,12 @@ export default function SmartBarcodeScanner({
       e.preventDefault();
       e.stopPropagation();
       if (scannerModeRef.current && scannerBufferRef.current) {
-        appendBarcode(scannerBufferRef.current);
+        addBarcode(scannerBufferRef.current);
         scannerBufferRef.current = '';
         scannerModeRef.current = false;
         return;
       }
-      appendBarcode(manualInput);
+      addBarcode(manualInput);
       return;
     }
 
@@ -159,43 +195,8 @@ export default function SmartBarcodeScanner({
     beep();
     setFlashHit(true);
     setTimeout(() => setFlashHit(false), 120);
-    appendBarcode(trimmed);
-  }, [appendBarcode]);
-
-  const adjustZoom = (delta) => {
-    const track = streamRef.current?.getVideoTracks?.()[0];
-    if (!track) return;
-    const caps = track.getCapabilities?.();
-    if (!caps?.zoom) return;
-    const settings = track.getSettings?.() || {};
-    const current = settings.zoom ?? zoom ?? caps.zoom.min;
-    const next = Math.min(caps.zoom.max, Math.max(caps.zoom.min, current + delta));
-    track.applyConstraints({ advanced: [{ zoom: next }] }).catch(() => {});
-    setZoom(next);
-  };
-
-  const toggleTorch = async () => {
-    const track = streamRef.current?.getVideoTracks?.()[0];
-    if (!track) return;
-    const caps = track.getCapabilities?.();
-    if (!caps?.torch) return;
-    const next = !torchOn;
-    try {
-      await track.applyConstraints({ advanced: [{ torch: next }] });
-    } catch {}
-    setTorchOn(next);
-  };
-
-  const tapToFocus = async () => {
-    const track = streamRef.current?.getVideoTracks?.()[0];
-    if (!track) return;
-    try {
-      const caps = track.getCapabilities?.();
-      if (caps?.focusMode?.includes?.('single-shot')) {
-        await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
-      }
-    } catch {}
-  };
+    addBarcode(trimmed);
+  }, [addBarcode]);
 
   const startCamera = useCallback(async () => {
     if (disabled || isReaderActiveRef.current) return;
@@ -207,7 +208,7 @@ export default function SmartBarcodeScanner({
       let selectedDeviceId = null;
       try {
         const inputs = await BrowserMultiFormatReader.listVideoInputDevices();
-        const back = inputs.find((d) => /back|rear|environment/i.test(d.label));
+        const back = inputs.find(d => /back|rear|environment/i.test(d.label));
         selectedDeviceId = (back || inputs[inputs.length - 1])?.deviceId || null;
       } catch {}
 
@@ -232,19 +233,12 @@ export default function SmartBarcodeScanner({
         codeReaderRef.current.setHints(hints);
       } catch {}
 
-      if (typeof codeReaderRef.current.decodeFromConstraints === 'function') {
-        codeReaderRef.current.decodeFromConstraints(constraints, videoRef.current, (result) => {
-          if (!result) return;
+      codeReaderRef.current.decodeFromConstraints(constraints, videoRef.current, (result) => {
+        if (result) {
           const text = result.getText ? result.getText() : String(result?.text || '');
           if (text) handleCameraDetected(text);
-        });
-      } else {
-        codeReaderRef.current.decodeFromVideoDevice(null, videoRef.current, (result) => {
-          if (!result) return;
-          const text = result.getText ? result.getText() : String(result?.text || '');
-          if (text) handleCameraDetected(text);
-        });
-      }
+        }
+      });
 
       setTimeout(() => {
         try {
@@ -260,13 +254,10 @@ export default function SmartBarcodeScanner({
             setZoom(target);
           }
           if (caps.torch) setHasTorch(true);
-          if (caps.focusMode?.includes?.('continuous')) {
-            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
-          }
         } catch {}
       }, 300);
-    } catch (error) {
-      console.warn('Camera start failed', error);
+    } catch (e) {
+      console.warn('Camera start failed', e);
     } finally {
       setIsStartingCamera(false);
     }
@@ -276,7 +267,7 @@ export default function SmartBarcodeScanner({
     try { codeReaderRef.current?.reset?.(); } catch {}
     try {
       const stream = streamRef.current || videoRef.current?.srcObject;
-      if (stream?.getTracks) stream.getTracks().forEach((track) => { try { track.stop(); } catch {} });
+      if (stream?.getTracks) stream.getTracks().forEach((t) => { try { t.stop(); } catch {} });
     } catch {}
     if (videoRef.current) {
       try { videoRef.current.pause(); } catch {}
@@ -286,6 +277,28 @@ export default function SmartBarcodeScanner({
     isReaderActiveRef.current = false;
   }, []);
 
+  const adjustZoom = (delta) => {
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (!track) return;
+    const caps = track.getCapabilities?.();
+    if (!caps?.zoom) return;
+    const settings = track.getSettings?.() || {};
+    const current = settings.zoom ?? zoom ?? caps.zoom.min;
+    const next = Math.min(caps.zoom.max, Math.max(caps.zoom.min, current + delta));
+    track.applyConstraints({ advanced: [{ zoom: next }] }).catch(() => {});
+    setZoom(next);
+  };
+
+  const toggleTorch = async () => {
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (!track) return;
+    const caps = track.getCapabilities?.();
+    if (!caps?.torch) return;
+    const next = !torchOn;
+    try { await track.applyConstraints({ advanced: [{ torch: next }] }); } catch {}
+    setTorchOn(next);
+  };
+
   useEffect(() => {
     if (showCamera) startCamera();
     else stopCameraReader();
@@ -293,65 +306,18 @@ export default function SmartBarcodeScanner({
   }, [showCamera, startCamera, stopCameraReader]);
 
   useEffect(() => {
-    const handleHide = () => {
-      if (!showCamera) return;
-      stopCameraReader();
-      setShowCamera(false);
-    };
-    window.addEventListener('pagehide', handleHide);
-    document.addEventListener('visibilitychange', handleHide);
-    return () => {
-      window.removeEventListener('pagehide', handleHide);
-      document.removeEventListener('visibilitychange', handleHide);
-    };
-  }, [showCamera, stopCameraReader]);
-
-  useEffect(() => {
-    if (isMobile || showCamera) return;
+    if (!isMobile || showCamera) return;
     try { hiddenInputRef.current?.focus(); } catch {}
-  }, [isMobile, showCamera, receiptValues.length, rxValues.length]);
-
-  const renderBarcodeGroup = (title, values, type) => (
-    <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</Label>
-        <Badge className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0 h-5">{values.length}</Badge>
-      </div>
-      {values.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2">
-          {values.map((value, index) => (
-            <div
-              key={`${type}-${value}-${index}`}
-              className="relative rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
-              style={{ borderColor: 'var(--border-slate-200)' }}
-              onClick={() => onSelectBarcode(value)}
-              title={value}
-            >
-              <BarcodeThumb value={value} />
-              <button
-                type="button"
-                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
-                onClick={(e) => { e.stopPropagation(); removeBarcode(type, index); }}
-                aria-label="Remove barcode"
-                disabled={disabled}
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-md border border-dashed p-4 text-xs text-slate-400 text-center">No {title.toLowerCase()} scanned yet</div>
-      )}
-    </div>
-  );
+  }, [isMobile, showCamera, receiptBarcodeValues.length, rxBarcodeValues.length]);
 
   return (
-    <div className="space-y-3" onClick={(e) => { if (!showCamera && e.target?.tagName !== 'INPUT') hiddenInputRef.current?.focus?.(); }}>
+    <div className="space-y-3" onClick={(e) => { if (isMobile && !showCamera && e.target?.tagName !== 'INPUT') hiddenInputRef.current?.focus?.(); }}>
       <div className="flex items-center gap-2">
         <Barcode className="w-4 h-4 text-emerald-600" />
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Barcodes</Label>
-        {allValues.length > 0 && <Badge className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0 h-5">{allValues.length}</Badge>}
+        {allValues.length > 0 && (
+          <Badge className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0 h-5">{allValues.length}</Badge>
+        )}
       </div>
 
       <div className="flex gap-2 items-center">
@@ -362,7 +328,7 @@ export default function SmartBarcodeScanner({
           onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
           onKeyDown={handleInputKeyDown}
           onFocus={() => hiddenInputRef.current?.blur?.()}
-          placeholder="Scan or type barcode value..."
+          placeholder="Scan or type barcode and press Enter..."
           className="flex-1 h-9 text-sm font-mono"
           disabled={disabled}
           autoComplete="off"
@@ -373,6 +339,7 @@ export default function SmartBarcodeScanner({
           className="sr-only absolute -left-[9999px] w-0 h-0 opacity-0"
           onKeyDown={handleInputKeyDown}
           onChange={() => {}}
+          autoFocus={isMobile}
           aria-hidden="true"
           autoComplete="off"
           autoCapitalize="off"
@@ -392,35 +359,46 @@ export default function SmartBarcodeScanner({
         </Button>
       </div>
 
-      <p className="text-xs text-slate-400">Use one scan field and the app will sort each barcode into Receipt or Rx automatically.</p>
+      <p className="text-xs text-slate-400">One scanner input auto-sorts barcodes into Receipt or Rx lists.</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <BarcodeColumn
+          title="Receipt Barcodes"
+          values={receiptBarcodeValues}
+          onRemove={removeReceiptBarcode}
+          onSelectBarcode={onSelectBarcode}
+          countColor="bg-blue-100 text-blue-700"
+        />
+        <BarcodeColumn
+          title="Rx Barcodes"
+          values={rxBarcodeValues}
+          onRemove={removeRxBarcode}
+          onSelectBarcode={onSelectBarcode}
+          countColor="bg-emerald-100 text-emerald-700"
+        />
+      </div>
 
       {showCamera && (
         <div className="fixed inset-0 z-[10030] bg-black/50 backdrop-blur-sm">
           <div className="relative w-screen mx-auto mt-[10vh] px-0">
-            <div onClick={tapToFocus} className={`relative mx-auto w-screen aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
+            <div className={`relative mx-auto w-screen aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
               <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
-              <div className="pointer-events-none absolute inset-0">
-                <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="px-2 py-0.5 text-[10px] rounded bg-black/50 text-white/80">Hold label so bars run left→right and fill the frame</span>
-                </div>
-                <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
-                <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
-                <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl" />
-                <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br" />
-              </div>
             </div>
             <div className="mt-3 flex items-center justify-between text-white/90">
               <div className="flex items-center gap-2">
                 <div className="text-sm">{allValues.length} scanned</div>
                 {canZoom && (
                   <div className="ml-1 flex items-center gap-1">
-                    <Button variant="secondary" size="sm" onClick={() => adjustZoom(-0.5)} title="Zoom out"><Minus className="w-4 h-4" /></Button>
-                    <Button variant="secondary" size="sm" onClick={() => adjustZoom(0.5)} title="Zoom in"><ZoomIn className="w-4 h-4" /></Button>
+                    <Button variant="secondary" size="sm" onClick={() => adjustZoom(-0.5)} title="Zoom out">
+                      <Minus className="w-4 h-4" />
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => adjustZoom(0.5)} title="Zoom in">
+                      <ZoomIn className="w-4 h-4" />
+                    </Button>
                   </div>
                 )}
                 {hasTorch && (
-                  <Button variant="secondary" size="sm" onClick={toggleTorch} title="Toggle torch" className={torchOn ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}>
+                  <Button variant="secondary" size="sm" onClick={toggleTorch} className={torchOn ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}>
                     <Sun className="w-4 h-4 mr-1" /> {torchOn ? 'Torch On' : 'Torch'}
                   </Button>
                 )}
@@ -435,11 +413,6 @@ export default function SmartBarcodeScanner({
           </div>
         </div>
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {renderBarcodeGroup('Receipt Barcodes', receiptValues, 'receipt')}
-        {renderBarcodeGroup('Rx Barcodes', rxValues, 'rx')}
-      </div>
     </div>
-  )
+  );
 }
