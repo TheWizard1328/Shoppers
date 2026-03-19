@@ -4,6 +4,7 @@ import { User } from '@/entities/User';
 import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 import { AppUser } from '@/entities/AppUser';
+import { Company } from '@/entities/Company';
 import { SquareLocationConfig } from '@/entities/SquareLocationConfig';
 import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
@@ -19,6 +20,7 @@ import {
   subscribeMutations
 } from './offlineMutations';
 import { connectionMonitor } from './connectionMonitor';
+import { getOfflineStoreName, isOfflineManagedEntity } from './offlineEntityRegistry';
 
 const entities = {
   Patient,
@@ -27,6 +29,7 @@ const entities = {
   City,
   Store,
   AppUser,
+  Company,
   SquareLocationConfig,
   SquareTransaction
 };
@@ -69,15 +72,9 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   
   // OFFLINE-FIRST: Try IndexedDB for ALL critical entities ALWAYS
   // NO IN-MEMORY CACHE - only offline DB
-  if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'Store' || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
+  if (isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
     try {
-      const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
-                        entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
-                        entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
-                        entityName === 'City' ? offlineDB.STORES.CITIES :
-                        entityName === 'Store' ? offlineDB.STORES.STORES :
-                        entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS :
-                        offlineDB.STORES.SQUARE_TRANSACTIONS;
+      const storeName = getOfflineStoreName(offlineDB, entityName) || (entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS : offlineDB.STORES.SQUARE_TRANSACTIONS);
       let offlineData = await offlineDB.getAll(storeName);
       
       if (offlineData && offlineData.length > 0) {
@@ -157,14 +154,8 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       connectionMonitor.recordResponseTime(responseTime);
 
       // Save to offline DB
-      if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'Store' || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
-        const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
-                          entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
-                          entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
-                          entityName === 'City' ? offlineDB.STORES.CITIES :
-                          entityName === 'Store' ? offlineDB.STORES.STORES :
-                          entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS :
-                          offlineDB.STORES.SQUARE_TRANSACTIONS;
+      if (isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
+        const storeName = getOfflineStoreName(offlineDB, entityName) || (entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS : offlineDB.STORES.SQUARE_TRANSACTIONS);
         await offlineDB.bulkSave(storeName, data);
         await offlineDB.updateSyncMetadata(entityName, new Date().toISOString());
       }
@@ -175,15 +166,9 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         lastError = error;
 
         // Try offline DB on any error
-        if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'Store' || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
+        if (isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
           try {
-            const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
-                              entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
-                              entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
-                              entityName === 'City' ? offlineDB.STORES.CITIES :
-                              entityName === 'Store' ? offlineDB.STORES.STORES :
-                              entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS :
-                              offlineDB.STORES.SQUARE_TRANSACTIONS;
+            const storeName = getOfflineStoreName(offlineDB, entityName) || (entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS : offlineDB.STORES.SQUARE_TRANSACTIONS);
             const fallbackData = await offlineDB.getAll(storeName);
             if (fallbackData && fallbackData.length > 0) {
               return fallbackData;
