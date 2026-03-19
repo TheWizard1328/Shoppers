@@ -6,15 +6,17 @@ const toSnakeCase = (str) => {
 	return str.replace(/([A-Z])/g, '_$1').toLowerCase();
 }
 
-const getAppParamValue = (paramName, { defaultValue = undefined, removeFromUrl = false } = {}) => {
+const getAppParamValue = (paramName, { defaultValue = undefined, removeFromUrl = false, aliases = [] } = {}) => {
 	if (isNode) {
 		return defaultValue;
 	}
 	const storageKey = `base44_${toSnakeCase(paramName)}`;
 	const urlParams = new URLSearchParams(window.location.search);
-	const searchParam = urlParams.get(paramName);
+	const paramNames = [paramName, ...aliases];
+	const matchedParamName = paramNames.find((name) => urlParams.has(name));
+	const searchParam = matchedParamName ? urlParams.get(matchedParamName) : null;
 	if (removeFromUrl) {
-		urlParams.delete(paramName);
+		paramNames.forEach((name) => urlParams.delete(name));
 		const newUrl = `${window.location.pathname}${urlParams.toString() ? `?${urlParams.toString()}` : ""
 			}${window.location.hash}`;
 		window.history.replaceState({}, document.title, newUrl);
