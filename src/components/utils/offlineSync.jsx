@@ -14,6 +14,7 @@ import { Delivery } from '@/entities/Delivery';
 import { AppUser } from '@/entities/AppUser';
 import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
+import { Company } from '@/entities/Company';
 import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
 import { 
@@ -24,6 +25,7 @@ import {
   fetchStoresDedup,
   invalidateEntityCache
 } from './dataSyncCoordinator';
+import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
@@ -137,11 +139,7 @@ const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter
     const records = await Entity.filter(filter, '-updated_date', 5000);
     
     if (records.length > 0) {
-      const storeName = entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
-                        entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
-                        entityName === 'City' ? offlineDB.STORES.CITIES :
-                        offlineDB.STORES.STORES;
-      
+      const storeName = getOfflineStoreName(offlineDB, entityName) || offlineDB.STORES.STORES;
       await offlineDB.bulkSave(storeName, records);
     }
     
@@ -682,6 +680,10 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     invalidateEntityCache('Store');
     await new Promise(r => setTimeout(r, 2000));
 
+    await syncEntityWithTimestampCheck('Company', Company, {}, {});
+    invalidateEntityCache('Company');
+    await new Promise(r => setTimeout(r, 2000));
+
     await syncEntityWithTimestampCheck('AppUser', AppUser, {}, {});
     invalidateEntityCache('AppUser');
     await new Promise(r => setTimeout(r, 2000));
@@ -948,7 +950,7 @@ export const processPendingMutations = async () => {
         return Promise.resolve({ success: true, skip: true });
       }
       
-      const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
+      const Entity = OFFLINE_SYNC_ENTITY_CLIENTS[mutation.entity];
       return Entity.delete(mutation.recordId)
         .then(() => ({ success: true, mutationId: mutation.mutationId }))
         .catch(deleteError => {
@@ -978,9 +980,12 @@ export const processPendingMutations = async () => {
           );
           // Only delete from offline DB if not a temp record
           if (!mutation.recordId?.startsWith('temp_')) {
-            offlineDeletePromises.push(
-              offlineDB.deleteRecord(mutation.entity === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES, mutation.recordId)
-            );
+            const storeName = getOfflineStoreName(offlineDB, mutation.entity);
+            if (storeName) {
+              offlineDeletePromises.push(
+                offlineDB.deleteRecord(storeName, mutation.recordId)
+              );
+            }
           }
         }
         successCount++;
@@ -1015,7 +1020,7 @@ export const processPendingMutations = async () => {
     if (syncPaused) break;
     
     try {
-      const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
+      const Entity = OFFLINE_SYNC_ENTITY_CLIENTS[mutation.entity];
       const deliveryPayload = mutation.entity === 'Delivery' ? (() => {
         const source = mutation.payload?._isBatchSave && Array.isArray(mutation.payload?._stagedDeliveries)
           ? mutation.payload._stagedDeliveries[0]
@@ -1052,9 +1057,20 @@ export const processPendingMutations = async () => {
       }
       
       if (mutation.operation === 'create') {
-        await Entity.create(mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+        const createdRecord = await Entity.create(mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+        const storeName = getOfflineStoreName(offlineDB, mutation.entity);
+        if (storeName && createdRecord) {
+          if (mutation.recordId?.startsWith('temp_')) {
+            await offlineDB.deleteRecord(storeName, mutation.recordId);
+          }
+          await offlineDB.bulkSave(storeName, [createdRecord]);
+        }
       } else if (mutation.operation === 'update') {
-        await Entity.update(mutation.recordId, mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+        const updatedRecord = await Entity.update(mutation.recordId, mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+        const storeName = getOfflineStoreName(offlineDB, mutation.entity);
+        if (storeName && updatedRecord) {
+          await offlineDB.bulkSave(storeName, [updatedRecord]);
+        }
       }
       
       await offlineDB.removePendingMutation(mutation.mutationId);
@@ -1564,6 +1580,16 @@ export const initializeOfflineDBBeforeRender = async (smartRefreshMgr = null, cu
     return { success: false, appUsers: [], cities: [], error: error.message };
   }
 };
+
+if (typeof window !== 'undefined' && !window.__rxDeliverOfflineReconnectSync) {
+  window.__rxDeliverOfflineReconnectSync = true;
+  window.addEventListener('online', () => {
+    setTimeout(() => {
+      processPendingMutations().catch(() => {});
+      performBackgroundSync(format(new Date(), 'yyyy-MM-dd')).catch(() => {});
+    }, 1500);
+  });
+}
 
 export const getSyncStats = async () => {
   const stats = await offlineDB.getStats();
