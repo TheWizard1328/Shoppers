@@ -25,9 +25,8 @@ import LargeBarcodePreview from './LargeBarcodePreview';
 import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
-import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
-import { purgeAndRegeneratePolylines } from '@/functions/purgeAndRegeneratePolylines';
+import { optimizeRemainingStops } from '@/functions/optimizeRemainingStops';
 import { toast } from 'sonner';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 
@@ -165,6 +164,15 @@ export default function DeliveryFormView({
     isLoadingPredictions, onRefreshProjections: () => setPredictionTrigger(prev => prev + 1),
     shouldAutoFocusFields,
   };
+
+  const hasTimeWindowChanges = Boolean(
+    delivery && (
+      (delivery.delivery_time_start || '') !== (formData.delivery_time_start || '') ||
+      (delivery.delivery_time_end || '') !== (formData.delivery_time_end || '') ||
+      (delivery.time_window_start || '') !== (formData.time_window_start || '') ||
+      (delivery.time_window_end || '') !== (formData.time_window_end || '')
+    )
+  );
 
   // Auto-focus COD amount when a staged or pending item is selected (desktop only)
   React.useEffect(() => {
@@ -650,27 +658,49 @@ export default function DeliveryFormView({
                     <Plus className="w-4 h-4" />Add
                   </Button>
                 ) : (
-                  <Button type="submit" size="sm" onClick={async e => { e.preventDefault(); await runLockedAction('update_delivery', async () => { await handleSubmit(e); }); setFormData(prev => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null })); if (formData?.driver_id && formData?.delivery_date) {
-  // Fire-and-forget heavy tasks to keep UI responsive
-  Promise.resolve()
-    .then(async () => {
-      await recalculateAndUpdateStopOrders(formData.driver_id, formData.delivery_date);
-      await purgeAndRegeneratePolylines({ driverId: formData.driver_id, deliveryDate: formData.delivery_date });
-    })
-    .catch(err => console.warn('Stop order/polyline refresh skipped:', err?.response?.status || err?.message || err));
+                  <Button type="submit" size="sm" onClick={async e => {
+                    e.preventDefault();
+                    await runLockedAction('update_delivery', async () => {
+                      await handleSubmit(e);
+                      setFormData(prev => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
 
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  const currentLocalTime = `${hh}:${mm}`;
+                      if (formData?.driver_id && formData?.delivery_date) {
+                        const now = new Date();
+                        const hh = String(now.getHours()).padStart(2, '0');
+                        const mm = String(now.getMinutes()).padStart(2, '0');
+                        const currentLocalTime = `${hh}:${mm}`;
 
-  Promise.resolve()
-    .then(() => calculateRealTimeETA({ driverId: formData.driver_id, deliveryDate: formData.delivery_date, currentLocalTime, deviceTime: currentLocalTime }))
-    .catch(err => console.warn('ETA calculation skipped:', err?.response?.status || err?.message || err));
+                        if (hasTimeWindowChanges) {
+                          await optimizeRemainingStops({
+                            driverId: formData.driver_id,
+                            deliveryDate: formData.delivery_date,
+                            currentLocalTime,
+                            deviceTime: currentLocalTime
+                          });
+                        } else {
+                          await calculateRealTimeETA({
+                            driverId: formData.driver_id,
+                            deliveryDate: formData.delivery_date,
+                            currentLocalTime,
+                            deviceTime: currentLocalTime
+                          });
+                        }
 
-  // Immediate UI signal for updated sequencing
-  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'stopOrderResequence', driverId: formData.driver_id, deliveryDate: formData.delivery_date } }));
-} window.dispatchEvent(new CustomEvent('collapseSelectedStopCard')); window.dispatchEvent(new CustomEvent('deliveriesUpdated')); if (closeOnSave) onCancel(); setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')), 300); }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
+                        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                          detail: {
+                            triggeredBy: hasTimeWindowChanges ? 'routeOptimizationAfterUpdate' : 'etaUpdateAfterDeliveryUpdate',
+                            driverId: formData.driver_id,
+                            deliveryDate: formData.delivery_date
+                          }
+                        }));
+                      }
+
+                      window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
+                      window.dispatchEvent(new CustomEvent('deliveriesUpdated'));
+                      if (closeOnSave) onCancel();
+                      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                    });
+                  }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
                 )}
