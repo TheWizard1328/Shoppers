@@ -25,6 +25,7 @@ import {
   fetchStoresDedup,
   invalidateEntityCache
 } from './dataSyncCoordinator';
+import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
@@ -1026,7 +1027,12 @@ export const processPendingMutations = async () => {
     if (syncPaused) break;
     
     try {
-      const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
+      const Entity = getMutationEntityClient(mutation.entity);
+      if (!Entity) {
+        await offlineDB.removePendingMutation(mutation.mutationId);
+        successCount++;
+        continue;
+      }
       const deliveryPayload = mutation.entity === 'Delivery' ? (() => {
         const source = mutation.payload?._isBatchSave && Array.isArray(mutation.payload?._stagedDeliveries)
           ? mutation.payload._stagedDeliveries[0]
