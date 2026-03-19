@@ -1498,55 +1498,41 @@ export default function Layout({ children, currentPageName }) {
     // }
 
     const unsubscribeRealtime = subscribeToRealtime((update) => {
-      if (update.type === 'connected') {
-        console.log('✅ [Layout] Real-time sync connected');
-        return;
-      }
+      const entity = update.entity || update.entityType;
+      const action = update.action || update.eventType;
+      const data = update.data;
+      const id = update.id;
 
-      if (update.type === 'disconnected') {
-        console.log('🔌 [Layout] Real-time sync disconnected');
-        return;
-      }
+      if (!entity || !action) return;
 
-      if (update.type !== 'entity_change') return;
+      console.log(`📥 [Layout] Real-time update: ${entity} ${action}`, id || update.ids);
 
-      console.log(`📥 [Layout] Real-time update: ${update.entity} ${update.action}`, update.id || update.ids);
-
-      // Handle Delivery updates
-      if (update.entity === 'Delivery') {
-        if (update.action === 'create') {
+      if (entity === 'Delivery') {
+        if (action === 'create') {
           setDeliveries((prev) => {
-            if (prev.some((d) => d?.id === update.id)) return prev;
-            return [...prev, update.data];
+            if (prev.some((d) => d?.id === id)) return prev;
+            return [...prev, data];
           });
-        } else if (update.action === 'update') {
-          setDeliveries((prev) => prev.map((d) =>
-          d?.id === update.id ? { ...d, ...update.data } : d
-          ));
-          console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
-        } else if (update.action === 'delete') {
-          setDeliveries((prev) => prev.filter((d) => d?.id !== update.id));
-          // CRITICAL: Remove from offline DB to prevent residual memory on other devices
-          offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, update.id).catch(() => {});
-          // Refresh catalog items after deletion
+        } else if (action === 'update') {
+          setDeliveries((prev) => prev.map((d) => d?.id === id ? { ...d, ...data } : d));
+          console.log(`📥 [Layout] Real-time delivery update: ${id}, status: ${data?.status}`);
+        } else if (action === 'delete') {
+          setDeliveries((prev) => prev.filter((d) => d?.id !== id));
+          offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
           setTimeout(() => {
-            base44.functions.invoke('squareSyncCatalogItems', {}).
-            then((response) => {
+            base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
               const items = response?.data?.items || response?.items || [];
               setCatalogItems(items);
             });
           }, 500);
-        } else if (update.action === 'batch_delete' && update.ids) {
+        } else if (action === 'batch_delete' && update.ids) {
           const idsToDelete = new Set(update.ids);
           setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
-          // CRITICAL: Remove ALL deleted IDs from offline DB
-          update.ids.forEach((id) => {
-            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
+          update.ids.forEach((deletedId) => {
+            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, deletedId).catch(() => {});
           });
-          // Refresh catalog items after batch deletion
           setTimeout(() => {
-            base44.functions.invoke('squareSyncCatalogItems', {}).
-            then((response) => {
+            base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
               const items = response?.data?.items || response?.items || [];
               setCatalogItems(items);
             });
@@ -1554,79 +1540,83 @@ export default function Layout({ children, currentPageName }) {
         }
       }
 
-      // Handle AppUser updates (driver location, status, tracking)
-      if (update.entity === 'AppUser') {
-        if (update.action === 'update') {
-          setAppUsers((prev) => prev.map((au) =>
-          au?.id === update.id ? { ...au, ...update.data } : au
-          ));
+      if (entity === 'AppUser' && action === 'update') {
+        setAppUsers((prev) => prev.map((au) => au?.id === id ? { ...au, ...data } : au));
+        setUsers((prev) => prev.map((u) => u?.id === data?.user_id ? { ...u, ...data } : u));
 
-          // Also update users array for merged user data
-          setUsers((prev) => prev.map((u) =>
-          u?.id === update.data?.user_id ? { ...u, ...update.data } : u
-          ));
+        import('./components/utils/offlineDatabase').then(({ offlineDB }) => {
+          if (data) {
+            offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [data]).catch(console.error);
+          }
+        });
 
-          // CRITICAL: Update offline DB immediately (async but don't await)
-          import('./components/utils/offlineDatabase').then(({ offlineDB }) => {
-            if (update.data) {
-              offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [update.data]).catch(console.error);
+        if (data?.user_id === currentUser?.id) {
+          console.log('🔄 [Layout Real-time] Current user AppUser updated - refreshing context');
+          clearUserCache();
+          getEffectiveUser().then((refreshedUser) => {
+            if (refreshedUser) {
+              setCurrentUser(refreshedUser);
             }
           });
+        }
 
-          // CRITICAL: If this is the current user, refresh their context
-          if (update.data?.user_id === currentUser?.id) {
-            console.log('🔄 [Layout Real-time] Current user AppUser updated - refreshing context');
-            clearUserCache();
-            getEffectiveUser().then((refreshedUser) => {
-              if (refreshedUser) {
-                setCurrentUser(refreshedUser);
-              }
-            });
-          }
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: null, singleUpdate: data }
+        }));
 
-          // CRITICAL: Dispatch event to update map markers AND polylines immediately
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: null, singleUpdate: update.data }
+        if (data?.current_latitude || data?.current_longitude) {
+          console.log(`📍 [Layout] Driver ${data.user_id} location updated - forcing map refresh (no notification)`);
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              triggeredBy: 'driver_location_update',
+              driverId: data.user_id
+            }
           }));
-
-          // CRITICAL: If location changed, also refresh delivery markers (for polyline origins)
-          // Skip toast notification for location updates
-          if (update.data?.current_latitude || update.data?.current_longitude) {
-            console.log(`📍 [Layout] Driver ${update.data.user_id} location updated - forcing map refresh (no notification)`);
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: {
-                triggeredBy: 'driver_location_update',
-                driverId: update.data.user_id
-              }
-            }));
-          } else {
-            // Show notification for non-location updates (status, role changes, etc.)
-            toast.success(`${update.data.user_name || 'Driver'} updated`);
-          }
+        } else {
+          toast.success(`${data.user_name || 'Driver'} updated`);
         }
       }
 
-
-      // Handle Patient updates
-      if (update.entity === 'Patient') {
-        if (update.action === 'create') {
+      if (entity === 'Patient') {
+        if (action === 'create') {
           setPatients((prev) => {
-            if (prev.some((p) => p?.id === update.id)) return prev;
-            return [...prev, update.data];
+            if (prev.some((p) => p?.id === id)) return prev;
+            return [...prev, data];
           });
-          // Save to offline DB immediately
-          offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
-        } else if (update.action === 'update') {
-          setPatients((prev) => prev.map((p) =>
-          p?.id === update.id ? { ...p, ...update.data } : p
-          ));
-          // Update offline DB immediately
-          offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
-        } else if (update.action === 'delete') {
-          setPatients((prev) => prev.filter((p) => p?.id !== update.id));
-          // Remove from offline DB immediately
-          offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, update.id).catch(() => {});
+          offlineDB.save(offlineDB.STORES.PATIENTS, data).catch(() => {});
+        } else if (action === 'update') {
+          setPatients((prev) => prev.map((p) => p?.id === id ? { ...p, ...data } : p));
+          offlineDB.save(offlineDB.STORES.PATIENTS, data).catch(() => {});
+        } else if (action === 'delete') {
+          setPatients((prev) => prev.filter((p) => p?.id !== id));
+          offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => {});
         }
+      }
+
+      if (entity === 'City') {
+        if (action === 'create') {
+          setCities((prev) => prev.some((city) => city?.id === id) ? prev : [...prev, data].sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
+        } else if (action === 'update') {
+          setCities((prev) => prev.map((city) => city?.id === id ? { ...city, ...data } : city).sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
+        } else if (action === 'delete') {
+          setCities((prev) => prev.filter((city) => city?.id !== id));
+        }
+      }
+
+      if (entity === 'Store') {
+        if (action === 'create') {
+          setStores((prev) => prev.some((store) => store?.id === id) ? prev : [...prev, data].sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
+        } else if (action === 'update') {
+          setStores((prev) => prev.map((store) => store?.id === id ? { ...store, ...data } : store).sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
+        } else if (action === 'delete') {
+          setStores((prev) => prev.filter((store) => store?.id !== id));
+        }
+      }
+
+      if (entity === 'Company' && data?.id === currentUser?.company_id && (action === 'create' || action === 'update')) {
+        const companyBranding = buildBrandingFromCompany(data);
+        setBranding(companyBranding);
+        applyBrandingStyles(companyBranding);
       }
     });
 
