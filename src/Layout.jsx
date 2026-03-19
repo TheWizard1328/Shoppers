@@ -919,55 +919,43 @@ export default function Layout({ children, currentPageName }) {
         setCurrentUser(fetchedUser);
         setHasAccess(true);
 
-        // Load company branding if user has company_id
+        const appUsersData = await requestThrottler.queue(
+          () => getData('AppUser'),
+          'priority',
+          'loadAppUsers'
+        );
+        setAppUsers(appUsersData || []);
+
         if (fetchedUser?.company_id) {
           try {
-            const companyBranding = await getCompanyBranding(fetchedUser.company_id);
+            const companyResults = await requestThrottler.queue(
+              () => base44.entities.Company.filter({ id: fetchedUser.company_id }, '-updated_date', 1),
+              'priority',
+              'loadCompany'
+            );
+            const companyBranding = buildBrandingFromCompany(companyResults?.[0]);
             setBranding(companyBranding);
             applyBrandingStyles(companyBranding);
           } catch (brandingError) {
             console.warn('⚠️ [Layout] Branding fetch failed, using defaults:', brandingError);
-            // Continue with default branding - don't break initialization
           }
         }
 
-        // Load cities from offline DB first to prevent rate limits
-        let citiesData = [];
-        try {
-          const { offlineDB: offlineDBInstance } = await import('./components/utils/offlineDatabase');
-          citiesData = await offlineDBInstance.getAll(offlineDBInstance.STORES.CITIES);
+        let citiesData = await requestThrottler.queue(
+          () => getData('City'),
+          'priority',
+          'loadCities'
+        );
+        citiesData = [...(citiesData || [])].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setCities(citiesData);
 
-          if (!citiesData || citiesData.length === 0) {
-            console.log('📥 [Layout] Cities not in offline DB - fetching from API');
-            citiesData = await requestThrottler.queue(
-              () => City.list(),
-              'priority',
-              'loadCities'
-            );
-            // Save to offline DB for future use
-            await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesData);
-          } else {
-            console.log(`📦 [Layout] Using ${citiesData.length} cities from offline DB`);
-          }
-        } catch (offlineError) {
-          console.warn('⚠️ [Layout] Offline DB failed, fetching from API');
-          citiesData = await requestThrottler.queue(
-            () => City.list(),
-            'priority',
-            'loadCitiesFallback'
-          );
-        }
-
-        citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-        setCities(citiesData || []);
-
-        // Longer delay before stores to prevent rate limits
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const storesData = await requestThrottler.queue(
+        let storesData = await requestThrottler.queue(
           () => getData('Store'),
           'priority',
           'loadStores'
         );
+        storesData = [...(storesData || [])].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setStores(storesData);
         let initialCityId = null;
 
         if (fetchedUser.city_id) {
@@ -1025,48 +1013,40 @@ export default function Layout({ children, currentPageName }) {
 
         setInitialGlobalFiltersSet(true);
 
-        // CRITICAL: Prime offline DB with essential data before marking load complete
-        // This ensures first load/refresh doesn't hit API rate limits
+        // CRITICAL: Prime only the large, active datasets here.
+        // Reference data is already loaded above and now updates through realtime subscriptions.
         const primeStartTime = Date.now();
         try {
-          console.log('🔄 [Layout Init] Priming offline DB with essential data...');
+          console.log('🔄 [Layout Init] Priming active dashboard data...');
 
           const todayStr = format(new Date(), 'yyyy-MM-dd');
+          const offlineTodayDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', todayStr);
+          if (offlineTodayDeliveries?.length) {
+            setDeliveries(offlineTodayDeliveries);
+          }
 
-          // Fetch and save essential entities to offline DB in parallel
-          const [deliveryData, patientData, appUserData, storeData] = await Promise.all([
-          requestThrottler.queue(
+          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+          if (offlinePatients?.length) {
+            setPatients(offlinePatients);
+          }
+
+          const deliveryData = await requestThrottler.queue(
             () => base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []),
             'priority',
-            'primeDeliveries'
-          ),
-          requestThrottler.queue(
-            () => base44.entities.Patient.list().catch(() => []),
-            'standard',
-            'primePatients'
-          ),
-          requestThrottler.queue(
-            () => base44.entities.AppUser.list().catch(() => []),
-            'priority',
-            'primeAppUsers'
-          ),
-          requestThrottler.queue(
-            () => base44.entities.Store.list().catch(() => []),
-            'priority',
-            'primeStores'
-          )]
+            'primeTodayDeliveries'
           );
 
-          // Save to offline DB AND populate React state immediately so Dashboard has data on first render
-          if (deliveryData?.length) {await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);setDeliveries(deliveryData);}
-          if (patientData?.length) {await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientData);setPatients(patientData);}
-          if (appUserData?.length) {await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserData);setAppUsers(appUserData);}
-          if (storeData?.length) {await offlineDB.bulkSave(offlineDB.STORES.STORES, storeData);storeData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));setStores(storeData);}
-          console.log(`✅ [Layout Init] Offline DB primed + React state populated in ${Date.now() - primeStartTime}ms`);
-          if (!deliveryData?.length || !patientData?.length || !appUserData?.length) {window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
+          if (deliveryData?.length) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);
+            setDeliveries(deliveryData);
+          }
+
+          console.log(`✅ [Layout Init] Active dashboard data primed in ${Date.now() - primeStartTime}ms`);
+          if (!deliveryData?.length) {
+            window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
+          }
         } catch (error) {
-          console.warn('⚠️ [Layout Init] Offline DB prime failed (non-critical):', error.message);
-          // Trigger sync anyway if priming failed
+          console.warn('⚠️ [Layout Init] Active data prime failed (non-critical):', error.message);
           window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
         }
 
@@ -2056,17 +2036,9 @@ export default function Layout({ children, currentPageName }) {
 
       // CRITICAL: Stagger initial data loads to prevent rate limiting
       // Load Cities first (usually cached), then others with delays
-      const citiesData = workingCities?.length > 0 ? workingCities : await City.list();
-
-      // Small delay before next batch
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const allStores = await getData('Store', null, null, forceRefresh);
-
-      // Another delay before AppUsers
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
+      const citiesData = workingCities?.length > 0 ? workingCities : await getData('City', null, null, forceRefresh);
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
+      const allStores = await getData('Store', null, null, forceRefresh);
 
       if (citiesData && (!workingCities || workingCities.length === 0)) {
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
@@ -2110,8 +2082,25 @@ export default function Layout({ children, currentPageName }) {
           setDataLoaded(true);
 
           setTimeout(async () => {
-            const patientsData = await getData('Patient', null, null, forceRefresh);
-            setPatients(patientsData);
+            let patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+            if (cityStoreIds.length > 0) {
+              const allowedStoreIds = new Set(cityStoreIds);
+              patientsData = (patientsData || []).filter((patient) => allowedStoreIds.has(patient?.store_id));
+            }
+
+            if ((!patientsData || patientsData.length === 0) && cityStoreIds.length > 0) {
+              patientsData = await requestThrottler.queue(
+                () => base44.entities.Patient.filter({ store_id: { $in: cityStoreIds } }).catch(() => []),
+                'standard',
+                `loadPatients_${selectedCityId}`
+              );
+
+              if (patientsData?.length) {
+                await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsData);
+              }
+            }
+
+            setPatients(patientsData || []);
           }, 100);
         },
         // Background callback
