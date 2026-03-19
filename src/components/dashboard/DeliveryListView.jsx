@@ -8,11 +8,11 @@ import StopDetailsPanel from '../deliveries/StopDetailsPanel';
 import BarcodeThumb from '../deliveries/BarcodeThumb';
 
 // Memoized row component to prevent re-renders
-const DeliveryRow = memo(({ 
-  delivery, 
-  patient, 
-  store, 
-  isSelected, 
+const DeliveryRow = memo(({
+  delivery,
+  patient,
+  store,
+  isSelected,
   onSelect,
   getStatusBadge,
   getTimeDisplay,
@@ -26,9 +26,9 @@ const DeliveryRow = memo(({
   const isPickup = !delivery.patient_id;
   const isNextDelivery = delivery.isNextDelivery === true;
 
-  const desktopGridClass = bulkEditMode
-    ? 'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2'
-    : 'grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2';
+  const desktopGridClass = bulkEditMode ?
+  'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2' :
+  'grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2';
 
   const handleRowClick = () => {
     if (bulkEditMode) {
@@ -39,20 +39,20 @@ const DeliveryRow = memo(({
   };
 
   return (
-    isMobile ? (
-      <div
-        onClick={handleRowClick}
-        className={`px-4 py-3 border-b cursor-pointer transition-colors ${
-          isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
-        } ${isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
-        style={{ borderColor: 'var(--border-slate-200)' }}
-      >
+    isMobile ?
+    <div
+      onClick={handleRowClick}
+      className={`px-4 py-3 border-b cursor-pointer transition-colors ${
+      isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'} ${
+      isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+      style={{ borderColor: 'var(--border-slate-200)' }}>
+      
         <div className="flex items-start gap-3">
-          {bulkEditMode && (
-            <div className="pt-1" onClick={(event) => event.stopPropagation()}>
+          {bulkEditMode &&
+        <div className="pt-1" onClick={(event) => event.stopPropagation()}>
               <Checkbox checked={isBulkSelected} onCheckedChange={() => onBulkToggle(delivery.id)} />
             </div>
-          )}
+        }
           <div className="flex-1">
         {/* Rows 1-2: Structured two-column layout */}
         <div className="grid grid-cols-[1fr_auto] gap-x-3">
@@ -66,11 +66,11 @@ const DeliveryRow = memo(({
           <div className="flex flex-col items-end">
             <div className="flex flex-col items-center gap-1">
               {getStatusBadge(delivery.status)}
-              {store?.abbreviation && (
-                <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
+              {store?.abbreviation &&
+                <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
                   {store.abbreviation}
                 </Badge>
-              )}
+                }
             </div>
           </div>
 
@@ -90,72 +90,72 @@ const DeliveryRow = memo(({
         {/* Row 3: Address & Unit */}
         <div className="mt-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            {patient?.address && (
+            {patient?.address &&
               <span className="text-xs text-slate-500 truncate">{patient.address}</span>
-            )}
-            {(patient?.unit_number || delivery.unit_number) && (
+              }
+            {(patient?.unit_number || delivery.unit_number) &&
               <Badge variant="secondary" className="text-[10px] px-2 py-0.5" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                 Unit {patient?.unit_number || delivery.unit_number}
               </Badge>
-            )}
+              }
           </div>
         </div>
 
         {/* Media + COD */}
         <div className="mt-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            {delivery.signature_image_url ? (
-              <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} />
-            ) : (
+            {delivery.signature_image_url ?
+              <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} /> :
+
               <span className="text-slate-400 text-sm">—</span>
-            )}
-            {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
+              }
+            {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ?
               <div className="flex -space-x-2">
-                {delivery.proof_photo_urls.slice(0,2).map((url, i) => (
-                  <img key={i} src={url} alt={`POD ${i+1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white" />
-                ))}
-                {delivery.proof_photo_urls.length > 2 && (
-                  <div className="w-7 h-7 rounded-md bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 2}</div>
+                {delivery.proof_photo_urls.slice(0, 2).map((url, i) =>
+                <img key={i} src={url} alt={`POD ${i + 1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white" />
                 )}
-              </div>
-            ) : (
+                {delivery.proof_photo_urls.length > 2 &&
+                <div className="w-7 h-7 rounded-md bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 2}</div>
+                }
+              </div> :
+
               <span className="text-slate-400 text-sm">—</span>
-            )}
-            {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 && (
+              }
+            {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 &&
               <div className="flex items-center gap-1">
                 <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={24} className="w-full h-6" />
                 </div>
                 <span className="text-[10px] text-slate-600">x{delivery.receipt_barcode_values.length}</span>
               </div>
-            )}
-            {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 && (
+              }
+            {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 &&
               <div className="flex items-center gap-1">
                 <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <BarcodeThumb value={delivery.barcode_values[0]} height={24} className="w-full h-6" />
                 </div>
                 <span className="text-[10px] text-slate-600">x{delivery.barcode_values.length}</span>
               </div>
-            )}
+              }
           </div>
           <div>{getCODDisplay(delivery)}</div>
         </div>
           </div>
         </div>
-      </div>
-    ) : (
-      <div
-        onClick={handleRowClick}
-        className={`${desktopGridClass} px-4 py-3 border-b cursor-pointer transition-colors ${
-          isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
-        } ${isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
-        style={{ borderColor: 'var(--border-slate-200)' }}
-      >
-        {bulkEditMode && (
-          <div className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
+      </div> :
+
+    <div
+      onClick={handleRowClick}
+      className={`${desktopGridClass} px-4 py-3 border-b cursor-pointer transition-colors ${
+      isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'} ${
+      isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+      style={{ borderColor: 'var(--border-slate-200)' }}>
+      
+        {bulkEditMode &&
+      <div className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
             <Checkbox checked={isBulkSelected} onCheckedChange={() => onBulkToggle(delivery.id)} />
           </div>
-        )}
+      }
         <div className="flex items-center justify-center">
           <div className="flex flex-col leading-tight">
             <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
@@ -165,11 +165,11 @@ const DeliveryRow = memo(({
 
         <div className="flex flex-col items-center justify-center gap-1">
           {getStatusBadge(delivery.status)}
-          {store?.abbreviation && (
-            <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: (store.color || 'var(--text-slate-600)'), borderColor: (store.color || 'var(--border-slate-300)') }}>
+          {store?.abbreviation &&
+        <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
               {store.abbreviation}
             </Badge>
-          )}
+        }
         </div>
 
         <div className="flex items-center justify-center">
@@ -181,105 +181,105 @@ const DeliveryRow = memo(({
             <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
               {patient?.full_name || delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
             </span>
-            {patient?.address && (
-              <span className="text-xs text-slate-500 truncate">{patient.address}</span>
-            )}
+            {patient?.address &&
+          <span className="text-xs text-slate-500 truncate">{patient.address}</span>
+          }
           </div>
         </div>
 
         {/* Notes column */}
         <div className="flex flex-col min-w-0 text-xs text-slate-700">
-          {patient?.notes && (
-            <div className="truncate"><span className="text-slate-500">P:</span> {patient.notes}</div>
-          )}
-          {delivery?.delivery_notes && (
-            <div className="truncate"><span className="text-slate-500">D:</span> {delivery.delivery_notes}</div>
-          )}
+          {patient?.notes &&
+        <div className="truncate"><span className="text-slate-500">P:</span> {patient.notes}</div>
+        }
+          {delivery?.delivery_notes &&
+        <div className="truncate"><span className="text-slate-500">D:</span> {delivery.delivery_notes}</div>
+        }
         </div>
 
         {/* Receipts barcode */}
         <div className="flex items-center justify-center">
-          {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 ? (
-            <button
-              className="flex items-center gap-1 cursor-zoom-in"
-              onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'barcode', value: delivery.receipt_barcode_values[0], title: 'Receipt Barcode' }); }}
-            >
+          {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 ?
+        <button
+          className="flex items-center gap-1 cursor-zoom-in"
+          onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'barcode', value: delivery.receipt_barcode_values[0], title: 'Receipt Barcode' });}}>
+          
               <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
                 <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={28} className="w-full h-7" />
               </div>
               <span className="text-[11px] text-slate-600">x{delivery.receipt_barcode_values.length}</span>
-            </button>
-          ) : (
-            <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
-          )}
+            </button> :
+
+        <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        }
         </div>
 
         {/* Rx barcode */}
         <div className="flex items-center justify-center">
-          {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 ? (
-            <button
-              className="flex items-center gap-1 cursor-zoom-in"
-              onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'barcode', value: delivery.barcode_values[0], title: 'Rx Barcode' }); }}
-            >
+          {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 ?
+        <button
+          className="flex items-center gap-1 cursor-zoom-in"
+          onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'barcode', value: delivery.barcode_values[0], title: 'Rx Barcode' });}}>
+          
               <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
                 <BarcodeThumb value={delivery.barcode_values[0]} height={28} className="w-full h-7" />
               </div>
               <span className="text-[11px] text-slate-600">x{delivery.barcode_values.length}</span>
-            </button>
-          ) : (
-            <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
-          )}
+            </button> :
+
+        <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        }
         </div>
 
         {/* Signature */}
         <div className="flex items-center justify-center">
-          {delivery.signature_image_url ? (
-            <img
-              src={delivery.signature_image_url}
-              alt="Signature"
-              className="w-8 h-8 rounded-sm object-cover border cursor-zoom-in"
-              style={{ borderColor: 'var(--border-slate-200)' }}
-              onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }}
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-sm border flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
-          )}
+          {delivery.signature_image_url ?
+        <img
+          src={delivery.signature_image_url}
+          alt="Signature"
+          className="w-8 h-8 rounded-sm object-cover border cursor-zoom-in"
+          style={{ borderColor: 'var(--border-slate-200)' }}
+          onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' });}} /> :
+
+
+        <div className="w-8 h-8 rounded-sm border flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        }
         </div>
 
         {/* Photos */}
         <div className="flex items-center justify-center">
-          {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ? (
-            <div className="flex -space-x-2">
-              {delivery.proof_photo_urls.slice(0,3).map((url, i) => (
-                <img
-                  key={i}
-                  src={url}
-                  alt={`POD ${i+1}`}
-                  className="w-8 h-8 rounded-md object-cover ring-2 ring-white cursor-zoom-in"
-                  onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: url, title: `Photo ${i+1}` }); }}
-                />
-              ))}
-              {delivery.proof_photo_urls.length > 3 && (
-                <div
-                  className="w-8 h-8 rounded-md bg-slate-200 text-slate-700 text-[11px] flex items-center justify-center ring-2 ring-white cursor-zoom-in"
-                  onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.proof_photo_urls[2], title: 'Photo' }); }}
-                >
+          {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ?
+        <div className="flex -space-x-2">
+              {delivery.proof_photo_urls.slice(0, 3).map((url, i) =>
+          <img
+            key={i}
+            src={url}
+            alt={`POD ${i + 1}`}
+            className="w-8 h-8 rounded-md object-cover ring-2 ring-white cursor-zoom-in"
+            onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'image', src: url, title: `Photo ${i + 1}` });}} />
+
+          )}
+              {delivery.proof_photo_urls.length > 3 &&
+          <div
+            className="w-8 h-8 rounded-md bg-slate-200 text-slate-700 text-[11px] flex items-center justify-center ring-2 ring-white cursor-zoom-in"
+            onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'image', src: delivery.proof_photo_urls[2], title: 'Photo' });}}>
+            
                   +{delivery.proof_photo_urls.length - 3}
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="w-8 h-8 rounded-md border flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
-          )}
+          }
+            </div> :
+
+        <div className="w-8 h-8 rounded-md border flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        }
         </div>
 
         {/* COD */}
         <div className="flex items-center justify-center min-w-[90px]">
           {getCODDisplay(delivery)}
         </div>
-      </div>
-    )
-  );
+      </div>);
+
+
 });
 
 DeliveryRow.displayName = 'DeliveryRow';
@@ -317,7 +317,7 @@ const DeliveryListView = ({
   // Memoize patient lookup map for O(1) access
   const patientMap = useMemo(() => {
     const map = new Map();
-    patients.forEach(p => {
+    patients.forEach((p) => {
       if (p?.id) map.set(p.id, p);
       if (p?.patient_id) map.set(p.patient_id, p);
     });
@@ -327,7 +327,7 @@ const DeliveryListView = ({
   // Memoize store lookup map for O(1) access
   const storeMap = useMemo(() => {
     const map = new Map();
-    stores.forEach(s => { if (s?.id) map.set(s.id, s); });
+    stores.forEach((s) => {if (s?.id) map.set(s.id, s);});
     return map;
   }, [stores]);
 
@@ -350,31 +350,31 @@ const DeliveryListView = ({
     }
 
     const hasPayments = delivery.cod_payments && delivery.cod_payments.length > 0;
-    const totalCollected = hasPayments 
-      ? delivery.cod_payments.reduce((sum, p) => sum + (p.amount || 0), 0)
-      : 0;
+    const totalCollected = hasPayments ?
+    delivery.cod_payments.reduce((sum, p) => sum + (p.amount || 0), 0) :
+    0;
 
     if (hasPayments && totalCollected > 0) {
-      const types = Array.from(new Set((delivery.cod_payments || []).map(p => p.type).filter(Boolean)));
+      const types = Array.from(new Set((delivery.cod_payments || []).map((p) => p.type).filter(Boolean)));
       return (
         <div className="flex flex-col items-center">
           <span className="font-semibold text-green-700">${totalCollected.toFixed(2)}</span>
           <span className="text-xs text-green-600">{types.join(' + ')}</span>
-        </div>
-      );
+        </div>);
+
     }
 
     return (
       <div className="flex flex-col items-center">
         <span className="font-semibold text-amber-700">${delivery.cod_total_amount_required.toFixed(2)}</span>
         <span className="text-xs text-amber-600">Required</span>
-      </div>
-    );
+      </div>);
+
   }, []);
 
   const getTimeDisplay = useCallback((delivery) => {
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
-    
+
     if (finishedStatuses.includes(delivery.status) && delivery.actual_delivery_time) {
       const at = new Date(delivery.actual_delivery_time);
       const arr = delivery.arrival_time ? new Date(delivery.arrival_time) : null;
@@ -390,11 +390,11 @@ const DeliveryListView = ({
             <CheckCircle className="w-3.5 h-3.5" />
             <span className="font-medium">{format(at, 'HH:mm')}</span>
           </div>
-          {minutesOnSite !== null && (
-            <span className="text-[11px] text-slate-500">{minutesOnSite} min</span>
-          )}
-        </div>
-      );
+          {minutesOnSite !== null &&
+          <span className="text-[11px] text-slate-500">{minutesOnSite} min</span>
+          }
+        </div>);
+
     }
 
     const eta = delivery.delivery_time_eta || delivery.delivery_time_start;
@@ -403,32 +403,32 @@ const DeliveryListView = ({
         <div className="flex items-center gap-1 text-blue-700">
           <Clock className="w-3.5 h-3.5" />
           <span className="font-medium">{eta}</span>
-        </div>
-      );
+        </div>);
+
     }
 
     return <span className="text-slate-400">—</span>;
   }, []);
 
   const handleSelect = useCallback((deliveryId) => {
-    setSelectedDeliveryId(prev => prev === deliveryId ? null : deliveryId);
+    setSelectedDeliveryId((prev) => prev === deliveryId ? null : deliveryId);
   }, []);
 
   const handleOpenMedia = useCallback((payload) => {
     setMediaPreview(payload);
   }, []);
 
-  const selectedDelivery = useMemo(() => 
-    selectedDeliveryId ? deliveries.find(d => d?.id === selectedDeliveryId) : null
-  , [selectedDeliveryId, deliveries]);
-  
-  const selectedPatient = useMemo(() => 
-    selectedDelivery?.patient_id ? patientMap.get(selectedDelivery.patient_id) : null
-  , [selectedDelivery?.patient_id, patientMap]);
-  
-  const selectedStore = useMemo(() => 
-    selectedDelivery ? storeMap.get(selectedDelivery.store_id) : null
-  , [selectedDelivery?.store_id, storeMap]);
+  const selectedDelivery = useMemo(() =>
+  selectedDeliveryId ? deliveries.find((d) => d?.id === selectedDeliveryId) : null,
+  [selectedDeliveryId, deliveries]);
+
+  const selectedPatient = useMemo(() =>
+  selectedDelivery?.patient_id ? patientMap.get(selectedDelivery.patient_id) : null,
+  [selectedDelivery?.patient_id, patientMap]);
+
+  const selectedStore = useMemo(() =>
+  selectedDelivery ? storeMap.get(selectedDelivery.store_id) : null,
+  [selectedDelivery?.store_id, storeMap]);
 
   const allVisibleSelected = deliveries.length > 0 && deliveries.every((delivery) => bulkSelectedIds.includes(delivery.id));
   const someVisibleSelected = deliveries.some((delivery) => bulkSelectedIds.includes(delivery.id));
@@ -464,21 +464,21 @@ const DeliveryListView = ({
       <div className="h-full min-h-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
         <div className="flex-shrink-0 border-b z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-          {!isMobile && (
-            <div
-              ref={headerScrollRef}
-              onScroll={syncHeaderScroll}
-              className="overflow-x-auto overflow-y-hidden"
-            >
+          {!isMobile &&
+          <div
+            ref={headerScrollRef}
+            onScroll={syncHeaderScroll}
+            className="overflow-x-auto overflow-y-hidden">
+            
               <div className={`${bulkEditMode ? 'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]' : 'grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]'} gap-2 px-4 py-3 text-sm font-semibold`} style={{ color: 'var(--text-slate-700)' }}>
-                {bulkEditMode && (
-                  <div className="flex items-center justify-center">
+                {bulkEditMode &&
+              <div className="flex items-center justify-center">
                     <Checkbox
-                      checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
-                      onCheckedChange={() => onBulkToggleAllVisible()}
-                    />
+                  checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+                  onCheckedChange={() => onBulkToggleAllVisible()} />
+                
                   </div>
-                )}
+              }
                 <div className="text-center">Stop/TR</div>
                 <div className="text-center">Status</div>
                 <div className="text-center">Time</div>
@@ -491,175 +491,175 @@ const DeliveryListView = ({
                 <div className="text-center">COD</div>
               </div>
             </div>
-          )}
+          }
         </div>
 
         {/* Scrollable List */}
         <div
           ref={bodyScrollRef}
-          onScroll={syncBodyScroll}
-          className="flex-1 min-h-0 overflow-auto"
-        >
-          {deliveries.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-slate-500">
+          onScroll={syncBodyScroll} className="flex-1 min-h-0 overflow-hidden">
+
+          
+          {deliveries.length === 0 ?
+          <div className="flex items-center justify-center h-32 text-slate-500">
               No deliveries found
-            </div>
-          ) : (
-            <div className={!isMobile ? 'min-w-max' : ''}>
+            </div> :
+
+          <div className={!isMobile ? 'min-w-max' : ''}>
               {deliveries.map((delivery, idx) => {
-                if (!delivery) return null;
+              if (!delivery) return null;
 
-                const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-                const store = storeMap.get(delivery.store_id);
+              const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+              const store = storeMap.get(delivery.store_id);
 
-                return (
-                  <DeliveryRow
-                    key={delivery.id || `${delivery.delivery_date||'unknown'}-${delivery.patient_id ?? 'pickup'}-${delivery.store_id ?? 'store'}-${delivery.tracking_number || idx}` }
-                    delivery={delivery}
-                    patient={patient}
-                    store={store}
-                    isSelected={selectedDeliveryId === delivery.id}
-                    onSelect={handleSelect}
-                    getStatusBadge={getStatusBadge}
-                    getTimeDisplay={getTimeDisplay}
-                    getCODDisplay={getCODDisplay}
-                    onOpenMedia={handleOpenMedia}
-                    isMobile={isMobile}
-                    bulkEditMode={bulkEditMode}
-                    isBulkSelected={bulkSelectedIds.includes(delivery.id)}
-                    onBulkToggle={onBulkToggle}
-                  />
-                );
-              })}
+              return (
+                <DeliveryRow
+                  key={delivery.id || `${delivery.delivery_date || 'unknown'}-${delivery.patient_id ?? 'pickup'}-${delivery.store_id ?? 'store'}-${delivery.tracking_number || idx}`}
+                  delivery={delivery}
+                  patient={patient}
+                  store={store}
+                  isSelected={selectedDeliveryId === delivery.id}
+                  onSelect={handleSelect}
+                  getStatusBadge={getStatusBadge}
+                  getTimeDisplay={getTimeDisplay}
+                  getCODDisplay={getCODDisplay}
+                  onOpenMedia={handleOpenMedia}
+                  isMobile={isMobile}
+                  bulkEditMode={bulkEditMode}
+                  isBulkSelected={bulkSelectedIds.includes(delivery.id)}
+                  onBulkToggle={onBulkToggle} />);
+
+
+            })}
             </div>
-          )}
+          }
         </div>
       </div>
 
         {/* Centered media preview */}
         <AnimatePresence>
-          {mediaPreview && (
-            <>
+          {mediaPreview &&
+        <>
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="fixed inset-0 bg-black/60 z-[300]"
-                onClick={() => setMediaPreview(null)}
-              />
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-black/60 z-[300]"
+            onClick={() => setMediaPreview(null)} />
+          
               <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-                className="fixed inset-0 z-[301] flex items-center justify-center p-4"
-                onClick={() => setMediaPreview(null)}
-              >
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+            className="fixed inset-0 z-[301] flex items-center justify-center p-4"
+            onClick={() => setMediaPreview(null)}>
+            
                 <div className="rounded-lg shadow-xl p-3 bg-white dark:bg-slate-900 max-w-[90vw] max-h-[85vh] flex items-center justify-center">
-                  {mediaPreview.type === 'image' && (
-                    <img src={mediaPreview.src} alt={mediaPreview.title || 'Preview'} className="max-w-[85vw] max-h-[80vh] object-contain" />
-                  )}
-                  {mediaPreview.type === 'barcode' && (
-                    <div className="bg-white p-4 rounded-md border" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  {mediaPreview.type === 'image' &&
+              <img src={mediaPreview.src} alt={mediaPreview.title || 'Preview'} className="max-w-[85vw] max-h-[80vh] object-contain" />
+              }
+                  {mediaPreview.type === 'barcode' &&
+              <div className="bg-white p-4 rounded-md border" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <BarcodeThumb value={mediaPreview.value} height={120} className="w-[360px] h-28" />
                     </div>
-                  )}
+              }
                 </div>
               </motion.div>
             </>
-          )}
+        }
         </AnimatePresence>
 
         {/* Slide-in Details Panel Overlay */}
       <AnimatePresence>
-        {selectedDeliveryId && selectedDelivery && (
-          <>
+        {selectedDeliveryId && selectedDelivery &&
+        <>
             {/* Backdrop */}
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className={`${isMobile ? 'fixed' : 'absolute'} inset-0 bg-black/50 z-[200]`}
-              onClick={() => setSelectedDeliveryId(null)}
-            />
-            {isMobile ? (
-              <motion.div
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="fixed bottom-0 left-0 right-0 z-[201] max-h-[78vh] overflow-hidden rounded-t-2xl"
-                style={{ background: 'var(--bg-white)' }}
-                onClick={(e) => e.stopPropagation()}
-              >
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className={`${isMobile ? 'fixed' : 'absolute'} inset-0 bg-black/50 z-[200]`}
+            onClick={() => setSelectedDeliveryId(null)} />
+          
+            {isMobile ?
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="fixed bottom-0 left-0 right-0 z-[201] max-h-[78vh] overflow-hidden rounded-t-2xl"
+            style={{ background: 'var(--bg-white)' }}
+            onClick={(e) => e.stopPropagation()}>
+            
                 <div className="overflow-y-auto max-h-[78vh]">
                   <StopDetailsPanel
-                  delivery={selectedDelivery}
-                  patient={selectedPatient}
-                  store={selectedStore}
-                  currentUser={currentUser}
-                  onEdit={onEdit}
-                  onEditPatient={onEditPatient}
-                  onDelete={onDelete}
-                  onRestart={onRestart}
-                  onStatusUpdate={onStatusUpdate}
-                  onNotesUpdate={onNotesUpdate}
-                  onCODUpdate={onCODUpdate}
-                  onCreateReturn={onCreateReturn}
-                  onStartDelivery={onStartDelivery}
-                  allDeliveries={allDeliveries}
-                  selectedDate={selectedDate}
-                  patients={patients}
-                  stores={stores}
-                  drivers={drivers}
-                  onDriverStatusChange={onDriverStatusChange}
-                  onClose={() => setSelectedDeliveryId(null)}
-                />
+                delivery={selectedDelivery}
+                patient={selectedPatient}
+                store={selectedStore}
+                currentUser={currentUser}
+                onEdit={onEdit}
+                onEditPatient={onEditPatient}
+                onDelete={onDelete}
+                onRestart={onRestart}
+                onStatusUpdate={onStatusUpdate}
+                onNotesUpdate={onNotesUpdate}
+                onCODUpdate={onCODUpdate}
+                onCreateReturn={onCreateReturn}
+                onStartDelivery={onStartDelivery}
+                allDeliveries={allDeliveries}
+                selectedDate={selectedDate}
+                patients={patients}
+                stores={stores}
+                drivers={drivers}
+                onDriverStatusChange={onDriverStatusChange}
+                onClose={() => setSelectedDeliveryId(null)} />
+              
               </div>
-            </motion.div>
-            ) : (
-              <motion.div
-                initial={{ x: "100%" }}
-                animate={{ x: 0 }}
-                exit={{ x: "100%" }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="absolute right-0 w-[560px] shadow-xl z-[201] overflow-hidden"
-                style={{ background: 'var(--bg-white)', top: 'var(--driver-info-offset, 88px)', height: 'calc(100% - var(--driver-info-offset, 88px))' }}
-                onClick={(e) => e.stopPropagation()}
-              >
+            </motion.div> :
+
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="absolute right-0 w-[560px] shadow-xl z-[201] overflow-hidden"
+            style={{ background: 'var(--bg-white)', top: 'var(--driver-info-offset, 88px)', height: 'calc(100% - var(--driver-info-offset, 88px))' }}
+            onClick={(e) => e.stopPropagation()}>
+            
                 <div className="h-full overflow-y-auto">
                   <StopDetailsPanel
-                    delivery={selectedDelivery}
-                    patient={selectedPatient}
-                    store={selectedStore}
-                    currentUser={currentUser}
-                    onEdit={onEdit}
-                    onEditPatient={onEditPatient}
-                    onDelete={onDelete}
-                    onRestart={onRestart}
-                    onStatusUpdate={onStatusUpdate}
-                    onNotesUpdate={onNotesUpdate}
-                    onCODUpdate={onCODUpdate}
-                    onCreateReturn={onCreateReturn}
-                    onStartDelivery={onStartDelivery}
-                    allDeliveries={allDeliveries}
-                    selectedDate={selectedDate}
-                    patients={patients}
-                    stores={stores}
-                    drivers={drivers}
-                    onDriverStatusChange={onDriverStatusChange}
-                    onClose={() => setSelectedDeliveryId(null)}
-                  />
+                delivery={selectedDelivery}
+                patient={selectedPatient}
+                store={selectedStore}
+                currentUser={currentUser}
+                onEdit={onEdit}
+                onEditPatient={onEditPatient}
+                onDelete={onDelete}
+                onRestart={onRestart}
+                onStatusUpdate={onStatusUpdate}
+                onNotesUpdate={onNotesUpdate}
+                onCODUpdate={onCODUpdate}
+                onCreateReturn={onCreateReturn}
+                onStartDelivery={onStartDelivery}
+                allDeliveries={allDeliveries}
+                selectedDate={selectedDate}
+                patients={patients}
+                stores={stores}
+                drivers={drivers}
+                onDriverStatusChange={onDriverStatusChange}
+                onClose={() => setSelectedDeliveryId(null)} />
+              
                 </div>
               </motion.div>
-            )}
+          }
           </>
-        )}
+        }
       </AnimatePresence>
-    </>
-  );
+    </>);
+
 };
 
 export default memo(DeliveryListView);
