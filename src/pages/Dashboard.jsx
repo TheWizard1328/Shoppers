@@ -4294,7 +4294,7 @@ function Dashboard() {
       };
 
       if (isEditing && driverWasChanged) {
-        await saveDriverChangedDelivery({ base44, deliveries, editingDelivery, deliveryData, deliveryDate, driverId, driver });
+        await saveDriverChangedDelivery({ base44, deliveries, editingDelivery, deliveryData, deliveryDate, driverId, driver, originalDriverId });
         invalidate('Delivery');
         await handleDualDriverOptimization(originalDriverId, driverId, deliveryDate);
         await refreshData();
