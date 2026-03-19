@@ -16,7 +16,15 @@ const classifyBarcode = (value) => {
 
   if (!compact) return 'receipt';
   if (/^rx[#:\-\s]*/i.test(raw)) return 'rx';
-  if (/^\d{4,12}$/.test(compact)) return 'rx';
+
+  if (/^\d+$/.test(compact)) {
+    if (/^96/.test(compact) && compact.length >= 30) return 'rx';
+    if (/^99/.test(compact) && compact.length >= 20 && compact.length < 30) return 'receipt';
+    if (compact.length >= 30) return 'rx';
+    if (compact.length >= 20) return 'receipt';
+    if (compact.length >= 4) return 'rx';
+  }
+
   if (/^[A-Za-z]{0,3}\d{4,12}$/.test(compact) && !/[-/.]/.test(compact)) return 'rx';
   if (/^[A-Za-z0-9]{4,12}$/.test(compact) && !/[\-/.]/.test(compact)) return 'rx';
   return 'receipt';
