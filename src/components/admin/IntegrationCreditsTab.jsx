@@ -176,7 +176,7 @@ export default function IntegrationCreditsTab() {
   }
 
   return (
-    <div className="min-h-0 space-y-2 overflow-y-auto pr-1 max-h-[80vh] h-full">
+    <div className="flex-1 min-h-0 h-full space-y-2 overflow-y-auto pr-1">
       <Alert>
         <AlertDescription>
           This now tracks every wrapped app integration call, including failures, so you can spot retry loops and runaway credit usage faster.
