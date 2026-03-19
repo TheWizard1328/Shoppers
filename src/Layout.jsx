@@ -111,7 +111,7 @@ import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
 import SettingsMenu from './components/layout/SettingsMenu';
-import { applyBrandingStyles } from './components/utils/brandingManager';
+import { getCompanyBranding, applyBrandingStyles } from './components/utils/brandingManager';
 import OptimizationSpinner from './components/common/OptimizationSpinner';
 import WebSocketDiagnosticsCard from './components/layout/WebSocketDiagnosticsCard';
 import MobileBottomNav from './components/layout/MobileBottomNav';
@@ -121,15 +121,60 @@ import SidebarUserFooter from './components/layout/SidebarUserFooter';
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
 
-const createMergedUser=(authUser,appUser)=>{if(!authUser&&!appUser)return null;const name=appUser?.user_name||authUser?.user_name||authUser?.full_name||'Unknown User';const roles=Array.isArray(appUser?.app_roles)?appUser.app_roles:Array.isArray(authUser?.app_roles)?authUser.app_roles:[];const merged={...(authUser||{}),...(appUser||{}),id:authUser?.id||appUser?.user_id||appUser?.id,user_id:appUser?.user_id||authUser?.id,app_roles:roles,full_name:authUser?.full_name||name,user_name:name,display_name:name,first_name:name.split(' ')[0],status:appUser?.status||authUser?.status||'active'};return merged.id?merged:null;};
+const createMergedUser = (authUser, appUser) => {
+  // CRITICAL: Allow creating users from AppUser data alone (for non-admin users who can't fetch User.list())
+  if (!authUser && !appUser) {
+    return null;
+  }
 
-const buildBrandingFromCompany = (company) => ({
-  logo_url: company?.logo_url || '',
-  favicon_url: company?.favicon_url || '',
-  primary_color: company?.primary_color || '#000000',
-  secondary_color: company?.secondary_color || '#FFFFFF',
-  accent_color: company?.accent_color || '#0066CC'
-});
+  // If only appUser exists (no authUser), create a pseudo-user from AppUser data
+  if (!authUser && appUser) {
+    return {
+      id: appUser.user_id,
+      user_id: appUser.user_id,
+      email: null, // Not available without authUser
+      full_name: appUser.user_name || 'Unknown User',
+      user_name: appUser.user_name || 'Unknown User',
+      display_name: appUser.user_name || 'Unknown User',
+      app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : [],
+      status: appUser.status || 'inactive',
+      driver_status: appUser.driver_status,
+      city_id: appUser.city_id,
+      store_ids: appUser.store_ids,
+      sort_order: appUser.sort_order,
+      phone: appUser.phone,
+      home_latitude: appUser.home_latitude,
+      home_longitude: appUser.home_longitude,
+      current_latitude: appUser.current_latitude,
+      current_longitude: appUser.current_longitude,
+      location_updated_at: appUser.location_updated_at,
+      location_tracking_enabled: appUser.location_tracking_enabled
+    };
+  }
+
+  // If authUser exists, merge with appUser (if available)
+  let merged = {
+    ...authUser,
+    id: authUser.id,
+    user_name: authUser.full_name,
+    display_name: authUser.full_name,
+    app_roles: [],
+    status: 'inactive'
+  };
+
+  if (appUser) {
+    merged = {
+      ...merged,
+      ...appUser,
+      id: authUser.id,
+      user_name: appUser.user_name !== undefined && appUser.user_name !== null ? appUser.user_name : merged.user_name,
+      display_name: appUser.user_name !== undefined && appUser.user_name !== null ? appUser.user_name : merged.display_name,
+      app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : merged.app_roles,
+      status: appUser.status !== undefined && appUser.status !== null ? appUser.status : merged.status
+    };
+  }
+  return merged;
+};
 
 const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
@@ -912,43 +957,55 @@ export default function Layout({ children, currentPageName }) {
         setCurrentUser(fetchedUser);
         setHasAccess(true);
 
-        const appUsersData = await requestThrottler.queue(
-          () => getData('AppUser'),
-          'priority',
-          'loadAppUsers'
-        );
-        setAppUsers(appUsersData || []);
-
+        // Load company branding if user has company_id
         if (fetchedUser?.company_id) {
           try {
-            const companyResults = await requestThrottler.queue(
-              () => base44.entities.Company.filter({ id: fetchedUser.company_id }, '-updated_date', 1),
-              'priority',
-              'loadCompany'
-            );
-            const companyBranding = buildBrandingFromCompany(companyResults?.[0]);
+            const companyBranding = await getCompanyBranding(fetchedUser.company_id);
             setBranding(companyBranding);
             applyBrandingStyles(companyBranding);
           } catch (brandingError) {
             console.warn('⚠️ [Layout] Branding fetch failed, using defaults:', brandingError);
+            // Continue with default branding - don't break initialization
           }
         }
 
-        let citiesData = await requestThrottler.queue(
-          () => getData('City'),
-          'priority',
-          'loadCities'
-        );
-        citiesData = [...(citiesData || [])].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-        setCities(citiesData);
+        // Load cities from offline DB first to prevent rate limits
+        let citiesData = [];
+        try {
+          const { offlineDB: offlineDBInstance } = await import('./components/utils/offlineDatabase');
+          citiesData = await offlineDBInstance.getAll(offlineDBInstance.STORES.CITIES);
 
-        let storesData = await requestThrottler.queue(
+          if (!citiesData || citiesData.length === 0) {
+            console.log('📥 [Layout] Cities not in offline DB - fetching from API');
+            citiesData = await requestThrottler.queue(
+              () => City.list(),
+              'priority',
+              'loadCities'
+            );
+            // Save to offline DB for future use
+            await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesData);
+          } else {
+            console.log(`📦 [Layout] Using ${citiesData.length} cities from offline DB`);
+          }
+        } catch (offlineError) {
+          console.warn('⚠️ [Layout] Offline DB failed, fetching from API');
+          citiesData = await requestThrottler.queue(
+            () => City.list(),
+            'priority',
+            'loadCitiesFallback'
+          );
+        }
+
+        citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setCities(citiesData || []);
+
+        // Longer delay before stores to prevent rate limits
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const storesData = await requestThrottler.queue(
           () => getData('Store'),
           'priority',
           'loadStores'
         );
-        storesData = [...(storesData || [])].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-        setStores(storesData);
         let initialCityId = null;
 
         if (fetchedUser.city_id) {
@@ -1006,41 +1063,48 @@ export default function Layout({ children, currentPageName }) {
 
         setInitialGlobalFiltersSet(true);
 
-        // CRITICAL: Prime only the fast-changing dashboard data here
+        // CRITICAL: Prime offline DB with essential data before marking load complete
+        // This ensures first load/refresh doesn't hit API rate limits
         const primeStartTime = Date.now();
         try {
-          console.log('🔄 [Layout Init] Priming critical dashboard data...');
+          console.log('🔄 [Layout Init] Priming offline DB with essential data...');
 
           const todayStr = format(new Date(), 'yyyy-MM-dd');
-          const offlineTodayDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', todayStr);
-          if (offlineTodayDeliveries?.length) {
-            setDeliveries(offlineTodayDeliveries);
-          }
 
-          const deliveryData = await requestThrottler.queue(
+          // Fetch and save essential entities to offline DB in parallel
+          const [deliveryData, patientData, appUserData, storeData] = await Promise.all([
+          requestThrottler.queue(
             () => base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []),
             'priority',
-            'primeTodayDeliveries'
+            'primeDeliveries'
+          ),
+          requestThrottler.queue(
+            () => base44.entities.Patient.list().catch(() => []),
+            'standard',
+            'primePatients'
+          ),
+          requestThrottler.queue(
+            () => base44.entities.AppUser.list().catch(() => []),
+            'priority',
+            'primeAppUsers'
+          ),
+          requestThrottler.queue(
+            () => base44.entities.Store.list().catch(() => []),
+            'priority',
+            'primeStores'
+          )]
           );
 
-          if (deliveryData?.length) {
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);
-            setDeliveries(deliveryData);
-          }
-
-          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-          if (offlinePatients?.length) {
-            setPatients(offlinePatients);
-          }
-
-          if (appUsersData?.length) {
-            setAppUsers(appUsersData);
-          }
-
-          console.log(`✅ [Layout Init] Critical dashboard data primed in ${Date.now() - primeStartTime}ms`);
-          if (!deliveryData?.length) {window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
+          // Save to offline DB AND populate React state immediately so Dashboard has data on first render
+          if (deliveryData?.length) {await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);setDeliveries(deliveryData);}
+          if (patientData?.length) {await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientData);setPatients(patientData);}
+          if (appUserData?.length) {await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserData);setAppUsers(appUserData);}
+          if (storeData?.length) {await offlineDB.bulkSave(offlineDB.STORES.STORES, storeData);storeData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));setStores(storeData);}
+          console.log(`✅ [Layout Init] Offline DB primed + React state populated in ${Date.now() - primeStartTime}ms`);
+          if (!deliveryData?.length || !patientData?.length || !appUserData?.length) {window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
         } catch (error) {
-          console.warn('⚠️ [Layout Init] Critical data prime failed (non-critical):', error.message);
+          console.warn('⚠️ [Layout Init] Offline DB prime failed (non-critical):', error.message);
+          // Trigger sync anyway if priming failed
           window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
         }
 
@@ -1492,30 +1556,55 @@ export default function Layout({ children, currentPageName }) {
     // }
 
     const unsubscribeRealtime = subscribeToRealtime((update) => {
-      const entity = update.entity || update.entityType;
-      const action = update.action || update.eventType;
-      const data = update.data;
-      const id = update.id;
+      if (update.type === 'connected') {
+        console.log('✅ [Layout] Real-time sync connected');
+        return;
+      }
 
-      if (!entity || !action) return;
+      if (update.type === 'disconnected') {
+        console.log('🔌 [Layout] Real-time sync disconnected');
+        return;
+      }
 
-      console.log(`📥 [Layout] Real-time update: ${entity} ${action}`, id || update.ids);
+      if (update.type !== 'entity_change') return;
 
-      if (entity === 'Delivery') {
-        if (action === 'create') {
+      console.log(`📥 [Layout] Real-time update: ${update.entity} ${update.action}`, update.id || update.ids);
+
+      // Handle Delivery updates
+      if (update.entity === 'Delivery') {
+        if (update.action === 'create') {
           setDeliveries((prev) => {
-            if (prev.some((delivery) => delivery?.id === id)) return prev;
-            return [...prev, data];
+            if (prev.some((d) => d?.id === update.id)) return prev;
+            return [...prev, update.data];
           });
-        } else if (action === 'update') {
-          setDeliveries((prev) => prev.map((delivery) =>
-          delivery?.id === id ? { ...delivery, ...data } : delivery
+        } else if (update.action === 'update') {
+          setDeliveries((prev) => prev.map((d) =>
+          d?.id === update.id ? { ...d, ...update.data } : d
           ));
-        } else if (action === 'delete') {
-          setDeliveries((prev) => prev.filter((delivery) => delivery?.id !== id));
-          offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
+          console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
+        } else if (update.action === 'delete') {
+          setDeliveries((prev) => prev.filter((d) => d?.id !== update.id));
+          // CRITICAL: Remove from offline DB to prevent residual memory on other devices
+          offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, update.id).catch(() => {});
+          // Refresh catalog items after deletion
           setTimeout(() => {
-            base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
+            base44.functions.invoke('squareSyncCatalogItems', {}).
+            then((response) => {
+              const items = response?.data?.items || response?.items || [];
+              setCatalogItems(items);
+            });
+          }, 500);
+        } else if (update.action === 'batch_delete' && update.ids) {
+          const idsToDelete = new Set(update.ids);
+          setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
+          // CRITICAL: Remove ALL deleted IDs from offline DB
+          update.ids.forEach((id) => {
+            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
+          });
+          // Refresh catalog items after batch deletion
+          setTimeout(() => {
+            base44.functions.invoke('squareSyncCatalogItems', {}).
+            then((response) => {
               const items = response?.data?.items || response?.items || [];
               setCatalogItems(items);
             });
@@ -1523,88 +1612,79 @@ export default function Layout({ children, currentPageName }) {
         }
       }
 
-      if (entity === 'AppUser' && action === 'update') {
-        setAppUsers((prev) => prev.map((appUser) =>
-        appUser?.id === id ? { ...appUser, ...data } : appUser
-        ));
-
-        setUsers((prev) => prev.map((user) =>
-        user?.id === data?.user_id ? { ...user, ...data } : user
-        ));
-
-        import('./components/utils/offlineDatabase').then(({ offlineDB }) => {
-          if (data) {
-            offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [data]).catch(console.error);
-          }
-        });
-
-        if (data?.user_id === currentUser?.id) {
-          clearUserCache();
-          getEffectiveUser().then((refreshedUser) => {
-            if (refreshedUser) {
-              setCurrentUser(refreshedUser);
-            }
-          });
-        }
-
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: null, singleUpdate: data }
-        }));
-
-        if (data?.current_latitude || data?.current_longitude) {
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: {
-              triggeredBy: 'driver_location_update',
-              driverId: data.user_id
-            }
-          }));
-        }
-      }
-
-      if (entity === 'Patient') {
-        if (action === 'create') {
-          setPatients((prev) => {
-            if (prev.some((patient) => patient?.id === id)) return prev;
-            return [...prev, data];
-          });
-          offlineDB.save(offlineDB.STORES.PATIENTS, data).catch(() => {});
-        } else if (action === 'update') {
-          setPatients((prev) => prev.map((patient) =>
-          patient?.id === id ? { ...patient, ...data } : patient
+      // Handle AppUser updates (driver location, status, tracking)
+      if (update.entity === 'AppUser') {
+        if (update.action === 'update') {
+          setAppUsers((prev) => prev.map((au) =>
+          au?.id === update.id ? { ...au, ...update.data } : au
           ));
-          offlineDB.save(offlineDB.STORES.PATIENTS, data).catch(() => {});
-        } else if (action === 'delete') {
-          setPatients((prev) => prev.filter((patient) => patient?.id !== id));
-          offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => {});
+
+          // Also update users array for merged user data
+          setUsers((prev) => prev.map((u) =>
+          u?.id === update.data?.user_id ? { ...u, ...update.data } : u
+          ));
+
+          // CRITICAL: Update offline DB immediately (async but don't await)
+          import('./components/utils/offlineDatabase').then(({ offlineDB }) => {
+            if (update.data) {
+              offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [update.data]).catch(console.error);
+            }
+          });
+
+          // CRITICAL: If this is the current user, refresh their context
+          if (update.data?.user_id === currentUser?.id) {
+            console.log('🔄 [Layout Real-time] Current user AppUser updated - refreshing context');
+            clearUserCache();
+            getEffectiveUser().then((refreshedUser) => {
+              if (refreshedUser) {
+                setCurrentUser(refreshedUser);
+              }
+            });
+          }
+
+          // CRITICAL: Dispatch event to update map markers AND polylines immediately
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: null, singleUpdate: update.data }
+          }));
+
+          // CRITICAL: If location changed, also refresh delivery markers (for polyline origins)
+          // Skip toast notification for location updates
+          if (update.data?.current_latitude || update.data?.current_longitude) {
+            console.log(`📍 [Layout] Driver ${update.data.user_id} location updated - forcing map refresh (no notification)`);
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: {
+                triggeredBy: 'driver_location_update',
+                driverId: update.data.user_id
+              }
+            }));
+          } else {
+            // Show notification for non-location updates (status, role changes, etc.)
+            toast.success(`${update.data.user_name || 'Driver'} updated`);
+          }
         }
       }
 
-      if (entity === 'City') {
-        if (action === 'create') {
-          setCities((prev) => prev.some((city) => city?.id === id) ? prev : [...prev, data].sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
-        } else if (action === 'update') {
-          setCities((prev) => prev.map((city) => city?.id === id ? { ...city, ...data } : city).sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
-        } else if (action === 'delete') {
-          setCities((prev) => prev.filter((city) => city?.id !== id));
-          offlineDB.deleteRecord(offlineDB.STORES.CITIES, id).catch(() => {});
-        }
-      }
 
-      if (entity === 'Store') {
-        if (action === 'create') {
-          setStores((prev) => prev.some((store) => store?.id === id) ? prev : [...prev, data].sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
-        } else if (action === 'update') {
-          setStores((prev) => prev.map((store) => store?.id === id ? { ...store, ...data } : store).sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity)));
-        } else if (action === 'delete') {
-          setStores((prev) => prev.filter((store) => store?.id !== id));
-          offlineDB.deleteRecord(offlineDB.STORES.STORES, id).catch(() => {});
+      // Handle Patient updates
+      if (update.entity === 'Patient') {
+        if (update.action === 'create') {
+          setPatients((prev) => {
+            if (prev.some((p) => p?.id === update.id)) return prev;
+            return [...prev, update.data];
+          });
+          // Save to offline DB immediately
+          offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
+        } else if (update.action === 'update') {
+          setPatients((prev) => prev.map((p) =>
+          p?.id === update.id ? { ...p, ...update.data } : p
+          ));
+          // Update offline DB immediately
+          offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
+        } else if (update.action === 'delete') {
+          setPatients((prev) => prev.filter((p) => p?.id !== update.id));
+          // Remove from offline DB immediately
+          offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, update.id).catch(() => {});
         }
-      }
-
-      if (entity === 'Company' && data?.id === currentUser?.company_id && (action === 'create' || action === 'update')) {
-        const companyBranding = buildBrandingFromCompany(data);
-        setBranding(companyBranding);
-        applyBrandingStyles(companyBranding);
       }
     });
 
@@ -2012,9 +2092,19 @@ export default function Layout({ children, currentPageName }) {
       let workingCities = cities;
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      const citiesData = workingCities?.length > 0 ? workingCities : await getData('City', null, null, forceRefresh);
-      const allAppUsers = await getData('AppUser', null, null, forceRefresh);
+      // CRITICAL: Stagger initial data loads to prevent rate limiting
+      // Load Cities first (usually cached), then others with delays
+      const citiesData = workingCities?.length > 0 ? workingCities : await City.list();
+
+      // Small delay before next batch
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       const allStores = await getData('Store', null, null, forceRefresh);
+
+      // Another delay before AppUsers
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const allAppUsers = await getData('AppUser', null, null, forceRefresh);
 
       if (citiesData && (!workingCities || workingCities.length === 0)) {
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
@@ -2058,23 +2148,8 @@ export default function Layout({ children, currentPageName }) {
           setDataLoaded(true);
 
           setTimeout(async () => {
-            const cityScopedPatientStoreIds = new Set(cityStoreIds);
-            let patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-            patientsData = (patientsData || []).filter((patient) => cityScopedPatientStoreIds.has(patient?.store_id));
-
-            if (!patientsData.length && cityStoreIds.length > 0) {
-              patientsData = await requestThrottler.queue(
-                () => base44.entities.Patient.filter({ store_id: { $in: cityStoreIds } }).catch(() => []),
-                'standard',
-                `loadPatients_${selectedCityId}`
-              );
-
-              if (patientsData?.length) {
-                await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsData);
-              }
-            }
-
-            setPatients(patientsData || []);
+            const patientsData = await getData('Patient', null, null, forceRefresh);
+            setPatients(patientsData);
           }, 100);
         },
         // Background callback

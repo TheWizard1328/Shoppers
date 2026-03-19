@@ -67,8 +67,7 @@ export default function Register() {
   const handleAcceptInvite = async () => {
     if (!currentUser) {
       // Redirect to login, then come back here
-      const nextUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      base44.auth.redirectToLogin(nextUrl);
+      base44.auth.redirectToLogin(window.location.href);
       return;
     }
 
