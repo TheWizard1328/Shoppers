@@ -423,16 +423,18 @@ export default function DeliveryFormView({
                       <Label className="text-xs">PUID</Label>
                       <Input value={formData.puid || ''} onChange={e => setFormData(prev => ({ ...prev, puid: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs">X-KM</Label>
-                      <Input
-                        type="text"
-                        value={formData.paid_km_override !== null && formData.paid_km_override !== undefined ? String(formData.paid_km_override) : ''}
-                        onChange={e => { const val = e.target.value; setFormData(prev => ({ ...prev, paid_km_override: val === '' ? null : val })); }}
-                        onBlur={e => { const val = e.target.value; if (val !== '' && !isNaN(parseFloat(val))) setFormData(prev => ({ ...prev, paid_km_override: parseFloat(parseFloat(val).toFixed(2)) })); }}
-                        className="h-9 text-sm" disabled={isSaving}
-                      />
-                    </div>
+                    {!isPickupMode && (
+                      <div className="flex-1 space-y-1">
+                        <Label className="text-xs">X-KM</Label>
+                        <Input
+                          type="text"
+                          value={formData.paid_km_override !== null && formData.paid_km_override !== undefined ? String(formData.paid_km_override) : ''}
+                          onChange={e => { const val = e.target.value; setFormData(prev => ({ ...prev, paid_km_override: val === '' ? null : val })); }}
+                          onBlur={e => { const val = e.target.value; if (val !== '' && !isNaN(parseFloat(val))) setFormData(prev => ({ ...prev, paid_km_override: parseFloat(parseFloat(val).toFixed(2)) })); }}
+                          className="h-9 text-sm" disabled={isSaving}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
