@@ -399,15 +399,15 @@ export default function IntegrationCreditsTab() {
         </Card>
       </div>
 
-      <Card className="rounded-xl border bg-card text-card-foreground shadow min-h-0 h-full overflow-y-auto">
+      <Card className="rounded-xl border bg-card text-card-foreground shadow min-h-0 flex-1 overflow-hidden flex flex-col">
         <CardHeader>
           <CardTitle>Recent Integration Usage</CardTitle>
           <CardDescription>Latest wrapped integration calls with user, task, duration, and estimated credits.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-md border">
+        <CardContent className="min-h-0 flex-1 overflow-hidden">
+          <div className="h-full min-h-0 overflow-auto rounded-md border">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left">
+              <thead className="sticky top-0 z-10 bg-slate-50 text-left">
                 <tr>
                   <th className="p-3 font-semibold">When</th>
                   <th className="p-3 font-semibold">User</th>
