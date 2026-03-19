@@ -304,16 +304,14 @@ export default function IntegrationCreditsTab() {
               
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="recipient_name">Alert recipient</Label>
-              <Input
-                id="recipient_name"
-                value={settings.recipient_name}
-                onChange={(e) => setSettings((prev) => ({ ...prev, recipient_name: e.target.value }))} />
-              
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="recipient_name">Alert recipient</Label>
+                <Input
+                  id="recipient_name"
+                  value={settings.recipient_name}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, recipient_name: e.target.value }))} />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="threshold_credits">Credits threshold</Label>
                 <Input
@@ -322,7 +320,6 @@ export default function IntegrationCreditsTab() {
                   min="1"
                   value={settings.threshold_credits}
                   onChange={(e) => setSettings((prev) => ({ ...prev, threshold_credits: Number(e.target.value || 0) }))} />
-                
               </div>
               <div className="space-y-2">
                 <Label htmlFor="window_minutes">Window minutes</Label>
@@ -332,7 +329,6 @@ export default function IntegrationCreditsTab() {
                   min="1"
                   value={settings.window_minutes}
                   onChange={(e) => setSettings((prev) => ({ ...prev, window_minutes: Number(e.target.value || 0) }))} />
-                
               </div>
             </div>
 
