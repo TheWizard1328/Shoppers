@@ -1,7 +1,20 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
 
 const ACTIVE_DELIVERY_STATUSES = new Set(['pending', 'in_transit', 'en_route']);
-const PICKUP_STATUSES = new Set(['pending', 'in_transit', 'en_route', 'completed']);
+const SPECIAL_STORE_NAMES = new Set(['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint']);
+
+function generateShortStopId() {
+  const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let result = '';
+  for (let i = 0; i < 3; i += 1) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+}
+
+function generateDeliveryId() {
+  return `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
 
 function getPrimarySlot(delivery) {
   if (delivery?.ampm_deliveries === 'AM' || delivery?.ampm_deliveries === 'PM') {
@@ -15,6 +28,111 @@ function getPrimarySlot(delivery) {
   }
 
   return 'AM';
+}
+
+function getAssignedSlotsForStore(store, deliveryDate, driverId) {
+  const dayOfWeek = new Date(`${deliveryDate}T00:00:00`).getDay();
+  const slots = [];
+
+  if (dayOfWeek === 6) {
+    if (store?.saturday_am_driver_id === driverId) slots.push('AM');
+    if (store?.saturday_pm_driver_id === driverId) slots.push('PM');
+    return slots;
+  }
+
+  if (dayOfWeek === 0) {
+    if (store?.sunday_am_driver_id === driverId) slots.push('AM');
+    if (store?.sunday_pm_driver_id === driverId) slots.push('PM');
+    return slots;
+  }
+
+  if (store?.weekday_am_driver_id === driverId) slots.push('AM');
+  if (store?.weekday_pm_driver_id === driverId) slots.push('PM');
+  return slots;
+}
+
+function getSlotTimes(store, deliveryDate, slot) {
+  const dayOfWeek = new Date(`${deliveryDate}T00:00:00`).getDay();
+  const safeTime = (value) => typeof value === 'string' && /^\d{2}:\d{2}$/.test(value) ? value : null;
+
+  if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+    return {
+      start: safeTime(slot === 'AM' ? store?.weekday_am_start : store?.weekday_pm_start),
+      end: safeTime(slot === 'AM' ? store?.weekday_am_end : store?.weekday_pm_end),
+    };
+  }
+
+  if (dayOfWeek === 6) {
+    return {
+      start: safeTime(slot === 'AM' ? store?.saturday_am_start : store?.saturday_pm_start),
+      end: safeTime(slot === 'AM' ? store?.saturday_am_end : store?.saturday_pm_end),
+    };
+  }
+
+  return {
+    start: safeTime(slot === 'AM' ? store?.sunday_am_start : store?.sunday_pm_start),
+    end: safeTime(slot === 'AM' ? store?.sunday_am_end : store?.sunday_pm_end),
+  };
+}
+
+function getFallbackTimes(slot) {
+  return slot === 'PM'
+    ? { start: '15:00', end: '16:00' }
+    : { start: '10:00', end: '11:00' };
+}
+
+function findReusablePickup(pickups, targetSlot) {
+  const sameSlot = (pickup) => (pickup?.ampm_deliveries || 'AM') === targetSlot;
+  const byNewest = (a, b) => new Date(b?.created_date || b?.updated_date || 0).getTime() - new Date(a?.created_date || a?.updated_date || 0).getTime();
+
+  return [...(pickups || [])].sort(byNewest).find((pickup) => pickup?.status === 'en_route' && sameSlot(pickup)) ||
+    [...(pickups || [])].sort(byNewest).find((pickup) => pickup?.status === 'en_route') ||
+    [...(pickups || [])].sort(byNewest).find((pickup) => ['pending', 'in_transit'].includes(pickup?.status) && sameSlot(pickup)) ||
+    [...(pickups || [])].sort(byNewest).find((pickup) => ['pending', 'in_transit'].includes(pickup?.status));
+}
+
+async function ensurePickup(base44, { store, deliveryDate, driverId, driverName, slot }) {
+  const existingStoreDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+    store_id: store.id,
+    delivery_date: deliveryDate,
+    driver_id: driverId,
+  }, '-created_date', 50);
+
+  const pickups = (existingStoreDeliveries || []).filter((item) => !item?.patient_id);
+  const reusablePickup = findReusablePickup(pickups, slot);
+  if (reusablePickup) {
+    if (!reusablePickup.driver_name && driverName) {
+      const updatedPickup = await base44.asServiceRole.entities.Delivery.update(reusablePickup.id, { driver_name: driverName });
+      return updatedPickup;
+    }
+    return reusablePickup;
+  }
+
+  const routeDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+    delivery_date: deliveryDate,
+    driver_id: driverId,
+  }, '-created_date', 150);
+
+  const slotPickups = (routeDeliveries || []).filter((item) => !item?.patient_id && (item?.ampm_deliveries || 'AM') === slot);
+  const uniqueStoreCount = new Set(slotPickups.map((item) => item?.store_id).filter(Boolean)).size;
+  const trackingNumberBase = (uniqueStoreCount + 1) * 20 - 20;
+  const times = getSlotTimes(store, deliveryDate, slot);
+  const fallbackTimes = getFallbackTimes(slot);
+
+  return await base44.asServiceRole.entities.Delivery.create({
+    stop_id: generateShortStopId(),
+    store_id: store.id,
+    delivery_id: generateDeliveryId(),
+    delivery_date: deliveryDate,
+    driver_id: driverId,
+    driver_name: driverName,
+    dispatcher_id: store?.dispatcher_id || null,
+    ampm_deliveries: slot,
+    status: 'en_route',
+    delivery_time_start: times.start || fallbackTimes.start,
+    delivery_time_end: times.end || fallbackTimes.end,
+    tracking_number: `${store?.abbreviation || ''}${trackingNumberBase}`,
+  });
 }
 
 Deno.serve(async (req) => {
@@ -43,39 +161,76 @@ Deno.serve(async (req) => {
     }
 
     const primarySlot = getPrimarySlot(delivery);
-
-    const sameStoreDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+    const routeDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: delivery.driver_id,
       delivery_date: delivery.delivery_date,
-      store_id: delivery.store_id,
-    }, '-created_date', 100);
+    }, '-created_date', 200);
 
-    const existingPickup = (sameStoreDeliveries || []).find((item) => {
-      const itemSlot = getPrimarySlot(item);
-      return !item?.patient_id && itemSlot === primarySlot && PICKUP_STATUSES.has(item?.status);
-    });
+    const otherActivePatientStops = (routeDeliveries || []).filter((item) =>
+      item?.id !== delivery.id && item?.patient_id && ACTIVE_DELIVERY_STATUSES.has(item?.status)
+    );
 
-    if (existingPickup) {
-      return Response.json({
-        skipped: true,
-        reason: 'Pickup already exists for this store/date/slot',
-        pickup_id: existingPickup.id,
+    const stores = await base44.asServiceRole.entities.Store.list();
+    const storeById = new Map((stores || []).map((store) => [store.id, store]));
+    const currentStore = storeById.get(delivery.store_id);
+    if (!currentStore) {
+      return Response.json({ skipped: true, reason: 'Store not found' });
+    }
+
+    const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: delivery.driver_id }, '-created_date', 1);
+    const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || delivery.driver_name || '';
+
+    const ensureTargets = [];
+    const seenTargets = new Set();
+    const addTarget = (store, slot) => {
+      if (!store?.id || !slot) return;
+      const key = `${store.id}:${slot}`;
+      if (seenTargets.has(key)) return;
+      seenTargets.add(key);
+      ensureTargets.push({ store, slot });
+    };
+
+    const isFirstStopOnRoute = otherActivePatientStops.length === 0;
+    if (isFirstStopOnRoute) {
+      (stores || []).forEach((store) => {
+        if (!store || SPECIAL_STORE_NAMES.has(store.name || '')) return;
+        const slots = getAssignedSlotsForStore(store, delivery.delivery_date, delivery.driver_id);
+        slots.forEach((slot) => addTarget(store, slot));
       });
     }
 
-    const ensureResponse = await base44.asServiceRole.functions.invoke('ensurePickupForDelivery', {
-      storeId: delivery.store_id,
-      deliveryDate: delivery.delivery_date,
-      driverId: delivery.driver_id,
-      ampmDeliveries: primarySlot,
-    });
+    addTarget(currentStore, primarySlot);
+
+    const ensuredPickups = [];
+    for (const target of ensureTargets) {
+      const pickup = await ensurePickup(base44, {
+        store: target.store,
+        deliveryDate: delivery.delivery_date,
+        driverId: delivery.driver_id,
+        driverName,
+        slot: target.slot,
+      });
+
+      ensuredPickups.push({
+        store_id: target.store.id,
+        slot: target.slot,
+        pickup_id: pickup?.id || null,
+        puid: pickup?.stop_id || null,
+      });
+    }
+
+    const matchedPickup = ensuredPickups.find((item) => item.store_id === delivery.store_id && item.slot === primarySlot);
+    if (matchedPickup?.puid && matchedPickup.puid !== delivery.puid) {
+      await base44.asServiceRole.entities.Delivery.update(delivery.id, { puid: matchedPickup.puid });
+    }
 
     return Response.json({
       success: true,
-      scoped_to_store: delivery.store_id,
       delivery_id: delivery.id,
-      primarySlot,
-      ensureResponse: ensureResponse?.data ?? null,
+      primary_slot: primarySlot,
+      is_first_stop_on_route: isFirstStopOnRoute,
+      assigned_puid: matchedPickup?.puid || null,
+      ensured_pickups: ensuredPickups,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
