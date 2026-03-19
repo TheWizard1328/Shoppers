@@ -148,28 +148,13 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
-  const handleDriverEmailExport = async ({ recipientEmails, perStoreEmails }) => {
-    if (isExporting || !recipientEmails?.length) return;
+  const handleDriverEmailExport = async ({ perStoreEmails }) => {
+    if (isExporting) return;
     setIsExporting(true);
     try {
       const exportDate = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-      const validRecipientEmails = [...new Set((recipientEmails || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
-
-      if (validRecipientEmails.length === 0) {
-        alert('Please add at least one valid email address.');
-        return;
-      }
-
       const driverNames = getDriverNamesForSubject(dayDeliveries);
-      const emailJobs = [
-        base44.functions.invoke('generateRouteManifest', {
-          driverId: driverFilter,
-          deliveryDate: exportDate,
-          manifestType: 'post-route',
-          recipientEmails: validRecipientEmails,
-          emailSubject: `Route logs for: ${driverNames} ${exportDate}`
-        })
-      ];
+      const emailJobs = [];
 
       driverStoreIds.forEach((storeId) => {
         const storeRecipientEmails = [...new Set(((perStoreEmails?.[storeId]) || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
@@ -189,6 +174,11 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         );
       });
 
+      if (emailJobs.length === 0) {
+        alert('Please add at least one valid store email address.');
+        return;
+      }
+
       const results = await Promise.all(emailJobs);
       const failedResult = results.map((res) => res?.data || res).find((data) => data?.error);
       if (failedResult?.error) {
@@ -196,7 +186,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         return;
       }
 
-      alert('Route logs emailed successfully.');
+      alert('Store route logs emailed successfully.');
     } catch (error) {
       alert(error?.response?.data?.error || error?.message || 'Route email export failed.');
     } finally {
@@ -244,7 +234,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
-  // === DRIVERS & ADMINS: Email full route + per-store route PDFs ===
+  // === DRIVERS & ADMINS: Email store-specific route PDFs only ===
   if (isDriver || isAdmin) {
     const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0 || driverStoreIds.length === 0;
     return (
