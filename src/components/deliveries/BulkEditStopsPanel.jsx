@@ -33,7 +33,7 @@ const getStoreSlotOptions = (store, deliveryDate, driverId = null) => {
     }));
 };
 
-function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, values, setValues, onApply, onCancel, isSaving }) {
+function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, initialDeliveryDate = "", values, setValues, onApply, onCancel, isSaving }) {
   const isAdmin = userHasRole(currentUser, "admin");
   const effectiveDriverId = values.driverChoice !== "unchanged" && values.driverChoice !== "unassigned" ? values.driverChoice : null;
 
@@ -78,7 +78,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
 
   const hasChanges = useMemo(() => {
     return Boolean(
-      values.delivery_date ||
+      values.delivery_date !== initialDeliveryDate ||
       values.delivery_time_start ||
       values.delivery_time_end ||
       values.driverChoice !== "unchanged" ||
@@ -86,7 +86,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
       values.storeChoice !== "unchanged" ||
       (isAdmin && values.puid)
     );
-  }, [isAdmin, values]);
+  }, [initialDeliveryDate, isAdmin, values]);
 
   return (
     <form
@@ -265,10 +265,19 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     });
   }, [open, selectedDeliveries]);
 
+  const initialDeliveryDate = useMemo(() => {
+    const selectedDates = [...new Set((selectedDeliveries || []).map((delivery) => delivery?.delivery_date).filter(Boolean))];
+    return selectedDates.length === 1 ? selectedDates[0] : (selectedDates[0] || "");
+  }, [selectedDeliveries]);
+
   const content = (
     <BulkEditStopsForm
       selectedCount={selectedCount}
       drivers={drivers}
+      stores={stores}
+      allDeliveries={allDeliveries}
+      currentUser={currentUser}
+      initialDeliveryDate={initialDeliveryDate}
       values={values}
       setValues={setValues}
       isSaving={isSaving}
