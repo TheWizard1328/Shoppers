@@ -225,7 +225,7 @@ export default function RouteManagementContent({
           <CardContent className="px-3 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-medium" style={{ color: "var(--text-slate-700)" }}>
-                {bulkEditMode ? "Select the stops you want to update." : "Bulk edit delivery date, driver, and time windows for multiple stops."}
+                {bulkEditMode ? "Select the stops you want to update." : "Bulk edit driver, date, status, pickup location, and time windows for multiple stops."}
               </p>
               {bulkEditMode && (
                 <Badge variant="secondary" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)" }}>
