@@ -5,6 +5,7 @@ import StoreForm from "../components/stores/StoreForm";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { getData, invalidate } from "../components/utils/dataManager";
+import { createStoreLocal, updateStoreLocal, deleteStoreLocal } from "../components/utils/offlineMutations";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { sortStores } from "../components/utils/sorting";
 import { mergeUsersWithAppUsers } from "../components/utils/driverUtils";
@@ -163,12 +164,10 @@ export default function StoresPage() {
   const handleSaveStore = async (storeData) => {
     try {
       if (editingStore) {
-        await base44.entities.Store.update(editingStore.id, storeData);
-        // Update local state immediately
-        setStores(prev => prev.map(s => s.id === editingStore.id ? { ...s, ...storeData, updated_date: new Date().toISOString() } : s));
+        const updatedStore = await updateStoreLocal(editingStore.id, storeData);
+        setStores(prev => prev.map(s => s.id === editingStore.id ? updatedStore : s));
       } else {
-        const newStore = await base44.entities.Store.create(storeData);
-        // Add to local state immediately
+        const newStore = await createStoreLocal(storeData);
         setStores(prev => [...prev, newStore]);
       }
 
@@ -190,8 +189,7 @@ export default function StoresPage() {
     }
 
     try {
-      await base44.entities.Store.delete(storeId);
-      // Update local state immediately
+      await deleteStoreLocal(storeId);
       setStores(prev => prev.filter(s => s.id !== storeId));
       invalidate('Store');
     } catch (error) {

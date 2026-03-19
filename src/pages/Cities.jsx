@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { City } from '@/entities/City';
-import { AppUser } from '@/entities/AppUser';
+import { Button } from '@/components/ui/button';
+import { getData } from '@/components/utils/dataManager';
+import { createCityLocal, updateCityLocal, deleteCityLocal } from '@/components/utils/offlineMutations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Edit, MapPin, Trash2, Truck, Headphones } from 'lucide-react';
@@ -24,8 +25,8 @@ export default function CitiesPage() {
         setIsLoading(true);
         try {
             const [citiesData, usersData] = await Promise.all([
-                City.list(),
-                AppUser.list()
+                getData('City'),
+                getData('AppUser')
             ]);
             setAllCities(sortCities(citiesData || []));
             setAppUsers(usersData || []);
@@ -45,12 +46,10 @@ export default function CitiesPage() {
     const handleSaveCity = async (cityData) => {
         try {
             if (editingCity) {
-                await City.update(editingCity.id, cityData);
-                // Update local state immediately
-                setAllCities(prev => sortCities(prev.map(c => c.id === editingCity.id ? { ...c, ...cityData, updated_date: new Date().toISOString() } : c)));
+                const updatedCity = await updateCityLocal(editingCity.id, cityData);
+                setAllCities(prev => sortCities(prev.map(c => c.id === editingCity.id ? updatedCity : c)));
             } else {
-                const newCity = await City.create(cityData);
-                // Add to local state immediately
+                const newCity = await createCityLocal(cityData);
                 setAllCities(prev => sortCities([...prev, newCity]));
             }
             setShowForm(false); // Using new state name
@@ -63,8 +62,7 @@ export default function CitiesPage() {
     const handleDeleteCity = async () => {
         if (!deletingCity) return;
         try {
-            await City.delete(deletingCity.id);
-            // Update local state immediately
+            await deleteCityLocal(deletingCity.id);
             setAllCities(prev => prev.filter(c => c.id !== deletingCity.id));
             setDeletingCity(null);
         } catch (error) {
