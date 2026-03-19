@@ -244,7 +244,7 @@ export default function IntegrationCreditsTab() {
 
       <div className="grid gap-2 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
-          <CardHeader>
+          <CardHeader className="pt-3 pr-6 pb-1 pl-6 flex flex-col space-y-1.5">
             <CardTitle>Usage by Task</CardTitle>
             <CardDescription>Grouped by feature/task name so you can see which workflows are using credits.</CardDescription>
           </CardHeader>
@@ -288,11 +288,11 @@ export default function IntegrationCreditsTab() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="pt-3 pr-6 pb-1 pl-6 flex flex-col space-y-1.5">
             <CardTitle>Credit Alert Settings</CardTitle>
             <CardDescription>Send an in-app message to Robert T when usage spikes within a short window.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-6 pt-0 space-y-2">
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <Label className="text-sm font-medium">Enable monitoring</Label>
