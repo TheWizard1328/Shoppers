@@ -221,7 +221,7 @@ export default function RouteManagementContent({
   return (
     <>
       {canBulkEdit && (
-        <Card className="flex-shrink-0 shadow-sm mb-2" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
+        <Card className="sticky top-0 z-10 flex-shrink-0 shadow-sm mb-2" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
           <CardContent className="px-3 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-medium" style={{ color: "var(--text-slate-700)" }}>
