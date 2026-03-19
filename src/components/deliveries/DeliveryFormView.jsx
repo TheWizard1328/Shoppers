@@ -378,18 +378,18 @@ export default function DeliveryFormView({
                   <div className="flex gap-3">
                     <div className="flex-1 space-y-1">
                       <Label className="text-xs">TR#</Label>
-                      <Input value={formData.tracking_number} onChange={e => setFormData(prev => ({ ...prev, tracking_number: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
+                      <Input value={formData.tracking_number || ''} onChange={e => setFormData(prev => ({ ...prev, tracking_number: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
                     </div>
                     <div className="flex-1 space-y-1">
                       <Label className="text-xs">SID</Label>
-                      <Input value={formData.stop_id} onChange={e => setFormData(prev => ({ ...prev, stop_id: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
+                      <Input value={formData.stop_id || ''} onChange={e => setFormData(prev => ({ ...prev, stop_id: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
                     </div>
                     {!isPickupMode && formData.patient_id && (
                       <div className="flex-1 space-y-1">
                         <Label className="text-xs">PID</Label>
                         <div className="relative">
                           <Input
-                            value={pidInputValue}
+                            value={pidInputValue || ''}
                             onChange={e => {
                               const val = e.target.value;
                               setPidInputValue(val);
@@ -453,13 +453,13 @@ export default function DeliveryFormView({
                         </div>
                         <div className="flex-1 min-w-0 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
-                          <Textarea value={formData.delivery_notes} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                          <Textarea value={formData.delivery_notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Notes</Label>
-                        <Textarea value={formData.delivery_notes} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Notes for this pickup..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                        <Textarea value={formData.delivery_notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Notes for this pickup..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
                       </div>
                     )}
                   </div>
@@ -556,11 +556,11 @@ export default function DeliveryFormView({
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
-                          <Input ref={patientNameInputRef} value={formData.patient_name} onChange={e => setFormData(p => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" disabled={isSaving} className="h-9 text-sm" />
+                          <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={e => setFormData(p => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" disabled={isSaving} className="h-9 text-sm" />
                         </div>
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Phone</Label>
-                          <PhoneInput value={formData.patient_phone} onChange={v => setFormData(p => ({ ...p, patient_phone: v }))} disabled={isSaving} className="h-9 text-sm" />
+                          <PhoneInput value={formData.patient_phone || ''} onChange={v => setFormData(p => ({ ...p, patient_phone: v }))} disabled={isSaving} className="h-9 text-sm" />
                         </div>
                       </div>
                       <div className="flex gap-3">
@@ -571,7 +571,7 @@ export default function DeliveryFormView({
 
                         <div className="flex-[35] space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
-                          <Input value={formData.unit_number} onChange={e => setFormData(p => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
+                          <Input value={formData.unit_number || ''} onChange={e => setFormData(p => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
                         </div>
                       </div>
                     </div>
