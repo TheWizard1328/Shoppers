@@ -70,11 +70,6 @@ export default function RouteManagementContent({
     return (deliveries || []).filter((delivery) => selectedIds.has(delivery.id));
   }, [deliveries, selectedBulkDeliveryIds]);
 
-  const selectedBulkDeliveries = useMemo(() => {
-    const selectedIds = new Set(selectedBulkDeliveryIds);
-    return (deliveries || []).filter((delivery) => selectedIds.has(delivery.id));
-  }, [deliveries, selectedBulkDeliveryIds]);
-
   useEffect(() => {
     setSelectedBulkDeliveryIds((current) => current.filter((id) => visibleBulkDeliveryIds.includes(id)));
   }, [visibleBulkDeliveryIds]);
