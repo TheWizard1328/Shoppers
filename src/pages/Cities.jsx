@@ -40,16 +40,18 @@ export default function CitiesPage() {
 
     useEffect(() => {
         loadCities();
-
-        const handleOfflineSyncComplete = () => {
-            loadCities();
-        };
-
-        window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
-        return () => {
-            window.removeEventListener('offlineSyncComplete', handleOfflineSyncComplete);
-        };
     }, [loadCities]);
+
+    useEffect(() => {
+        const handleOfflineRecordReplaced = (event) => {
+            const { entity, oldId, record } = event.detail || {};
+            if (entity !== 'City' || !oldId || !record) return;
+            setAllCities(prev => sortCities(prev.map(city => city.id === oldId ? record : city)));
+        };
+
+        window.addEventListener('offlineMutationRecordReplaced', handleOfflineRecordReplaced);
+        return () => window.removeEventListener('offlineMutationRecordReplaced', handleOfflineRecordReplaced);
+    }, []);
 
     const handleSaveCity = async (cityData) => {
         try {

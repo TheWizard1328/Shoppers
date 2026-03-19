@@ -35,9 +35,13 @@ export default function StoresPage() {
   useEffect(() => {
     loadData();
 
-    const handleOfflineSyncComplete = () => {
-      loadData();
+    const handleOfflineRecordReplaced = (event) => {
+      const { entity, oldId, record } = event.detail || {};
+      if (entity !== 'Store' || !oldId || !record) return;
+      setStores(prev => sortStores(prev.map(store => store.id === oldId ? record : store)));
     };
+
+    window.addEventListener('offlineMutationRecordReplaced', handleOfflineRecordReplaced);
 
     // Listen for store updates from StoreCard (app fees checkbox, etc.)
     const handleStoreUpdated = async (event) => {
@@ -49,10 +53,9 @@ export default function StoresPage() {
       }
     };
     window.addEventListener('storeUpdated', handleStoreUpdated);
-    window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
     return () => {
+      window.removeEventListener('offlineMutationRecordReplaced', handleOfflineRecordReplaced);
       window.removeEventListener('storeUpdated', handleStoreUpdated);
-      window.removeEventListener('offlineSyncComplete', handleOfflineSyncComplete);
     };
   }, []);
 

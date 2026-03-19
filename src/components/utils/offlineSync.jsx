@@ -1093,6 +1093,15 @@ export const processPendingMutations = async () => {
           }
           await offlineDB.bulkSave(storeName, [createdRecord]);
         }
+        if (typeof window !== 'undefined' && mutation.recordId?.startsWith('temp_')) {
+          window.dispatchEvent(new CustomEvent('offlineMutationRecordReplaced', {
+            detail: {
+              entity: mutation.entity,
+              oldId: mutation.recordId,
+              record: createdRecord
+            }
+          }));
+        }
       } else if (mutation.operation === 'update') {
         await Entity.update(mutation.recordId, mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
       }
