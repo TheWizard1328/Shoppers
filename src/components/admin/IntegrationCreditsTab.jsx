@@ -106,16 +106,33 @@ export default function IntegrationCreditsTab() {
   }, [loadData]);
 
   useEffect(() => {
-    const unsubscribe = base44.entities.IntegrationUsageLog.subscribe((event) => {
+    const mergeLiveLog = (nextLog) => {
+      setLogs((prev) => [nextLog, ...prev.filter((item) => item?.id !== nextLog.id)].slice(0, LOG_FETCH_LIMIT));
+    };
+
+    const unsubscribeIntegration = base44.entities.IntegrationUsageLog.subscribe((event) => {
       if (event.type === 'create' && event.data) {
-        setLogs((prev) => [event.data, ...prev.filter((item) => item?.id !== event.data.id)].slice(0, LOG_FETCH_LIMIT));
+        mergeLiveLog(event.data);
       }
       if (event.type === 'update' && event.data) {
         setLogs((prev) => prev.map((item) => item?.id === event.data.id ? event.data : item));
       }
     });
 
-    return unsubscribe;
+    const unsubscribeApi = base44.entities.GoogleAPILog.subscribe((event) => {
+      if (event.type === 'create' && event.data) {
+        mergeLiveLog(normalizeApiLogToIntegrationLog(event.data));
+      }
+      if (event.type === 'update' && event.data) {
+        const normalized = normalizeApiLogToIntegrationLog(event.data);
+        setLogs((prev) => prev.map((item) => item?.id === normalized.id ? normalized : item));
+      }
+    });
+
+    return () => {
+      unsubscribeIntegration();
+      unsubscribeApi();
+    };
   }, []);
 
   const filteredLogs = useMemo(() => {
@@ -259,7 +276,7 @@ export default function IntegrationCreditsTab() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-slate-900">{summary.successfulCalls}</div>
-              <p className="text-xs text-slate-500 mt-1">Out of {filteredLogs.length} tracked calls</p>
+              <p className="text-xs text-slate-500 mt-1">Out of {summary.successfulCalls + summary.failedCalls} tracked calls</p>
             </CardContent>
           </Card>
           <Card>
