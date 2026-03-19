@@ -392,5 +392,6 @@ export const clearUserCache = () => {
 export const touchUserCache = () => {
     if (userCache.data) {
         userCache.timestamp = Date.now();
+        persistEffectiveUser(userCache.data);
     }
 };
