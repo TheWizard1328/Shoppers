@@ -382,7 +382,10 @@ export default function StopCard({
   const showCompletedRouteCenteredCondensed = routeCompletedForLayout && isFinishedDelivery && isRailCentered && !isExpanded;
   const showIncompleteRouteSideCondensed = !routeCompletedForLayout && !isExpanded && !isRailCentered;
   const showCenteredIncompleteCollapsed = !routeCompletedForLayout && !isExpanded && isRailCentered;
+  const isDispatcherCenteredCard = userHasRole(currentUser, 'dispatcher') && isRailCentered;
+  const hideBodyForDispatcherCenteredCard = isDispatcherCenteredCard && !isStrippedForDispatcher;
   const showMiddleSection = !isStrippedForDriver && !isStrippedForDispatcher && !showIncompleteRouteSideCondensed && (!isFinishedDelivery || isExpanded || isRailCentered) && !showCompletedRouteCenteredCondensed;
+  const showBodySection = !showCompletedRouteCenteredCondensed && !showIncompleteRouteSideCondensed && !hideBodyForDispatcherCenteredCard;
 
   // Check if this is an InterStore delivery (DropOff or Pickup)
   const isInterStore = useMemo(() => {
@@ -1480,7 +1483,7 @@ export default function StopCard({
 
 
 
-          {!showCompletedRouteCenteredCondensed && !showIncompleteRouteSideCondensed && <StopCardBody
+          {showBodySection && <StopCardBody
             isExpanded={isExpanded}
             isStrippedForDispatcher={isStrippedForDispatcher}
             finalDisplayPhone={finalDisplayPhone}
@@ -1531,6 +1534,9 @@ export default function StopCard({
               const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
               if (!hasRetryButton && !hasReturnButton) return null;
             }
+
+            // For centered dispatcher cards: keep them condensed with no footer
+            if (isDispatcherCenteredCard) return null;
 
             // For dispatchers: hide footer completely for non-assigned store deliveries unless admin/app owner
             if (!isAppOwner(currentUser) && !userHasRole(currentUser, 'admin') && isStrippedForDispatcher) return null;
