@@ -47,7 +47,7 @@ import {
   getCurrentLocalTimeString,
   getDriverRouteDeliveries,
   getFinishedLegEncodedPolyline,
-  getNextActiveDelivery,
+  syncNextDeliveryFlagsLocally,
   getNextTrackingNumberInGroup,
   incrementTrackingNumber,
   refreshDriverRoute,
@@ -1758,6 +1758,7 @@ export default function StopCard({
 
                             if (nextStop) {
                               await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                              await syncNextDeliveryFlagsLocally({ driverDeliveries: optimisticDeliveries, nextDeliveryId: nextStop.id, updateDeliveriesLocally });
                               try {
                                 await base44.functions.invoke('setNextDeliveryFlag', {
                                   driverId: delivery.driver_id,
@@ -1772,6 +1773,7 @@ export default function StopCard({
                                 nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                               }
                             } else {
+                              await syncNextDeliveryFlagsLocally({ driverDeliveries: optimisticDeliveries, nextDeliveryId: null, updateDeliveriesLocally });
                               fabControlEvents.notifyDoneButtonClicked();
                               window.dispatchEvent(new CustomEvent('showRouteSummary', {
                                 detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
