@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { getData } from '@/components/utils/dataManager';
 import { createCityLocal, updateCityLocal, deleteCityLocal } from '@/components/utils/offlineMutations';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Edit, MapPin, Trash2, Truck, Headphones } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
