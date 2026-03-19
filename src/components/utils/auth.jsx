@@ -1,7 +1,7 @@
 import { User } from '@/entities/User';
 import { AppUser } from '@/entities/AppUser';
 import { createMergedUser } from './driverUtils';
-import { getCached } from './dataManager';
+import { offlineDB } from './offlineDatabase';
 
 const clearLegacyHereLocalStorageCache = () => {
   try {
@@ -37,6 +37,91 @@ let appUserListCache = {
 // CRITICAL: Track in-flight requests to prevent duplicate API calls
 let inflightUserRequest = null;
 
+const AUTH_BOOT_CACHE_KEY = 'rxdeliver_auth_boot_cache';
+const EFFECTIVE_USER_CACHE_KEY = 'effectiveUserCache';
+const AUTH_BOOT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+const readStorageJson = (storage, key) => {
+  try {
+    const raw = storage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeStorageJson = (storage, key, value) => {
+  try {
+    storage.setItem(key, JSON.stringify(value));
+  } catch {}
+};
+
+const removeStorageKey = (storage, key) => {
+  try {
+    storage.removeItem(key);
+  } catch {}
+};
+
+const getPersistedEffectiveUser = () => {
+  const cached = readStorageJson(sessionStorage, EFFECTIVE_USER_CACHE_KEY) || readStorageJson(localStorage, EFFECTIVE_USER_CACHE_KEY);
+  return cached?.user || null;
+};
+
+const persistEffectiveUser = (user) => {
+  if (!user) return;
+  const payload = { user, timestamp: Date.now() };
+  writeStorageJson(sessionStorage, EFFECTIVE_USER_CACHE_KEY, payload);
+  writeStorageJson(localStorage, EFFECTIVE_USER_CACHE_KEY, payload);
+};
+
+const getFreshCachedAuthUser = () => {
+  const cached = readStorageJson(localStorage, AUTH_BOOT_CACHE_KEY) || readStorageJson(sessionStorage, AUTH_BOOT_CACHE_KEY);
+  if (!cached?.user || !cached?.timestamp) return null;
+  if ((Date.now() - cached.timestamp) > AUTH_BOOT_CACHE_TTL_MS) return null;
+  return cached.user;
+};
+
+const persistAuthUser = (authUser) => {
+  if (!authUser) return;
+  const payload = { user: authUser, timestamp: Date.now() };
+  writeStorageJson(localStorage, AUTH_BOOT_CACHE_KEY, payload);
+  writeStorageJson(sessionStorage, AUTH_BOOT_CACHE_KEY, payload);
+};
+
+const getOfflineAppUser = async (userId) => {
+  if (!userId) return null;
+  const appUsers = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', userId);
+  return Array.isArray(appUsers) && appUsers.length > 0 ? appUsers[0] : null;
+};
+
+const getAppUserByUserId = async (userId) => {
+  const cachedAppUser = await getOfflineAppUser(userId);
+  if (cachedAppUser) return cachedAppUser;
+
+  const appUsers = await withTimeout(AppUser.filter({ user_id: userId }), 8000);
+  if (appUsers && appUsers.length > 0) {
+    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    return appUsers[0];
+  }
+
+  return null;
+};
+
+const buildFallbackAuthUser = (userId, appUser, baseAuthUser = null) => ({
+  id: userId,
+  full_name: baseAuthUser?.full_name || appUser?.user_name || 'Unknown User',
+  email: baseAuthUser?.email || null,
+  role: baseAuthUser?.role || null
+});
+
+const cacheResolvedUser = (user) => {
+  userCache.data = user;
+  userCache.timestamp = Date.now();
+  userCache.backoffTime = 0;
+  persistEffectiveUser(user);
+  return user;
+};
+
 /**
  * Creates a promise that rejects after a specified timeout
  */
@@ -54,213 +139,206 @@ const withTimeout = (promise, timeoutMs = 10000) => {
  */
 export const getEffectiveUser = async () => {
     const now = Date.now();
-    
-    // Check if we're offline
+    const persistedEffectiveUser = getPersistedEffectiveUser();
+
     if (!navigator.onLine) {
         console.warn('⚠️ [auth.js] Device is offline, returning cached user data');
-        return userCache.data;
-    }
-    
-    // Check if we're in backoff period due to rate limiting
-    if (userCache.backoffTime > 0 && (now - userCache.lastFailureTime) < userCache.backoffTime) {
-        console.warn(`⏰ [auth.js] Rate limit backoff active. Using cached data. Backoff ends in ${Math.round((userCache.backoffTime - (now - userCache.lastFailureTime)) / 1000)}s`);
-        return userCache.data;
+        return userCache.data || persistedEffectiveUser;
     }
 
-    // Return cached data if still valid
+    if (userCache.backoffTime > 0 && (now - userCache.lastFailureTime) < userCache.backoffTime) {
+        console.warn(`⏰ [auth.js] Rate limit backoff active. Using cached data. Backoff ends in ${Math.round((userCache.backoffTime - (now - userCache.lastFailureTime)) / 1000)}s`);
+        return userCache.data || persistedEffectiveUser;
+    }
+
     if (userCache.data && (now - userCache.timestamp) < userCache.ttl) {
         return userCache.data;
     }
 
-    // CRITICAL: If a request is already in-flight, wait for it instead of making duplicate call
     if (inflightUserRequest) {
         console.log('⏳ [auth.js] Waiting for in-flight user request to complete...');
         return await inflightUserRequest;
     }
 
-    // Create the in-flight promise
     const fetchUser = async () => {
         let retryCount = 0;
         const maxRetries = 2;
         const baseDelay = 2000;
 
-        while (retryCount < maxRetries) {
-            try {
-                // Check if we're online before attempting
-                if (!navigator.onLine) {
-                    console.warn('⚠️ [auth.js] Device is offline, returning cached user data if available');
-                    return userCache.data;
+        const cachedAuthUser = getFreshCachedAuthUser();
+        if (cachedAuthUser) {
+          try {
+            const cachedAppUser = await getOfflineAppUser(cachedAuthUser.id);
+            if (cachedAppUser) {
+              const impersonationId = sessionStorage.getItem('impersonationId');
+              if (impersonationId && cachedAuthUser.role === 'admin' && impersonationId !== cachedAuthUser.id) {
+                const impersonatedAppUser = await getOfflineAppUser(impersonationId);
+                if (impersonatedAppUser) {
+                  const impersonatedMerged = createMergedUser(
+                    buildFallbackAuthUser(impersonationId, impersonatedAppUser, cachedAuthUser),
+                    impersonatedAppUser
+                  );
+                  if (impersonatedMerged) {
+                    impersonatedMerged._isImpersonating = true;
+                    impersonatedMerged._realUserId = cachedAuthUser.id;
+                    return cacheResolvedUser(impersonatedMerged);
+                  }
                 }
+              }
 
-                // Get the authenticated user (from User entity - auth data only)
-                const authUser = await withTimeout(User.me(), 10000);
-            
-            if (!authUser) {
-                console.warn('⚠️ [auth.js] No user data received (not logged in - Base44 will handle redirect)');
-                sessionStorage.removeItem('impersonationId');
-                return null;
-            }
-
-            // Use cached AppUser list if available to prevent rate limits
-            let appUserList;
-            const appUserCacheAge = now - appUserListCache.timestamp;
-            
-            if (appUserListCache.data && appUserCacheAge < appUserListCache.ttl) {
-              appUserList = appUserListCache.data;
-            } else {
-              appUserList = await withTimeout(AppUser.list(), 8000);
-              appUserListCache.data = appUserList;
-              appUserListCache.timestamp = now;
-            }
-            
-            const appUser = appUserList.find(au => au && au.user_id === authUser.id);
-            
-            // Check for impersonation BEFORE merging the real user data
-            const impersonationId = sessionStorage.getItem('impersonationId');
-            
-            // Only admins can impersonate and they cannot impersonate themselves
-            if (impersonationId && authUser.role === 'admin' && impersonationId !== authUser.id) {
-                try {
-                    const impersonatedAppUser = appUserList.find(au => au && au.user_id === impersonationId);
-                    
-                    // Try to get auth user, but gracefully handle if User.list() is forbidden
-                    let impersonatedAuthUser = null;
-                    try {
-                        const allAuthUsers = await withTimeout(User.list(), 8000);
-                        impersonatedAuthUser = allAuthUsers.find(u => u && u.id === impersonationId);
-                    } catch (userListError) {
-                        if (userListError.response?.status === 403) {
-                            console.warn('⚠️ [auth.js] User.list() forbidden - using AppUser data only for impersonation');
-                        } else {
-                            throw userListError;
-                        }
-                    }
-                    
-                    if (impersonatedAppUser) {
-                        // Use auth user if available, otherwise create merged user from AppUser only
-                        const impersonatedMerged = impersonatedAuthUser 
-                            ? createMergedUser(impersonatedAuthUser, impersonatedAppUser)
-                            : createMergedUser(null, impersonatedAppUser);
-                        
-                        if (impersonatedMerged) {
-                          impersonatedMerged._isImpersonating = true;
-                          impersonatedMerged._realUserId = authUser.id;
-                          
-                          userCache.data = impersonatedMerged;
-                          userCache.timestamp = now;
-                          userCache.backoffTime = 0;
-                          
-                          return impersonatedMerged;
-                        }
-                    } else {
-                        console.warn('⚠️ [auth.js] Impersonation target AppUser not found, clearing impersonation.');
-                        sessionStorage.removeItem('impersonationId');
-                    }
-                } catch (impersonationError) {
-                    console.warn("⚠️ [auth.js] Failed to load impersonation user, falling back to real user:", impersonationError.message);
-                    sessionStorage.removeItem('impersonationId');
-                }
-            }
-
-            // Merge auth user + app user data
-            const mergedUser = createMergedUser(authUser, appUser);
-
-            if (!mergedUser) {
-              console.error(`❌ [auth.js] createMergedUser returned null for ${authUser.full_name}!`);
-              return null;
-            }
-
-            // Update cache on successful fetch
-            userCache.data = mergedUser;
-            userCache.timestamp = now;
-            userCache.backoffTime = 0;
-            
-            // Set online status for non-driver users (drivers use the status toggle)
-            const isDriver = Array.isArray(mergedUser.app_roles) && mergedUser.app_roles.includes('driver');
-            const currentStatus = mergedUser.driver_status;
-            
-            // Only auto-set online for non-drivers who don't already have a status set
-            if (!isDriver && (!currentStatus || currentStatus === 'off_duty') && appUser) {
-              try {
-                console.log(`🟢 [auth.js] Setting online status for non-driver user: ${mergedUser.user_name}`);
-                await AppUser.update(appUser.id, { driver_status: 'online' });
-                mergedUser.driver_status = 'online';
-                // Invalidate AppUser cache so other components pick up the change
-                appUserListCache.timestamp = 0;
-              } catch (statusError) {
-                console.warn(`⚠️ [auth.js] Failed to set online status:`, statusError.message);
+              const mergedCachedUser = createMergedUser(cachedAuthUser, cachedAppUser);
+              if (mergedCachedUser) {
+                return cacheResolvedUser(mergedCachedUser);
               }
             }
-            
-            return mergedUser;
-
-        } catch (error) {
-            retryCount++;
-            const errorMessage = error.message || 'Unknown error';
-            console.error(`❌ [auth.js] Failed to get effective user (attempt ${retryCount}/${maxRetries}):`, errorMessage);
-            
-            // If auth error (401/403), don't retry - user is not logged in
-            if (error.response?.status === 401 || error.response?.status === 403) {
-                console.warn('⚠️ [auth.js] Authentication error - user not logged in');
-                sessionStorage.removeItem('impersonationId');
-                return null;
-            }
-
-            // Handle rate limiting specifically - use aggressive backoff
-            if (error.response?.status === 429 || errorMessage.includes('429') || errorMessage.includes('Rate limit')) {
-                userCache.lastFailureTime = now;
-                // Start with 60s backoff, double each time, max 10 minutes
-                userCache.backoffTime = Math.min((userCache.backoffTime || 30000) * 2, 600000);
-                console.warn(`⏰ [auth.js] Rate limit detected. Backing off for ${userCache.backoffTime / 1000}s`);
-                
-                // CRITICAL: Return cached data if available, even if stale
-                if (userCache.data) {
-                    console.warn('⚠️ [auth.js] Returning cached user data due to rate limit');
-                    return userCache.data;
-                }
-                
-                // If no cached data, wait before retry
-                const waitTime = Math.min(5000 * retryCount, 15000);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
-            }
-            
-            // Check for timeout or network errors
-            const isTimeoutOrNetworkError = 
-                errorMessage.includes('timeout exceeded') ||
-                errorMessage.includes('Network Error') ||
-                errorMessage.includes('fetch') ||
-                errorMessage.includes('Failed to fetch') ||
-                error.code === 'NETWORK_ERROR' ||
-                error.name === 'NetworkError';
-
-            if (isTimeoutOrNetworkError) {
-                console.warn('⚠️ [auth.js] Timeout or connectivity issues detected');
-                
-                if (userCache.data) {
-                    console.warn('⚠️ [auth.js] Returning cached user data due to network error');
-                    return userCache.data;
-                }
-                
-                if (retryCount >= maxRetries) {
-                    console.warn('⚠️ [auth.js] All retries exhausted due to timeout/network issues. Continuing without user data.');
-                    return null;
-                }
-                
-                const delay = baseDelay * retryCount;
-                await new Promise(resolve => setTimeout(resolve, delay));
-                continue;
-            }
-            
-            if (retryCount >= maxRetries) {
-                console.error('❌ [auth.js] All retries exhausted.');
-                return userCache.data || null;
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (cacheError) {
+            console.warn('⚠️ [auth.js] Failed to resolve boot cache, falling back to API:', cacheError.message);
           }
         }
-    
-        return userCache.data || null;
+
+        while (retryCount < maxRetries) {
+            try {
+                if (!navigator.onLine) {
+                    console.warn('⚠️ [auth.js] Device is offline, returning cached user data if available');
+                    return userCache.data || persistedEffectiveUser;
+                }
+
+                const authUser = await withTimeout(User.me(), 10000);
+                persistAuthUser(authUser);
+
+                if (!authUser) {
+                    console.warn('⚠️ [auth.js] No user data received (not logged in - Base44 will handle redirect)');
+                    sessionStorage.removeItem('impersonationId');
+                    return null;
+                }
+
+                const appUser = await getAppUserByUserId(authUser.id);
+                if (!appUser) {
+                    console.warn(`⚠️ [auth.js] No AppUser found for ${authUser.full_name}`);
+                    return null;
+                }
+
+                const impersonationId = sessionStorage.getItem('impersonationId');
+                if (impersonationId && authUser.role === 'admin' && impersonationId !== authUser.id) {
+                    try {
+                        const impersonatedAppUser = await getAppUserByUserId(impersonationId);
+                        if (impersonatedAppUser) {
+                          const impersonatedMerged = createMergedUser(
+                            buildFallbackAuthUser(impersonationId, impersonatedAppUser, authUser),
+                            impersonatedAppUser
+                          );
+
+                          if (impersonatedMerged) {
+                            impersonatedMerged._isImpersonating = true;
+                            impersonatedMerged._realUserId = authUser.id;
+                            return cacheResolvedUser(impersonatedMerged);
+                          }
+                        } else {
+                          console.warn('⚠️ [auth.js] Impersonation target AppUser not found, clearing impersonation.');
+                          sessionStorage.removeItem('impersonationId');
+                        }
+                    } catch (impersonationError) {
+                        console.warn('⚠️ [auth.js] Failed to load impersonation user, falling back to real user:', impersonationError.message);
+                        sessionStorage.removeItem('impersonationId');
+                    }
+                }
+
+                const mergedUser = createMergedUser(authUser, appUser);
+                if (!mergedUser) {
+                  console.error(`❌ [auth.js] createMergedUser returned null for ${authUser.full_name}!`);
+                  return null;
+                }
+
+                cacheResolvedUser(mergedUser);
+
+                const isDriver = Array.isArray(mergedUser.app_roles) && mergedUser.app_roles.includes('driver');
+                const currentStatus = mergedUser.driver_status;
+
+                if (!isDriver && (!currentStatus || currentStatus === 'off_duty') && appUser) {
+                  try {
+                    console.log(`🟢 [auth.js] Setting online status for non-driver user: ${mergedUser.user_name}`);
+                    await AppUser.update(appUser.id, { driver_status: 'online' });
+                    mergedUser.driver_status = 'online';
+                    await offlineDB.save(offlineDB.STORES.APP_USERS, { ...appUser, driver_status: 'online' });
+                    persistEffectiveUser(mergedUser);
+                  } catch (statusError) {
+                    console.warn('⚠️ [auth.js] Failed to set online status:', statusError.message);
+                  }
+                }
+
+                return mergedUser;
+
+            } catch (error) {
+                retryCount++;
+                const errorMessage = error.message || 'Unknown error';
+                console.error(`❌ [auth.js] Failed to get effective user (attempt ${retryCount}/${maxRetries}):`, errorMessage);
+
+                if (error.response?.status === 401 || error.response?.status === 403) {
+                    console.warn('⚠️ [auth.js] Authentication error - user not logged in');
+                    sessionStorage.removeItem('impersonationId');
+                    return null;
+                }
+
+                if (error.response?.status === 429 || errorMessage.includes('429') || errorMessage.includes('Rate limit')) {
+                    userCache.lastFailureTime = Date.now();
+                    userCache.backoffTime = Math.min((userCache.backoffTime || 30000) * 2, 600000);
+                    console.warn(`⏰ [auth.js] Rate limit detected. Backing off for ${userCache.backoffTime / 1000}s`);
+
+                    if (userCache.data) {
+                        console.warn('⚠️ [auth.js] Returning cached user data due to rate limit');
+                        return userCache.data;
+                    }
+
+                    if (persistedEffectiveUser) {
+                        console.warn('⚠️ [auth.js] Returning persisted user data due to rate limit');
+                        return persistedEffectiveUser;
+                    }
+
+                    const waitTime = Math.min(5000 * retryCount, 15000);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                }
+
+                const isTimeoutOrNetworkError =
+                    errorMessage.includes('timeout exceeded') ||
+                    errorMessage.includes('Network Error') ||
+                    errorMessage.includes('fetch') ||
+                    errorMessage.includes('Failed to fetch') ||
+                    error.code === 'NETWORK_ERROR' ||
+                    error.name === 'NetworkError';
+
+                if (isTimeoutOrNetworkError) {
+                    console.warn('⚠️ [auth.js] Timeout or connectivity issues detected');
+
+                    if (userCache.data) {
+                        console.warn('⚠️ [auth.js] Returning cached user data due to network error');
+                        return userCache.data;
+                    }
+
+                    if (persistedEffectiveUser) {
+                        console.warn('⚠️ [auth.js] Returning persisted user data due to network error');
+                        return persistedEffectiveUser;
+                    }
+
+                    if (retryCount >= maxRetries) {
+                        console.warn('⚠️ [auth.js] All retries exhausted due to timeout/network issues. Continuing without user data.');
+                        return null;
+                    }
+
+                    const delay = baseDelay * retryCount;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+
+                if (retryCount >= maxRetries) {
+                    console.error('❌ [auth.js] All retries exhausted.');
+                    return userCache.data || persistedEffectiveUser || null;
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+
+        return userCache.data || persistedEffectiveUser || null;
     };
 
     inflightUserRequest = fetchUser();
@@ -304,6 +382,10 @@ export const clearUserCache = () => {
     };
     inflightUserRequest = null;
     sessionStorage.removeItem('impersonationId');
+    removeStorageKey(sessionStorage, EFFECTIVE_USER_CACHE_KEY);
+    removeStorageKey(localStorage, EFFECTIVE_USER_CACHE_KEY);
+    removeStorageKey(sessionStorage, AUTH_BOOT_CACHE_KEY);
+    removeStorageKey(localStorage, AUTH_BOOT_CACHE_KEY);
 };
 
 // Function to extend cache TTL when user is active (prevents session timeout during idle)
