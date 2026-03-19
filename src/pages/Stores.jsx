@@ -35,6 +35,10 @@ export default function StoresPage() {
   useEffect(() => {
     loadData();
 
+    const handleOfflineSyncComplete = () => {
+      loadData();
+    };
+
     // Listen for store updates from StoreCard (app fees checkbox, etc.)
     const handleStoreUpdated = async (event) => {
       const { storeId } = event.detail || {};
@@ -45,7 +49,11 @@ export default function StoresPage() {
       }
     };
     window.addEventListener('storeUpdated', handleStoreUpdated);
-    return () => window.removeEventListener('storeUpdated', handleStoreUpdated);
+    window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
+    return () => {
+      window.removeEventListener('storeUpdated', handleStoreUpdated);
+      window.removeEventListener('offlineSyncComplete', handleOfflineSyncComplete);
+    };
   }, []);
 
   // WebSocket real-time subscription for Store entity changes

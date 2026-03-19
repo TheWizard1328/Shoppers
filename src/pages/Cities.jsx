@@ -40,6 +40,15 @@ export default function CitiesPage() {
 
     useEffect(() => {
         loadCities();
+
+        const handleOfflineSyncComplete = () => {
+            loadCities();
+        };
+
+        window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
+        return () => {
+            window.removeEventListener('offlineSyncComplete', handleOfflineSyncComplete);
+        };
     }, [loadCities]);
 
     const handleSaveCity = async (cityData) => {
