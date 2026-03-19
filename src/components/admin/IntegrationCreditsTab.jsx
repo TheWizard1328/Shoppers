@@ -19,10 +19,10 @@ const DEFAULT_SETTINGS = {
 };
 
 const TIMEFRAME_OPTIONS = [
-  { value: '15', label: 'Last 15 min' },
-  { value: '60', label: 'Last hour' },
-  { value: '1440', label: 'Last 24 hours' }
-];
+{ value: '15', label: 'Last 15 min' },
+{ value: '60', label: 'Last hour' },
+{ value: '1440', label: 'Last 24 hours' }];
+
 
 const LOG_FETCH_LIMIT = 10000;
 
@@ -44,9 +44,9 @@ export default function IntegrationCreditsTab() {
     setIsLoading(true);
     try {
       const [logData, config] = await Promise.all([
-        base44.entities.IntegrationUsageLog.list('-timestamp', LOG_FETCH_LIMIT),
-        base44.entities.AppSettings.filter({ setting_key: 'integration_credit_monitor' })
-      ]);
+      base44.entities.IntegrationUsageLog.list('-timestamp', LOG_FETCH_LIMIT),
+      base44.entities.AppSettings.filter({ setting_key: 'integration_credit_monitor' })]
+      );
 
       setLogs(logData || []);
 
@@ -89,9 +89,9 @@ export default function IntegrationCreditsTab() {
     const totalEstimatedCredits = filteredLogs.reduce((sum, log) => sum + Number(log.estimated_credits_used || 0), 0);
     const successfulCalls = filteredLogs.filter((log) => log.success).length;
     const failedCalls = filteredLogs.filter((log) => log.success === false).length;
-    const avgDuration = filteredLogs.length
-      ? Math.round(filteredLogs.reduce((sum, log) => sum + Number(log.duration_ms || 0), 0) / filteredLogs.length)
-      : 0;
+    const avgDuration = filteredLogs.length ?
+    Math.round(filteredLogs.reduce((sum, log) => sum + Number(log.duration_ms || 0), 0) / filteredLogs.length) :
+    0;
 
     const groupedTasks = filteredLogs.reduce((acc, log) => {
       const key = log.feature || log.operation_name || 'Unknown task';
@@ -103,29 +103,29 @@ export default function IntegrationCreditsTab() {
       return acc;
     }, {});
 
-    const topTasks = Object.values(groupedTasks)
-      .sort((a, b) => b.credits - a.credits)
-      .slice(0, 5);
+    const topTasks = Object.values(groupedTasks).
+    sort((a, b) => b.credits - a.credits).
+    slice(0, 5);
 
     const failureHotspots = Object.values(
-      filteredLogs
-        .filter((log) => log.success === false)
-        .reduce((acc, log) => {
-          const key = `${log.integration_name}.${log.operation_name}__${log.error_message || 'Unknown error'}`;
-          if (!acc[key]) {
-            acc[key] = {
-              key,
-              integration: `${log.integration_name}.${log.operation_name}`,
-              error: log.error_message || 'Unknown error',
-              count: 0
-            };
-          }
-          acc[key].count += 1;
-          return acc;
-        }, {})
-    )
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
+      filteredLogs.
+      filter((log) => log.success === false).
+      reduce((acc, log) => {
+        const key = `${log.integration_name}.${log.operation_name}__${log.error_message || 'Unknown error'}`;
+        if (!acc[key]) {
+          acc[key] = {
+            key,
+            integration: `${log.integration_name}.${log.operation_name}`,
+            error: log.error_message || 'Unknown error',
+            count: 0
+          };
+        }
+        acc[key].count += 1;
+        return acc;
+      }, {})
+    ).
+    sort((a, b) => b.count - a.count).
+    slice(0, 5);
 
     return {
       totalEstimatedCredits,
@@ -171,12 +171,12 @@ export default function IntegrationCreditsTab() {
           <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
           <span className="text-slate-600">Loading credit monitoring...</span>
         </CardContent>
-      </Card>
-    );
+      </Card>);
+
   }
 
   return (
-    <div className="h-full min-h-0 space-y-6 overflow-y-auto pr-1">
+    <div className="h-full min-h-0 space-y-6 overflow-y-auto pr-1 max-h-[85vh]">
       <Alert>
         <AlertDescription>
           This now tracks every wrapped app integration call, including failures, so you can spot retry loops and runaway credit usage faster.
@@ -195,9 +195,9 @@ export default function IntegrationCreditsTab() {
               <SelectValue placeholder="Select timeframe" />
             </SelectTrigger>
             <SelectContent>
-              {TIMEFRAME_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
+              {TIMEFRAME_OPTIONS.map((option) =>
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -250,11 +250,11 @@ export default function IntegrationCreditsTab() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {summary.topTasks.length === 0 && (
-                <div className="text-sm text-slate-500">No tracked integration usage yet.</div>
-              )}
-              {summary.topTasks.map((task) => (
-                <div key={task.name} className="flex items-center justify-between rounded-lg border p-3">
+              {summary.topTasks.length === 0 &&
+              <div className="text-sm text-slate-500">No tracked integration usage yet.</div>
+              }
+              {summary.topTasks.map((task) =>
+              <div key={task.name} className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <div className="font-medium text-slate-900">{task.name}</div>
                     <div className="text-xs text-slate-500">{task.integration}</div>
@@ -264,23 +264,23 @@ export default function IntegrationCreditsTab() {
                     <div className="text-xs text-slate-500">{task.calls} call{task.calls === 1 ? '' : 's'}</div>
                   </div>
                 </div>
-              ))}
+              )}
 
               <div className="pt-3 border-t">
                 <div className="text-sm font-semibold text-slate-900 mb-2">Failure Hotspots</div>
                 <div className="space-y-2">
-                  {summary.failureHotspots.length === 0 && (
-                    <div className="text-sm text-slate-500">No repeated failures in this window.</div>
-                  )}
-                  {summary.failureHotspots.map((item) => (
-                    <div key={item.key} className="rounded-lg border p-3">
+                  {summary.failureHotspots.length === 0 &&
+                  <div className="text-sm text-slate-500">No repeated failures in this window.</div>
+                  }
+                  {summary.failureHotspots.map((item) =>
+                  <div key={item.key} className="rounded-lg border p-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-medium text-slate-900">{item.integration}</div>
                         <Badge variant="destructive">{item.count} failures</Badge>
                       </div>
                       <div className="text-xs text-slate-500 mt-1 break-words">{item.error}</div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
@@ -300,8 +300,8 @@ export default function IntegrationCreditsTab() {
               </div>
               <Switch
                 checked={settings.enabled}
-                onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, enabled: checked }))}
-              />
+                onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, enabled: checked }))} />
+              
             </div>
 
             <div className="space-y-2">
@@ -309,8 +309,8 @@ export default function IntegrationCreditsTab() {
               <Input
                 id="recipient_name"
                 value={settings.recipient_name}
-                onChange={(e) => setSettings((prev) => ({ ...prev, recipient_name: e.target.value }))}
-              />
+                onChange={(e) => setSettings((prev) => ({ ...prev, recipient_name: e.target.value }))} />
+              
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -321,8 +321,8 @@ export default function IntegrationCreditsTab() {
                   type="number"
                   min="1"
                   value={settings.threshold_credits}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, threshold_credits: Number(e.target.value || 0) }))}
-                />
+                  onChange={(e) => setSettings((prev) => ({ ...prev, threshold_credits: Number(e.target.value || 0) }))} />
+                
               </div>
               <div className="space-y-2">
                 <Label htmlFor="window_minutes">Window minutes</Label>
@@ -331,8 +331,8 @@ export default function IntegrationCreditsTab() {
                   type="number"
                   min="1"
                   value={settings.window_minutes}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, window_minutes: Number(e.target.value || 0) }))}
-                />
+                  onChange={(e) => setSettings((prev) => ({ ...prev, window_minutes: Number(e.target.value || 0) }))} />
+                
               </div>
             </div>
 
@@ -369,13 +369,13 @@ export default function IntegrationCreditsTab() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLogs.length === 0 && (
-                  <tr>
+                {filteredLogs.length === 0 &&
+                <tr>
                     <td colSpan={8} className="p-6 text-center text-slate-500">No integration usage has been logged yet.</td>
                   </tr>
-                )}
-                {filteredLogs.map((log) => (
-                  <tr key={log.id} className="border-t">
+                }
+                {filteredLogs.map((log) =>
+                <tr key={log.id} className="border-t">
                     <td className="p-3 text-slate-600">{formatDistanceToNowStrict(new Date(log.timestamp || log.created_date), { addSuffix: true })}</td>
                     <td className="p-3 text-slate-900">{log.app_user_name || 'Unknown user'}</td>
                     <td className="p-3 text-slate-900">{log.feature || '—'}</td>
@@ -389,12 +389,12 @@ export default function IntegrationCreditsTab() {
                       {log.error_message || '—'}
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>);
+
 }
