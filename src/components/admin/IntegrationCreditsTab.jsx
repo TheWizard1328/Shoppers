@@ -82,9 +82,9 @@ export default function IntegrationCreditsTab() {
 
       const mergedLogs = [
       ...(logData || []),
-      ...((apiLogData || []).map(normalizeApiLogToIntegrationLog))]
-      .sort((a, b) => new Date(b.timestamp || b.created_date).getTime() - new Date(a.timestamp || a.created_date).getTime())
-      .slice(0, LOG_FETCH_LIMIT);
+      ...(apiLogData || []).map(normalizeApiLogToIntegrationLog)].
+      sort((a, b) => new Date(b.timestamp || b.created_date).getTime() - new Date(a.timestamp || a.created_date).getTime()).
+      slice(0, LOG_FETCH_LIMIT);
 
       setLogs(mergedLogs);
 
@@ -160,7 +160,7 @@ export default function IntegrationCreditsTab() {
     }, {});
 
     const topTasks = Object.values(groupedTasks).
-    sort((a, b) => (b.credits - a.credits) || (b.calls - a.calls)).
+    sort((a, b) => b.credits - a.credits || b.calls - a.calls).
     slice(0, 5);
 
     const failureHotspots = Object.values(
@@ -304,13 +304,13 @@ export default function IntegrationCreditsTab() {
             <CardTitle>Usage by Task</CardTitle>
             <CardDescription>Grouped by feature/task name so you can see which workflows are using credits.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="px-3 py-3">
+            <div className="space-y-1.5">
               {summary.topTasks.length === 0 &&
               <div className="text-sm text-slate-500">No tracked integration usage yet.</div>
               }
               {summary.topTasks.map((task) =>
-              <div key={task.name} className="flex items-center justify-between rounded-lg border p-3">
+              <div key={task.name} className="px-3 py-2 rounded-lg flex items-center justify-between border">
                   <div>
                     <div className="font-medium text-slate-900">{task.name}</div>
                     <div className="text-xs text-slate-500">{task.integration}</div>
@@ -329,7 +329,7 @@ export default function IntegrationCreditsTab() {
                   <div className="text-sm text-slate-500">No repeated failures in this window.</div>
                   }
                   {summary.failureHotspots.map((item) =>
-                  <div key={item.key} className="rounded-lg border p-3">
+                  <div key={item.key} className="px-3 py-2 rounded-lg border">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-medium text-slate-900">{item.integration}</div>
                         <Badge variant="destructive">{item.count} failures</Badge>
@@ -348,7 +348,7 @@ export default function IntegrationCreditsTab() {
             <CardTitle>Credit Alert Settings</CardTitle>
             <CardDescription>Send an in-app message to Robert T when usage spikes within a short window.</CardDescription>
           </CardHeader>
-          <CardContent className="p-6 pt-0 space-y-2">
+          <CardContent className="px-3 py-3 space-y-2">
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <Label className="text-sm font-medium">Enable monitoring</Label>
