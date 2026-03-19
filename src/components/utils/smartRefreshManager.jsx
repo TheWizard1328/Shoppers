@@ -102,28 +102,17 @@ class LightweightRefreshManager {
   async initializeAllAppUsersToOfflineDB() {
     try {
       const { offlineDB } = await import('./offlineDatabase');
+      const cachedAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
 
-      // Fetch current user and save to offline DB
-      // AppUser.list() uses RLS so will only return current user on startup
-      console.log('📥 [SmartRefresh] Loading current user to offline DB on startup...');
-      await this.waitForRateLimit();
-
-      const currentAppUsers = await queueEntityRequest(
-        () => base44.entities.AppUser.list(),
-        'Current user load'
-      );
-
-      if (currentAppUsers && currentAppUsers.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, currentAppUsers);
+      if (cachedAppUsers && cachedAppUsers.length > 0) {
         await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
-        console.log(`✅ [SmartRefresh] Synced offline DB with current user. WebSocket will sync other users.`);
-        this.recordSuccess();
-      } else {
-        console.warn('⚠️ [SmartRefresh] No current user AppUser record found');
+        console.log(`✅ [SmartRefresh] Using ${cachedAppUsers.length} cached AppUsers on startup.`);
+        return;
       }
+
+      console.log('📥 [SmartRefresh] Skipping AppUser API bootstrap - Layout and WebSocket will hydrate data.');
     } catch (error) {
-      console.warn('⚠️ [SmartRefresh] Failed to initialize current user:', error.message);
-      this.recordError();
+      console.warn('⚠️ [SmartRefresh] Failed to initialize cached AppUsers:', error.message);
     }
   }
 
@@ -508,64 +497,45 @@ class LightweightRefreshManager {
    */
   async refreshDriverLocations(currentAppUsers, forceNotify = false, currentPageName = null, selectedDate = null, immediate = false) {
     try {
-      // Skip if paused
       if (this._paused && !immediate) {
         console.log('⏸️ [SmartRefresh] Paused - skipping location refresh');
         return { hasChanges: false, appUsers: currentAppUsers };
       }
 
-      const now = Date.now();
-      // WebSocket-first: if we've seen a realtime AppUser update in the last 60s, skip API poll
-      if (!immediate && (now - this.lastWebSocketAppUserUpdate) < 60000) {
-        console.log('🛰️ [SmartRefresh] WS fresh (<60s) — skipping AppUser API poll');
-        return { hasChanges: false, appUsers: currentAppUsers };
-      }
+      const { offlineDB } = await import('./offlineDatabase');
+      const cachedAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      const freshAppUsers = Array.isArray(cachedAppUsers) && cachedAppUsers.length > 0
+        ? cachedAppUsers
+        : (Array.isArray(currentAppUsers) ? currentAppUsers : []);
 
-      // Enforce per-feature backoff window
-      if (!immediate && now < (this.driverNextAllowedAt || 0)) {
-        const waitMs = (this.driverNextAllowedAt || 0) - now;
-        console.log(`⏳ [SmartRefresh] Driver refresh backoff ${Math.ceil(waitMs/1000)}s remaining`);
-        return { hasChanges: false, appUsers: currentAppUsers };
-      }
+      const previousTrackedAt = this.lastTrackedRefreshAt;
+      const trackedAt = Date.now();
+      const currentLatest = getLatestUpdateTimestamp(currentAppUsers || []);
+      const freshLatest = getLatestUpdateTimestamp(freshAppUsers || []);
+      const hasChanges = Boolean(forceNotify) || (freshAppUsers.length !== (currentAppUsers?.length || 0)) || freshLatest !== currentLatest;
 
-      console.log('📍 [SmartRefresh] Refreshing driver locations (fallback poll)...');
-      await this.waitForRateLimit();
-      
-      const freshAppUsers = await base44.entities.AppUser.list();
-      
-      // Success → reset backoff and schedule next fallback at 1 minute
-      this.recordSuccess();
+      base44.analytics.track({
+        eventName: "driver_location_refresh_run",
+        properties: {
+          success: true,
+          force_notify: Boolean(forceNotify),
+          immediate: Boolean(immediate),
+          app_user_count: Number(freshAppUsers.length),
+          interval_since_last_refresh_ms: previousTrackedAt ? trackedAt - previousTrackedAt : 0
+        }
+      });
+      this.lastTrackedRefreshAt = trackedAt;
       this.driverRefreshBackoffMs = 0;
-      this.driverNextAllowedAt = Date.now() + 60000; // 1 minute fallback cadence
-      
-      if (freshAppUsers && freshAppUsers.length > 0) {
-        const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-        
-        const previousTrackedAt = this.lastTrackedRefreshAt;
-        const trackedAt = Date.now();
-        base44.analytics.track({
-          eventName: "driver_location_refresh_run",
-          properties: {
-            success: true,
-            force_notify: Boolean(forceNotify),
-            immediate: Boolean(immediate),
-            app_user_count: Number(freshAppUsers.length),
-            interval_since_last_refresh_ms: previousTrackedAt ? trackedAt - previousTrackedAt : 0
-          }
-        });
-        this.lastTrackedRefreshAt = trackedAt;
-        
-        // Update current user dependent UI
+      this.driverNextAllowedAt = Date.now() + 60000;
+
+      if (freshAppUsers.length > 0) {
         window.dispatchEvent(new CustomEvent('refreshCurrentUserFromSmartRefresh', {
           detail: { updatedAppUsers: freshAppUsers }
         }));
-        
-        console.log(`✅ [SmartRefresh] Refreshed ${freshAppUsers.length} driver locations`);
-        return { hasChanges: true, appUsers: freshAppUsers };
       }
-      
-      return { hasChanges: false, appUsers: currentAppUsers };
+
+      console.log(`✅ [SmartRefresh] Using cached/WebSocket AppUsers (${freshAppUsers.length})`);
+      return { hasChanges, appUsers: freshAppUsers };
     } catch (error) {
       base44.analytics.track({
         eventName: "driver_location_refresh_run",
@@ -575,12 +545,7 @@ class LightweightRefreshManager {
           immediate: Boolean(immediate)
         }
       });
-      this.recordError();
-      // Exponential backoff: 1m → 2m → 5m, reset on success
-      const next = this.driverRefreshBackoffMs === 0 ? 60000 : (this.driverRefreshBackoffMs === 60000 ? 120000 : 300000);
-      this.driverRefreshBackoffMs = next;
-      this.driverNextAllowedAt = Date.now() + next;
-      console.warn(`⚠️ [SmartRefresh] Location refresh failed (${error.message}). Backing off ${Math.round(next/1000)}s`);
+      console.warn(`⚠️ [SmartRefresh] Location refresh failed: ${error.message}`);
       return { hasChanges: false, appUsers: currentAppUsers };
     }
   }

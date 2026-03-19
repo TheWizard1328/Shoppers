@@ -115,10 +115,9 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
     
     if (shouldRedirect) {
-      // Use the SDK's logout method which handles token cleanup and redirect
-      base44.auth.logout(window.location.href);
+      const nextUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      base44.auth.logout(nextUrl);
     } else {
-      // Just remove the token without redirect
       base44.auth.logout();
     }
   };
