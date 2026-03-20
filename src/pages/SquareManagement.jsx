@@ -1044,11 +1044,11 @@ export default function SquareManagement() {
       return String(value).slice(0, 10);
     };
 
-    const buildSignature = (row) => `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}::${normalizeDate(row.deliveryDate)}`;
+    const buildAmountStoreKey = (row) => `${row.storeName || 'Unknown'}::${Math.round(Number(row.amount || 0) * 100)}`;
     const reconciliationTransactions = filteredTransactionRows.filter((row) => !['cancelled', 'failed'].includes(row.rawStatus));
 
-    const transactionsBySignature = reconciliationTransactions.reduce((acc, row) => {
-      const key = buildSignature(row);
+    const transactionsByAmountStore = reconciliationTransactions.reduce((acc, row) => {
+      const key = buildAmountStoreKey(row);
       if (!acc.has(key)) acc.set(key, []);
       acc.get(key).push(row);
       return acc;
@@ -1058,9 +1058,10 @@ export default function SquareManagement() {
     const missingDeliveryRows = [];
 
     filteredDeliveryRows.forEach((deliveryRow) => {
-      const key = buildSignature(deliveryRow);
-      const candidates = transactionsBySignature.get(key) || [];
-      const matchedTransaction = candidates.find((transactionRow) => !usedTransactionIds.has(transactionRow.id));
+      const key = buildAmountStoreKey(deliveryRow);
+      const candidates = (transactionsByAmountStore.get(key) || []).filter((transactionRow) => !usedTransactionIds.has(transactionRow.id));
+      const deliveryDate = normalizeDate(deliveryRow.deliveryDate);
+      const matchedTransaction = candidates.find((transactionRow) => normalizeDate(transactionRow.deliveryDate) === deliveryDate) || candidates[0];
 
       if (matchedTransaction) {
         usedTransactionIds.add(matchedTransaction.id);
