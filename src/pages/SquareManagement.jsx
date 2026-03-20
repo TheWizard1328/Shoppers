@@ -820,17 +820,17 @@ export default function SquareManagement() {
   }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, driverScopedLocationIds, deletingId]);
 
   const reconciliationRows = React.useMemo(() => {
-    const deliverySignatureCounts = filteredDeliveryRows.reduce((acc, row) => {
+    const transactionSignatureCounts = filteredTransactionRows.reduce((acc, row) => {
       const key = `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}`;
       acc.set(key, (acc.get(key) || 0) + 1);
       return acc;
     }, new Map());
 
-    return filteredTransactionRows.filter((row) => {
+    return filteredDeliveryRows.filter((row) => {
       const key = `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}`;
-      const remaining = deliverySignatureCounts.get(key) || 0;
+      const remaining = transactionSignatureCounts.get(key) || 0;
       if (remaining > 0) {
-        deliverySignatureCounts.set(key, remaining - 1);
+        transactionSignatureCounts.set(key, remaining - 1);
         return false;
       }
       return true;
@@ -928,7 +928,7 @@ export default function SquareManagement() {
 
     if (activeView === 'reconciliation') {
       return {
-        primaryLabel: 'Unmatched Transactions',
+        primaryLabel: 'Unmatched Deliveries',
         primaryValue: reconciliationRows.length,
         amountLabel: 'Unmatched Amount',
         amountValue: reconciliationRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
@@ -1101,8 +1101,8 @@ export default function SquareManagement() {
           title="Reconciliation"
           rows={reconciliationRows}
           isLoading={isLoading}
-          emptyTitle="No unmatched transactions"
-          emptyDescription="Transactions that do not match a delivery amount and Square location will appear here."
+          emptyTitle="No unmatched deliveries"
+          emptyDescription="Deliveries that do not have a matching transaction by amount and Square location will appear here."
           showLocationColumn={currentUser && isAppOwner(currentUser)}
           navHeight={navHeight}
         />
