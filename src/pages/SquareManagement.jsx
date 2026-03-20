@@ -260,24 +260,16 @@ export default function SquareManagement() {
     startDate.setDate(today.getDate() - rangeDays);
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(today, 'yyyy-MM-dd');
-    const dateFilter = {
-      delivery_date: {
-        $gte: startDateStr,
-        $lte: endDateStr
-      }
-    };
     const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
     onStageChange?.({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
 
-    const [catalogRecords, fetchedPaymentsResponse, deliveryRecords, nextConfigs] = await Promise.all([
-      base44.entities.SquareCatalogItems.list('-updated_date', 2000),
-      base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: rangeDays }),
-      base44.entities.Delivery.filter(dateFilter, '-updated_date', 2000),
-      refreshLocations ? base44.entities.SquareLocationConfig.filter({ status: 'active' }) : Promise.resolve(locationConfigs || []),
-    ]);
-
-    const transactions = extractSquarePayments(fetchedPaymentsResponse);
+    const snapshotResponse = await base44.functions.invoke('squareGetCODData', { daysBack: rangeDays });
+    const snapshotData = snapshotResponse?.data || snapshotResponse || {};
+    const catalogRecords = snapshotData.catalogRecords || [];
+    const transactions = snapshotData.transactionRecords || [];
+    const deliveryRecords = snapshotData.deliveries || [];
+    const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigs || []);
 
     if (refreshLocations) {
       await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
@@ -285,7 +277,7 @@ export default function SquareManagement() {
         await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, nextConfigs);
       }
       setLocationConfigs(nextConfigs || []);
-      setLocationIds((nextConfigs || []).map((config) => config?.square_location_id).filter(Boolean));
+      setLocationIds((snapshotData.locationIds || []).filter(Boolean));
     }
 
     onStageChange?.({ stage: 'payments_sync', detail: 'Updating offline COD data…' });
