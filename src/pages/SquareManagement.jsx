@@ -57,6 +57,8 @@ export default function SquareManagement() {
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
   const realtimeRefreshTimeoutRef = React.useRef(null);
+  const locationConfigsRef = React.useRef([]);
+  const initialLoadKeyRef = React.useRef(null);
 
   useEffect(() => {
     const measure = () => {
@@ -253,6 +255,10 @@ export default function SquareManagement() {
     }
   }, [loadDeliveriesFromOffline]);
 
+  React.useEffect(() => {
+    locationConfigsRef.current = locationConfigs || [];
+  }, [locationConfigs]);
+
   const runFullOfflineSnapshotSync = React.useCallback(async ({ onStageChange, daysBack, refreshLocations = false } = {}) => {
     const rangeDays = Number(daysBack || selectedDaysRange || 30);
     const today = new Date();
@@ -269,7 +275,7 @@ export default function SquareManagement() {
     const catalogRecords = snapshotData.catalogRecords || [];
     const transactions = snapshotData.transactionRecords || [];
     const deliveryRecords = snapshotData.deliveries || [];
-    const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigs || []);
+    const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigsRef.current || []);
 
     if (refreshLocations) {
       await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
@@ -301,7 +307,7 @@ export default function SquareManagement() {
       deliveryCount: (deliveryRecords || []).length,
       transactionCount: (transactions || []).length,
     };
-  }, [selectedDaysRange, locationConfigs, extractSquarePayments, syncDeliveriesWindowOffline, syncSquareCODSnapshotOffline, loadReconciliationFromOffline, loadSyncStatus]);
+  }, [selectedDaysRange, syncDeliveriesWindowOffline, syncSquareCODSnapshotOffline, loadReconciliationFromOffline, loadSyncStatus]);
 
   const syncReconciliationToCatalog = async () => {
     setIsUpdatingReconciliationCatalog(true);
@@ -382,6 +388,10 @@ export default function SquareManagement() {
   };
 
   useEffect(() => {
+    const loadKey = `square-cod-${selectedDaysRange}`;
+    if (initialLoadKeyRef.current === loadKey) return;
+    initialLoadKeyRef.current = loadKey;
+
     const loadData = async () => {
       try {
         const authUser = await base44.auth.me();
@@ -726,8 +736,6 @@ export default function SquareManagement() {
   const filteredCatalogItems = React.useMemo(() => {
     if (!currentUser) return [];
     
-    console.log(`🔍 [SquareManagement] Filtering: catalogItems.length=${catalogItems.length}, soldCatalogItems.length=${soldCatalogItems.length}`);
-
     const userIsAppOwner = isAppOwner(currentUser);
 
     let items = [];
