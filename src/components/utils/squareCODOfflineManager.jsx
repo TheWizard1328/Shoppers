@@ -31,6 +31,12 @@ const normalizeCatalogEntityRecord = (record) => ({
   status: record?.status || 'active'
 });
 
+const isActualCollectedTransaction = (transaction) => {
+  if (!transaction) return false;
+  const label = `${transaction?.item_name || ''} ${transaction?.delivery_id || ''}`.toLowerCase();
+  return !(transaction?.type === 'transfer' || label.includes('transfer') || label.includes('interstore') || label.includes('inter-store'));
+};
+
 const mapCatalogEntityToUIItem = (record) => ({
   id: record.id,
   catalog_object_id: record.square_catalog_object_id || record.id,

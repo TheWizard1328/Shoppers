@@ -17,7 +17,6 @@ import SquareCodViewSwitcher from "@/components/square/SquareCodViewSwitcher";
 import SquareCodDatasetTable from "@/components/square/SquareCodDatasetTable";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
-import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import * as squareCODOfflineManager from "@/components/utils/squareCODOfflineManager";
 
 export default function SquareManagement() {
@@ -26,8 +25,6 @@ export default function SquareManagement() {
     getCatalogItemsOffline,
     getPaymentTransactionsOffline,
     getSquareCODSyncStatus,
-    handleSquareCatalogItemRealtimeEvent,
-    handleSquareTransactionRealtimeEvent,
   } = squareCODOfflineManager;
 
   const [catalogItems, setCatalogItems] = useState([]);
@@ -59,7 +56,7 @@ export default function SquareManagement() {
   const [lastCleanup, setLastCleanup] = useState(null);
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
-  const SQUARE_REFRESH_CACHE_MS = 5 * 60 * 1000;
+  const realtimeRefreshTimeoutRef = React.useRef(null);
 
   useEffect(() => {
     const measure = () => {
@@ -109,17 +106,6 @@ export default function SquareManagement() {
       delivery.delivery_date >= startDateStr &&
       delivery.delivery_date <= endDateStr
     ));
-  }, []);
-
-  const hasRecentSquareRefresh = React.useCallback(async () => {
-    const status = await getSquareCODSyncStatus();
-    const catalogSyncMs = new Date(status?.catalog?.lastSync || 0).getTime();
-    const transactionSyncMs = new Date(status?.transactions?.lastSync || 0).getTime();
-    const latestSyncMs = Math.max(
-      Number.isFinite(catalogSyncMs) ? catalogSyncMs : 0,
-      Number.isFinite(transactionSyncMs) ? transactionSyncMs : 0,
-    );
-    return latestSyncMs > 0 && Date.now() - latestSyncMs < SQUARE_REFRESH_CACHE_MS;
   }, []);
 
   const extractSquarePayments = React.useCallback((response) => {
