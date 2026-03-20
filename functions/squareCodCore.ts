@@ -818,6 +818,47 @@ async function handleFetchPayments(base44, payload) {
     }
   }
 
+  const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []);
+  const existingTransactionBySignature = new Map(
+    (existingTransactions || []).map((transaction) => {
+      const amountCents = transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100);
+      return [
+        buildLocationDateAmountSignature(transaction?.location_id, transaction?.item_name, amountCents),
+        transaction,
+      ];
+    })
+  );
+
+  const normalizedTransactions = soldCatalogItems.map((item, index) => {
+    const amountCents = Math.round(Number(item?.amount || 0) * 100);
+    const matchedTransaction = existingTransactionBySignature.get(
+      buildLocationDateAmountSignature(item?.location_id, item?.item_name, amountCents)
+    );
+
+    return {
+      id: `${item?.square_payment_id || item?.payment_id || 'payment'}-${item?.catalog_object_id || index}`,
+      square_transaction_id: item?.square_transaction_id || item?.payment_id || null,
+      square_payment_id: item?.square_payment_id || item?.payment_id || null,
+      square_catalog_object_id: matchedTransaction?.square_catalog_object_id || item?.catalog_object_id || null,
+      order_id: item?.order_id || null,
+      item_name: item?.item_name || '',
+      amount: Number(item?.amount || 0),
+      amount_cents: amountCents,
+      type: 'collection',
+      status: matchedTransaction?.status === 'refunded' ? 'refunded' : 'completed',
+      location_id: item?.location_id || matchedTransaction?.location_id || null,
+      store_id: matchedTransaction?.store_id || null,
+      driver_id: matchedTransaction?.driver_id || null,
+      dispatcher_id: matchedTransaction?.dispatcher_id || null,
+      patient_id: matchedTransaction?.patient_id || null,
+      delivery_id: matchedTransaction?.delivery_id || null,
+      payment_method: String(item?.payment_method || matchedTransaction?.payment_method || 'CARD').toLowerCase(),
+      created_date: item?.payment_date || null,
+      updated_date: item?.payment_date || null,
+      raw_square_data: item,
+    };
+  });
+
   const soldItemCounts = new Map();
   soldCatalogItems.forEach((item) => {
     if (!item.catalog_object_id) return;
