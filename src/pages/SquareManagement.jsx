@@ -57,6 +57,7 @@ export default function SquareManagement() {
   const [lastCleanup, setLastCleanup] = useState(null);
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
+  const SQUARE_REFRESH_CACHE_MS = 5 * 60 * 1000;
 
   useEffect(() => {
     const measure = () => {
@@ -106,6 +107,17 @@ export default function SquareManagement() {
       delivery.delivery_date >= startDateStr &&
       delivery.delivery_date <= endDateStr
     ));
+  }, []);
+
+  const hasRecentSquareRefresh = React.useCallback(async () => {
+    const status = await getSquareCODSyncStatus();
+    const catalogSyncMs = new Date(status?.catalog?.lastSync || 0).getTime();
+    const transactionSyncMs = new Date(status?.transactions?.lastSync || 0).getTime();
+    const latestSyncMs = Math.max(
+      Number.isFinite(catalogSyncMs) ? catalogSyncMs : 0,
+      Number.isFinite(transactionSyncMs) ? transactionSyncMs : 0,
+    );
+    return latestSyncMs > 0 && Date.now() - latestSyncMs < SQUARE_REFRESH_CACHE_MS;
   }, []);
 
   const extractSquarePayments = React.useCallback((response) => {
@@ -274,6 +286,16 @@ export default function SquareManagement() {
       };
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
+      if (await hasRecentSquareRefresh()) {
+        setBgSyncProgress({ stage: 'saving_offline', detail: 'Loading recent Square data from offline cache…' });
+        await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+        await loadSyncStatus();
+        toast.success('Loaded recent Square data from offline cache');
+        setBgSyncProgress({ stage: 'complete', detail: 'Loaded recent offline Square data' });
+        setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
+        return;
+      }
+
       const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments' });
       const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
@@ -377,6 +399,13 @@ export default function SquareManagement() {
 
         const syncedLocationIds = (configs || []).map((c) => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
+
+        if (await hasRecentSquareRefresh()) {
+          await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+          await loadSyncStatus();
+          setIsLoading(false);
+          return;
+        }
 
         const entitySnapshot = await loadReconciliationFromEntities(dateFilter);
         if (entitySnapshot.catalogRecords.length > 0 || entitySnapshot.transactionRecords.length > 0 || entitySnapshot.deliveries.length > 0) {
