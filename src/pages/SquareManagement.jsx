@@ -106,13 +106,25 @@ export default function SquareManagement() {
     ));
   }, []);
 
-  const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
-    const { onStageChange } = options;
+  const extractSquarePayments = React.useCallback((response) => {
+    const data = response?.data || response || {};
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.payments)) return data.payments;
+    if (Array.isArray(data.transactions)) return data.transactions;
+    if (Array.isArray(data.items)) return data.items;
+    if (Array.isArray(data.results)) return data.results;
+    return [];
+  }, []);
 
-    const [catalogRecords, transactions] = await Promise.all([
+  const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
+    const { onStageChange, paymentsResponse } = options;
+
+    const [catalogRecords, fetchedPaymentsResponse] = await Promise.all([
       base44.entities.SquareCatalogItems.list('-updated_date', 500),
-      base44.entities.SquareTransaction.list('-created_date', 500),
+      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareFetchPayments', {}),
     ]);
+
+    const transactions = extractSquarePayments(fetchedPaymentsResponse);
 
     onStageChange?.({ stage: 'saving_offline', detail: 'Updating local COD cache…' });
 
@@ -141,7 +153,7 @@ export default function SquareManagement() {
 
       if (data.rate_limited) {
         setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading cached COD data…' });
-        const { items } = await refreshSquareView(locationIds, { onStageChange: setBgSyncProgress });
+        const { items } = await refreshSquareView(locationIds, { onStageChange: setBgSyncProgress, paymentsResponse });
         toast.message(`Square sync is busy — using cached data (${items.length} active items)`);
         setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
         setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
@@ -151,7 +163,7 @@ export default function SquareManagement() {
       if (!data.success) throw new Error(data.error || 'Sync failed');
 
       setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading latest synced COD data…' });
-      const { items } = await refreshSquareView(locationIds, { onStageChange: setBgSyncProgress });
+      const { items } = await refreshSquareView(locationIds, { onStageChange: setBgSyncProgress, paymentsResponse });
 
       const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
       const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
@@ -285,12 +297,12 @@ export default function SquareManagement() {
 
           if (data.rate_limited) {
             setBgSyncProgress({ stage: 'payments_sync', detail: 'Refreshing cached Square data…' });
-            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress, paymentsResponse });
             await loadSyncStatus();
             setBgSyncProgress({ stage: 'complete', detail: 'Using cached Square data' });
           } else if (data.success) {
             setBgSyncProgress({ stage: 'payments_sync', detail: 'Updating catalog and transactions…' });
-            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress, paymentsResponse });
             await loadSyncStatus();
             setBgSyncProgress({ stage: 'complete', detail: 'All COD views updated' });
           } else if (data.lock_active) {
