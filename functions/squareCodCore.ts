@@ -736,7 +736,7 @@ async function handleDeleteCodItem(base44, payload) {
 
 async function handleFetchPayments(base44, payload) {
   const accessToken = ensureSquareToken();
-  const { locationIds: requestedLocationIds, daysBack = 14, maxPerLocation = 10, throttleMs = 150 } = payload || {};
+  const { locationIds: requestedLocationIds, daysBack = 30, maxPerLocation = null, throttleMs = 150 } = payload || {};
 
   let locationIds = Array.isArray(requestedLocationIds) ? requestedLocationIds.filter(Boolean) : [];
   if (locationIds.length === 0) {
@@ -755,29 +755,39 @@ async function handleFetchPayments(base44, payload) {
   const soldCatalogItems = [];
 
   for (const locationId of locationIds) {
-    const queryParams = new URLSearchParams({
-      location_id: locationId,
-      begin_time: startDate.toISOString(),
-      end_time: endDate.toISOString(),
-      sort_order: 'DESC',
-      limit: '100',
-    });
+    let cursor = null;
+    let processedForLocation = 0;
+    const locationCap = Number.isFinite(Number(maxPerLocation)) && Number(maxPerLocation) > 0 ? Number(maxPerLocation) : null;
 
-    const paymentsResponse = await fetch(`${SQUARE_BASE_URL}/v2/payments?${queryParams.toString()}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Square-Version': SQUARE_VERSION,
-      },
-    });
+    do {
+      const queryParams = new URLSearchParams({
+        location_id: locationId,
+        begin_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+        sort_order: 'DESC',
+        limit: '100',
+      });
+      if (cursor) {
+        queryParams.set('cursor', cursor);
+      }
 
-    if (!paymentsResponse.ok) continue;
-    const paymentsData = await paymentsResponse.json().catch(() => ({}));
+      const paymentsResponse = await fetch(`${SQUARE_BASE_URL}/v2/payments?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Square-Version': SQUARE_VERSION,
+        },
+      });
 
-    if (paymentsData.payments) {
-      const paymentsToProcess = paymentsData.payments.slice(0, Math.max(1, Math.min(maxPerLocation, 100)));
-      for (const payment of paymentsToProcess) {
+      if (!paymentsResponse.ok) break;
+      const paymentsData = await paymentsResponse.json().catch(() => ({}));
+      const payments = Array.isArray(paymentsData.payments) ? paymentsData.payments : [];
+
+      for (const payment of payments) {
+        if (locationCap && processedForLocation >= locationCap) break;
         if (payment.status !== 'COMPLETED') continue;
+
+        processedForLocation += 1;
         allPayments.push(payment);
 
         if (payment.order_id) {
@@ -815,7 +825,13 @@ async function handleFetchPayments(base44, payload) {
           } catch (_) {}
         }
       }
-    }
+
+      if (locationCap && processedForLocation >= locationCap) {
+        break;
+      }
+
+      cursor = paymentsData.cursor || null;
+    } while (cursor);
   }
 
   const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []);
