@@ -760,8 +760,14 @@ export default function SquareManagement() {
         if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
         const storeMatch = transaction.store_id ? visibleStoreIds.has(transaction.store_id) : visibleLocationIds.has(transaction.location_id);
         if (!storeMatch) return false;
-        if (selectedDriverUserIds.size === 0) return false;
-        return selectedDriverUserIds.has(transaction.driver_id);
+        if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+          if (selectedDriverUserIds.size === 0) return false;
+          return selectedDriverUserIds.has(transaction.driver_id);
+        }
+        if (driverScopedLocationIds && driverScopedLocationIds.size > 0) {
+          return driverScopedLocationIds.has(transaction.location_id) || selectedDriverUserIds.has(transaction.driver_id);
+        }
+        return true;
       })
       .sort((a, b) => new Date(b.created_date || b.updated_date || 0).getTime() - new Date(a.created_date || a.updated_date || 0).getTime())
       .map((transaction) => {
@@ -799,7 +805,7 @@ export default function SquareManagement() {
           )
         };
       });
-  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverUserIds, locationConfigs, stores, deliveries, drivers]);
+  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds, locationConfigs, stores, deliveries, drivers]);
 
   const filteredCatalogRows = React.useMemo(() => {
     return (catalogItems || [])
@@ -906,10 +912,15 @@ export default function SquareManagement() {
       if (!transaction || isTransferTransaction(transaction)) return false;
       const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
       if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
-      if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(transaction.driver_id)) return false;
-      return transaction.type === 'collection' && ['completed', 'refunded'].includes(transaction.status);
+      if (transaction.type !== 'collection' || !['completed', 'refunded'].includes(transaction.status)) return false;
+      if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+        if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(transaction.driver_id)) return false;
+      } else if (driverScopedLocationIds && driverScopedLocationIds.size > 0) {
+        if (!driverScopedLocationIds.has(transaction.location_id) && !selectedDriverUserIds.has(transaction.driver_id)) return false;
+      }
+      return true;
     }).length;
-  }, [allTransactions, lookbackStart, selectedDriverUserIds]);
+  }, [allTransactions, lookbackStart, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds]);
 
   const filteredSalesCount = React.useMemo(() => {
     return soldCatalogItems.filter(transaction => {
