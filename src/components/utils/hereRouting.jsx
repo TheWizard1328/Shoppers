@@ -7,7 +7,6 @@ const backoffCache = new Map();
 const backoffNoticeCache = new Map();
 const polylineDateSyncInflight = new Map();
 const polylineDateSyncCache = new Map();
-const USE_ENTITY_LOOKUP = true;
 const USE_CROSS_DEVICE_LOCK = false;
 
 function clearLegacyHereLocalStorageCache() {
@@ -127,6 +126,18 @@ function findLatestExactOfflineSegment(rows, fromStop, toStop) {
   return (rows || [])
     .filter((row) => row?.encoded_polyline && `${round5(row.segment_origin_lat)}_${round5(row.segment_origin_lon)}_${round5(row.segment_dest_lat)}_${round5(row.segment_dest_lon)}` === targetKey)
     .sort((a, b) => new Date(b.last_generated_at || b.updated_date || 0).getTime() - new Date(a.last_generated_at || a.updated_date || 0).getTime())[0] || null;
+}
+
+async function getOfflineSegmentPolyline(fromStop, toStop, deliveryDate = null) {
+  const rows = deliveryDate
+    ? await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate)
+    : await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+
+  const record = findLatestExactOfflineSegment(rows, fromStop, toStop);
+  if (!record?.encoded_polyline) return null;
+
+  const coords = decodeGooglePolyline(record.encoded_polyline);
+  return Array.isArray(coords) && coords.length > 1 ? coords : null;
 }
 
 // Clear route cache for a specific segment
@@ -471,71 +482,16 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
   // in-flight dedupe handled earlier above (no-op here)
 
-  // Try offline DB cache before hitting network/entity
+  // Try offline DB cache first; only use HERE for missing segments.
   try {
-    const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
-    const rec = findLatestExactOfflineSegment(rows, fromStop, toStop);
-    if (rec?.encoded_polyline) {
-      const coords = decodeGooglePolyline(rec.encoded_polyline);
-      if (Array.isArray(coords) && coords.length > 1) {
-        memoryCache.set(cacheKey, coords);
-        fetchingKeys.delete(cacheKey);
-        return coords;
-      }
+    const coords = await getOfflineSegmentPolyline(fromStop, toStop, deliveryDate);
+    if (coords) {
+      memoryCache.set(cacheKey, coords);
+      fetchingKeys.delete(cacheKey);
+      return coords;
     }
   } catch (e) {
     console.warn('[HERE][client] Offline polyline lookup failed', e);
-  }
-
-  // Hydrate offline cache from online entity before external API calls
-  if (driverId && deliveryDate) {
-    try {
-      await syncDriverRoutePolylinesForDate(driverId, deliveryDate);
-      const dateRows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
-      const syncedRecord = findLatestExactOfflineSegment(dateRows, fromStop, toStop);
-      if (syncedRecord?.encoded_polyline) {
-        const coords = decodeGooglePolyline(syncedRecord.encoded_polyline);
-        if (Array.isArray(coords) && coords.length > 1) {
-          memoryCache.set(cacheKey, coords);
-          fetchingKeys.delete(cacheKey);
-          return coords;
-        }
-      }
-    } catch (error) {
-      console.warn('[HERE][client] Online-to-offline polyline hydration failed', { cacheKey, error: error?.message || error });
-    }
-  }
-
-  // Check entity cache (DriverRoutePolyline) before hitting external APIs
-  if (USE_ENTITY_LOOKUP) {
-  try {
-    const rounded = (n) => Number(n.toFixed(5));
-    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
-const parts = formatter.formatToParts(new Date());
-const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
-const deliveryDateSafe = deliveryDate || todayStr;
-    const recs = await base44.entities.DriverRoutePolyline.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDateSafe,
-      segment_origin_lat: rounded(fromStop.latitude),
-      segment_origin_lon: rounded(fromStop.longitude),
-      segment_dest_lat: rounded(toStop.latitude),
-      segment_dest_lon: rounded(toStop.longitude)
-    }, '-updated_date', 1);
-    const rec = Array.isArray(recs) ? recs[0] : null;
-    console.debug('[HERE][client] Entity cache lookup', { found: !!rec, hasPolyline: !!rec?.encoded_polyline });
-    if (rec?.encoded_polyline) {
-      const coords = decodeGooglePolyline(rec.encoded_polyline);
-      if (Array.isArray(coords) && coords.length > 1) {
-        memoryCache.set(cacheKey, coords);
-        try { await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]); } catch (_) {}
-        fetchingKeys.delete(cacheKey);
-        return coords;
-      }
-    }
-  } catch (e) {
-    console.warn('Entity polyline lookup failed', e);
-  }
   }
 
   // If we previously stored a hard error flag for this key, short-circuit for a bit to avoid hammering APIs
