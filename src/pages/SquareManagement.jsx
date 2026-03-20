@@ -411,14 +411,7 @@ export default function SquareManagement() {
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsData);
         }
 
-        let configs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS) || [];
-        if (configs.length === 0) {
-          configs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
-          await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
-          if (configs.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, configs);
-          }
-        }
+        const configs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS) || [];
 
         const matchedAppUser = appUsersData.find((appUser) => appUser?.user_id === authUser?.id) || null;
         setCurrentUser(authUser);
