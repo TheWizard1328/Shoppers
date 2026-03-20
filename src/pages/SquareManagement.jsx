@@ -940,7 +940,6 @@ export default function SquareManagement() {
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
         if (transaction.type !== 'collection') return false;
-        if (!['completed', 'refunded'].includes(transaction.status)) return false;
         const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
         if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
         const storeMatch = transaction.store_id ? visibleStoreIds.has(transaction.store_id) : visibleLocationIds.has(transaction.location_id);
