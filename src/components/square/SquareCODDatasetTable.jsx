@@ -106,8 +106,8 @@ export default function SquareCODDatasetTable({
                         ) : null}
                         {row.driverBadges?.length ? (
                           <div className="flex gap-1 mt-1.5 flex-wrap">
-                            {row.driverBadges.map((badge) => (
-                              <Badge key={`${row.id}-${badge.label}`} className={`${badge.className} text-xs border`}>
+                            {row.driverBadges.map((badge, index) => (
+                              <Badge key={`${row.id}-${badge.label}-${index}`} className={`${badge.className} text-xs border`}>
                                 {badge.label}
                               </Badge>
                             ))}
@@ -115,8 +115,8 @@ export default function SquareCODDatasetTable({
                         ) : null}
                         {row.badges?.length ? (
                           <div className="flex gap-1 mt-1.5 flex-wrap">
-                            {row.badges.map((badge) => (
-                              <Badge key={`${row.id}-${badge.label}`} className={`${badge.className} text-xs`}>
+                            {row.badges.map((badge, index) => (
+                              <Badge key={`${row.id}-${badge.label}-${index}`} className={`${badge.className} text-xs`}>
                                 {badge.label}
                               </Badge>
                             ))}
