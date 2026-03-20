@@ -1447,14 +1447,13 @@ function Dashboard() {
             phaseBeforeBreakRef.current = null;
           } else if (event.type === 'DONE_BUTTON_CLICKED' || event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {
             if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE' && (mapViewPhase !== 2 || isMapViewLocked)) return;
-            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
-            mapLockExpiresAtRef.current = null;
+            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;
             if (event.type === 'DONE_BUTTON_CLICKED') setMapViewPhase(1);
-            setIsMapViewLocked(event.type !== 'DONE_BUTTON_CLICKED');
-            lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);
-          } else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2 && isMapViewLocked) {
+            setIsMapViewLocked(event.type !== 'DONE_BUTTON_CLICKED');lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);
+          } else if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {
             if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;setIsMapViewLocked(false);
-            setTimeout(() => {const x = Date.now() + 500;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 500);}, 50);
+          } else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {
+            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;setTimeout(() => {const x = Date.now() + 500;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 500);}, 50);
           }
         });
 

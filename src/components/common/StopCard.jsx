@@ -1328,7 +1328,7 @@ export default function StopCard({
                 setPendingFailureStatus(null);
                 setIsFailing(true);
 
-                fabControlEvents.deactivateFAB();
+                fabControlEvents.deactivateFAB();fabControlEvents.notifyPhaseTwoTempUnlock();
                 smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
                 await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -1447,7 +1447,7 @@ export default function StopCard({
                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                 }
 
-                // Notify dispatchers
+                fabControlEvents.notifyPhaseTwoCompleteRecenter(); // Notify dispatchers
                 if (userHasRole(currentUser, 'driver')) {
                   await notifyDriverFailed({
                     driver: currentUser,
@@ -1666,7 +1666,7 @@ export default function StopCard({
                           e.stopPropagation();
                           if (isCompleting || isProcessingBackground || isFailing) return;
 
-                          fabControlEvents.deactivateFAB();
+                          fabControlEvents.deactivateFAB();fabControlEvents.notifyPhaseTwoTempUnlock();
                           setIsCompleting(true);
                           setIsProcessingBackground(true);
                           const { driverLocationPoller } = await import('../utils/driverLocationPoller');
