@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
-export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75 }) {
+export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75 }) {
   const [isFlashing, setIsFlashing] = useState(false);
 
   const flashUpdate = () => {
@@ -37,6 +37,9 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
 
   // Get tooltip text based on phase and lock state
   const getTooltip = () => {
+    if (!isEnabled) {
+      return 'Requires more than 1 active stop';
+    }
     if (isLocked) {
       return 'Map View Active (click to cycle)';
     }
@@ -67,8 +70,9 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
         <Button
           onClick={onClick}
           title={getTooltip()}
+          disabled={!isEnabled}
           className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
-            isLocked
+            isEnabled
               ? currentPhase === 2
                 ? 'bg-green-600 hover:bg-green-700'
                 : currentPhase === 3
