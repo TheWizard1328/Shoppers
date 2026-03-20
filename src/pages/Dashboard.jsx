@@ -1451,11 +1451,11 @@ function Dashboard() {
             mapLockExpiresAtRef.current = null;
             if (event.type === 'DONE_BUTTON_CLICKED') setMapViewPhase(1);
             setIsMapViewLocked(event.type !== 'DONE_BUTTON_CLICKED');
-            lastProgrammaticMapMoveRef.current = Date.now();
-            window._lastProgrammaticMapMove = Date.now();
-            setMapViewTrigger((prev) => prev + 1);
+            lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);
+          } else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2 && isMapViewLocked) {
+            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;setIsMapViewLocked(false);
+            setTimeout(() => {const x = Date.now() + 500;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 500);}, 50);
           }
-          // REMOVED: DRIVER_LOCATION_CHANGE handler - Phase 1 should NOT react to GPS updates
         });
 
       return unsubscribe;
