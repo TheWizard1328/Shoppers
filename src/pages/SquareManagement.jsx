@@ -347,14 +347,12 @@ export default function SquareManagement() {
         }))
         .filter((item) => item?.catalogObjectId);
 
-      const response = await base44.functions.invoke('squareCodCore', {
+      await base44.functions.invoke('squareCodCore', {
         action: 'syncSquareCods',
         items,
         deletions,
       });
-      const result = response?.data || response || {};
       await syncFromSquare();
-      await hydrateSquareViewFromEntities();
       setActiveView('catalog');
       toast.success(`Square catalog replaced with ${items.length} reconciliation items and deleted ${deletions.length} others`);
     } finally {
