@@ -923,29 +923,18 @@ export default function SquareManagement() {
 
       if (matchedTransaction) {
         usedTransactionIds.add(matchedTransaction.id);
-        comparedRows.push({
-          ...deliveryRow,
-          subtext: `Delivery matched to transaction: ${matchedTransaction.itemName}`,
-          actions: (
-            <div className="flex flex-wrap gap-1 justify-end">
-              <Badge className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-                Matched
-              </Badge>
-              {matchedTransaction.actions}
-            </div>
-          )
-        });
-      } else {
-        comparedRows.push({
-          ...deliveryRow,
-          subtext: 'Delivery has no matching Square transaction',
-          actions: (
-            <Badge className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">
-              Missing Square Tx
-            </Badge>
-          )
-        });
+        return;
       }
+
+      comparedRows.push({
+        ...deliveryRow,
+        subtext: 'Delivery has no matching Square transaction',
+        actions: (
+          <Badge className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">
+            Missing Square Tx
+          </Badge>
+        )
+      });
     });
 
     filteredTransactionRows.forEach((transactionRow) => {
