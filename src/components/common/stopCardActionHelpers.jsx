@@ -241,6 +241,50 @@ export function centerDeliveryCard(deliveryId) {
   setTimeout(scrollToCard, 0);
 }
 
+export async function setAndCenterNextDelivery({
+  driverDeliveries = [],
+  targetDeliveryId = null,
+  updateDeliveryLocal,
+  updateDeliveriesLocally,
+  driverId,
+  deliveryDate
+}) {
+  const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
+
+  if (scopedDeliveries.length > 0) {
+    const deliveriesToClear = scopedDeliveries.filter((item) => item.isNextDelivery && item.id !== targetDeliveryId);
+    await Promise.all(
+      deliveriesToClear.map((item) =>
+        updateDeliveryLocal(item.id, { isNextDelivery: false }, { skipSmartRefresh: true })
+      )
+    );
+  }
+
+  if (targetDeliveryId) {
+    await updateDeliveryLocal(targetDeliveryId, { isNextDelivery: true }, { skipSmartRefresh: true });
+  }
+
+  await syncNextDeliveryFlagsLocally({
+    driverDeliveries: scopedDeliveries,
+    nextDeliveryId: targetDeliveryId,
+    updateDeliveriesLocally
+  });
+
+  if (driverId && deliveryDate) {
+    await base44.functions.invoke('setNextDeliveryFlag', {
+      driverId,
+      deliveryDate,
+      targetDeliveryId
+    });
+  }
+
+  if (targetDeliveryId) {
+    centerDeliveryCard(targetDeliveryId);
+  }
+
+  return targetDeliveryId;
+}
+
 export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], nextDeliveryId = null, updateDeliveriesLocally }) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
   if (scopedDeliveries.length === 0) return;
