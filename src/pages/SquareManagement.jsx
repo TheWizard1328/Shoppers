@@ -924,7 +924,7 @@ export default function SquareManagement() {
           <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Active COD Items</div>
+            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{selectedView === 'deliveries' ? 'COD Deliveries' : selectedView === 'transactions' ? 'Transactions' : 'Catalog Items'}</div>
             <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">{stats.total}</div>
           </CardContent>
           </Card>
@@ -936,7 +936,7 @@ export default function SquareManagement() {
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Square Locations</div>
+            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{selectedView === 'deliveries' ? 'Stores' : 'Square Locations'}</div>
             <div className="text-xl md:text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.locations}</div>
           </CardContent>
           </Card>
@@ -1309,9 +1309,9 @@ export default function SquareManagement() {
           )}
           
           {/* Mobile Card View */}
-          {!isLoading && filteredCatalogItems.length > 0 && (
+          {selectedView === 'catalog' && !isLoading && catalogViewItems.length > 0 && (
             <div className="md:hidden space-y-3">
-              {filteredCatalogItems.map((item, index) => {
+              {catalogViewItems.map((item, index) => {
                 const itemDrivers = getDriversForLocation(item.location_id)
                   .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
                 const userIsAppOwner = currentUser && isAppOwner(currentUser);
