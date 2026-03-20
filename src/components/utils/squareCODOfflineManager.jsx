@@ -18,10 +18,6 @@ const isRecentSquareTransaction = (transaction) => {
   return Number.isFinite(timestamp) && timestamp >= getLookbackStartMs();
 };
 
-const isActualCollectedTransaction = (transaction) => {
-  return Boolean(transaction?.square_payment_id) && transaction?.type === 'collection' && ['completed', 'refunded'].includes(transaction?.status);
-};
-
 const isRecentCatalogItem = (record) => {
   const sourceDate = record?.delivery_date ? `${record.delivery_date}T00:00:00` : (record?.created_date || record?.updated_date || 0);
   const timestamp = new Date(sourceDate).getTime();
@@ -92,7 +88,7 @@ const pruneStoredCatalogItems = async () => {
 
 const pruneStoredSquareTransactions = async () => {
   const transactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
-  const recentTransactions = (transactions || []).filter(isRecentSquareTransaction).filter(isActualCollectedTransaction);
+  const recentTransactions = (transactions || []).filter(isRecentSquareTransaction);
 
   if (recentTransactions.length !== (transactions || []).length) {
     await offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
@@ -214,7 +210,7 @@ export const handleSquareTransactionRealtimeEvent = async (event) => {
   if (event.type === 'delete') {
     await offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, event.id);
   } else if (event.data?.id) {
-    if (isRecentSquareTransaction(event.data) && isActualCollectedTransaction(event.data)) {
+    if (isRecentSquareTransaction(event.data)) {
       await offlineDB.save(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, event.data);
     } else {
       await offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, event.data.id);
