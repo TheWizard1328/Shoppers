@@ -44,6 +44,7 @@ export default function SquareManagement() {
   const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
   const [selectedDaysRange, setSelectedDaysRange] = useState('7');
+  const [isUpdatingReconciliationCatalog, setIsUpdatingReconciliationCatalog] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedCODItem, setSelectedCODItem] = useState(null);
@@ -213,6 +214,18 @@ export default function SquareManagement() {
     setDeliveries(updatedDeliveries || []);
     return updatedDeliveries || [];
   }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
+
+  const syncReconciliationToCatalog = async () => {
+    setIsUpdatingReconciliationCatalog(true);
+    try {
+      const response = await base44.functions.invoke('squareSyncCatalogItems', {});
+      const result = response?.data || response || {};
+      await syncFromSquare();
+      toast.success(`Square catalog updated: ${result.created_catalog_items || 0} created, ${result.updated_pending_transactions || 0} updated`);
+    } finally {
+      setIsUpdatingReconciliationCatalog(false);
+    }
+  };
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -1188,6 +1201,17 @@ export default function SquareManagement() {
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3">
+          {activeView === 'reconciliation' && (
+            <Button
+              onClick={syncReconciliationToCatalog}
+              disabled={isLoading || isSyncing || isUpdatingReconciliationCatalog || reconciliationRows.length === 0}
+              className="gap-2 text-sm"
+            >
+              <CloudDownload className={`w-4 h-4 flex-shrink-0 ${(isSyncing || isUpdatingReconciliationCatalog) ? 'animate-pulse' : ''}`} />
+              <span className="hidden sm:inline">{isUpdatingReconciliationCatalog ? 'Updating Catalog...' : 'Update Catalog'}</span>
+              <span className="sm:hidden">{isUpdatingReconciliationCatalog ? 'Updating...' : 'Update'}</span>
+            </Button>
+          )}
           <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
             <SelectTrigger className="w-[120px] text-sm">
               <SelectValue placeholder="Days" />
