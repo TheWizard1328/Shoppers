@@ -393,9 +393,17 @@ export default function SquareManagement() {
   useEffect(() => {
     let isActive = true;
 
-    const syncRealtimeEvent = async (handler, event) => {
+    const syncRealtimeEvent = async (type, handler, event) => {
       try {
+        if (type === 'catalog') {
+          applyCatalogRealtimeToUI(event);
+        }
+        if (type === 'transaction') {
+          applyTransactionRealtimeToUI(event);
+        }
+
         await handler(event);
+
         if (isActive) {
           await loadSquareViewFromOffline();
         }
@@ -405,11 +413,11 @@ export default function SquareManagement() {
     };
 
     const unsubscribeCatalogItems = base44.entities.SquareCatalogItems.subscribe((event) => {
-      syncRealtimeEvent(handleSquareCatalogItemRealtimeEvent, event);
+      syncRealtimeEvent('catalog', handleSquareCatalogItemRealtimeEvent, event);
     });
 
     const unsubscribeTransactions = base44.entities.SquareTransaction.subscribe((event) => {
-      syncRealtimeEvent(handleSquareTransactionRealtimeEvent, event);
+      syncRealtimeEvent('transaction', handleSquareTransactionRealtimeEvent, event);
     });
 
     return () => {
@@ -417,7 +425,7 @@ export default function SquareManagement() {
       unsubscribeCatalogItems?.();
       unsubscribeTransactions?.();
     };
-  }, [loadSquareViewFromOffline]);
+  }, [applyCatalogRealtimeToUI, applyTransactionRealtimeToUI, loadSquareViewFromOffline]);
 
 
 
@@ -993,6 +1001,50 @@ export default function SquareManagement() {
 
     return comparedRows.sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
   }, [filteredDeliveryRows, filteredTransactionRows]);
+
+  const applyCatalogRealtimeToUI = React.useCallback((event) => {
+    if (!event) return;
+
+    setCatalogItems((prev) => {
+      if (event.type === 'delete') {
+        return prev.filter((item) => item?.id !== event.id && item?.catalog_object_id !== event.id);
+      }
+
+      const nextItem = mapCatalogRecordToUIItem(event.data || {});
+      const existingIndex = prev.findIndex((item) => item?.id === nextItem.id || item?.catalog_object_id === nextItem.catalog_object_id);
+      if (existingIndex === -1) {
+        return [nextItem, ...prev];
+      }
+
+      const next = [...prev];
+      next[existingIndex] = { ...next[existingIndex], ...nextItem };
+      return next;
+    });
+  }, [mapCatalogRecordToUIItem]);
+
+  const applyTransactionRealtimeToUI = React.useCallback((event) => {
+    if (!event) return;
+
+    setAllTransactions((prev) => {
+      let nextTransactions = prev;
+
+      if (event.type === 'delete') {
+        nextTransactions = prev.filter((item) => item?.id !== event.id);
+      } else {
+        const nextTransaction = event.data || {};
+        const existingIndex = prev.findIndex((item) => item?.id === nextTransaction.id);
+        if (existingIndex === -1) {
+          nextTransactions = [nextTransaction, ...prev];
+        } else {
+          nextTransactions = [...prev];
+          nextTransactions[existingIndex] = { ...nextTransactions[existingIndex], ...nextTransaction };
+        }
+      }
+
+      setSoldCatalogItems(nextTransactions.filter((tx) => ['completed', 'refunded'].includes(tx.status)));
+      return nextTransactions;
+    });
+  }, []);
 
   const codDeliveriesCount = React.useMemo(() => {
     return deliveries.filter(delivery => {
