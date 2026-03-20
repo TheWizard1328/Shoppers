@@ -1178,19 +1178,6 @@ export default function SquareManagement() {
       
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-row flex-wrap items-center gap-2 md:gap-3">
-          <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
-            <SelectTrigger className="w-[120px] text-sm">
-              <SelectValue placeholder="Days" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7 Days</SelectItem>
-              <SelectItem value="14">14 Days</SelectItem>
-              <SelectItem value="30">30 Days</SelectItem>
-              <SelectItem value="60">60 Days</SelectItem>
-              <SelectItem value="90">90 Days</SelectItem>
-            </SelectContent>
-          </Select>
-
           {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
               <SelectTrigger className="w-[150px] md:w-[200px] text-sm">
@@ -1206,14 +1193,27 @@ export default function SquareManagement() {
               </SelectContent>
             </Select>
           )}
-        </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3">
           <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm">
             <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
             <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
             <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
           </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3">
+          <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
+            <SelectTrigger className="w-[120px] text-sm">
+              <SelectValue placeholder="Days" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">7 Days</SelectItem>
+              <SelectItem value="14">14 Days</SelectItem>
+              <SelectItem value="30">30 Days</SelectItem>
+              <SelectItem value="60">60 Days</SelectItem>
+              <SelectItem value="90">90 Days</SelectItem>
+            </SelectContent>
+          </Select>
           <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
         </div>
       </div>
