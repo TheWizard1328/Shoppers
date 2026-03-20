@@ -25,6 +25,8 @@ import LargeBarcodePreview from './LargeBarcodePreview';
 import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
+import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
+import { optimizeRemainingStops } from '@/functions/optimizeRemainingStops';
 import { toast } from 'sonner';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 
@@ -646,6 +648,38 @@ export default function DeliveryFormView({
                     await runLockedAction('update_delivery', async () => {
                       await handleSubmit(e);
                       setFormData(prev => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
+
+                      if (formData?.driver_id && formData?.delivery_date) {
+                        const now = new Date();
+                        const hh = String(now.getHours()).padStart(2, '0');
+                        const mm = String(now.getMinutes()).padStart(2, '0');
+                        const currentLocalTime = `${hh}:${mm}`;
+
+                        if (hasTimeWindowChanges) {
+                          await optimizeRemainingStops({
+                            driverId: formData.driver_id,
+                            deliveryDate: formData.delivery_date,
+                            currentLocalTime,
+                            deviceTime: currentLocalTime
+                          });
+                        } else {
+                          await calculateRealTimeETA({
+                            driverId: formData.driver_id,
+                            deliveryDate: formData.delivery_date,
+                            currentLocalTime,
+                            deviceTime: currentLocalTime
+                          });
+                        }
+
+                        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                          detail: {
+                            triggeredBy: hasTimeWindowChanges ? 'routeOptimizationAfterUpdate' : 'etaUpdateAfterDeliveryUpdate',
+                            driverId: formData.driver_id,
+                            deliveryDate: formData.delivery_date
+                          }
+                        }));
+                      }
+
                       window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
                       window.dispatchEvent(new CustomEvent('deliveriesUpdated'));
                       if (closeOnSave) onCancel();
