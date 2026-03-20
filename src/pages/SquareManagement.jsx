@@ -116,6 +116,14 @@ export default function SquareManagement() {
     return { ...snapshot, data: { locationIds: fallbackLocationIds } };
   };
 
+  const loadRecentDeliveriesFromOffline = React.useCallback(async (startDate, endDate) => {
+    const { offlineDB } = await import('@/components/utils/offlineDatabase');
+    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
+    return allDeliveries.filter((delivery) =>
+      delivery && delivery.delivery_date >= startDate && delivery.delivery_date <= endDate
+    );
+  }, []);
+
   const syncFromSquare = async () => {
     setIsSyncing(true);
     setError(null);
@@ -179,12 +187,14 @@ export default function SquareManagement() {
         setCurrentUser(user);
 
         const today = new Date();
-        const fourteenDaysAgo = new Date(today);
-        fourteenDaysAgo.setDate(today.getDate() - 14);
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        const startDateStr = format(thirtyDaysAgo, 'yyyy-MM-dd');
+        const endDateStr = format(today, 'yyyy-MM-dd');
         const dateFilter = {
-          delivery_date: { 
-            $gte: format(fourteenDaysAgo, 'yyyy-MM-dd'),
-            $lte: format(today, 'yyyy-MM-dd')
+          delivery_date: {
+            $gte: startDateStr,
+            $lte: endDateStr
           }
         };
 
@@ -225,11 +235,9 @@ export default function SquareManagement() {
         let deliveriesData = [];
         try {
           const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
-          const fourteenDaysAgoStr = format(fourteenDaysAgo, 'yyyy-MM-dd');
-          const todayStr = format(today, 'yyyy-MM-dd');
-          
-          deliveriesData = allDeliveries.filter(d => 
-            d && d.delivery_date >= fourteenDaysAgoStr && d.delivery_date <= todayStr
+
+          deliveriesData = allDeliveries.filter(d =>
+            d && d.delivery_date >= startDateStr && d.delivery_date <= endDateStr
           );
           
           if (deliveriesData.length === 0) {
@@ -244,7 +252,12 @@ export default function SquareManagement() {
           deliveriesData = await base44.entities.Delivery.filter(dateFilter);
         }
 
-        const configs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
+        let configs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS) || [];
+        configs = configs.filter(config => config?.status === 'active');
+        if (configs.length === 0) {
+          configs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, configs || []);
+        }
 
         setLocationConfigs(configs || []);
         setStores(storesData || []);
