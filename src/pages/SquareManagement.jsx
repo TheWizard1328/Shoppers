@@ -1028,8 +1028,8 @@ export default function SquareManagement() {
                 return (storeA?.sort_order ?? Infinity) - (storeB?.sort_order ?? Infinity);
               })
               .map(config => {
-                const locationItems = filteredCatalogItems.filter(item => item.location_id === config.square_location_id);
-                const codTotal = locationItems.reduce((sum, item) => sum + (item.price_dollars || 0), 0);
+                const locationItems = filteredCatalogRows.filter(item => item.locationId === config.square_location_id);
+                const codTotal = locationItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
                 const store = stores.find(s => s.square_location_config_id === config.id);
                 const storeColor = store ? getStoreColor(store.id) : null;
                 return (
