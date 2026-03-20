@@ -77,3 +77,43 @@ export const closeDeliveryFormAfterSave = ({ handleClearForm, onCancel }) => {
   handleClearForm();
   onCancel();
 };
+
+export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges }) => {
+  if (!driverId || !deliveryDate) return;
+
+  setTimeout(async () => {
+    const now = new Date();
+    const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    try {
+      if (hasTimeWindowChanges) {
+        const { optimizeRemainingStops } = await import('@/functions/optimizeRemainingStops');
+        await optimizeRemainingStops({
+          driverId,
+          deliveryDate,
+          currentLocalTime,
+          deviceTime: currentLocalTime
+        });
+      } else {
+        const { calculateRealTimeETA } = await import('@/functions/calculateRealTimeETA');
+        await calculateRealTimeETA({
+          driverId,
+          deliveryDate,
+          currentLocalTime,
+          deviceTime: currentLocalTime
+        });
+      }
+
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          triggeredBy: hasTimeWindowChanges ? 'routeOptimizationAfterUpdate' : 'etaUpdateAfterDeliveryUpdate',
+          driverId,
+          deliveryDate
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    } catch (error) {
+      console.warn(`⚠️ [DeliveryForm] Background ${hasTimeWindowChanges ? 'route optimization' : 'ETA refresh'} failed:`, error?.message || error);
+    }
+  }, 0);
+};
