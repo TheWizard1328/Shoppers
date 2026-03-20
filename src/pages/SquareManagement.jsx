@@ -1055,7 +1055,7 @@ export default function SquareManagement() {
     }, new Map());
 
     const usedTransactionIds = new Set();
-    const comparedRows = [];
+    const missingDeliveryRows = [];
 
     filteredDeliveryRows.forEach((deliveryRow) => {
       const key = buildSignature(deliveryRow);
@@ -1067,7 +1067,7 @@ export default function SquareManagement() {
         return;
       }
 
-      comparedRows.push({
+      missingDeliveryRows.push({
         ...deliveryRow,
         subtext: 'Delivery has no matching Square transaction',
         actions: (
@@ -1078,21 +1078,7 @@ export default function SquareManagement() {
       });
     });
 
-    reconciliationTransactions.forEach((transactionRow) => {
-      if (usedTransactionIds.has(transactionRow.id)) return;
-
-      comparedRows.push({
-        ...transactionRow,
-        subtext: 'Square transaction has no matching delivery',
-        actions: (
-          <Badge className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100">
-            Extra Square Tx
-          </Badge>
-        )
-      });
-    });
-
-    return comparedRows.sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
+    return missingDeliveryRows.sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
   }, [filteredDeliveryRows, filteredTransactionRows]);
 
   const applyCatalogRealtimeToUI = React.useCallback((event) => {
