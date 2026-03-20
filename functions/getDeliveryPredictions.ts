@@ -1,6 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-
-const REQUEST_LIMIT = 1000;
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
 
 Deno.serve(async (req) => {
   try {
@@ -36,21 +34,18 @@ Deno.serve(async (req) => {
       return Response.json({ predictions: [], count: 0, selectedDate, dayOfWeek: selectedDayName });
     }
 
-    const [allPatientsRaw, allDeliveriesRaw] = await Promise.all([
-      base44.entities.Patient.list('full_name', REQUEST_LIMIT * 4),
-      base44.entities.Delivery.list('-created_date', REQUEST_LIMIT * 4)
+    const [patientsRaw, existingDeliveriesRaw] = await Promise.all([
+      base44.entities.Patient.filter({
+        status: 'active',
+        store_id: { $in: targetStoreIds }
+      }, 'full_name', 5000),
+      base44.entities.Delivery.filter({
+        delivery_date: selectedDate,
+        store_id: { $in: targetStoreIds }
+      }, '-created_date', 5000)
     ]);
 
-    const allPatients = Array.isArray(allPatientsRaw) ? allPatientsRaw : [];
-    const existingDeliveries = (Array.isArray(allDeliveriesRaw) ? allDeliveriesRaw : []).filter((delivery) => {
-      if (!delivery) return false;
-      return delivery.delivery_date === selectedDate && targetStoreIds.includes(delivery.store_id);
-    });
-
-    const patients = allPatients.filter((patient) => {
-      if (!patient) return false;
-      if (patient.status !== 'active') return false;
-      if (!targetStoreIds.includes(patient.store_id)) return false;
+    const patients = (Array.isArray(patientsRaw) ? patientsRaw : []).filter((patient) => {
       if (!patient) return false;
       return patient.recurring ||
         patient.recurring_daily ||
@@ -58,6 +53,8 @@ Deno.serve(async (req) => {
         patient.recurring_weekly_thu || patient.recurring_weekly_fri || patient.recurring_weekly_sat || patient.recurring_weekly_sun ||
         patient.recurring_biweekly || patient.recurring_weekly_x4 || patient.recurring_monthly || patient.recurring_bimonthly;
     });
+
+    const existingDeliveries = Array.isArray(existingDeliveriesRaw) ? existingDeliveriesRaw.filter(Boolean) : [];
 
     const patientsWithDeliveries = new Set();
     existingDeliveries.forEach((delivery) => {
