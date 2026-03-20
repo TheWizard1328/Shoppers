@@ -897,21 +897,74 @@ export default function SquareManagement() {
   }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, driverScopedLocationIds, deletingId]);
 
   const reconciliationRows = React.useMemo(() => {
-    const transactionSignatureCounts = filteredTransactionRows.reduce((acc, row) => {
-      const key = `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}`;
-      acc.set(key, (acc.get(key) || 0) + 1);
+    const normalizeDate = (value) => {
+      if (!value) return '';
+      if (typeof value === 'string' && value.includes('T')) return value.slice(0, 10);
+      return String(value).slice(0, 10);
+    };
+
+    const deliverySignature = (row) => `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}::${normalizeDate(row.deliveryDate)}`;
+    const transactionSignature = (row) => `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}::${normalizeDate(row.deliveryDate)}`;
+
+    const transactionsBySignature = filteredTransactionRows.reduce((acc, row) => {
+      const key = transactionSignature(row);
+      if (!acc.has(key)) acc.set(key, []);
+      acc.get(key).push(row);
       return acc;
     }, new Map());
 
-    return filteredDeliveryRows.filter((row) => {
-      const key = `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}`;
-      const remaining = transactionSignatureCounts.get(key) || 0;
-      if (remaining > 0) {
-        transactionSignatureCounts.set(key, remaining - 1);
-        return false;
+    const usedTransactionIds = new Set();
+    const comparedRows = [];
+
+    filteredDeliveryRows.forEach((deliveryRow) => {
+      const key = deliverySignature(deliveryRow);
+      const candidates = transactionsBySignature.get(key) || [];
+      const matchedTransaction = candidates.find((transactionRow) => !usedTransactionIds.has(transactionRow.id));
+
+      if (matchedTransaction) {
+        usedTransactionIds.add(matchedTransaction.id);
+        comparedRows.push({
+          ...deliveryRow,
+          subtext: `Delivery matched to transaction: ${matchedTransaction.itemName}`,
+          actions: (
+            <div className="flex flex-wrap gap-1 justify-end">
+              <Badge className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                Matched
+              </Badge>
+              {matchedTransaction.actions}
+            </div>
+          )
+        });
+      } else {
+        comparedRows.push({
+          ...deliveryRow,
+          subtext: 'Delivery has no matching Square transaction',
+          actions: (
+            <Badge className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">
+              Missing Square Tx
+            </Badge>
+          )
+        });
       }
-      return true;
     });
+
+    filteredTransactionRows.forEach((transactionRow) => {
+      if (usedTransactionIds.has(transactionRow.id)) return;
+      comparedRows.push({
+        ...transactionRow,
+        subtext: `Transaction has no matching delivery${transactionRow.subtext ? ` • ${transactionRow.subtext}` : ''}`,
+        actions: (
+          <div className="flex flex-wrap gap-1 justify-end">
+            <Badge className="border border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-100">
+              Missing Delivery
+            </Badge>
+            {transactionRow.actions}
+          </div>
+        )
+      });
+    });
+
+    return comparedRows.sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
   }, [filteredDeliveryRows, filteredTransactionRows]);
 
   const codDeliveriesCount = React.useMemo(() => {
