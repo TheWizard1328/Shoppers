@@ -993,7 +993,7 @@ export default function SquareManagement() {
           </div>
 
       {/* Location Summary Cards */}
-      {currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
+      {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
         <div>
           <h2 className="text-base md:text-lg font-semibold mb-4 text-slate-900 dark:text-slate-50">By Location</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-none md:auto-cols-fr md:grid-flow-col gap-2 md:gap-4 mb-6 md:mb-8">
