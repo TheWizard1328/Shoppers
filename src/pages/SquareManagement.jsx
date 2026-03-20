@@ -122,7 +122,7 @@ export default function SquareManagement() {
 
     const [catalogRecords, fetchedPaymentsResponse] = await Promise.all([
       base44.entities.SquareCatalogItems.list('-updated_date', 500),
-      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareFetchPayments', {}),
+      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareCodCore', { action: 'fetchPayments' }),
     ]);
 
     const transactions = extractSquarePayments(fetchedPaymentsResponse);
@@ -147,8 +147,8 @@ export default function SquareManagement() {
 
     try {
       const [catalogResponse, paymentsResponse] = await Promise.all([
-        base44.functions.invoke('squareSyncCatalogItems', { skipLock: true }),
-        base44.functions.invoke('squareFetchPayments', {})
+        base44.functions.invoke('squareCodCore', { action: 'syncCatalogItems', skipLock: true }),
+        base44.functions.invoke('squareCodCore', { action: 'fetchPayments' })
       ]);
       const data = catalogResponse?.data || catalogResponse || {};
 
@@ -291,8 +291,8 @@ export default function SquareManagement() {
           }
 
           const [catalogResponse, paymentsResponse] = await Promise.all([
-            base44.functions.invoke('squareSyncCatalogItems', { skipLock: true }),
-            base44.functions.invoke('squareFetchPayments', {})
+            base44.functions.invoke('squareCodCore', { action: 'syncCatalogItems', skipLock: true }),
+            base44.functions.invoke('squareCodCore', { action: 'fetchPayments' })
           ]);
           const data = catalogResponse?.data || catalogResponse || {};
 
