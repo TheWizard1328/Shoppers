@@ -175,5 +175,15 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+  notifyPhaseTwoTempUnlock: () => {
+    console.log('📢 [FAB Events] Broadcasting phase 2 temporary unlock');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'PHASE2_TEMP_UNLOCK' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
   };
