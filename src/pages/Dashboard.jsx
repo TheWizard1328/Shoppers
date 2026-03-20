@@ -1414,51 +1414,20 @@ function Dashboard() {
 
         // This subscription handles changes from other components
       }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {// Save current phase for later restoration
-            phaseBeforeBreakRef.current = event.previousPhase;
-            // Clear any timers
-            if (mapLockTimeoutRef.current) {
-              clearTimeout(mapLockTimeoutRef.current);
-              mapLockTimeoutRef.current = null;
-            }
-            mapLockExpiresAtRef.current = null;
-
-            // Unlock FAB and set to phase 1
-            setIsMapViewLocked(false);
-            setMapViewPhase(1);
-            setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
-
-          } else if (event.type === 'BREAK_END') {
-
-            // Restore the saved phase
-            const phaseToRestore = event.phaseToRestore || 1;
-            setMapViewPhase(phaseToRestore);
-
-            // Phase 1 restores as an unlocked programmatic view; Phase 2 & 3 stay locked
-            setIsMapViewLocked(phaseToRestore !== 1);
-            setMapViewTrigger((prev) => prev + 1);
-
-            if (mapLockTimeoutRef.current) {
-              clearTimeout(mapLockTimeoutRef.current);
-              mapLockTimeoutRef.current = null;
-            }
-            mapLockExpiresAtRef.current = null;
-
-            phaseBeforeBreakRef.current = null;
-          } else if (event.type === 'DONE_BUTTON_CLICKED' || event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {
-            if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE' && (mapViewPhase !== 2 || isMapViewLocked)) return;
-            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;
-            if (event.type === 'DONE_BUTTON_CLICKED') setMapViewPhase(1);
-            setIsMapViewLocked(event.type !== 'DONE_BUTTON_CLICKED');lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);
-          } else if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {
-            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;setIsMapViewLocked(false);
-          } else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {
-            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;setTimeout(() => {const x = Date.now() + 500;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 500);}, 50);
-          }
-        });
-
-      return unsubscribe;
-    }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
+  useEffect(() => {
+    const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};
+    const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};
+    const unsubscribe = fabControlEvents.subscribe((event) => {
+      if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);}
+      else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;}
+      else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);
+      else if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);
+      else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);}
+      else if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);}
+      else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 500;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 500);}, 50);}
+    });
+    return unsubscribe;
+  }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
 
   useEffect(() => {
     return () => {
