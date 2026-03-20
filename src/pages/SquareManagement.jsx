@@ -278,7 +278,10 @@ export default function SquareManagement() {
         const syncedLocationIds = (configs || []).map((c) => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
-        const offlineSnapshot = await loadSquareViewFromOffline();
+        let offlineSnapshot = await loadSquareViewFromOffline();
+        if (offlineSnapshot.items.length === 0 && offlineSnapshot.transactions.length === 0) {
+          offlineSnapshot = await hydrateSquareViewFromEntities();
+        }
         if (offlineSnapshot.items.length > 0 || offlineSnapshot.transactions.length > 0 || deliveriesData.length > 0) {
           setIsLoading(false);
         }
