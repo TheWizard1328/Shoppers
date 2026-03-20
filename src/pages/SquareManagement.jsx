@@ -240,6 +240,10 @@ export default function SquareManagement() {
       setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
       const entitySnapshot = await loadReconciliationFromEntities(dateFilter);
       await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, entitySnapshot);
+      await refreshSquareView(
+        (locationConfigs || []).filter((config) => config?.status === 'active').map((config) => config.square_location_id).filter(Boolean),
+        { paymentsResponse, onStageChange: setBgSyncProgress }
+      );
 
       const transactionCount = Array.isArray(paymentsData.transactions)
         ? paymentsData.transactions.length
@@ -341,13 +345,6 @@ export default function SquareManagement() {
 
         await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, entitySnapshot);
 
-        const syncSessionKey = `square-cod-initial-bg-sync:${authUser?.id || 'anonymous'}`;
-        if (sessionStorage.getItem(syncSessionKey)) {
-          setIsLoading(false);
-          return;
-        }
-
-        sessionStorage.setItem(syncSessionKey, 'done');
         setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD views…' });
 
         try {
@@ -363,6 +360,10 @@ export default function SquareManagement() {
           setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
           const refreshedEntitySnapshot = await loadReconciliationFromEntities(dateFilter);
           await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, refreshedEntitySnapshot);
+          await refreshSquareView(
+            (freshConfigs || []).filter((config) => config?.status === 'active').map((config) => config.square_location_id).filter(Boolean),
+            { paymentsResponse, onStageChange: setBgSyncProgress }
+          );
           await loadSyncStatus();
 
           const transactionCount = Array.isArray(paymentsData.transactions)
