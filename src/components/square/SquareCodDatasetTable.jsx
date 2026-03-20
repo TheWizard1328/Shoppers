@@ -76,7 +76,16 @@ export default function SquareCodDatasetTable({
                         <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">{row.catalogId || '—'}</div>
                       </td>
                       <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.deliveryDate)}</td>
-                      <td className="p-3">{row.actions || <span className="text-slate-400">—</span>}</td>
+                      <td className="p-3">
+                        <div className="space-y-1">
+                          <div>{row.actions || <span className="text-slate-400">—</span>}</div>
+                          {row.notes && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">
+                              {row.notes}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

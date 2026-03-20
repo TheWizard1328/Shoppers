@@ -892,6 +892,7 @@ export default function SquareManagement() {
           catalogId: transaction.square_catalog_object_id || '—',
           deliveryDate: matchedTransactionDate || parseSquareItemName(transaction.item_name)?.deliveryDate || transaction.created_date,
           subtext: collectedByName ? `Collected by ${collectedByName}` : (transaction.payment_method || transaction.status || null),
+          notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
           actions: (
             <div className="flex flex-wrap gap-1 justify-end">
               {getTypeBadge(transaction.type)}
