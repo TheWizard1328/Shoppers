@@ -108,6 +108,15 @@ export default function SquareManagement() {
     ));
   }, []);
 
+  const loadSyncStatus = React.useCallback(async () => {
+    try {
+      const status = await getSquareCODSyncStatus();
+      setSyncStatus(status);
+    } catch (err) {
+      console.error('Failed to load sync status:', err);
+    }
+  }, [getSquareCODSyncStatus]);
+
   const extractSquarePayments = React.useCallback((response) => {
     const data = response?.data || response || {};
     if (Array.isArray(data)) return data;
