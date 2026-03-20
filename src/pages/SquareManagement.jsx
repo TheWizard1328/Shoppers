@@ -1209,9 +1209,10 @@ export default function SquareManagement() {
             <SelectContent>
               <SelectItem value="7">7 Days</SelectItem>
               <SelectItem value="14">14 Days</SelectItem>
-              <SelectItem value="30">30 Days</SelectItem>
+              <SelectItem value="21">21 Days</SelectItem>
+              <SelectItem value="28">28 Days</SelectItem>
+              <SelectItem value="45">45 Days</SelectItem>
               <SelectItem value="60">60 Days</SelectItem>
-              <SelectItem value="90">90 Days</SelectItem>
             </SelectContent>
           </Select>
           <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
