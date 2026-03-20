@@ -303,16 +303,6 @@ export default function SquareManagement() {
       };
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      if (await hasRecentSquareRefresh()) {
-        setBgSyncProgress({ stage: 'saving_offline', detail: 'Loading recent Square data from offline cache…' });
-        await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
-        await loadSyncStatus();
-        toast.success('Loaded recent Square data from offline cache');
-        setBgSyncProgress({ stage: 'complete', detail: 'Loaded recent offline Square data' });
-        setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
-        return;
-      }
-
       const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments' });
       const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
@@ -424,12 +414,13 @@ export default function SquareManagement() {
           return;
         }
 
-        const entitySnapshot = await loadReconciliationFromEntities(dateFilter);
-        if (entitySnapshot.catalogRecords.length > 0 || entitySnapshot.transactionRecords.length > 0 || entitySnapshot.deliveries.length > 0) {
-          setIsLoading(false);
-        }
+        await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+        await loadSyncStatus();
+        setIsLoading(false);
 
-        await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, entitySnapshot);
+        if (await hasRecentSquareRefresh()) {
+          return;
+        }
 
         setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD views…' });
 
