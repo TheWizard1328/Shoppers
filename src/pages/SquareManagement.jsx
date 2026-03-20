@@ -350,7 +350,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
+  }, [hydrateSquareViewFromEntities, loadDeliveriesFromOffline, loadSquareViewFromOffline]);
 
   useEffect(() => {
     let isActive = true;
