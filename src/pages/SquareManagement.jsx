@@ -117,6 +117,7 @@ export default function SquareManagement() {
     }
   }, [getSquareCODSyncStatus]);
 
+
   const extractSquarePayments = React.useCallback((response) => {
     const data = response?.data || response || {};
     if (Array.isArray(data)) return data;
@@ -366,14 +367,14 @@ export default function SquareManagement() {
     setBgSyncProgress({ stage: 'catalog_sync' });
 
     try {
-      const { transactionCount } = await runFullOfflineSnapshotSync({
+      const syncResult = await runFullOfflineSnapshotSync({
         onStageChange: setBgSyncProgress,
         daysBack: Number(selectedDaysRange || 30),
         refreshLocations: true,
       });
 
-      toast.success(`Square payments refreshed: ${transactionCount} transactions`);
-      setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
+      toast.success(`Square payments refreshed: ${syncResult.transactionCount} transactions`);
+      setBgSyncProgress({ stage: 'complete', detail: `${syncResult.transactionCount} transactions refreshed` });
       setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
     } catch (err) {
       console.error('Sync error:', err);
