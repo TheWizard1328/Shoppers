@@ -1,8 +1,14 @@
+const RECENT_DELIVERY_LOOKBACK_DAYS = 3;
+
 const userHasRole = (user, role) => {
   if (!user || !role) return false;
   if (Array.isArray(user.app_roles)) return user.app_roles.includes(role);
   if (user.app_role === role) return true;
   return false;
+};
+
+const diffDays = (leftDate, rightDate) => {
+  return Math.floor((leftDate - rightDate) / (1000 * 60 * 60 * 24));
 };
 
 export function getLocalDeliveryPredictions({ currentUser, stores, patients, allDeliveries, selectedDate }) {
@@ -37,10 +43,24 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
       .map((delivery) => delivery.patient_id)
   );
 
+  const recentlyDeliveredPatientIds = new Set(
+    (allDeliveries || [])
+      .filter((delivery) => {
+        if (!delivery || !delivery.patient_id || !storeIdsToPredict.includes(delivery.store_id)) return false;
+        if (delivery.status !== 'completed') return false;
+        if (!delivery.delivery_date) return false;
+        const deliveredDate = new Date(`${delivery.delivery_date}T00:00:00`);
+        const daysAgo = diffDays(dateObj, deliveredDate);
+        return daysAgo >= 0 && daysAgo <= RECENT_DELIVERY_LOOKBACK_DAYS;
+      })
+      .map((delivery) => delivery.patient_id)
+  );
+
   return (patients || []).filter((patient) => {
     if (!patient || patient.status !== 'active') return false;
     if (!storeIdsToPredict.includes(patient.store_id)) return false;
     if (existingPatientIds.has(patient.id)) return false;
+    if (recentlyDeliveredPatientIds.has(patient.id)) return false;
     return patient.recurring ||
       patient.recurring_daily ||
       patient.recurring_weekly_mon || patient.recurring_weekly_tue || patient.recurring_weekly_wed ||
@@ -49,7 +69,11 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
   }).map((patient) => {
     const hasDaySelected = patient[`recurring_weekly_${selectedDayName}`];
     const lastDate = patient.last_delivery_date ? new Date(`${patient.last_delivery_date}T00:00:00`) : null;
-    const daysSinceLast = lastDate ? Math.floor((dateObj - lastDate) / (1000 * 60 * 60 * 24)) : null;
+    const daysSinceLast = lastDate ? diffDays(dateObj, lastDate) : null;
+
+    if (lastDate && daysSinceLast >= 0 && daysSinceLast <= RECENT_DELIVERY_LOOKBACK_DAYS) {
+      return null;
+    }
 
     let shouldDeliver = false;
     let frequency = null;
