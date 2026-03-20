@@ -514,6 +514,21 @@ async function buildPatientMaps(base44, deliveries) {
   };
 }
 
+async function getActiveStoreSquareLocationIds(base44) {
+  const [stores, locationConfigs] = await Promise.all([
+    base44.asServiceRole.entities.Store.list('-updated_date', 500),
+    base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }),
+  ]);
+
+  const configById = new Map((locationConfigs || []).map((config) => [config.id, config]));
+
+  return Array.from(new Set(
+    (stores || [])
+      .map((store) => configById.get(store?.square_location_config_id)?.square_location_id)
+      .filter(Boolean)
+  ));
+}
+
 async function handleCreateCodItem(base44, payload) {
   const accessToken = ensureSquareToken();
   const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = payload || {};
@@ -725,8 +740,7 @@ async function handleFetchPayments(base44, payload) {
 
   let locationIds = Array.isArray(requestedLocationIds) ? requestedLocationIds.filter(Boolean) : [];
   if (locationIds.length === 0) {
-    const locationConfigs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' });
-    locationIds = Array.from(new Set(locationConfigs.map((lc) => lc.square_location_id).filter(Boolean)));
+    locationIds = await getActiveStoreSquareLocationIds(base44);
   }
 
   if (locationIds.length === 0) {
@@ -870,8 +884,7 @@ async function handleFetchPayments(base44, payload) {
 
 async function handleGetCodData(base44) {
   const accessToken = ensureSquareToken();
-  const locationConfigs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' });
-  const locationIds = locationConfigs.map((lc) => lc.square_location_id).filter(Boolean);
+  const locationIds = await getActiveStoreSquareLocationIds(base44);
 
   if (locationIds.length === 0) {
     throw new HttpError(400, 'No Square locations configured');
@@ -1022,7 +1035,11 @@ async function handleSyncCatalogItems(base44) {
   );
   const storeById = new Map((stores || []).map((store) => [store.id, store]));
   const deliveryById = new Map((deliveries || []).map((delivery) => [delivery.id, delivery]));
-  const allSquareLocationIds = Array.from(new Set((squareConfigs || []).map((config) => config?.square_location_id).filter(Boolean)));
+  const allSquareLocationIds = Array.from(new Set(
+    (stores || [])
+      .map((store) => activeConfigById.get(store?.square_location_config_id)?.square_location_id)
+      .filter(Boolean)
+  ));
   const transactionRetentionStartMs = getTransactionRetentionStartMs();
   const recentCodDeliveries = (deliveries || []).filter((delivery) => {
     return isRecentDelivery(delivery?.delivery_date)
