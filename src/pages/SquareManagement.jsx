@@ -13,7 +13,8 @@ import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel
 import CODItemDetailModal from "@/components/square/CODItemDetailModal";
 import SyncStatusIndicator from "@/components/square/SyncStatusIndicator";
 import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgressBar";
-import SquareViewToggle from "@/components/square/SquareViewToggle";
+import SquareCodViewSwitcher from "@/components/square/SquareCodViewSwitcher";
+import SquareCodDatasetTable from "@/components/square/SquareCodDatasetTable";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
@@ -38,6 +39,7 @@ export default function SquareManagement() {
   const [locationConfigs, setLocationConfigs] = useState([]);
   const [stores, setStores] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentAppUser, setCurrentAppUser] = useState(null);
   const [drivers, setDrivers] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
@@ -46,13 +48,13 @@ export default function SquareManagement() {
   const [selectedCODItem, setSelectedCODItem] = useState(null);
   const [allTransactions, setAllTransactions] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
+  const [activeView, setActiveView] = useState('deliveries');
   const [itemToDelete, setItemToDelete] = useState(null);
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
   const [lastCleanup, setLastCleanup] = useState(null);
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
-  const [selectedView, setSelectedView] = useState('deliveries');
 
   useEffect(() => {
     const measure = () => {
@@ -95,6 +97,15 @@ export default function SquareManagement() {
     };
   }, []);
 
+  const loadDeliveriesFromOffline = React.useCallback(async (offlineDB, startDateStr, endDateStr) => {
+    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
+    return allDeliveries.filter((delivery) => (
+      delivery &&
+      delivery.delivery_date >= startDateStr &&
+      delivery.delivery_date <= endDateStr
+    ));
+  }, []);
+
   const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
     const { onStageChange } = options;
 
@@ -115,14 +126,6 @@ export default function SquareManagement() {
 
     return { ...snapshot, data: { locationIds: fallbackLocationIds } };
   };
-
-  const loadRecentDeliveriesFromOffline = React.useCallback(async (startDate, endDate) => {
-    const { offlineDB } = await import('@/components/utils/offlineDatabase');
-    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
-    return allDeliveries.filter((delivery) =>
-      delivery && delivery.delivery_date >= startDate && delivery.delivery_date <= endDate
-    );
-  }, []);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -183,9 +186,7 @@ export default function SquareManagement() {
       useEffect(() => {
     const loadData = async () => {
       try {
-        const user = await base44.auth.me();
-        setCurrentUser(user);
-
+        const authUser = await base44.auth.me();
         const today = new Date();
         const thirtyDaysAgo = new Date(today);
         thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -198,129 +199,111 @@ export default function SquareManagement() {
           }
         };
 
-        // OFFLINE-FIRST: Load from offline DB first to prevent rate limits
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
-        
-        // Load Stores from offline DB first
+
         let storesData = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
         if (storesData.length === 0) {
-          console.log('📥 [SquareManagement] Stores not in offline DB - fetching from API');
           storesData = await base44.entities.Store.list();
           await offlineDB.bulkSave(offlineDB.STORES.STORES, storesData);
-        } else {
-          console.log(`📦 [SquareManagement] Using ${storesData.length} stores from offline DB`);
         }
 
-        // Load AppUsers from offline DB first
         let appUsersData = await offlineDB.getAll(offlineDB.STORES.APP_USERS) || [];
         if (appUsersData.length === 0) {
-          console.log('📥 [SquareManagement] AppUsers not in offline DB - fetching from API');
           appUsersData = await base44.entities.AppUser.list();
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsersData);
-        } else {
-          console.log(`📦 [SquareManagement] Using ${appUsersData.length} AppUsers from offline DB`);
         }
 
-        // Load Patients from offline DB first
         let patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS) || [];
         if (patientsData.length === 0) {
-          console.log('📥 [SquareManagement] Patients not in offline DB - fetching from API');
           patientsData = await base44.entities.Patient.list();
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsData);
-        } else {
-          console.log(`📦 [SquareManagement] Using ${patientsData.length} patients from offline DB`);
-        }
-
-        // Load Deliveries from offline DB first
-        let deliveriesData = [];
-        try {
-          const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
-
-          deliveriesData = allDeliveries.filter(d =>
-            d && d.delivery_date >= startDateStr && d.delivery_date <= endDateStr
-          );
-          
-          if (deliveriesData.length === 0) {
-            console.log('📥 [SquareManagement] Recent deliveries not in offline DB - fetching from API');
-            deliveriesData = await base44.entities.Delivery.filter(dateFilter);
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesData);
-          } else {
-            console.log(`📦 [SquareManagement] Using ${deliveriesData.length} recent deliveries from offline DB`);
-          }
-        } catch (offlineError) {
-          console.warn('⚠️ [SquareManagement] Offline deliveries failed, fetching from API');
-          deliveriesData = await base44.entities.Delivery.filter(dateFilter);
         }
 
         let configs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS) || [];
-        configs = configs.filter(config => config?.status === 'active');
         if (configs.length === 0) {
           configs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
-          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, configs || []);
+          await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
+          if (configs.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, configs);
+          }
         }
 
+        let deliveriesData = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+        if (deliveriesData.length === 0) {
+          deliveriesData = await base44.entities.Delivery.filter(dateFilter);
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesData);
+        }
+
+        const matchedAppUser = appUsersData.find((appUser) => appUser?.user_id === authUser?.id) || null;
+        setCurrentUser(authUser);
+        setCurrentAppUser(matchedAppUser);
         setLocationConfigs(configs || []);
         setStores(storesData || []);
         setPatients(patientsData || []);
         setDeliveries(deliveriesData || []);
 
-        const driversList = appUsersData.filter(u => 
-          u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active'
-        );
+        const driversList = appUsersData.filter((u) => u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active');
         setDrivers(driversList || []);
 
-        const syncedLocationIds = configs.map(c => c.square_location_id).filter(Boolean);
+        const syncedLocationIds = (configs || []).map((c) => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
         const offlineSnapshot = await loadSquareViewFromOffline();
-        if (offlineSnapshot.items.length > 0 || offlineSnapshot.transactions.length > 0) {
+        if (offlineSnapshot.items.length > 0 || offlineSnapshot.transactions.length > 0 || deliveriesData.length > 0) {
           setIsLoading(false);
         }
 
-        const initialSyncSessionKey = `square-cod-initial-sync:${user.id}`;
-        if (!sessionStorage.getItem(initialSyncSessionKey)) {
-          sessionStorage.setItem(initialSyncSessionKey, 'true');
-          setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing Deliveries, Transactions, and Catalog…' });
+        const syncSessionKey = `square-cod-initial-bg-sync:${authUser?.id || 'anonymous'}`;
+        if (sessionStorage.getItem(syncSessionKey)) {
+          setIsLoading(false);
+          return;
+        }
 
-          try {
-            const freshDeliveries = await base44.entities.Delivery.filter(dateFilter);
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries || []);
-            const offlineDeliveries = await loadRecentDeliveriesFromOffline(startDateStr, endDateStr);
-            setDeliveries(offlineDeliveries || []);
+        sessionStorage.setItem(syncSessionKey, 'done');
+        setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD views…' });
 
-            const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
-            const data = response?.data || response || {};
+        try {
+          const [freshDeliveries, freshConfigs] = await Promise.all([
+            base44.entities.Delivery.filter(dateFilter),
+            base44.entities.SquareLocationConfig.filter({ status: 'active' })
+          ]);
 
-            if (data.rate_limited) {
-              setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading cached COD data…' });
-              await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
-              await loadSyncStatus();
-              setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
-              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
-            } else if (data.success) {
-              setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading latest synced COD data…' });
-              const { items } = await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
-              await loadSyncStatus();
-
-              const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
-              const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
-              const detailParts = [
-                `${items.length} items`,
-                createdCount > 0 ? `+${createdCount} created` : null,
-                deletedCount > 0 ? `-${deletedCount} deleted` : null,
-              ].filter(Boolean).join(', ');
-
-              setBgSyncProgress({ stage: 'complete', detail: detailParts });
-              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
-            } else if (data.lock_active) {
-              setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (sync locked)' });
-              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
-            }
-          } catch (bgError) {
-            console.warn('⚠️ [SquareManagement] API refresh failed:', bgError.message);
-            setBgSyncProgress({ stage: 'error', error: bgError.message });
-            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries || []);
+          await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
+          if ((freshConfigs || []).length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, freshConfigs);
           }
+
+          const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
+          const data = response?.data || response || {};
+
+          if (data.rate_limited) {
+            setBgSyncProgress({ stage: 'payments_sync', detail: 'Refreshing cached Square data…' });
+            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+            await loadSyncStatus();
+            setBgSyncProgress({ stage: 'complete', detail: 'Using cached Square data' });
+          } else if (data.success) {
+            setBgSyncProgress({ stage: 'payments_sync', detail: 'Updating catalog and transactions…' });
+            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+            await loadSyncStatus();
+            setBgSyncProgress({ stage: 'complete', detail: 'All COD views updated' });
+          } else if (data.lock_active) {
+            setBgSyncProgress({ stage: 'complete', detail: 'Square sync locked — offline data kept' });
+          }
+
+          const [updatedDeliveries, updatedConfigs] = await Promise.all([
+            loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
+            offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS)
+          ]);
+
+          setDeliveries(updatedDeliveries || []);
+          setLocationConfigs((updatedConfigs || []).filter((config) => config?.status === 'active'));
+          await loadSquareViewFromOffline();
+          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
+        } catch (bgError) {
+          console.warn('⚠️ [SquareManagement] Background COD refresh failed:', bgError.message);
+          setBgSyncProgress({ stage: 'error', error: bgError.message });
+          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
         }
 
         setIsLoading(false);
@@ -331,7 +314,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, []);
+  }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
 
   useEffect(() => {
     let isActive = true;
