@@ -912,6 +912,7 @@ async function handleFetchPayments(base44, payload) {
   return {
     success: true,
     paymentsCount: allPayments.length,
+    transactions: normalizedTransactions,
     soldItems,
     soldCatalogItems,
     catalogItems,
