@@ -865,14 +865,14 @@ export default function Layout({ children, currentPageName }) {
               console.log('📱 [Layout] Device not registered, showing registration options');
               setCurrentUser(fetchedUser);setIsLoadingLayout(false);setDataLoaded(true);return;
             }
-            localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
+            localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true'); setDeviceRegistered(true);
             console.log('✅ [Layout] Device registered and cached, proceeding');
           } catch (e) {
             console.warn('⚠️ [Layout] Device check failed, showing registration');
             setCurrentUser(fetchedUser);setIsLoadingLayout(false);setDataLoaded(true);return;
           }
         } else {
-          console.log('✅ [Layout] Device check cached, skipping API call');
+          setDeviceRegistered(true); console.log('✅ [Layout] Device check cached, skipping API call');
         }
 
         // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
@@ -1071,29 +1071,12 @@ export default function Layout({ children, currentPageName }) {
 
           const todayStr = format(new Date(), 'yyyy-MM-dd');
 
-          // Fetch and save essential entities to offline DB in parallel
+          const [od, op, ou, os] = await Promise.all([offlineDB.getByDate(offlineDB.STORES.DELIVERIES, todayStr).catch(() => []), offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []), offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []), offlineDB.getAll(offlineDB.STORES.STORES).catch(() => [])]);
           const [deliveryData, patientData, appUserData, storeData] = await Promise.all([
-          requestThrottler.queue(
-            () => base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []),
-            'priority',
-            'primeDeliveries'
-          ),
-          requestThrottler.queue(
-            () => base44.entities.Patient.list().catch(() => []),
-            'standard',
-            'primePatients'
-          ),
-          requestThrottler.queue(
-            () => base44.entities.AppUser.list().catch(() => []),
-            'priority',
-            'primeAppUsers'
-          ),
-          requestThrottler.queue(
-            () => base44.entities.Store.list().catch(() => []),
-            'priority',
-            'primeStores'
-          )]
-          );
+          od?.length ? Promise.resolve(od) : requestThrottler.queue(() => base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []), 'priority', 'primeDeliveries'),
+          op?.length ? Promise.resolve(op) : requestThrottler.queue(() => base44.entities.Patient.list().catch(() => []), 'standard', 'primePatients'),
+          ou?.length ? Promise.resolve(ou) : requestThrottler.queue(() => base44.entities.AppUser.list().catch(() => []), 'priority', 'primeAppUsers'),
+          os?.length ? Promise.resolve(os) : requestThrottler.queue(() => base44.entities.Store.list().catch(() => []), 'priority', 'primeStores')]);
 
           // Save to offline DB AND populate React state immediately so Dashboard has data on first render
           if (deliveryData?.length) {await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);setDeliveries(deliveryData);}
@@ -2093,8 +2076,8 @@ export default function Layout({ children, currentPageName }) {
       const isAdmin = userHasRole(currentUser, 'admin');
 
       // CRITICAL: Stagger initial data loads to prevent rate limiting
-      // Load Cities first (usually cached), then others with delays
-      const citiesData = workingCities?.length > 0 ? workingCities : await City.list();
+      const { offlineDB: offlineDBForCities } = await import('./components/utils/offlineDatabase');
+      const citiesData = workingCities?.length > 0 ? workingCities : await (async () => { const cached = await offlineDBForCities.getAll(offlineDBForCities.STORES.CITIES); return cached?.length ? cached : City.list(); })();
 
       // Small delay before next batch
       await new Promise((resolve) => setTimeout(resolve, 500));
