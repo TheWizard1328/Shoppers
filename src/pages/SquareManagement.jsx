@@ -107,24 +107,73 @@ export default function SquareManagement() {
   }, []);
 
   const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
-    const { onStageChange } = options;
+    const {
+      onStageChange,
+      storesData = stores,
+      configsData = locationConfigs,
+      deliveriesData = deliveries
+    } = options;
 
-    const [catalogRecords, transactions] = await Promise.all([
-      base44.entities.SquareCatalogItems.list('-updated_date', 500),
-      base44.entities.SquareTransaction.list('-created_date', 500),
+    const effectiveLocationIds = fallbackLocationIds?.length > 0
+      ? fallbackLocationIds
+      : (configsData || []).map((config) => config?.square_location_id).filter(Boolean);
+
+    const [catalogRecords, paymentsResponse] = await Promise.all([
+      base44.entities.SquareCatalogItems.list('-updated_date', 2000),
+      effectiveLocationIds.length > 0
+        ? base44.functions.invoke('squareFetchPayments', { locationIds: effectiveLocationIds, daysBack: 30, maxPerLocation: 100 })
+        : Promise.resolve({ data: { soldCatalogItems: [] } })
     ]);
+
+    const paymentItems = paymentsResponse?.data?.soldCatalogItems || paymentsResponse?.soldCatalogItems || [];
+    const configByLocationId = new Map((configsData || []).map((config) => [config.square_location_id, config]));
+    const storeByConfigId = new Map((storesData || []).map((store) => [store.square_location_config_id, store]));
+    const apiTransactions = paymentItems.map((payment, index) => {
+      const config = configByLocationId.get(payment.location_id);
+      const store = storeByConfigId.get(config?.id);
+      const paymentDate = payment.payment_date ? format(new Date(payment.payment_date), 'yyyy-MM-dd') : null;
+      const amount = Number(payment.amount || 0);
+      const amountCents = Math.round(amount * 100);
+      const matchedDelivery = (deliveriesData || []).find((delivery) => {
+        if (!delivery || !store?.id) return false;
+        if (delivery.store_id !== store.id) return false;
+        if (delivery.delivery_date !== paymentDate) return false;
+        return Math.round(Number(delivery.cod_total_amount_required || 0) * 100) === amountCents;
+      });
+
+      return {
+        id: `${payment.square_payment_id || payment.payment_id || payment.square_transaction_id || 'payment'}-${payment.catalog_object_id || index}`,
+        square_transaction_id: payment.square_transaction_id || payment.payment_id || null,
+        square_payment_id: payment.square_payment_id || payment.payment_id || null,
+        square_catalog_object_id: payment.catalog_object_id || null,
+        item_name: payment.item_name || 'Square Transaction',
+        amount,
+        amount_cents: amountCents,
+        type: 'collection',
+        status: 'completed',
+        delivery_id: matchedDelivery?.id || null,
+        patient_id: matchedDelivery?.patient_id || null,
+        store_id: store?.id || null,
+        location_id: payment.location_id || null,
+        driver_id: matchedDelivery?.driver_id || null,
+        payment_method: String(payment.payment_method || '').toLowerCase(),
+        raw_square_data: payment,
+        created_date: payment.payment_date || null,
+        updated_date: payment.payment_date || null
+      };
+    });
 
     onStageChange?.({ stage: 'saving_offline', detail: 'Updating local COD cache…' });
 
     await syncSquareCODSnapshotOffline({
       catalogItems: catalogRecords || [],
-      transactions: transactions || [],
+      transactions: apiTransactions || [],
     });
 
     const snapshot = await loadSquareViewFromOffline();
-    setLocationIds(fallbackLocationIds);
+    setLocationIds(effectiveLocationIds);
 
-    return { ...snapshot, data: { locationIds: fallbackLocationIds } };
+    return { ...snapshot, data: { locationIds: effectiveLocationIds } };
   };
 
   const syncFromSquare = async () => {
@@ -279,12 +328,12 @@ export default function SquareManagement() {
 
           if (data.rate_limited) {
             setBgSyncProgress({ stage: 'payments_sync', detail: 'Refreshing cached Square data…' });
-            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress, storesData, configsData: freshConfigs, deliveriesData: freshDeliveries });
             await loadSyncStatus();
             setBgSyncProgress({ stage: 'complete', detail: 'Using cached Square data' });
           } else if (data.success) {
             setBgSyncProgress({ stage: 'payments_sync', detail: 'Updating catalog and transactions…' });
-            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress, storesData, configsData: freshConfigs, deliveriesData: freshDeliveries });
             await loadSyncStatus();
             setBgSyncProgress({ stage: 'complete', detail: 'All COD views updated' });
           } else if (data.lock_active) {
@@ -734,12 +783,14 @@ export default function SquareManagement() {
     return (allTransactions || [])
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
+        if (transaction.type !== 'collection' || transaction.status !== 'completed') return false;
         const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
         if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
         const storeMatch = transaction.store_id ? visibleStoreIds.has(transaction.store_id) : visibleLocationIds.has(transaction.location_id);
         if (!storeMatch) return false;
         if (selectedDriverUserIds.size === 0) return false;
-        return selectedDriverUserIds.has(transaction.driver_id);
+        if (transaction.driver_id) return selectedDriverUserIds.has(transaction.driver_id);
+        return true;
       })
       .sort((a, b) => new Date(b.created_date || b.updated_date || 0).getTime() - new Date(a.created_date || a.updated_date || 0).getTime())
       .map((transaction) => {
