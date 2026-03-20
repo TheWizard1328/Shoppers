@@ -987,22 +987,6 @@ export default function SquareManagement() {
       });
     });
 
-    filteredTransactionRows.forEach((transactionRow) => {
-      if (usedTransactionIds.has(transactionRow.id)) return;
-      comparedRows.push({
-        ...transactionRow,
-        subtext: `Transaction has no matching delivery${transactionRow.subtext ? ` • ${transactionRow.subtext}` : ''}`,
-        actions: (
-          <div className="flex flex-wrap gap-1 justify-end">
-            <Badge className="border border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-100">
-              Missing Delivery
-            </Badge>
-            {transactionRow.actions}
-          </div>
-        )
-      });
-    });
-
     return comparedRows.sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
   }, [filteredDeliveryRows, filteredTransactionRows]);
 
