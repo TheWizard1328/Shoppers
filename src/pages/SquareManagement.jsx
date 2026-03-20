@@ -13,8 +13,7 @@ import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel
 import CODItemDetailModal from "@/components/square/CODItemDetailModal";
 import SyncStatusIndicator from "@/components/square/SyncStatusIndicator";
 import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgressBar";
-import SquareCodViewSwitcher from "@/components/square/SquareCodViewSwitcher";
-import SquareCodDatasetTable from "@/components/square/SquareCodDatasetTable";
+import SquareViewToggle from "@/components/square/SquareViewToggle";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
@@ -39,7 +38,6 @@ export default function SquareManagement() {
   const [locationConfigs, setLocationConfigs] = useState([]);
   const [stores, setStores] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentAppUser, setCurrentAppUser] = useState(null);
   const [drivers, setDrivers] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
@@ -48,13 +46,13 @@ export default function SquareManagement() {
   const [selectedCODItem, setSelectedCODItem] = useState(null);
   const [allTransactions, setAllTransactions] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
-  const [activeView, setActiveView] = useState('deliveries');
   const [itemToDelete, setItemToDelete] = useState(null);
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
   const [lastCleanup, setLastCleanup] = useState(null);
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
+  const [selectedView, setSelectedView] = useState('deliveries');
 
   useEffect(() => {
     const measure = () => {
@@ -97,15 +95,6 @@ export default function SquareManagement() {
     };
   }, []);
 
-  const loadDeliveriesFromOffline = React.useCallback(async (offlineDB, startDateStr, endDateStr) => {
-    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
-    return allDeliveries.filter((delivery) => (
-      delivery &&
-      delivery.delivery_date >= startDateStr &&
-      delivery.delivery_date <= endDateStr
-    ));
-  }, []);
-
   const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
     const { onStageChange } = options;
 
@@ -126,6 +115,14 @@ export default function SquareManagement() {
 
     return { ...snapshot, data: { locationIds: fallbackLocationIds } };
   };
+
+  const loadRecentDeliveriesFromOffline = React.useCallback(async (startDate, endDate) => {
+    const { offlineDB } = await import('@/components/utils/offlineDatabase');
+    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
+    return allDeliveries.filter((delivery) =>
+      delivery && delivery.delivery_date >= startDate && delivery.delivery_date <= endDate
+    );
+  }, []);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -190,12 +187,14 @@ export default function SquareManagement() {
         setCurrentUser(user);
 
         const today = new Date();
-        const fourteenDaysAgo = new Date(today);
-        fourteenDaysAgo.setDate(today.getDate() - 14);
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        const startDateStr = format(thirtyDaysAgo, 'yyyy-MM-dd');
+        const endDateStr = format(today, 'yyyy-MM-dd');
         const dateFilter = {
-          delivery_date: { 
-            $gte: format(fourteenDaysAgo, 'yyyy-MM-dd'),
-            $lte: format(today, 'yyyy-MM-dd')
+          delivery_date: {
+            $gte: startDateStr,
+            $lte: endDateStr
           }
         };
 
@@ -236,11 +235,9 @@ export default function SquareManagement() {
         let deliveriesData = [];
         try {
           const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
-          const fourteenDaysAgoStr = format(fourteenDaysAgo, 'yyyy-MM-dd');
-          const todayStr = format(today, 'yyyy-MM-dd');
-          
-          deliveriesData = allDeliveries.filter(d => 
-            d && d.delivery_date >= fourteenDaysAgoStr && d.delivery_date <= todayStr
+
+          deliveriesData = allDeliveries.filter(d =>
+            d && d.delivery_date >= startDateStr && d.delivery_date <= endDateStr
           );
           
           if (deliveriesData.length === 0) {
@@ -255,7 +252,12 @@ export default function SquareManagement() {
           deliveriesData = await base44.entities.Delivery.filter(dateFilter);
         }
 
-        const configs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
+        let configs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS) || [];
+        configs = configs.filter(config => config?.status === 'active');
+        if (configs.length === 0) {
+          configs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, configs || []);
+        }
 
         setLocationConfigs(configs || []);
         setStores(storesData || []);
@@ -275,43 +277,50 @@ export default function SquareManagement() {
           setIsLoading(false);
         }
 
-        // Always fetch fresh data from API (sync first, then refresh UI from Square)
-        setBgSyncProgress({ stage: 'catalog_sync' });
-        try {
-          const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
-          const data = response?.data || response || {};
+        const initialSyncSessionKey = `square-cod-initial-sync:${user.id}`;
+        if (!sessionStorage.getItem(initialSyncSessionKey)) {
+          sessionStorage.setItem(initialSyncSessionKey, 'true');
+          setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing Deliveries, Transactions, and Catalog…' });
 
-          if (data.rate_limited) {
-            setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading cached COD data…' });
-            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
-            await loadSyncStatus();
-            setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
-            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
-          } else if (data.success) {
-            setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading latest synced COD data…' });
-            const { items } = await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+          try {
+            const freshDeliveries = await base44.entities.Delivery.filter(dateFilter);
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries || []);
+            const offlineDeliveries = await loadRecentDeliveriesFromOffline(startDateStr, endDateStr);
+            setDeliveries(offlineDeliveries || []);
 
-            await loadSyncStatus();
+            const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
+            const data = response?.data || response || {};
 
-            const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
-            const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
-            const detailParts = [
-              `${items.length} items`,
-              createdCount > 0 ? `+${createdCount} created` : null,
-              deletedCount > 0 ? `-${deletedCount} deleted` : null,
-            ].filter(Boolean).join(', ');
+            if (data.rate_limited) {
+              setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading cached COD data…' });
+              await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+              await loadSyncStatus();
+              setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
+              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
+            } else if (data.success) {
+              setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading latest synced COD data…' });
+              const { items } = await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+              await loadSyncStatus();
 
-            setBgSyncProgress({ stage: 'complete', detail: detailParts });
-            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
-          } else if (data.lock_active) {
-            // Lock active — keep offline data as-is
-            setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (sync locked)' });
-            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
+              const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
+              const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
+              const detailParts = [
+                `${items.length} items`,
+                createdCount > 0 ? `+${createdCount} created` : null,
+                deletedCount > 0 ? `-${deletedCount} deleted` : null,
+              ].filter(Boolean).join(', ');
+
+              setBgSyncProgress({ stage: 'complete', detail: detailParts });
+              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
+            } else if (data.lock_active) {
+              setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (sync locked)' });
+              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
+            }
+          } catch (bgError) {
+            console.warn('⚠️ [SquareManagement] API refresh failed:', bgError.message);
+            setBgSyncProgress({ stage: 'error', error: bgError.message });
+            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
           }
-        } catch (bgError) {
-          console.warn('⚠️ [SquareManagement] API refresh failed:', bgError.message);
-          setBgSyncProgress({ stage: 'error', error: bgError.message });
-          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
         }
 
         setIsLoading(false);
