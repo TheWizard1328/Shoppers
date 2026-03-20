@@ -713,19 +713,21 @@ export default function SquareManagement() {
         const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
         const store = stores.find((s) => s?.id === delivery.store_id);
         const config = locationConfigs.find((c) => c?.id === store?.square_location_config_id);
+        if (!config?.square_location_id) return null;
         const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
         return {
           id: delivery.id,
           itemName: patient?.full_name || delivery.delivery_id || 'Unknown Delivery',
           amount: Number(delivery.cod_total_amount_required || 0),
           storeName: store?.name || 'Unknown',
-          locationId: config?.square_location_id || '—',
+          locationId: config.square_location_id,
           catalogId: linkedCatalog?.catalog_object_id || '—',
           deliveryDate: delivery.delivery_date,
           subtext: delivery.driver_name || null,
           actions: null
         };
-      });
+      })
+      .filter(Boolean);
   }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems]);
 
   const filteredTransactionRows = React.useMemo(() => {
