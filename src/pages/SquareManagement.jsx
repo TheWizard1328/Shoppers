@@ -221,6 +221,8 @@ export default function SquareManagement() {
       const response = await base44.functions.invoke('squareSyncCatalogItems', {});
       const result = response?.data || response || {};
       await syncFromSquare();
+      await hydrateSquareViewFromEntities();
+      setActiveView('catalog');
       toast.success(`Square catalog updated: ${result.created_catalog_items || 0} created, ${result.updated_pending_transactions || 0} updated`);
     } finally {
       setIsUpdatingReconciliationCatalog(false);
