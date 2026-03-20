@@ -109,8 +109,9 @@ export default function SquareManagement() {
   const extractSquarePayments = React.useCallback((response) => {
     const data = response?.data || response || {};
     if (Array.isArray(data)) return data;
-    if (Array.isArray(data.payments)) return data.payments;
     if (Array.isArray(data.transactions)) return data.transactions;
+    if (Array.isArray(data.payments)) return data.payments;
+    if (Array.isArray(data.soldCatalogItems)) return data.soldCatalogItems;
     if (Array.isArray(data.items)) return data.items;
     if (Array.isArray(data.results)) return data.results;
     return [];
