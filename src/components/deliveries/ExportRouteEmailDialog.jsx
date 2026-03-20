@@ -54,7 +54,7 @@ export default function ExportRouteEmailDialog({
     return () => {
       isActive = false;
     };
-  }, [open, storeIds, storeIdsKey]);
+  }, [open, storeIdsKey]);
 
   const addEmail = (storeId) => {
     const nextEmail = normalizeEmail(pendingEmails[storeId] || "");
