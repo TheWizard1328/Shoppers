@@ -34,26 +34,39 @@ Deno.serve(async (req) => {
       return Response.json({ predictions: [], count: 0, selectedDate, dayOfWeek: selectedDayName });
     }
 
-    const [patientsRaw, existingDeliveriesRaw] = await Promise.all([
-      base44.entities.Patient.filter({
-        status: 'active',
-        store_id: { $in: targetStoreIds }
-      }, 'full_name', 5000),
+    const patientQueryBase = {
+      status: 'active',
+      store_id: { $in: targetStoreIds }
+    };
+
+    const patientQueryList = [
+      { ...patientQueryBase, recurring: true },
+      { ...patientQueryBase, recurring_daily: true },
+      { ...patientQueryBase, [`recurring_weekly_${selectedDayName}`]: true },
+      { ...patientQueryBase, recurring_biweekly: true },
+      { ...patientQueryBase, recurring_weekly_x4: true },
+      { ...patientQueryBase, recurring_monthly: true },
+      { ...patientQueryBase, recurring_bimonthly: true }
+    ];
+
+    const [existingDeliveriesRaw, ...patientQueryResults] = await Promise.all([
       base44.entities.Delivery.filter({
         delivery_date: selectedDate,
         store_id: { $in: targetStoreIds }
-      }, '-created_date', 5000)
+      }, '-created_date', 2000),
+      ...patientQueryList.map((query) => base44.entities.Patient.filter(query, 'full_name', 1000))
     ]);
 
-    const patients = (Array.isArray(patientsRaw) ? patientsRaw : []).filter((patient) => {
-      if (!patient) return false;
-      return patient.recurring ||
-        patient.recurring_daily ||
-        patient.recurring_weekly_mon || patient.recurring_weekly_tue || patient.recurring_weekly_wed ||
-        patient.recurring_weekly_thu || patient.recurring_weekly_fri || patient.recurring_weekly_sat || patient.recurring_weekly_sun ||
-        patient.recurring_biweekly || patient.recurring_weekly_x4 || patient.recurring_monthly || patient.recurring_bimonthly;
+    const patientsMap = new Map();
+    patientQueryResults.forEach((resultSet) => {
+      (Array.isArray(resultSet) ? resultSet : []).forEach((patient) => {
+        if (patient?.id && !patientsMap.has(patient.id)) {
+          patientsMap.set(patient.id, patient);
+        }
+      });
     });
 
+    const patients = Array.from(patientsMap.values());
     const existingDeliveries = Array.isArray(existingDeliveriesRaw) ? existingDeliveriesRaw.filter(Boolean) : [];
 
     const patientsWithDeliveries = new Set();
