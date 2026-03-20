@@ -226,7 +226,80 @@ export default function SquareManagement() {
 
     await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
     await loadSyncStatus();
-  }, [selectedDaysRange, loadReconciliationFromOffline]);
+  }, [selectedDaysRange, loadReconciliationFromOffline, loadSyncStatus]);
+
+  const syncDeliveriesWindowOffline = React.useCallback(async (offlineDB, startDateStr, endDateStr, deliveryRecords = []) => {
+    const existingDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+    const nextIds = new Set((deliveryRecords || []).map((delivery) => delivery?.id).filter(Boolean));
+
+    await Promise.all(
+      (existingDeliveries || [])
+        .filter((delivery) => delivery?.id && !nextIds.has(delivery.id))
+        .map((delivery) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id))
+    );
+
+    if ((deliveryRecords || []).length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryRecords);
+    }
+  }, [loadDeliveriesFromOffline]);
+
+  const runFullOfflineSnapshotSync = React.useCallback(async ({ onStageChange, daysBack, refreshLocations = false } = {}) => {
+    const rangeDays = Number(daysBack || selectedDaysRange || 30);
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - rangeDays);
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const endDateStr = format(today, 'yyyy-MM-dd');
+    const dateFilter = {
+      delivery_date: {
+        $gte: startDateStr,
+        $lte: endDateStr
+      }
+    };
+    const { offlineDB } = await import('@/components/utils/offlineDatabase');
+
+    onStageChange?.({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
+
+    const [catalogRecords, fetchedPaymentsResponse, deliveryRecords, nextConfigs] = await Promise.all([
+      base44.entities.SquareCatalogItems.list('-updated_date', 2000),
+      base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: rangeDays }),
+      base44.entities.Delivery.filter(dateFilter, '-updated_date', 2000),
+      refreshLocations ? base44.entities.SquareLocationConfig.filter({ status: 'active' }) : Promise.resolve(locationConfigs || []),
+    ]);
+
+    const transactions = extractSquarePayments(fetchedPaymentsResponse);
+
+    if (refreshLocations) {
+      await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
+      if ((nextConfigs || []).length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, nextConfigs);
+      }
+      setLocationConfigs(nextConfigs || []);
+      setLocationIds((nextConfigs || []).map((config) => config?.square_location_id).filter(Boolean));
+    }
+
+    onStageChange?.({ stage: 'payments_sync', detail: 'Updating offline COD data…' });
+
+    await Promise.all([
+      syncDeliveriesWindowOffline(offlineDB, startDateStr, endDateStr, deliveryRecords || []),
+      syncSquareCODSnapshotOffline({
+        catalogItems: catalogRecords || [],
+        transactions: transactions || [],
+      }),
+    ]);
+
+    onStageChange?.({ stage: 'saving_offline', detail: 'Reloading from offline cache…' });
+
+    await Promise.all([
+      loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr),
+      loadSyncStatus(),
+    ]);
+
+    return {
+      deliveryCount: (deliveryRecords || []).length,
+      transactionCount: (transactions || []).length,
+    };
+  }, [selectedDaysRange, locationConfigs, extractSquarePayments, syncDeliveriesWindowOffline, syncSquareCODSnapshotOffline, loadReconciliationFromOffline, loadSyncStatus]);
 
   const syncReconciliationToCatalog = async () => {
     setIsUpdatingReconciliationCatalog(true);
@@ -286,38 +359,17 @@ export default function SquareManagement() {
     setBgSyncProgress({ stage: 'catalog_sync' });
 
     try {
-      const today = new Date();
-      const daysBack = Number(selectedDaysRange || 30);
-      const startDate = new Date(today);
-      startDate.setDate(today.getDate() - daysBack);
-      const startDateStr = format(startDate, 'yyyy-MM-dd');
-      const endDateStr = format(today, 'yyyy-MM-dd');
-      const dateFilter = {
-        delivery_date: {
-          $gte: startDateStr,
-          $lte: endDateStr
-        }
-      };
-      const { offlineDB } = await import('@/components/utils/offlineDatabase');
+      const { transactionCount } = await runFullOfflineSnapshotSync({
+        onStageChange: setBgSyncProgress,
+        daysBack: Number(selectedDaysRange || 30),
+        refreshLocations: true,
+      });
 
-      const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: Number(selectedDaysRange || 30) });
-      const paymentsData = paymentsResponse?.data || paymentsResponse || {};
-
-      setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
-      const entitySnapshot = await loadReconciliationFromEntities(dateFilter);
-      await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, entitySnapshot);
-      await refreshSquareView(
-        (locationConfigs || []).filter((config) => config?.status === 'active').map((config) => config.square_location_id).filter(Boolean),
-        { paymentsResponse, onStageChange: setBgSyncProgress, daysBack: Number(selectedDaysRange || 30) }
-      );
-
-      const transactionCount = Array.isArray(paymentsData.transactions)
-        ? paymentsData.transactions.length
-        : Array.isArray(paymentsData.payments)
-          ? paymentsData.payments.length
-          : Array.isArray(paymentsData.soldCatalogItems)
-            ? paymentsData.soldCatalogItems.length
-            : 0;
+      const { transactionCount } = await runFullOfflineSnapshotSync({
+        onStageChange: setBgSyncProgress,
+        daysBack: Number(selectedDaysRange || 30),
+        refreshLocations: true,
+      });
 
       toast.success(`Square payments refreshed: ${transactionCount} transactions`);
       setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
@@ -336,14 +388,14 @@ export default function SquareManagement() {
     }
   };
 
-      const loadSyncStatus = async () => {
-      try {
+      const loadSyncStatus = React.useCallback(async () => {
+    try {
       const status = await getSquareCODSyncStatus();
       setSyncStatus(status);
-      } catch (err) {
+    } catch (err) {
       console.error('Failed to load sync status:', err);
-      }
-      };
+    }
+  }, [getSquareCODSyncStatus]);
 
       useEffect(() => {
     const loadData = async () => {
