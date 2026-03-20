@@ -365,12 +365,6 @@ export default function SquareManagement() {
         refreshLocations: true,
       });
 
-      const { transactionCount } = await runFullOfflineSnapshotSync({
-        onStageChange: setBgSyncProgress,
-        daysBack: Number(selectedDaysRange || 30),
-        refreshLocations: true,
-      });
-
       toast.success(`Square payments refreshed: ${transactionCount} transactions`);
       setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
       setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
@@ -383,8 +377,7 @@ export default function SquareManagement() {
     } finally {
       setIsSyncing(false);
       setIsLoading(false);
-      const updatedSyncStatus = await getSquareCODSyncStatus();
-      setSyncStatus(updatedSyncStatus);
+      await loadSyncStatus();
     }
   };
 
@@ -397,7 +390,7 @@ export default function SquareManagement() {
     }
   }, [getSquareCODSyncStatus]);
 
-      useEffect(() => {
+  useEffect(() => {
     const loadData = async () => {
       try {
         const authUser = await base44.auth.me();
@@ -407,13 +400,6 @@ export default function SquareManagement() {
         startDate.setDate(today.getDate() - daysBack);
         const startDateStr = format(startDate, 'yyyy-MM-dd');
         const endDateStr = format(today, 'yyyy-MM-dd');
-        const dateFilter = {
-          delivery_date: {
-            $gte: startDateStr,
-            $lte: endDateStr
-          }
-        };
-
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
         let storesData = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
@@ -452,70 +438,28 @@ export default function SquareManagement() {
 
         const driversList = appUsersData.filter((u) => u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active');
         setDrivers(driversList || []);
-
-        const syncedLocationIds = (configs || []).map((c) => c.square_location_id).filter(Boolean);
-        setLocationIds(syncedLocationIds);
-
-        if (await hasRecentSquareRefresh()) {
-          await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
-          await loadSyncStatus();
-          setIsLoading(false);
-          return;
-        }
+        setLocationIds((configs || []).map((config) => config?.square_location_id).filter(Boolean));
 
         await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
-        const offlineSquareSnapshot = await loadSquareViewFromOffline();
-        if (!offlineSquareSnapshot.items?.length && !offlineSquareSnapshot.transactions?.length) {
-          await hydrateSquareViewFromEntities();
-        }
         await loadSyncStatus();
         setIsLoading(false);
-
-        if (await hasRecentSquareRefresh()) {
-          return;
-        }
+        setHasInitialLoadCompleted(true);
 
         setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD views…' });
 
         try {
-          const freshConfigs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
-          await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
-          if ((freshConfigs || []).length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, freshConfigs);
-          }
-
-          const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: Number(selectedDaysRange || 30) });
-          const paymentsData = paymentsResponse?.data || paymentsResponse || {};
-
-          setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
-          const refreshedEntitySnapshot = await loadReconciliationFromEntities(dateFilter);
-          await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, refreshedEntitySnapshot);
-          await refreshSquareView(
-            (freshConfigs || []).filter((config) => config?.status === 'active').map((config) => config.square_location_id).filter(Boolean),
-            { paymentsResponse, onStageChange: setBgSyncProgress, daysBack: Number(selectedDaysRange || 30) }
-          );
-          await loadSyncStatus();
-
-          const transactionCount = Array.isArray(paymentsData.transactions)
-            ? paymentsData.transactions.length
-            : Array.isArray(paymentsData.payments)
-              ? paymentsData.payments.length
-              : Array.isArray(paymentsData.soldCatalogItems)
-                ? paymentsData.soldCatalogItems.length
-                : 0;
-
+          const { transactionCount } = await runFullOfflineSnapshotSync({
+            onStageChange: setBgSyncProgress,
+            daysBack,
+            refreshLocations: true,
+          });
           setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
-
-          setLocationConfigs((freshConfigs || []).filter((config) => config?.status === 'active'));
           setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
         } catch (bgError) {
           console.warn('⚠️ [SquareManagement] Background COD refresh failed:', bgError.message);
           setBgSyncProgress({ stage: 'error', error: bgError.message });
           setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
         }
-
-        setIsLoading(false);
-        setHasInitialLoadCompleted(true);
       } catch (err) {
         console.error('Failed to load COD data:', err);
         setIsLoading(false);
@@ -523,7 +467,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [loadDeliveriesFromOffline, loadReconciliationFromEntities, loadReconciliationFromOffline, loadSquareViewFromOffline, hydrateSquareViewFromEntities]);
+  }, [selectedDaysRange, loadReconciliationFromOffline, loadSyncStatus, runFullOfflineSnapshotSync]);
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
@@ -531,41 +475,52 @@ export default function SquareManagement() {
   }, [activeView, selectedDriverFilter, selectedStoreFilter, selectedDaysRange, hasInitialLoadCompleted, refreshUiFromOfflineOnly]);
 
   useEffect(() => {
+    if (!hasInitialLoadCompleted) return;
+
     let isActive = true;
 
-    const syncRealtimeEvent = async (type, handler, event) => {
-      try {
-        if (type === 'catalog') {
-          applyCatalogRealtimeToUI(event);
-        }
-        if (type === 'transaction') {
-          applyTransactionRealtimeToUI(event);
-        }
-
-        await handler(event);
-
-        if (isActive) {
-          await loadSquareViewFromOffline();
-        }
-      } catch (error) {
-        console.error('❌ [SquareManagement] Realtime Square sync failed:', error);
+    const scheduleFullRealtimeRefresh = () => {
+      if (realtimeRefreshTimeoutRef.current) {
+        clearTimeout(realtimeRefreshTimeoutRef.current);
       }
+
+      realtimeRefreshTimeoutRef.current = setTimeout(async () => {
+        if (!isActive || isSyncing) return;
+
+        try {
+          setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
+          const { transactionCount } = await runFullOfflineSnapshotSync({
+            onStageChange: setBgSyncProgress,
+            daysBack: Number(selectedDaysRange || 30),
+            refreshLocations: false,
+          });
+          setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
+          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
+        } catch (error) {
+          console.error('❌ [SquareManagement] Realtime Square sync failed:', error);
+          setBgSyncProgress({ stage: 'error', error: error.message });
+          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
+        }
+      }, 1200);
     };
 
-    const unsubscribeCatalogItems = base44.entities.SquareCatalogItems.subscribe((event) => {
-      syncRealtimeEvent('catalog', handleSquareCatalogItemRealtimeEvent, event);
+    const unsubscribeCatalogItems = base44.entities.SquareCatalogItems.subscribe(() => {
+      scheduleFullRealtimeRefresh();
     });
 
-    const unsubscribeTransactions = base44.entities.SquareTransaction.subscribe((event) => {
-      syncRealtimeEvent('transaction', handleSquareTransactionRealtimeEvent, event);
+    const unsubscribeTransactions = base44.entities.SquareTransaction.subscribe(() => {
+      scheduleFullRealtimeRefresh();
     });
 
     return () => {
       isActive = false;
+      if (realtimeRefreshTimeoutRef.current) {
+        clearTimeout(realtimeRefreshTimeoutRef.current);
+      }
       unsubscribeCatalogItems?.();
       unsubscribeTransactions?.();
     };
-  }, [loadSquareViewFromOffline, handleSquareCatalogItemRealtimeEvent, handleSquareTransactionRealtimeEvent]);
+  }, [hasInitialLoadCompleted, isSyncing, selectedDaysRange, runFullOfflineSnapshotSync]);
 
 
 
