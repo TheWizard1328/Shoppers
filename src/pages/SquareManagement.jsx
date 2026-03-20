@@ -914,6 +914,7 @@ export default function SquareManagement() {
         const hasMatch = hasMatchingSquareTransaction(delivery, config.square_location_id);
         return {
           id: delivery.id,
+          rawStoreId: delivery.store_id || null,
           itemName: patient?.full_name || delivery.delivery_id || 'Unknown Delivery',
           amount: Number(delivery.cod_total_amount_required || 0),
           storeName: store?.name || 'Unknown',
@@ -974,6 +975,7 @@ export default function SquareManagement() {
         return {
           id: transaction.id,
           rawStatus: transaction.status,
+          rawStoreId: transaction.store_id || store?.id || null,
           itemName: transaction.item_name || transaction.square_payment_id || 'Square Transaction',
           amount: Number(transaction.amount || 0),
           storeName: store?.name || config?.name || 'Unknown',
@@ -1044,7 +1046,7 @@ export default function SquareManagement() {
       return String(value).slice(0, 10);
     };
 
-    const buildAmountStoreKey = (row) => `${row.storeName || 'Unknown'}::${Math.round(Number(row.amount || 0) * 100)}`;
+    const buildAmountStoreKey = (row) => `${row.rawStoreId || row.locationId || row.storeName || 'Unknown'}::${Math.round(Number(row.amount || 0) * 100)}`;
     const reconciliationTransactions = filteredTransactionRows.filter((row) => !['cancelled', 'failed'].includes(row.rawStatus));
 
     const transactionsByAmountStore = reconciliationTransactions.reduce((acc, row) => {
