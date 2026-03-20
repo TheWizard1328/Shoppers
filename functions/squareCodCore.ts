@@ -867,10 +867,6 @@ async function handleGetCodData(base44) {
   const locationConfigs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' });
   const locationIds = locationConfigs.map((lc) => lc.square_location_id).filter(Boolean);
 
-  const defaultLocationId = Deno.env.get('SQUARE_LOCATION_ID');
-  if (defaultLocationId && !locationIds.includes(defaultLocationId)) {
-    locationIds.push(defaultLocationId);
-  }
   if (locationIds.length === 0) {
     throw new HttpError(400, 'No Square locations configured');
   }
