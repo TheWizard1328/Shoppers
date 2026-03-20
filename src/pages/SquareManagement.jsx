@@ -13,8 +13,7 @@ import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel
 import CODItemDetailModal from "@/components/square/CODItemDetailModal";
 import SyncStatusIndicator from "@/components/square/SyncStatusIndicator";
 import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgressBar";
-import SquareCodViewSwitcher from "@/components/square/SquareCodViewSwitcher";
-import SquareCodDatasetTable from "@/components/square/SquareCodDatasetTable";
+import SquareViewToggle from "@/components/square/SquareViewToggle";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
@@ -39,7 +38,6 @@ export default function SquareManagement() {
   const [locationConfigs, setLocationConfigs] = useState([]);
   const [stores, setStores] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentAppUser, setCurrentAppUser] = useState(null);
   const [drivers, setDrivers] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
@@ -48,13 +46,13 @@ export default function SquareManagement() {
   const [selectedCODItem, setSelectedCODItem] = useState(null);
   const [allTransactions, setAllTransactions] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
-  const [activeView, setActiveView] = useState('deliveries');
   const [itemToDelete, setItemToDelete] = useState(null);
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
   const [lastCleanup, setLastCleanup] = useState(null);
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
+  const [selectedView, setSelectedView] = useState('deliveries');
 
   useEffect(() => {
     const measure = () => {
@@ -97,15 +95,6 @@ export default function SquareManagement() {
     };
   }, []);
 
-  const loadDeliveriesFromOffline = React.useCallback(async (offlineDB, startDateStr, endDateStr) => {
-    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
-    return allDeliveries.filter((delivery) => (
-      delivery &&
-      delivery.delivery_date >= startDateStr &&
-      delivery.delivery_date <= endDateStr
-    ));
-  }, []);
-
   const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
     const { onStageChange } = options;
 
@@ -126,6 +115,14 @@ export default function SquareManagement() {
 
     return { ...snapshot, data: { locationIds: fallbackLocationIds } };
   };
+
+  const loadRecentDeliveriesFromOffline = React.useCallback(async (startDate, endDate) => {
+    const { offlineDB } = await import('@/components/utils/offlineDatabase');
+    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
+    return allDeliveries.filter((delivery) =>
+      delivery && delivery.delivery_date >= startDate && delivery.delivery_date <= endDate
+    );
+  }, []);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -186,7 +183,9 @@ export default function SquareManagement() {
       useEffect(() => {
     const loadData = async () => {
       try {
-        const authUser = await base44.auth.me();
+        const user = await base44.auth.me();
+        setCurrentUser(user);
+
         const today = new Date();
         const thirtyDaysAgo = new Date(today);
         thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -199,111 +198,129 @@ export default function SquareManagement() {
           }
         };
 
+        // OFFLINE-FIRST: Load from offline DB first to prevent rate limits
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
-
+        
+        // Load Stores from offline DB first
         let storesData = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
         if (storesData.length === 0) {
+          console.log('📥 [SquareManagement] Stores not in offline DB - fetching from API');
           storesData = await base44.entities.Store.list();
           await offlineDB.bulkSave(offlineDB.STORES.STORES, storesData);
+        } else {
+          console.log(`📦 [SquareManagement] Using ${storesData.length} stores from offline DB`);
         }
 
+        // Load AppUsers from offline DB first
         let appUsersData = await offlineDB.getAll(offlineDB.STORES.APP_USERS) || [];
         if (appUsersData.length === 0) {
+          console.log('📥 [SquareManagement] AppUsers not in offline DB - fetching from API');
           appUsersData = await base44.entities.AppUser.list();
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsersData);
+        } else {
+          console.log(`📦 [SquareManagement] Using ${appUsersData.length} AppUsers from offline DB`);
         }
 
+        // Load Patients from offline DB first
         let patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS) || [];
         if (patientsData.length === 0) {
+          console.log('📥 [SquareManagement] Patients not in offline DB - fetching from API');
           patientsData = await base44.entities.Patient.list();
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsData);
+        } else {
+          console.log(`📦 [SquareManagement] Using ${patientsData.length} patients from offline DB`);
+        }
+
+        // Load Deliveries from offline DB first
+        let deliveriesData = [];
+        try {
+          const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
+
+          deliveriesData = allDeliveries.filter(d =>
+            d && d.delivery_date >= startDateStr && d.delivery_date <= endDateStr
+          );
+          
+          if (deliveriesData.length === 0) {
+            console.log('📥 [SquareManagement] Recent deliveries not in offline DB - fetching from API');
+            deliveriesData = await base44.entities.Delivery.filter(dateFilter);
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesData);
+          } else {
+            console.log(`📦 [SquareManagement] Using ${deliveriesData.length} recent deliveries from offline DB`);
+          }
+        } catch (offlineError) {
+          console.warn('⚠️ [SquareManagement] Offline deliveries failed, fetching from API');
+          deliveriesData = await base44.entities.Delivery.filter(dateFilter);
         }
 
         let configs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS) || [];
+        configs = configs.filter(config => config?.status === 'active');
         if (configs.length === 0) {
           configs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
-          await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
-          if (configs.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, configs);
-          }
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, configs || []);
         }
 
-        let deliveriesData = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
-        if (deliveriesData.length === 0) {
-          deliveriesData = await base44.entities.Delivery.filter(dateFilter);
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesData);
-        }
-
-        const matchedAppUser = appUsersData.find((appUser) => appUser?.user_id === authUser?.id) || null;
-        setCurrentUser(authUser);
-        setCurrentAppUser(matchedAppUser);
         setLocationConfigs(configs || []);
         setStores(storesData || []);
         setPatients(patientsData || []);
         setDeliveries(deliveriesData || []);
 
-        const driversList = appUsersData.filter((u) => u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active');
+        const driversList = appUsersData.filter(u => 
+          u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active'
+        );
         setDrivers(driversList || []);
 
-        const syncedLocationIds = (configs || []).map((c) => c.square_location_id).filter(Boolean);
+        const syncedLocationIds = configs.map(c => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
         const offlineSnapshot = await loadSquareViewFromOffline();
-        if (offlineSnapshot.items.length > 0 || offlineSnapshot.transactions.length > 0 || deliveriesData.length > 0) {
+        if (offlineSnapshot.items.length > 0 || offlineSnapshot.transactions.length > 0) {
           setIsLoading(false);
         }
 
-        const syncSessionKey = `square-cod-initial-bg-sync:${authUser?.id || 'anonymous'}`;
-        if (sessionStorage.getItem(syncSessionKey)) {
-          setIsLoading(false);
-          return;
-        }
+        const initialSyncSessionKey = `square-cod-initial-sync:${user.id}`;
+        if (!sessionStorage.getItem(initialSyncSessionKey)) {
+          sessionStorage.setItem(initialSyncSessionKey, 'true');
+          setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing Deliveries, Transactions, and Catalog…' });
 
-        sessionStorage.setItem(syncSessionKey, 'done');
-        setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD views…' });
+          try {
+            const freshDeliveries = await base44.entities.Delivery.filter(dateFilter);
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries || []);
+            const offlineDeliveries = await loadRecentDeliveriesFromOffline(startDateStr, endDateStr);
+            setDeliveries(offlineDeliveries || []);
 
-        try {
-          const [freshDeliveries, freshConfigs] = await Promise.all([
-            base44.entities.Delivery.filter(dateFilter),
-            base44.entities.SquareLocationConfig.filter({ status: 'active' })
-          ]);
+            const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
+            const data = response?.data || response || {};
 
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries || []);
-          await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
-          if ((freshConfigs || []).length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, freshConfigs);
+            if (data.rate_limited) {
+              setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading cached COD data…' });
+              await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+              await loadSyncStatus();
+              setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
+              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
+            } else if (data.success) {
+              setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading latest synced COD data…' });
+              const { items } = await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
+              await loadSyncStatus();
+
+              const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
+              const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
+              const detailParts = [
+                `${items.length} items`,
+                createdCount > 0 ? `+${createdCount} created` : null,
+                deletedCount > 0 ? `-${deletedCount} deleted` : null,
+              ].filter(Boolean).join(', ');
+
+              setBgSyncProgress({ stage: 'complete', detail: detailParts });
+              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
+            } else if (data.lock_active) {
+              setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (sync locked)' });
+              setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 3000);
+            }
+          } catch (bgError) {
+            console.warn('⚠️ [SquareManagement] API refresh failed:', bgError.message);
+            setBgSyncProgress({ stage: 'error', error: bgError.message });
+            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
           }
-
-          const response = await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
-          const data = response?.data || response || {};
-
-          if (data.rate_limited) {
-            setBgSyncProgress({ stage: 'payments_sync', detail: 'Refreshing cached Square data…' });
-            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
-            await loadSyncStatus();
-            setBgSyncProgress({ stage: 'complete', detail: 'Using cached Square data' });
-          } else if (data.success) {
-            setBgSyncProgress({ stage: 'payments_sync', detail: 'Updating catalog and transactions…' });
-            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress });
-            await loadSyncStatus();
-            setBgSyncProgress({ stage: 'complete', detail: 'All COD views updated' });
-          } else if (data.lock_active) {
-            setBgSyncProgress({ stage: 'complete', detail: 'Square sync locked — offline data kept' });
-          }
-
-          const [updatedDeliveries, updatedConfigs] = await Promise.all([
-            loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
-            offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS)
-          ]);
-
-          setDeliveries(updatedDeliveries || []);
-          setLocationConfigs((updatedConfigs || []).filter((config) => config?.status === 'active'));
-          await loadSquareViewFromOffline();
-          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
-        } catch (bgError) {
-          console.warn('⚠️ [SquareManagement] Background COD refresh failed:', bgError.message);
-          setBgSyncProgress({ stage: 'error', error: bgError.message });
-          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
         }
 
         setIsLoading(false);
@@ -314,7 +331,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -628,150 +645,99 @@ export default function SquareManagement() {
     return new Set((drivers || []).map(driver => driver?.user_id).filter(Boolean));
   }, [drivers, selectedDriverFilter]);
 
-  const activeCityIds = React.useMemo(() => {
-    const source = currentAppUser || currentUser;
-    if (Array.isArray(source?.city_ids) && source.city_ids.length > 0) {
-      return source.city_ids.filter(Boolean);
-    }
-    return source?.city_id ? [source.city_id] : [];
-  }, [currentAppUser, currentUser]);
+  const assignedCityIds = React.useMemo(() => {
+    const ids = Array.isArray(currentUser?.city_ids) && currentUser.city_ids.length > 0
+      ? currentUser.city_ids
+      : currentUser?.city_id
+        ? [currentUser.city_id]
+        : [];
+    return ids.filter(Boolean);
+  }, [currentUser]);
 
-  const visibleStoreIds = React.useMemo(() => {
-    const cityFilteredStores = activeCityIds.length > 0
-      ? stores.filter((store) => activeCityIds.includes(store?.city_id))
-      : stores;
-    return new Set(cityFilteredStores.map((store) => store?.id).filter(Boolean));
-  }, [stores, activeCityIds]);
+  const cityStores = React.useMemo(() => {
+    return stores.filter((store) => assignedCityIds.length === 0 || assignedCityIds.includes(store?.city_id));
+  }, [assignedCityIds, stores]);
 
-  const visibleLocationIds = React.useMemo(() => {
-    const configIds = new Set(
-      stores
-        .filter((store) => visibleStoreIds.has(store?.id))
-        .map((store) => store?.square_location_config_id)
-        .filter(Boolean)
-    );
+  const cityStoreIds = React.useMemo(() => {
+    return new Set(cityStores.map((store) => store?.id).filter(Boolean));
+  }, [cityStores]);
 
+  const cityLocationConfigIds = React.useMemo(() => {
+    return new Set(cityStores.map((store) => store?.square_location_config_id).filter(Boolean));
+  }, [cityStores]);
+
+  const citySquareLocationIds = React.useMemo(() => {
     return new Set(
       locationConfigs
-        .filter((config) => configIds.has(config?.id))
+        .filter((config) => cityLocationConfigIds.has(config?.id))
         .map((config) => config?.square_location_id)
         .filter(Boolean)
     );
-  }, [locationConfigs, stores, visibleStoreIds]);
+  }, [cityLocationConfigIds, locationConfigs]);
 
-  const filteredDeliveryRows = React.useMemo(() => {
-    return (deliveries || [])
+  const monthLookbackStart = React.useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, []);
+
+  const deliveryViewItems = React.useMemo(() => {
+    return deliveries
       .filter((delivery) => {
         if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
-        if (!visibleStoreIds.has(delivery.store_id)) return false;
-        if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return false;
-        if (selectedDriverUserIds.size === 0) return false;
-        return selectedDriverUserIds.has(delivery.driver_id);
+        if (!cityStoreIds.has(delivery.store_id)) return false;
+        if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(delivery.driver_id)) return false;
+        if (!delivery.delivery_date) return false;
+        return new Date(`${delivery.delivery_date}T00:00:00`) >= monthLookbackStart;
       })
       .sort((a, b) => {
-        const dateCompare = String(b.delivery_date || '').localeCompare(String(a.delivery_date || ''));
-        if (dateCompare !== 0) return dateCompare;
-        return String(a.delivery_time_start || '').localeCompare(String(b.delivery_time_start || ''));
-      })
-      .map((delivery) => {
-        const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
-        const store = stores.find((s) => s?.id === delivery.store_id);
-        const config = locationConfigs.find((c) => c?.id === store?.square_location_config_id);
-        const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
-        return {
-          id: delivery.id,
-          itemName: patient?.full_name || delivery.delivery_id || 'Unknown Delivery',
-          amount: Number(delivery.cod_total_amount_required || 0),
-          storeName: store?.name || 'Unknown',
-          locationId: config?.square_location_id || '—',
-          catalogId: linkedCatalog?.catalog_object_id || '—',
-          deliveryDate: delivery.delivery_date,
-          subtext: delivery.driver_name || null,
-          actions: null
-        };
+        if (a.delivery_date !== b.delivery_date) return b.delivery_date.localeCompare(a.delivery_date);
+        const aPatient = patients.find((patient) => patient?.id === a.patient_id || patient?.patient_id === a.patient_id);
+        const bPatient = patients.find((patient) => patient?.id === b.patient_id || patient?.patient_id === b.patient_id);
+        return (aPatient?.full_name || '').localeCompare(bPatient?.full_name || '');
       });
-  }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems]);
+  }, [cityStoreIds, deliveries, monthLookbackStart, patients, selectedDriverUserIds]);
 
-  const filteredTransactionRows = React.useMemo(() => {
-    return (allTransactions || [])
+  const transactionViewItems = React.useMemo(() => {
+    return allTransactions
       .filter((transaction) => {
-        if (!transaction || isTransferTransaction(transaction)) return false;
+        if (!transaction || !citySquareLocationIds.has(transaction.location_id)) return false;
+        if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(transaction.driver_id)) return false;
         const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
-        if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
-        const storeMatch = transaction.store_id ? visibleStoreIds.has(transaction.store_id) : visibleLocationIds.has(transaction.location_id);
-        if (!storeMatch) return false;
-        if (selectedDriverUserIds.size === 0) return false;
-        return selectedDriverUserIds.has(transaction.driver_id);
+        if (Number.isNaN(transactionDate.getTime())) return false;
+        return transactionDate >= monthLookbackStart;
       })
-      .sort((a, b) => new Date(b.created_date || b.updated_date || 0).getTime() - new Date(a.created_date || a.updated_date || 0).getTime())
-      .map((transaction) => {
-        const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
-        const store = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
-        return {
-          id: transaction.id,
-          itemName: transaction.item_name || transaction.square_payment_id || 'Square Transaction',
-          amount: Number(transaction.amount || 0),
-          storeName: store?.name || config?.name || 'Unknown',
-          locationId: transaction.location_id || '—',
-          catalogId: transaction.square_catalog_object_id || '—',
-          deliveryDate: parseSquareItemName(transaction.item_name)?.deliveryDate || transaction.created_date,
-          subtext: transaction.payment_method || transaction.status || null,
-          actions: (
-            <div className="flex flex-wrap gap-1 justify-end">
-              {getTypeBadge(transaction.type)}
-              {getStatusBadge(transaction.status)}
-              {transaction.payment_method ? getPaymentMethodBadge(transaction.payment_method) : null}
-            </div>
-          )
-        };
-      });
-  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverUserIds, locationConfigs, stores]);
+      .sort((a, b) => new Date(b.created_date || b.updated_date || 0).getTime() - new Date(a.created_date || a.updated_date || 0).getTime());
+  }, [allTransactions, citySquareLocationIds, monthLookbackStart, selectedDriverUserIds]);
 
-  const filteredCatalogRows = React.useMemo(() => {
-    return (catalogItems || [])
-      .filter((item) => {
-        const config = locationConfigs.find((c) => c?.square_location_id === item.location_id);
-        const store = stores.find((s) => s?.id === item.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
-        return store ? visibleStoreIds.has(store.id) : visibleLocationIds.has(item.location_id);
-      })
-      .sort((a, b) => String(a.name || a.item_name || '').localeCompare(String(b.name || b.item_name || '')))
-      .map((item) => {
-        const config = locationConfigs.find((c) => c?.square_location_id === item.location_id);
-        const store = stores.find((s) => s?.id === item.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
-        return {
-          id: item.catalog_object_id || item.id,
-          itemName: item.name || item.item_name || 'Catalog Item',
-          amount: Number(item.price_dollars || 0),
-          storeName: store?.name || config?.name || 'Unknown',
-          locationId: item.location_id || '—',
-          catalogId: item.catalog_object_id || item.id || '—',
-          deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
-          subtext: item.description || null,
-          actions: (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setItemToDelete(item);
-              }}
-              disabled={deletingId === item.catalog_object_id}
-              className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-            >
-              {deletingId === item.catalog_object_id ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Trash2 className="w-4 h-4" />
-              )}
-            </Button>
-          )
-        };
+  const catalogViewItems = React.useMemo(() => {
+    return [...filteredCatalogItems]
+      .filter((item) => citySquareLocationIds.has(item.location_id))
+      .sort((a, b) => {
+        const aDelivery = deliveries.find((delivery) => delivery?.id === a.delivery_id);
+        const bDelivery = deliveries.find((delivery) => delivery?.id === b.delivery_id);
+        const aPatient = aDelivery?.patient_id ? patients.find((patient) => patient?.id === aDelivery.patient_id || patient?.patient_id === aDelivery.patient_id) : null;
+        const bPatient = bDelivery?.patient_id ? patients.find((patient) => patient?.id === bDelivery.patient_id || patient?.patient_id === bDelivery.patient_id) : null;
+        const aLabel = aPatient?.full_name || parseSquareItemName(a.name || a.item_name)?.patientName || a.name || '';
+        const bLabel = bPatient?.full_name || parseSquareItemName(b.name || b.item_name)?.patientName || b.name || '';
+        return aLabel.localeCompare(bLabel);
       });
-  }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, deletingId]);
+  }, [citySquareLocationIds, deliveries, filteredCatalogItems, patients]);
+
+  const visibleLocationConfigs = React.useMemo(() => {
+    return locationConfigs
+      .filter((config) => citySquareLocationIds.has(config.square_location_id))
+      .sort((a, b) => {
+        const storeA = stores.find(s => s.square_location_config_id === a.id);
+        const storeB = stores.find(s => s.square_location_config_id === b.id);
+        return (storeA?.sort_order ?? Infinity) - (storeB?.sort_order ?? Infinity);
+      });
+  }, [citySquareLocationIds, locationConfigs, stores]);
 
   const lookbackStart = React.useMemo(() => {
     const date = new Date();
-    date.setDate(date.getDate() - 30);
+    date.setDate(date.getDate() - 14);
     date.setHours(0, 0, 0, 0);
     return date;
   }, []);
@@ -779,17 +745,19 @@ export default function SquareManagement() {
   const codDeliveriesCount = React.useMemo(() => {
     return deliveries.filter(delivery => {
       if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
+      if (!cityStoreIds.has(delivery.store_id)) return false;
       if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return false;
       if (selectedDriverUserIds.size === 0) return false;
       return selectedDriverUserIds.has(delivery.driver_id);
     }).length;
-  }, [deliveries, lookbackStart, selectedDriverUserIds]);
+  }, [cityStoreIds, deliveries, lookbackStart, selectedDriverUserIds]);
 
   const collectedCodTypeBreakdown = React.useMemo(() => {
     const counts = { Cash: 0, Debit: 0, Credit: 0, Check: 0 };
 
     deliveries.forEach((delivery) => {
       if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return;
+      if (!cityStoreIds.has(delivery.store_id)) return;
       if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return;
       if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(delivery.driver_id)) return;
 
@@ -813,7 +781,7 @@ export default function SquareManagement() {
     });
 
     return counts;
-  }, [deliveries, lookbackStart, selectedDriverUserIds]);
+  }, [cityStoreIds, deliveries, lookbackStart, selectedDriverUserIds]);
 
   const isTransferTransaction = (transaction) => {
     const label = `${transaction?.item_name || ''} ${transaction?.delivery_id || ''}`.toLowerCase();
@@ -823,62 +791,49 @@ export default function SquareManagement() {
   const filteredCardSpendCount = React.useMemo(() => {
     return allTransactions.filter(transaction => {
       if (!transaction || isTransferTransaction(transaction)) return false;
+      if (!citySquareLocationIds.has(transaction.location_id)) return false;
       const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
       if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
       if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(transaction.driver_id)) return false;
       return transaction.type === 'collection' && ['completed', 'refunded'].includes(transaction.status);
     }).length;
-  }, [allTransactions, lookbackStart, selectedDriverUserIds]);
+  }, [allTransactions, citySquareLocationIds, lookbackStart, selectedDriverUserIds]);
 
   const filteredSalesCount = React.useMemo(() => {
     return soldCatalogItems.filter(transaction => {
       if (!transaction || isTransferTransaction(transaction)) return false;
+      if (!citySquareLocationIds.has(transaction.location_id)) return false;
       const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
       if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
       if (selectedDriverUserIds.size === 0) return false;
       return selectedDriverUserIds.has(transaction.driver_id);
     }).length;
-  }, [soldCatalogItems, lookbackStart, selectedDriverUserIds]);
+  }, [citySquareLocationIds, soldCatalogItems, lookbackStart, selectedDriverUserIds]);
 
-  const viewCounts = {
-    deliveries: filteredDeliveryRows.length,
-    transactions: filteredTransactionRows.length,
-    catalog: filteredCatalogRows.length,
-    reconciliation: 0
-  };
+  const currentViewTitle = {
+    reconciliation: 'Reconciliation',
+    deliveries: 'Deliveries',
+    transactions: 'Transactions',
+    catalog: 'Active COD Items'
+  }[selectedView];
 
-  const activeViewStats = React.useMemo(() => {
-    if (activeView === 'deliveries') {
-      return {
-        primaryLabel: 'COD Deliveries',
-        primaryValue: filteredDeliveryRows.length,
-        amountLabel: 'Total COD',
-        amountValue: filteredDeliveryRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
-        locationLabel: 'City Stores',
-        locationValue: visibleStoreIds.size
-      };
-    }
-
-    if (activeView === 'transactions') {
-      return {
-        primaryLabel: 'Transactions',
-        primaryValue: filteredTransactionRows.length,
-        amountLabel: 'Collected Amount',
-        amountValue: filteredTransactionRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
-        locationLabel: 'Square Locations',
-        locationValue: new Set(filteredTransactionRows.map((row) => row.locationId).filter(Boolean)).size
-      };
-    }
-
-    return {
-      primaryLabel: 'Catalog Items',
-      primaryValue: filteredCatalogRows.length,
-      amountLabel: 'Total Amount',
-      amountValue: filteredCatalogRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
-      locationLabel: 'Square Locations',
-      locationValue: new Set(filteredCatalogRows.map((row) => row.locationId).filter(Boolean)).size
-    };
-  }, [activeView, filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, visibleStoreIds]);
+  const stats = selectedView === 'deliveries'
+    ? {
+        total: deliveryViewItems.length,
+        totalAmount: deliveryViewItems.reduce((sum, delivery) => sum + Number(delivery.cod_total_amount_required || 0), 0),
+        locations: new Set(deliveryViewItems.map((delivery) => delivery.store_id).filter(Boolean)).size
+      }
+    : selectedView === 'transactions'
+      ? {
+          total: transactionViewItems.length,
+          totalAmount: transactionViewItems.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0),
+          locations: new Set(transactionViewItems.map((transaction) => transaction.location_id).filter(Boolean)).size
+        }
+      : {
+          total: catalogViewItems.length,
+          totalAmount: catalogViewItems.reduce((sum, item) => sum + (item.price_dollars || 0), 0),
+          locations: visibleLocationConfigs.length
+        };
 
   return (
     <div className="p-4 md:p-6 bg-background text-foreground w-full min-h-screen md:h-screen flex flex-col overflow-hidden" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
@@ -893,7 +848,7 @@ export default function SquareManagement() {
       </div>
       
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-row items-center gap-2 md:gap-3">
+        <div>
           {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
               <SelectTrigger className="w-[150px] md:w-[200px] text-sm">
@@ -910,14 +865,13 @@ export default function SquareManagement() {
             </Select>
           )}
         </div>
-
-        <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 md:ml-auto">
+          <SquareViewToggle selectedView={selectedView} onSelect={setSelectedView} />
           <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm">
             <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
             <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
             <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
           </Button>
-          <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
         </div>
       </div>
     </div>
@@ -930,7 +884,7 @@ export default function SquareManagement() {
                 isSyncing={isSyncing}
                 error={error}
                 codDeliveryCount={codDeliveriesCount}
-                catalogItemCount={filteredCatalogItems.length}
+                catalogItemCount={catalogViewItems.length}
                 cardSpendCount={filteredCardSpendCount}
                 salesCount={filteredSalesCount}
                 collectedCodTypeBreakdown={collectedCodTypeBreakdown}
@@ -974,50 +928,43 @@ export default function SquareManagement() {
           <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
-            <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">{activeViewStats.primaryValue}</div>
+            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{selectedView === 'deliveries' ? 'COD Deliveries' : selectedView === 'transactions' ? 'Transactions' : 'Catalog Items'}</div>
+            <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">{stats.total}</div>
           </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.amountLabel}</div>
-            <div className="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400">${activeViewStats.amountValue.toFixed(2)}</div>
+            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Total Amount</div>
+            <div className="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400">${stats.totalAmount.toFixed(2)}</div>
           </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.locationLabel}</div>
-            <div className="text-xl md:text-2xl font-bold text-blue-600 dark:text-blue-400">{activeViewStats.locationValue}</div>
+            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{selectedView === 'deliveries' ? 'Stores' : 'Square Locations'}</div>
+            <div className="text-xl md:text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.locations}</div>
           </CardContent>
           </Card>
           </div>
 
       {/* Location Summary Cards */}
-      {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
+      {selectedView === 'catalog' && currentUser && isAppOwner(currentUser) && visibleLocationConfigs.length > 0 && (
         <div>
           <h2 className="text-base md:text-lg font-semibold mb-4 text-slate-900 dark:text-slate-50">By Location</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-none md:auto-cols-fr md:grid-flow-col gap-2 md:gap-4 mb-6 md:mb-8">
-            {locationConfigs
-              .sort((a, b) => {
-                const storeA = stores.find(s => s.square_location_config_id === a.id);
-                const storeB = stores.find(s => s.square_location_config_id === b.id);
-                return (storeA?.sort_order ?? Infinity) - (storeB?.sort_order ?? Infinity);
-              })
-              .map(config => {
-                const locationItems = filteredCatalogItems.filter(item => item.location_id === config.square_location_id);
-                const codTotal = locationItems.reduce((sum, item) => sum + (item.price_dollars || 0), 0);
-                const store = stores.find(s => s.square_location_config_id === config.id);
-                const storeColor = store ? getStoreColor(store.id) : null;
-                return (
-                  <LocationSummaryCard
-                    key={config.id}
-                    location={{ name: config?.name || store?.name || 'Unknown', square_location_id: config.square_location_id }}
-                    codTotal={codTotal}
-                    itemCount={locationItems.length}
-                    onClick={() => setSelectedLocation(config)}
-                  />
-                );
-              })}
+            {visibleLocationConfigs.map(config => {
+              const locationItems = catalogViewItems.filter(item => item.location_id === config.square_location_id);
+              const codTotal = locationItems.reduce((sum, item) => sum + (item.price_dollars || 0), 0);
+              const store = stores.find(s => s.square_location_config_id === config.id);
+              return (
+                <LocationSummaryCard
+                  key={config.id}
+                  location={{ name: config?.name || store?.name || 'Unknown', square_location_id: config.square_location_id }}
+                  codTotal={codTotal}
+                  itemCount={locationItems.length}
+                  onClick={() => setSelectedLocation(config)}
+                />
+              );
+            })}
           </div>
         </div>
       )}
@@ -1031,14 +978,157 @@ export default function SquareManagement() {
       {/* Active Square Items */}
       <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex-1 flex flex-col min-h-0">
         <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-          <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">Active COD Items</CardTitle>
+          <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{currentViewTitle}</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
-          {isLoading ? (
+          {selectedView === 'deliveries' ? (
+            isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
+              </div>
+            ) : deliveryViewItems.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-sm md:text-base">No COD deliveries found</p>
+                <p className="text-xs md:text-sm mt-1">Recent COD deliveries for your assigned city will appear here</p>
+              </div>
+            ) : (
+              <>
+                <div className="hidden md:block overflow-x-auto pb-2">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
+                        <th className="p-3">Patient</th>
+                        <th className="p-3">Amount</th>
+                        <th className="p-3">Store</th>
+                        <th className="p-3">Driver</th>
+                        <th className="p-3">Delivery Date</th>
+                        <th className="p-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {deliveryViewItems.map((delivery) => {
+                        const patient = patients.find((item) => item?.id === delivery.patient_id || item?.patient_id === delivery.patient_id);
+                        const store = stores.find((item) => item?.id === delivery.store_id);
+                        const driver = drivers.find((item) => item?.user_id === delivery.driver_id);
+                        return (
+                          <tr key={delivery.id} className="border-b border-slate-200 dark:border-slate-700">
+                            <td className="p-3 font-medium text-sm text-slate-900 dark:text-slate-50">{patient?.full_name || 'Unknown Patient'}</td>
+                            <td className="p-3 font-semibold text-emerald-600 dark:text-emerald-400">${Number(delivery.cod_total_amount_required || 0).toFixed(2)}</td>
+                            <td className="p-3 text-sm text-slate-700 dark:text-slate-300">{store?.name || 'Unknown Store'}</td>
+                            <td className="p-3 text-sm text-slate-700 dark:text-slate-300">{driver?.user_name || delivery.driver_name || 'Unassigned'}</td>
+                            <td className="p-3 text-sm text-slate-700 dark:text-slate-300">{delivery.delivery_date}</td>
+                            <td className="p-3">{getStatusBadge(delivery.status)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="md:hidden space-y-3">
+                  {deliveryViewItems.map((delivery) => {
+                    const patient = patients.find((item) => item?.id === delivery.patient_id || item?.patient_id === delivery.patient_id);
+                    const store = stores.find((item) => item?.id === delivery.store_id);
+                    const driver = drivers.find((item) => item?.user_id === delivery.driver_id);
+                    return (
+                      <div key={delivery.id} className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-sm text-slate-900 dark:text-slate-50">{patient?.full_name || 'Unknown Patient'}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{store?.name || 'Unknown Store'} • {driver?.user_name || delivery.driver_name || 'Unassigned'}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-emerald-600 dark:text-emerald-400">${Number(delivery.cod_total_amount_required || 0).toFixed(2)}</p>
+                            <div className="mt-1">{getStatusBadge(delivery.status)}</div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{delivery.delivery_date}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )
+          ) : selectedView === 'transactions' ? (
+            isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
+              </div>
+            ) : transactionViewItems.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-sm md:text-base">No Square transactions found</p>
+                <p className="text-xs md:text-sm mt-1">Recent transactions for your assigned city will appear here</p>
+              </div>
+            ) : (
+              <>
+                <div className="hidden md:block overflow-x-auto pb-2">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
+                        <th className="p-3">Item Name</th>
+                        <th className="p-3">Amount</th>
+                        <th className="p-3">Store</th>
+                        <th className="p-3">Type</th>
+                        <th className="p-3">Payment</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transactionViewItems.map((transaction) => {
+                        const config = locationConfigs.find((item) => item?.square_location_id === transaction.location_id);
+                        const store = stores.find((item) => item?.square_location_config_id === config?.id);
+                        return (
+                          <tr key={transaction.id} className="border-b border-slate-200 dark:border-slate-700">
+                            <td className="p-3 font-medium text-sm text-slate-900 dark:text-slate-50">{transaction.item_name || 'Unnamed Transaction'}</td>
+                            <td className="p-3 font-semibold text-emerald-600 dark:text-emerald-400">${Number(transaction.amount || 0).toFixed(2)}</td>
+                            <td className="p-3 text-sm text-slate-700 dark:text-slate-300">{store?.name || config?.name || 'Unknown Store'}</td>
+                            <td className="p-3">{getTypeBadge(transaction.type)}</td>
+                            <td className="p-3">{getPaymentMethodBadge(transaction.payment_method || 'cash')}</td>
+                            <td className="p-3">{getStatusBadge(transaction.status)}</td>
+                            <td className="p-3 text-sm text-slate-700 dark:text-slate-300">{new Date(transaction.created_date || transaction.updated_date || Date.now()).toLocaleDateString()}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="md:hidden space-y-3">
+                  {transactionViewItems.map((transaction) => {
+                    const config = locationConfigs.find((item) => item?.square_location_id === transaction.location_id);
+                    const store = stores.find((item) => item?.square_location_config_id === config?.id);
+                    return (
+                      <div key={transaction.id} className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-sm text-slate-900 dark:text-slate-50">{transaction.item_name || 'Unnamed Transaction'}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{store?.name || config?.name || 'Unknown Store'}</p>
+                          </div>
+                          <p className="font-bold text-emerald-600 dark:text-emerald-400">${Number(transaction.amount || 0).toFixed(2)}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {getTypeBadge(transaction.type)}
+                          {getPaymentMethodBadge(transaction.payment_method || 'cash')}
+                          {getStatusBadge(transaction.status)}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{new Date(transaction.created_date || transaction.updated_date || Date.now()).toLocaleDateString()}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )
+          ) : selectedView === 'reconciliation' ? (
+            <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+              <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm md:text-base">Reconciliation view coming next</p>
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
             </div>
-          ) : filteredCatalogItems.length === 0 ? (
+          ) : catalogViewItems.length === 0 ? (
             <div className="text-center py-12 text-slate-500 dark:text-slate-400">
                <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
                <p className="text-sm md:text-base">No active COD items in Square</p>
@@ -1059,7 +1149,7 @@ export default function SquareManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCatalogItems.map((item, index) => {
+                  {catalogViewItems.map((item, index) => {
                     const itemDrivers = getDriversForLocation(item.location_id)
                       .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
                     const userIsAppOwner = currentUser && isAppOwner(currentUser);
@@ -1070,7 +1160,7 @@ export default function SquareManagement() {
                     const storeColor = itemStore ? getStoreColor(itemStore.id) : null;
 
                     // Check if there are other items with different stores
-                    const hasMultipleStores = filteredCatalogItems.some(otherItem => {
+                    const hasMultipleStores = catalogViewItems.some(otherItem => {
                       if (otherItem.catalog_object_id === item.catalog_object_id) return false;
                       const otherConfig = locationConfigs.find(c => c.square_location_id === otherItem.location_id);
                       const otherStore = stores.find(s => s.square_location_config_id === otherConfig?.id);
@@ -1223,9 +1313,9 @@ export default function SquareManagement() {
           )}
           
           {/* Mobile Card View */}
-          {!isLoading && filteredCatalogItems.length > 0 && (
+          {selectedView === 'catalog' && !isLoading && catalogViewItems.length > 0 && (
             <div className="md:hidden space-y-3">
-              {filteredCatalogItems.map((item, index) => {
+              {catalogViewItems.map((item, index) => {
                 const itemDrivers = getDriversForLocation(item.location_id)
                   .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
                 const userIsAppOwner = currentUser && isAppOwner(currentUser);
