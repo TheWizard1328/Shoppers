@@ -819,6 +819,24 @@ export default function SquareManagement() {
       });
   }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, driverScopedLocationIds, deletingId]);
 
+  const reconciliationRows = React.useMemo(() => {
+    const deliverySignatureCounts = filteredDeliveryRows.reduce((acc, row) => {
+      const key = `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}`;
+      acc.set(key, (acc.get(key) || 0) + 1);
+      return acc;
+    }, new Map());
+
+    return filteredTransactionRows.filter((row) => {
+      const key = `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}`;
+      const remaining = deliverySignatureCounts.get(key) || 0;
+      if (remaining > 0) {
+        deliverySignatureCounts.set(key, remaining - 1);
+        return false;
+      }
+      return true;
+    });
+  }, [filteredDeliveryRows, filteredTransactionRows]);
+
   const codDeliveriesCount = React.useMemo(() => {
     return deliveries.filter(delivery => {
       if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
@@ -882,7 +900,7 @@ export default function SquareManagement() {
     deliveries: filteredDeliveryRows.length,
     transactions: filteredTransactionRows.length,
     catalog: filteredCatalogRows.length,
-    reconciliation: 0
+    reconciliation: reconciliationRows.length
   };
 
   const activeViewStats = React.useMemo(() => {
@@ -908,6 +926,17 @@ export default function SquareManagement() {
       };
     }
 
+    if (activeView === 'reconciliation') {
+      return {
+        primaryLabel: 'Unmatched Transactions',
+        primaryValue: reconciliationRows.length,
+        amountLabel: 'Unmatched Amount',
+        amountValue: reconciliationRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+        locationLabel: 'Square Locations',
+        locationValue: new Set(reconciliationRows.map((row) => row.locationId).filter(Boolean)).size
+      };
+    }
+
     return {
       primaryLabel: 'Catalog Items',
       primaryValue: filteredCatalogRows.length,
@@ -916,7 +945,7 @@ export default function SquareManagement() {
       locationLabel: 'Square Locations',
       locationValue: new Set(filteredCatalogRows.map((row) => row.locationId).filter(Boolean)).size
     };
-  }, [activeView, filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, visibleStoreIds]);
+  }, [activeView, filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, reconciliationRows, visibleStoreIds]);
 
   return (
     <div className="p-4 md:p-6 bg-background text-foreground w-full min-h-screen md:h-screen flex flex-col overflow-hidden" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
@@ -1068,14 +1097,15 @@ export default function SquareManagement() {
       )}
 
       {activeView === 'reconciliation' ? (
-        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex-1 flex flex-col min-h-0">
-          <CardHeader>
-            <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">Reconciliation</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-slate-600 dark:text-slate-400">
-            Reconciliation is ready for the next step once you confirm the Deliveries, Transactions, and Catalog views look correct.
-          </CardContent>
-        </Card>
+        <SquareCodDatasetTable
+          title="Reconciliation"
+          rows={reconciliationRows}
+          isLoading={isLoading}
+          emptyTitle="No unmatched transactions"
+          emptyDescription="Transactions that do not match a delivery amount and Square location will appear here."
+          showLocationColumn={currentUser && isAppOwner(currentUser)}
+          navHeight={navHeight}
+        />
       ) : activeView === 'deliveries' ? (
         <SquareCodDatasetTable
           title="In App COD Deliveries"
