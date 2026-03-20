@@ -40,7 +40,7 @@ import DeliveryFormStaged from './DeliveryFormStaged';
 import BarcodeScanner from './BarcodeScanner';
 import { checkPayrollLock } from '../utils/payrollLockManager';
 import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
-import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
+import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects'; import { getLocalDeliveryPredictions } from './getLocalDeliveryPredictions';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -761,84 +761,28 @@ export default function DeliveryForm({
 
   useEffect(() => {
     if (delivery || !formData.delivery_date || !currentUser || !stores || !allDeliveries) return;
-    
-    // CRITICAL: Stop predictions if explicitly stopped (Done button clicked)
-    if (predictionsStopped.current) {
-      return;
+    if (predictionsStopped.current) return;
+
+    setIsLoadingPredictions(true);
+
+    try {
+      const formattedPredictions = getLocalDeliveryPredictions({
+        currentUser,
+        stores,
+        patients,
+        allDeliveries,
+        selectedDate: formData.delivery_date
+      });
+
+      fullPredictionListRef.current = formattedPredictions;
+      const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
+      setProjectedDeliveries(formattedPredictions.filter((pred) => !stagedPatientIds.has(pred.patient_id)));
+    } catch (error) {
+      setProjectedDeliveries([]);
+    } finally {
+      setIsLoadingPredictions(false);
     }
-
-    const fetchPredictions = async () => {
-      setIsLoadingPredictions(true);
-
-      try {
-        let storeIdsToPredict = [];
-
-        const isAdmin = userHasRole(currentUser, 'admin');
-        const isDispatcher = userHasRole(currentUser, 'dispatcher');
-
-        if (isDispatcher && !isAdmin) {
-          storeIdsToPredict = currentUser.store_ids || [];
-        } else if (isAdmin) {
-          if (currentUser.store_ids && currentUser.store_ids.length > 0) {
-            storeIdsToPredict = currentUser.store_ids;
-          } else {
-            storeIdsToPredict = stores.map((s) => s.id);
-          }
-        } else if (userHasRole(currentUser, 'driver')) {
-          const driverStores = stores.filter((store) => {
-            const dateObj = new Date(formData.delivery_date + 'T00:00:00');
-            const dayOfWeek = dateObj.getDay();
-            const isSaturday = dayOfWeek === 6;
-            const isSunday = dayOfWeek === 0;
-
-            return isSaturday && (store.saturday_am_driver_id === currentUser.id || store.saturday_pm_driver_id === currentUser.id) ||
-            isSunday && (store.sunday_am_driver_id === currentUser.id || store.sunday_pm_driver_id === currentUser.id) ||
-            !isSaturday && !isSunday && (store.weekday_am_driver_id === currentUser.id || store.weekday_pm_driver_id === currentUser.id);
-          });
-          storeIdsToPredict = driverStores.map((s) => s.id);
-        }
-
-        if (storeIdsToPredict.length === 0 && !isAdmin) {
-          setIsLoadingPredictions(false);
-          return;
-        }
-
-        const response = await base44.functions.invoke('getDeliveryPredictions', {
-          selectedDate: formData.delivery_date,
-          storeIds: storeIdsToPredict,
-          excludePatientIds: [] // Don't exclude any on initial load
-        });
-
-        const result = response?.data || response;
-        if (result.predictions) {
-          // Map predictions to the format expected by UI
-          const formattedPredictions = result.predictions.map(pred => ({
-            patient_id: pred.patient_id,
-            patient_name: pred.patient_name,
-            store_id: pred.store_id,
-            reason: `${pred.frequency} delivery`,
-            cod_total_amount_required: pred.cod_total_amount_required || 0,
-            prescription_number: pred.prescription_number || '',
-            extra_time: pred.extra_time || 0
-          }));
-
-          // CRITICAL: Store full list in ref (never refetch)
-          fullPredictionListRef.current = formattedPredictions;
-          
-          // Filter out staged patients and display
-          const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
-          const filteredPredictions = formattedPredictions.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id));
-          setProjectedDeliveries(filteredPredictions);
-        }
-      } catch (error) {
-        setProjectedDeliveries([]);
-      } finally {
-        setIsLoadingPredictions(false);
-      }
-    };
-
-    fetchPredictions();
-  }, [delivery, formData.delivery_date, currentUser, stores, allDeliveries, predictionTrigger]);
+  }, [delivery, formData.delivery_date, currentUser, stores, patients, allDeliveries, stagedDeliveries, predictionTrigger]);
 
   const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
     if (!patient) return;
