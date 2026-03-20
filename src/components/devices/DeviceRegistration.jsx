@@ -25,14 +25,22 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
 
     const checkDevice = async () => {
       try {
-        // 1) If a device identifier is stored locally, try to validate it first
+        // 1) If a device identifier is stored locally, trust the cached registration first
         const storedDeviceId = localStorage.getItem(DEVICE_ID_KEY);
+        if (storedDeviceId && localStorage.getItem(`rxdeliver_device_registered_${storedDeviceId}`) === 'true') {
+          setIsLoading(false);
+          if (onDeviceRegistered) onDeviceRegistered({ user_id: currentUser.id, device_identifier: storedDeviceId });
+          return;
+        }
+
+        // 2) If not cached, validate the stored identifier against the backend
         if (storedDeviceId) {
           const matches = await base44.entities.UserDevice.filter({
             user_id: currentUser.id,
             device_identifier: storedDeviceId
           });
           if (matches && matches.length > 0 && (matches[0].status === 'active' || !matches[0].status)) {
+            localStorage.setItem(`rxdeliver_device_registered_${storedDeviceId}`, 'true');
             await base44.entities.UserDevice.update(matches[0].id, { last_active_at: new Date().toISOString() });
             setIsLoading(false);
             if (onDeviceRegistered) onDeviceRegistered(matches[0]);
@@ -67,20 +75,14 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
         setIsLoading(false);
       } catch (error) {
         console.error('Device check failed:', error);
-        // Fallback: still try to show existing devices list without status filter
-        try {
-          const fallbackDevices = await base44.entities.UserDevice.filter({ user_id: currentUser.id });
-          setExistingDevices(fallbackDevices || []);
-          setIsCreatingNew(!(fallbackDevices && fallbackDevices.length > 0));
-        } catch (e) {
-          setIsCreatingNew(true);
-        }
+        setExistingDevices([]);
+        setIsCreatingNew(true);
         try {
           const { deviceType, os } = getUserAgentInfo();
           const defaultName = `${os} ${deviceType}`;
           setNewDeviceName(defaultName);
         } catch (e) {}
-        if (currentUser?.app_roles?.includes('driver') && isCreatingNew) {
+        if (currentUser?.app_roles?.includes('driver')) {
           setIsPrimaryTracker(true);
         }
         setShowDialog(true);
