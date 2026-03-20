@@ -719,12 +719,18 @@ async function handleDeleteCodItem(base44, payload) {
   };
 }
 
-async function handleFetchPayments(payload) {
+async function handleFetchPayments(base44, payload) {
   const accessToken = ensureSquareToken();
-  const { locationIds, daysBack = 14, maxPerLocation = 10, throttleMs = 150 } = payload || {};
+  const { locationIds: requestedLocationIds, daysBack = 14, maxPerLocation = 10, throttleMs = 150 } = payload || {};
 
-  if (!locationIds || locationIds.length === 0) {
-    throw new HttpError(400, 'No location IDs provided');
+  let locationIds = Array.isArray(requestedLocationIds) ? requestedLocationIds.filter(Boolean) : [];
+  if (locationIds.length === 0) {
+    const locationConfigs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' });
+    locationIds = Array.from(new Set(locationConfigs.map((lc) => lc.square_location_id).filter(Boolean)));
+  }
+
+  if (locationIds.length === 0) {
+    throw new HttpError(400, 'No Square locations configured');
   }
 
   const endDate = new Date();
@@ -1448,7 +1454,7 @@ Deno.serve(async (req) => {
     }
     if (action === 'fetchPayments') {
       await requireUser(base44);
-      return Response.json(await handleFetchPayments(payload));
+      return Response.json(await handleFetchPayments(base44, payload));
     }
     if (action === 'getCodData') {
       await requireUser(base44);
