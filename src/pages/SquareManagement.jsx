@@ -218,12 +218,37 @@ export default function SquareManagement() {
   const syncReconciliationToCatalog = async () => {
     setIsUpdatingReconciliationCatalog(true);
     try {
-      const response = await base44.functions.invoke('squareSyncCatalogItems', {});
+      const items = reconciliationRows
+        .map((row) => {
+          const delivery = deliveries.find((entry) => entry?.id === row.id);
+          if (!delivery) return null;
+          const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
+          const store = stores.find((s) => s?.id === delivery.store_id);
+          return {
+            deliveryId: delivery.id,
+            patientName: patient?.full_name || row.itemName,
+            storeAbbreviation: store?.abbreviation,
+            codAmount: Number(delivery.cod_total_amount_required || 0),
+            deliveryDate: delivery.delivery_date,
+            storeId: delivery.store_id,
+          };
+        })
+        .filter((item) => item && item.deliveryId && item.codAmount > 0);
+
+      if (items.length === 0) {
+        toast.error('No reconciliation items available to update');
+        return;
+      }
+
+      const response = await base44.functions.invoke('squareCodCore', {
+        action: 'syncSquareCods',
+        items,
+      });
       const result = response?.data || response || {};
       await syncFromSquare();
       await hydrateSquareViewFromEntities();
       setActiveView('catalog');
-      toast.success(`Square catalog updated: ${result.created_catalog_items || 0} created, ${result.updated_pending_transactions || 0} updated`);
+      toast.success(`Square catalog updated for ${result.processed || items.length} reconciliation items`);
     } finally {
       setIsUpdatingReconciliationCatalog(false);
     }
