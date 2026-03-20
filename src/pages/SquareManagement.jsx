@@ -415,6 +415,10 @@ export default function SquareManagement() {
         }
 
         await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+        const offlineSquareSnapshot = await loadSquareViewFromOffline();
+        if (!offlineSquareSnapshot.items?.length && !offlineSquareSnapshot.transactions?.length) {
+          await hydrateSquareViewFromEntities();
+        }
         await loadSyncStatus();
         setIsLoading(false);
 
@@ -469,7 +473,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [loadDeliveriesFromOffline, loadReconciliationFromEntities, loadReconciliationFromOffline, loadSquareViewFromOffline, selectedDaysRange]);
+  }, [loadDeliveriesFromOffline, loadReconciliationFromEntities, loadReconciliationFromOffline, loadSquareViewFromOffline, hydrateSquareViewFromEntities, selectedDaysRange]);
 
   useEffect(() => {
     let isActive = true;
