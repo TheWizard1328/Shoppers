@@ -1070,27 +1070,6 @@ export default function SquareManagement() {
     }).length;
   }, [soldCatalogItems, lookbackStart, selectedDriverUserIds]);
 
-  const completedTransactionCount = React.useMemo(() => {
-    return allTransactions.filter(transaction => {
-      if (!transaction || isTransferTransaction(transaction)) return false;
-      if (!transaction.square_payment_id) return false;
-      if (transaction.type !== 'collection') return false;
-      if (transaction.status !== 'completed') return false;
-      const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
-      if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
-      const storeMatch = transaction.store_id ? visibleStoreIds.has(transaction.store_id) : visibleLocationIds.has(transaction.location_id);
-      if (!storeMatch) return false;
-      if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-        if (selectedDriverUserIds.size === 0) return false;
-        return selectedDriverUserIds.has(transaction.driver_id);
-      }
-      if (driverScopedLocationIds && driverScopedLocationIds.size > 0) {
-        return driverScopedLocationIds.has(transaction.location_id) || selectedDriverUserIds.has(transaction.driver_id);
-      }
-      return true;
-    }).length;
-  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds]);
-
   const viewCounts = {
     deliveries: filteredDeliveryRows.length,
     transactions: filteredTransactionRows.length,
@@ -1114,9 +1093,8 @@ export default function SquareManagement() {
       return {
         primaryLabel: 'Transactions',
         primaryValue: filteredTransactionRows.length,
-        amountLabel: 'Completed Transactions',
-        amountValue: completedTransactionCount,
-        amountIsCurrency: false,
+        amountLabel: 'Collected Amount',
+        amountValue: filteredTransactionRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
         locationLabel: 'Square Locations',
         locationValue: new Set(filteredTransactionRows.map((row) => row.locationId).filter(Boolean)).size
       };
@@ -1141,7 +1119,7 @@ export default function SquareManagement() {
       locationLabel: 'Square Locations',
       locationValue: new Set(filteredCatalogRows.map((row) => row.locationId).filter(Boolean)).size
     };
-  }, [activeView, filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, reconciliationRows, visibleStoreIds, completedTransactionCount]);
+  }, [activeView, filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, reconciliationRows, visibleStoreIds]);
 
   return (
     <div className="p-4 md:p-6 bg-background text-foreground w-full min-h-screen md:h-screen flex flex-col overflow-hidden" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
@@ -1244,9 +1222,7 @@ export default function SquareManagement() {
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-3 md:p-4">
             <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.amountLabel}</div>
-            <div className="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {activeViewStats.amountIsCurrency === false ? activeViewStats.amountValue : `$${activeViewStats.amountValue.toFixed(2)}`}
-            </div>
+            <div className="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400">${activeViewStats.amountValue.toFixed(2)}</div>
           </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
