@@ -232,34 +232,23 @@ export default function SquareManagement() {
       };
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      const [catalogResponse, paymentsResponse] = await Promise.all([
-        base44.functions.invoke('squareCodCore', { action: 'syncCatalogItems', skipLock: true }),
-        base44.functions.invoke('squareCodCore', { action: 'fetchPayments' })
-      ]);
-      const data = catalogResponse?.data || catalogResponse || {};
+      const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments' });
+      const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
       setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
       const entitySnapshot = await loadReconciliationFromEntities(dateFilter);
       await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, entitySnapshot);
 
-      if (data.rate_limited) {
-        toast.message(`Square sync is busy — using cached data (${entitySnapshot.catalogRecords.length} items)`);
-        setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
-        setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
-        return;
-      }
+      const transactionCount = Array.isArray(paymentsData.transactions)
+        ? paymentsData.transactions.length
+        : Array.isArray(paymentsData.payments)
+          ? paymentsData.payments.length
+          : Array.isArray(paymentsData.soldCatalogItems)
+            ? paymentsData.soldCatalogItems.length
+            : 0;
 
-      if (!data.success) throw new Error(data.error || 'Sync failed');
-
-      const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
-      const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
-      const parts = [];
-      parts.push(`${entitySnapshot.catalogRecords.length} active items`);
-      if (createdCount > 0) parts.push(`+${createdCount} created`);
-      if (deletedCount > 0) parts.push(`-${deletedCount} deleted`);
-      toast.success(`Square COD sync: ${parts.join(', ')}`);
-
-      setBgSyncProgress({ stage: 'complete', detail: parts.join(', ') });
+      toast.success(`Square payments refreshed: ${transactionCount} transactions`);
+      setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
       setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
     } catch (err) {
       console.error('Sync error:', err);
@@ -365,24 +354,23 @@ export default function SquareManagement() {
             await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, freshConfigs);
           }
 
-          const [catalogResponse, paymentsResponse] = await Promise.all([
-            base44.functions.invoke('squareCodCore', { action: 'syncCatalogItems', skipLock: true }),
-            base44.functions.invoke('squareCodCore', { action: 'fetchPayments' })
-          ]);
-          const data = catalogResponse?.data || catalogResponse || {};
+          const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments' });
+          const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
           setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
           const refreshedEntitySnapshot = await loadReconciliationFromEntities(dateFilter);
           await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, refreshedEntitySnapshot);
           await loadSyncStatus();
 
-          if (data.rate_limited) {
-            setBgSyncProgress({ stage: 'complete', detail: 'Using cached Square data' });
-          } else if (data.success) {
-            setBgSyncProgress({ stage: 'complete', detail: 'All COD views updated' });
-          } else if (data.lock_active) {
-            setBgSyncProgress({ stage: 'complete', detail: 'Square sync locked — offline data kept' });
-          }
+          const transactionCount = Array.isArray(paymentsData.transactions)
+            ? paymentsData.transactions.length
+            : Array.isArray(paymentsData.payments)
+              ? paymentsData.payments.length
+              : Array.isArray(paymentsData.soldCatalogItems)
+                ? paymentsData.soldCatalogItems.length
+                : 0;
+
+          setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
 
           setLocationConfigs((freshConfigs || []).filter((config) => config?.status === 'active'));
           setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
