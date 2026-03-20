@@ -97,6 +97,15 @@ export default function SquareManagement() {
     };
   }, []);
 
+  const loadDeliveriesFromOffline = React.useCallback(async (offlineDB, startDateStr, endDateStr) => {
+    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
+    return allDeliveries.filter((delivery) => (
+      delivery &&
+      delivery.delivery_date >= startDateStr &&
+      delivery.delivery_date <= endDateStr
+    ));
+  }, []);
+
   const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
     const { onStageChange } = options;
 
