@@ -390,15 +390,6 @@ export default function SquareManagement() {
     }
   };
 
-      const loadSyncStatus = React.useCallback(async () => {
-    try {
-      const status = await getSquareCODSyncStatus();
-      setSyncStatus(status);
-    } catch (err) {
-      console.error('Failed to load sync status:', err);
-    }
-  }, [getSquareCODSyncStatus]);
-
   useEffect(() => {
     const loadData = async () => {
       try {
