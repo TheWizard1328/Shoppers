@@ -2713,20 +2713,16 @@ export default function DeliveriesPage() {
           return;
         }
 
-        // CRITICAL: Fetch from backend if not cached
-        console.log(`📥 [Deliveries] Fetching full-year driver stats from backend for year: ${selectedOverviewYear}`);
-        const yearStart = `${selectedOverviewYear || new Date().getFullYear()}-01-01`;
-        const yearEnd = `${selectedOverviewYear || new Date().getFullYear()}-12-31`;
+        // CRITICAL: Fetch from lighter overview endpoint if not cached
+        console.log(`📥 [Deliveries] Fetching driver overview stats for year: ${selectedOverviewYear}`);
 
-        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
-          payrollYear: selectedOverviewYear || new Date().getFullYear(),
-          payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
-          payrollDriverId: null,
-          payrollStartDate: yearStart,
-          payrollEndDate: yearEnd
+        const response = await base44.functions.invoke('getDriverOverviewStats', {
+          year: selectedOverviewYear || new Date().getFullYear(),
+          storeIds: storeIdsFilter,
+          forceRefresh: false
         });
 
-        const statsData = response?.data?.driverOverviewStats || response?.driverOverviewStats || [];
+        const statsData = response?.data?.driverStats || response?.driverStats || [];
         console.log(`✅ [Deliveries] Fetched ${statsData.length} driver stats from backend`);
 
         // CRITICAL: Cache in offline DB for future use
