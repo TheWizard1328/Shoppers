@@ -940,7 +940,8 @@ export default function SquareManagement() {
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
         if (transaction.type !== 'collection') return false;
-        const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
+        const derivedTransactionDate = parseSquareItemName(transaction.item_name)?.deliveryDate || transaction.created_date || transaction.updated_date;
+        const transactionDate = derivedTransactionDate ? new Date(`${String(derivedTransactionDate).slice(0, 10)}T00:00:00`) : null;
         if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
         const storeMatch = transaction.store_id ? visibleStoreIds.has(transaction.store_id) : visibleLocationIds.has(transaction.location_id);
         if (!storeMatch) return false;
