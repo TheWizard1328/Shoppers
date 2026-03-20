@@ -791,7 +791,7 @@ export default function SquareManagement() {
           )
         };
       });
-  }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, deletingId]);
+  }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, driverScopedLocationIds, deletingId]);
 
   const lookbackStart = React.useMemo(() => {
     const date = new Date();
