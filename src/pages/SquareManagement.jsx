@@ -253,15 +253,31 @@ export default function SquareManagement() {
         return;
       }
 
+      const deletions = (catalogItems || [])
+        .map((item) => {
+          const itemDate = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+          if (!itemDate) return null;
+          const itemDateValue = new Date(`${itemDate}T00:00:00`);
+          if (Number.isNaN(itemDateValue.getTime()) || itemDateValue >= lookbackStart) return null;
+          return {
+            catalogObjectId: item.catalog_object_id || item.id,
+            transactionId: item.transaction_id,
+            status: 'cancelled',
+            reason: 'older_than_selected_day_range',
+          };
+        })
+        .filter((item) => item?.catalogObjectId);
+
       const response = await base44.functions.invoke('squareCodCore', {
         action: 'syncSquareCods',
         items,
+        deletions,
       });
       const result = response?.data || response || {};
       await syncFromSquare();
       await hydrateSquareViewFromEntities();
       setActiveView('catalog');
-      toast.success(`Square catalog updated for ${result.processed || items.length} reconciliation items`);
+      toast.success(`Square catalog updated for ${items.length} reconciliation items and purged ${deletions.length} older items`);
     } finally {
       setIsUpdatingReconciliationCatalog(false);
     }
