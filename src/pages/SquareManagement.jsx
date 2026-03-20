@@ -659,6 +659,29 @@ export default function SquareManagement() {
     );
   }, [locationConfigs, stores, visibleStoreIds]);
 
+  const driverScopedLocationIds = React.useMemo(() => {
+    if (currentUser && isAppOwner(currentUser)) {
+      if (!selectedDriverFilter || selectedDriverFilter === 'all') return null;
+      const selectedDriver = drivers.find((driver) => driver?.id === selectedDriverFilter);
+      const configIds = new Set((selectedDriver?.square_location_ids || []).filter(Boolean));
+      return new Set(
+        locationConfigs
+          .filter((config) => configIds.has(config?.id))
+          .map((config) => config?.square_location_id)
+          .filter(Boolean)
+      );
+    }
+
+    const configIds = new Set((currentAppUser?.square_location_ids || []).filter(Boolean));
+    if (configIds.size === 0) return null;
+    return new Set(
+      locationConfigs
+        .filter((config) => configIds.has(config?.id))
+        .map((config) => config?.square_location_id)
+        .filter(Boolean)
+    );
+  }, [currentUser, currentAppUser, drivers, selectedDriverFilter, locationConfigs]);
+
   const filteredDeliveryRows = React.useMemo(() => {
     return (deliveries || [])
       .filter((delivery) => {
