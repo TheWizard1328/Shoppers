@@ -969,7 +969,6 @@ export default function SquareManagement() {
         }
         return true;
       })
-      .sort((a, b) => new Date(b.created_date || b.updated_date || 0).getTime() - new Date(a.created_date || a.updated_date || 0).getTime())
       .map((transaction) => {
         const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
         const store = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
@@ -1005,7 +1004,8 @@ export default function SquareManagement() {
             </div>
           )
         };
-      });
+      })
+      .sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
   }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds, locationConfigs, stores, deliveries, drivers]);
 
   const filteredCatalogRows = React.useMemo(() => {
@@ -1016,7 +1016,6 @@ export default function SquareManagement() {
         const store = stores.find((s) => s?.id === item.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
         return store ? visibleStoreIds.has(store.id) : visibleLocationIds.has(item.location_id);
       })
-      .sort((a, b) => String(a.name || a.item_name || '').localeCompare(String(b.name || b.item_name || '')))
       .map((item) => {
         const config = locationConfigs.find((c) => c?.square_location_id === item.location_id);
         const store = stores.find((s) => s?.id === item.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
@@ -1048,7 +1047,8 @@ export default function SquareManagement() {
             </Button>
           )
         };
-      });
+      })
+      .sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
   }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, driverScopedLocationIds, deletingId]);
 
   const reconciliationRows = React.useMemo(() => {
