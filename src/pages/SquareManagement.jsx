@@ -549,6 +549,26 @@ export default function SquareManagement() {
     });
   };
 
+  const hasMatchingSquareTransaction = (delivery, locationId) => {
+    const deliveryAmount = Number(delivery?.cod_total_amount_required || 0);
+    const deliveryAmountCents = Math.round(deliveryAmount * 100);
+
+    return (allTransactions || []).some((transaction) => {
+      if (!transaction || isTransferTransaction(transaction)) return false;
+      if (!transaction.square_payment_id) return false;
+      if (transaction.type !== 'collection') return false;
+      if (!['completed', 'refunded'].includes(transaction.status)) return false;
+
+      if (transaction.delivery_id && transaction.delivery_id === delivery.id) return true;
+
+      const transactionAmountCents = Math.round(Number(transaction.amount || 0) * 100);
+      return transaction.location_id === locationId &&
+        transaction.store_id === delivery.store_id &&
+        transactionAmountCents === deliveryAmountCents &&
+        transaction.created_date?.slice(0, 10) === delivery.delivery_date;
+    });
+  };
+
   // NOTE: Auto-deletion of paid catalog items is handled by the backend (squareSyncCatalogItems)
   // No frontend auto-delete needed — the backend already removes sold items from the catalog
 
@@ -751,6 +771,7 @@ export default function SquareManagement() {
         const config = locationConfigs.find((c) => c?.id === store?.square_location_config_id);
         if (!config?.square_location_id) return null;
         const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
+        const hasMatch = hasMatchingSquareTransaction(delivery, config.square_location_id);
         return {
           id: delivery.id,
           itemName: patient?.full_name || delivery.delivery_id || 'Unknown Delivery',
@@ -760,11 +781,19 @@ export default function SquareManagement() {
           catalogId: linkedCatalog?.catalog_object_id || '—',
           deliveryDate: delivery.delivery_date,
           subtext: delivery.driver_name || null,
-          actions: null
+          actions: hasMatch ? (
+            <Badge className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+              Matched
+            </Badge>
+          ) : (
+            <Badge className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">
+              No Match
+            </Badge>
+          )
         };
       })
       .filter(Boolean);
-  }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems]);
+  }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
 
   const filteredTransactionRows = React.useMemo(() => {
     return (allTransactions || [])
