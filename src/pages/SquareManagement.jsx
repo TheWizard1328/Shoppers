@@ -628,6 +628,18 @@ export default function SquareManagement() {
     return new Set((drivers || []).map(driver => driver?.user_id).filter(Boolean));
   }, [drivers, selectedDriverFilter]);
 
+  const lookbackStart = React.useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, []);
+
+  const isTransferTransaction = (transaction) => {
+    const label = `${transaction?.item_name || ''} ${transaction?.delivery_id || ''}`.toLowerCase();
+    return transaction?.type === 'transfer' || label.includes('transfer') || label.includes('interstore') || label.includes('inter-store');
+  };
+
   const activeCityIds = React.useMemo(() => {
     const source = currentAppUser || currentUser;
     if (Array.isArray(source?.city_ids) && source.city_ids.length > 0) {
@@ -793,13 +805,6 @@ export default function SquareManagement() {
       });
   }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, driverScopedLocationIds, deletingId]);
 
-  const lookbackStart = React.useMemo(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    date.setHours(0, 0, 0, 0);
-    return date;
-  }, []);
-
   const codDeliveriesCount = React.useMemo(() => {
     return deliveries.filter(delivery => {
       if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
@@ -838,11 +843,6 @@ export default function SquareManagement() {
 
     return counts;
   }, [deliveries, lookbackStart, selectedDriverUserIds]);
-
-  const isTransferTransaction = (transaction) => {
-    const label = `${transaction?.item_name || ''} ${transaction?.delivery_id || ''}`.toLowerCase();
-    return transaction?.type === 'transfer' || label.includes('transfer') || label.includes('interstore') || label.includes('inter-store');
-  };
 
   const filteredCardSpendCount = React.useMemo(() => {
     return allTransactions.filter(transaction => {
