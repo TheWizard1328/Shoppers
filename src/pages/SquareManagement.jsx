@@ -46,6 +46,7 @@ export default function SquareManagement() {
   const [selectedStoreFilter, setSelectedStoreFilter] = useState('all');
   const [selectedDaysRange, setSelectedDaysRange] = useState('7');
   const [isUpdatingReconciliationCatalog, setIsUpdatingReconciliationCatalog] = useState(false);
+  const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedCODItem, setSelectedCODItem] = useState(null);
@@ -227,6 +228,19 @@ export default function SquareManagement() {
     setDeliveries(updatedDeliveries || []);
     return updatedDeliveries || [];
   }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
+
+  const refreshUiFromOfflineOnly = React.useCallback(async () => {
+    const today = new Date();
+    const daysBack = Number(selectedDaysRange || 30);
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - daysBack);
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const endDateStr = format(today, 'yyyy-MM-dd');
+    const { offlineDB } = await import('@/components/utils/offlineDatabase');
+
+    await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+    await loadSyncStatus();
+  }, [selectedDaysRange, loadReconciliationFromOffline]);
 
   const syncReconciliationToCatalog = async () => {
     setIsUpdatingReconciliationCatalog(true);
@@ -466,6 +480,7 @@ export default function SquareManagement() {
         }
 
         setIsLoading(false);
+        setHasInitialLoadCompleted(true);
       } catch (err) {
         console.error('Failed to load COD data:', err);
         setIsLoading(false);
@@ -473,7 +488,12 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [loadDeliveriesFromOffline, loadReconciliationFromEntities, loadReconciliationFromOffline, loadSquareViewFromOffline, hydrateSquareViewFromEntities, selectedDaysRange]);
+  }, [loadDeliveriesFromOffline, loadReconciliationFromEntities, loadReconciliationFromOffline, loadSquareViewFromOffline, hydrateSquareViewFromEntities]);
+
+  useEffect(() => {
+    if (!hasInitialLoadCompleted) return;
+    refreshUiFromOfflineOnly();
+  }, [activeView, selectedDriverFilter, selectedStoreFilter, selectedDaysRange, hasInitialLoadCompleted, refreshUiFromOfflineOnly]);
 
   useEffect(() => {
     let isActive = true;
