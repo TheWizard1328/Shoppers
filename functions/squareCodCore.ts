@@ -940,101 +940,49 @@ async function handleFetchPayments(base44, payload) {
   };
 }
 
-async function handleGetCodData(base44) {
-  const accessToken = ensureSquareToken();
-  const locationIds = await getActiveStoreSquareLocationIds(base44);
+async function handleGetCodData(base44, payload = {}) {
+  const daysBack = Number(payload?.daysBack || CATALOG_LOOKBACK_DAYS);
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - daysBack);
+  const startDateStr = startDate.toISOString().slice(0, 10);
+  const endDateStr = endDate.toISOString().slice(0, 10);
+  const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
-  if (locationIds.length === 0) {
-    throw new HttpError(400, 'No Square locations configured');
-  }
+  const [locationConfigs, stores, catalogRecords, transactionRecords, deliveries] = await Promise.all([
+    base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
+    base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
+    base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []),
+    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []),
+    base44.asServiceRole.entities.Delivery.filter({
+      delivery_date: {
+        $gte: startDateStr,
+        $lte: endDateStr,
+      },
+    }, '-updated_date', 2000).catch(() => []),
+  ]);
 
-  const catalogItems = [];
-  let cursor = null;
-  let fetchedCount = 0;
-  const MAX_ITEMS = 2000;
+  const activeConfigById = new Map((locationConfigs || []).map((config) => [config.id, config]));
+  const locationIds = Array.from(new Set(
+    (stores || [])
+      .map((store) => activeConfigById.get(store?.square_location_config_id)?.square_location_id)
+      .filter(Boolean)
+  ));
 
-  do {
-    const searchBody = { object_types: ['ITEM'], include_related_objects: true, limit: 100 };
-    if (cursor) searchBody.cursor = cursor;
-
-    const searchData = await squareFetch('/v2/catalog/search', 'POST', accessToken, searchBody);
-    if (searchData.objects) {
-      for (const item of searchData.objects) {
-        if (item.type === 'ITEM' && item.item_data) {
-          for (const variation of item.item_data.variations || []) {
-            const presentAtLocations = variation.present_at_location_ids || item.present_at_location_ids || [];
-            const isAtOurLocation = locationIds.some((locId) => presentAtLocations.includes(locId) || item.present_at_all_locations === true);
-            if (!isAtOurLocation) continue;
-
-            let priceCents = 0;
-            if (variation.item_variation_data?.price_money) {
-              priceCents = variation.item_variation_data.price_money.amount || 0;
-            }
-
-            let locationId = null;
-            if (item.present_at_all_locations) {
-              locationId = locationIds[0];
-            } else {
-              locationId = presentAtLocations.find((locId) => locationIds.includes(locId)) || locationIds[0];
-            }
-
-            catalogItems.push({
-              catalog_object_id: item.id,
-              variation_id: variation.id,
-              name: item.item_data.name || 'Unknown',
-              description: item.item_data.description || '',
-              price_cents: priceCents,
-              price_dollars: priceCents / 100,
-              location_id: locationId,
-              present_at_locations: presentAtLocations,
-              present_at_all: item.present_at_all_locations || false,
-              updated_at: item.updated_at,
-              version: item.version,
-            });
-            fetchedCount += 1;
-            break;
-          }
-        }
-      }
-    }
-
-    cursor = searchData.cursor;
-    if (fetchedCount >= MAX_ITEMS) break;
-  } while (cursor);
-
-  const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-created_date', 2000);
-  const transactionMap = new Map();
-  const soldCatalogIds = new Set();
-
-  existingTransactions.forEach((tx) => {
-    if (tx.square_catalog_object_id) {
-      transactionMap.set(tx.square_catalog_object_id, tx);
-      if (tx.status === 'completed' || tx.status === 'refunded') {
-        soldCatalogIds.add(tx.square_catalog_object_id);
-      }
-    }
+  const recentCatalogRecords = (catalogRecords || []).filter((record) => isRecentDelivery(record?.delivery_date || record?.item_name));
+  const recentTransactionRecords = (transactionRecords || []).filter((transaction) => {
+    const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
+    return Number.isFinite(transactionTime) && transactionTime >= transactionRetentionStartMs;
   });
-
-  const mergedItems = catalogItems.map((item) => {
-    const existingTx = transactionMap.get(item.catalog_object_id);
-    return {
-      ...item,
-      transaction_id: existingTx?.id || null,
-      delivery_id: existingTx?.delivery_id || null,
-      patient_id: existingTx?.patient_id || null,
-      store_id: existingTx?.store_id || null,
-      status: existingTx?.status || 'active',
-      created_date: existingTx?.created_date || item.updated_at,
-      is_sold: soldCatalogIds.has(item.catalog_object_id),
-    };
-  });
+  const codDeliveries = (deliveries || []).filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0);
 
   return {
     success: true,
-    catalogItems: mergedItems,
-    transactions: existingTransactions,
+    deliveries: codDeliveries,
+    catalogRecords: recentCatalogRecords,
+    transactionRecords: recentTransactionRecords,
+    locationConfigs,
     locationIds,
-    itemCount: mergedItems.length,
   };
 }
 
@@ -1533,7 +1481,7 @@ Deno.serve(async (req) => {
     }
     if (action === 'getCodData') {
       await requireUser(base44);
-      return Response.json(await handleGetCodData(base44));
+      return Response.json(await handleGetCodData(base44, payload));
     }
     if (action === 'recordPayment') {
       return Response.json(await handleRecordPayment(base44, payload));

@@ -3,9 +3,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    await req.text().catch(() => '');
+    const payload = await req.json().catch(() => ({}));
     const response = await base44.functions.invoke('squareCodCore', {
       action: 'getCodData',
+      ...payload,
     });
 
     return Response.json(response?.data || response, { status: response?.status || 200 });
