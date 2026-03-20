@@ -164,5 +164,16 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+
+  notifyPhaseTwoCompleteRecenter: () => {
+    console.log('📢 [FAB Events] Broadcasting phase 2 complete recenter pulse');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'PHASE2_COMPLETE_RECENTER' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
   };

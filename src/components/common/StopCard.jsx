@@ -1810,6 +1810,7 @@ export default function StopCard({
                               }, 0);
                             }
 
+                            fabControlEvents.notifyPhaseTwoCompleteRecenter();
                             fabControlEvents.reactivateFAB(true);
 
                             Promise.resolve().then(async () => {
