@@ -13,6 +13,7 @@ import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel
 import CODItemDetailModal from "@/components/square/CODItemDetailModal";
 import SyncStatusIndicator from "@/components/square/SyncStatusIndicator";
 import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgressBar";
+import SquareViewToggle from "@/components/square/SquareViewToggle";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
@@ -51,6 +52,7 @@ export default function SquareManagement() {
   const [lastCleanup, setLastCleanup] = useState(null);
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
+  const [selectedView, setSelectedView] = useState('deliveries');
 
   useEffect(() => {
     const measure = () => {
