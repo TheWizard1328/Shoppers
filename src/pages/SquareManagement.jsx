@@ -742,6 +742,20 @@ export default function SquareManagement() {
       .map((transaction) => {
         const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
         const store = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
+        const matchedTransactionDate = (() => {
+          const rawDate = transaction.created_date || transaction.updated_date;
+          if (!rawDate) return null;
+          return format(new Date(rawDate), 'yyyy-MM-dd');
+        })();
+        const matchedAmountCents = Math.round(Number(transaction.amount || 0) * 100);
+        const matchedDelivery = (deliveries || []).find((delivery) => {
+          if (!delivery || !store?.id) return false;
+          if (delivery.store_id !== store.id) return false;
+          if (delivery.delivery_date !== matchedTransactionDate) return false;
+          return Math.round(Number(delivery.cod_total_amount_required || 0) * 100) === matchedAmountCents;
+        });
+        const collectedByName = matchedDelivery?.driver_name || drivers.find((driver) => driver?.user_id === matchedDelivery?.driver_id)?.user_name || null;
+
         return {
           id: transaction.id,
           itemName: transaction.item_name || transaction.square_payment_id || 'Square Transaction',
@@ -749,8 +763,8 @@ export default function SquareManagement() {
           storeName: store?.name || config?.name || 'Unknown',
           locationId: transaction.location_id || '—',
           catalogId: transaction.square_catalog_object_id || '—',
-          deliveryDate: parseSquareItemName(transaction.item_name)?.deliveryDate || transaction.created_date,
-          subtext: transaction.payment_method || transaction.status || null,
+          deliveryDate: matchedTransactionDate || parseSquareItemName(transaction.item_name)?.deliveryDate || transaction.created_date,
+          subtext: collectedByName ? `Collected by ${collectedByName}` : (transaction.payment_method || transaction.status || null),
           actions: (
             <div className="flex flex-wrap gap-1 justify-end">
               {getTypeBadge(transaction.type)}
@@ -760,7 +774,7 @@ export default function SquareManagement() {
           )
         };
       });
-  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverUserIds, locationConfigs, stores]);
+  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverUserIds, locationConfigs, stores, deliveries, drivers]);
 
   const filteredCatalogRows = React.useMemo(() => {
     return (catalogItems || [])
