@@ -134,11 +134,11 @@ export default function SquareManagement() {
   }, []);
 
   const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
-    const { onStageChange, paymentsResponse } = options;
+    const { onStageChange, paymentsResponse, daysBack } = options;
 
     const [catalogRecords, fetchedPaymentsResponse] = await Promise.all([
       base44.entities.SquareCatalogItems.list('-updated_date', 2000),
-      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareCodCore', { action: 'fetchPayments' }),
+      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: Number(daysBack || selectedDaysRange || 30) }),
     ]);
 
     const transactions = extractSquarePayments(fetchedPaymentsResponse);
@@ -314,7 +314,7 @@ export default function SquareManagement() {
       };
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments' });
+      const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: Number(selectedDaysRange || 30) });
       const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
       setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
@@ -322,7 +322,7 @@ export default function SquareManagement() {
       await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, entitySnapshot);
       await refreshSquareView(
         (locationConfigs || []).filter((config) => config?.status === 'active').map((config) => config.square_location_id).filter(Boolean),
-        { paymentsResponse, onStageChange: setBgSyncProgress }
+        { paymentsResponse, onStageChange: setBgSyncProgress, daysBack: Number(selectedDaysRange || 30) }
       );
 
       const transactionCount = Array.isArray(paymentsData.transactions)
@@ -446,7 +446,7 @@ export default function SquareManagement() {
             await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, freshConfigs);
           }
 
-          const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments' });
+          const paymentsResponse = await base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: Number(selectedDaysRange || 30) });
           const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
           setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
@@ -454,7 +454,7 @@ export default function SquareManagement() {
           await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, refreshedEntitySnapshot);
           await refreshSquareView(
             (freshConfigs || []).filter((config) => config?.status === 'active').map((config) => config.square_location_id).filter(Boolean),
-            { paymentsResponse, onStageChange: setBgSyncProgress }
+            { paymentsResponse, onStageChange: setBgSyncProgress, daysBack: Number(selectedDaysRange || 30) }
           );
           await loadSyncStatus();
 
