@@ -957,7 +957,7 @@ export default function SquareManagement() {
       .map((transaction) => {
         const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
         const store = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
-        const matchedTransactionDate = (() => {
+        const transactionDeliveryDate = parseSquareItemName(transaction.item_name)?.deliveryDate || (() => {
           const rawDate = transaction.created_date || transaction.updated_date;
           if (!rawDate) return null;
           return format(new Date(rawDate), 'yyyy-MM-dd');
@@ -966,7 +966,7 @@ export default function SquareManagement() {
         const matchedDelivery = (deliveries || []).find((delivery) => {
           if (!delivery || !store?.id) return false;
           if (delivery.store_id !== store.id) return false;
-          if (delivery.delivery_date !== matchedTransactionDate) return false;
+          if (delivery.delivery_date !== transactionDeliveryDate) return false;
           return Math.round(Number(delivery.cod_total_amount_required || 0) * 100) === matchedAmountCents;
         });
         const collectedByName = matchedDelivery?.driver_name || drivers.find((driver) => driver?.user_id === matchedDelivery?.driver_id)?.user_name || null;
@@ -979,7 +979,7 @@ export default function SquareManagement() {
           storeName: store?.name || config?.name || 'Unknown',
           locationId: transaction.location_id || '—',
           catalogId: transaction.square_catalog_object_id || '—',
-          deliveryDate: matchedTransactionDate || parseSquareItemName(transaction.item_name)?.deliveryDate || transaction.created_date,
+          deliveryDate: transactionDeliveryDate || transaction.created_date,
           subtext: collectedByName ? `Collected by ${collectedByName}` : (transaction.payment_method || transaction.status || null),
           notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
           actions: (
