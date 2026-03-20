@@ -140,6 +140,20 @@ export default function SquareManagement() {
     return { ...snapshot, data: { locationIds: fallbackLocationIds } };
   };
 
+  const hydrateSquareViewFromEntities = React.useCallback(async () => {
+    const [catalogRecords, transactionRecords] = await Promise.all([
+      base44.entities.SquareCatalogItems.list('-updated_date', 500),
+      base44.entities.SquareTransaction.list('-updated_date', 500),
+    ]);
+
+    await syncSquareCODSnapshotOffline({
+      catalogItems: catalogRecords || [],
+      transactions: transactionRecords || [],
+    });
+
+    return loadSquareViewFromOffline();
+  }, [loadSquareViewFromOffline]);
+
   const syncFromSquare = async () => {
     setIsSyncing(true);
     setError(null);
