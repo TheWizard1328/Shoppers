@@ -154,22 +154,96 @@ export default function SquareManagement() {
     return loadSquareViewFromOffline();
   }, [loadSquareViewFromOffline]);
 
+  const mapCatalogRecordToUIItem = React.useCallback((record) => ({
+    id: record.id,
+    catalog_object_id: record.square_catalog_object_id || record.id,
+    variation_id: null,
+    name: record.item_name,
+    description: record.description || '',
+    price_cents: record.amount_cents ?? Math.round(Number(record.amount || 0) * 100),
+    price_dollars: Number(record.amount || 0),
+    location_id: record.location_id || '',
+    present_at_locations: record.location_id ? [record.location_id] : [],
+    present_at_all: false,
+    updated_at: record.updated_date,
+    version: record.square_catalog_version || 0,
+    transaction_id: null,
+    delivery_id: record.delivery_id,
+    patient_id: record.patient_id,
+    store_id: record.store_id,
+    status: record.status || 'active',
+    created_date: record.created_date,
+    is_sold: false,
+  }), []);
+
+  const loadReconciliationFromEntities = React.useCallback(async (dateFilter) => {
+    const [entityDeliveries, catalogRecords, transactionRecords] = await Promise.all([
+      base44.entities.Delivery.filter(dateFilter),
+      base44.entities.SquareCatalogItems.list('-updated_date', 500),
+      base44.entities.SquareTransaction.list('-updated_date', 500),
+    ]);
+
+    setDeliveries(entityDeliveries || []);
+    setCatalogItems((catalogRecords || []).map(mapCatalogRecordToUIItem));
+    setAllTransactions(transactionRecords || []);
+    setSoldCatalogItems((transactionRecords || []).filter((tx) => ['completed', 'refunded'].includes(tx.status)));
+
+    return {
+      deliveries: entityDeliveries || [],
+      catalogRecords: catalogRecords || [],
+      transactionRecords: transactionRecords || [],
+    };
+  }, [mapCatalogRecordToUIItem]);
+
+  const loadReconciliationFromOffline = React.useCallback(async (offlineDB, startDateStr, endDateStr, entitySnapshot = null) => {
+    if (entitySnapshot) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, entitySnapshot.deliveries || []);
+      await syncSquareCODSnapshotOffline({
+        catalogItems: entitySnapshot.catalogRecords || [],
+        transactions: entitySnapshot.transactionRecords || [],
+      });
+    }
+
+    const [updatedDeliveries] = await Promise.all([
+      loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
+      loadSquareViewFromOffline(),
+    ]);
+
+    setDeliveries(updatedDeliveries || []);
+    return updatedDeliveries || [];
+  }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
+
   const syncFromSquare = async () => {
     setIsSyncing(true);
     setError(null);
     setBgSyncProgress({ stage: 'catalog_sync' });
 
     try {
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+      const startDateStr = format(thirtyDaysAgo, 'yyyy-MM-dd');
+      const endDateStr = format(today, 'yyyy-MM-dd');
+      const dateFilter = {
+        delivery_date: {
+          $gte: startDateStr,
+          $lte: endDateStr
+        }
+      };
+      const { offlineDB } = await import('@/components/utils/offlineDatabase');
+
       const [catalogResponse, paymentsResponse] = await Promise.all([
         base44.functions.invoke('squareCodCore', { action: 'syncCatalogItems', skipLock: true }),
         base44.functions.invoke('squareCodCore', { action: 'fetchPayments' })
       ]);
       const data = catalogResponse?.data || catalogResponse || {};
 
+      setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
+      const entitySnapshot = await loadReconciliationFromEntities(dateFilter);
+      await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, entitySnapshot);
+
       if (data.rate_limited) {
-        setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading cached COD data…' });
-        const { items } = await refreshSquareView(locationIds, { onStageChange: setBgSyncProgress, paymentsResponse });
-        toast.message(`Square sync is busy — using cached data (${items.length} active items)`);
+        toast.message(`Square sync is busy — using cached data (${entitySnapshot.catalogRecords.length} items)`);
         setBgSyncProgress({ stage: 'complete', detail: 'Using cached data (rate limited)' });
         setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
         return;
@@ -177,13 +251,10 @@ export default function SquareManagement() {
 
       if (!data.success) throw new Error(data.error || 'Sync failed');
 
-      setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading latest synced COD data…' });
-      const { items } = await refreshSquareView(locationIds, { onStageChange: setBgSyncProgress, paymentsResponse });
-
       const createdCount = data.created_catalog_items ?? data.createdCount ?? 0;
       const deletedCount = data.deleted_catalog_items ?? data.deletedCount ?? 0;
       const parts = [];
-      parts.push(`${items.length} active items`);
+      parts.push(`${entitySnapshot.catalogRecords.length} active items`);
       if (createdCount > 0) parts.push(`+${createdCount} created`);
       if (deletedCount > 0) parts.push(`-${deletedCount} deleted`);
       toast.success(`Square COD sync: ${parts.join(', ')}`);
@@ -258,19 +329,12 @@ export default function SquareManagement() {
           }
         }
 
-        let deliveriesData = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
-        if (deliveriesData.length === 0) {
-          deliveriesData = await base44.entities.Delivery.filter(dateFilter);
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesData);
-        }
-
         const matchedAppUser = appUsersData.find((appUser) => appUser?.user_id === authUser?.id) || null;
         setCurrentUser(authUser);
         setCurrentAppUser(matchedAppUser);
         setLocationConfigs(configs || []);
         setStores(storesData || []);
         setPatients(patientsData || []);
-        setDeliveries(deliveriesData || []);
 
         const driversList = appUsersData.filter((u) => u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active');
         setDrivers(driversList || []);
@@ -278,13 +342,12 @@ export default function SquareManagement() {
         const syncedLocationIds = (configs || []).map((c) => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
-        let offlineSnapshot = await loadSquareViewFromOffline();
-        if (offlineSnapshot.items.length === 0 && offlineSnapshot.transactions.length === 0) {
-          offlineSnapshot = await hydrateSquareViewFromEntities();
-        }
-        if (offlineSnapshot.items.length > 0 || offlineSnapshot.transactions.length > 0 || deliveriesData.length > 0) {
+        const entitySnapshot = await loadReconciliationFromEntities(dateFilter);
+        if (entitySnapshot.catalogRecords.length > 0 || entitySnapshot.transactionRecords.length > 0 || entitySnapshot.deliveries.length > 0) {
           setIsLoading(false);
         }
+
+        await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, entitySnapshot);
 
         const syncSessionKey = `square-cod-initial-bg-sync:${authUser?.id || 'anonymous'}`;
         if (sessionStorage.getItem(syncSessionKey)) {
@@ -296,12 +359,7 @@ export default function SquareManagement() {
         setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD views…' });
 
         try {
-          const [freshDeliveries, freshConfigs] = await Promise.all([
-            base44.entities.Delivery.filter(dateFilter),
-            base44.entities.SquareLocationConfig.filter({ status: 'active' })
-          ]);
-
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries || []);
+          const freshConfigs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
           await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
           if ((freshConfigs || []).length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, freshConfigs);
@@ -313,28 +371,20 @@ export default function SquareManagement() {
           ]);
           const data = catalogResponse?.data || catalogResponse || {};
 
+          setBgSyncProgress({ stage: 'payments_sync', detail: 'Loading entity data…' });
+          const refreshedEntitySnapshot = await loadReconciliationFromEntities(dateFilter);
+          await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr, refreshedEntitySnapshot);
+          await loadSyncStatus();
+
           if (data.rate_limited) {
-            setBgSyncProgress({ stage: 'payments_sync', detail: 'Refreshing cached Square data…' });
-            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress, paymentsResponse });
-            await loadSyncStatus();
             setBgSyncProgress({ stage: 'complete', detail: 'Using cached Square data' });
           } else if (data.success) {
-            setBgSyncProgress({ stage: 'payments_sync', detail: 'Updating catalog and transactions…' });
-            await refreshSquareView(syncedLocationIds, { onStageChange: setBgSyncProgress, paymentsResponse });
-            await loadSyncStatus();
             setBgSyncProgress({ stage: 'complete', detail: 'All COD views updated' });
           } else if (data.lock_active) {
             setBgSyncProgress({ stage: 'complete', detail: 'Square sync locked — offline data kept' });
           }
 
-          const [updatedDeliveries, updatedConfigs] = await Promise.all([
-            loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
-            offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS)
-          ]);
-
-          setDeliveries(updatedDeliveries || []);
-          setLocationConfigs((updatedConfigs || []).filter((config) => config?.status === 'active'));
-          await loadSquareViewFromOffline();
+          setLocationConfigs((freshConfigs || []).filter((config) => config?.status === 'active'));
           setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
         } catch (bgError) {
           console.warn('⚠️ [SquareManagement] Background COD refresh failed:', bgError.message);
@@ -350,7 +400,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [hydrateSquareViewFromEntities, loadDeliveriesFromOffline, loadSquareViewFromOffline]);
+  }, [loadDeliveriesFromOffline, loadReconciliationFromEntities, loadReconciliationFromOffline, loadSquareViewFromOffline]);
 
   useEffect(() => {
     let isActive = true;
