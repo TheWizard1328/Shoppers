@@ -15,6 +15,7 @@ let currentUserId = null;
 let cachedDeviceIdentifier = null;
 let cachedDeviceType = null; // Cache device type (Mobile, Desktop, or Tablet)
 let lastFetchTime = 0;
+let inFlightSettingsPromise = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache to prevent rate limits
 
 /**
@@ -205,32 +206,37 @@ export async function loadUserSettings(userId) {
     return cachedSettings;
   }
 
-  // Check if offline - use cached settings from IndexedDB
-  if (!offlineManager.getOnlineStatus()) {
-    console.log('📴 [UserSettings] Offline - loading from local persistent store');
-    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceIdentifier);
-    if (indexedSettings) {
-      cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
-      currentUserId = userId;
+  const indexedSettings = await loadFromLocalPersistentStore(userId, deviceIdentifier);
+  if (indexedSettings) {
+    cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
+    currentUserId = userId;
+    lastFetchTime = Date.now();
 
-      if (cachedSettings.theme_preference === 'auto') {
-        initializeAutoDarkMode();
-      }
-
-      return cachedSettings;
+    if (cachedSettings.theme_preference === 'auto') {
+      initializeAutoDarkMode();
     }
-    
-    console.log('⚠️ [UserSettings] No cached settings available in IndexedDB, using defaults');
+
+    return cachedSettings;
+  }
+
+  // Check if offline - use defaults when no local cache exists
+  if (!offlineManager.getOnlineStatus()) {
+    console.log('📴 [UserSettings] No local settings cache available while offline, using defaults');
     return { ...DEFAULT_SETTINGS };
   }
 
+  if (inFlightSettingsPromise) {
+    return inFlightSettingsPromise;
+  }
+
   try {
-    console.log(`🔍 [UserSettings] Loading settings for user: ${userId}, device: ${deviceIdentifier}`);
-    
-    // Load the main UserSettings record for this user
-    const userSettingsRecords = await UserSettings.filter({
-      user_id: userId
-    }, '-updated', 1);
+    inFlightSettingsPromise = (async () => {
+      console.log(`🔍 [UserSettings] Loading settings for user: ${userId}, device: ${deviceIdentifier}`);
+      
+      // Load the main UserSettings record for this user
+      const userSettingsRecords = await UserSettings.filter({
+        user_id: userId
+      }, '-updated', 1);
 
     if (userSettingsRecords && userSettingsRecords.length > 0) {
       const userSettingsRecord = userSettingsRecords[0];
@@ -308,24 +314,14 @@ export async function loadUserSettings(userId) {
       currentUserId = userId;
       return cachedSettings;
     }
+    })();
 
+    return await inFlightSettingsPromise;
   } catch (error) {
     console.error('❌ [UserSettings] Error loading settings:', error);
-    
-    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceIdentifier);
-    if (indexedSettings) {
-      console.log('📦 [UserSettings] Network error - falling back to cached settings');
-      cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
-      currentUserId = userId;
-
-      if (cachedSettings.theme_preference === 'auto') {
-        initializeAutoDarkMode();
-      }
-
-      return cachedSettings;
-    }
-    
     return { ...DEFAULT_SETTINGS };
+  } finally {
+    inFlightSettingsPromise = null;
   }
 }
 
@@ -583,6 +579,7 @@ export function getAllSettings() {
 export function clearSettingsCache() {
   cachedSettings = null;
   currentUserId = null;
+  inFlightSettingsPromise = null;
   console.log('🧹 [UserSettings] Cache cleared');
 }
 

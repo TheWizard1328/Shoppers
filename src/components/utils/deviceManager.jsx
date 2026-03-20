@@ -4,6 +4,8 @@ import { requestManager } from './requestManager';
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 const DEVICE_CACHE_TTL_MS = 60000;
 
+const getDeviceCacheStorageKey = (userId, deviceId) => `rxdeliver_current_device_${userId}_${deviceId}`;
+
 /**
  * Get the current device's identifier from localStorage
  */
@@ -22,6 +24,22 @@ export async function getCurrentDevice(userId) {
   }
 
   const cacheKey = `current-device:${userId}:${deviceId}`;
+  const localCacheKey = getDeviceCacheStorageKey(userId, deviceId);
+  const registeredFlag = localStorage.getItem(`rxdeliver_device_registered_${deviceId}`) === 'true';
+
+  const cachedLocal = (() => {
+    try {
+      const raw = localStorage.getItem(localCacheKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  })();
+
+  if (cachedLocal) {
+    requestManager.set(cacheKey, cachedLocal, DEVICE_CACHE_TTL_MS);
+    return cachedLocal;
+  }
 
   try {
     return await requestManager.memoized(cacheKey, async () => {
@@ -32,6 +50,7 @@ export async function getCurrentDevice(userId) {
 
       if (devices && devices.length > 0) {
         const device = devices[0];
+        try { localStorage.setItem(localCacheKey, JSON.stringify(device)); } catch (_) {}
         console.log(`📱 [DeviceManager] Found device: ${device.device_name} (Status: ${device.status || 'active'}, Primary: ${device.is_primary_tracker ? 'YES' : 'NO'})`);
         return device;
       }
@@ -44,6 +63,11 @@ export async function getCurrentDevice(userId) {
     });
   } catch (error) {
     console.error('❌ [DeviceManager] Failed to get current device:', error);
+    if (registeredFlag) {
+      const fallbackDevice = { user_id: userId, device_identifier: deviceId, status: 'active' };
+      requestManager.set(cacheKey, fallbackDevice, DEVICE_CACHE_TTL_MS);
+      return fallbackDevice;
+    }
     return null;
   }
 }
@@ -76,10 +100,12 @@ export async function updateDeviceLastActive(userId, existingDevice = undefined)
 
     const deviceId = getDeviceIdentifier();
     if (deviceId) {
-      requestManager.set(`current-device:${userId}:${deviceId}`, {
+      const nextDevice = {
         ...device,
         last_active_at
-      }, DEVICE_CACHE_TTL_MS);
+      };
+      requestManager.set(`current-device:${userId}:${deviceId}`, nextDevice, DEVICE_CACHE_TTL_MS);
+      try { localStorage.setItem(getDeviceCacheStorageKey(userId, deviceId), JSON.stringify(nextDevice)); } catch (_) {}
     }
   } catch (error) {
     console.error('Failed to update device last active:', error);
