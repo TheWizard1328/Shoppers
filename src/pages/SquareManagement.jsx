@@ -973,6 +973,7 @@ export default function SquareManagement() {
 
         return {
           id: transaction.id,
+          rawStatus: transaction.status,
           itemName: transaction.item_name || transaction.square_payment_id || 'Square Transaction',
           amount: Number(transaction.amount || 0),
           storeName: store?.name || config?.name || 'Unknown',
@@ -1043,11 +1044,11 @@ export default function SquareManagement() {
       return String(value).slice(0, 10);
     };
 
-    const deliverySignature = (row) => `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}::${normalizeDate(row.deliveryDate)}`;
-    const transactionSignature = (row) => `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}::${normalizeDate(row.deliveryDate)}`;
+    const buildSignature = (row) => `${row.locationId || '—'}::${Math.round(Number(row.amount || 0) * 100)}::${normalizeDate(row.deliveryDate)}`;
+    const reconciliationTransactions = filteredTransactionRows.filter((row) => !['cancelled', 'failed'].includes(row.rawStatus));
 
-    const transactionsBySignature = filteredTransactionRows.reduce((acc, row) => {
-      const key = transactionSignature(row);
+    const transactionsBySignature = reconciliationTransactions.reduce((acc, row) => {
+      const key = buildSignature(row);
       if (!acc.has(key)) acc.set(key, []);
       acc.get(key).push(row);
       return acc;
@@ -1057,7 +1058,7 @@ export default function SquareManagement() {
     const comparedRows = [];
 
     filteredDeliveryRows.forEach((deliveryRow) => {
-      const key = deliverySignature(deliveryRow);
+      const key = buildSignature(deliveryRow);
       const candidates = transactionsBySignature.get(key) || [];
       const matchedTransaction = candidates.find((transactionRow) => !usedTransactionIds.has(transactionRow.id));
 
@@ -1072,6 +1073,20 @@ export default function SquareManagement() {
         actions: (
           <Badge className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">
             Missing Square Tx
+          </Badge>
+        )
+      });
+    });
+
+    reconciliationTransactions.forEach((transactionRow) => {
+      if (usedTransactionIds.has(transactionRow.id)) return;
+
+      comparedRows.push({
+        ...transactionRow,
+        subtext: 'Square transaction has no matching delivery',
+        actions: (
+          <Badge className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100">
+            Extra Square Tx
           </Badge>
         )
       });
