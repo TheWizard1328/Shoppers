@@ -25,8 +25,6 @@ import LargeBarcodePreview from './LargeBarcodePreview';
 import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
-import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
-import { optimizeRemainingStops } from '@/functions/optimizeRemainingStops';
 import { toast } from 'sonner';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 

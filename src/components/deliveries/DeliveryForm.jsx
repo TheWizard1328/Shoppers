@@ -25,8 +25,7 @@ import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
-import { sendDeliveryMessage } from '../utils/deliveryMessaging';
-import { reorderStops } from '../utils/stopReorderer';
+import { runDeliveryUpdateBackground } from './runDeliveryUpdateBackground';
 import {
   createPatient as createPatientLocal,
   updatePatient as updatePatientLocal,
