@@ -697,7 +697,8 @@ export default function SquareManagement() {
   const filteredDeliveryRows = React.useMemo(() => {
     return (deliveries || [])
       .filter((delivery) => {
-        if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
+        if (!delivery || !delivery.patient_id) return false;
+        if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
         if (!visibleStoreIds.has(delivery.store_id)) return false;
         if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return false;
         if (selectedDriverUserIds.size === 0) return false;
