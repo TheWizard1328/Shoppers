@@ -19,6 +19,7 @@ import { realtimeSync } from "@/components/utils/realtimeSync";
 import { base44 } from "@/api/base44Client";
 import { createPatientLocal, updatePatientLocal } from '../utils/entityMutations';
 import { isMobileDevice, canAutoFocusFormFields } from '@/components/utils/deviceUtils';
+import { globalFilters } from '@/components/utils/globalFilters';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
@@ -521,10 +522,17 @@ export default function PatientForm({
         await updatePatientLocal(patient.id, dataToSave);
         savedPatientId = patient.id;
         console.log('  ✅ Updated patient locally');
-        setTimeout(() => {
-          base44.functions.invoke('syncRoutePatients', { patientId: savedPatientId })
-            .catch((syncError) => console.warn('⚠️ [PatientForm] Route sync skipped:', syncError?.message || syncError));
-        }, 0);
+        const selectedDate = globalFilters.getSelectedDate();
+        const selectedDriverId = globalFilters.getSelectedDriverId();
+        if (selectedDate && selectedDriverId && selectedDriverId !== 'all') {
+          setTimeout(() => {
+            base44.functions.invoke('syncRoutePatients', {
+              patientId: savedPatientId,
+              driverId: selectedDriverId,
+              deliveryDate: selectedDate
+            }).catch((syncError) => console.warn('⚠️ [PatientForm] Route sync skipped:', syncError?.message || syncError));
+          }, 0);
+        }
         // Instant local broadcast so UI + offline DB cascade immediately
         try { realtimeSync.broadcast('Patient', 'update', savedPatientId, { id: savedPatientId, ...(patient || {}), ...dataToSave }); } catch {}
       } else {

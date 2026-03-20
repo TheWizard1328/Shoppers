@@ -44,13 +44,25 @@ export const triggerPatientLastDeliverySync = ({ delivery, previousStatus }) => 
     base44.functions.invoke('syncPatientLastDeliveryDate', {
       data: delivery,
       old_data: { status: previousStatus },
-      event: { type: 'update' }
+      event: { type: 'update', entity_name: 'Delivery' }
     }).catch((error) => console.warn('⚠️ [DeliverySideEffects] last delivery sync skipped:', error?.message || error));
+  }, 0);
+};
+
+export const triggerPickupCompletionSync = ({ delivery, previousStatus }) => {
+  if (!delivery?.puid || !['completed', 'failed'].includes(delivery?.status)) return;
+  setTimeout(() => {
+    base44.functions.invoke('ensurePickupCompletion', {
+      data: delivery,
+      old_data: { status: previousStatus },
+      event: { type: 'update', entity_name: 'Delivery' }
+    }).catch((error) => console.warn('⚠️ [DeliverySideEffects] pickup completion sync skipped:', error?.message || error));
   }, 0);
 };
 
 export const runTerminalDeliverySideEffects = ({ delivery, previousStatus, nextStatus, overrides = {} }) => {
   const nextDelivery = { ...delivery, ...overrides, status: nextStatus };
   triggerPatientLastDeliverySync({ delivery: nextDelivery, previousStatus });
+  triggerPickupCompletionSync({ delivery: nextDelivery, previousStatus });
   triggerSquareCodDelete({ deliveryId: nextDelivery.id, nextStatus, delivery: nextDelivery });
 };

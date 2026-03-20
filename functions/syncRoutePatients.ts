@@ -21,10 +21,19 @@ Deno.serve(async (req) => {
 
     if (driverId && deliveryDate) {
       deliveries = await api.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-created_date', 1000);
+      if (patientId) {
+        deliveries = deliveries.filter((delivery) => delivery?.patient_id === patientId);
+      }
     } else if (patientId) {
       deliveries = await api.entities.Delivery.filter({ patient_id: patientId }, '-created_date', 500);
+      if (deliveryDate) {
+        deliveries = deliveries.filter((delivery) => delivery?.delivery_date === deliveryDate);
+      }
+      if (driverId) {
+        deliveries = deliveries.filter((delivery) => delivery?.driver_id === driverId);
+      }
     } else {
-      return Response.json({ error: 'Provide (driverId & deliveryDate) OR patientId (or trigger via Patient automation).' }, { status: 400 });
+      return Response.json({ error: 'Provide patientId, or provide driverId and deliveryDate.' }, { status: 400 });
     }
 
     const activePatientDeliveries = deliveries.filter(d => d.patient_id && !finished.has(d.status || 'pending'));

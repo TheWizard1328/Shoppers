@@ -8,6 +8,7 @@ import { generateCompletionTimestamp } from '../utils/timeRoundingHelper';
 import { updateDeliveryLocal } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
+import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
 
 export default function StopCardCODCollection({
   delivery,
@@ -178,11 +179,20 @@ export default function StopCardCODCollection({
 
                     const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
 
-                    await updateDeliveryLocal(delivery.id, {
+                    const completionUpdate = {
                       status: 'completed',
                       actual_delivery_time: localTimeString,
-                      isNextDelivery: false
-                    }, { skipSmartRefresh: true });
+                      isNextDelivery: false,
+                      cod_payments: codPayments
+                    };
+
+                    await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
+                    runTerminalDeliverySideEffects({
+                      delivery,
+                      previousStatus: delivery.status,
+                      nextStatus: 'completed',
+                      overrides: completionUpdate
+                    });
 
                     const driverDeliveries = allDeliveries.filter(d =>
                       d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
