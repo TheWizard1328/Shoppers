@@ -951,7 +951,7 @@ async function handleGetCodData(base44) {
   const catalogItems = [];
   let cursor = null;
   let fetchedCount = 0;
-  const MAX_ITEMS = 500;
+  const MAX_ITEMS = 2000;
 
   do {
     const searchBody = { object_types: ['ITEM'], include_related_objects: true, limit: 100 };
@@ -1002,7 +1002,7 @@ async function handleGetCodData(base44) {
     if (fetchedCount >= MAX_ITEMS) break;
   } while (cursor);
 
-  const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-created_date', 500);
+  const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-created_date', 2000);
   const transactionMap = new Map();
   const soldCatalogIds = new Set();
 

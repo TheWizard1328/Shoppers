@@ -43,7 +43,7 @@ export default function SquareManagement() {
   const [drivers, setDrivers] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
-  const [selectedDaysRange, setSelectedDaysRange] = useState('30');
+  const [selectedDaysRange, setSelectedDaysRange] = useState('7');
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedCODItem, setSelectedCODItem] = useState(null);
@@ -122,7 +122,7 @@ export default function SquareManagement() {
     const { onStageChange, paymentsResponse } = options;
 
     const [catalogRecords, fetchedPaymentsResponse] = await Promise.all([
-      base44.entities.SquareCatalogItems.list('-updated_date', 500),
+      base44.entities.SquareCatalogItems.list('-updated_date', 2000),
       paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareCodCore', { action: 'fetchPayments' }),
     ]);
 
@@ -143,8 +143,8 @@ export default function SquareManagement() {
 
   const hydrateSquareViewFromEntities = React.useCallback(async () => {
     const [catalogRecords, transactionRecords] = await Promise.all([
-      base44.entities.SquareCatalogItems.list('-updated_date', 500),
-      base44.entities.SquareTransaction.list('-updated_date', 500),
+      base44.entities.SquareCatalogItems.list('-updated_date', 2000),
+      base44.entities.SquareTransaction.list('-updated_date', 2000),
     ]);
 
     await syncSquareCODSnapshotOffline({
@@ -179,9 +179,9 @@ export default function SquareManagement() {
 
   const loadReconciliationFromEntities = React.useCallback(async (dateFilter) => {
     const [entityDeliveries, catalogRecords, transactionRecords] = await Promise.all([
-      base44.entities.Delivery.filter(dateFilter),
-      base44.entities.SquareCatalogItems.list('-updated_date', 500),
-      base44.entities.SquareTransaction.list('-updated_date', 500),
+      base44.entities.Delivery.filter(dateFilter, '-updated_date', 2000),
+      base44.entities.SquareCatalogItems.list('-updated_date', 2000),
+      base44.entities.SquareTransaction.list('-updated_date', 2000),
     ]);
 
     setDeliveries(entityDeliveries || []);
