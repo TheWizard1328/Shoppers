@@ -425,7 +425,7 @@ export default function SquareManagement() {
       unsubscribeCatalogItems?.();
       unsubscribeTransactions?.();
     };
-  }, [applyCatalogRealtimeToUI, applyTransactionRealtimeToUI, loadSquareViewFromOffline]);
+  }, [loadSquareViewFromOffline, handleSquareCatalogItemRealtimeEvent, handleSquareTransactionRealtimeEvent]);
 
 
 
