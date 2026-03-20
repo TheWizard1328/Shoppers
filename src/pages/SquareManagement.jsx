@@ -1022,6 +1022,7 @@ export default function SquareManagement() {
           <h2 className="text-base md:text-lg font-semibold mb-4 text-slate-900 dark:text-slate-50">By Location</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-none md:auto-cols-fr md:grid-flow-col gap-2 md:gap-4 mb-6 md:mb-8">
             {locationConfigs
+              .filter((config) => visibleLocationIds.has(config.square_location_id))
               .sort((a, b) => {
                 const storeA = stores.find(s => s.square_location_config_id === a.id);
                 const storeB = stores.find(s => s.square_location_config_id === b.id);
