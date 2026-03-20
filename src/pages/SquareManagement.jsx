@@ -43,6 +43,7 @@ export default function SquareManagement() {
   const [drivers, setDrivers] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
+  const [selectedStoreFilter, setSelectedStoreFilter] = useState('all');
   const [selectedDaysRange, setSelectedDaysRange] = useState('7');
   const [isUpdatingReconciliationCatalog, setIsUpdatingReconciliationCatalog] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
@@ -823,12 +824,19 @@ export default function SquareManagement() {
     return source?.city_id ? [source.city_id] : [];
   }, [currentAppUser, currentUser]);
 
-  const visibleStoreIds = React.useMemo(() => {
+  const availableStoresForFilter = React.useMemo(() => {
     const cityFilteredStores = activeCityIds.length > 0
       ? stores.filter((store) => activeCityIds.includes(store?.city_id))
       : stores;
-    return new Set(cityFilteredStores.map((store) => store?.id).filter(Boolean));
+    return [...cityFilteredStores].sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity));
   }, [stores, activeCityIds]);
+
+  const visibleStoreIds = React.useMemo(() => {
+    const scopedStores = selectedStoreFilter && selectedStoreFilter !== 'all'
+      ? availableStoresForFilter.filter((store) => store?.id === selectedStoreFilter)
+      : availableStoresForFilter;
+    return new Set(scopedStores.map((store) => store?.id).filter(Boolean));
+  }, [availableStoresForFilter, selectedStoreFilter]);
 
   const visibleLocationIds = React.useMemo(() => {
     const configIds = new Set(
@@ -1248,6 +1256,20 @@ export default function SquareManagement() {
               </SelectContent>
             </Select>
           )}
+
+          <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
+            <SelectTrigger className="w-[150px] md:w-[200px] text-sm">
+              <SelectValue placeholder="All Stores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stores</SelectItem>
+              {availableStoresForFilter.map(store => (
+                <SelectItem key={store.id} value={store.id}>
+                  {store.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm">
             <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
