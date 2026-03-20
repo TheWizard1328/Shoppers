@@ -43,6 +43,7 @@ export default function SquareManagement() {
   const [drivers, setDrivers] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
+  const [selectedDaysRange, setSelectedDaysRange] = useState('30');
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedCODItem, setSelectedCODItem] = useState(null);
@@ -220,9 +221,10 @@ export default function SquareManagement() {
 
     try {
       const today = new Date();
-      const thirtyDaysAgo = new Date(today);
-      thirtyDaysAgo.setDate(today.getDate() - 30);
-      const startDateStr = format(thirtyDaysAgo, 'yyyy-MM-dd');
+      const daysBack = Number(selectedDaysRange || 30);
+      const startDate = new Date(today);
+      startDate.setDate(today.getDate() - daysBack);
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(today, 'yyyy-MM-dd');
       const dateFilter = {
         delivery_date: {
@@ -278,9 +280,10 @@ export default function SquareManagement() {
       try {
         const authUser = await base44.auth.me();
         const today = new Date();
-        const thirtyDaysAgo = new Date(today);
-        thirtyDaysAgo.setDate(today.getDate() - 30);
-        const startDateStr = format(thirtyDaysAgo, 'yyyy-MM-dd');
+        const daysBack = Number(selectedDaysRange || 30);
+        const startDate = new Date(today);
+        startDate.setDate(today.getDate() - daysBack);
+        const startDateStr = format(startDate, 'yyyy-MM-dd');
         const endDateStr = format(today, 'yyyy-MM-dd');
         const dateFilter = {
           delivery_date: {
@@ -388,7 +391,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [loadDeliveriesFromOffline, loadReconciliationFromEntities, loadReconciliationFromOffline, loadSquareViewFromOffline]);
+  }, [loadDeliveriesFromOffline, loadReconciliationFromEntities, loadReconciliationFromOffline, loadSquareViewFromOffline, selectedDaysRange]);
 
   useEffect(() => {
     let isActive = true;
@@ -732,10 +735,10 @@ export default function SquareManagement() {
 
   const lookbackStart = React.useMemo(() => {
     const date = new Date();
-    date.setDate(date.getDate() - 30);
+    date.setDate(date.getDate() - Number(selectedDaysRange || 30));
     date.setHours(0, 0, 0, 0);
     return date;
-  }, []);
+  }, [selectedDaysRange]);
 
   const isTransferTransaction = (transaction) => {
     const label = `${transaction?.item_name || ''} ${transaction?.delivery_id || ''}`.toLowerCase();
@@ -1174,7 +1177,20 @@ export default function SquareManagement() {
       </div>
       
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-row items-center gap-2 md:gap-3">
+        <div className="flex flex-row flex-wrap items-center gap-2 md:gap-3">
+          <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
+            <SelectTrigger className="w-[120px] text-sm">
+              <SelectValue placeholder="Days" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">7 Days</SelectItem>
+              <SelectItem value="14">14 Days</SelectItem>
+              <SelectItem value="30">30 Days</SelectItem>
+              <SelectItem value="60">60 Days</SelectItem>
+              <SelectItem value="90">90 Days</SelectItem>
+            </SelectContent>
+          </Select>
+
           {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
               <SelectTrigger className="w-[150px] md:w-[200px] text-sm">
