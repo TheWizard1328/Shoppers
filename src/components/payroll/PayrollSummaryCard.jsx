@@ -60,6 +60,8 @@ export default function PayrollSummaryCard({
   const [appFeeOverlayAllDriversId, setAppFeeOverlayAllDriversId] = useState(null);
   const [activeInputField, setActiveInputField] = useState(null);
   const [bonusDraftValue, setBonusDraftValue] = useState('');
+  const [deductionDraftName, setDeductionDraftName] = useState('');
+  const [deductionDraftAmount, setDeductionDraftAmount] = useState('');
   const contentRef = useRef(null);
 
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
@@ -312,6 +314,17 @@ export default function PayrollSummaryCard({
       if (refreshPayrollRecords) await refreshPayrollRecords();
     } catch (error) { console.error('❌ [Payroll] Failed to save changes:', error); }
   };
+
+  // Initialize deduction input drafts when dialog opens
+  useEffect(() => {
+    if (!deductionOverlayDriverId) {
+      setDeductionDraftName('');
+      setDeductionDraftAmount('');
+      return;
+    }
+    setDeductionDraftName('');
+    setDeductionDraftAmount('');
+  }, [deductionOverlayDriverId]);
 
   // Initialize bonus input draft when dialog opens
   useEffect(() => {
@@ -838,11 +851,8 @@ export default function PayrollSummaryCard({
                   <input
                     type="text"
                     placeholder="Deduction name"
-                    value={driverEdits[deductionOverlayDriverId]?.newDeductionName || ''}
-                    onChange={(e) => setDriverEdits((prev) => ({
-                      ...prev,
-                      [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionName: e.target.value }
-                    }))}
+                    value={deductionDraftName}
+                    onChange={(e) => setDeductionDraftName(e.target.value)}
                     className="w-full px-2 py-1 text-sm border rounded" />
 
                   <div className="flex gap-2">
@@ -850,29 +860,26 @@ export default function PayrollSummaryCard({
                     <input
                       type="number"
                       placeholder="Amount"
-                      value={driverEdits[deductionOverlayDriverId]?.newDeductionAmount || ''}
-                      onChange={(e) => setDriverEdits((prev) => ({
-                        ...prev,
-                        [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionAmount: e.target.value }
-                      }))}
+                      value={deductionDraftAmount}
+                      onChange={(e) => setDeductionDraftAmount(e.target.value)}
                       className="flex-1 px-2 py-1 text-sm border rounded"
                       step="0.01" />
 
                     <button
                       onClick={async () => {
-                        const name = driverEdits[deductionOverlayDriverId]?.newDeductionName;
-                        const amount = driverEdits[deductionOverlayDriverId]?.newDeductionAmount;
+                        const name = deductionDraftName.trim();
+                        const amount = deductionDraftAmount;
                         if (name && amount) {
                           const newDeductions = [...(driverEdits[deductionOverlayDriverId].deductions || []), { name, amount: parseFloat(amount) }];
                           setDriverEdits((prev) => ({
                             ...prev,
                             [deductionOverlayDriverId]: {
                               ...prev[deductionOverlayDriverId],
-                              deductions: newDeductions,
-                              newDeductionName: '',
-                              newDeductionAmount: ''
+                              deductions: newDeductions
                             }
                           }));
+                          setDeductionDraftName('');
+                          setDeductionDraftAmount('');
                           // Save immediately
                           await savePayrollChanges(deductionOverlayDriverId, {
                             deductions: newDeductions,
