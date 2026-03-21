@@ -56,8 +56,8 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, s
               {values.map((val, idx) =>
             <div
               key={`${title}-${idx}-${val}`} className={`relative w-[95px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 ${singleVisible ? 'snap-center' : ''}`}
+              style={{ borderColor: 'var(--border-slate-200)', scrollSnapStop: singleVisible ? 'always' : 'normal' }}
 
-              style={{ borderColor: 'var(--border-slate-200)' }}
               onClick={() => onSelectBarcode(val)}
               title={val}>
               <BarcodeThumb value={val} />
