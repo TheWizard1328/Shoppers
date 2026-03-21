@@ -32,7 +32,7 @@ const classifyBarcode = (value) => {
 
 function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor }) {
   return (
-    <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
+    <div className="bg-card my-1.5 p-2 rounded-md space-y-2 border border-border dark:bg-slate-900/40 dark:border-slate-700">
       <div className="flex items-center justify-between">
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</Label>
         {values.length > 0 &&
@@ -410,7 +410,7 @@ export default function SmartBarcodeScanner({
 
       
 
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-2">
         <BarcodeColumn
           title="Receipt Barcodes"
           values={receiptBarcodeValues}
