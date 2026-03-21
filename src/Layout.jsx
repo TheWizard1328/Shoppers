@@ -670,8 +670,7 @@ export default function Layout({ children, currentPageName }) {
   const [initialGlobalFiltersSet, setInitialGlobalFiltersSet] = useState(false);
   const [showCitySelectionPopup, setShowCitySelectionPopup] = useState(false);
 
-  // Track if we've done initial driver selection (prevent re-running on filter changes)
-  const hasSetInitialDriver = useRef(false);
+  const skipInitialFullDataLoadRef = useRef(false);
 
   const [isFormOverlayOpen, setIsFormOverlayOpen] = useState(false);
   const [isEntityUpdating, setIsEntityUpdating] = useState(false);
@@ -855,26 +854,26 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
+        const deviceIdentifier = getDeviceIdentifier();
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const { getBootstrapManifest } = await import('@/functions/getBootstrapManifest');
+        const manifestResponse = await requestThrottler.queue(
+          () => getBootstrapManifest({ deviceIdentifier, todayStr }),
+          'critical',
+          'getBootstrapManifest'
+        );
+        const manifest = manifestResponse?.data || manifestResponse || {};
+
         // CRITICAL: Step 2 - Check if device is registered (ALL USERS)
         // Cache in localStorage (persists across refreshes) to avoid repeated checks
-        const deviceIdentifier = getDeviceIdentifier();
         const cachedDeviceCheck = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
-        if (!cachedDeviceCheck) {
-          try {
-            const existingDevices = await base44.entities.UserDevice.filter({ user_id: fetchedUser.id, device_identifier: deviceIdentifier });
-            if (!existingDevices || existingDevices.length === 0) {
-              console.log('📱 [Layout] Device not registered, showing registration options');
-              setCurrentUser(fetchedUser);setIsLoadingLayout(false);setDataLoaded(true);return;
-            }
-            localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true'); setDeviceRegistered(true);
-            console.log('✅ [Layout] Device registered and cached, proceeding');
-          } catch (e) {
-            console.warn('⚠️ [Layout] Device check failed, showing registration');
-            setCurrentUser(fetchedUser);setIsLoadingLayout(false);setDataLoaded(true);return;
-          }
-        } else {
-          setDeviceRegistered(true); console.log('✅ [Layout] Device check cached, skipping API call');
+        if (!cachedDeviceCheck && manifest.deviceRegistered !== true) {
+          console.log('📱 [Layout] Device not registered, showing registration options');
+          setCurrentUser(fetchedUser);setIsLoadingLayout(false);setDataLoaded(true);return;
         }
+
+        localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
+        setDeviceRegistered(true);
 
         // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
         // Step 3 - Load user settings from local cache (no API call)
@@ -909,33 +908,15 @@ export default function Layout({ children, currentPageName }) {
           setUserSettingsLoaded(true);
         }
 
-        // Initialize smart refresh with defaults (don't wait for API)
-        smartRefreshManager._enabled = true;
+        // Initialize smart refresh and app settings from manifest
+        const manifestSettings = manifest.appSettings || {};
+        smartRefreshManager._enabled = manifestSettings.smartRefreshEnabled !== false;
         smartRefreshManager._initialized = true;
-
-        // Load app-wide settings in background (non-blocking)
-        setTimeout(async () => {
-          try {
-            const settings = await requestThrottler.queue(
-              () => base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
-              'standard',
-              'loadAppSettings'
-            );
-            if (settings && settings.length > 0 && settings[0].setting_value) {
-              smartRefreshManager._enabled = settings[0].setting_value.smartRefreshEnabled !== false;
-              if (settings[0].setting_value.appVersion) {
-                const version = settings[0].setting_value.appVersion;
-                setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
-              }
-              setAdminImportEnabled(settings[0].setting_value.adminImportEnabled === true);
-            }
-          } catch (e) {
-
-
-
-
-            // Silent fail - use defaults
-          }}, 10000); // Load app settings 10 seconds after init
+        if (manifestSettings.appVersion) {
+          const version = manifestSettings.appVersion;
+          setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
+        }
+        setAdminImportEnabled(manifestSettings.adminImportEnabled === true);
         const isDispatcher = userHasRole(fetchedUser, 'dispatcher');const isInactive = fetchedUser.status === 'inactive';
         if (isDispatcher && isInactive) {
 
@@ -970,43 +951,12 @@ export default function Layout({ children, currentPageName }) {
           }
         }
 
-        // Load cities from offline DB first to prevent rate limits
-        let citiesData = [];
-        try {
-          const { offlineDB: offlineDBInstance } = await import('./components/utils/offlineDatabase');
-          citiesData = await offlineDBInstance.getAll(offlineDBInstance.STORES.CITIES);
-
-          if (!citiesData || citiesData.length === 0) {
-            console.log('📥 [Layout] Cities not in offline DB - fetching from API');
-            citiesData = await requestThrottler.queue(
-              () => City.list(),
-              'priority',
-              'loadCities'
-            );
-            // Save to offline DB for future use
-            await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesData);
-          } else {
-            console.log(`📦 [Layout] Using ${citiesData.length} cities from offline DB`);
-          }
-        } catch (offlineError) {
-          console.warn('⚠️ [Layout] Offline DB failed, fetching from API');
-          citiesData = await requestThrottler.queue(
-            () => City.list(),
-            'priority',
-            'loadCitiesFallback'
-          );
-        }
-
+        const citiesData = Array.isArray(manifest.cities) ? [...manifest.cities] : [];
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(citiesData || []);
 
-        // Longer delay before stores to prevent rate limits
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const storesData = await requestThrottler.queue(
-          () => getData('Store'),
-          'priority',
-          'loadStores'
-        );
+        const storesData = Array.isArray(manifest.stores) ? [...manifest.stores] : [];
+        const allAppUsers = Array.isArray(manifest.appUsers) ? manifest.appUsers : [];
         let initialCityId = null;
 
         if (fetchedUser.city_id) {
@@ -1062,24 +1012,19 @@ export default function Layout({ children, currentPageName }) {
           globalFilters.setSelectedDriverId('all');
         }
 
+        skipInitialFullDataLoadRef.current = true;
         setInitialGlobalFiltersSet(true);
 
-        // CRITICAL: Prime offline DB with essential data before marking load complete
-        // This ensures first load/refresh doesn't hit API rate limits
+        // CRITICAL: Prime offline DB with manifest data before marking load complete
         const primeStartTime = Date.now();
         try {
-          console.log('🔄 [Layout Init] Priming offline DB with essential data...');
+          console.log('🔄 [Layout Init] Priming offline DB with manifest data...');
 
-          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          const deliveryData = Array.isArray(manifest.todayDeliveries) ? manifest.todayDeliveries : [];
+          const patientData = Array.isArray(manifest.patients) ? manifest.patients : [];
+          const appUserData = Array.isArray(manifest.appUsers) ? manifest.appUsers : [];
+          const storeData = Array.isArray(manifest.stores) ? [...manifest.stores] : [];
 
-          const [od, op, ou, os] = await Promise.all([offlineDB.getByDate(offlineDB.STORES.DELIVERIES, todayStr).catch(() => []), offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []), offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []), offlineDB.getAll(offlineDB.STORES.STORES).catch(() => [])]);
-          const [deliveryData, patientData, appUserData, storeData] = await Promise.all([
-          od?.length ? Promise.resolve(od) : requestThrottler.queue(() => base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []), 'priority', 'primeDeliveries'),
-          op?.length ? Promise.resolve(op) : requestThrottler.queue(() => base44.entities.Patient.list().catch(() => []), 'standard', 'primePatients'),
-          ou?.length ? Promise.resolve(ou) : requestThrottler.queue(() => base44.entities.AppUser.list().catch(() => []), 'priority', 'primeAppUsers'),
-          os?.length ? Promise.resolve(os) : requestThrottler.queue(() => base44.entities.Store.list().catch(() => []), 'priority', 'primeStores')]);
-
-          // Save to offline DB AND populate React state immediately so Dashboard has data on first render
           if (deliveryData?.length) {await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);setDeliveries(deliveryData);}
           if (patientData?.length) {await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientData);setPatients(patientData);}
           if (appUserData?.length) {await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserData);setAppUsers(appUserData);}
@@ -1088,7 +1033,6 @@ export default function Layout({ children, currentPageName }) {
           if (!deliveryData?.length || !patientData?.length || !appUserData?.length) {window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
         } catch (error) {
           console.warn('⚠️ [Layout Init] Offline DB prime failed (non-critical):', error.message);
-          // Trigger sync anyway if priming failed
           window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
         }
 
@@ -2238,6 +2182,10 @@ export default function Layout({ children, currentPageName }) {
 
   useEffect(() => {
     if (!initialGlobalFiltersSet || !currentUser) return;
+    if (skipInitialFullDataLoadRef.current) {
+      skipInitialFullDataLoadRef.current = false;
+      return;
+    }
     const isReady = globalFilters.isReadyForDataFetch();
     if (!isReady) return;
 
