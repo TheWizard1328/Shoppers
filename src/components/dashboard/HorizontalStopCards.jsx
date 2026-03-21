@@ -74,7 +74,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const isMobile = isMobileDevice();
   const { deviceType } = getUserAgentInfo();
   const isTabletPortrait = deviceType === 'Tablet' && getOrientation() === 'portrait';
-  const isDesktopFanLayout = !isMobile && !isTabletPortrait;
+  const isDesktopFanLayout = false;
   const hasBottomNav = isMobile || isTabletPortrait;
 
   // Helper function to smoothly scroll to center a specific card element
@@ -538,20 +538,20 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     <div
       ref={setRefs} className="flex gap-3 overflow-x-auto overflow-y-hidden items-end min-h-[70px] pointer-events-auto z-[200]"
       style={{
-        position: isDesktopFanLayout ? 'relative' : 'static',
-        display: isDesktopFanLayout ? 'block' : 'flex',
-        height: isDesktopFanLayout ? `${desktopContainerHeight}px` : 'auto',
-        minHeight: isDesktopFanLayout ? `${desktopContainerHeight}px` : '70px',
-        overflowX: isDesktopFanLayout ? 'hidden' : 'auto',
-        overflowY: isDesktopFanLayout ? 'visible' : 'hidden',
+        position: 'static',
+        display: 'flex',
+        height: 'auto',
+        minHeight: '70px',
+        overflowX: 'auto',
+        overflowY: 'hidden',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
-        touchAction: isDesktopFanLayout ? 'pan-y' : 'pan-x',
-        scrollSnapType: isMobile ? 'x mandatory' : 'none',
-        scrollSnapStop: isMobile ? 'always' : 'normal',
-        paddingLeft: isDesktopFanLayout ? '0px' : isMobile ? 'calc(50% - 140px)' : '16px',
-        paddingRight: isDesktopFanLayout ? '0px' : isMobile ? 'calc(50% - 140px)' : '16px',
+        touchAction: 'pan-x',
+        scrollSnapType: 'x mandatory',
+        scrollSnapStop: 'always',
+        paddingLeft: 'calc(50% - 140px)',
+        paddingRight: 'calc(50% - 140px)',
         paddingBottom: hasBottomNav ? 'calc(var(--bottom-nav-height, 64px))' : undefined
       }}
       onTouchStart={handleTouchStart}
@@ -686,15 +686,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
             className="desktop-stop-card-shell flex-shrink-0 pointer-events-auto"
             data-rail-condensed={isDesktopFanLayout && !isRailCentered ? 'true' : 'false'}
             style={{
-              position: isDesktopFanLayout ? 'absolute' : 'relative',
-              left: isDesktopFanLayout ? `${fanStyle?.left || 0}px` : undefined,
-              bottom: isDesktopFanLayout ? '0px' : undefined,
-              transform: isDesktopFanLayout ? `translateY(${fanStyle?.translateY || 0}px) rotate(${fanStyle?.rotate || 0}deg)` : undefined,
-              transformOrigin: isDesktopFanLayout ? 'bottom center' : undefined,
-              zIndex: isDesktopFanLayout ? fanStyle?.zIndex : undefined,
-              overflow: isDesktopFanLayout && !isRailCentered ? 'hidden' : 'visible',
-              scrollSnapAlign: isMobile ? 'center' : 'none',
-              scrollSnapStop: isMobile ? 'always' : 'normal'
+              position: 'relative',
+              overflow: 'visible',
+              scrollSnapAlign: 'center',
+              scrollSnapStop: 'always'
             }}
             data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
             <StopCard
