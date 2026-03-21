@@ -42,7 +42,6 @@ export default function StopCardsSection({
         style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
         onWheel={e => {
           if (!e.deltaY) return;
-          e.preventDefault();
           e.stopPropagation();
           e.currentTarget.scrollLeft += e.deltaY;
         }}

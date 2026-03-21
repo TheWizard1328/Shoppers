@@ -582,7 +582,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         const axisDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
         if (Math.abs(axisDelta) < 8) return;
 
-        e.preventDefault();
         e.stopPropagation();
 
         if (isDesktopFanLayout) {
