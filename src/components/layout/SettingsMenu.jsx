@@ -80,7 +80,7 @@ export default function SettingsMenu({
           ) : (
             <Select value={themePreference} onValueChange={onThemeChange}>
               <SelectTrigger 
-                className="w-full h-9" 
+                className="w-full min-h-11" 
                 style={{ 
                   background: 'var(--bg-white)', 
                   borderColor: 'var(--border-slate-300)', 
@@ -138,7 +138,7 @@ export default function SettingsMenu({
               }}
             >
               <SelectTrigger 
-                className="w-full h-9" 
+                className="w-full min-h-11" 
                 style={{ 
                   background: 'var(--bg-white)', 
                   borderColor: 'var(--border-slate-300)', 
