@@ -6935,13 +6935,12 @@ function Dashboard() {
 
                   <Button
                     variant="default"
-                    size="sm"
+                    size="s"
                     onClick={() => {
                       setShowRoutes(!showRoutes);
                       setIsExpanded(false);
                     }}
                     className={`gap-2 h-8 flex-shrink-0 text-white ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
-                      <Truck className="w-3.5 h-3.5" />
                       Route Lines
                     </Button>
                   </div>
