@@ -1418,10 +1418,10 @@ function Dashboard() {
 
 
 
+
         // This subscription handles changes from other components
       }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else
-          if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else
+  useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else
           if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else
           if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);else
           if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else
@@ -1737,15 +1737,15 @@ function Dashboard() {
 
 
 
+
       // Callback provided for future use
     }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
         // On all other devices/scenarios, show the shared marker
-        const isTrackingOnThisDevice = locationTracker.isTracking === true;const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;const filteredLocations = shouldFilterSelf ? locations.filter((loc) => {
-          if (loc._isSelf === true) {
-            return false;
-          }
-          return true;
-        }) :
+        const isTrackingOnThisDevice = locationTracker.isTracking === true;const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;const filteredLocations = shouldFilterSelf ? locations.filter((loc) => {if (loc._isSelf === true) {
+              return false;
+            }
+            return true;
+          }) :
         locations;
 
         setAllDriverLocations(filteredLocations);
@@ -2996,9 +2996,9 @@ function Dashboard() {
 
 
 
+
       // No map repositioning on smart refresh restart - user controls map manually
-    };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);return () => {window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
-    };
+    };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);return () => {window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);};
   }, [mapViewPhase, deliveriesWithStopOrder, selectedCardId]);
 
   // Auto-center on next stop on initial load
@@ -6792,7 +6792,7 @@ function Dashboard() {
                     onValueChange={handleDriverChange}
                     disabled={isDriverDropdownDisabled}>
 
-                      <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                      <SelectTrigger className="whitespace-nowrap border-input bg-transparent shadow-sm data-[placeholder]:text-muted-foreground flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue placeholder="All Drivers" />
                       </SelectTrigger>
                       <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
