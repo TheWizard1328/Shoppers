@@ -410,7 +410,7 @@ export default function SmartBarcodeScanner({
 
       <p className="text-xs text-slate-400">One scanner input auto-sorts barcodes into Receipt or Rx lists.</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <BarcodeColumn
           title="Receipt Barcodes"
           values={receiptBarcodeValues}
