@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { fabControlEvents } from '@/components/utils/fabControlEvents';
 
 const DriverLocationBadge = ({ users = [] }) => {
   const [driverStatus, setDriverStatus] = useState({});
@@ -54,10 +53,6 @@ const DriverLocationBadge = ({ users = [] }) => {
           hasChanges = true;
           const coordsChanged = latChanged || lngChanged;
 
-          // Notify FAB to reactivate phase 1 if coords or tracking changed (not on first load)
-          if (!isFirstLoad && (coordsChanged || trackingChanged)) {
-            fabControlEvents.notifyDriverLocationChange();
-          }
 
           let bulletColor = 'red'; // Both unchanged
           if (coordsChanged && timestampChanged) {
