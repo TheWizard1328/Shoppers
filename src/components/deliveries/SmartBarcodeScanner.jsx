@@ -414,7 +414,7 @@ export default function SmartBarcodeScanner({
 
       
 
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1">
         <BarcodeColumn
           title="Receipt Barcodes"
           values={receiptBarcodeValues}
@@ -441,10 +441,10 @@ export default function SmartBarcodeScanner({
       <div className="fixed inset-0 z-[10029] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="relative w-full max-w-3xl rounded-xl border bg-card p-4 shadow-2xl" style={{ borderColor: 'var(--border-slate-200)' }}>
             <button
-              type="button"
-              className="absolute right-3 top-3 h-8 w-8 rounded-full bg-slate-900 text-white flex items-center justify-center"
-              onClick={() => setSelectedBarcode(null)}
-              aria-label="Close enlarged barcode">
+            type="button"
+            className="absolute right-3 top-3 h-8 w-8 rounded-full bg-slate-900 text-white flex items-center justify-center"
+            onClick={() => setSelectedBarcode(null)}
+            aria-label="Close enlarged barcode">
               <X className="w-4 h-4" />
             </button>
             <LargeBarcodePreview value={selectedBarcode} onClose={() => setSelectedBarcode(null)} />
