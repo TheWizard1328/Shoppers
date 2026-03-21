@@ -327,32 +327,13 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     let timeA, timeB;
 
     if (isACompleted) {
-      // For completed: use actual_delivery_time timestamp
-      // Parse as Date object for accurate comparison
-      if (a.actual_delivery_time) {
-        timeA = new Date(a.actual_delivery_time).getTime();
-      } else {
-        // Fallback to stop_order if no actual_delivery_time
-        timeA = (a.stop_order || 999) * 1000000; // Large multiplier to keep in separate range
-      }
+      // For completed: sort by completion time first
+      timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.stop_order || 999) * 1000000;
     } else {
-      // For incomplete: use stop_order first (most reliable), then ETA
-      // This ensures the "started" delivery stays at the front
-      const stopOrderA = a.stop_order || 999;
-      const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
-      const [hoursA, minutesA] = etaA.split(':').map(Number);
-      const etaMinutesA = (isNaN(hoursA) ? 99 : hoursA) * 60 + (isNaN(minutesA) ? 99 : minutesA);
-      // Use stop_order as primary, ETA as tiebreaker
-      timeA = stopOrderA * 10000 + etaMinutesA;
-    }
-
+...
     if (isBCompleted) {
-      // For completed: use actual_delivery_time timestamp
-      if (b.actual_delivery_time) {
-        timeB = new Date(b.actual_delivery_time).getTime();
-      } else {
-        timeB = (b.stop_order || 999) * 1000000;
-      }
+      // For completed: sort by completion time first
+      timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.stop_order || 999) * 1000000;
     } else {
       // For incomplete: use stop_order first, then ETA
       const stopOrderB = b.stop_order || 999;

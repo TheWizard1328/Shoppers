@@ -864,18 +864,18 @@ function Dashboard() {
       const completedDeliveries = activeDeliveries.filter((d) => d && finishedStatuses.includes(d.status));
       const incompleteDeliveries = activeDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
 
-      // CRITICAL: Sort completed by stop_order (imported from active routes), fallback to actual_delivery_time
+      // CRITICAL: Sort completed by actual completion time
       completedDeliveries.sort((a, b) => {
         if (!a || !b) return 0;
 
-        // Sort by stop_order if both have it
-        if (a.stop_order && b.stop_order) {
-          return a.stop_order - b.stop_order;
+        const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+        const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+
+        if (timeA !== timeB) {
+          return timeA - timeB;
         }
 
-        // Fallback to actual_delivery_time
-        if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
-        return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
+        return (a.stop_order || 999) - (b.stop_order || 999);
       });
 
       // CRITICAL: Sort incomplete by stop_order (imported from active routes), fallback to ETA
