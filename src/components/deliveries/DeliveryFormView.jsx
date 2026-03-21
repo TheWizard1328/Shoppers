@@ -616,30 +616,6 @@ export default function DeliveryFormView({
                     ) : (
                       <div className="grid grid-cols-[minmax(0,1.9fr)_minmax(16rem,0.7fr)] gap-3 items-start">
                         <div className="space-y-2 min-w-0">
-                          {/* Barcode Scanner */}
-                          <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                            <SmartBarcodeScanner
-                              receiptBarcodeValues={formData.receipt_barcode_values || []}
-                              rxBarcodeValues={formData.barcode_values || []}
-                              onReceiptChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
-                              onRxChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
-                              onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
-                              manualInputOverride={formData._barcode_entry_input || ''}
-                              focusTrigger={formData._barcode_focus_token || 0}
-                              onManualInputOverrideApplied={() => setFormData(prev => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
-                              disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
-                            />
-
-                            {formData._preview_barcode && (
-                              <div className="mt-2 p-2 rounded-md border bg-card border-emerald-300/60 dark:bg-slate-900/40 dark:border-emerald-700">
-                                <LargeBarcodePreview
-                                  value={formData._preview_barcode}
-                                  onClose={() => setFormData(prev => ({ ...prev, _preview_barcode: null }))}
-                                />
-                              </div>
-                            )}
-                          </div>
-
                           {/* Store / Status / Time */}
                           <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
                             <DeliveryStatusAndTiming
