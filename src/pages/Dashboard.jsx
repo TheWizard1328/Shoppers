@@ -3505,18 +3505,6 @@ function Dashboard() {
 
       // Clear previous map state without triggering any repositioning
       setPreviousMapState(null);
-
-      // Scroll to card with isNextDelivery=true
-      setTimeout(() => {
-        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-
-        if (nextCard) {
-          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          }
-        }
-      }, 300);
     } else {
       // Card is being expanded
 
