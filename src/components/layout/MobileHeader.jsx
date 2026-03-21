@@ -33,6 +33,7 @@ export default function MobileHeader({
   onCurrentUserUpdate
 }) {
   const location = useLocation();
+  const canGoBack = (window.history.state?.idx ?? 0) > 0;
 
   // Enable browser back button on nested routes
   useEffect(() => {
@@ -49,6 +50,7 @@ export default function MobileHeader({
 
   const handleBackButtonClick = (e) => {
     e.stopPropagation();
+    if (!canGoBack) return;
     window.history.back();
   };
 
