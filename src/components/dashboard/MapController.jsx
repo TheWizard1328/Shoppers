@@ -117,7 +117,6 @@ export default function MapController({
       setFannedLocationKey(null);
     },
     dblclick: (event) => {
-      event?.originalEvent?.preventDefault?.();
       event?.originalEvent?.stopPropagation?.();
       base44.analytics.track({
         eventName: 'map_double_tapped',
