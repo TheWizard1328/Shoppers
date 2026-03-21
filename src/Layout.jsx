@@ -2182,10 +2182,6 @@ export default function Layout({ children, currentPageName }) {
 
   useEffect(() => {
     if (!initialGlobalFiltersSet || !currentUser) return;
-    if (skipInitialFullDataLoadRef.current) {
-      skipInitialFullDataLoadRef.current = false;
-      return;
-    }
     const isReady = globalFilters.isReadyForDataFetch();
     if (!isReady) return;
 
