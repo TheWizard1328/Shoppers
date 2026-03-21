@@ -54,8 +54,8 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor })
               const idx = pageIndex * 4 + itemIndex;
               return (
                 <div
-                  key={`${title}-${idx}-${val}`}
-                  className="relative w-[132px] rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+                  key={`${title}-${idx}-${val}`} className="relative w-[120px] rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+
                   style={{ borderColor: 'var(--border-slate-200)' }}
                   onClick={() => onSelectBarcode(val)}
                   title={val}>
