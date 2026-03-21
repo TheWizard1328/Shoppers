@@ -1986,7 +1986,7 @@ function Dashboard() {
 
     // CRITICAL: Only skip phase 2 (driver+next-stop) if not a driver or no location.
     // Phase 3 CAN run for dispatchers (shows incomplete stops for their stores).
-    if (mapViewPhase === 2 && (!isDriver || !driverLocation)) {
+    if (mapViewPhase === 2 && (!isDriver || !getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice }))) {
       return;
     }
 
@@ -2019,7 +2019,7 @@ function Dashboard() {
         // CRITICAL: For admins viewing any driver OR drivers viewing themselves
         const shouldIncludeBlueDot =
         isMobile &&
-        isDriver && !isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) &&
+        isDriver && (!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) || isPrimaryDevice) &&
         isViewingToday &&
         driverLocation?.latitude &&
         driverLocation?.longitude && (
@@ -2080,7 +2080,7 @@ function Dashboard() {
             }
 
             // CRITICAL: Skip current user on mobile (blue dot shows instead) - but NOT for dispatchers
-            const isCurrentUserLocation = isMobile && !isDispatcher && location.driver_id === currentUser?.id;
+            const isCurrentUserLocation = isMobile && !isDispatcher && isPrimaryDevice && location.driver_id === currentUser?.id;
             if (isCurrentUserLocation) {
               return;
             }
@@ -2189,11 +2189,11 @@ function Dashboard() {
           let userRefLon = null;
           let locationSource = null;
 
-          if (!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) && driverLocation?.latitude && driverLocation?.longitude) {
+          if ((!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) || isPrimaryDevice) && driverLocation?.latitude && driverLocation?.longitude) {
             userRefLat = driverLocation.latitude;
             userRefLon = driverLocation.longitude;
             locationSource = 'current_gps';
-          } else if (!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) && currentUser?.current_latitude && currentUser?.current_longitude) {
+          } else if ((!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) || !isPrimaryDevice) && currentUser?.current_latitude && currentUser?.current_longitude) {
             userRefLat = currentUser.current_latitude;
             userRefLon = currentUser.current_longitude;
             locationSource = 'last_known';
@@ -2363,7 +2363,7 @@ function Dashboard() {
           isDriver,
           appUsers,
           driverLocation,
-          allDriverLocations
+          allDriverLocations, isPrimaryDevice
         });
 
         if (nextStopCoordinates && fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
@@ -2439,7 +2439,7 @@ function Dashboard() {
             );
             driversWithIncompleteInDispatcherStores.forEach((driverId) => {
               const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
-              if (driverAppUser?.driver_status !== 'off_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              if ((driverAppUser?.driver_status !== 'off_duty' || driverId === currentUser?.id && (!isPrimaryDevice || driverLocation?.latitude && driverLocation?.longitude)) && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
               }
             });
@@ -2514,7 +2514,7 @@ function Dashboard() {
           if (isViewingTodayPhase3) {
             driversWithIncompleteOrPendingStops.forEach((driverId) => {
               const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
-              if (driverAppUser?.driver_status !== 'off_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              if ((driverAppUser?.driver_status !== 'off_duty' || driverId === currentUser?.id && (!isPrimaryDevice || driverLocation?.latitude && driverLocation?.longitude)) && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
               }
             });
@@ -2624,7 +2624,7 @@ function Dashboard() {
       default:
         break;
     }
-  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, mapViewTrigger, isDispatcher, currentUser, getMapPadding, allDriverLocations, showAllDriverMarkers, appUsers, selectedDriverId, selectedDate, cities, deliveries]);
+  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, mapViewTrigger, isDispatcher, currentUser, getMapPadding, allDriverLocations, showAllDriverMarkers, appUsers, selectedDriverId, selectedDate, cities, deliveries, isPrimaryDevice]);
 
   // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
   useEffect(() => {
