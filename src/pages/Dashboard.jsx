@@ -537,7 +537,7 @@ function Dashboard() {
       try {
         const { getCurrentDevice } = await import('@/components/utils/deviceManager');
         const device = await getCurrentDevice(currentUser.id);
-        const isPrimary = device === null || (device?.status !== 'inactive' && device?.is_primary_tracker !== false);
+        const isPrimary = device === null || device?.status !== 'inactive' && device?.is_primary_tracker !== false;
         setIsPrimaryDevice(isPrimary);
       } catch (error) {
         console.warn('⚠️ [Primary Device Check] Failed - defaulting to primary:', error.message);
@@ -1413,22 +1413,22 @@ function Dashboard() {
 
 
 
+
+
+
         // This subscription handles changes from other components
       }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {
-    const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};
-    const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};
-    const unsubscribe = fabControlEvents.subscribe((event) => {
-      if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);}
-      else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;}
-      else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);
-      else if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);
-      else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);}
-      else if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);}
-      else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 500;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 500);}, 50);}
-    });
-    return unsubscribe;
-  }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
+  useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {
+        if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else
+        if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else
+        if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else
+        if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);else
+        if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else
+        if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else
+        if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 500;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 500);}, 50);}
+      });
+      return unsubscribe;
+    }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
 
   useEffect(() => {
     return () => {
@@ -1705,10 +1705,10 @@ function Dashboard() {
       if (mergeMode === 'merge' && appUsers?.length) {
         const updatedMap = new Map(updatedAppUsers.filter((au) => au?.user_id).map((au) => [au.user_id, au]));
         appUsersToProcess = appUsers.map((au) => updatedMap.get(au?.user_id) || au);
-        updatedAppUsers.forEach((au) => { if (au?.user_id && !appUsers.some((existing) => existing?.user_id === au.user_id)) appUsersToProcess.push(au); });
+        updatedAppUsers.forEach((au) => {if (au?.user_id && !appUsers.some((existing) => existing?.user_id === au.user_id)) appUsersToProcess.push(au);});
       }
       driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
-      const phase = mapViewPhaseRef.current, now = Date.now();
+      const phase = mapViewPhaseRef.current,now = Date.now();
       if (format(selectedDate, 'yyyy-MM-dd') === getEdmDate() && isMapViewLockedRef.current && (phase === 2 || phase === 3) && now - lastProgrammaticMapMoveRef.current >= (phase === 2 ? 1200 : 1800)) {
         lastProgrammaticMapMoveRef.current = now;
         window._lastProgrammaticMapMove = now;
@@ -1732,13 +1732,13 @@ function Dashboard() {
 
 
 
+
+
+
       // Callback provided for future use
     }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
         // On all other devices/scenarios, show the shared marker
-        const isTrackingOnThisDevice = locationTracker.isTracking === true;
-        const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;
-
-        const filteredLocations = shouldFilterSelf ?
+        const isTrackingOnThisDevice = locationTracker.isTracking === true;const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;const filteredLocations = shouldFilterSelf ?
         locations.filter((loc) => {
           if (loc._isSelf === true) {
             return false;
@@ -1758,7 +1758,7 @@ function Dashboard() {
 
   const completedRouteNotificationsRef = useRef(new Set());
   useEffect(() => {
-    const driverId = currentUser && (selectedDriverId !== 'all' ? selectedDriverId : currentUser.id), deliveryDate = format(selectedDate, 'yyyy-MM-dd'), key = `${driverId}:${deliveryDate}`;
+    const driverId = currentUser && (selectedDriverId !== 'all' ? selectedDriverId : currentUser.id),deliveryDate = format(selectedDate, 'yyyy-MM-dd'),key = `${driverId}:${deliveryDate}`;
     if (!currentUser || !isRouteComplete || !driverId || completedRouteNotificationsRef.current.has(key)) return;
     completedRouteNotificationsRef.current.add(key);
     window.dispatchEvent(new CustomEvent('routeShiftCompleted', { detail: { driverId, deliveryDate } }));
@@ -1943,7 +1943,7 @@ function Dashboard() {
       }
     };
 
-    if (forceReactivate===true) {
+    if (forceReactivate === true) {
       if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
       mapLockExpiresAtRef.current = null;
       if (isMapViewLocked) {
@@ -3012,11 +3012,11 @@ function Dashboard() {
 
 
 
-      // No map repositioning on smart refresh restart - user controls map manually
-    };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
 
-    return () => {
-      window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
+
+
+      // No map repositioning on smart refresh restart - user controls map manually
+    };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);return () => {window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
       window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
     };
   }, [mapViewPhase, deliveriesWithStopOrder, selectedCardId]);
@@ -3352,7 +3352,7 @@ function Dashboard() {
     }
   };
 
-  const driverChangeInProgressRef = useRef(false), driverChangeRequestIdRef = useRef(0);
+  const driverChangeInProgressRef = useRef(false),driverChangeRequestIdRef = useRef(0);
 
   const handleDriverChange = async (driverId) => {
     const reqId = Date.now();
@@ -6806,7 +6806,7 @@ function Dashboard() {
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden">
-                  <div className="mt-2 pt-2 pb-2 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <div className="pt-1 pb-1 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                     <Select
                     value={selectedDriverId}
                     onValueChange={handleDriverChange}
@@ -6969,8 +6969,8 @@ function Dashboard() {
                   {/* Location Toggle - All driver devices */}
                   {shouldShowLocationToggle &&
                 <>
-                      <div className="border-t border-slate-200 mt-2 pt-2"></div>
-                      <div className="flex items-center gap-2">
+                      <div className="border-t border-slate-200"></div>
+                      <div className="py-1 flex items-center gap-2">
                         <LocationTrackingToggle
                       user={currentUser}
                       onUserUpdate={async () => {
@@ -7173,10 +7173,10 @@ function Dashboard() {
             <div
             className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
             style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
-            onWheel={(e) => { window.__isUserCardSwipe = true; if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) { if (mapLockTimeoutRef.current) clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; mapLockExpiresAtRef.current = null; setIsMapViewLocked(false); } if (!isMobile) { e.preventDefault(); e.currentTarget.scrollLeft += e.deltaY; } }}
+            onWheel={(e) => {window.__isUserCardSwipe = true;if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) {if (mapLockTimeoutRef.current) clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;mapLockExpiresAtRef.current = null;setIsMapViewLocked(false);}if (!isMobile) {e.preventDefault();e.currentTarget.scrollLeft += e.deltaY;}}}
             onTouchStart={() => {
               lastUserInteractionRef.current = Date.now();
-              window.__isUserCardSwipe = true; if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) { if (mapLockTimeoutRef.current) clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; mapLockExpiresAtRef.current = null; setIsMapViewLocked(false); }
+              window.__isUserCardSwipe = true;if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) {if (mapLockTimeoutRef.current) clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;mapLockExpiresAtRef.current = null;setIsMapViewLocked(false);}
             }}
             onScroll={isMobile ? createStopCardsScrollHandler({ deliveriesWithStopOrder, patients, stores, appUsers, mapViewPhase, isMapViewLocked, setIsMapViewLocked, setMapViewPhase, setShouldFitBounds, setMapCenter, setMapZoom, getMapPadding, mapLockTimeoutRef, mapLockExpiresAtRef }) : undefined}>
 
