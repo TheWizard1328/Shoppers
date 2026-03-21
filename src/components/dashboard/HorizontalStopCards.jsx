@@ -548,10 +548,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
         touchAction: 'pan-x',
-        scrollSnapType: 'x mandatory',
-        scrollSnapStop: 'always',
-        paddingLeft: 'calc(50% - 140px)',
-        paddingRight: 'calc(50% - 140px)',
+        scrollSnapType: isMobile ? 'x mandatory' : 'none',
+        scrollSnapStop: isMobile ? 'always' : 'normal',
+        paddingLeft: isMobile ? 'calc(50% - 140px)' : '16px',
+        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px',
         paddingBottom: hasBottomNav ? 'calc(var(--bottom-nav-height, 64px))' : undefined
       }}
       onTouchStart={handleTouchStart}
@@ -688,8 +688,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
             style={{
               position: 'relative',
               overflow: 'visible',
-              scrollSnapAlign: 'center',
-              scrollSnapStop: 'always'
+              scrollSnapAlign: isMobile ? 'center' : 'none',
+              scrollSnapStop: isMobile ? 'always' : 'normal'
             }}
             data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
             <StopCard
