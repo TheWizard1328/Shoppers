@@ -423,7 +423,7 @@ export default function SmartBarcodeScanner({
 
       
 
-      <div className="grid grid-cols-1">
+      <div className="grid grid-cols-2 gap-2">
         <BarcodeColumn
           title="Receipt Barcodes"
           values={receiptBarcodeValues}
