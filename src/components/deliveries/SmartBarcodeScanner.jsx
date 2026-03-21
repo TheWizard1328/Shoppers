@@ -411,8 +411,8 @@ export default function SmartBarcodeScanner({
         <Button
           type="button"
           size="sm"
-          variant="secondary"
-          className="h-9 px-3 flex-shrink-0 sm:hidden"
+          variant="outline"
+          className="h-9 px-3 flex-shrink-0 sm:hidden bg-white text-slate-900 border-slate-300 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
           onClick={() => setShowCamera(true)}
           disabled={disabled}
           title="Scan with camera">
@@ -432,7 +432,7 @@ export default function SmartBarcodeScanner({
             setSelectedBarcode(val);
             onSelectBarcode(val);
           }}
-          countColor="bg-blue-100 text-blue-700"
+          countColor="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-200"
           singleVisible={isMobile} />
         
         <BarcodeColumn
@@ -443,7 +443,7 @@ export default function SmartBarcodeScanner({
             setSelectedBarcode(val);
             onSelectBarcode(val);
           }}
-          countColor="bg-emerald-100 text-emerald-700"
+          countColor="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
           singleVisible={isMobile} />
         
       </div>
