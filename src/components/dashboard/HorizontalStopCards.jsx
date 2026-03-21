@@ -330,7 +330,14 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       // For completed: sort by completion time first
       timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.stop_order || 999) * 1000000;
     } else {
-...
+      // For incomplete: use stop_order first, then ETA
+      const stopOrderA = a.stop_order || 999;
+      const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
+      const [hoursA, minutesA] = etaA.split(':').map(Number);
+      const etaMinutesA = (isNaN(hoursA) ? 99 : hoursA) * 60 + (isNaN(minutesA) ? 99 : minutesA);
+      timeA = stopOrderA * 10000 + etaMinutesA;
+    }
+
     if (isBCompleted) {
       // For completed: sort by completion time first
       timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.stop_order || 999) * 1000000;
