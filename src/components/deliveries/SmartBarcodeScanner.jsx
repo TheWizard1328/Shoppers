@@ -378,7 +378,7 @@ export default function SmartBarcodeScanner({
         <Barcode className="w-4 h-4 text-emerald-600" />
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Barcodes</Label>
         {allValues.length > 0 &&
-        <Badge className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0 h-5">{allValues.length}</Badge>
+        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 text-xs px-1.5 py-0 h-5">{allValues.length}</Badge>
         }
       </div>
 
