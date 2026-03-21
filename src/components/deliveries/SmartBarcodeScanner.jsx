@@ -43,15 +43,15 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor })
       {values.length > 0 ?
       <div className="flex justify-center">
           <div
-            className={`${values.length >= 2 ? 'w-[244px]' : 'w-[120px]'} max-w-full overflow-x-auto custom-scrollbar pb-1`}
-            style={{ scrollbarWidth: 'thin' }}
-            onWheel={(e) => {
-              if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-                e.preventDefault();
-                e.currentTarget.scrollLeft += e.deltaY;
-              }
-            }}
-          >
+          className={`${values.length >= 2 ? 'w-[244px]' : 'w-[120px]'} max-w-full overflow-x-auto custom-scrollbar pb-1`}
+          style={{ scrollbarWidth: 'thin' }}
+          onWheel={(e) => {
+            if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+              e.preventDefault();
+              e.currentTarget.scrollLeft += e.deltaY;
+            }
+          }}>
+          
             <div className={`flex gap-1 ${values.length === 1 ? 'justify-center' : 'w-max'}`}>
               {values.map((val, idx) =>
             <div
@@ -374,7 +374,7 @@ export default function SmartBarcodeScanner({
 
   return (
     <div className="space-y-" onClick={(e) => {if (isMobile && !showCamera && e.target?.tagName !== 'INPUT') hiddenInputRef.current?.focus?.();}}>
-      <div className="flex items-center gap-">
+      <div className="pb-1 gap- flex items-center gap-1">
         <Barcode className="w-4 h-4 text-emerald-600" />
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Barcodes</Label>
         {allValues.length > 0 &&
@@ -390,8 +390,8 @@ export default function SmartBarcodeScanner({
           onChange={(e) => {if (!scannerModeRef.current) setManualInput(e.target.value);}}
           onKeyDown={handleInputKeyDown}
           onFocus={() => hiddenInputRef.current?.blur?.()}
-          placeholder="Scan or type barcode and press Enter..."
-          className="flex-1 h-9 text-sm font-mono"
+          placeholder="Scan or type barcode and press Enter..." className="px-3 py-2 text-sm font-mono rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm flex-1 h-9"
+
           disabled={disabled}
           autoComplete="off" />
         
