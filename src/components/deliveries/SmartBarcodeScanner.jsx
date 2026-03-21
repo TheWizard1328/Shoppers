@@ -32,11 +32,6 @@ const classifyBarcode = (value) => {
 };
 
 function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor }) {
-  const barcodePages = [];
-  for (let i = 0; i < values.length; i += 4) {
-    barcodePages.push(values.slice(i, i + 4));
-  }
-
   return (
     <div className="bg-card my-1.5 p-2 rounded-md space-y-2 border border-border dark:bg-slate-900/40 dark:border-slate-700">
       <div className="flex items-center justify-between">
@@ -46,31 +41,27 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor })
         }
       </div>
       {values.length > 0 ?
-      <div className="overflow-x-auto custom-scrollbar pb-1" style={{ scrollbarWidth: 'thin' }}>
-          <div className={`flex gap-3 ${barcodePages.length === 1 && values.length >= 2 ? 'w-full justify-center' : 'w-max'}`}>
-            {barcodePages.map((pageValues, pageIndex) =>
-          <div key={`${title}-page-${pageIndex}`} className="grid grid-cols-2 gap-2 min-w-[274px]">
-                {pageValues.map((val, itemIndex) => {
-              const idx = pageIndex * 4 + itemIndex;
-              return (
-                <div
-                  key={`${title}-${idx}-${val}`} className="relative w-[120px] rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
-
-                  style={{ borderColor: 'var(--border-slate-200)' }}
-                  onClick={() => onSelectBarcode(val)}
-                  title={val}>
-                  <BarcodeThumb value={val} />
-                  <button
-                    type="button"
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
-                    onClick={(e) => {e.stopPropagation();onRemove(idx);}}
-                    aria-label="Remove barcode">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>);
-            })}
-              </div>
+      <div className="flex justify-center">
+          <div className={`${values.length >= 2 ? 'w-[244px]' : 'w-[120px]'} max-w-full overflow-x-auto custom-scrollbar pb-1`} style={{ scrollbarWidth: 'thin' }}>
+            <div className={`flex gap-1 ${values.length === 1 ? 'justify-center' : 'w-max'}`}>
+              {values.map((val, idx) =>
+            <div
+              key={`${title}-${idx}-${val}`}
+              className="relative w-[120px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+              style={{ borderColor: 'var(--border-slate-200)' }}
+              onClick={() => onSelectBarcode(val)}
+              title={val}>
+              <BarcodeThumb value={val} />
+              <button
+                type="button"
+                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
+                onClick={(e) => {e.stopPropagation();onRemove(idx);}}
+                aria-label="Remove barcode">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
           )}
+            </div>
           </div>
         </div> :
 
