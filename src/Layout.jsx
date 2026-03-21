@@ -3469,7 +3469,7 @@ export default function Layout({ children, currentPageName }) {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 custom-scrollbar" style={{ background: 'var(--bg-white)' }}>
+                <div className="flex-1 overflow-y-auto p-3 custom-scrollbar" style={{ background: 'var(--bg-white)' }} onClickCapture={(e) => { if ((isMobile || isTabletPortrait) && e.target?.closest?.('a')) { window.dispatchEvent(new CustomEvent('overlayNavigateClose')); } }}>
                   <div className="">
                     <Link
                     to={constructUrlWithParams("Dashboard")}

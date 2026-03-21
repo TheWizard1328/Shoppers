@@ -3,6 +3,7 @@ import React from 'react';
 export default function MobileOverlayBackHandler({ isMobile, isTabletPortrait, isOverlayOpen, onRequestCloseOverlay }) {
   const overlayHistoryActiveRef = React.useRef(false);
   const overlayPopClosingRef = React.useRef(false);
+  const suppressCloseBackRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!isMobile && !isTabletPortrait) return;
@@ -42,8 +43,13 @@ export default function MobileOverlayBackHandler({ isMobile, isTabletPortrait, i
       }
     };
 
+    const handleOverlayNavigateClose = () => {
+      suppressCloseBackRef.current = true;
+    };
+
     window.addEventListener('popstate', handlePopState);
     document.addEventListener('backbutton', handleNativeBack, false);
+    window.addEventListener('overlayNavigateClose', handleOverlayNavigateClose);
 
     const capacitorApp = window.Capacitor?.Plugins?.App || window.Capacitor?.App;
     if (capacitorApp?.addListener) {
@@ -53,6 +59,7 @@ export default function MobileOverlayBackHandler({ isMobile, isTabletPortrait, i
     return () => {
       window.removeEventListener('popstate', handlePopState);
       document.removeEventListener('backbutton', handleNativeBack, false);
+      window.removeEventListener('overlayNavigateClose', handleOverlayNavigateClose);
       nativeBackListener?.remove?.();
     };
   }, [isMobile, isTabletPortrait, isOverlayOpen, onRequestCloseOverlay]);
@@ -68,12 +75,17 @@ export default function MobileOverlayBackHandler({ isMobile, isTabletPortrait, i
 
     if (!isOverlayOpen && overlayHistoryActiveRef.current && !overlayPopClosingRef.current) {
       overlayHistoryActiveRef.current = false;
+      if (suppressCloseBackRef.current) {
+        suppressCloseBackRef.current = false;
+        return;
+      }
       window.history.back();
       return;
     }
 
     if (!isOverlayOpen) {
       overlayPopClosingRef.current = false;
+      suppressCloseBackRef.current = false;
     }
   }, [isOverlayOpen, isMobile, isTabletPortrait]);
 
