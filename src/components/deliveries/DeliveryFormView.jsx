@@ -519,7 +519,7 @@ export default function DeliveryFormView({
                   )}
 
                   {!isPickupMode ? (
-                    <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.9fr)_minmax(20rem,1fr)] gap-3 items-start'}`}>
+                    <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.9fr)_minmax(12rem,0.6fr)] gap-3 items-start'}`}>
                       <div className="space-y-2 min-w-0">
                         {/* Store / Status / Time */}
                         <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
