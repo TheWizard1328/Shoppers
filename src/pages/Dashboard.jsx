@@ -95,6 +95,7 @@ import ReconcileToast from '../components/dashboard/ReconcileToast';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";import { shouldRefreshUserFromAppUser } from "@/components/utils/appUserRefreshUtils";
 import { saveDriverChangedDelivery } from "@/components/utils/saveDriverChangedDelivery";
+import { getFabTargetDriverMapLocation, isDriverOffDuty } from "@/components/dashboard/mapViewPhaseHelpers";
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
@@ -2018,7 +2019,7 @@ function Dashboard() {
         // CRITICAL: For admins viewing any driver OR drivers viewing themselves
         const shouldIncludeBlueDot =
         isMobile &&
-        isDriver && currentUser?.driver_status !== 'off_duty' &&
+        isDriver && !isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) &&
         isViewingToday &&
         driverLocation?.latitude &&
         driverLocation?.longitude && (
@@ -2188,11 +2189,11 @@ function Dashboard() {
           let userRefLon = null;
           let locationSource = null;
 
-          if (currentUser?.driver_status !== 'off_duty' && driverLocation?.latitude && driverLocation?.longitude) {
+          if (!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) && driverLocation?.latitude && driverLocation?.longitude) {
             userRefLat = driverLocation.latitude;
             userRefLon = driverLocation.longitude;
             locationSource = 'current_gps';
-          } else if (currentUser?.driver_status !== 'off_duty' && currentUser?.current_latitude && currentUser?.current_longitude) {
+          } else if (!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) && currentUser?.current_latitude && currentUser?.current_longitude) {
             userRefLat = currentUser.current_latitude;
             userRefLon = currentUser.current_longitude;
             locationSource = 'last_known';
@@ -2356,52 +2357,31 @@ function Dashboard() {
           break;
         }
 
-        if (nextStopCoordinates) {
-          // CRITICAL: Use actual driver location (blue dot or shared marker), not polyline endpoints
-          let driverLat, driverLon;
+        const fabTargetDriverLocation = getFabTargetDriverMapLocation({
+          selectedDriverId,
+          currentUser,
+          isDriver,
+          appUsers,
+          driverLocation,
+          allDriverLocations
+        });
 
-          // Priority 1: Use live GPS location (mobile blue dot)
-          if (currentUser?.driver_status !== 'off_duty' && driverLocation?.latitude && driverLocation?.longitude) {
-            driverLat = driverLocation.latitude;
-            driverLon = driverLocation.longitude;
-          }
-          // Priority 2: Use shared location marker (green marker from AppUser)
-          else {
-            // CRITICAL: Find the AppUser record directly to get fresh location
-            const currentAppUser = appUsers?.find((au) => au?.user_id === currentUser?.id);
-            if (currentAppUser?.driver_status !== 'off_duty' && currentAppUser?.current_latitude && currentAppUser?.current_longitude) {
-              driverLat = currentAppUser.current_latitude;
-              driverLon = currentAppUser.current_longitude;
-            }
-            // Fallback: Use shared marker location
-            else {
-              const sharedDriverLocation = allDriverLocations.find((loc) => loc.driver_id === currentUser?.id);
-              if (currentUser?.driver_status !== 'off_duty' && sharedDriverLocation?.latitude && sharedDriverLocation?.longitude) {
-                driverLat = sharedDriverLocation.latitude;
-                driverLon = sharedDriverLocation.longitude;
-              }
-            }
-          }
-
-          // Only center if we have valid driver coordinates
-          if (driverLat && driverLon) {
-            const bounds = [
-            [driverLat, driverLon],
-            [nextStopCoordinates.lat, nextStopCoordinates.lon]];
+        if (nextStopCoordinates && fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
+          const bounds = [
+          [fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude],
+          [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
 
-            const padding = getMapPadding();
+          const padding = getMapPadding();
 
-            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
-            setMapCenter(null);
-            setMapZoom(null);
-          }
-        } else if (currentUser?.driver_status !== 'off_duty' && driverLocation?.latitude && driverLocation?.longitude) {
-          // If no next stop, just center on driver with padding
+          setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
+          setMapCenter(null);
+          setMapZoom(null);
+        } else if (fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
           const padding = getMapPadding();
 
           setShouldFitBounds({
-            bounds: [[driverLocation.latitude, driverLocation.longitude]],
+            bounds: [[fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude]],
             options: {
               ...padding,
               maxZoom: 17.5,
