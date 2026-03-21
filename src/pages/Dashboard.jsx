@@ -6939,10 +6939,10 @@ function Dashboard() {
                     onClick={() => {
                       setShowRoutes(!showRoutes);
                       setIsExpanded(false);
-                    }} className="bg-emerald-600 text-white px-2 text-sm font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow gap-2 h-6 flex-shrink-0 hover:bg-emerald-700">
-                    
-                      Route Lines
-                    </Button>
+                    }}
+                    className={`${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white px-2 text-sm font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow gap-2 h-6 flex-shrink-0`}>
+                    Route Lines
+                  </Button>
                   </div>
 
                   {/* Location Toggle - All driver devices */}
