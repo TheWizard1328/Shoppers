@@ -77,6 +77,9 @@ export default function SmartBarcodeScanner({
   onRxChange,
   disabled = false,
   onSelectBarcode = () => {},
+  manualInputOverride = '',
+  focusTrigger = 0,
+  onManualInputOverrideApplied = () => {},
 }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
@@ -343,6 +346,18 @@ export default function SmartBarcodeScanner({
     if (!isMobile || showCamera) return;
     try { hiddenInputRef.current?.focus(); } catch {}
   }, [isMobile, showCamera, receiptBarcodeValues.length, rxBarcodeValues.length]);
+
+  useEffect(() => {
+    if (!manualInputOverride) return;
+    setManualInput(manualInputOverride);
+    setTimeout(() => inputRef.current?.focus(), 0);
+    onManualInputOverrideApplied();
+  }, [manualInputOverride, onManualInputOverrideApplied]);
+
+  useEffect(() => {
+    if (!focusTrigger) return;
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [focusTrigger]);
 
   return (
     <div className="space-y-3" onClick={(e) => { if (isMobile && !showCamera && e.target?.tagName !== 'INPUT') hiddenInputRef.current?.focus?.(); }}>

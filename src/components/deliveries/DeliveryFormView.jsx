@@ -486,7 +486,7 @@ export default function DeliveryFormView({
                             {formData.cod_total_amount_required >= 0 && (
                               <div className="relative">
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                                <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={e => { const cents = parseInt(e.target.value.replace(/[^\d]/g, '')) || 0; setFormData(p => ({ ...p, cod_total_amount_required: cents })); }} placeholder="0.00" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
+                                <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={e => { const digits = e.target.value.replace(/[^\d]/g, ''); if (digits.length > 5) { setFormData(p => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 })); return; } const cents = parseInt(digits) || 0; setFormData(p => ({ ...p, cod_total_amount_required: cents })); }} placeholder="0.00" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
                               </div>
                             )}
                           </div>
@@ -504,6 +504,9 @@ export default function DeliveryFormView({
                         onReceiptChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
                         onRxChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
                         onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
+                        manualInputOverride={formData._barcode_entry_input || ''}
+                        focusTrigger={formData._barcode_focus_token || 0}
+                        onManualInputOverrideApplied={() => setFormData(prev => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
                         disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
                       />
 
