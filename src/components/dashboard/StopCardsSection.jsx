@@ -40,7 +40,12 @@ export default function StopCardsSection({
       <div
         className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
         style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
-        onWheel={e => { e.currentTarget.scrollLeft += e.deltaY; }}
+        onWheel={e => {
+          if (!e.deltaY) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.scrollLeft += e.deltaY;
+        }}
         onTouchStart={() => {}}
         onScroll={isMobile ? createStopCardsScrollHandler({
           deliveriesWithStopOrder, patients, stores, mapViewPhase, isMapViewLocked,
