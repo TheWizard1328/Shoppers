@@ -59,6 +59,7 @@ export default function PayrollSummaryCard({
   const [otherAppFeePercent, setOtherAppFeePercent] = useState(0);
   const [appFeeOverlayAllDriversId, setAppFeeOverlayAllDriversId] = useState(null);
   const [activeInputField, setActiveInputField] = useState(null);
+  const [bonusDraftValue, setBonusDraftValue] = useState('');
   const contentRef = useRef(null);
 
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
@@ -312,10 +313,40 @@ export default function PayrollSummaryCard({
     } catch (error) { console.error('❌ [Payroll] Failed to save changes:', error); }
   };
 
+  // Initialize bonus input draft when dialog opens
+  useEffect(() => {
+    if (!bonusOverlayDriverId) {
+      setBonusDraftValue('');
+      return;
+    }
+    const currentBonus = driverEdits[bonusOverlayDriverId]?.bonusPay;
+    setBonusDraftValue(currentBonus != null ? String(currentBonus) : '0');
+  }, [bonusOverlayDriverId]);
+
+  const commitBonusDraft = async (driverId, rawValue = bonusDraftValue) => {
+    if (!driverId) return;
+
+    const parsedValue = rawValue === '' ? 0 : parseFloat(rawValue);
+    const nextBonusValue = Number.isFinite(parsedValue) ? parsedValue : 0;
+    const currentBonusValue = driverEdits[driverId]?.bonusPay ?? 0;
+
+    setDriverEdits((prev) => ({
+      ...prev,
+      [driverId]: { ...prev[driverId], bonusPay: nextBonusValue }
+    }));
+
+    setBonusDraftValue(String(nextBonusValue));
+
+    if (nextBonusValue !== currentBonusValue) {
+      await savePayrollChanges(driverId, { bonus_pay: nextBonusValue });
+    }
+  };
+
   // Handle bonus pay save and close
   const handleBonusClose = async () => {
     const driverId = bonusOverlayDriverId;
     if (!driverId) return;
+    await commitBonusDraft(driverId);
     setBonusOverlayDriverId(null);
   };
 
@@ -886,18 +917,13 @@ export default function PayrollSummaryCard({
                    <span className="flex items-center">$</span>
                    <input
                     type="number"
-                    value={driverEdits[bonusOverlayDriverId]?.bonusPay || 0}
-                    onChange={(e) => {
-                      const newValue = parseFloat(e.target.value) || 0;
-                      setDriverEdits((prev) => ({
-                        ...prev,
-                        [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: newValue }
-                      }));
-                      // Save immediately
-                      savePayrollChanges(bonusOverlayDriverId, { bonus_pay: newValue });
-                    }}
+                    value={bonusDraftValue}
+                    onChange={(e) => setBonusDraftValue(e.target.value)}
+                    onBlur={() => commitBonusDraft(bonusOverlayDriverId, bonusDraftValue)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitBonusDraft(bonusOverlayDriverId, bonusDraftValue);
                         const closeButton = document.querySelector('[data-dialog-close="bonus"]');
                         if (closeButton) closeButton.click();
                       }
