@@ -74,7 +74,8 @@ export default function MobileHeader({
             type="button"
             onClick={handleBackButtonClick}
             aria-label="Go back"
-            className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 touch-manipulation flex-shrink-0">
+            disabled={!canGoBack}
+            className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent touch-manipulation flex-shrink-0">
             <ArrowLeft className="w-6 h-6 text-slate-700" />
           </button>
 
