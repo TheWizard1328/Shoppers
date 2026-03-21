@@ -8,6 +8,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 import BarcodeThumb from './BarcodeThumb';
+import LargeBarcodePreview from './LargeBarcodePreview';
 
 const classifyBarcode = (value) => {
   const raw = String(value || '').trim();
@@ -40,26 +41,28 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor })
         }
       </div>
       {values.length > 0 ?
-      <div className="grid grid-cols-2 gap-2">
-          {values.map((val, idx) =>
-        <div
-          key={`${title}-${idx}-${val}`}
-          className="relative rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
-          style={{ borderColor: 'var(--border-slate-200)' }}
-          onClick={() => onSelectBarcode(val)}
-          title={val}>
-          
-              <BarcodeThumb value={val} />
-              <button
-            type="button"
-            className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
-            onClick={(e) => {e.stopPropagation();onRemove(idx);}}
-            aria-label="Remove barcode">
+      <div className="overflow-x-auto pb-1">
+          <div className="flex gap-2 min-w-max">
+            {values.map((val, idx) =>
+          <div
+            key={`${title}-${idx}-${val}`}
+            className="relative w-[132px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+            style={{ borderColor: 'var(--border-slate-200)' }}
+            onClick={() => onSelectBarcode(val)}
+            title={val}>
             
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-        )}
+                <BarcodeThumb value={val} />
+                <button
+              type="button"
+              className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
+              onClick={(e) => {e.stopPropagation();onRemove(idx);}}
+              aria-label="Remove barcode">
+              
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+          )}
+          </div>
         </div> :
 
       <div className="h-[52px] rounded-md border border-dashed flex items-center justify-center text-xs text-slate-400">
@@ -83,6 +86,7 @@ export default function SmartBarcodeScanner({
 }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
+  const [selectedBarcode, setSelectedBarcode] = useState(null);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
   const [flashHit, setFlashHit] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -415,17 +419,38 @@ export default function SmartBarcodeScanner({
           title="Receipt Barcodes"
           values={receiptBarcodeValues}
           onRemove={removeReceiptBarcode}
-          onSelectBarcode={onSelectBarcode}
+          onSelectBarcode={(val) => {
+            setSelectedBarcode(val);
+            onSelectBarcode(val);
+          }}
           countColor="bg-blue-100 text-blue-700" />
         
         <BarcodeColumn
           title="Rx Barcodes"
           values={rxBarcodeValues}
           onRemove={removeRxBarcode}
-          onSelectBarcode={onSelectBarcode}
+          onSelectBarcode={(val) => {
+            setSelectedBarcode(val);
+            onSelectBarcode(val);
+          }}
           countColor="bg-emerald-100 text-emerald-700" />
         
       </div>
+
+      {selectedBarcode &&
+      <div className="fixed inset-0 z-[10029] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-3xl rounded-xl border bg-card p-4 shadow-2xl" style={{ borderColor: 'var(--border-slate-200)' }}>
+            <button
+              type="button"
+              className="absolute right-3 top-3 h-8 w-8 rounded-full bg-slate-900 text-white flex items-center justify-center"
+              onClick={() => setSelectedBarcode(null)}
+              aria-label="Close enlarged barcode">
+              <X className="w-4 h-4" />
+            </button>
+            <LargeBarcodePreview value={selectedBarcode} onClose={() => setSelectedBarcode(null)} />
+          </div>
+        </div>
+      }
 
       {showCamera &&
       <div className="fixed inset-0 z-[10030] bg-black/50 backdrop-blur-sm">

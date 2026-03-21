@@ -545,14 +545,6 @@ export default function DeliveryFormView({
                           disabled={isSaving || !isMobileDevice && !delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)} />
                         
 
-                            {formData._preview_barcode &&
-                        <div className="mt-2 p-2 rounded-md border bg-card border-emerald-300/60 dark:bg-slate-900/40 dark:border-emerald-700">
-                                <LargeBarcodePreview
-                            value={formData._preview_barcode}
-                            onClose={() => setFormData((prev) => ({ ...prev, _preview_barcode: null }))} />
-                          
-                              </div>
-                        }
                           </div>
 
                           <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
