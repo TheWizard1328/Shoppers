@@ -43,7 +43,7 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, s
       {values.length > 0 ?
       <div className="flex justify-center">
           <div
-          className={`${values.length >= 2 ? 'w-[244px]' : 'w-[120px]'} max-w-full overflow-x-auto custom-scrollbar pb-1`}
+          className={`${values.length >= 2 ? 'w-[244px]' : 'w-[120px]'} max-w-full overflow-x-auto custom-scrollbar pb-1 ${singleVisible ? 'snap-x snap-mandatory' : ''}`}
           style={{ scrollbarWidth: 'thin' }}
           onWheel={(e) => {
             if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
@@ -55,7 +55,7 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, s
             <div className={`flex gap-1 ${singleVisible || values.length === 1 ? 'justify-center' : 'w-max'}`}>
               {values.map((val, idx) =>
             <div
-              key={`${title}-${idx}-${val}`} className="relative w-[95px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+              key={`${title}-${idx}-${val}`} className={`relative w-[95px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 ${singleVisible ? 'snap-center' : ''}`}
 
               style={{ borderColor: 'var(--border-slate-200)' }}
               onClick={() => onSelectBarcode(val)}
