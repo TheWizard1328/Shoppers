@@ -488,16 +488,42 @@ export default function DeliveryFormView({
                         </div>
 
                         {!useMobileLayout && (
-                          <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
-                            <DeliveryStatusAndTiming
-                              formData={formData} setFormData={setFormData}
-                              delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
-                              isCompletionStatus={isCompletionStatus}
-                              completionTime={completionTime} setCompletionTime={setCompletionTime}
-                              availableStores={availableStores} allDeliveries={allDeliveries}
-                              currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
-                            />
-                          </div>
+                          <>
+                            <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
+                              <DeliveryStatusAndTiming
+                                formData={formData} setFormData={setFormData}
+                                delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
+                                isCompletionStatus={isCompletionStatus}
+                                completionTime={completionTime} setCompletionTime={setCompletionTime}
+                                availableStores={availableStores} allDeliveries={allDeliveries}
+                                currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
+                              />
+                            </div>
+
+                            <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                              <div className="flex gap-3">
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
+                                  <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={e => setFormData(p => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" disabled={isSaving} className="h-9 text-sm" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Phone</Label>
+                                  <PhoneInput value={formData.patient_phone || ''} onChange={v => setFormData(p => ({ ...p, patient_phone: v }))} disabled={isSaving} className="h-9 text-sm" />
+                                </div>
+                              </div>
+                              <div className="flex gap-3">
+                                <div className="flex-[65] space-y-1">
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
+                                  <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
+                                </div>
+
+                                <div className="flex-[35] space-y-1">
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
+                                  <Input value={formData.unit_number || ''} onChange={e => setFormData(p => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
+                                </div>
+                              </div>
+                            </div>
+                          </>
                         )}
                       </div>
 
@@ -653,34 +679,7 @@ export default function DeliveryFormView({
                           </div>
                         </div>
                       </>
-                    ) : (
-                      <div className="space-y-2 min-w-0">
-                        {/* Patient Name / Phone / Address / Unit */}
-                        <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <div className="flex gap-3">
-                            <div className="flex-1 space-y-1">
-                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
-                              <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={e => setFormData(p => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" disabled={isSaving} className="h-9 text-sm" />
-                            </div>
-                            <div className="flex-1 space-y-1">
-                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Phone</Label>
-                              <PhoneInput value={formData.patient_phone || ''} onChange={v => setFormData(p => ({ ...p, patient_phone: v }))} disabled={isSaving} className="h-9 text-sm" />
-                            </div>
-                          </div>
-                          <div className="flex gap-3">
-                            <div className="flex-[65] space-y-1">
-                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
-                              <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
-                            </div>
-
-                            <div className="flex-[35] space-y-1">
-                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
-                              <Input value={formData.unit_number || ''} onChange={e => setFormData(p => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )
+                    ) : null
                   ) : !(isPickupMode && !delivery) ? (
                     <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
                       <DeliveryStatusAndTiming
