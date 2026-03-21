@@ -4,6 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { format, differenceInMinutes } from 'date-fns';
 import { CheckCircle, Clock, Package, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FixedSizeList as List } from 'react-window';
 import StopDetailsPanel from '../deliveries/StopDetailsPanel';
 import BarcodeThumb from '../deliveries/BarcodeThumb';
 
@@ -284,6 +285,11 @@ const DeliveryRow = memo(({
 
 DeliveryRow.displayName = 'DeliveryRow';
 
+const MOBILE_ROW_HEIGHT = 156;
+const DESKTOP_ROW_HEIGHT = 76;
+const DESKTOP_LIST_WIDTH = 1400;
+const DESKTOP_BULK_LIST_WIDTH = 1456;
+
 const DeliveryListView = ({
   deliveries,
   patients,
@@ -313,6 +319,8 @@ const DeliveryListView = ({
   const headerScrollRef = useRef(null);
   const bodyScrollRef = useRef(null);
   const syncScrollSourceRef = useRef(null);
+  const [listViewportHeight, setListViewportHeight] = useState(0);
+  const [listViewportWidth, setListViewportWidth] = useState(0);
 
   // Memoize patient lookup map for O(1) access
   const patientMap = useMemo(() => {
@@ -439,6 +447,27 @@ const DeliveryListView = ({
     }
   }, [bulkEditMode]);
 
+  useEffect(() => {
+    const container = bodyScrollRef.current;
+    if (!container) return;
+
+    const updateSize = () => {
+      setListViewportHeight(container.clientHeight);
+      setListViewportWidth(container.clientWidth);
+    };
+
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(container);
+    window.addEventListener('resize', updateSize);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
+  }, [isMobile, bulkEditMode]);
+
   const syncHeaderScroll = useCallback((event) => {
     if (syncScrollSourceRef.current === 'body') {
       syncScrollSourceRef.current = null;
@@ -458,6 +487,42 @@ const DeliveryListView = ({
     syncScrollSourceRef.current = 'body';
     headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
   }, []);
+
+  const listWidth = isMobile ? Math.max(listViewportWidth, 1) : bulkEditMode ? DESKTOP_BULK_LIST_WIDTH : DESKTOP_LIST_WIDTH;
+  const listHeight = Math.max(listViewportHeight, 1);
+
+  const renderVirtualRow = useCallback(({ index, style }) => {
+    const delivery = deliveries[index];
+    if (!delivery) return null;
+
+    const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+    const store = storeMap.get(delivery.store_id);
+
+    return (
+      <div style={style}>
+        <DeliveryRow
+          delivery={delivery}
+          patient={patient}
+          store={store}
+          isSelected={selectedDeliveryId === delivery.id}
+          onSelect={handleSelect}
+          getStatusBadge={getStatusBadge}
+          getTimeDisplay={getTimeDisplay}
+          getCODDisplay={getCODDisplay}
+          onOpenMedia={handleOpenMedia}
+          isMobile={isMobile}
+          bulkEditMode={bulkEditMode}
+          isBulkSelected={bulkSelectedIds.includes(delivery.id)}
+          onBulkToggle={onBulkToggle}
+        />
+      </div>
+    );
+  }, [deliveries, patientMap, storeMap, selectedDeliveryId, handleSelect, getStatusBadge, getTimeDisplay, getCODDisplay, handleOpenMedia, isMobile, bulkEditMode, bulkSelectedIds, onBulkToggle]);
+
+  const getItemKey = useCallback((index) => {
+    const delivery = deliveries[index];
+    return delivery?.id || `${delivery?.delivery_date || 'unknown'}-${delivery?.patient_id ?? 'pickup'}-${delivery?.store_id ?? 'store'}-${delivery?.tracking_number || index}`;
+  }, [deliveries]);
 
   return (
     <>
@@ -498,40 +563,26 @@ const DeliveryListView = ({
         {/* Scrollable List */}
         <div
           ref={bodyScrollRef}
-          onScroll={syncBodyScroll} className="flex-1 min-h-0 max-h-full overflow-auto">
-
-          
+          onScroll={syncBodyScroll}
+          className="flex-1 min-h-0 max-h-full overflow-x-auto overflow-y-hidden">
           {deliveries.length === 0 ?
           <div className="flex items-center justify-center h-32 text-slate-500">
               No deliveries found
             </div> :
-
-          <div className={!isMobile ? 'min-w-max' : ''}>
-              {deliveries.map((delivery, idx) => {
-              if (!delivery) return null;
-
-              const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-              const store = storeMap.get(delivery.store_id);
-
-              return (
-                <DeliveryRow
-                  key={delivery.id || `${delivery.delivery_date || 'unknown'}-${delivery.patient_id ?? 'pickup'}-${delivery.store_id ?? 'store'}-${delivery.tracking_number || idx}`}
-                  delivery={delivery}
-                  patient={patient}
-                  store={store}
-                  isSelected={selectedDeliveryId === delivery.id}
-                  onSelect={handleSelect}
-                  getStatusBadge={getStatusBadge}
-                  getTimeDisplay={getTimeDisplay}
-                  getCODDisplay={getCODDisplay}
-                  onOpenMedia={handleOpenMedia}
-                  isMobile={isMobile}
-                  bulkEditMode={bulkEditMode}
-                  isBulkSelected={bulkSelectedIds.includes(delivery.id)}
-                  onBulkToggle={onBulkToggle} />);
-
-
-            })}
+          listViewportHeight > 0 && listViewportWidth > 0 ?
+          <div className={!isMobile ? 'min-w-max' : ''} style={!isMobile ? { width: listWidth } : undefined}>
+              <List
+              height={listHeight}
+              width={listWidth}
+              itemCount={deliveries.length}
+              itemSize={isMobile ? MOBILE_ROW_HEIGHT : DESKTOP_ROW_HEIGHT}
+              itemKey={getItemKey}
+              overscanCount={8}>
+                {renderVirtualRow}
+              </List>
+            </div> :
+          <div className="flex items-center justify-center h-32 text-slate-500">
+              Loading deliveries...
             </div>
           }
         </div>

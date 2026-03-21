@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { base44 } from '@/api/base44Client';
+import { createPageUrl } from '@/utils';
 import { 
   User, 
   Bell, 
@@ -12,58 +12,12 @@ import {
   LogOut,
   ChevronRight
 } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { toast } from 'sonner';
 import { useUser } from '@/components/utils/UserContext';
+import AccountDeletionSection from '@/components/settings/AccountDeletionSection';
 
 export default function Settings() {
   const { currentUser } = useUser();
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleDeleteAccount = async () => {
-    if (!currentUser) return;
-
-    setIsDeleting(true);
-    try {
-      // Send account deletion request email to admin
-      await base44.integrations.Core.SendEmail({
-        to: 'admin@rxdeliver.com', // Replace with actual admin email
-        subject: `Account Deletion Request - ${currentUser.full_name || currentUser.user_name}`,
-        body: `
-User ${currentUser.full_name || currentUser.user_name} (${currentUser.email || currentUser.id}) 
-has requested account deletion.
-
-User ID: ${currentUser.id}
-Requested at: ${new Date().toISOString()}
-
-Please review and process this request.
-        `.trim()
-      });
-
-      toast.success('Account deletion requested. An administrator will contact you.');
-      setShowDeleteDialog(false);
-      
-      // Log out after request
-      setTimeout(() => {
-        base44.auth.logout();
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to request account deletion:', error);
-      toast.error('Failed to submit deletion request. Please try again.');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   const settingsSections = [
     {
@@ -185,56 +139,7 @@ Please review and process this request.
           </CardContent>
         </Card>
 
-        {/* Delete Account Section */}
-        <Card 
-          className="border-2" 
-          style={{ 
-            background: 'var(--bg-white)', 
-            borderColor: '#fca5a5' 
-          }}
-        >
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-red-600">
-              <AlertTriangle className="w-4 h-4" />
-              Danger Zone
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm mb-3" style={{ color: 'var(--text-slate-600)' }}>
-              Once you delete your account, there is no going back. This action will notify an administrator to review your request.
-            </p>
-            <Button
-              onClick={() => setShowDeleteDialog(true)}
-              variant="destructive"
-              className="w-full gap-2 select-none"
-            >
-              <Trash2 className="w-4 h-4" />
-              Request Account Deletion
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Account?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will send a deletion request to the administrator. Your account will remain active until the request is reviewed and processed. Are you sure you want to proceed?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteAccount}
-                disabled={isDeleting}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                {isDeleting ? 'Sending...' : 'Request Deletion'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <AccountDeletionSection />
       </div>
     </div>
   );
