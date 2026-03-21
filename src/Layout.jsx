@@ -115,6 +115,7 @@ import { getCompanyBranding, applyBrandingStyles } from './components/utils/bran
 import OptimizationSpinner from './components/common/OptimizationSpinner';
 import WebSocketDiagnosticsCard from './components/layout/WebSocketDiagnosticsCard';
 import MobileBottomNav from './components/layout/MobileBottomNav';
+import MobileOverlayBackHandler from './components/layout/MobileOverlayBackHandler';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
 
 
@@ -3260,6 +3261,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Connection Recovery Banner - auto-shows on connection issues */}
       <ConnectionRecoveryBanner />
+      <MobileOverlayBackHandler isMobile={isMobile} isTabletPortrait={isTabletPortrait} isFormOverlayOpen={isFormOverlayOpen} />
 
       {/* PWA Install Prompt */}
       <PWAInstallPrompt />
@@ -3789,8 +3791,6 @@ export default function Layout({ children, currentPageName }) {
               <MobileHeader
                 logo={branding.logo_url}
                 sidebarOpen={sidebarOpen}
-                onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
-                branding={branding}
                 unreadMessageCount={unreadMessageCount}
                 onMessagingClick={() => setShowMessaging(true)}
                 isMobile={isMobile}

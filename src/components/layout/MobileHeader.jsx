@@ -14,9 +14,7 @@ import { saveSetting } from '../utils/userSettingsManager';
 
 export default function MobileHeader({ 
   logo, 
-  sidebarOpen, 
-  onSidebarToggle, 
-  branding,
+  sidebarOpen,
   unreadMessageCount,
   onMessagingClick,
   isMobile,
