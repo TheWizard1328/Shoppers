@@ -442,55 +442,57 @@ export default function DeliveryFormView({
               <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
-                  {/* Notes */}
-                  <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                    {!isPickupMode ? (
-                      <div className="flex gap-3">
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
-                          <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
-                          <Textarea value={formData.delivery_notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                  {!isPickupMode ? (
+                    <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(18rem,0.9fr)] gap-3 items-start'}`}>
+                      {/* Notes */}
+                      <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className="flex gap-3">
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
+                            <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                          </div>
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
+                            <Textarea value={formData.delivery_notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                          </div>
                         </div>
                       </div>
-                    ) : (
+
+                      {/* Delivery Options & COD */}
+                      <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className="space-y-3">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
+                            <div className="space-y-3">
+                              <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={c => setFormData(p => ({ ...p, fridge_item: c }))} disabled={isSaving} />
+                              <CheckboxField id="oversized" label="Oversized" checked={formData.oversized} onChange={c => setFormData(p => ({ ...p, oversized: c }))} disabled={isSaving} />
+                              <CheckboxField id="signature_needed" label="Signature Needed" checked={formData.signature_needed} onChange={c => setFormData(p => ({ ...p, signature_needed: c }))} disabled={isSaving} />
+                              <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={c => setFormData(p => ({ ...p, no_charge: c }))} disabled={isSaving} />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
+                            <div className="space-y-3">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={checked => { setFormData(p => ({ ...p, cod_total_amount_required: 0 })); if (checked && shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100); }} disabled={isSaving} />
+                                <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
+                              </div>
+                              {formData.cod_total_amount_required >= 0 && (
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                                  <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={e => { const digits = e.target.value.replace(/[^\d]/g, ''); if (digits.length > 5) { setFormData(p => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 })); return; } const cents = parseInt(digits) || 0; setFormData(p => ({ ...p, cod_total_amount_required: cents })); }} placeholder="0.00" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Notes</Label>
                         <Textarea value={formData.delivery_notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Notes for this pickup..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Delivery Options & COD */}
-                  {!isPickupMode && (
-                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <div className="flex gap-3">
-                        <div className="flex-1 space-y-2">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
-                          <div className="space-y-3">
-                            <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={c => setFormData(p => ({ ...p, fridge_item: c }))} disabled={isSaving} />
-                            <CheckboxField id="oversized" label="Oversized" checked={formData.oversized} onChange={c => setFormData(p => ({ ...p, oversized: c }))} disabled={isSaving} />
-                            <CheckboxField id="signature_needed" label="Signature Needed" checked={formData.signature_needed} onChange={c => setFormData(p => ({ ...p, signature_needed: c }))} disabled={isSaving} />
-                            <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={c => setFormData(p => ({ ...p, no_charge: c }))} disabled={isSaving} />
-                          </div>
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
-                          <div className="space-y-3">
-                            <div className="flex items-center space-x-2">
-                              <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={checked => { setFormData(p => ({ ...p, cod_total_amount_required: 0 })); if (checked && shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100); }} disabled={isSaving} />
-                              <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
-                            </div>
-                            {formData.cod_total_amount_required >= 0 && (
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                                <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={e => { const digits = e.target.value.replace(/[^\d]/g, ''); if (digits.length > 5) { setFormData(p => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 })); return; } const cents = parseInt(digits) || 0; setFormData(p => ({ ...p, cod_total_amount_required: cents })); }} placeholder="0.00" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
-                              </div>
-                            )}
-                          </div>
-                        </div>
                       </div>
                     </div>
                   )}
