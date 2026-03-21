@@ -54,11 +54,11 @@ export function MobileSelect({
           {selectedItem ? (options ? selectedItem.label : selectedItem.props.children) : placeholder}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className={className}>
+      <DrawerContent className={className} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}>
         <DrawerHeader className="text-left">
           <DrawerTitle>Select an option</DrawerTitle>
         </DrawerHeader>
-        <div className="px-4 pb-4 max-h-[60vh] overflow-y-auto">
+        <div className="px-4 pb-4 max-h-[60vh] overflow-y-auto" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}>
           <div className="space-y-1">
             {items.map((item, index) => {
               const itemValue = options ? item.value : item.props.value;

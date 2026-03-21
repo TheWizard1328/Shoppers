@@ -15,6 +15,7 @@ import { clearUserCache } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import DeleteAccountMenuItem from '@/components/settings/DeleteAccountMenuItem';
 
 export default function SettingsMenu({
   currentUser,
@@ -184,6 +185,7 @@ export default function SettingsMenu({
         <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
         Force Full App Refresh
       </DropdownMenuItem>
+      <DeleteAccountMenuItem />
     </DropdownMenuContent>
   );
 }
