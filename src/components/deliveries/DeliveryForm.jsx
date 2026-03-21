@@ -922,6 +922,7 @@ export default function DeliveryForm({
 
     setFormData(updatedFormData);
     if (!autoAddToStaged) {
+      if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.());
       try { if (patientStore && updatedFormData.driver_id && updatedFormData.delivery_date) {
         const slot = deliveryAMPM || getStoreAssignedTimeSlotForDriver(patientStore, formData.delivery_date, updatedFormData.driver_id, allDeliveries) || 'AM';
         const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: patientStore.id, deliveryDate: updatedFormData.delivery_date, driverId: updatedFormData.driver_id, ampmDeliveries: slot, allowCreateIfMissing: true });
@@ -931,7 +932,6 @@ export default function DeliveryForm({
           setStagedDeliveries(prev => [...prev, staged]); if (p.id) autoCreatedPickupsRef.current.add(p.id);
         }
       } } catch {}
-      if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.(), 100);
       setPatientSearch(''); setHighlightedPatientIndex(-1); driverLocationPoller.resume(); return;
     }
 
