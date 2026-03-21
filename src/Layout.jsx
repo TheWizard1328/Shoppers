@@ -3261,7 +3261,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Connection Recovery Banner - auto-shows on connection issues */}
       <ConnectionRecoveryBanner />
-      <MobileOverlayBackHandler isMobile={isMobile} isTabletPortrait={isTabletPortrait} isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || isFormOverlayOpen} onRequestCloseOverlay={() => { if (sidebarOpen) setSidebarOpen(false); if (showMessaging) { setShowMessaging(false); setInitialConversation(null); } if (showInviteQRModal) setShowInviteQRModal(false); if (isFormOverlayOpen) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })); }} />
+      <MobileOverlayBackHandler isMobile={isMobile} isTabletPortrait={isTabletPortrait} isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} onRequestCloseOverlay={() => { if (sidebarOpen) setSidebarOpen(false); if (showMessaging) { setShowMessaging(false); setInitialConversation(null); } if (showInviteQRModal) setShowInviteQRModal(false); if (isFormOverlayOpen) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })); }} />
 
       {/* PWA Install Prompt */}
       <PWAInstallPrompt />
@@ -3808,7 +3808,7 @@ export default function Layout({ children, currentPageName }) {
                     setCurrentUser(refreshedUser);
                   }
                 }}
-                isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || isFormOverlayOpen} />
+                isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} />
 
               }
 
