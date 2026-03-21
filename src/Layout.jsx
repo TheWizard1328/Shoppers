@@ -1012,9 +1012,6 @@ export default function Layout({ children, currentPageName }) {
           globalFilters.setSelectedDriverId('all');
         }
 
-        skipInitialFullDataLoadRef.current = true;
-        setInitialGlobalFiltersSet(true);
-
         // CRITICAL: Prime offline DB with manifest data before marking load complete
         const primeStartTime = Date.now();
         try {
@@ -1040,6 +1037,7 @@ export default function Layout({ children, currentPageName }) {
         const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
 
+        setInitialGlobalFiltersSet(true);
         setDataLoaded(true); // CRITICAL: Set data loaded to prevent bg sync re-triggering
         setIsLoadingLayout(false);
 
