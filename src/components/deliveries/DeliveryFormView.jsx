@@ -458,8 +458,8 @@ export default function DeliveryFormView({
 
                       {/* Delivery Options & COD */}
                       <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <div className="space-y-3">
-                          <div className="space-y-2">
+                        <div className={`${useMobileLayout ? 'grid grid-cols-[minmax(0,1fr)_minmax(9rem,0.9fr)] gap-3 items-start' : 'space-y-3'}`}>
+                          <div className="space-y-2 min-w-0">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
                             <div className="space-y-3">
                               <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={c => setFormData(p => ({ ...p, fridge_item: c }))} disabled={isSaving} />
@@ -468,7 +468,7 @@ export default function DeliveryFormView({
                               <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={c => setFormData(p => ({ ...p, no_charge: c }))} disabled={isSaving} />
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 min-w-0">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
                             <div className="space-y-3">
                               <div className="flex items-center space-x-2">
