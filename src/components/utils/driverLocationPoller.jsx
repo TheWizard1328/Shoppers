@@ -260,14 +260,14 @@ class DriverLocationPoller {
        // RULE 1: Own location marker - drivers on primary device DON'T see their own shared location
        // ========================================
        if (isSelf) {
-         // Drivers on primary device have live location tracking - don't show shared location marker
-         if (isDriver && !isDispatcher && !isAdmin) {
-           console.log(`⏭️ [Poller] SELF marker BLOCKED - driver on primary device doesn't see own shared location`);
+         if (isDriver && !isDispatcher && !isAdmin && locationTracker.isTracking === true) {
+           console.log(`⏭️ [Poller] SELF marker BLOCKED - primary device uses live location marker`);
            return false;
          }
-         console.log(`✅ [Poller] Including SELF marker (non-driver role)`, {
+         console.log(`✅ [Poller] Including SELF shared marker`, {
            userId: user.user_name,
-           driver_status: user.driver_status
+           driver_status: user.driver_status,
+           isTracking: locationTracker.isTracking === true
          });
          return true;
        }
