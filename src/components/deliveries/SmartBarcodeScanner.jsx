@@ -46,8 +46,8 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor })
             <div className={`flex gap-1 ${values.length === 1 ? 'justify-center' : 'w-max'}`}>
               {values.map((val, idx) =>
             <div
-              key={`${title}-${idx}-${val}`}
-              className="relative w-[120px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+              key={`${title}-${idx}-${val}`} className="relative w-[95px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+
               style={{ borderColor: 'var(--border-slate-200)' }}
               onClick={() => onSelectBarcode(val)}
               title={val}>
@@ -60,7 +60,7 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor })
                 <X className="w-3 h-3" />
               </button>
             </div>
-          )}
+            )}
             </div>
           </div>
         </div> :
