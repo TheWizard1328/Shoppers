@@ -486,6 +486,19 @@ export default function DeliveryFormView({
                             </div>
                           </div>
                         </div>
+
+                        {!useMobileLayout && (
+                          <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
+                            <DeliveryStatusAndTiming
+                              formData={formData} setFormData={setFormData}
+                              delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
+                              isCompletionStatus={isCompletionStatus}
+                              completionTime={completionTime} setCompletionTime={setCompletionTime}
+                              availableStores={availableStores} allDeliveries={allDeliveries}
+                              currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
+                            />
+                          </div>
+                        )}
                       </div>
 
                       {!useMobileLayout && (
@@ -642,18 +655,6 @@ export default function DeliveryFormView({
                       </>
                     ) : (
                       <div className="space-y-2 min-w-0">
-                        {/* Store / Status / Time */}
-                        <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
-                          <DeliveryStatusAndTiming
-                            formData={formData} setFormData={setFormData}
-                            delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
-                            isCompletionStatus={isCompletionStatus}
-                            completionTime={completionTime} setCompletionTime={setCompletionTime}
-                            availableStores={availableStores} allDeliveries={allDeliveries}
-                            currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
-                          />
-                        </div>
-
                         {/* Patient Name / Phone / Address / Unit */}
                         <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <div className="flex gap-3">
