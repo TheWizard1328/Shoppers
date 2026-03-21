@@ -35,39 +35,39 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor })
     <div className="space-y-2 p-2 rounded-md border bg-card border-border dark:bg-slate-900/40 dark:border-slate-700">
       <div className="flex items-center justify-between">
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</Label>
-        {values.length > 0 && (
-          <Badge className={`text-xs px-1.5 py-0 h-5 ${countColor}`}>{values.length}</Badge>
-        )}
+        {values.length > 0 &&
+        <Badge className={`text-xs px-1.5 py-0 h-5 ${countColor}`}>{values.length}</Badge>
+        }
       </div>
-      {values.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2">
-          {values.map((val, idx) => (
-            <div
-              key={`${title}-${idx}-${val}`}
-              className="relative rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
-              style={{ borderColor: 'var(--border-slate-200)' }}
-              onClick={() => onSelectBarcode(val)}
-              title={val}
-            >
+      {values.length > 0 ?
+      <div className="grid grid-cols-2 gap-2">
+          {values.map((val, idx) =>
+        <div
+          key={`${title}-${idx}-${val}`}
+          className="relative rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+          style={{ borderColor: 'var(--border-slate-200)' }}
+          onClick={() => onSelectBarcode(val)}
+          title={val}>
+          
               <BarcodeThumb value={val} />
               <button
-                type="button"
-                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
-                onClick={(e) => { e.stopPropagation(); onRemove(idx); }}
-                aria-label="Remove barcode"
-              >
+            type="button"
+            className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
+            onClick={(e) => {e.stopPropagation();onRemove(idx);}}
+            aria-label="Remove barcode">
+            
                 <X className="w-3 h-3" />
               </button>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="h-[52px] rounded-md border border-dashed flex items-center justify-center text-xs text-slate-400">
+        )}
+        </div> :
+
+      <div className="h-[52px] rounded-md border border-dashed flex items-center justify-center text-xs text-slate-400">
           No barcodes yet
         </div>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
 
 export default function SmartBarcodeScanner({
@@ -79,7 +79,7 @@ export default function SmartBarcodeScanner({
   onSelectBarcode = () => {},
   manualInputOverride = '',
   focusTrigger = 0,
-  onManualInputOverrideApplied = () => {},
+  onManualInputOverrideApplied = () => {}
 }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
@@ -245,7 +245,7 @@ export default function SmartBarcodeScanner({
       let selectedDeviceId = null;
       try {
         const inputs = await BrowserMultiFormatReader.listVideoInputDevices();
-        const back = inputs.find(d => /back|rear|environment/i.test(d.label));
+        const back = inputs.find((d) => /back|rear|environment/i.test(d.label));
         selectedDeviceId = (back || inputs[inputs.length - 1])?.deviceId || null;
       } catch {}
 
@@ -301,14 +301,14 @@ export default function SmartBarcodeScanner({
   }, [disabled, handleCameraDetected]);
 
   const stopCameraReader = useCallback(() => {
-    try { codeReaderRef.current?.reset?.(); } catch {}
+    try {codeReaderRef.current?.reset?.();} catch {}
     try {
       const stream = streamRef.current || videoRef.current?.srcObject;
-      if (stream?.getTracks) stream.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+      if (stream?.getTracks) stream.getTracks().forEach((t) => {try {t.stop();} catch {}});
     } catch {}
     if (videoRef.current) {
-      try { videoRef.current.pause(); } catch {}
-      try { videoRef.current.srcObject = null; } catch {}
+      try {videoRef.current.pause();} catch {}
+      try {videoRef.current.srcObject = null;} catch {}
     }
     streamRef.current = null;
     isReaderActiveRef.current = false;
@@ -332,19 +332,19 @@ export default function SmartBarcodeScanner({
     const caps = track.getCapabilities?.();
     if (!caps?.torch) return;
     const next = !torchOn;
-    try { await track.applyConstraints({ advanced: [{ torch: next }] }); } catch {}
+    try {await track.applyConstraints({ advanced: [{ torch: next }] });} catch {}
     setTorchOn(next);
   };
 
   useEffect(() => {
-    if (showCamera) startCamera();
-    else stopCameraReader();
+    if (showCamera) startCamera();else
+    stopCameraReader();
     return () => stopCameraReader();
   }, [showCamera, startCamera, stopCameraReader]);
 
   useEffect(() => {
     if (!isMobile || showCamera) return;
-    try { hiddenInputRef.current?.focus(); } catch {}
+    try {hiddenInputRef.current?.focus();} catch {}
   }, [isMobile, showCamera, receiptBarcodeValues.length, rxBarcodeValues.length]);
 
   useEffect(() => {
@@ -360,13 +360,13 @@ export default function SmartBarcodeScanner({
   }, [focusTrigger]);
 
   return (
-    <div className="space-y-3" onClick={(e) => { if (isMobile && !showCamera && e.target?.tagName !== 'INPUT') hiddenInputRef.current?.focus?.(); }}>
-      <div className="flex items-center gap-2">
+    <div className="space-y-" onClick={(e) => {if (isMobile && !showCamera && e.target?.tagName !== 'INPUT') hiddenInputRef.current?.focus?.();}}>
+      <div className="flex items-center gap-">
         <Barcode className="w-4 h-4 text-emerald-600" />
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Barcodes</Label>
-        {allValues.length > 0 && (
-          <Badge className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0 h-5">{allValues.length}</Badge>
-        )}
+        {allValues.length > 0 &&
+        <Badge className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0 h-5">{allValues.length}</Badge>
+        }
       </div>
 
       <div className="flex gap-2 items-center">
@@ -374,14 +374,14 @@ export default function SmartBarcodeScanner({
           ref={inputRef}
           type="text"
           value={manualInput}
-          onChange={(e) => { if (!scannerModeRef.current) setManualInput(e.target.value); }}
+          onChange={(e) => {if (!scannerModeRef.current) setManualInput(e.target.value);}}
           onKeyDown={handleInputKeyDown}
           onFocus={() => hiddenInputRef.current?.blur?.()}
           placeholder="Scan or type barcode and press Enter..."
           className="flex-1 h-9 text-sm font-mono"
           disabled={disabled}
-          autoComplete="off"
-        />
+          autoComplete="off" />
+        
         <input
           ref={hiddenInputRef}
           type="text"
@@ -393,8 +393,8 @@ export default function SmartBarcodeScanner({
           autoComplete="off"
           autoCapitalize="off"
           autoCorrect="off"
-          inputMode="none"
-        />
+          inputMode="none" />
+        
         <Button
           type="button"
           size="sm"
@@ -402,33 +402,33 @@ export default function SmartBarcodeScanner({
           className="h-9 px-3 flex-shrink-0 sm:hidden"
           onClick={() => setShowCamera(true)}
           disabled={disabled}
-          title="Scan with camera"
-        >
+          title="Scan with camera">
+          
           <Camera className="w-4 h-4" />
         </Button>
       </div>
 
-      <p className="text-xs text-slate-400">One scanner input auto-sorts barcodes into Receipt or Rx lists.</p>
+      
 
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 gap-4">
         <BarcodeColumn
           title="Receipt Barcodes"
           values={receiptBarcodeValues}
           onRemove={removeReceiptBarcode}
           onSelectBarcode={onSelectBarcode}
-          countColor="bg-blue-100 text-blue-700"
-        />
+          countColor="bg-blue-100 text-blue-700" />
+        
         <BarcodeColumn
           title="Rx Barcodes"
           values={rxBarcodeValues}
           onRemove={removeRxBarcode}
           onSelectBarcode={onSelectBarcode}
-          countColor="bg-emerald-100 text-emerald-700"
-        />
+          countColor="bg-emerald-100 text-emerald-700" />
+        
       </div>
 
-      {showCamera && (
-        <div className="fixed inset-0 z-[10030] bg-black/50 backdrop-blur-sm">
+      {showCamera &&
+      <div className="fixed inset-0 z-[10030] bg-black/50 backdrop-blur-sm">
           <div className="relative w-screen mx-auto mt-[10vh] px-0">
             <div className={`relative mx-auto w-screen aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
               <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
@@ -436,8 +436,8 @@ export default function SmartBarcodeScanner({
             <div className="mt-3 flex items-center justify-between text-white/90">
               <div className="flex items-center gap-2">
                 <div className="text-sm">{allValues.length} scanned</div>
-                {canZoom && (
-                  <div className="ml-1 flex items-center gap-1">
+                {canZoom &&
+              <div className="ml-1 flex items-center gap-1">
                     <Button variant="secondary" size="sm" onClick={() => adjustZoom(-0.5)} title="Zoom out">
                       <Minus className="w-4 h-4" />
                     </Button>
@@ -445,23 +445,23 @@ export default function SmartBarcodeScanner({
                       <ZoomIn className="w-4 h-4" />
                     </Button>
                   </div>
-                )}
-                {hasTorch && (
-                  <Button variant="secondary" size="sm" onClick={toggleTorch} className={torchOn ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}>
+              }
+                {hasTorch &&
+              <Button variant="secondary" size="sm" onClick={toggleTorch} className={torchOn ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}>
                     <Sun className="w-4 h-4 mr-1" /> {torchOn ? 'Torch On' : 'Torch'}
                   </Button>
-                )}
+              }
               </div>
-              <Button variant="secondary" size="sm" onClick={() => { stopCameraReader(); setShowCamera(false); }}>
+              <Button variant="secondary" size="sm" onClick={() => {stopCameraReader();setShowCamera(false);}}>
                 <X className="w-4 h-4 mr-1" /> Close
               </Button>
             </div>
             <div className="mt-2 text-center text-xs text-white/70">
-              {isStartingCamera ? 'Starting camera...' : (flashHit ? 'Captured!' : 'Point camera at a barcode')}
+              {isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Point camera at a barcode'}
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
