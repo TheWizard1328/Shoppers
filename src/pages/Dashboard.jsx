@@ -1949,10 +1949,10 @@ function Dashboard() {
       mapLockExpiresAtRef.current = null;
       if (isMapViewLocked) {
         setIsMapViewLocked(false);
-        setTimeout(() => triggerPhase(mapViewPhase), 100);
+        setTimeout(() => triggerPhase(mapViewPhase, mapViewPhase === 1 ? 500 : null), 100);
         return;
       }
-      triggerPhase(mapViewPhase);
+      triggerPhase(mapViewPhase, mapViewPhase === 1 ? 500 : null);
       return;
     }
 
