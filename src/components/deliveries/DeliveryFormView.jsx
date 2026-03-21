@@ -489,7 +489,10 @@ export default function DeliveryFormView({
 
                         {!useMobileLayout &&
                       <>
-                            <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
+                            <div
+                              className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
+                              style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}
+                            >
                               <DeliveryStatusAndTiming
                             formData={formData} setFormData={setFormData}
                             delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
