@@ -442,51 +442,7 @@ export default function DeliveryFormView({
               <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
-                  {!isPickupMode ? (
-                    <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(18rem,0.9fr)] gap-3 items-start'}`}>
-                      {/* Notes */}
-                      <div className="space-y-3 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <div className="space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
-                          <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
-                          <Textarea value={formData.delivery_notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
-                        </div>
-                      </div>
-
-                      {/* Delivery Options & COD */}
-                      <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <div className="space-y-3">
-                          <div className="space-y-2">
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
-                            <div className="space-y-3">
-                              <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={c => setFormData(p => ({ ...p, fridge_item: c }))} disabled={isSaving} />
-                              <CheckboxField id="oversized" label="Oversized" checked={formData.oversized} onChange={c => setFormData(p => ({ ...p, oversized: c }))} disabled={isSaving} />
-                              <CheckboxField id="signature_needed" label="Signature Needed" checked={formData.signature_needed} onChange={c => setFormData(p => ({ ...p, signature_needed: c }))} disabled={isSaving} />
-                              <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={c => setFormData(p => ({ ...p, no_charge: c }))} disabled={isSaving} />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
-                            <div className="space-y-3">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={checked => { setFormData(p => ({ ...p, cod_total_amount_required: 0 })); if (checked && shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100); }} disabled={isSaving} />
-                                <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
-                              </div>
-                              {formData.cod_total_amount_required >= 0 && (
-                                <div className="relative">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                                  <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={e => { const digits = e.target.value.replace(/[^\d]/g, ''); if (digits.length > 5) { setFormData(p => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 })); return; } const cents = parseInt(digits) || 0; setFormData(p => ({ ...p, cod_total_amount_required: cents })); }} placeholder="0.00" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
+                  {isPickupMode && (
                     <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Notes</Label>
@@ -495,34 +451,32 @@ export default function DeliveryFormView({
                     </div>
                   )}
 
-                  {/* Barcode Scanner */}
-                  {!isPickupMode && (
-                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <SmartBarcodeScanner
-                        receiptBarcodeValues={formData.receipt_barcode_values || []}
-                        rxBarcodeValues={formData.barcode_values || []}
-                        onReceiptChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
-                        onRxChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
-                        onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
-                        manualInputOverride={formData._barcode_entry_input || ''}
-                        focusTrigger={formData._barcode_focus_token || 0}
-                        onManualInputOverrideApplied={() => setFormData(prev => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
-                        disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
-                      />
-
-                      {formData._preview_barcode && (
-                        <div className="mt-2 p-2 rounded-md border bg-card border-emerald-300/60 dark:bg-slate-900/40 dark:border-emerald-700">
-                          <LargeBarcodePreview
-                            value={formData._preview_barcode}
-                            onClose={() => setFormData(prev => ({ ...prev, _preview_barcode: null }))}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
                   {!isPickupMode ? (
-                    <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.9fr)_minmax(12rem,0.6fr)] gap-3 items-start'}`}>
+                    <div className="space-y-3">
+                      {/* Barcode Scanner */}
+                      <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <SmartBarcodeScanner
+                          receiptBarcodeValues={formData.receipt_barcode_values || []}
+                          rxBarcodeValues={formData.barcode_values || []}
+                          onReceiptChange={vals => setFormData(prev => ({ ...prev, receipt_barcode_values: vals }))}
+                          onRxChange={vals => setFormData(prev => ({ ...prev, barcode_values: vals }))}
+                          onSelectBarcode={(val) => setFormData(prev => ({ ...prev, _preview_barcode: val }))}
+                          manualInputOverride={formData._barcode_entry_input || ''}
+                          focusTrigger={formData._barcode_focus_token || 0}
+                          onManualInputOverrideApplied={() => setFormData(prev => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
+                          disabled={isSaving || (!isMobileDevice && (!delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)))}
+                        />
+
+                        {formData._preview_barcode && (
+                          <div className="mt-2 p-2 rounded-md border bg-card border-emerald-300/60 dark:bg-slate-900/40 dark:border-emerald-700">
+                            <LargeBarcodePreview
+                              value={formData._preview_barcode}
+                              onClose={() => setFormData(prev => ({ ...prev, _preview_barcode: null }))}
+                            />
+                          </div>
+                        )}
+                      </div>
+
                       <div className="space-y-2 min-w-0">
                         {/* Store / Status / Time */}
                         <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700`}>
@@ -562,30 +516,74 @@ export default function DeliveryFormView({
                         </div>
                       </div>
 
-                      <div className="space-y-2 min-w-0">
-                        <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
-                          <div className="space-y-3">
-                            <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={c => setFormData(p => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
-                            <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={c => setFormData(p => ({ ...p, ring_bell: c }))} disabled={isSaving} />
-                            <CheckboxField id="call_upon_arrival" label="Call Upon Arrival" checked={formData.call_upon_arrival} onChange={c => setFormData(p => ({ ...p, call_upon_arrival: c }))} disabled={isSaving} />
-                            <CheckboxField id="dont_ring_bell" label="Don't Ring Bell" checked={formData.dont_ring_bell} onChange={c => setFormData(p => ({ ...p, dont_ring_bell: c }))} disabled={isSaving} />
-                            <CheckboxField id="back_door" label="Back Door" checked={formData.back_door} onChange={c => setFormData(p => ({ ...p, back_door: c }))} disabled={isSaving} />
+                      <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(15rem,0.9fr)] gap-3 items-start'}`}>
+                        <div className="space-y-2 min-w-0">
+                          <div className="space-y-3 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                            <div className="space-y-1">
+                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
+                              <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
+                              <Textarea value={formData.delivery_notes || ''} onChange={e => setFormData(prev => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                            <div className="space-y-3">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
+                                <div className="space-y-3">
+                                  <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={c => setFormData(p => ({ ...p, fridge_item: c }))} disabled={isSaving} />
+                                  <CheckboxField id="oversized" label="Oversized" checked={formData.oversized} onChange={c => setFormData(p => ({ ...p, oversized: c }))} disabled={isSaving} />
+                                  <CheckboxField id="signature_needed" label="Signature Needed" checked={formData.signature_needed} onChange={c => setFormData(p => ({ ...p, signature_needed: c }))} disabled={isSaving} />
+                                  <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={c => setFormData(p => ({ ...p, no_charge: c }))} disabled={isSaving} />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
+                                <div className="space-y-3">
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={checked => { setFormData(p => ({ ...p, cod_total_amount_required: 0 })); if (checked && shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100); }} disabled={isSaving} />
+                                    <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
+                                  </div>
+                                  {formData.cod_total_amount_required >= 0 && (
+                                    <div className="relative">
+                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                                      <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={e => { const digits = e.target.value.replace(/[^\d]/g, ''); if (digits.length > 5) { setFormData(p => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 })); return; } const cents = parseInt(digits) || 0; setFormData(p => ({ ...p, cod_total_amount_required: cents })); }} placeholder="0.00" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Recurring</Label>
-                          <DeliveryRecurringOptions
-                            formData={formData} setFormData={setFormData} isSaving={isSaving}
-                            currentFrequency={currentFrequency} weeklyLabel={weeklyLabel}
-                            biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
-                            showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup}
-                            setActiveRecurringType={setActiveRecurringType}
-                            handleRecurringChange={handleRecurringChange}
-                            handleFrequencyChange={handleFrequencyChange}
-                            handleWeeklyDaysDone={handleWeeklyDaysDone}
-                          />
+                        <div className="space-y-2 min-w-0">
+                          <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
+                            <div className="space-y-3">
+                              <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={c => setFormData(p => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
+                              <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={c => setFormData(p => ({ ...p, ring_bell: c }))} disabled={isSaving} />
+                              <CheckboxField id="call_upon_arrival" label="Call Upon Arrival" checked={formData.call_upon_arrival} onChange={c => setFormData(p => ({ ...p, call_upon_arrival: c }))} disabled={isSaving} />
+                              <CheckboxField id="dont_ring_bell" label="Don't Ring Bell" checked={formData.dont_ring_bell} onChange={c => setFormData(p => ({ ...p, dont_ring_bell: c }))} disabled={isSaving} />
+                              <CheckboxField id="back_door" label="Back Door" checked={formData.back_door} onChange={c => setFormData(p => ({ ...p, back_door: c }))} disabled={isSaving} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Recurring</Label>
+                            <DeliveryRecurringOptions
+                              formData={formData} setFormData={setFormData} isSaving={isSaving}
+                              currentFrequency={currentFrequency} weeklyLabel={weeklyLabel}
+                              biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
+                              showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup}
+                              setActiveRecurringType={setActiveRecurringType}
+                              handleRecurringChange={handleRecurringChange}
+                              handleFrequencyChange={handleFrequencyChange}
+                              handleWeeklyDaysDone={handleWeeklyDaysDone}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
