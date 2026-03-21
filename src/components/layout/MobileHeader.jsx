@@ -1,5 +1,4 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
 import { ArrowLeft, MoreVertical, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -28,10 +27,10 @@ export default function MobileHeader({
   onThemeChange,
   cities,
   onInviteQRClick,
-  onCurrentUserUpdate
+  onCurrentUserUpdate,
+  isFormOverlayOpen
 }) {
-  useLocation();
-  const canGoBack = (window.history.state?.idx ?? 0) > 0;
+  const canGoBack = isFormOverlayOpen || (window.history.state?.idx ?? 0) > 0;
 
   const handleBackButtonClick = (e) => {
     e.stopPropagation();
