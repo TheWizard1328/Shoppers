@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Menu, X, MoreVertical, QrCode } from 'lucide-react';
+import { ArrowLeft, MoreVertical, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import SettingsMenu from './SettingsMenu';
@@ -47,9 +47,9 @@ export default function MobileHeader({
     }
   }, [location.pathname]);
 
-  const handleMenuButtonClick = (e) => {
+  const handleBackButtonClick = (e) => {
     e.stopPropagation();
-    onSidebarToggle();
+    window.history.back();
   };
 
   if (!isMobile && !isTabletPortrait) {
@@ -70,14 +70,10 @@ export default function MobileHeader({
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             type="button"
-            onClick={handleMenuButtonClick}
-            aria-label={sidebarOpen ? 'Close side panel' : 'Open side panel'}
+            onClick={handleBackButtonClick}
+            aria-label="Go back"
             className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 touch-manipulation flex-shrink-0">
-            {sidebarOpen ? (
-              <X className="w-6 h-6 text-slate-700" />
-            ) : (
-              <Menu className="w-6 h-6 text-slate-700" />
-            )}
+            <ArrowLeft className="w-6 h-6 text-slate-700" />
           </button>
 
           {/* Logo with message badge - Left */}

@@ -10,16 +10,13 @@ import {
   CreditCard,
   DollarSign,
   Settings,
-  ChevronLeft,
-  ChevronRight,
+  Menu,
 } from 'lucide-react';
 
 const PAGE_SCROLL_POSITIONS = {};
 
-export default function MobileBottomNav({ currentUser, currentPageName }) {
+export default function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle }) {
   const scrollRef = React.useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = React.useState(false);
-  const [canScrollRight, setCanScrollRight] = React.useState(false);
 
   if (!currentUser) return null;
 
@@ -77,32 +74,7 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
     return () => clearTimeout(timer);
   }, [currentPageName]);
 
-  const updateScrollState = React.useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const maxScrollLeft = el.scrollWidth - el.clientWidth;
-    setCanScrollLeft(el.scrollLeft > 4);
-    setCanScrollRight(el.scrollLeft < maxScrollLeft - 4);
-  }, []);
 
-  React.useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateScrollState();
-    const handleScroll = () => updateScrollState();
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleScroll);
-    return () => {
-      el.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleScroll);
-    };
-  }, [navItems.length, updateScrollState]);
-
-  const scrollNavBy = (direction) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollBy({ left: direction * 120, behavior: 'smooth' });
-  };
 
   return (
     <nav
@@ -118,13 +90,12 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
       <div className="flex items-center gap-1 px-1">
         <button
           type="button"
-          onClick={() => scrollNavBy(-1)}
-          disabled={!canScrollLeft}
-          className="flex h-9 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-30 disabled:cursor-default shrink-0"
+          onClick={onSidebarToggle}
+          className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors shrink-0"
           style={{ color: 'var(--text-slate-500)' }}
-          aria-label="Scroll navigation left"
+          aria-label="Open side panel"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <Menu className="w-5 h-5" />
         </button>
 
         <div
@@ -136,11 +107,11 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
             const isMessagingItem = item.action === 'messaging';
             const isActive = !isMessagingItem && currentPageName === item.page;
             const Icon = item.icon;
-            const visibleTabs = Math.min(navItems.length, 5);
+            const visibleTabs = Math.min(navItems.length, 4);
             const sharedProps = {
               className: 'flex flex-col items-center justify-center py-2 px-2 flex-shrink-0 transition-colors',
               style: {
-                minWidth: `calc((100vw - 74px) / ${visibleTabs})`,
+                minWidth: `calc((100vw - 56px) / ${visibleTabs})`,
                 color: isActive ? '#10b981' : 'var(--text-slate-500)',
               },
             };
@@ -191,17 +162,6 @@ export default function MobileBottomNav({ currentUser, currentPageName }) {
             );
           })}
         </div>
-
-        <button
-          type="button"
-          onClick={() => scrollNavBy(1)}
-          disabled={!canScrollRight}
-          className="flex h-9 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-30 disabled:cursor-default shrink-0"
-          style={{ color: 'var(--text-slate-500)' }}
-          aria-label="Scroll navigation right"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
       </div>
     </nav>
   );
