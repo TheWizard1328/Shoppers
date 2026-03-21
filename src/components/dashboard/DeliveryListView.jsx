@@ -461,9 +461,8 @@ const DeliveryListView = ({
 
   return (
     <>
-      <>
-        <style>{`.delivery-list-header-scroll{scrollbar-width:none;-ms-overflow-style:none;}.delivery-list-header-scroll::-webkit-scrollbar{display:none;}`}</style>
-        <div className="h-full min-h-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-white)' }}>
+      <style>{`.delivery-list-header-scroll{scrollbar-width:none;-ms-overflow-style:none;}.delivery-list-header-scroll::-webkit-scrollbar{display:none;}`}</style>
+      <div className="h-full min-h-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
         <div className="flex-shrink-0 border-b z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {!isMobile &&
