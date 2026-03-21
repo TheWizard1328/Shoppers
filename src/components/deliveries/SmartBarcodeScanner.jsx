@@ -42,7 +42,16 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor })
       </div>
       {values.length > 0 ?
       <div className="flex justify-center">
-          <div className={`${values.length >= 2 ? 'w-[244px]' : 'w-[120px]'} max-w-full overflow-x-auto custom-scrollbar pb-1`} style={{ scrollbarWidth: 'thin' }}>
+          <div
+            className={`${values.length >= 2 ? 'w-[244px]' : 'w-[120px]'} max-w-full overflow-x-auto custom-scrollbar pb-1`}
+            style={{ scrollbarWidth: 'thin' }}
+            onWheel={(e) => {
+              if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                e.preventDefault();
+                e.currentTarget.scrollLeft += e.deltaY;
+              }
+            }}
+          >
             <div className={`flex gap-1 ${values.length === 1 ? 'justify-center' : 'w-max'}`}>
               {values.map((val, idx) =>
             <div
