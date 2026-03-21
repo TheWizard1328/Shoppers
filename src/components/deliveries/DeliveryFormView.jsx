@@ -191,7 +191,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? (isPickupMode ? 'max-w-[500px] max-h-[90vh]' : 'max-w-4xl max-h-[90vh]') : 'max-w-lg max-h-[90vh]'} flex`}
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? (isPickupMode ? 'max-w-[625px] max-h-[90vh]' : 'max-w-[70rem] max-h-[90vh]') : 'max-w-[40rem] max-h-[90vh]'} flex`}
       >
         <Card
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl'}`}
