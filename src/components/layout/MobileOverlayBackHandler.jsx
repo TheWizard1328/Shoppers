@@ -21,21 +21,31 @@ export default function MobileOverlayBackHandler({ isMobile, isTabletPortrait, i
     };
 
     const handleNativeBack = (event) => {
-      if (!overlayHistoryActiveRef.current && !isOverlayOpen) return;
-      event?.preventDefault?.();
-      event?.stopPropagation?.();
+      const canGoBack = (window.history.state?.idx ?? 0) > 0;
 
-      if (overlayHistoryActiveRef.current) {
+      if (isOverlayOpen || overlayHistoryActiveRef.current) {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+
+        if (overlayHistoryActiveRef.current) {
+          window.history.back();
+        } else {
+          closeOverlay();
+        }
+        return;
+      }
+
+      if (canGoBack) {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
         window.history.back();
-      } else {
-        closeOverlay();
       }
     };
 
     window.addEventListener('popstate', handlePopState);
     document.addEventListener('backbutton', handleNativeBack, false);
 
-    const capacitorApp = window.Capacitor?.Plugins?.App;
+    const capacitorApp = window.Capacitor?.Plugins?.App || window.Capacitor?.App;
     if (capacitorApp?.addListener) {
       nativeBackListener = capacitorApp.addListener('backButton', handleNativeBack);
     }
