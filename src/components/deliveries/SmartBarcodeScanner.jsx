@@ -31,7 +31,7 @@ const classifyBarcode = (value) => {
   return 'receipt';
 };
 
-function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor }) {
+function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, singleVisible = false }) {
   return (
     <div className="bg-card my-1.5 p-2 rounded-md space-y-2 border border-border dark:bg-slate-900/40 dark:border-slate-700">
       <div className="flex items-center justify-between">
@@ -52,7 +52,7 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor })
             }
           }}>
           
-            <div className={`flex gap-1 ${values.length === 1 ? 'justify-center' : 'w-max'}`}>
+            <div className={`flex gap-1 ${singleVisible || values.length === 1 ? 'justify-center' : 'w-max'}`}>
               {values.map((val, idx) =>
             <div
               key={`${title}-${idx}-${val}`} className="relative w-[95px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
@@ -423,7 +423,7 @@ export default function SmartBarcodeScanner({
 
       
 
-      <div className="grid grid-cols-1">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-1">
         <BarcodeColumn
           title="Receipt Barcodes"
           values={receiptBarcodeValues}
@@ -432,7 +432,8 @@ export default function SmartBarcodeScanner({
             setSelectedBarcode(val);
             onSelectBarcode(val);
           }}
-          countColor="bg-blue-100 text-blue-700" />
+          countColor="bg-blue-100 text-blue-700"
+          singleVisible={isMobile} />
         
         <BarcodeColumn
           title="Rx Barcodes"
@@ -442,7 +443,8 @@ export default function SmartBarcodeScanner({
             setSelectedBarcode(val);
             onSelectBarcode(val);
           }}
-          countColor="bg-emerald-100 text-emerald-700" />
+          countColor="bg-emerald-100 text-emerald-700"
+          singleVisible={isMobile} />
         
       </div>
 
