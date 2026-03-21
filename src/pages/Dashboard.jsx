@@ -2019,7 +2019,7 @@ function Dashboard() {
         // CRITICAL: For admins viewing any driver OR drivers viewing themselves
         const shouldIncludeBlueDot =
         isMobile &&
-        isDriver && (!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) || isPrimaryDevice) &&
+        isDriver && !isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) &&
         isViewingToday &&
         driverLocation?.latitude &&
         driverLocation?.longitude && (
@@ -2043,7 +2043,7 @@ function Dashboard() {
           // CRITICAL: For dispatchers viewing a single driver, prioritize AppUser data directly
           if (isDispatcher && selectedDriverId && selectedDriverId !== 'all') {
             const assignedDriverAppUser = appUsers?.find((au) => au?.user_id === selectedDriverId);
-            if (assignedDriverAppUser?.driver_status !== 'off_duty' && assignedDriverAppUser?.current_latitude && assignedDriverAppUser?.current_longitude) {
+            if (assignedDriverAppUser?.driver_status === 'on_duty' && assignedDriverAppUser?.current_latitude && assignedDriverAppUser?.current_longitude) {
               allCoordinates.push([assignedDriverAppUser.current_latitude, assignedDriverAppUser.current_longitude]);
               hasDriverMarkers = true;
               addedCount++;
@@ -2090,7 +2090,7 @@ function Dashboard() {
               return;
             }
 
-            if (appUsers?.find((au) => au?.user_id === location.driver_id)?.driver_status === 'off_duty') return;
+            if (appUsers?.find((au) => au?.user_id === location.driver_id)?.driver_status !== 'on_duty') return;
             // CRITICAL: Phase 1 "Show All" mode - include rendered markers in bounds
 
             // Dispatcher filtering - check ALL date deliveries, not just selected driver
@@ -2189,11 +2189,11 @@ function Dashboard() {
           let userRefLon = null;
           let locationSource = null;
 
-          if ((!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) || isPrimaryDevice) && driverLocation?.latitude && driverLocation?.longitude) {
+          if (!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) && driverLocation?.latitude && driverLocation?.longitude) {
             userRefLat = driverLocation.latitude;
             userRefLon = driverLocation.longitude;
             locationSource = 'current_gps';
-          } else if ((!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) || !isPrimaryDevice) && currentUser?.current_latitude && currentUser?.current_longitude) {
+          } else if (!isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) && currentUser?.current_latitude && currentUser?.current_longitude) {
             userRefLat = currentUser.current_latitude;
             userRefLon = currentUser.current_longitude;
             locationSource = 'last_known';
@@ -2329,7 +2329,7 @@ function Dashboard() {
 
           activeDriverIds2.forEach((driverId) => {
             const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
-            if (driverAppUser?.driver_status !== 'off_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+            if (driverAppUser?.driver_status === 'on_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
               phase2DispatcherCoords.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
             }
             // Also include each driver's next stop
@@ -2439,7 +2439,7 @@ function Dashboard() {
             );
             driversWithIncompleteInDispatcherStores.forEach((driverId) => {
               const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
-              if ((driverAppUser?.driver_status !== 'off_duty' || driverId === currentUser?.id && (!isPrimaryDevice || driverLocation?.latitude && driverLocation?.longitude)) && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              if (driverAppUser?.driver_status === 'on_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
               }
             });
@@ -2514,7 +2514,7 @@ function Dashboard() {
           if (isViewingTodayPhase3) {
             driversWithIncompleteOrPendingStops.forEach((driverId) => {
               const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
-              if ((driverAppUser?.driver_status !== 'off_duty' || driverId === currentUser?.id && (!isPrimaryDevice || driverLocation?.latitude && driverLocation?.longitude)) && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              if (driverAppUser?.driver_status === 'on_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
               }
             });
@@ -2557,7 +2557,7 @@ function Dashboard() {
           // CRITICAL: Add driver marker ONLY if they have incomplete OR pending stops (only if viewing today)
           if (isViewingTodayPhase3 && incompleteAndPendingActiveDriver.length > 0) {
             const driverAppUser = appUsers?.find((au) => au?.user_id === targetDriverId);
-            if (driverAppUser?.driver_status !== 'off_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+            if (driverAppUser?.driver_status === 'on_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
               allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
             }
           }

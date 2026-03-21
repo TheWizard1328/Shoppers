@@ -22,10 +22,15 @@ export function getFabTargetDriverMapLocation({
 
   const targetAppUser = (appUsers || []).find((au) => au?.user_id === targetDriverId);
   const isOwnDriver = targetDriverId === currentUser?.id;
-  const isOffDuty = (targetAppUser?.driver_status ?? null) === 'off_duty';
-  if (isOffDuty && !isOwnDriver) return null;
-  if (isOwnDriver && driverLocation?.latitude && driverLocation?.longitude && (!isOffDuty || isPrimaryDevice)) return { latitude: driverLocation.latitude, longitude: driverLocation.longitude };
-  if (targetAppUser?.current_latitude && targetAppUser?.current_longitude && (!isOffDuty || !isOwnDriver || !isPrimaryDevice)) {
+  const isOnDuty = (targetAppUser?.driver_status ?? null) === 'on_duty';
+
+  if (!isOnDuty) return null;
+
+  if (isOwnDriver && driverLocation?.latitude && driverLocation?.longitude && isPrimaryDevice) {
+    return { latitude: driverLocation.latitude, longitude: driverLocation.longitude };
+  }
+
+  if (targetAppUser?.current_latitude && targetAppUser?.current_longitude) {
     return {
       latitude: targetAppUser.current_latitude,
       longitude: targetAppUser.current_longitude,
@@ -33,7 +38,7 @@ export function getFabTargetDriverMapLocation({
   }
 
   const sharedLocation = (allDriverLocations || []).find((loc) => loc?.driver_id === targetDriverId);
-  if (sharedLocation?.latitude && sharedLocation?.longitude && (!isOffDuty || !isOwnDriver || !isPrimaryDevice)) {
+  if (sharedLocation?.latitude && sharedLocation?.longitude) {
     return { latitude: sharedLocation.latitude, longitude: sharedLocation.longitude };
   }
 
