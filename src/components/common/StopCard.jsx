@@ -26,12 +26,13 @@ import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
-import { updateDeliveryLocal } from '../utils/offlineMutations';
+import { createDeliveryLocal, updateDeliveryLocal } from '../utils/offlineMutations';
 import { queueDeliveryUpdate, flushQueuedDeliveryUpdates } from '../utils/updateBatcher';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
 import { generateCompletionTimestamp } from '../utils/timeRoundingHelper';
+import { generateUniqueSID } from '../dashboard/DashboardHelpers';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import StopCardCODCollection from './StopCardCODCollection';
 import StopCardConfirmDialogs from './StopCardConfirmDialogs';
@@ -228,11 +229,20 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     fabControlEvents.deactivateFAB();setIsRetrying(true);setIsProcessingBackground(true);
     try {
       await withPausedDriverLocationPoller(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50));await verifyDeliveryStillExists(delivery.id);await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);await ensureDriverOnline();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const retryTrackingNumber = getNextTrackingNumberInGroup(delivery.tracking_number, allDeliveries, delivery.driver_id, delivery.delivery_date);
+        const retryDraft = buildRetryDelivery(delivery, retryTrackingNumber);
+        const retryDate = retryDraft.delivery_date;
+        const retryDateDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === retryDate);
+        await createDeliveryLocal({
+          ...retryDraft,
+          stop_id: generateUniqueSID(retryDateDeliveries),
+          puid: delivery.puid || delivery.stop_id || null,
+          ampm_deliveries: delivery.ampm_deliveries,
+          tracking_number: String(retryTrackingNumber)
+        });
+        await ensureDriverOnline();
         await collapseAndCenterNextDelivery({ driverDeliveries: getDriverRouteDeliveries(allDeliveries, delivery), targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-        const prepRes = await base44.functions.invoke('prepareRetryOrReturnRouteDate', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, targetStoreId: delivery.store_id, ampmDeliveries: delivery.ampm_deliveries, originalTrackingNumber: delivery.tracking_number });
-        const prep = prepRes?.data || prepRes || {};const retryDate = prep.deliveryDate || delivery.delivery_date;
-        await base44.entities.Delivery.create({ ...buildRetryDelivery(delivery, prep.trackingNumber || getNextTrackingNumberInGroup(delivery.tracking_number, allDeliveries, delivery.driver_id, retryDate), retryDate), stop_id: prep.stopId, puid: prep.puid || delivery.puid, ampm_deliveries: prep.ampmDeliveries || delivery.ampm_deliveries, tracking_number: prep.trackingNumber || undefined });
         try { await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: retryDate, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false }); } catch (optimizeError) { console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError); }
         await refreshDriverRoute({ driverId: delivery.driver_id, deliveryDate: retryDate, forceRefreshDriverDeliveries, triggeredBy: 'retry' });
         const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: retryDate });

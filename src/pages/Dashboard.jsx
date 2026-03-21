@@ -66,6 +66,7 @@ import {
   getDispatchersForStore } from
 "@/components/utils/deliveryMessaging";
 import { createStopCardsScrollHandler } from "@/components/dashboard/StopCardsScrollHandler";
+import { getNextTrackingNumberInGroup } from "@/components/common/stopCardActionHelpers";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
@@ -5838,7 +5839,6 @@ function Dashboard() {
 
   const handleCreateReturn = async ({ originalDelivery, returnPatient, store }) => {
     try {
-      // Pause smart refresh and offline sync (NOT mutations - we need to create a delivery)
       setIsEntityUpdating(true);
       pauseOfflineSync();
       smartRefreshManager.pause();
@@ -5846,16 +5846,11 @@ function Dashboard() {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const currentDate = getEdmDate();
-
-      // CRITICAL: Find the patient from the failed delivery
       const failedPatient = patients.find((p) => p?.id === originalDelivery.patient_id);
-
-      // CRITICAL: Use PUID from failed delivery to determine correct store and AM/PM
       const puid = originalDelivery.puid;
       let finalStoreId = originalDelivery.store_id;
       let finalAmpm = originalDelivery.ampm_deliveries;
 
-      // If PUID exists, find parent pickup to get correct store/AM-PM
       if (puid) {
         const parentPickup = deliveries.find((d) => d && !d.patient_id && d.stop_id === puid);
         if (parentPickup) {
@@ -5864,10 +5859,9 @@ function Dashboard() {
         }
       }
 
-      const prepRes = await base44.functions.invoke('prepareRetryOrReturnRouteDate', { driverId: originalDelivery.driver_id, deliveryDate: originalDelivery.delivery_date, targetStoreId: finalStoreId, ampmDeliveries: finalAmpm, originalTrackingNumber: originalDelivery.tracking_number });
-      const prep = prepRes?.data || prepRes || {};
-
-      // CRITICAL: Format driver notes with each item on separate lines
+      const routeDate = currentDate;
+      const routeDateDeliveries = deliveries.filter((d) => d && d.driver_id === originalDelivery.driver_id && d.delivery_date === routeDate);
+      const nextTrackingNumber = getNextTrackingNumberInGroup(originalDelivery.tracking_number, deliveries, originalDelivery.driver_id, routeDate);
       const driverNotes = `From: ${originalDelivery.delivery_date}\nFor: ${failedPatient?.full_name || originalDelivery.patient_name || 'Unknown'}`;
 
       const returnDeliveryData = {
@@ -5875,7 +5869,7 @@ function Dashboard() {
         store_id: finalStoreId,
         driver_id: originalDelivery.driver_id,
         driver_name: originalDelivery.driver_name,
-        delivery_date: prep.deliveryDate || currentDate,
+        delivery_date: routeDate,
         delivery_time_start: originalDelivery.delivery_time_start,
         delivery_time_end: originalDelivery.delivery_time_end,
         status: 'in_transit',
@@ -5883,16 +5877,14 @@ function Dashboard() {
         patient_name: returnPatient.full_name,
         patient_phone: returnPatient.phone || store?.phone || '',
         store_phone: store?.phone || '',
-        stop_id: prep.stopId,
-        puid: prep.puid || puid,
-        tracking_number: prep.trackingNumber,
-        ampm_deliveries: prep.ampmDeliveries || finalAmpm
+        stop_id: generateUniqueSID(routeDateDeliveries),
+        puid: puid || originalDelivery.stop_id || null,
+        tracking_number: String(nextTrackingNumber),
+        ampm_deliveries: finalAmpm
       };
 
-      // Create the return delivery for today
       await createDeliveryLocal(returnDeliveryData);
 
-      // Send notification: Driver initiated return
       try {
         await notifyDriverReturn({
           driver: currentUser,
@@ -5906,7 +5898,6 @@ function Dashboard() {
       }
 
       invalidate('Delivery');
-      const routeDate = prep.deliveryDate || currentDate;
       try {await forceRefreshDriverDeliveries(originalDelivery.driver_id, routeDate);} catch (_) {}
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } }));
       window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } }));
