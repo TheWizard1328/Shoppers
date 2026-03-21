@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { ArrowLeft, MoreVertical, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,6 @@ import { base44 } from '@/api/base44Client';
 import { clearUserCache } from '../utils/auth';
 import { getEffectiveUser } from '../utils/auth';
 import { saveSetting } from '../utils/userSettingsManager';
-
-const ROOT_PAGES = ['Dashboard', 'Patients', 'Deliveries', 'DeviceSettings'];
 
 export default function MobileHeader({ 
   logo, 
@@ -32,21 +30,8 @@ export default function MobileHeader({
   onInviteQRClick,
   onCurrentUserUpdate
 }) {
-  const location = useLocation();
+  useLocation();
   const canGoBack = (window.history.state?.idx ?? 0) > 0;
-
-  // Enable browser back button on nested routes
-  useEffect(() => {
-    const currentPage = location.pathname.split('/').pop() || 'Dashboard';
-    const isRootPage = ROOT_PAGES.includes(currentPage);
-    
-    if (!isRootPage) {
-      window.history.pushState(null, '', window.location.href);
-      const handlePopState = () => window.history.back();
-      window.addEventListener('popstate', handlePopState);
-      return () => window.removeEventListener('popstate', handlePopState);
-    }
-  }, [location.pathname]);
 
   const handleBackButtonClick = (e) => {
     e.stopPropagation();
