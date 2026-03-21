@@ -26,9 +26,9 @@ export default function MobileHeader({
   cities,
   onInviteQRClick,
   onCurrentUserUpdate,
-  isFormOverlayOpen
+  isOverlayOpen
 }) {
-  const canGoBack = isFormOverlayOpen || (window.history.state?.idx ?? 0) > 0;
+  const canGoBack = isOverlayOpen || (window.history.state?.idx ?? 0) > 0;
 
   const handleBackButtonClick = (e) => {
     e.stopPropagation();
