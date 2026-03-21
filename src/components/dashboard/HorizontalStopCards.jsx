@@ -469,10 +469,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
     const selectedId = selectedCardId || desktopCenteredCardId;
     const targetElement = selectedId ? document.getElementById(`stop-card-${selectedId}`) : null;
-    const incompleteElements = sortedPickupCards
-      .filter((card) => card && !finishedStatuses.includes(card.status))
-      .map((card) => document.getElementById(`stop-card-${card.id}`))
-      .filter(Boolean);
+    const incompleteElements = sortedPickupCards.
+    filter((card) => card && !finishedStatuses.includes(card.status)).
+    map((card) => document.getElementById(`stop-card-${card.id}`)).
+    filter(Boolean);
 
     const updateHeight = () => {
       const targetHeight = targetElement ? Math.ceil(targetElement.offsetHeight) + 0 : 122;
@@ -536,7 +536,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   return (
     <div
-      ref={setRefs} className="flex gap-3 overflow-x-auto overflow-y-hidden items-end min-h-[70px] pointer-events-auto z-[200]"
+      ref={setRefs} className="flex gap-1 overflow-x-auto overflow-y-hidden items-end min-h-[70px] pointer-events-auto z-[200]"
       style={{
         position: 'static',
         display: 'flex',
