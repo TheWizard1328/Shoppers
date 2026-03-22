@@ -1515,9 +1515,7 @@ export default function DeliveriesPage() {
 
     completed.sort((a, b) => {
       if (!a || !b) return 0;
-      const stopOrderA = a.stop_order ?? Infinity;
-      const stopOrderB = b.stop_order ?? Infinity;
-      return stopOrderA - stopOrderB;
+      return (Date.parse(a.actual_delivery_time || '') || Infinity) - (Date.parse(b.actual_delivery_time || '') || Infinity) || (a.stop_order ?? Infinity) - (b.stop_order ?? Infinity);
     });
 
     return [...incomplete, ...completed];
