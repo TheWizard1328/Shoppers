@@ -488,7 +488,8 @@ const DeliveryListView = ({
     headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
   }, []);
 
-  const listWidth = isMobile ? Math.max(listViewportWidth, 1) : bulkEditMode ? DESKTOP_BULK_LIST_WIDTH : DESKTOP_LIST_WIDTH;
+  const desktopContentWidth = bulkEditMode ? DESKTOP_BULK_LIST_WIDTH : DESKTOP_LIST_WIDTH;
+  const listWidth = Math.max(isMobile ? listViewportWidth : Math.max(listViewportWidth, desktopContentWidth), 1);
   const listHeight = Math.max(listViewportHeight, 1);
 
   const renderVirtualRow = useCallback(({ index, style }) => {
@@ -536,7 +537,7 @@ const DeliveryListView = ({
             onScroll={syncHeaderScroll}
             className="delivery-list-header-scroll max-w-full overflow-x-auto overflow-y-hidden">
             
-              <div className={`${bulkEditMode ? 'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]' : 'grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]'} gap-2 px-4 py-3 text-sm font-semibold`} style={{ color: 'var(--text-slate-700)' }}>
+              <div className={`${bulkEditMode ? 'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]' : 'grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]'} gap-2 px-4 py-3 text-sm font-semibold`} style={{ color: 'var(--text-slate-700)', width: listWidth }}>
                 {bulkEditMode &&
               <div className="flex items-center justify-center">
                     <Checkbox
@@ -570,7 +571,7 @@ const DeliveryListView = ({
               No deliveries found
             </div> :
           listViewportHeight > 0 && listViewportWidth > 0 ?
-          <div className={!isMobile ? 'min-w-max' : ''} style={!isMobile ? { width: listWidth } : undefined}>
+          <div className={!isMobile ? 'min-w-max' : 'w-full'} style={{ width: listWidth }}>
               <List
               height={listHeight}
               width={listWidth}
