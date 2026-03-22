@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
@@ -17,6 +18,7 @@ import AccountDeletionSection from '@/components/settings/AccountDeletionSection
 
 export default function Settings() {
   const { currentUser } = useUser();
+  const navigate = useNavigate();
 
   const settingsSections = [
     {
@@ -64,7 +66,7 @@ export default function Settings() {
         {
           label: 'Manage Devices',
           description: 'View and manage connected devices',
-          onClick: () => window.location.href = createPageUrl('DeviceSettings')
+          onClick: () => navigate(createPageUrl('DeviceSettings'))
         }
       ]
     }
