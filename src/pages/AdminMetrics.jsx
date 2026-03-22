@@ -423,9 +423,8 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-auto pr-1 md:pr-2 pb-4 space-y-6">
+        <div className="flex-1 overflow-auto pr-1 md:pr-2 pb-4 space-y-6">
         {/* Row 1: Monthly Store App Fees */}
         <div>
           <MonthlyStoreMetricsGrid
