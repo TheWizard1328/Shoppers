@@ -423,7 +423,7 @@ export default function SmartBarcodeScanner({
 
       
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-1">
+      <div className="grid grid-cols-2 md:grid-cols-1">
         <BarcodeColumn
           title="Receipt Barcodes"
           values={receiptBarcodeValues}
@@ -453,9 +453,9 @@ export default function SmartBarcodeScanner({
         className="fixed inset-0 z-[10029] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
         onClick={() => setSelectedBarcode(null)}>
           <div
-            className="relative w-full max-w-3xl rounded-xl border bg-card p-4 shadow-2xl"
-            style={{ borderColor: 'var(--border-slate-200)' }}
-            onClick={(e) => e.stopPropagation()}>
+          className="relative w-full max-w-3xl rounded-xl border bg-card p-4 shadow-2xl"
+          style={{ borderColor: 'var(--border-slate-200)' }}
+          onClick={(e) => e.stopPropagation()}>
             <LargeBarcodePreview value={selectedBarcode} onClose={() => setSelectedBarcode(null)} />
           </div>
         </div>
