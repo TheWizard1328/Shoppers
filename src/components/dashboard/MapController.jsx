@@ -9,7 +9,8 @@ export default function MapController({
   setCurrentZoom, 
   setShowZoomOverlay, 
   zoomOverlayTimeoutRef, 
-  setMapCenter, 
+  setMapCenter,
+  setMapZoom,
   setVisibleBounds,
   setFannedLocationKey
 }) {
@@ -72,6 +73,7 @@ export default function MapController({
       
       if (roundedZoom !== currentZoom) {
         setCurrentZoom(roundedZoom);
+        setMapZoom?.(roundedZoom);
         
         const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);

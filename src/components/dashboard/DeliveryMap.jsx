@@ -99,6 +99,8 @@ export default function DeliveryMap({
   deliveriesForLocationFilter = [],
   center = [53.5461, -113.4938],
   zoom = 12,
+  setMapCenter = null,
+  setMapZoom = null,
   shouldFitBounds = null,
   onBoundsFitted = null,
   onMarkerClick,
@@ -621,6 +623,16 @@ export default function DeliveryMap({
   }, [map, shouldFitBounds, onBoundsFitted]);
 
   useEffect(() => {
+    if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
+    const currentCenter = map.getCenter();
+    const sameCenter = Math.abs(currentCenter.lat - center[0]) < 0.000001 && Math.abs(currentCenter.lng - center[1]) < 0.000001;
+    const sameZoom = Math.abs(map.getZoom() - zoom) < 0.01;
+    if (sameCenter && sameZoom) return;
+    window._lastProgrammaticMapMove = Date.now();
+    map.setView(center, zoom, { animate: true });
+  }, [map, center, zoom]);
+
+  useEffect(() => {
     if (!map) return;
 
     const updateCrosshairCoords = () => {
@@ -732,7 +744,8 @@ export default function DeliveryMap({
           setCurrentZoom={setCurrentZoom}
           setShowZoomOverlay={setShowZoomOverlay}
           zoomOverlayTimeoutRef={zoomOverlayTimeoutRef}
-          setMapCenter={() => {}}
+          setMapCenter={setMapCenter}
+          setMapZoom={setMapZoom}
           setVisibleBounds={setVisibleBounds}
           setFannedLocationKey={setFannedLocationKey}
         />
