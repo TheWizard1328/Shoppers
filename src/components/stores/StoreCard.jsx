@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Edit, Trash2, Palette, Save, X, Copy, Check, DollarSign, Calendar, CreditCard } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -31,6 +33,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
   const [copiedDispatcherId, setCopiedDispatcherId] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [editingDateType, setEditingDateType] = useState(null); // 'start' or 'end'
+  const [editingSlot, setEditingSlot] = useState(null);
+  const [editingSlotDriverId, setEditingSlotDriverId] = useState('null');
 
   // Generate color locally if missing (don't auto-save to avoid infinite loops)
   const displayColor = store.color || getStoreColor(store);
@@ -84,6 +88,41 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
   };
 
   const currentStoreColor = editableStore.color || displayColor;
+
+  const slotConfig = {
+    weekday_am: { label: 'Weekdays AM', driverIdField: 'weekday_am_driver_id', driverNameField: 'driver_weekday_am' },
+    saturday_am: { label: 'Saturdays AM', driverIdField: 'saturday_am_driver_id', driverNameField: 'saturday_am_driver' },
+    sunday_am: { label: 'Sundays AM', driverIdField: 'sunday_am_driver_id', driverNameField: 'driver_sunday_am' },
+    weekday_pm: { label: 'Weekdays PM', driverIdField: 'weekday_pm_driver_id', driverNameField: 'driver_weekday_pm' },
+    saturday_pm: { label: 'Saturdays PM', driverIdField: 'saturday_pm_driver_id', driverNameField: 'saturday_pm_driver' },
+    sunday_pm: { label: 'Sundays PM', driverIdField: 'sunday_pm_driver_id', driverNameField: 'driver_sunday_pm' },
+  };
+
+  const openSlotEditor = (slotKey) => {
+    const config = slotConfig[slotKey];
+    if (!config) return;
+    setEditingSlot(slotKey);
+    setEditingSlotDriverId(store[config.driverIdField] || 'null');
+  };
+
+  const handleSlotDriverSave = async () => {
+    if (!editingSlot) return;
+    const config = slotConfig[editingSlot];
+    const selectedDriver = drivers?.find((driver) => driver?.id === editingSlotDriverId);
+    try {
+      const { Store } = await import('@/entities/Store');
+      await Store.update(store.id, {
+        [config.driverIdField]: editingSlotDriverId === 'null' ? null : editingSlotDriverId,
+        [config.driverNameField]: editingSlotDriverId === 'null' ? '' : (selectedDriver?.user_name || selectedDriver?.full_name || '')
+      });
+      const { invalidate } = await import('@/components/utils/dataManager');
+      invalidate('Store');
+      window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
+      setEditingSlot(null);
+    } catch (error) {
+      console.error('Error saving store driver assignment:', error);
+    }
+  };
 
   // Helper to get background style for active slots
   const getSlotBgStyle = (isEnabled, hasDriver) => {
@@ -392,8 +431,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <div className="grid grid-cols-3 gap-4">
                         {/* Weekdays AM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200"
-                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_am_enabled, store.weekday_am_driver_id || store.driver_weekday_am) }}>
+                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_am_enabled, store.weekday_am_driver_id || store.driver_weekday_am) }}
+                          onClick={(e) => { e.stopPropagation(); openSlotEditor('weekday_am'); }}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
                           {store.weekday_am_enabled !== false && (store.weekday_am_driver_id || store.driver_weekday_am) ?
@@ -416,8 +456,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Saturdays AM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200"
-                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_am_enabled, store.saturday_am_driver_id || store.saturday_am_driver) }}>
+                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_am_enabled, store.saturday_am_driver_id || store.saturday_am_driver) }}
+                          onClick={(e) => { e.stopPropagation(); openSlotEditor('saturday_am'); }}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Saturdays</div>
                           {store.saturday_am_enabled !== false && (store.saturday_am_driver_id || store.saturday_am_driver) ?
@@ -440,8 +481,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Sundays AM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200"
-                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_am_enabled, store.sunday_am_driver_id || store.driver_sunday_am) }}>
+                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_am_enabled, store.sunday_am_driver_id || store.driver_sunday_am) }}
+                          onClick={(e) => { e.stopPropagation(); openSlotEditor('sunday_am'); }}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
                           {store.sunday_am_enabled !== false && (store.sunday_am_driver_id || store.driver_sunday_am) ?
@@ -472,8 +514,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <div className="grid grid-cols-3 gap-4">
                         {/* Weekdays PM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200"
-                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_pm_enabled, store.weekday_pm_driver_id || store.driver_weekday_pm) }}>
+                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_pm_enabled, store.weekday_pm_driver_id || store.driver_weekday_pm) }}
+                          onClick={(e) => { e.stopPropagation(); openSlotEditor('weekday_pm'); }}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
                           {store.weekday_pm_enabled !== false && (store.weekday_pm_driver_id || store.driver_weekday_pm) ?
@@ -496,8 +539,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Saturdays PM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200"
-                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_pm_enabled, store.saturday_pm_driver_id || store.saturday_pm_driver) }}>
+                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_pm_enabled, store.saturday_pm_driver_id || store.saturday_pm_driver) }}
+                          onClick={(e) => { e.stopPropagation(); openSlotEditor('saturday_pm'); }}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Saturdays</div>
                           {store.saturday_pm_enabled !== false && (store.saturday_pm_driver_id || store.saturday_pm_driver) ?
@@ -520,8 +564,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Sundays PM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200"
-                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_pm_enabled, store.sunday_pm_driver_id || store.driver_sunday_pm) }}>
+                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_pm_enabled, store.sunday_pm_driver_id || store.driver_sunday_pm) }}
+                          onClick={(e) => { e.stopPropagation(); openSlotEditor('sunday_pm'); }}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
                           {store.sunday_pm_enabled !== false && (store.sunday_pm_driver_id || store.driver_sunday_pm) ?
@@ -603,6 +648,41 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
           </div>
         </CardContent>
       </Card>
+      <Dialog open={!!editingSlot} onOpenChange={(open) => !open && setEditingSlot(null)}>
+        <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }} onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Change Driver</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                {editingSlot ? slotConfig[editingSlot]?.label : ''}
+              </div>
+              <Select value={editingSlotDriverId} onValueChange={setEditingSlotDriverId}>
+                <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <SelectValue placeholder="Select driver" />
+                </SelectTrigger>
+                <SelectContent className="z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  <SelectItem value="null">No Driver</SelectItem>
+                  {(drivers || []).map((driver) => (
+                    <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
+                      {driver.user_name || driver.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setEditingSlot(null)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleSlotDriverSave} className="bg-emerald-600 hover:bg-emerald-700">
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>);
 
 }
