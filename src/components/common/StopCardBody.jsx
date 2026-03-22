@@ -113,7 +113,7 @@ export default function StopCardBody({
                         e.stopPropagation();
                         setShowCODCollection(!showCODCollection);
                         if (!showCODCollection && codPayments.length === 0) {
-                          handleAddCODPayment(true);
+                          setCodPayments([{ type: 'Debit', amount: Math.max(0, codTotalRequired - codTotalCollected) }]);
                         }
                       }}
                     >
