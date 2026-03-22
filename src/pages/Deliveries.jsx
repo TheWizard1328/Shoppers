@@ -3765,7 +3765,7 @@ export default function DeliveriesPage() {
                   const isInactive = card.driver.status === 'inactive';
                   return (
                     <Card
-                      key={card.driver.id} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg"
+                      key={card.driver.id} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg min-h-[150px]"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', minHeight: '230px', minWidth: '280px', display: 'flex', flexDirection: 'column' }}
                       onClick={() => handleDriverCardClick(card.driver)}>
 
@@ -3784,7 +3784,7 @@ export default function DeliveriesPage() {
                             </Badge>
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="px-4 py-3 flex-1 flex flex-col">
+                        <CardContent className="px-4 py-3 flex-2 flex flex-col">
                           <div className="mb-3 flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
                             {card.todayStats && card.todayStats.total > 0 ?
                           <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
