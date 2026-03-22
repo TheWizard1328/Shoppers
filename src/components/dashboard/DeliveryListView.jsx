@@ -43,7 +43,7 @@ const DeliveryRow = memo(({
     isMobile ?
     <div
       onClick={handleRowClick}
-      className={`px-4 py-3 border-b cursor-pointer transition-colors ${
+      className={`mx-2 mb-2 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
       isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'} ${
       isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
       style={{ borderColor: 'var(--border-slate-200)' }}>
