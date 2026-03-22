@@ -3765,7 +3765,7 @@ export default function DeliveriesPage() {
                   const isInactive = card.driver.status === 'inactive';
                   return (
                     <Card
-                      key={card.driver.id} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg min-h-[230px] md:min-h-[200px]"
+                      key={card.driver.id} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', minHeight: '230px', minWidth: '280px', display: 'flex', flexDirection: 'column' }}
                       onClick={() => handleDriverCardClick(card.driver)}>
 
