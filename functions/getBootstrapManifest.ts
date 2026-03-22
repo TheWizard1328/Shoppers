@@ -17,15 +17,12 @@ Deno.serve(async (req) => {
     }
 
     const deviceIdentifier = payload.deviceIdentifier;
-    const todayStr = payload.todayStr;
 
-    const [devices, cities, stores, appUsers, patients, todayDeliveries, appSettings] = await Promise.all([
+    const [devices, cities, stores, appUsers, appSettings] = await Promise.all([
       deviceIdentifier ? base44.asServiceRole.entities.UserDevice.filter({ user_id: user.id, device_identifier: deviceIdentifier }) : Promise.resolve([]),
       base44.asServiceRole.entities.City.list(),
       base44.asServiceRole.entities.Store.list(),
       base44.asServiceRole.entities.AppUser.list(),
-      base44.asServiceRole.entities.Patient.list(),
-      todayStr ? base44.asServiceRole.entities.Delivery.filter({ delivery_date: todayStr }) : Promise.resolve([]),
       base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
     ]);
 
@@ -37,8 +34,6 @@ Deno.serve(async (req) => {
       cities: cities || [],
       stores: stores || [],
       appUsers: appUsers || [],
-      patients: patients || [],
-      todayDeliveries: todayDeliveries || [],
       appSettings: {
         smartRefreshEnabled: refreshConfig.smartRefreshEnabled !== false,
         adminImportEnabled: refreshConfig.adminImportEnabled === true,

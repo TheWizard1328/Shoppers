@@ -1017,8 +1017,8 @@ export default function Layout({ children, currentPageName }) {
         try {
           console.log('🔄 [Layout Init] Priming offline DB with manifest data...');
 
-          const deliveryData = Array.isArray(manifest.todayDeliveries) ? manifest.todayDeliveries : [];
-          const patientData = Array.isArray(manifest.patients) ? manifest.patients : [];
+          const deliveryData = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, todayStr).catch(() => []);
+          const patientData = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
           const appUserData = Array.isArray(manifest.appUsers) ? manifest.appUsers : [];
           const storeData = Array.isArray(manifest.stores) ? [...manifest.stores] : [];
 
