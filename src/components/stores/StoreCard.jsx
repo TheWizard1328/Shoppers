@@ -154,7 +154,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
         <CardContent className="p-4 flex flex-col justify-between h-full">
           <div>
             {/* Header with Store Name, Address, Phone, and Edit Button */}
-            <div className="flex items-start justify-between mb-4">
+            <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-base truncate" style={{ color: 'var(--text-slate-900)' }}>
@@ -273,7 +273,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
               };
 
               return (
-                <div className="px-2 rounded-lg flex flex-wrap items-center gap-2 min-h-[60px]" style={{ background: 'var(--bg-amber-50, #fffbeb)', border: '1px solid var(--border-amber-200, #fde68a)' }}>
+                <div className="px-2 rounded-lg flex flex-wrap items-center gap-2 min-h-[46px]" style={{ background: 'var(--bg-amber-50, #fffbeb)', border: '1px solid var(--border-amber-200, #fde68a)' }}>
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id={`pays-fees-${store.id}`}
@@ -408,7 +408,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             </div>
 
             {/* Full Schedule Drivers - FIXED TO RESPECT ENABLED FLAGS */}
-            <div className="pt-4 space-y-4" style={{ background: 'var(--bg-slate-50)', borderTop: '1px solid var(--border-slate-200)' }}>
+            <div className="space-y-2" style={{ background: 'var(--bg-slate-50)', borderTop: '1px solid var(--border-slate-200)' }}>
               <h4 className="font-semibold text-sm" style={{ color: 'var(--text-slate-800)' }}>Driver Assignments & Pickup Times</h4>
 
               {(() => {
@@ -596,7 +596,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
           </div>
 
           {/* Bottom Actions - Store ID, Dispatcher ID and Delete button */}
-          <div className="pt-1 space-y-1" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
+          <div className="space-y-0" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
             {/* Store ID with Copy */}
             <div className="flex items-center">
               <span className="text-xs font-mono w-28 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }}>Store ID:</span>
