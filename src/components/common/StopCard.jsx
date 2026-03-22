@@ -14,6 +14,8 @@ import { format, isBefore, startOfDay, addDays } from "date-fns";
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
+import { isMobileDevice } from '../utils/deviceUtils';
+import { getCurrentDevice } from '../utils/deviceManager';
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
 import { calculateDeliveryPay, formatPay } from '../utils/payCalculator';
 import { base44 } from "@/api/base44Client";
