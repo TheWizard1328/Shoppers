@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { clearUserCache } from '../utils/auth';
 import { getEffectiveUser } from '../utils/auth';
 import { saveSetting } from '../utils/userSettingsManager';
+import { useMobileNavigation } from '../navigation/MobileNavigationProvider';
 
 export default function MobileHeader({ 
   logo, 
@@ -28,11 +29,20 @@ export default function MobileHeader({
   onCurrentUserUpdate,
   isOverlayOpen
 }) {
-  const canGoBack = isOverlayOpen || (window.history.state?.idx ?? 0) > 0;
+  const { canGoBack: canGoBackInTab, goBack } = useMobileNavigation();
+  const canGoBack = isOverlayOpen || canGoBackInTab || (window.history.state?.idx ?? 0) > 0;
 
   const handleBackButtonClick = (e) => {
     e.stopPropagation();
     if (!canGoBack) return;
+    if (isOverlayOpen) {
+      window.history.back();
+      return;
+    }
+    if (canGoBackInTab) {
+      goBack();
+      return;
+    }
     window.history.back();
   };
 
