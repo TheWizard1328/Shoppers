@@ -128,7 +128,7 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
 
     // 4) Notify UI
     toast.success("Patient GPS Updated", {
-      description: `Location saved. Distance from store: ${distanceKm} km`,
+      description: `Location saved from ${updateSource === 'crosshair' ? 'map crosshair' : 'device GPS'}. Distance from store: ${distanceKm} km`,
     });
 
     _gpsUpdateInFlight = false;
