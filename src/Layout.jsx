@@ -128,54 +128,19 @@ const createMergedUser = (authUser, appUser) => {
   if (!authUser && !appUser) {
     return null;
   }
-
-  // If only appUser exists (no authUser), create a pseudo-user from AppUser data
-  if (!authUser && appUser) {
-    return {
-      id: appUser.user_id,
-      user_id: appUser.user_id,
-      email: null, // Not available without authUser
-      full_name: appUser.user_name || 'Unknown User',
-      user_name: appUser.user_name || 'Unknown User',
-      display_name: appUser.user_name || 'Unknown User',
-      app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : [],
-      status: appUser.status || 'inactive',
-      driver_status: appUser.driver_status,
-      city_id: appUser.city_id,
-      store_ids: appUser.store_ids,
-      sort_order: appUser.sort_order,
-      phone: appUser.phone,
-      home_latitude: appUser.home_latitude,
-      home_longitude: appUser.home_longitude,
-      current_latitude: appUser.current_latitude,
-      current_longitude: appUser.current_longitude,
-      location_updated_at: appUser.location_updated_at,
-      location_tracking_enabled: appUser.location_tracking_enabled
-    };
-  }
-
-  // If authUser exists, merge with appUser (if available)
-  let merged = {
-    ...authUser,
-    id: authUser.id,
-    user_name: authUser.full_name,
-    display_name: authUser.full_name,
-    app_roles: [],
-    status: 'inactive'
-  };
-
-  if (appUser) {
-    merged = {
-      ...merged,
-      ...appUser,
-      id: authUser.id,
-      user_name: appUser.user_name !== undefined && appUser.user_name !== null ? appUser.user_name : merged.user_name,
-      display_name: appUser.user_name !== undefined && appUser.user_name !== null ? appUser.user_name : merged.display_name,
-      app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : merged.app_roles,
-      status: appUser.status !== undefined && appUser.status !== null ? appUser.status : merged.status
-    };
-  }
+...
   return merged;
+};
+
+const CURRENT_USER_REFRESH_KEYS = ['app_roles', 'store_ids', 'city_id', 'status', 'user_name', 'company_id', 'square_location_ids'];
+
+const hasCurrentUserRefreshImpact = (currentUser, updateData = {}) => {
+  if (!currentUser || !updateData) return false;
+
+  return CURRENT_USER_REFRESH_KEYS.some((key) => {
+    if (!(key in updateData)) return false;
+    return JSON.stringify(currentUser[key] ?? null) !== JSON.stringify(updateData[key] ?? null);
+  });
 };
 
 const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
@@ -1557,15 +1522,21 @@ export default function Layout({ children, currentPageName }) {
             }
           });
 
-          // CRITICAL: If this is the current user, refresh their context
+          // Only refresh full current-user context for access/navigation changes
           if (update.data?.user_id === currentUser?.id) {
-            console.log('🔄 [Layout Real-time] Current user AppUser updated - refreshing context');
-            clearUserCache();
-            getEffectiveUser().then((refreshedUser) => {
-              if (refreshedUser) {
-                setCurrentUser(refreshedUser);
-              }
-            });
+            const shouldRefreshCurrentUser = hasCurrentUserRefreshImpact(currentUser, update.data);
+
+            if (shouldRefreshCurrentUser) {
+              console.log('🔄 [Layout Real-time] Current user AppUser changed in a critical way - refreshing context');
+              clearUserCache();
+              getEffectiveUser().then((refreshedUser) => {
+                if (refreshedUser) {
+                  setCurrentUser(refreshedUser);
+                }
+              });
+            } else {
+              setCurrentUser((prev) => prev ? { ...prev, ...update.data } : prev);
+            }
           }
 
           // CRITICAL: Dispatch event to update map markers AND polylines immediately
@@ -1741,13 +1712,7 @@ export default function Layout({ children, currentPageName }) {
         const updatedAppUserForCurrentUser = updates.appUsers.find((au) => au && au.user_id === currentUser.id);
 
         if (updatedAppUserForCurrentUser) {
-          const oldStoreIds = JSON.stringify(currentUser.store_ids || []);
-          const newStoreIds = JSON.stringify(updatedAppUserForCurrentUser.store_ids || []);
-
-          const oldStatus = currentUser.status;
-          const newStatus = updatedAppUserForCurrentUser.status;
-
-          if (newStoreIds !== oldStoreIds || newStatus !== oldStatus) {
+          if (hasCurrentUserRefreshImpact(currentUser, updatedAppUserForCurrentUser)) {
             isReloadingFromAppUserChange.current = true;
             setAppUsers(updates.appUsers);
             clearUserCache();
