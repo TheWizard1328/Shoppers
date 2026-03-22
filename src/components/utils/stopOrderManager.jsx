@@ -34,25 +34,26 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     }
   })();
 
-  // Sort: completed first by time, then incomplete by stop_order, pending always last
+  // Sort: active stops first, finished stops after them by completion time, pending always last
   const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
-    const isACompleted = finishedStatuses.includes(a.status);
-    const isBCompleted = finishedStatuses.includes(b.status);
+    const isAFinished = finishedStatuses.includes(a.status);
+    const isBFinished = finishedStatuses.includes(b.status);
     const isAPending = a.status === 'pending';
     const isBPending = b.status === 'pending';
 
-    // Completed stops first
-    if (isACompleted && !isBCompleted) return -1;
-    if (!isACompleted && isBCompleted) return 1;
+    // Keep unfinished stops above finished stops
+    if (isAFinished && !isBFinished) return 1;
+    if (!isAFinished && isBFinished) return -1;
 
-    // Among completed, sort by completion time
-    if (isACompleted) {
-      const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-      const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
-      return timeA - timeB;
+    // Among finished, sort by completion time
+    if (isAFinished && isBFinished) {
+      const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+      const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.stop_order || 999) - (b.stop_order || 999);
     }
 
-    // Among incomplete: pending always last
+    // Among unfinished: pending always last
     if (isAPending && !isBPending) return 1;
     if (!isAPending && isBPending) return -1;
 
