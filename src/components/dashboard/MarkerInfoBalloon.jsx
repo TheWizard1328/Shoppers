@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Home, Truck, User } from 'lucide-react';
+import { Clock, Home, MapPin, Truck } from 'lucide-react';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
@@ -37,9 +37,9 @@ export default function MarkerInfoBalloon({
   const isFinished = FINISHED_STATUSES.includes(delivery?.status);
   const stopNumber = delivery?.number || delivery?.stop_order || '?';
   const rightMeta = [
-    `Stop #${stopNumber}`,
-    delivery?.tracking_number ? `TR# ${delivery.tracking_number}` : null
-  ].filter(Boolean).join(' · ');
+    `St: #${stopNumber}`,
+    delivery?.tracking_number ? `TR#: ${delivery.tracking_number}` : null
+  ].filter(Boolean).join(' - ');
 
   const timeLabel = isFinished
     ? delivery?.actual_delivery_time ? new Date(delivery.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : null
@@ -77,14 +77,15 @@ export default function MarkerInfoBalloon({
 
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <div className="flex min-w-0 items-center gap-1.5" style={{ color: 'var(--text-slate-900)' }}>
-          <User className="w-3 h-3 flex-shrink-0" />
+          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
           {onPatientClick && !isPickup ? (
             <button
               onClick={(event) => {
                 event.stopPropagation();
                 onPatientClick();
               }}
-              className="truncate text-left text-blue-600 hover:text-blue-700 underline transition-colors"
+              className="truncate text-left"
+              style={{ color: 'var(--text-slate-900)' }}
             >
               {patientLabel}
             </button>
