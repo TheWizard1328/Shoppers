@@ -314,12 +314,14 @@ export default function AdminMetrics() {
                 )}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" onClick={() => fetchMetrics(selectedYear, selectedCityId, false)} disabled={isFetching}>
-              <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button variant="outline" size="icon">
-              <Share2 className="w-4 h-4" />
-            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={() => fetchMetrics(selectedYear, selectedCityId, false)} disabled={isFetching}>
+                <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button variant="outline" size="icon">
+                <Share2 className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
 
