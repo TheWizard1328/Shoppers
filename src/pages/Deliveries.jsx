@@ -172,9 +172,6 @@ export default function DeliveriesPage() {
   const isMobile = useMemo(() => isMobileDevice(), []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Check if bottom nav is visible (matches Layout.js logic)
-  const isBottomNavVisible = isMobile && !isMobileMenuOpen;
-
   const [showRouteMap, setShowRouteMap] = useState(false);
 
   const [activeDriver, setActiveDriver] = useState(null);
@@ -3544,7 +3541,7 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ ...(isBottomNavVisible ? { maxHeight: 'calc(100vh - 180px)' } : {}), ['--driver-info-offset']: !isDriverOverviewMode ? isMobile ? '56px' : '120px' : '88px' }}>
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ ['--driver-info-offset']: !isDriverOverviewMode ? isMobile ? '56px' : '120px' : '88px' }}>
 
            {isDriverOverviewMode ?
           <div className="flex flex-col h-full overflow-hidden">
