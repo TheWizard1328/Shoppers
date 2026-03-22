@@ -117,6 +117,7 @@ import WebSocketDiagnosticsCard from './components/layout/WebSocketDiagnosticsCa
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import MobileOverlayBackHandler from './components/layout/MobileOverlayBackHandler';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
+import { getBootstrapManifest } from '@/functions/getBootstrapManifest';
 
 
 // App version will be loaded from AppSettings
@@ -856,7 +857,6 @@ export default function Layout({ children, currentPageName }) {
 
         const deviceIdentifier = getDeviceIdentifier();
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const { getBootstrapManifest } = await import('@/functions/getBootstrapManifest');
         const manifestResponse = await requestThrottler.queue(
           () => getBootstrapManifest({ deviceIdentifier, todayStr }),
           'critical',
