@@ -25,7 +25,7 @@ import {
 import { getStoreColor } from "../utils/colorGenerator";
 import { formatPhoneNumber } from "../utils/formatters";
 import { userHasRole } from "../utils/userRoles";
-import { base44 } from "@/api/base44Client";
+import { updateStoreLocal } from "@/components/utils/offlineMutations";
 
 export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected }) {
   const [editingColor, setEditingColor] = useState(false);
@@ -46,12 +46,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
   const handleColorSave = async (newColor) => {
     try {
-      // Use Store entity directly to update only the color field
-      await base44.entities.Store.update(store.id, { color: newColor });
-      // Invalidate cache and trigger UI refresh
+      const updatedStore = await updateStoreLocal(store.id, { color: newColor });
       const { invalidate } = await import('@/components/utils/dataManager');
       invalidate('Store');
-      window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
+      setEditableStore(updatedStore);
+      window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id, updatedStore } }));
       setEditingColor(false);
     } catch (error) {
       console.error("Error saving store color:", error);
@@ -110,7 +109,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
     const config = slotConfig[editingSlot];
     const selectedDriver = drivers?.find((driver) => driver?.id === editingSlotDriverId);
     try {
-      const updatedStore = await base44.entities.Store.update(store.id, {
+      const updatedStore = await updateStoreLocal(store.id, {
         [config.driverIdField]: editingSlotDriverId === 'null' ? null : editingSlotDriverId,
         [config.driverNameField]: editingSlotDriverId === 'null' ? '' : selectedDriver?.user_name || selectedDriver?.full_name || ''
       });
@@ -259,12 +258,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   );
                 }
 
-                // Use Store entity directly to update
-                await base44.entities.Store.update(store.id, { app_fee_history: updatedHistory });
-                // Invalidate cache and trigger UI refresh
+                const updatedStore = await updateStoreLocal(store.id, { app_fee_history: updatedHistory });
                 const { invalidate } = await import('@/components/utils/dataManager');
                 invalidate('Store');
-                window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
+                setEditableStore(updatedStore);
+                window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id, updatedStore } }));
 
                 setShowDatePicker(false);
                 setEditingDateType(null);
@@ -289,13 +287,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                             pays_app_fees: checked,
                             app_fee_history: [...existingHistory, historyEntry]
                           };
-                          // Use Store entity directly to update
-                          await base44.entities.Store.update(store.id, updatedData);
-                          // Invalidate cache and trigger UI refresh
+                          const updatedStore = await updateStoreLocal(store.id, updatedData);
                           const { invalidate } = await import('@/components/utils/dataManager');
                           invalidate('Store');
-                          // Dispatch event to trigger refresh
-                          window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
+                          setEditableStore(updatedStore);
+                          window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id, updatedStore } }));
                         } catch (error) {
                           console.error("Error updating app fees status:", error);
                         }
