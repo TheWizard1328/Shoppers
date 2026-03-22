@@ -25,6 +25,7 @@ import {
 import { getStoreColor } from "../utils/colorGenerator";
 import { formatPhoneNumber } from "../utils/formatters";
 import { userHasRole } from "../utils/userRoles";
+import { base44 } from "@/api/base44Client";
 
 export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected }) {
   const [editingColor, setEditingColor] = useState(false);
@@ -46,8 +47,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
   const handleColorSave = async (newColor) => {
     try {
       // Use Store entity directly to update only the color field
-      const { Store } = await import('@/entities/Store');
-      await Store.update(store.id, { color: newColor });
+      await base44.entities.Store.update(store.id, { color: newColor });
       // Invalidate cache and trigger UI refresh
       const { invalidate } = await import('@/components/utils/dataManager');
       invalidate('Store');
@@ -110,8 +110,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
     const config = slotConfig[editingSlot];
     const selectedDriver = drivers?.find((driver) => driver?.id === editingSlotDriverId);
     try {
-      const { Store } = await import('@/entities/Store');
-      const updatedStore = await Store.update(store.id, {
+      const updatedStore = await base44.entities.Store.update(store.id, {
         [config.driverIdField]: editingSlotDriverId === 'null' ? null : editingSlotDriverId,
         [config.driverNameField]: editingSlotDriverId === 'null' ? '' : selectedDriver?.user_name || selectedDriver?.full_name || ''
       });
@@ -261,8 +260,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 }
 
                 // Use Store entity directly to update
-                const { Store } = await import('@/entities/Store');
-                await Store.update(store.id, { app_fee_history: updatedHistory });
+                await base44.entities.Store.update(store.id, { app_fee_history: updatedHistory });
                 // Invalidate cache and trigger UI refresh
                 const { invalidate } = await import('@/components/utils/dataManager');
                 invalidate('Store');
@@ -292,8 +290,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                             app_fee_history: [...existingHistory, historyEntry]
                           };
                           // Use Store entity directly to update
-                          const { Store } = await import('@/entities/Store');
-                          await Store.update(store.id, updatedData);
+                          await base44.entities.Store.update(store.id, updatedData);
                           // Invalidate cache and trigger UI refresh
                           const { invalidate } = await import('@/components/utils/dataManager');
                           invalidate('Store');
