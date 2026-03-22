@@ -14,8 +14,7 @@ import {
 } from 'lucide-react';
 
 export default function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle }) {
-  const scrollRef = React.useRef(null);
-  const { activeTab, currentPath, navigateToTab, saveScrollPosition, getScrollPosition } = useMobileNavigation();
+  const { activeTab, navigateToTab } = useMobileNavigation();
 
   if (!currentUser) return null;
 
@@ -54,27 +53,6 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
     ];
   }
 
-  React.useEffect(() => {
-    return () => {
-      const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
-      if (mainContent) {
-        saveScrollPosition(currentPath, mainContent.scrollTop);
-      }
-    };
-  }, [currentPath, saveScrollPosition]);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
-      if (mainContent) {
-        mainContent.scrollTop = getScrollPosition(currentPath);
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [currentPath, getScrollPosition]);
-
-
-
   return (
     <nav
       data-mobile-bottom-nav
@@ -97,11 +75,7 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
           <Menu className="w-5 h-5" />
         </button>
 
-        <div
-          ref={scrollRef}
-          className="flex-1 flex overflow-x-auto custom-scrollbar"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
+        <div className="flex-1 flex overflow-x-auto custom-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {navItems.map((item) => {
             const isMessagingItem = item.action === 'messaging';
             const isActive = !isMessagingItem && activeTab === item.tabKey;
@@ -124,10 +98,7 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
                   onClick={() => window.dispatchEvent(new CustomEvent('openMessagingPanel'))}
                 >
                   <Icon className="w-5 h-5 mb-0.5" style={{ color: 'var(--text-slate-500)' }} />
-                  <span
-                    className="text-sm font-medium truncate"
-                    style={{ color: 'var(--text-slate-500)', maxWidth: '80px' }}
-                  >
+                  <span className="text-sm font-medium truncate" style={{ color: 'var(--text-slate-500)', maxWidth: '80px' }}>
                     {item.name}
                   </span>
                 </button>
@@ -140,22 +111,10 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
                 type="button"
                 {...sharedProps}
                 aria-current={isActive ? 'page' : undefined}
-                onClick={() => {
-                  const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
-                  if (mainContent) {
-                    saveScrollPosition(currentPath, mainContent.scrollTop);
-                  }
-                  navigateToTab(item.tabKey, createPageUrl(item.page));
-                }}
+                onClick={() => navigateToTab(item.tabKey, createPageUrl(item.page))}
               >
-                <Icon
-                  className="w-5 h-5 mb-0.5"
-                  style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)' }}
-                />
-                <span
-                  className="text-sm font-medium truncate"
-                  style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)', maxWidth: '80px' }}
-                >
+                <Icon className="w-5 h-5 mb-0.5" style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)' }} />
+                <span className="text-sm font-medium truncate" style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)', maxWidth: '80px' }}>
                   {item.name}
                 </span>
                 {isActive && <div className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5" />}
