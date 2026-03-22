@@ -449,11 +449,11 @@ export default function DeliveryFormView({
                         <div className="space-y-3 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <div className="space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
-                            <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                            <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
-                            <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                            <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
                           </div>
                         </div>
 
@@ -489,10 +489,10 @@ export default function DeliveryFormView({
 
                         {!useMobileLayout &&
                       <>
-                            <div
-                              className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
-                              style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}
-                            >
+                            <div className="pr-3 pb-3 pl-3 rounded-lg space-y-2 border"
+
+                        style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          
                               <DeliveryStatusAndTiming
                             formData={formData} setFormData={setFormData}
                             delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
@@ -558,7 +558,7 @@ export default function DeliveryFormView({
                             </div>
                           </div>
 
-                          <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Recurring</Label>
                             <DeliveryRecurringOptions
                           formData={formData} setFormData={setFormData} isSaving={isSaving}
@@ -605,7 +605,7 @@ export default function DeliveryFormView({
                         <div className="space-y-2">
                           {/* Store / Status / Time */}
                           <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
-                              style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <DeliveryStatusAndTiming
                           formData={formData} setFormData={setFormData}
                           delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
@@ -670,7 +670,7 @@ export default function DeliveryFormView({
                   null :
                   !(isPickupMode && !delivery) ?
                   <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
-                              style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <DeliveryStatusAndTiming
                       formData={formData} setFormData={setFormData}
                       delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
@@ -720,7 +720,7 @@ export default function DeliveryFormView({
                   } else {
                     handleCancelClick();
                   }
-                }} disabled={isSaving || effectiveDeliveryActionBusy} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                }} disabled={isSaving || effectiveDeliveryActionBusy} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} className="inline-flex min-h-11 min-w-20 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs">
                   {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
                 </Button>
 
@@ -733,7 +733,7 @@ export default function DeliveryFormView({
                     <Edit2 className="w-4 h-4" />Update
                   </Button> :
                 buttonState === 'add' ?
-                <Button type="button" size="sm" onClick={() => runLockedAction('add_staged_delivery', handleAddToStaging)} className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || !isFormValid && !hasSelectedLocationAndDriver || requiresDriverSelection && !hasSelectedLocationAndDriver} title={!hasSelectedLocationAndDriver ? 'Select both a date and driver before adding' : requiresDriverSelection && !hasSelectedLocationAndDriver ? 'Select a driver to create a pickup for this store/date' : undefined}>
+                <Button type="button" size="sm" onClick={() => runLockedAction('add_staged_delivery', handleAddToStaging)} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || !isFormValid && !hasSelectedLocationAndDriver || requiresDriverSelection && !hasSelectedLocationAndDriver} title={!hasSelectedLocationAndDriver ? 'Select both a date and driver before adding' : requiresDriverSelection && !hasSelectedLocationAndDriver ? 'Select a driver to create a pickup for this store/date' : undefined}>
                     <Plus className="w-4 h-4" />Add
                   </Button> :
 
