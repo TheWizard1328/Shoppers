@@ -324,7 +324,7 @@ export default function RouteManagementContent({
         }
         </div> :
 
-      <div className="flex-1 h-full min-h-0 w-full overflow-hidden px-4 relative">
+      <div className="flex-1 min-h-0 w-auto h-auto overflow-hidden px-4 relative">
           <DeliveryListView
           deliveries={deliveries}
           patients={patients || []}
