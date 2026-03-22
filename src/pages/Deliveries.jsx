@@ -3784,8 +3784,8 @@ export default function DeliveriesPage() {
                             </Badge>
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="px-3 py-3 flex-1 flex flex-col">
-                          <div className="mb-3 pb-3 min-h-[56px] md:min-h-[40px] flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
+                        <CardContent className="pt-3 pr-3 pb-3 pl-3 flex-1 flex flex-col">
+                          <div className="mb-3 min-h-[56px] md:min-h-[40px] flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
                             {card.todayStats && card.todayStats.total > 0 ?
                           <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
                                 <span className="text-blue-600">Active: {card.todayStats.active}</span>
