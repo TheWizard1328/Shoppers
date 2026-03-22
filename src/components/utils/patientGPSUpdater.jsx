@@ -136,8 +136,9 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
       success: true,
       message: "GPS updated",
       distance: distanceKm,
-      latitude: fresh.latitude,
-      longitude: fresh.longitude,
+      latitude: nextLatitude,
+      longitude: nextLongitude,
+      source: updateSource,
       updatedCount: 1,
       patients: [],
     };
