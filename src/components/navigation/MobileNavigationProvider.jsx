@@ -42,7 +42,7 @@ const readStoredState = () => {
 export function MobileNavigationProvider({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const currentPath = `${location.pathname}${location.search}`;
+  const currentPath = `${location.pathname.toLowerCase()}${location.search}`;
   const pendingActionRef = React.useRef('push');
   const [state, setState] = React.useState(readStoredState);
 
