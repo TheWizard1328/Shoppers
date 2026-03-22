@@ -40,7 +40,7 @@ export default function DateListPanel({
   // Extract years where the selected driver has deliveries
   const availableYears = useMemo(() => {
     if (!deliveries || deliveries.length === 0) return [];
-    
+
     const yearsSet = new Set();
     deliveries.forEach((d) => {
       if (!d || !d.delivery_date) return;
@@ -51,14 +51,14 @@ export default function DateListPanel({
         console.warn('Invalid delivery_date:', d.delivery_date);
       }
     });
-    
+
     return Array.from(yearsSet).sort((a, b) => b - a);
   }, [deliveries]);
 
   // Extract months with deliveries for the selected year
   const availableMonths = useMemo(() => {
     if (!deliveries || deliveries.length === 0) return [];
-    
+
     const monthsSet = new Set();
     deliveries.forEach((d) => {
       if (!d || !d.delivery_date) return;
@@ -71,7 +71,7 @@ export default function DateListPanel({
         console.warn('Invalid delivery_date:', d.delivery_date);
       }
     });
-    
+
     return Array.from(monthsSet).sort((a, b) => b - a);
   }, [deliveries, selectedYear]);
 
@@ -114,9 +114,9 @@ export default function DateListPanel({
 
       // CRITICAL: For dispatchers, exclude pickups (patient_id is null/empty) from total
       const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
-      const deliveriesOnly = isDispatcher 
-        ? dateDeliveries.filter(d => d.patient_id && d.patient_id !== '')
-        : dateDeliveries;
+      const deliveriesOnly = isDispatcher ?
+      dateDeliveries.filter((d) => d.patient_id && d.patient_id !== '') :
+      dateDeliveries;
       const total = deliveriesOnly.length;
 
       // Completed: all completed deliveries (no returns, no pickups) + after hours pickups (completed or cancelled only)
@@ -166,27 +166,27 @@ export default function DateListPanel({
 
       {/* Date Cards List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        {datesWithDeliveries.filter(d => d.total > 0).length === 0 ?
+        {datesWithDeliveries.filter((d) => d.total > 0).length === 0 ?
         <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>
             <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No deliveries this month</p>
           </div> :
 
-        (dateListWithStats || datesWithDeliveries).filter(d => d.total > 0).map(({ date, dateStr, total, completed, failed, returned, canDelete }, index) =>
+        (dateListWithStats || datesWithDeliveries).filter((d) => d.total > 0).map(({ date, dateStr, total, completed, failed, returned, canDelete }, index) =>
         <Card
           key={dateStr || `date-${index}`}
-          onClick={() => onDateSelect(dateStr)}
-          className={`p-3 cursor-pointer transition-all hover:shadow-md relative ${
-          isSelected(dateStr) ?
-          'border-emerald-500 shadow-md' :
-          ''}`
-          }
+          onClick={() => onDateSelect(dateStr)} className="bg-card text-card-foreground pt-1 pr-3 pl-3 rounded-xl border cursor-pointer transition-all hover:shadow-md relative border-emerald-500 shadow-md"
+
+
+
+
+
           style={{
             background: isSelected(dateStr) ? 'var(--bg-slate-100)' : 'var(--bg-white)',
             borderColor: isSelected(dateStr) ? '#10b981' : 'var(--border-slate-200)'
           }}>
 
-              <div className="flex items-center justify-between mb-2">
+              <div className="mt-1 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="text-sm font-bold" style={{ color: isSelected(dateStr) ? '#047857' : 'var(--text-slate-700)' }}>
                     {format(date, 'EEE, MMM d')}
@@ -222,22 +222,22 @@ export default function DateListPanel({
                 
                 {/* Delete route button - show if a specific driver is selected AND user is app owner */}
                 {selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute && isAppOwner(currentUser) &&
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 hover:text-red-600 hover:bg-red-50"
-                    style={{ color: 'var(--text-slate-400)' }}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      if (window.confirm(`Delete all ${total} stops for this date? This cannot be undone.`)) {
-                        await onDeleteRoute(dateStr, selectedDriverId);
-                      }
-                    }}
-                    title="Delete entire route for this date"
-                  >
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 hover:text-red-600 hover:bg-red-50"
+              style={{ color: 'var(--text-slate-400)' }}
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (window.confirm(`Delete all ${total} stops for this date? This cannot be undone.`)) {
+                  await onDeleteRoute(dateStr, selectedDriverId);
+                }
+              }}
+              title="Delete entire route for this date">
+              
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
-                }
+            }
               </div>
             </Card>
         )
