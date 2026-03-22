@@ -3762,7 +3762,7 @@ export default function DeliveriesPage() {
 
               <div key={refreshKey} className="flex-1 w-full overflow-y-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start' }}>
                   {driverCards.map((card) => {
-                  const isInactive = card.driver.status === 'inactive';
+                  const driverBadgeClass = getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status);
                   return (
                     <Card
                       key={card.driver.id} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg h-auto"
