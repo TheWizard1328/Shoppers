@@ -51,13 +51,13 @@ export default function AccountDeletionSection() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold flex items-center gap-2 text-red-600">
             <AlertTriangle className="w-4 h-4" />
-            Danger Zone
+            Delete My Account
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-              Deleting your account is permanent.
+              Permanently delete your account and associated personal data.
             </p>
             <ul className="list-disc pl-5 space-y-2 text-sm" style={{ color: 'var(--text-slate-600)' }}>
               <li>Your signed-in access will be removed.</li>
@@ -67,7 +67,7 @@ export default function AccountDeletionSection() {
           </div>
           <Button onClick={() => setOpen(true)} variant="destructive" className="w-full gap-2 select-none">
             <Trash2 className="w-4 h-4" />
-            Review Account Deletion
+            Delete My Account
           </Button>
         </CardContent>
       </Card>
@@ -80,7 +80,7 @@ export default function AccountDeletionSection() {
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete account permanently?</AlertDialogTitle>
+            <AlertDialogTitle>Delete My Account</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-4 text-sm" style={{ color: 'var(--text-slate-600)' }}>
                 <p>

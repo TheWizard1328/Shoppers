@@ -88,7 +88,7 @@ export default function Settings() {
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="p-4">
               <p className="text-sm leading-6" style={{ color: 'var(--text-slate-600)' }}>
-                Account deletion is available below in the Danger Zone and clearly explains what will be removed before you confirm.
+                You can permanently delete your account and associated personal data below using the Delete My Account option.
               </p>
             </CardContent>
           </Card>
