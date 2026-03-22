@@ -333,16 +333,15 @@ export default function AdminMetrics() {
                   <Package className="w-5 h-5" style={{ color: '#059669' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {(selectedMonth ?
-                  showEnvelopeAdjustedTotals && metricsData.envelopeMetrics ?
-                  metricsData.envelopeMetrics.yearTotals.adjustedDeliveries / 12 :
-                  metricsData.monthlyData?.[selectedMonth - 1]?.billable :
-
-                  showEnvelopeAdjustedTotals && metricsData.envelopeMetrics ?
-                  metricsData.envelopeMetrics.yearTotals.adjustedDeliveries :
-                  metricsData.yearTotals?.billable)?.
-
-                  toLocaleString() || 0}
+                  {(
+                    selectedMonth
+                      ? (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics
+                          ? metricsData.envelopeMetrics.yearTotals.adjustedDeliveries / 12
+                          : metricsData.monthlyData?.[selectedMonth - 1]?.billable)
+                      : (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics
+                          ? metricsData.envelopeMetrics.yearTotals.adjustedDeliveries
+                          : metricsData.yearTotals?.billable)
+                  )?.toLocaleString() || 0}
                 </p>
               </div>
             </CardContent>
@@ -356,10 +355,10 @@ export default function AdminMetrics() {
                   <TrendingUp className="w-5 h-5" style={{ color: '#b45309' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {(selectedMonth ?
-                  metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable :
-                  metricsData.yearTotals?.nonBillable)?.
-                  toLocaleString() || 0}
+                  {(selectedMonth
+                    ? metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable
+                    : metricsData.yearTotals?.nonBillable
+                  )?.toLocaleString() || 0}
                 </p>
               </div>
             </CardContent>
@@ -749,40 +748,42 @@ export default function AdminMetrics() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={
-                    getFilteredDriverData(
-                      (selectedStoreMonth ?
-                      Object.values(metricsData.dailyDriverData?.[selectedStoreMonth.month] || {}).
-                      flat().
-                      reduce((acc, entry) => {
-                        const existing = acc.find((d) => d.driverId === entry.driverId);
-                        if (existing) {
-                          existing.billable += entry.billable;
-                          existing.nonBillable += entry.nonBillable;
-                        } else {
-                          acc.push({ ...entry });
-                        }
-                        return acc;
-                      }, []) :
-                      selectedMonth ?
-                      Object.values(metricsData.dailyDriverData?.[selectedMonth] || {}).
-                      flat().
-                      reduce((acc, entry) => {
-                        const existing = acc.find((d) => d.driverId === entry.driverId);
-                        if (existing) {
-                          existing.billable += entry.billable;
-                          existing.nonBillable += entry.nonBillable;
-                        } else {
-                          acc.push({ ...entry });
-                        }
-                        return acc;
-                      }, []) :
-                      metricsData.driverData) || []
-                    )?.
-                    slice().
-                    filter((driver) => (driver.billable || 0) + (driver.nonBillable || 0) > 0).
-                    sort((a, b) => (b.billable || 0) + (b.nonBillable || 0) - ((a.billable || 0) + (a.nonBillable || 0)))
-                    }
+                    data={(() => {
+                      const driverData = getFilteredDriverData(
+                        (selectedStoreMonth ?
+                        Object.values(metricsData.dailyDriverData?.[selectedStoreMonth.month] || {}).
+                        flat().
+                        reduce((acc, entry) => {
+                          const existing = acc.find((d) => d.driverId === entry.driverId);
+                          if (existing) {
+                            existing.billable += entry.billable;
+                            existing.nonBillable += entry.nonBillable;
+                          } else {
+                            acc.push({ ...entry });
+                          }
+                          return acc;
+                        }, []) :
+                        selectedMonth ?
+                        Object.values(metricsData.dailyDriverData?.[selectedMonth] || {}).
+                        flat().
+                        reduce((acc, entry) => {
+                          const existing = acc.find((d) => d.driverId === entry.driverId);
+                          if (existing) {
+                            existing.billable += entry.billable;
+                            existing.nonBillable += entry.nonBillable;
+                          } else {
+                            acc.push({ ...entry });
+                          }
+                          return acc;
+                        }, []) :
+                        metricsData.driverData) || []
+                      ) || [];
+
+                      return driverData
+                        .slice()
+                        .filter((driver) => (driver.billable || 0) + (driver.nonBillable || 0) > 0)
+                        .sort((a, b) => (b.billable || 0) + (b.nonBillable || 0) - ((a.billable || 0) + (a.nonBillable || 0)));
+                    })()}
                     barCategoryGap="15%">
 
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-slate-200)" />
@@ -813,8 +814,8 @@ export default function AdminMetrics() {
         </div>
 
 
+        </div>
       </div>
-      </div>
-    </div>);
-
+    </div>
+  );
 }
