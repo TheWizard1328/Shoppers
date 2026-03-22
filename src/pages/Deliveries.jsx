@@ -3775,7 +3775,7 @@ export default function DeliveriesPage() {
                               {card.firstName}
                             </span>
                             <Badge
-                            variant="outline" className="px-2.5 py-0.5 text-xs font-semibold rounded-full w-[90px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-emerald-500 text-white border-emerald-500">
+                            variant="outline" className={`px-2.5 py-0.5 text-xs font-semibold rounded-full w-[90px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${isInactive ? 'bg-red-500 text-white border-red-500' : 'bg-emerald-500 text-white border-emerald-500'}`}>
 
 
                             
