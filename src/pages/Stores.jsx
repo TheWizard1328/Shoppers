@@ -255,7 +255,7 @@ export default function StoresPage() {
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="max-w-8xl mx-auto">
           {stores.length > 0 ? (
-            <div className="grid gap-5 justify-start" style={{ gridTemplateColumns: 'repeat(auto-fit, 400px)' }}>
+            <div className="grid gap-5 justify-center" style={{ gridTemplateColumns: 'repeat(auto-fit, 400px)' }}>
               {stores.map((store) => (
                 <StoreCard
                   key={store.id}
