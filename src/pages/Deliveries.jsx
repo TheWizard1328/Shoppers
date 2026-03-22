@@ -61,6 +61,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { getEffectiveUser, isUserDataAvailable } from "../components/utils/auth";
 import ExportRouteButton from "../components/deliveries/ExportRouteButton";
+import DriverOverviewMobileToolbar from "../components/deliveries/DriverOverviewMobileToolbar";
 import DeliveryForm from "../components/deliveries/DeliveryForm";
 import DeliveryDetails from "../components/deliveries/DeliveryDetails";
 import PatientForm from "../components/patients/PatientForm";
@@ -3672,46 +3673,18 @@ export default function DeliveriesPage() {
 
               <Card className="backdrop-blur-sm md:hidden flex-shrink-0 m-4 mb-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-4">
-                  <div className="space-y-3">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                      <Input
-                      placeholder="Search drivers..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full"
-                      style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
-                    <Select value={selectedCityId} onValueChange={(value) => {
+                  <DriverOverviewMobileToolbar
+                    currentUser={currentUser}
+                    cities={cities}
+                    searchTerm={searchTerm}
+                    onSearchChange={setSearchTerm}
+                    selectedCityId={selectedCityId}
+                    onCityChange={(value) => {
                       setSelectedCityId(value);
                       updateUrl({ city: value });
-                    }}>
-                          <SelectTrigger className="w-[140px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                            <SelectValue placeholder="Select City" />
-                          </SelectTrigger>
-                          <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                            <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Cities</SelectItem>
-                            {cities.map((city) =>
-                        <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>{city.name}</SelectItem>
-                        )}
-                          </SelectContent>
-                        </Select>
-                    }
-
-                      <div className="flex-grow"></div>
-
-                      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                    <Button onClick={() => {setEditingDelivery(null);setShowDeliveryForm(true);}} className="gap-2 w-[140px]">
-                          <Plus className="w-4 h-4" /> Add Delivery
-                        </Button>
-                    }
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <Select value={selectedOverviewYear} onValueChange={(year) => {
+                    }}
+                    selectedOverviewYear={selectedOverviewYear}
+                    onOverviewYearChange={(year) => {
                       yearManuallySelected.current = true;
                       setSelectedOverviewYear(year);
                       const params = new URLSearchParams(location.search);
@@ -3721,27 +3694,16 @@ export default function DeliveriesPage() {
                         params.set('overviewYear', year);
                       }
                       navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-                    }}>
-                        <SelectTrigger className="w-[140px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                          <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Years</SelectItem>
-                          {availableOverviewYears.map((year) =>
-                        <SelectItem key={year} value={year.toString()} style={{ color: 'var(--text-slate-900)' }}>{year}</SelectItem>
-                        )}
-                        </SelectContent>
-                      </Select>
-
-                      <div className="flex-grow"></div>
-
-                      {canAccessImports(currentUser) && !isMobile &&
-                    <Button onClick={handleOpenRouteImport} variant="outline" className="gap-2 w-[140px]">
-                          <FileUp className="w-4 h-4" /> Import Route
-                        </Button>
-                    }
-                    </div>
-                  </div>
+                    }}
+                    availableOverviewYears={availableOverviewYears}
+                    canAddDelivery={userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')}
+                    onAddDelivery={() => {
+                      setEditingDelivery(null);
+                      setShowDeliveryForm(true);
+                    }}
+                    canImport={canAccessImports(currentUser) && !isMobile}
+                    onImportRoute={handleOpenRouteImport}
+                  />
                 </CardContent>
               </Card>
 
