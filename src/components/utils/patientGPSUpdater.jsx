@@ -47,14 +47,17 @@ const getFreshDeviceLocation = () => {
 };
 
 /**
- * Update patient GPS using a fresh device location
+ * Update patient GPS using either the map crosshair or a fresh device location.
  * @param {Object} params
  * @param {string} params.patientId
  * @param {string} params.storeId
  * @param {Array} params.stores - full stores list to look up coordinates
+ * @param {{latitude:number, longitude:number}|null} [params.mapCrosshairCoords]
+ * @param {boolean} [params.preferCrosshair=false]
+ * @param {{latitude?:number, longitude?:number}|null} [params.currentPatientCoords]
  * @returns {Promise<{success:boolean, message:string, distance?:number}>}
  */
-export const updatePatientGPS = async ({ patientId, storeId, stores }) => {
+export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshairCoords = null, preferCrosshair = false, currentPatientCoords = null }) => {
   const now = Date.now();
   if (_gpsUpdateInFlight || now - _gpsUpdateLastAt < 4000) {
     toast("Please wait... GPS update in progress");
