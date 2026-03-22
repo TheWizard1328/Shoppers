@@ -3717,7 +3717,7 @@ export default function DeliveriesPage() {
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
                   </div> :
 
-              <div key={refreshKey} className="flex-1 w-full overflow-y-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start' }}>
+              <div key={refreshKey} className="flex-1 w-full overflow-y-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start', paddingBottom: 'var(--bottom-nav-height, 0px)' }}>
                   {driverCards.map((card) => {
                   const driverBadgeClass = getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status);
                   return (
