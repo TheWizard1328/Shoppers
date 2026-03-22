@@ -90,12 +90,12 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
   const currentStoreColor = editableStore.color || displayColor;
 
   const slotConfig = {
-    weekday_am: { label: 'Weekdays AM', driverIdField: 'weekday_am_driver_id', driverNameField: 'driver_weekday_am' },
+    weekday_am: { label: 'Weekdays AM', driverIdField: 'weekday_am_driver_id', driverNameField: 'weekday_am_driver' },
     saturday_am: { label: 'Saturdays AM', driverIdField: 'saturday_am_driver_id', driverNameField: 'saturday_am_driver' },
-    sunday_am: { label: 'Sundays AM', driverIdField: 'sunday_am_driver_id', driverNameField: 'driver_sunday_am' },
-    weekday_pm: { label: 'Weekdays PM', driverIdField: 'weekday_pm_driver_id', driverNameField: 'driver_weekday_pm' },
+    sunday_am: { label: 'Sundays AM', driverIdField: 'sunday_am_driver_id', driverNameField: 'sunday_am_driver' },
+    weekday_pm: { label: 'Weekdays PM', driverIdField: 'weekday_pm_driver_id', driverNameField: 'weekday_pm_driver' },
     saturday_pm: { label: 'Saturdays PM', driverIdField: 'saturday_pm_driver_id', driverNameField: 'saturday_pm_driver' },
-    sunday_pm: { label: 'Sundays PM', driverIdField: 'sunday_pm_driver_id', driverNameField: 'driver_sunday_pm' }
+    sunday_pm: { label: 'Sundays PM', driverIdField: 'sunday_pm_driver_id', driverNameField: 'sunday_pm_driver' }
   };
 
   const openSlotEditor = (slotKey) => {
@@ -111,13 +111,14 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
     const selectedDriver = drivers?.find((driver) => driver?.id === editingSlotDriverId);
     try {
       const { Store } = await import('@/entities/Store');
-      await Store.update(store.id, {
+      const updatedStore = await Store.update(store.id, {
         [config.driverIdField]: editingSlotDriverId === 'null' ? null : editingSlotDriverId,
         [config.driverNameField]: editingSlotDriverId === 'null' ? '' : selectedDriver?.user_name || selectedDriver?.full_name || ''
       });
+      setEditableStore(updatedStore);
       const { invalidate } = await import('@/components/utils/dataManager');
       invalidate('Store');
-      window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
+      window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id, updatedStore } }));
       setEditingSlot(null);
     } catch (error) {
       console.error('Error saving store driver assignment:', error);
