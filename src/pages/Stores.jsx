@@ -253,7 +253,7 @@ export default function StoresPage() {
 
       {/* Scrollable content area */}
       <div className="flex-1 overflow-y-auto px-6 pb-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-8xl mx-auto">
           {stores.length > 0 ? (
             <div className="grid gap-5 justify-start" style={{ gridTemplateColumns: 'repeat(auto-fit, 400px)' }}>
               {stores.map((store) => (
