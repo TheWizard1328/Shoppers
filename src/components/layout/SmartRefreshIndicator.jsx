@@ -263,7 +263,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           data-offline-sync-button
           onClick={handleManualRefresh}
           disabled={isPaused}
-          className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors duration-200 hover:scale-110 relative ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-lg' : ''}`}
+          className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-lg' : ''}`}
           title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 
                  activeManager === 'smart' ? 'Smart Refresh active' : 
                  activeManager === 'offline' ? 'Offline Sync active' : 
@@ -313,7 +313,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       <button
         onClick={handleManualRefresh}
         disabled={isPaused}
-        className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors duration-200 hover:scale-110 relative ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-xl' : ''}`}
+        className={`w-6 h-6 min-w-6 min-h-6 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-xl' : ''}`}
         title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 
                activeManager === 'smart' ? 'Smart Refresh active' : 
                activeManager === 'offline' ? 'Offline Sync active' : 

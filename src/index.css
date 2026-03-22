@@ -176,6 +176,20 @@ nav a,
   min-height: 44px;
 }
 
+input[type="checkbox"],
+[role="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  aspect-ratio: 1 / 1;
+}
+
+[role="switch"] {
+  min-height: 20px !important;
+  min-width: 36px !important;
+}
+
 div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop-kind="delivery"]) {
   border-color: #16a34a !important;
   border-width: 3px !important;
