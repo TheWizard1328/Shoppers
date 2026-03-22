@@ -127,7 +127,7 @@ export default function StopCardCODCollection({
                 ref={(el) => codAmountInputRefs.current[index] = el}
                 type="text"
                 value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
-                onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)} className="pr-2 pl-5 text-base rounded-md h-10 w-full md:text-xs"
+                onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)} className="h-10 w-full pl-5 pr-2 text-sm md:text-xs rounded-md"
 
                 style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
                 placeholder="0.00"

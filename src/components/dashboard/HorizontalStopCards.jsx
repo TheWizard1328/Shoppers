@@ -524,7 +524,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   return (
     <div
-      ref={setRefs} className="flex gap-1 overflow-x-auto overflow-y-hidden items-end min-h-[70px] pointer-events-auto z-[300]"
+      ref={setRefs} className="flex gap-1 overflow-x-auto overflow-y-hidden items-end min-h-[70px] pointer-events-auto z-[200]"
       style={{
         position: 'static',
         display: 'flex',
