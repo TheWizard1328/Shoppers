@@ -95,7 +95,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
     sunday_am: { label: 'Sundays AM', driverIdField: 'sunday_am_driver_id', driverNameField: 'driver_sunday_am' },
     weekday_pm: { label: 'Weekdays PM', driverIdField: 'weekday_pm_driver_id', driverNameField: 'driver_weekday_pm' },
     saturday_pm: { label: 'Saturdays PM', driverIdField: 'saturday_pm_driver_id', driverNameField: 'saturday_pm_driver' },
-    sunday_pm: { label: 'Sundays PM', driverIdField: 'sunday_pm_driver_id', driverNameField: 'driver_sunday_pm' },
+    sunday_pm: { label: 'Sundays PM', driverIdField: 'sunday_pm_driver_id', driverNameField: 'driver_sunday_pm' }
   };
 
   const openSlotEditor = (slotKey) => {
@@ -113,7 +113,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
       const { Store } = await import('@/entities/Store');
       await Store.update(store.id, {
         [config.driverIdField]: editingSlotDriverId === 'null' ? null : editingSlotDriverId,
-        [config.driverNameField]: editingSlotDriverId === 'null' ? '' : (selectedDriver?.user_name || selectedDriver?.full_name || '')
+        [config.driverNameField]: editingSlotDriverId === 'null' ? '' : selectedDriver?.user_name || selectedDriver?.full_name || ''
       });
       const { invalidate } = await import('@/components/utils/dataManager');
       invalidate('Store');
@@ -269,10 +269,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                 setShowDatePicker(false);
                 setEditingDateType(null);
-                };
+              };
 
               return (
-                <div className="flex flex-wrap items-center gap-2 mb-4 p-2 rounded-lg" style={{ background: 'var(--bg-amber-50, #fffbeb)', border: '1px solid var(--border-amber-200, #fde68a)' }}>
+                <div className="px-2 rounded-lg flex flex-wrap items-center gap-2" style={{ background: 'var(--bg-amber-50, #fffbeb)', border: '1px solid var(--border-amber-200, #fde68a)' }}>
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id={`pays-fees-${store.id}`}
@@ -316,10 +316,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   {currentPeriod &&
                   <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
                       <PopoverTrigger asChild>
-                        <button
-                        className="text-xs flex items-center gap-1 ml-6 underline decoration-dotted"
-                        style={{ color: 'var(--text-amber-700, #b45309)' }}
-                        onClick={(e) => e.stopPropagation()}>
+                        <button className="text-xs flex items-center gap-1 ml-4 underline decoration-dotted"
+
+                      style={{ color: 'var(--text-amber-700, #b45309)' }}
+                      onClick={(e) => e.stopPropagation()}>
 
                           <Calendar className="w-3 h-3" />
                           (Effective: {formatEffectiveDate(currentPeriod.effective_date)} → {endPeriod ? formatEffectiveDate(endPeriod.effective_date) : 'Present'})
@@ -433,7 +433,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_am_enabled, store.weekday_am_driver_id || store.driver_weekday_am) }}
-                          onClick={(e) => { e.stopPropagation(); openSlotEditor('weekday_am'); }}>
+                          onClick={(e) => {e.stopPropagation();openSlotEditor('weekday_am');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
                           {store.weekday_am_enabled !== false && (store.weekday_am_driver_id || store.driver_weekday_am) ?
@@ -458,7 +458,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_am_enabled, store.saturday_am_driver_id || store.saturday_am_driver) }}
-                          onClick={(e) => { e.stopPropagation(); openSlotEditor('saturday_am'); }}>
+                          onClick={(e) => {e.stopPropagation();openSlotEditor('saturday_am');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Saturdays</div>
                           {store.saturday_am_enabled !== false && (store.saturday_am_driver_id || store.saturday_am_driver) ?
@@ -483,7 +483,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_am_enabled, store.sunday_am_driver_id || store.driver_sunday_am) }}
-                          onClick={(e) => { e.stopPropagation(); openSlotEditor('sunday_am'); }}>
+                          onClick={(e) => {e.stopPropagation();openSlotEditor('sunday_am');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
                           {store.sunday_am_enabled !== false && (store.sunday_am_driver_id || store.driver_sunday_am) ?
@@ -516,7 +516,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_pm_enabled, store.weekday_pm_driver_id || store.driver_weekday_pm) }}
-                          onClick={(e) => { e.stopPropagation(); openSlotEditor('weekday_pm'); }}>
+                          onClick={(e) => {e.stopPropagation();openSlotEditor('weekday_pm');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
                           {store.weekday_pm_enabled !== false && (store.weekday_pm_driver_id || store.driver_weekday_pm) ?
@@ -541,7 +541,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_pm_enabled, store.saturday_pm_driver_id || store.saturday_pm_driver) }}
-                          onClick={(e) => { e.stopPropagation(); openSlotEditor('saturday_pm'); }}>
+                          onClick={(e) => {e.stopPropagation();openSlotEditor('saturday_pm');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Saturdays</div>
                           {store.saturday_pm_enabled !== false && (store.saturday_pm_driver_id || store.saturday_pm_driver) ?
@@ -566,7 +566,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_pm_enabled, store.sunday_pm_driver_id || store.driver_sunday_pm) }}
-                          onClick={(e) => { e.stopPropagation(); openSlotEditor('sunday_pm'); }}>
+                          onClick={(e) => {e.stopPropagation();openSlotEditor('sunday_pm');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
                           {store.sunday_pm_enabled !== false && (store.sunday_pm_driver_id || store.driver_sunday_pm) ?
@@ -664,11 +664,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 </SelectTrigger>
                 <SelectContent className="z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <SelectItem value="null">No Driver</SelectItem>
-                  {(drivers || []).map((driver) => (
-                    <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
+                  {(drivers || []).map((driver) =>
+                  <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
                       {driver.user_name || driver.full_name}
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
             </div>
