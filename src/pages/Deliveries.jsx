@@ -3704,7 +3704,7 @@ export default function DeliveriesPage() {
                 </CardContent>
               </Card>
 
-              <div className="flex-1 flex flex-col min-h-0 px-4">
+              <div className="flex-1 flex flex-col min-h-0 px-4" style={{ paddingBottom: 'var(--bottom-nav-height, 0px)', boxSizing: 'border-box' }}>
                 {(isLoadingData || isLoadingStats) && driverCards.length === 0 ?
               <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
                     <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
@@ -3717,7 +3717,7 @@ export default function DeliveriesPage() {
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
                   </div> :
 
-              <div key={refreshKey} className="flex-1 w-full overflow-y-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start', paddingBottom: 'var(--bottom-nav-height, 0px)' }}>
+              <div key={refreshKey} className="flex-1 w-full overflow-y-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start' }}>
                   {driverCards.map((card) => {
                   const driverBadgeClass = getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status);
                   return (
