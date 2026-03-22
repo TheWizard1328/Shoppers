@@ -3479,11 +3479,12 @@ function Dashboard() {
     lastUserInteractionRef.current = Date.now();
 
     if (selectedCardId === delivery.id) {
-      // Card is being collapsed
       setSelectedCardId(null);
       setHighlightedCardId(null);
-
-      // Clear previous map state without triggering any repositioning
+      if (previousMapState?.center && Number.isFinite(previousMapState?.zoom)) {
+        setShouldFitBounds(null); setMapCenter(previousMapState.center); setMapZoom(previousMapState.zoom);
+        lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
+      }
       setPreviousMapState(null);
     } else {
       // Card is being expanded
@@ -3497,12 +3498,7 @@ function Dashboard() {
         }
       }
 
-      // CRITICAL: Save current map state (center, zoom, and bounds) to restore later
-      setPreviousMapState({
-        center: mapCenter,
-        zoom: mapZoom,
-        shouldFitBounds: shouldFitBounds
-      });
+      setPreviousMapState({ center: Array.isArray(mapCenter) ? [...mapCenter] : null, zoom: mapZoom });
 
       setSelectedCardId(delivery.id);
       setHighlightedCardId(delivery.id);
@@ -7081,8 +7077,8 @@ function Dashboard() {
             currentToNextPolyline={currentToNextPolyline}
             showBreadcrumbs={showBreadcrumbs}
             breadcrumbsData={breadcrumbsData}
-            center={mapCenter}
-            zoom={mapZoom}
+            center={mapCenter} zoom={mapZoom}
+            setMapCenter={setMapCenter} setMapZoom={setMapZoom}
             shouldFitBounds={shouldFitBounds}
             onBoundsFitted={() => setShouldFitBounds(null)}
             onMarkerClick={handleMarkerClick}
