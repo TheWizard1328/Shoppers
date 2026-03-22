@@ -539,7 +539,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         scrollSnapType: isMobile ? 'x mandatory' : 'none',
         scrollSnapStop: isMobile ? 'always' : 'normal',
         paddingLeft: isMobile ? 'calc(50% - 140px)' : '16px',
-        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px'
+        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px',
+        paddingBottom: hasBottomNav ? 'calc(var(--bottom-nav-height, 64px))' : undefined
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
