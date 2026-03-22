@@ -286,9 +286,8 @@ export default function AdminMetrics() {
     <div className="h-screen p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto h-full flex flex-col gap-6">
         {/* Header */}
-        <div className="shrink-0 space-y-6">
-          <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="shrink-0 space-y-4">
+          <div>
             <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
               Admin Metrics
             </h1>
@@ -304,8 +303,6 @@ export default function AdminMetrics() {
                 )}
               </SelectContent>
             </Select>
-
-
 
             <Select value={selectedYear} onValueChange={handleYearChange}>
               <SelectTrigger className="w-[120px] md:w-[140px]">
