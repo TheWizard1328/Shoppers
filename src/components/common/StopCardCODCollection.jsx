@@ -29,7 +29,7 @@ export default function StopCardCODCollection({
   isCompleting,
   setIsCompleting,
   onSelectionChange,
-  onClick,
+  onClick
 }) {
   const codAmountInputRefs = useRef([]);
 
@@ -80,36 +80,36 @@ export default function StopCardCODCollection({
   return (
     <AnimatePresence>
       {showCODCollection && codTotalRequired > 0 && !delivery.patient_id === false && !isStrippedForDriver && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          transition={{ duration: 0.2 }}
-          className="overflow-hidden rounded-md p-3 space-y-2 w-full"
-          style={{ background: 'var(--bg-slate-50)' }}
-          onClick={(e) => e.stopPropagation()}>
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: "auto" }}
+        exit={{ opacity: 0, height: 0 }}
+        transition={{ duration: 0.2 }}
+        className="overflow-hidden rounded-md p-3 space-y-2 w-full"
+        style={{ background: 'var(--bg-slate-50)' }}
+        onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm md:text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Collect COD Payments</span>
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={async (e) => {
-              e.stopPropagation();
-              setCodPayments([]);
-              if (onCODUpdate) {
-                try {
-                  await onCODUpdate(delivery.id, [], true);
-                } catch (error) {
-                  console.error('❌ [COD Clear] Failed:', error);
-                }
+            e.stopPropagation();
+            setCodPayments([]);
+            if (onCODUpdate) {
+              try {
+                await onCODUpdate(delivery.id, [], true);
+              } catch (error) {
+                console.error('❌ [COD Clear] Failed:', error);
               }
-              setShowCODCollection(false);
-            }}>
+            }
+            setShowCODCollection(false);
+          }}>
               <X className="w-3 h-3" />
             </Button>
           </div>
 
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {codPayments.map((payment, index) =>
-              <div key={index} className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => { if (open) setShowCODCollection(true); }}>
+          <div key={index} className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => {if (open) setShowCODCollection(true);}}>
                   <SelectTrigger className="h-7 text-sm md:text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
@@ -124,25 +124,25 @@ export default function StopCardCODCollection({
                 <div className="relative flex-1">
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm md:text-xs" style={{ color: 'var(--text-slate-500)' }}>$</span>
                   <input
-                    ref={(el) => codAmountInputRefs.current[index] = el}
-                    type="text"
-                    value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
-                    onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)}
-                    className="h-7 w-full pl-5 pr-2 text-sm md:text-xs rounded-md"
-                    style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-                    placeholder="0.00"
-                    onClick={(e) => e.stopPropagation()}
-                    onFocus={(e) => e.target.select()} />
+                ref={(el) => codAmountInputRefs.current[index] = el}
+                type="text"
+                value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
+                onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)} className="h-10 w-full pl-5 pr-2 text-sm md:text-xs rounded-md"
+
+                style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+                placeholder="0.00"
+                onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.target.select()} />
                 </div>
 
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600 hover:text-red-800" onClick={(e) => { e.stopPropagation(); handleRemoveCODPayment(index); }}>
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600 hover:text-red-800" onClick={(e) => {e.stopPropagation();handleRemoveCODPayment(index);}}>
                   <X className="w-3 h-3" />
                 </Button>
               </div>
-            )}
+          )}
           </div>
 
-          <Button size="sm" variant="outline" className="w-full h-7 text-sm md:text-xs" onClick={(e) => { e.stopPropagation(); handleAddCODPayment(); }}>
+          <Button size="sm" variant="outline" className="w-full h-7 text-sm md:text-xs" onClick={(e) => {e.stopPropagation();handleAddCODPayment();}}>
             <Plus className="w-3 h-3 mr-1" />
             Add Payment
           </Button>
@@ -157,95 +157,95 @@ export default function StopCardCODCollection({
             </div>
 
             <Button
-              size="sm"
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700"
-              onClick={async (e) => {
-                e.stopPropagation();
-                if (!onCODUpdate) return;
-                try {
-                  setIsCompleting(true);
-                  const isAlreadyCompleted = delivery.status === 'completed';
+            size="sm"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700"
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (!onCODUpdate) return;
+              try {
+                setIsCompleting(true);
+                const isAlreadyCompleted = delivery.status === 'completed';
 
-                  if (isAlreadyCompleted) {
-                    await onCODUpdate(delivery.id, codPayments, true);
-                    setShowCODCollection(false);
-                  } else {
-                    fabControlEvents.deactivateFAB();
-                    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                    driverLocationPoller.pause();
+                if (isAlreadyCompleted) {
+                  await onCODUpdate(delivery.id, codPayments, true);
+                  setShowCODCollection(false);
+                } else {
+                  fabControlEvents.deactivateFAB();
+                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                  driverLocationPoller.pause();
 
-                    await onCODUpdate(delivery.id, codPayments, true);
-                    setShowCODCollection(false);
+                  await onCODUpdate(delivery.id, codPayments, true);
+                  setShowCODCollection(false);
 
-                    const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
+                  const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
 
-                    const completionUpdate = {
-                      status: 'completed',
-                      actual_delivery_time: localTimeString,
-                      isNextDelivery: false,
-                      cod_payments: codPayments
-                    };
+                  const completionUpdate = {
+                    status: 'completed',
+                    actual_delivery_time: localTimeString,
+                    isNextDelivery: false,
+                    cod_payments: codPayments
+                  };
 
-                    await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
-                    runTerminalDeliverySideEffects({
-                      delivery,
-                      previousStatus: delivery.status,
-                      nextStatus: 'completed',
-                      overrides: completionUpdate
-                    });
+                  await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
+                  runTerminalDeliverySideEffects({
+                    delivery,
+                    previousStatus: delivery.status,
+                    nextStatus: 'completed',
+                    overrides: completionUpdate
+                  });
 
-                    const driverDeliveries = allDeliveries.filter(d =>
-                      d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                    );
-                    const incompleteDeliveries = driverDeliveries.filter(d =>
-                      d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
-                    ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                  const driverDeliveries = allDeliveries.filter((d) =>
+                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                  );
+                  const incompleteDeliveries = driverDeliveries.filter((d) =>
+                  d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+                  ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-                    if (incompleteDeliveries.length > 0) {
-                      await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
-                      window._suppressAutoCenterUntil = Date.now() + 1500;
-                      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                      setTimeout(() => {
-                        const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
-                        if (nextCardElement) nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                      }, 100);
-                    } else {
-                      fabControlEvents.notifyDoneButtonClicked();
-                      window.dispatchEvent(new CustomEvent('showRouteSummary', {
-                        detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                      }));
-                    }
-
+                  if (incompleteDeliveries.length > 0) {
+                    await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                    window._suppressAutoCenterUntil = Date.now() + 1500;
+                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                     setTimeout(() => {
-                      if ((window._suppressAutoCenterUntil || 0) > Date.now()) return;
-                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                        detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                      }));
-                    }, 300);
-
-                    if (onSelectionChange) {
-                      onSelectionChange(delivery.id, false);
-                    } else if (onClick) {
-                      onClick(null);
-                    }
-
-                    driverLocationPoller.resume();
-                    fabControlEvents.reactivateFAB(true);
+                      const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
+                      if (nextCardElement) nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    }, 100);
+                  } else {
+                    fabControlEvents.notifyDoneButtonClicked();
+                    window.dispatchEvent(new CustomEvent('showRouteSummary', {
+                      detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                    }));
                   }
-                } catch (error) {
-                  console.error('❌ Failed to save COD:', error);
+
+                  setTimeout(() => {
+                    if ((window._suppressAutoCenterUntil || 0) > Date.now()) return;
+                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                      detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                    }));
+                  }, 300);
+
+                  if (onSelectionChange) {
+                    onSelectionChange(delivery.id, false);
+                  } else if (onClick) {
+                    onClick(null);
+                  }
+
+                  driverLocationPoller.resume();
                   fabControlEvents.reactivateFAB(true);
-                } finally {
-                  setIsCompleting(false);
                 }
-              }}
-              disabled={codPayments.length === 0 || isCompleting}>
+              } catch (error) {
+                console.error('❌ Failed to save COD:', error);
+                fabControlEvents.reactivateFAB(true);
+              } finally {
+                setIsCompleting(false);
+              }
+            }}
+            disabled={codPayments.length === 0 || isCompleting}>
               {isCompleting ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : delivery.status === 'completed' ? <Save className="w-3 h-3 mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
               {delivery.status === 'completed' ? 'Save' : 'Save & Complete'}
             </Button>
           </div>
         </motion.div>
       }
-    </AnimatePresence>
-  );
+    </AnimatePresence>);
+
 }
