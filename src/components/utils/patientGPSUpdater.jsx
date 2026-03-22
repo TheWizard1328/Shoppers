@@ -72,16 +72,43 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
     const store = Array.isArray(stores) ? stores.find((s) => s && s.id === storeId) : null;
     if (!store?.latitude || !store?.longitude) throw new Error("Selected store has no coordinates");
 
-    // 1) Fresh location from device
-    const fresh = await getFreshDeviceLocation();
+    const hasCrosshairCoords = Number.isFinite(mapCrosshairCoords?.latitude) && Number.isFinite(mapCrosshairCoords?.longitude);
 
-    // 2) Compute distance from store
-    const distanceKm = haversineKm(store.latitude, store.longitude, fresh.latitude, fresh.longitude);
+    // 1) Fresh location from device unless crosshair is explicitly preferred
+    const fresh = preferCrosshair && hasCrosshairCoords ? null : await getFreshDeviceLocation();
 
-    // 3) Update ONLY the selected patient
+    // 2) Choose best coordinates
+    let nextLatitude = fresh?.latitude;
+    let nextLongitude = fresh?.longitude;
+    let updateSource = 'device';
+
+    if (hasCrosshairCoords && preferCrosshair) {
+      nextLatitude = mapCrosshairCoords.latitude;
+      nextLongitude = mapCrosshairCoords.longitude;
+      updateSource = 'crosshair';
+    } else if (
+      hasCrosshairCoords &&
+      fresh &&
+      Number.isFinite(currentPatientCoords?.latitude) &&
+      Number.isFinite(currentPatientCoords?.longitude) &&
+      haversineKm(fresh.latitude, fresh.longitude, currentPatientCoords.latitude, currentPatientCoords.longitude) > 0.1
+    ) {
+      nextLatitude = mapCrosshairCoords.latitude;
+      nextLongitude = mapCrosshairCoords.longitude;
+      updateSource = 'crosshair';
+    }
+
+    if (!Number.isFinite(nextLatitude) || !Number.isFinite(nextLongitude)) {
+      throw new Error('No valid coordinates available for GPS update');
+    }
+
+    // 3) Compute distance from store
+    const distanceKm = haversineKm(store.latitude, store.longitude, nextLatitude, nextLongitude);
+
+    // 4) Update ONLY the selected patient
     await base44.entities.Patient.update(patientId, {
-      latitude: fresh.latitude,
-      longitude: fresh.longitude,
+      latitude: nextLatitude,
+      longitude: nextLongitude,
       distance_from_store: distanceKm,
     });
 
