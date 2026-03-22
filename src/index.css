@@ -152,9 +152,28 @@ button:focus-visible {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.text-xs {
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+}
+
+button,
+[role="button"],
+input,
+select,
+textarea,
+nav a,
+[cmdk-item],
+[role="option"] {
+  min-height: 44px;
 }
 
 div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop-kind="delivery"]) {

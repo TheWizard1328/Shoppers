@@ -3,15 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { createPageUrl } from '@/utils';
-import { 
-  User, 
-  Bell, 
-  Moon, 
-  Smartphone, 
-  Trash2, 
-  AlertTriangle,
+import {
+  User,
+  Bell,
+  Moon,
+  Smartphone,
   LogOut,
-  ChevronRight
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUser } from '@/components/utils/UserContext';
@@ -75,13 +73,23 @@ export default function Settings() {
   return (
     <div className="h-full overflow-y-auto pb-20" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-2xl mx-auto p-4 space-y-4">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text-slate-900)' }}>
-            Settings
-          </h1>
-          <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>
-            Manage your account and preferences
-          </p>
+        <div className="mb-6 space-y-3">
+          <div>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text-slate-900)' }}>
+              Settings
+            </h1>
+            <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>
+              Manage your account, devices, and privacy preferences.
+            </p>
+          </div>
+
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <CardContent className="p-4">
+              <p className="text-sm leading-6" style={{ color: 'var(--text-slate-600)' }}>
+                Account deletion is available below in the Danger Zone and clearly explains what will be removed before you confirm.
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {settingsSections.map((section) => {
@@ -89,7 +97,7 @@ export default function Settings() {
           return (
             <Card key={section.title} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
+                <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
                   <SectionIcon className="w-4 h-4" />
                   {section.title}
                 </CardTitle>
@@ -111,7 +119,7 @@ export default function Settings() {
                         {item.label}
                       </p>
                       {item.description && (
-                        <p className="text-xs truncate" style={{ color: 'var(--text-slate-500)' }}>
+                        <p className="text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>
                           {item.description}
                         </p>
                       )}

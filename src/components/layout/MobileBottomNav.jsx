@@ -1,7 +1,8 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { userHasRole } from '@/components/utils/userRoles';
+import { useMobileNavigation } from '@/components/navigation/MobileNavigationProvider';
 import {
   LayoutDashboard,
   Users,
@@ -13,10 +14,10 @@ import {
   Menu,
 } from 'lucide-react';
 
-const PAGE_SCROLL_POSITIONS = {};
-
 export default function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle }) {
   const scrollRef = React.useRef(null);
+  const location = useLocation();
+  const { activeTab, currentPath, navigateToTab, saveScrollPosition, getScrollPosition } = useMobileNavigation();
 
   if (!currentUser) return null;
 
@@ -28,51 +29,51 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
 
   if (isDriver && !isAdmin) {
     navItems = [
-      { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard },
-      { name: 'Routes', page: 'Deliveries', icon: Package },
+      { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
+      { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
       { name: 'Messages', action: 'messaging', icon: MessageCircle },
-      { name: 'Square COD', page: 'SquareManagement', icon: CreditCard },
-      { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign },
-      { name: 'Settings', page: 'DeviceSettings', icon: Settings },
+      { name: 'Square COD', page: 'SquareManagement', icon: CreditCard, tabKey: 'square' },
+      { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign, tabKey: 'payroll' },
+      { name: 'Settings', page: 'Settings', icon: Settings, tabKey: 'settings' },
     ];
   } else if (isDispatcher && !isAdmin) {
     navItems = [
-      { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard },
-      { name: 'Patients', page: 'Patients', icon: Users },
-      { name: 'Routes', page: 'Deliveries', icon: Package },
+      { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
+      { name: 'Patients', page: 'Patients', icon: Users, tabKey: 'patients' },
+      { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
       { name: 'Messages', action: 'messaging', icon: MessageCircle },
-      { name: 'Settings', page: 'DeviceSettings', icon: Settings },
+      { name: 'Settings', page: 'Settings', icon: Settings, tabKey: 'settings' },
     ];
   } else if (isAdmin) {
     navItems = [
-      { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard },
-      { name: 'Patients', page: 'Patients', icon: Users },
-      { name: 'Routes', page: 'Deliveries', icon: Package },
+      { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
+      { name: 'Patients', page: 'Patients', icon: Users, tabKey: 'patients' },
+      { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
       { name: 'Messages', action: 'messaging', icon: MessageCircle },
-      { name: 'Square COD', page: 'SquareManagement', icon: CreditCard },
-      { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign },
-      { name: 'Settings', page: 'DeviceSettings', icon: Settings },
+      { name: 'Square COD', page: 'SquareManagement', icon: CreditCard, tabKey: 'square' },
+      { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign, tabKey: 'payroll' },
+      { name: 'Settings', page: 'Settings', icon: Settings, tabKey: 'settings' },
     ];
   }
 
   React.useEffect(() => {
     return () => {
       const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
-      if (mainContent && currentPageName) {
-        PAGE_SCROLL_POSITIONS[currentPageName] = mainContent.scrollTop;
+      if (mainContent) {
+        saveScrollPosition(currentPath, mainContent.scrollTop);
       }
     };
-  }, [currentPageName]);
+  }, [currentPath, saveScrollPosition]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
       const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
-      if (mainContent && PAGE_SCROLL_POSITIONS[currentPageName]) {
-        mainContent.scrollTop = PAGE_SCROLL_POSITIONS[currentPageName];
+      if (mainContent) {
+        mainContent.scrollTop = getScrollPosition(currentPath);
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, [currentPageName]);
+  }, [currentPath, getScrollPosition]);
 
 
 
@@ -105,11 +106,11 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
         >
           {navItems.map((item) => {
             const isMessagingItem = item.action === 'messaging';
-            const isActive = !isMessagingItem && currentPageName === item.page;
+            const isActive = !isMessagingItem && activeTab === item.tabKey;
             const Icon = item.icon;
             const visibleTabs = Math.min(navItems.length, 4);
             const sharedProps = {
-              className: 'flex flex-col items-center justify-center py-2 px-2 flex-shrink-0 transition-colors',
+              className: 'flex min-h-14 flex-col items-center justify-center px-2 py-2 flex-shrink-0 transition-colors',
               style: {
                 minWidth: `calc((100vw - 56px) / ${visibleTabs})`,
                 color: isActive ? '#10b981' : 'var(--text-slate-500)',
@@ -126,7 +127,7 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
                 >
                   <Icon className="w-5 h-5 mb-0.5" style={{ color: 'var(--text-slate-500)' }} />
                   <span
-                    className="text-xs font-medium truncate"
+                    className="text-sm font-medium truncate"
                     style={{ color: 'var(--text-slate-500)', maxWidth: '80px' }}
                   >
                     {item.name}
@@ -136,15 +137,17 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
             }
 
             return (
-              <Link
+              <button
                 key={item.name}
-                to={createPageUrl(item.page)}
+                type="button"
                 {...sharedProps}
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => {
                   const mainContent = document.querySelector('main') || document.querySelector('[data-page-content]');
-                  if (mainContent && currentPageName) {
-                    PAGE_SCROLL_POSITIONS[currentPageName] = mainContent.scrollTop;
+                  if (mainContent) {
+                    saveScrollPosition(currentPath, mainContent.scrollTop);
                   }
+                  navigateToTab(item.tabKey, createPageUrl(item.page));
                 }}
               >
                 <Icon
@@ -152,13 +155,13 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
                   style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)' }}
                 />
                 <span
-                  className="text-xs font-medium truncate"
+                  className="text-sm font-medium truncate"
                   style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)', maxWidth: '80px' }}
                 >
                   {item.name}
                 </span>
                 {isActive && <div className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5" />}
-              </Link>
+              </button>
             );
           })}
         </div>

@@ -9,6 +9,7 @@ import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { MobileNavigationProvider } from '@/components/navigation/MobileNavigationProvider';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import SquareSyncAudit from '@/pages/SquareSyncAudit';
 
@@ -111,8 +112,10 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
-          <NavigationTracker />
-          <AuthenticatedApp />
+          <MobileNavigationProvider>
+            <NavigationTracker />
+            <AuthenticatedApp />
+          </MobileNavigationProvider>
         </Router>
         <Toaster />
         <VisualEditAgent />
