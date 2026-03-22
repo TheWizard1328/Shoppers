@@ -3769,7 +3769,7 @@ export default function DeliveriesPage() {
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', minHeight: '230px', minWidth: '280px', display: 'flex', flexDirection: 'column' }}
                       onClick={() => handleDriverCardClick(card.driver)}>
 
-                        <CardHeader className="pb-2">
+                        <CardHeader className="px-6 py-2 flex flex-col space-y-1.5">
                           <CardTitle className="text-base flex items-center justify-between">
                             <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
                               {card.firstName}
@@ -3784,8 +3784,8 @@ export default function DeliveriesPage() {
                             </Badge>
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-3 pr-3 pb-3 pl-3 flex-1 flex flex-col">
-                          <div className="mb-3 min-h-[56px] md:min-h-[40px] flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
+                        <CardContent className="px-4 py-3 flex-1 flex flex-col">
+                          <div className="mb-3 flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
                             {card.todayStats && card.todayStats.total > 0 ?
                           <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
                                 <span className="text-blue-600">Active: {card.todayStats.active}</span>
