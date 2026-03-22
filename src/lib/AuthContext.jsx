@@ -5,7 +5,7 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 
 const AuthContext = createContext();
 
-const getAppReturnUrl = () => `${window.location.pathname}${window.location.search}${window.location.hash}`;
+const getAppReturnUrl = () => `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
