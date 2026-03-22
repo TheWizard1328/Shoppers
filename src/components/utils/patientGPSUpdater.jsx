@@ -116,9 +116,10 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
       window.dispatchEvent(new CustomEvent('patientGpsUpdated', {
         detail: {
           patientId,
-          latitude: fresh.latitude,
-          longitude: fresh.longitude,
+          latitude: nextLatitude,
+          longitude: nextLongitude,
           distance_from_store: distanceKm,
+          source: updateSource,
           updatedCount: 1,
           patients: [],
         }
