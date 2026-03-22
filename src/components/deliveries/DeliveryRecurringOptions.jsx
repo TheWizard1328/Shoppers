@@ -73,7 +73,7 @@ export default function DeliveryRecurringOptions({
           { value: 'bi-monthly', label: 'Bi-Monthly' },
         ].map(({ value, label }) => (
           <div key={value} className="flex items-center space-x-2">
-            <RadioGroupItem value={value} id={value} disabled={!formData.recurring || isSaving} />
+            <RadioGroupItem value={value} id={value} disabled={!formData.recurring || isSaving} className="h-4 w-4 min-h-4 min-w-4 rounded-full" />
             <Label htmlFor={value} className={`text-sm cursor-pointer ${!formData.recurring ? 'text-slate-400' : ''}`}>{label}</Label>
           </div>
         ))}
