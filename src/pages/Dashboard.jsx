@@ -7112,7 +7112,7 @@ function Dashboard() {
 
         <div
           ref={stopCardsContainerRef}
-          className="horizontal-cards-container absolute right-0 z-[700] px-4 pb-1 pointer-events-none flex flex-col justify-end max-h-[80vh]"
+          className="horizontal-cards-container absolute right-0 z-[700] px-4 pb-0 pointer-events-none flex flex-col justify-end max-h-[80vh]"
           style={{ left: isSnapshotModeActive ? '5rem' : '0', bottom: isMobile ? 'var(--bottom-nav-height)' : '0' }}
           onClick={() => {
             if (retractClustersRef.current) {
