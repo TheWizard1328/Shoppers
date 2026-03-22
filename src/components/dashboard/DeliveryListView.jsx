@@ -285,7 +285,7 @@ const DeliveryRow = memo(({
 
 DeliveryRow.displayName = 'DeliveryRow';
 
-const MOBILE_ROW_HEIGHT = 156;
+const MOBILE_ROW_HEIGHT = 164;
 const DESKTOP_ROW_HEIGHT = 76;
 const DESKTOP_LIST_WIDTH = 1400;
 const DESKTOP_BULK_LIST_WIDTH = 1456;
