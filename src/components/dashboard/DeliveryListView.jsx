@@ -563,8 +563,8 @@ const DeliveryListView = ({
         {/* Scrollable List */}
         <div
           ref={bodyScrollRef}
-          onScroll={syncBodyScroll} className="flex-1 min-h-0 min-w-0 max-h-auto max-w-auto overflow-x-auto overflow-y-hidden">
-          
+          onScroll={syncBodyScroll}
+          className="flex-1 min-h-0 min-w-0 h-full w-full max-h-full max-w-full overflow-x-auto overflow-y-hidden">
           {deliveries.length === 0 ?
           <div className="flex items-center justify-center h-32 text-slate-500">
               No deliveries found

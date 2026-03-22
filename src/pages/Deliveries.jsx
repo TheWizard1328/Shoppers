@@ -3853,7 +3853,7 @@ export default function DeliveriesPage() {
                 </Card>
             }
 
-              <div className="flex-1 min-h-0 max-h-full overflow-y-auto">
+              <div className="flex-1 min-h-0 min-w-0 h-full max-h-full w-full max-w-full overflow-hidden">
                 {renderDeliveries(filteredAndSortedDeliveries)}
               </div>
             </>
