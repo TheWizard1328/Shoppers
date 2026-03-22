@@ -45,12 +45,14 @@ export default function StoresPage() {
 
     // Listen for store updates from StoreCard (app fees checkbox, etc.)
     const handleStoreUpdated = async (event) => {
-      const { storeId } = event.detail || {};
-      if (storeId) {
-        // Fetch fresh store data
-        const freshStores = await getData('Store', null, null, true);
-        setStores(sortStores(freshStores || []));
+      const { storeId, updatedStore } = event.detail || {};
+      if (!storeId) return;
+      if (updatedStore) {
+        setStores(prev => sortStores(prev.map(store => store.id === storeId ? { ...store, ...updatedStore } : store)));
+        return;
       }
+      const freshStores = await getData('Store', null, null, true);
+      setStores(sortStores(freshStores || []));
     };
     window.addEventListener('storeUpdated', handleStoreUpdated);
     return () => {
