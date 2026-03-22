@@ -15,7 +15,6 @@ import {
 
 export default function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle }) {
   const scrollRef = React.useRef(null);
-  const location = useLocation();
   const { activeTab, currentPath, navigateToTab, saveScrollPosition, getScrollPosition } = useMobileNavigation();
 
   if (!currentUser) return null;
