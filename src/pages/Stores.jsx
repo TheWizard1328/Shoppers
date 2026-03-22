@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { getData, invalidate } from "../components/utils/dataManager";
 import { createStoreLocal, updateStoreLocal, deleteStoreLocal } from "../components/utils/offlineMutations";
+import { offlineDB } from "../components/utils/offlineDatabase";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { sortStores } from "../components/utils/sorting";
 import { mergeUsersWithAppUsers } from "../components/utils/driverUtils";
@@ -67,10 +68,17 @@ export default function StoresPage() {
       console.log(`📡 [Stores] WebSocket: Store ${event.id} ${event.type}`);
       if (event.type === 'create') {
         setStores(prev => sortStores([...prev.filter(s => s.id !== event.id), event.data]));
+        if (event.data) {
+          offlineDB.bulkSave(offlineDB.STORES.STORES, [event.data]).catch(() => {});
+        }
       } else if (event.type === 'update') {
         setStores(prev => sortStores(prev.map(s => s.id === event.id ? { ...s, ...event.data } : s)));
+        if (event.data) {
+          offlineDB.bulkSave(offlineDB.STORES.STORES, [event.data]).catch(() => {});
+        }
       } else if (event.type === 'delete') {
         setStores(prev => prev.filter(s => s.id !== event.id));
+        offlineDB.deleteRecord(offlineDB.STORES.STORES, event.id).catch(() => {});
       }
     });
     return unsubscribe;
