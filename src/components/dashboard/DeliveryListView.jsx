@@ -527,14 +527,14 @@ const DeliveryListView = ({
   return (
     <>
       <style>{`.delivery-list-header-scroll{scrollbar-width:none;-ms-overflow-style:none;}.delivery-list-header-scroll::-webkit-scrollbar{display:none;}`}</style>
-      <div className="h-full min-h-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-white)' }}>
+      <div className="h-full max-h-full w-full max-w-full min-h-0 min-w-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
-        <div className="flex-shrink-0 border-b z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+        <div className="sticky top-0 flex-shrink-0 border-b z-20" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {!isMobile &&
           <div
             ref={headerScrollRef}
             onScroll={syncHeaderScroll}
-            className="delivery-list-header-scroll overflow-x-auto overflow-y-hidden">
+            className="delivery-list-header-scroll max-w-full overflow-x-auto overflow-y-hidden">
             
               <div className={`${bulkEditMode ? 'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]' : 'grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px]'} gap-2 px-4 py-3 text-sm font-semibold`} style={{ color: 'var(--text-slate-700)' }}>
                 {bulkEditMode &&
@@ -564,7 +564,7 @@ const DeliveryListView = ({
         <div
           ref={bodyScrollRef}
           onScroll={syncBodyScroll}
-          className="flex-1 min-h-0 max-h-full overflow-x-auto overflow-y-hidden">
+          className="flex-1 min-h-0 min-w-0 max-h-full max-w-full overflow-x-auto overflow-y-hidden">
           {deliveries.length === 0 ?
           <div className="flex items-center justify-center h-32 text-slate-500">
               No deliveries found
