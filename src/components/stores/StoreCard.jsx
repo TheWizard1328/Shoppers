@@ -432,7 +432,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <div className="grid grid-cols-3 gap-4">
                         {/* Weekdays AM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_am_enabled, store.weekday_am_driver_id || store.driver_weekday_am) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('weekday_am');}}>
 
@@ -457,7 +457,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Saturdays AM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_am_enabled, store.saturday_am_driver_id || store.saturday_am_driver) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('saturday_am');}}>
 
@@ -482,7 +482,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Sundays AM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_am_enabled, store.sunday_am_driver_id || store.driver_sunday_am) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('sunday_am');}}>
 
@@ -515,7 +515,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <div className="grid grid-cols-3 gap-4">
                         {/* Weekdays PM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_pm_enabled, store.weekday_pm_driver_id || store.driver_weekday_pm) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('weekday_pm');}}>
 
@@ -540,7 +540,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Saturdays PM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_pm_enabled, store.saturday_pm_driver_id || store.saturday_pm_driver) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('saturday_pm');}}>
 
@@ -565,7 +565,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Sundays PM */}
                         <div
-                          className="p-2 rounded space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_pm_enabled, store.sunday_pm_driver_id || store.driver_sunday_pm) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('sunday_pm');}}>
 
