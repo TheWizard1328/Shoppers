@@ -200,9 +200,9 @@ export default function DeliveryFormView({
           {/* Header */}
           <CardHeader className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className={`flex ${useMobileLayout && isMobileDevice ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}>
                 <Package className="w-5 h-5 text-emerald-600" />
-                <div className="flex items-center gap-2">
+                <div className={`flex items-center gap-2 ${useMobileLayout && isMobileDevice ? 'w-full' : ''}`}>
                   <CardTitle className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                     {delivery ? isPickupMode ? 'Edit Pickup' : 'Edit Delivery' : 'Add To Route'}
                   </CardTitle>
@@ -220,7 +220,7 @@ export default function DeliveryFormView({
                   })()}
                 </div>
                 {!delivery &&
-                <div className="flex gap-2 ml-4">
+                <div className={`flex gap-2 ${useMobileLayout && isMobileDevice ? 'ml-0 w-full flex-wrap' : 'ml-4'}`}>
                     <Button type="button" size="sm" onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(false);}} className={!isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
                       Add Delivery
                     </Button>
