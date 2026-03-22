@@ -273,7 +273,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
               };
 
               return (
-                <div className="px-2 rounded-lg flex flex-wrap items-center gap-2" style={{ background: 'var(--bg-amber-50, #fffbeb)', border: '1px solid var(--border-amber-200, #fde68a)' }}>
+                <div className="px-2 rounded-lg flex flex-wrap items-center gap-2 min-h-[60px]" style={{ background: 'var(--bg-amber-50, #fffbeb)', border: '1px solid var(--border-amber-200, #fde68a)' }}>
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id={`pays-fees-${store.id}`}
