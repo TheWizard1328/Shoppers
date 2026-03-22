@@ -89,17 +89,23 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
   const currentStoreColor = editableStore.color || displayColor;
 
   const slotConfig = {
-    weekday_am: { label: 'Weekdays AM', driverIdField: 'weekday_am_driver_id', driverNameField: 'weekday_am_driver' },
-    saturday_am: { label: 'Saturdays AM', driverIdField: 'saturday_am_driver_id', driverNameField: 'saturday_am_driver' },
-    sunday_am: { label: 'Sundays AM', driverIdField: 'sunday_am_driver_id', driverNameField: 'sunday_am_driver' },
-    weekday_pm: { label: 'Weekdays PM', driverIdField: 'weekday_pm_driver_id', driverNameField: 'weekday_pm_driver' },
-    saturday_pm: { label: 'Saturdays PM', driverIdField: 'saturday_pm_driver_id', driverNameField: 'saturday_pm_driver' },
-    sunday_pm: { label: 'Sundays PM', driverIdField: 'sunday_pm_driver_id', driverNameField: 'sunday_pm_driver' }
+    weekday_am: { label: 'Weekdays AM', driverIdField: 'weekday_am_driver_id', driverNameField: 'weekday_am_driver', startField: 'weekday_am_start', endField: 'weekday_am_end' },
+    saturday_am: { label: 'Saturdays AM', driverIdField: 'saturday_am_driver_id', driverNameField: 'saturday_am_driver', startField: 'saturday_am_start', endField: 'saturday_am_end' },
+    sunday_am: { label: 'Sundays AM', driverIdField: 'sunday_am_driver_id', driverNameField: 'sunday_am_driver', startField: 'sunday_am_start', endField: 'sunday_am_end' },
+    weekday_pm: { label: 'Weekdays PM', driverIdField: 'weekday_pm_driver_id', driverNameField: 'weekday_pm_driver', startField: 'weekday_pm_start', endField: 'weekday_pm_end' },
+    saturday_pm: { label: 'Saturdays PM', driverIdField: 'saturday_pm_driver_id', driverNameField: 'saturday_pm_driver', startField: 'saturday_pm_start', endField: 'saturday_pm_end' },
+    sunday_pm: { label: 'Sundays PM', driverIdField: 'sunday_pm_driver_id', driverNameField: 'sunday_pm_driver', startField: 'sunday_pm_start', endField: 'sunday_pm_end' }
+  };
+
+  const canQuickEditSlot = (slotKey) => {
+    const config = slotConfig[slotKey];
+    if (!config) return false;
+    return !!((store[config.driverIdField] || store[config.driverNameField]) && store[config.startField] && store[config.endField]);
   };
 
   const openSlotEditor = (slotKey) => {
     const config = slotConfig[slotKey];
-    if (!config) return;
+    if (!config || !canQuickEditSlot(slotKey)) return;
     setEditingSlot(slotKey);
     setEditingSlotDriverId(store[config.driverIdField] || 'null');
   };
@@ -425,7 +431,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <div className="grid grid-cols-3 gap-4">
                         {/* Weekdays AM */}
                         <div
-                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${canQuickEditSlot('weekday_am') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_am_enabled, store.weekday_am_driver_id || store.driver_weekday_am) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('weekday_am');}}>
 
@@ -450,7 +456,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Saturdays AM */}
                         <div
-                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${canQuickEditSlot('saturday_am') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_am_enabled, store.saturday_am_driver_id || store.saturday_am_driver) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('saturday_am');}}>
 
@@ -475,7 +481,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Sundays AM */}
                         <div
-                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${canQuickEditSlot('sunday_am') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_am_enabled, store.sunday_am_driver_id || store.driver_sunday_am) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('sunday_am');}}>
 
@@ -508,7 +514,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <div className="grid grid-cols-3 gap-4">
                         {/* Weekdays PM */}
                         <div
-                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${canQuickEditSlot('weekday_pm') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_pm_enabled, store.weekday_pm_driver_id || store.driver_weekday_pm) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('weekday_pm');}}>
 
@@ -533,7 +539,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Saturdays PM */}
                         <div
-                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${canQuickEditSlot('saturday_pm') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_pm_enabled, store.saturday_pm_driver_id || store.saturday_pm_driver) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('saturday_pm');}}>
 
@@ -558,7 +564,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Sundays PM */}
                         <div
-                          className="p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 cursor-pointer hover:ring-1 hover:ring-emerald-400"
+                          className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${canQuickEditSlot('sunday_pm') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_pm_enabled, store.sunday_pm_driver_id || store.driver_sunday_pm) }}
                           onClick={(e) => {e.stopPropagation();openSlotEditor('sunday_pm');}}>
 
