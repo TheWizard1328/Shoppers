@@ -90,6 +90,19 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);const isExpanded = isStrippedForDispatcher ? false : compact ? false : isSelected;
   useEffect(() => {setNotesInput(delivery?.delivery_notes || "No driver notes");}, [delivery?.delivery_notes]);
   useEffect(() => {if (!showCODCollection) setCodPayments(delivery?.cod_payments || []);}, [delivery?.cod_payments, showCODCollection]);
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let isMounted = true;
+    getCurrentDevice(currentUser.id).then((device) => {
+      if (!isMounted) return;
+      setIsPrimaryDevice(device === null || device?.status !== 'inactive' && device?.is_primary_tracker !== false);
+    }).catch(() => {
+      if (isMounted) setIsPrimaryDevice(true);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id]);
   const patient = useMemo(() => {if (!delivery?.patient_id || !patients || patients.length === 0) return null;return patients.find((p) => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id));}, [delivery?.patient_id, patients]);
   const isPickup = useMemo(() => {if (!delivery) return false;return !delivery.patient_id && !!delivery.store_id;}, [delivery?.patient_id, delivery?.store_id]);
   const availableTransferPickups = useMemo(() => {if (!delivery || !isPickup) return [];return allDeliveries?.filter((d) => d && !d.patient_id && d.store_id === delivery.store_id && d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id && d.id !== delivery.id && d.status !== 'completed' && d.status !== 'cancelled') || [];}, [delivery, allDeliveries, isPickup]);
