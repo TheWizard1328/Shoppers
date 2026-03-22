@@ -524,14 +524,14 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   return (
     <div
-      ref={setRefs} className="flex gap-1 overflow-x-auto overflow-y-hidden items-end min-h-[70px] pointer-events-auto z-[200]"
+      ref={setRefs} className="flex gap-1 overflow-x-auto overflow-y-visible items-end min-h-[70px] pointer-events-auto z-[200]"
       style={{
         position: 'static',
         display: 'flex',
         height: 'auto',
         minHeight: '70px',
         overflowX: 'auto',
-        overflowY: 'hidden',
+        overflowY: 'visible',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
@@ -539,8 +539,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         scrollSnapType: isMobile ? 'x mandatory' : 'none',
         scrollSnapStop: isMobile ? 'always' : 'normal',
         paddingLeft: isMobile ? 'calc(50% - 140px)' : '16px',
-        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px',
-        paddingBottom: hasBottomNav ? 'calc(var(--bottom-nav-height, 64px))' : undefined
+        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px'
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
