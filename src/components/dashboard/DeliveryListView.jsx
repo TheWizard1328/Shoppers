@@ -499,7 +499,7 @@ const DeliveryListView = ({
     const store = storeMap.get(delivery.store_id);
 
     return (
-      <div style={style}>
+      <div style={isMobile ? { ...style, padding: '0 8px 8px', boxSizing: 'border-box' } : style}>
         <DeliveryRow
           delivery={delivery}
           patient={patient}
