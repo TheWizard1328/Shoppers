@@ -620,6 +620,35 @@ export default function DeliveryMap({
     } catch {}
   }, [map, shouldFitBounds, onBoundsFitted]);
 
+  useEffect(() => {
+    if (!map) return;
+
+    const updateCrosshairCoords = () => {
+      const topObscured = isMobile ? (isStatsCardExpanded ? 216 : 116) : 0;
+      const bottomObscured = areStopCardsVisible ? stopCardsHeight : 0;
+      const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 15;
+      const size = map.getSize();
+      const point = L.point(size.x / 2, size.y / 2 - verticalShift);
+      const latLng = map.containerPointToLatLng(point);
+
+      window.__mapCrosshairCoords = {
+        latitude: latLng.lat,
+        longitude: latLng.lng
+      };
+    };
+
+    updateCrosshairCoords();
+    map.on('move', updateCrosshairCoords);
+    map.on('zoom', updateCrosshairCoords);
+    map.on('resize', updateCrosshairCoords);
+
+    return () => {
+      map.off('move', updateCrosshairCoords);
+      map.off('zoom', updateCrosshairCoords);
+      map.off('resize', updateCrosshairCoords);
+    };
+  }, [map, isMobile, isStatsCardExpanded, areStopCardsVisible, stopCardsHeight]);
+
   const calculateFannedPositionWrapperWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers) => {
     const radius = 0.0008 + (18 - currentZoom) * 0.0008;
     const arcWidth = totalMarkers <= 2 ? 90 : totalMarkers === 3 ? 120 : totalMarkers === 4 ? 140 : Math.min(180, 140 + (totalMarkers - 4) * 10);
