@@ -1096,8 +1096,7 @@ export default function PayrollSummaryCard({
               </div>
 
               {/* Stats and Pay Summary - Side by Side */}
-              <div>
-                <div className="flex justify-between items-start">
+              <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
                   <LeftStatsAndNotes
                         data={data}
                         formatCurrency={formatCurrency}
@@ -1109,10 +1108,12 @@ export default function PayrollSummaryCard({
                         setBonusOverlayDriverId={setBonusOverlayDriverId}
                         getDriverPayrollRecord={getDriverPayrollRecord}
                         savePayrollChanges={savePayrollChanges} />
-                      
+                  </div>
 
                 {/* Right: Pay Summary with YTD */}
-                <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className="text-xs h-full flex items-start justify-center" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    <div className="flex gap-4">
                   {/* Period Column */}
                   <div className="flex flex-col">
                     <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
@@ -1214,10 +1215,11 @@ export default function PayrollSummaryCard({
                         </tbody>
                         </table>
                         </div>
-                            </div>
-                             </div>
-                             </div>
-                             </div>);
+                        </div>
+                        </div>
+                        </div>
+                        </div>
+                        </div>);
 
             })}
           
