@@ -100,7 +100,7 @@ export default function DeliveryPatientSearch({
       </div>
 
       {patientSearch && !formData.patient_id &&
-      <div className="absolute top-full left-0 right-0 mt-1 max-h-65 overflow-y-auto border rounded-lg shadow-lg z-[100]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <div className="absolute top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto border rounded-lg shadow-lg z-[100]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           {selectedPatientIds.size > 1 &&
         <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 p-2 flex items-center justify-between z-10">
               <span className="text-sm font-medium text-emerald-700">{selectedPatientIds.size} selected</span>
