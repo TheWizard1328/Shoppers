@@ -78,7 +78,7 @@ export default function DeliveryFormView({
   projectedDeliveries, setProjectedDeliveries, fullPredictionListRef,
   setEditingStagedId, handleStagedDeliveryClick, handleClearForm,
   confirmAddProjectedToStaged, isLoadingPredictions,
-  setPredictionTrigger, showStagedPanel, setShowStagedPanel,
+  handleRefreshProjections, showStagedPanel, setShowStagedPanel,
   // Delete dialog
   deleteConfirmation, setDeleteConfirmation, isDeletingPending,
   handleConfirmDelete,
@@ -160,7 +160,7 @@ export default function DeliveryFormView({
     handleClearForm, stagedDeliveries, fullPredictionListRef,
     setProjectedDeliveries, setStagedDeliveries, setEditingStagedId,
     patientSearchInputRef, confirmAddProjectedToStaged, setDeleteConfirmation,
-    isLoadingPredictions, onRefreshProjections: () => setPredictionTrigger((prev) => prev + 1),
+    isLoadingPredictions, onRefreshProjections: handleRefreshProjections,
     shouldAutoFocusFields
   };
 

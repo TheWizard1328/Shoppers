@@ -57,7 +57,7 @@ export function DeliveryStagedPanelDesktop({
         type="button"
         variant="outline"
         size="sm"
-        className="w-full mt-2 text-xs"
+        className="w-full mt-2 text-xs relative z-10 flex-shrink-0"
         onClick={onRefreshProjections}
         disabled={isLoadingPredictions}
         style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
@@ -143,7 +143,7 @@ export function DeliveryStagedPanelMobile({
               type="button"
               variant="outline"
               size="sm"
-              className="w-full mt-2 mx-3 mb-2 text-xs"
+              className="w-full mt-2 mx-3 mb-2 text-xs relative z-10 flex-shrink-0"
               onClick={onRefreshProjections}
               disabled={isLoadingPredictions}
               style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
