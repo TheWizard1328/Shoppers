@@ -2219,7 +2219,6 @@ export default function DeliveryForm({
             .then(()=>console.log('✅ [Square] COD background tasks done'))
             .catch(()=>{});
         }
-      }
 
       // CRITICAL: Resume SmartRefresh ONCE after all updates complete
       try {
