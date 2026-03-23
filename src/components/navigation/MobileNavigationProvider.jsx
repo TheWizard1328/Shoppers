@@ -74,11 +74,24 @@ export function MobileNavigationProvider({ children }) {
   const currentPath = normalizeRoutePath(`${location.pathname}${location.search}`);
   const pendingActionRef = React.useRef('push');
   const [state, setState] = React.useState(readStoredState);
+  const scrollPositionsRef = React.useRef(state.scrollPositions);
+
+  React.useEffect(() => {
+    scrollPositionsRef.current = state.scrollPositions;
+  }, [state.scrollPositions]);
 
   const persistState = React.useCallback((updater) => {
     setState((previousState) => {
-      const nextState = sanitizeState(typeof updater === 'function' ? updater(previousState) : updater);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+      const candidateState = typeof updater === 'function' ? updater(previousState) : updater;
+      const nextState = sanitizeState(candidateState);
+      const previousSerialized = JSON.stringify(previousState);
+      const nextSerialized = JSON.stringify(nextState);
+
+      if (previousSerialized === nextSerialized) {
+        return previousState;
+      }
+
+      sessionStorage.setItem(STORAGE_KEY, nextSerialized);
       return nextState;
     });
   }, []);
@@ -94,11 +107,11 @@ export function MobileNavigationProvider({ children }) {
   }, [persistState]);
 
   React.useEffect(() => {
-    const tabKey = getTabKeyForPath(location.pathname) || state.activeTab || 'dashboard';
     const nextAction = pendingActionRef.current || 'push';
-    const rootPath = getRootPath(tabKey);
 
     persistState((previousState) => {
+      const tabKey = getTabKeyForPath(location.pathname) || previousState.activeTab || 'dashboard';
+      const rootPath = getRootPath(tabKey);
       const previousStack = previousState.tabStacks?.[tabKey] || [rootPath];
       let nextStack = previousStack;
 
@@ -115,35 +128,57 @@ export function MobileNavigationProvider({ children }) {
         nextStack = [...nextStack, currentPath].slice(-MAX_STACK_DEPTH);
       }
 
+      const finalStack = nextStack.length ? nextStack : [rootPath];
+      const currentStoredStack = previousState.tabStacks?.[tabKey] || [rootPath];
+      const stackUnchanged = JSON.stringify(currentStoredStack) === JSON.stringify(finalStack);
+
+      if (
+        previousState.activeTab === tabKey &&
+        previousState.lastAction === nextAction &&
+        stackUnchanged
+      ) {
+        return previousState;
+      }
+
       return {
         ...previousState,
         activeTab: tabKey,
         lastAction: nextAction,
         tabStacks: {
           ...previousState.tabStacks,
-          [tabKey]: nextStack.length ? nextStack : [rootPath],
+          [tabKey]: finalStack,
         },
       };
     });
 
     pendingActionRef.current = 'push';
-  }, [currentPath, location.pathname, persistState, state.activeTab]);
+  }, [currentPath, location.pathname, persistState]);
 
   const saveScrollPosition = React.useCallback((path, scrollTop) => {
     if (!path) return;
 
-    persistState((previousState) => ({
-      ...previousState,
-      scrollPositions: {
-        ...previousState.scrollPositions,
-        [normalizeRoutePath(path)]: Number.isFinite(scrollTop) ? scrollTop : 0,
-      },
-    }));
+    const normalizedPath = normalizeRoutePath(path);
+    const nextScrollTop = Number.isFinite(scrollTop) ? scrollTop : 0;
+
+    persistState((previousState) => {
+      const currentScrollTop = previousState.scrollPositions?.[normalizedPath] ?? 0;
+      if (currentScrollTop === nextScrollTop) {
+        return previousState;
+      }
+
+      return {
+        ...previousState,
+        scrollPositions: {
+          ...previousState.scrollPositions,
+          [normalizedPath]: nextScrollTop,
+        },
+      };
+    });
   }, [persistState]);
 
   const getScrollPosition = React.useCallback((path) => {
-    return state.scrollPositions?.[normalizeRoutePath(path)] ?? 0;
-  }, [state.scrollPositions]);
+    return scrollPositionsRef.current?.[normalizeRoutePath(path)] ?? 0;
+  }, []);
 
   const navigateToTab = React.useCallback((tabKey, fallbackPath) => {
     const savedStack = state.tabStacks?.[tabKey] || [getRootPath(tabKey)];
