@@ -45,6 +45,8 @@ import { resetBatchSaveDraftState, resumeManagersAndCloseBatchForm, closeBatchFo
 import { runDeliverySubmitSideEffects } from './deliverySubmitSideEffects';
 import { resolvePatientDriverAssignment, buildSelectedPatientFormData, buildDuplicatePatientDraft, buildNewAddressPatientDraft } from './deliveryPatientSelectionHelpers';
 import { resetDraftEditorState, cleanupDetachedAutoCreatedPickups } from './deliveryDraftStateHelpers';
+import { filterPendingDeliveriesForUser, mapPendingDeliveriesToStaged } from './deliveryPendingLoadHelpers';
+import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescriptionScanHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -922,46 +924,6 @@ export default function DeliveryForm({
     setSelectedPatientIds(new Set());
   }, [selectedPatientIds, filteredPatients, handlePatientSelect]);
 
-  const compressImage = useCallback((file, maxWidth = 1200, quality = 0.7) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          if (width > maxWidth) {
-            height = height * maxWidth / width;
-            width = maxWidth;
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-          canvas.toBlob((blob) => {
-            if (blob) {
-              const compressedFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now()
-              });
-              resolve(compressedFile);
-            } else {
-              reject(new Error('Failed to compress image'));
-            }
-          }, 'image/jpeg', quality);
-        };
-        img.onerror = () => reject(new Error('Failed to load image'));
-        img.src = e.target.result;
-      };
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsDataURL(file);
-    });
-  }, []);
-
   // Original handleCameraScan (for file input method) - Kept as per outline instructions
   const handleCameraScan = useCallback(async (event) => {
     const file = event.target.files?.[0];
@@ -971,77 +933,26 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      // Compress image first
-      const compressedFile = await compressImage(file);
-
-      // Get current selected city for admin filtering
-      const { globalFilters } = await import('../utils/globalFilters');
-      const selectedCityId = globalFilters.getSelectedCityId();
-
-      // Upload the compressed image
-      const uploadResult = await base44.integrations.Core.UploadFile({ file: compressedFile });
-
-      // Now call the backend function with the file URL
-      const response = await base44.functions.invoke('scanPrescriptionLabel', {
-        fileUrl: uploadResult.file_url,
-        selectedCityId: selectedCityId
+      const result = await scanPrescriptionLabel({ file, mode: 'fileUrl' });
+      await handlePrescriptionScanResult({
+        result,
+        onCreatePatient,
+        handlePatientSelect,
+        setScanMatches,
+        setShowMatchPopup,
+        setExtractedData,
+        setIsPatientFormOpen
       });
-
-      const result = response?.data || response;
-
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
-      setExtractedData(result.extractedData);
-
-      // Check for exact matches first
-      if (result.exactMatches && result.exactMatches.length === 1) {
-        // Single exact match - populate form only (don't auto-add to staged)
-        await handlePatientSelect(result.exactMatches[0].patient, false);
-      } else if (result.exactMatches && result.exactMatches.length > 1) {
-        // Multiple exact matches - show popup with exact matches only
-        setScanMatches(result.exactMatches);
-        setShowMatchPopup(true);
-      } else if (result.matches && result.matches.length > 0) {
-        // No exact matches, but partial matches found - show popup
-        setScanMatches(result.matches);
-        setShowMatchPopup(true);
-      } else {
-        // No matches at all - open new patient form with pre-filled data
-        if (onCreatePatient) {
-          const newPatientData = {
-            full_name: result.extractedData.patient_name,
-            address: result.extractedData.street_address,
-            phone: result.extractedData.phone_number,
-            _isNew: true
-          };
-
-          setIsPatientFormOpen(true);
-          onCreatePatient((createdPatient) => {
-            setIsPatientFormOpen(false);
-            // CRITICAL: Auto-add new patient to staged (true parameter)
-            handlePatientSelect({
-              ...createdPatient,
-              ...newPatientData
-            }, true);
-          }, newPatientData);
-        }
-      }
     } catch (error) {
       console.error('Error scanning prescription:', error);
       setError(`Scan failed: ${error.message}`);
     } finally {
       setIsScanning(false);
-      // Reset file input
-      // cameraInputRef.current is only for file input, not for the live camera overlay.
-      // The current camera button's onClick now opens the live camera overlay.
-      // So this specific ref might not be directly used by the visible button anymore, but kept for compliance.
-      if (patientSearchInputRef.current) {// Assuming cameraInputRef was meant to be patientSearchInputRef for clearing the search box
+      if (patientSearchInputRef.current) {
         patientSearchInputRef.current.value = '';
       }
     }
-  }, [onCreatePatient, handlePatientSelect, compressImage]);
+  }, [onCreatePatient, handlePatientSelect]);
 
   // Camera functions (for live camera stream)
   const startCamera = useCallback(async () => {
@@ -1096,74 +1007,26 @@ export default function DeliveryForm({
       const file = new File([blob], "prescription_scan.jpg", { type: "image/jpeg" });
 
       try {
-        // Compress image
-        const compressedFile = await compressImage(file);
-
-        // Convert to Base64
-        const reader = new FileReader();
-        const base64Image = await new Promise((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(compressedFile);
+        const result = await scanPrescriptionLabel({ file, mode: 'base64' });
+        await handlePrescriptionScanResult({
+          result,
+          onCreatePatient,
+          handlePatientSelect,
+          setScanMatches,
+          setShowMatchPopup,
+          setExtractedData,
+          setIsPatientFormOpen
         });
-
-        // Get current selected city
-        const { globalFilters } = await import('../utils/globalFilters');
-        const selectedCityId = globalFilters.getSelectedCityId();
-
-        // Call backend function
-        const response = await base44.functions.invoke('scanPrescriptionLabel', {
-          base64Image: base64Image,
-          selectedCityId: selectedCityId
-        });
-
-        const result = response?.data || response;
-
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        setExtractedData(result.extractedData);
-
-        // Handle matches
-        if (result.exactMatches && result.exactMatches.length === 1) {
-          await handlePatientSelect(result.exactMatches[0].patient, false);
-        } else if (result.exactMatches && result.exactMatches.length > 1) {
-          setScanMatches(result.exactMatches);
-          setShowMatchPopup(true);
-        } else if (result.matches && result.matches.length > 0) {
-          setScanMatches(result.matches);
-          setShowMatchPopup(true);
-        } else {
-          if (onCreatePatient) {
-            const newPatientData = {
-              full_name: result.extractedData.patient_name,
-              address: result.extractedData.street_address,
-              phone: result.extractedData.phone_number,
-              _isNew: true
-            };
-
-            setIsPatientFormOpen(true);
-            onCreatePatient((createdPatient) => {
-              setIsPatientFormOpen(false);
-              // CRITICAL: Auto-add new patient to staged (true parameter)
-              handlePatientSelect({
-                ...createdPatient,
-                ...newPatientData
-              }, true);
-            }, newPatientData);
-          }
-        }
       } catch (error) {
         console.error('Error scanning prescription:', error);
         setError(`Scan failed: ${error.message}`);
       } finally {
         setIsScanning(false);
         stopCamera();
-        setShowCameraOverlay(false); // Close overlay after scan attempt
+        setShowCameraOverlay(false);
       }
     }, 'image/jpeg', 0.8);
-  }, [onCreatePatient, handlePatientSelect, compressImage, stopCamera]);
+  }, [onCreatePatient, handlePatientSelect, stopCamera]);
 
   // Stop camera when component unmounts
   useEffect(() => {
@@ -2364,89 +2227,29 @@ export default function DeliveryForm({
       return;
     }
 
-    // Filter pending deliveries based on user role
-    let pendingDeliveries = allDeliveries.filter((d) =>
-    d &&
-    d.status === 'pending' &&
-    d.delivery_date === suggestedDate &&
-    d.patient_id // Only patient deliveries, not pickups
-    );
-
-    // Role-based filtering - ADMIN takes priority over other roles
-    if (userHasRole(currentUser, 'admin')) {
-      // Admins: all pending stops (no additional filtering)
-    } else if (userHasRole(currentUser, 'dispatcher')) {
-      // Dispatchers: only pending stops for their stores
-      const dispatcherStoreIds = currentUser.store_ids || [];
-      pendingDeliveries = pendingDeliveries.filter((d) => dispatcherStoreIds.includes(d.store_id));
-    } else if (userHasRole(currentUser, 'driver')) {
-      // Drivers (not admin/dispatcher): only their pending stops
-      pendingDeliveries = pendingDeliveries.filter((d) => d.driver_id === currentUser.id);
-    }
+    const pendingDeliveries = filterPendingDeliveriesForUser({
+      allDeliveries,
+      suggestedDate,
+      currentUser,
+      userHasRole
+    });
 
     if (pendingDeliveries.length === 0) {
       hasLoadedPending.current = true;
       return;
     }
 
-    // Convert pending deliveries to staged format
-    const newStagedItems = pendingDeliveries.map((delivery, index) => {
-    const patient = patients.find((p) => p && p.id === delivery.patient_id);
-    
-    // CRITICAL: Find correct store via PUID first, fallback to delivery.store_id
-    let finalStoreId = delivery.store_id;
-    let timeSlot = delivery.ampm_deliveries;
-    let puid = delivery.puid || '';
-    
-    if (puid) {
-      // Find the parent pickup by PUID (stop_id)
-      const parentPickup = allDeliveries.find((d) => d && !d.patient_id && d.stop_id === puid);
-      if (parentPickup) {
-        finalStoreId = parentPickup.store_id || delivery.store_id;
-        timeSlot = parentPickup.ampm_deliveries || delivery.ampm_deliveries;
-      }
-    }
-    
-    const store = stores.find((s) => s && s.id === finalStoreId);
+    const newStagedItems = mapPendingDeliveriesToStaged({
+      pendingDeliveries,
+      patients,
+      stores,
+      allDeliveries,
+      calculateDistance
+    });
 
-    if (!patient || !store) return null;
-
-    // Use existing distance_from_store if available, otherwise calculate
-    let distanceFromStore = patient.distance_from_store;
-    if (distanceFromStore === null || distanceFromStore === undefined) {
-      if (patient?.latitude && patient?.longitude && store?.latitude && store?.longitude) {
-        distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
-      }
-    }
-
-      // Fallback: calculate if no PUID or no parent pickup found
-      if (!timeSlot) {
-        timeSlot = getStoreAssignedTimeSlot(store, delivery.delivery_date, allDeliveries);
-        puid = getPickupStopIdForDelivery(store.id, delivery.delivery_date, timeSlot, allDeliveries);
-      }
-
-      return {
-        ...delivery,
-        _tempId: Date.now() + Math.random() + index,
-        _wasEdited: false, // Track if user explicitly edited this pending item
-        patient_name: delivery.patient_name || patient?.full_name || 'Unknown',
-        patient_phone: delivery.patient_phone || patient?.phone || '', unit_number: delivery.unit_number || patient?.unit_number || '',
-        store_id: finalStoreId, store_name: store?.name || 'Unknown Store',
-        store_abbreviation: store?.abbreviation || '',
-        distanceFromStore: distanceFromStore,
-        delivery_address: patient?.address || '',
-        cod_total_amount_required: delivery.cod_total_amount_required || 0,
-        cod_payments: delivery.cod_payments || [],
-        ampm_deliveries: timeSlot,
-        puid: puid || '',
-        paid_km_override: delivery.paid_km_override ?? distanceFromStore ?? null
-      };
-    }).filter(Boolean); // Filter out nulls if patient/store not found
-
-    // Force state update with timeout to ensure re-render
     setTimeout(() => {
       setStagedDeliveries(newStagedItems);
-      setHasChanges(false); // Done button stays disabled until user adds/edits something
+      setHasChanges(false);
       hasLoadedPending.current = true;
     }, 100);
   }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate]);
