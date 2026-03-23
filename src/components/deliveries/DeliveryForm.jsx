@@ -2797,7 +2797,7 @@ export default function DeliveryForm({
     const handleEnterKey = (event) => {
       if (event.key !== 'Enter' || isPatientFormOpen) return;
       if (event.target.tagName === 'TEXTAREA' || event.target.getAttribute('role') === 'combobox' || event.target.tagName === 'BUTTON' || event.target === patientSearchInputRef.current && (event.target.value || '').trim()) return;
-      event.preventDefault();
+      event.preventDefault();if (event.target === patientSearchInputRef.current) return buttonState === 'done' ? handleBatchSave() : buttonState === 'add' && isFormValid ? handleAddToStaging() : undefined;
       if (event.target?.closest?.('[data-hotkey-add="true"]')) {
         if (buttonState === 'add' && isFormValid) handleAddToStaging();
         return;
