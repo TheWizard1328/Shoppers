@@ -98,7 +98,7 @@ export default function SidebarUserFooter({
           </div>
           <div className="flex flex-col items-center">
             <button
-              onClick={onOpenMessaging} className="px-2 py-2 rounded-lg hover:bg-slate-100 transition-colors relative"
+              onClick={onOpenMessaging} className="px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors relative"
 
               title="Messages">
 
@@ -110,7 +110,7 @@ export default function SidebarUserFooter({
               }
             </button>
             <button
-              onClick={onOpenInviteQR} className="px-2 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+              onClick={onOpenInviteQR} className="px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors"
 
               title="Generate Invite QR Code">
 
