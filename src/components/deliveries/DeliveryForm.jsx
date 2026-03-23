@@ -2171,54 +2171,28 @@ export default function DeliveryForm({
       
       // Then save new deliveries OR trigger data refresh
       const deliveriesReadyForDB = newDeliveries.length > 0 ? deliveriesWithTRs.map(d => {
-          if (d.status === 'Staged') {
-            let newStatus = (!d.patient_id) ? 'en_route' : 'pending';
-            // If it's a delivery (not a pickup) check if it's InterStore
-            if (d.patient_id) {
-              const patientName = (d.patient_name || '').toLowerCase();
-              const deliveryNotes = (d.delivery_notes || '').toLowerCase();
-              const patientNotes = (d.delivery_instructions || '').toLowerCase();
-              const deliveryAddress = (d.delivery_address || '').toLowerCase();
-              const isInterStore = patientName.includes('interstore') || deliveryNotes.includes('interstore') || patientNotes.includes('interstore') || deliveryAddress.includes('(isp)') || deliveryAddress.includes('(isd)');
-              if (isInterStore) {
-                newStatus = 'in_transit';
-              }
-            }
-            const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, ...deliveryPayload } = d;
-            return { ...deliveryPayload, status: newStatus };
+        if (d.status === 'Staged') {
+          let newStatus = (!d.patient_id) ? 'en_route' : 'pending';
+          if (d.patient_id) {
+            const patientName = (d.patient_name || '').toLowerCase(), deliveryNotes = (d.delivery_notes || '').toLowerCase(), patientNotes = (d.delivery_instructions || '').toLowerCase(), deliveryAddress = (d.delivery_address || '').toLowerCase();
+            if (patientName.includes('interstore') || deliveryNotes.includes('interstore') || patientNotes.includes('interstore') || deliveryAddress.includes('(isp)') || deliveryAddress.includes('(isd)')) newStatus = 'in_transit';
           }
-          return d;
-        }) : [];
-        await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
-        
-        // SQUARE INTEGRATION: Create COD items only for in_transit deliveries (not pending) - batched for speed
-        // Note: At this point, cod_total_amount_required is already in DOLLARS (converted earlier in batch save)
-        const squarePromises = deliveriesReadyForDB
-          .filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit')
-          .map(delivery => {
-            const store = stores?.find(s => s && s.id === delivery.store_id);
-            return base44.functions.invoke('squareCreateCodItem', {
-              deliveryId: delivery.id || delivery._tempId,
-              patientName: delivery.patient_name,
-              storeAbbreviation: store?.abbreviation || '',
-              codAmount: delivery.cod_total_amount_required,
-              deliveryDate: delivery.delivery_date,
-              storeId: delivery.store_id
-            })
-              .then(() => {
-                return null;
-              })
-              .catch(squareError => {
-                console.error('⚠️ [Square] Failed to create COD item:', squareError);
-                return null; // Don't block if Square fails
-              });
-          });
-
-        if (squarePromises.length > 0) {
-          Promise.allSettled(squarePromises)
-            .then(()=>console.log('✅ [Square] COD background tasks done'))
-            .catch(()=>{});
+          const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, ...deliveryPayload } = d;
+          return { ...deliveryPayload, status: newStatus };
         }
+        return d;
+      }) : [];
+      if (deliveriesReadyForDB.length > 0) {
+        await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
+        const squarePromises = deliveriesReadyForDB.filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit').map(delivery => {
+          const store = stores?.find(s => s && s.id === delivery.store_id);
+          return base44.functions.invoke('squareCreateCodItem', { deliveryId: delivery.id || delivery._tempId, patientName: delivery.patient_name, storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: delivery.delivery_date, storeId: delivery.store_id }).then(() => null).catch(squareError => {
+            console.error('⚠️ [Square] Failed to create COD item:', squareError);
+            return null;
+          });
+        });
+        if (squarePromises.length > 0) Promise.allSettled(squarePromises).then(()=>console.log('✅ [Square] COD background tasks done')).catch(()=>{});
+      }
 
       // CRITICAL: Resume SmartRefresh ONCE after all updates complete
       try {
