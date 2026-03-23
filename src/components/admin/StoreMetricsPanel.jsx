@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,44 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
+
+const getMonthRange = (year, month) => {
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  return { monthStart, monthEnd };
+};
+
+const getPreviousDate = (dateStr) => {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() - 1);
+  return date.toISOString().split('T')[0];
+};
+
+const getFeePeriodForMonth = (store, year, month) => {
+  if (!store?.app_fee_history?.length) {
+    return store?.pays_app_fees ? getMonthRange(year, month) : null;
+  }
+
+  const { monthStart, monthEnd } = getMonthRange(year, month);
+  const sortedHistory = [...store.app_fee_history].sort((a, b) => a.effective_date.localeCompare(b.effective_date));
+
+  for (let i = 0; i < sortedHistory.length; i++) {
+    const entry = sortedHistory[i];
+    if (!entry?.pays_app_fees) continue;
+
+    const nextEntry = sortedHistory[i + 1];
+    const periodStart = entry.effective_date;
+    const periodEnd = nextEntry ? getPreviousDate(nextEntry.effective_date) : null;
+    const overlapsMonth = periodStart <= monthEnd && (!periodEnd || periodEnd >= monthStart);
+
+    if (overlapsMonth) {
+      return { start: periodStart, end: periodEnd };
+    }
+  }
+
+  return null;
+};
 
 export default function StoreMetricsPanel() {
   const [metrics, setMetrics] = useState(null);
