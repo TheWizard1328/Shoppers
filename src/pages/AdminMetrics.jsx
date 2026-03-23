@@ -459,7 +459,7 @@ export default function AdminMetrics() {
         </div>
 
         {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
-        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <Card className="min-h-0 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
@@ -633,7 +633,7 @@ export default function AdminMetrics() {
         {/* Row 3: Monthly Deliveries + Driver Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Monthly Deliveries Chart - Shows daily breakdown when month selected */}
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="min-h-0 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <BarChart3 className="w-5 h-5" />
@@ -733,7 +733,7 @@ export default function AdminMetrics() {
           </Card>
 
           {/* Driver Performance Chart - Breakdown by Driver */}
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="min-h-0 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <Users className="w-5 h-5" />
