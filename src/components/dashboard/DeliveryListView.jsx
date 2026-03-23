@@ -452,8 +452,7 @@ const DeliveryListView = ({
     if (!container) return;
 
     const updateSize = () => {
-      const bottomNavHeight = isMobile ? Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height')) || 0 : 0;
-      setListViewportHeight(Math.max(container.clientHeight - bottomNavHeight, 0));
+      setListViewportHeight(container.clientHeight);
       setListViewportWidth(container.clientWidth);
     };
 

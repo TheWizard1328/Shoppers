@@ -3219,7 +3219,7 @@ export default function DeliveriesPage() {
   const shouldShowNoDataMessage = !isLoading && (isOffline || effectiveDeliveries.length === 0);
 
   return (
-    <div className="h-screen h-[100dvh] flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="h-full min-h-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
 
       <div className={`${isMobile ? 'block' : 'hidden'} px-4 py-3 flex-shrink-0 z-20`} style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
         {isDriverOverviewMode ?
