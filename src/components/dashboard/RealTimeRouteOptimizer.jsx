@@ -76,11 +76,13 @@ export default function RealTimeRouteOptimizer({
     }
 
     const optimizationKey = `${selectedDriverId}:${selectedDate}`;
-    if (activeOptimizationKeyRef.current === optimizationKey) {
+    const globalOptimizationState = getGlobalOptimizationState();
+    if (activeOptimizationKeyRef.current === optimizationKey || globalOptimizationState?.activeKey === optimizationKey) {
       console.log('⏭️ [RealTimeRouteOptimizer] Skipping duplicate optimization request');
       return;
     }
     activeOptimizationKeyRef.current = optimizationKey;
+    if (globalOptimizationState) globalOptimizationState.activeKey = optimizationKey;
 
     console.log('🔄 [RealTimeRouteOptimizer] Triggering route optimization for driver:', selectedDriverId);
     if (showUIRef.current) {
@@ -166,6 +168,8 @@ export default function RealTimeRouteOptimizer({
       console.error('❌ [RealTimeRouteOptimizer] Error:', error);
     } finally {
       showUIRef.current = false;
+      const globalOptimizationState = getGlobalOptimizationState();
+      if (globalOptimizationState?.activeKey === optimizationKey) globalOptimizationState.activeKey = null;
       activeOptimizationKeyRef.current = null;
     }
   };

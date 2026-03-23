@@ -2481,23 +2481,20 @@ export default function DeliveryForm({
 
     try {
       const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, ...dataToSave } = { ...formData };
-
-      if (dataToSave.cod_total_amount_required > 0) {
-        dataToSave.cod_total_amount_required = dataToSave.cod_total_amount_required / 100;
+      if (dataToSave.cod_total_amount_required > 0) dataToSave.cod_total_amount_required = dataToSave.cod_total_amount_required / 100;
+      if (delivery && isCompletionStatus && completionTime) dataToSave.actual_delivery_time = `${formData.delivery_date}T${completionTime}:00`;
+      if (delivery?.id && !delivery?.patient_id) {
+        const currentPickupSnapshot = JSON.stringify({ delivery_date: delivery.delivery_date || null, delivery_time_start: delivery.delivery_time_start || null, delivery_time_end: delivery.delivery_time_end || null, delivery_time_eta: delivery.delivery_time_eta || null, status: delivery.status || null, driver_name: delivery.driver_name || null, driver_id: delivery.driver_id || null, prescription_number: delivery.prescription_number || null, delivery_instructions: delivery.delivery_instructions || null, delivery_notes: delivery.delivery_notes || null, cod_total_amount_required: Number(delivery.cod_total_amount_required || 0), cod_payments: Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [], cod_payment_type: delivery.cod_payment_type || null, cod_amount: delivery.cod_amount || null, tracking_number: delivery.tracking_number || null, stop_id: delivery.stop_id || null, puid: delivery.puid || null, store_id: delivery.store_id || null, ampm_deliveries: delivery.ampm_deliveries || null, signature_needed: !!delivery.signature_needed, fridge_item: !!delivery.fridge_item, oversized: !!delivery.oversized, after_hours_pickup: !!delivery.after_hours_pickup, no_charge: !!delivery.no_charge, extra_time: Number(delivery.extra_time || 0), barcode_values: Array.isArray(delivery.barcode_values) ? delivery.barcode_values : [], receipt_barcode_values: Array.isArray(delivery.receipt_barcode_values) ? delivery.receipt_barcode_values : [], paid_km_override: delivery.paid_km_override ?? null, actual_delivery_time: delivery.actual_delivery_time || null });
+        const nextPickupSnapshot = JSON.stringify({ delivery_date: dataToSave.delivery_date || null, delivery_time_start: dataToSave.delivery_time_start || null, delivery_time_end: dataToSave.delivery_time_end || null, delivery_time_eta: dataToSave.delivery_time_eta || null, status: dataToSave.status || null, driver_name: dataToSave.driver_name || null, driver_id: dataToSave.driver_id || null, prescription_number: dataToSave.prescription_number || null, delivery_instructions: dataToSave.delivery_instructions || null, delivery_notes: dataToSave.delivery_notes || null, cod_total_amount_required: Number(dataToSave.cod_total_amount_required || 0), cod_payments: Array.isArray(dataToSave.cod_payments) ? dataToSave.cod_payments : [], cod_payment_type: dataToSave.cod_payment_type || null, cod_amount: dataToSave.cod_amount || null, tracking_number: dataToSave.tracking_number || null, stop_id: dataToSave.stop_id || null, puid: dataToSave.puid || null, store_id: dataToSave.store_id || null, ampm_deliveries: dataToSave.ampm_deliveries || null, signature_needed: !!dataToSave.signature_needed, fridge_item: !!dataToSave.fridge_item, oversized: !!dataToSave.oversized, after_hours_pickup: !!dataToSave.after_hours_pickup, no_charge: !!dataToSave.no_charge, extra_time: Number(dataToSave.extra_time || 0), barcode_values: Array.isArray(dataToSave.barcode_values) ? dataToSave.barcode_values : [], receipt_barcode_values: Array.isArray(dataToSave.receipt_barcode_values) ? dataToSave.receipt_barcode_values : [], paid_km_override: dataToSave.paid_km_override ?? null, actual_delivery_time: dataToSave.actual_delivery_time || null });
+        if (currentPickupSnapshot === nextPickupSnapshot) {
+          import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); });
+          return;
+        }
       }
-
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
         try {
           await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
         } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
-      }
-
-      if (delivery && isCompletionStatus && completionTime) {
-        const dateStr = formData.delivery_date;
-        const timeStr = completionTime;
-        // CRITICAL: Store as local time string WITHOUT UTC conversion
-        // Format: "YYYY-MM-DDTHH:MM:00" (no 'Z' suffix = treated as local time)
-        dataToSave.actual_delivery_time = `${dateStr}T${timeStr}:00`;
       }
 
       // CRITICAL: Check if driver assignment changed
