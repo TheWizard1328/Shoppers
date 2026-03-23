@@ -100,17 +100,17 @@ Deno.serve(async (req) => {
       } else if (patient.recurring_biweekly && hasDaySelected) {
         if (!lastDate || daysSinceLast >= 14) {
           shouldDeliver = true;
-          frequency = 'Every 2 Weeks';
+          frequency = 'Bi-Weeks';
         }
       } else if (patient.recurring_weekly_x4) {
         if (!lastDate) {
           shouldDeliver = true;
-          frequency = 'Every 4 Weeks';
+          frequency = 'x4 Weeks';
         } else {
           const dayDiff = Math.abs(selectedDateObj.getDate() - lastDate.getDate());
           if (dayDiff <= 3) {
             shouldDeliver = true;
-            frequency = 'Every 4 Weeks';
+            frequency = 'x4 Weeks';
           }
         }
       } else if (patient.recurring_monthly) {
