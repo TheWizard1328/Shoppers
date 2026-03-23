@@ -742,7 +742,7 @@ export default function DeliveryFormView({
                     <Plus className="w-4 h-4" />Add
                   </Button> :
 
-                <Button type="submit" size="sm" onClick={async (e) => {
+                <Button type="button" size="sm" onClick={async (e) => {
                   e.preventDefault();
                   await runLockedAction('update_delivery', async () => {
                     const driverId = formData?.driver_id;
@@ -759,9 +759,6 @@ export default function DeliveryFormView({
                     });
 
                     window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
-                    window.dispatchEvent(new CustomEvent('deliveriesUpdated'));
-                    if (closeOnSave) onCancel();
-                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                   });
                 }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}

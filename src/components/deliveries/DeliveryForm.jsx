@@ -2685,15 +2685,12 @@ export default function DeliveryForm({
               .catch(err => console.error(`Failed to update ${relatedDelivery.patient_name}:`, err))
           );
           await Promise.all(updatePromises);
-          
+
           // CRITICAL: Wait 500ms for route optimization to complete and isNextDelivery to be set
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
-      // CRITICAL: Resume background operations AFTER closing form
-      // CRITICAL: Always close form after successful update
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
       // Resume managers immediately (non-blocking)
       setTimeout(() => {
         import('../utils/deliveryFormActionHelpers')
