@@ -81,8 +81,8 @@ export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, store
   };
 };
 
-export const getDeliveryReadyForSave = (delivery) => {
-  if (delivery.status !== 'Staged') return delivery;
+export const getStagedActivationStatus = (delivery) => {
+  if (delivery.status !== 'Staged') return delivery.status;
 
   let newStatus = !delivery.patient_id ? 'en_route' : 'pending';
   if (delivery.patient_id) {
@@ -94,8 +94,39 @@ export const getDeliveryReadyForSave = (delivery) => {
     if (isInterStore) newStatus = 'in_transit';
   }
 
+  return newStatus;
+};
+
+export const buildExistingDeliveryBatchUpdate = (delivery) => {
+  const finalStatus = getStagedActivationStatus(delivery);
+
+  return {
+    status: finalStatus,
+    delivery_notes: delivery.delivery_notes || '',
+    prescription_number: delivery.prescription_number || '',
+    cod_total_amount_required: delivery.cod_total_amount_required || 0,
+    delivery_instructions: delivery.delivery_instructions || '',
+    tracking_number: delivery.tracking_number || '99',
+    isNextDelivery: delivery.isNextDelivery && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(finalStatus),
+    signature_needed: delivery.signature_needed || false,
+    fridge_item: delivery.fridge_item || false,
+    oversized: delivery.oversized || false,
+    barcode_values: Array.isArray(delivery.barcode_values) ? delivery.barcode_values : [],
+    receipt_barcode_values: Array.isArray(delivery.receipt_barcode_values) ? delivery.receipt_barcode_values : [],
+    no_charge: delivery.no_charge || false,
+    extra_time: delivery.extra_time || 0,
+    paid_km_override: delivery.paid_km_override ?? null,
+    store_id: delivery.store_id || '',
+    ampm_deliveries: delivery.ampm_deliveries || null,
+    puid: delivery.puid || ''
+  };
+};
+
+export const getDeliveryReadyForSave = (delivery) => {
+  if (delivery.status !== 'Staged') return delivery;
+
   const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, ...deliveryPayload } = delivery;
-  return { ...deliveryPayload, status: newStatus };
+  return { ...deliveryPayload, status: getStagedActivationStatus(delivery) };
 };
 
 export const getDeliveriesReadyForDB = (newDeliveries, deliveriesWithTRs) => {
