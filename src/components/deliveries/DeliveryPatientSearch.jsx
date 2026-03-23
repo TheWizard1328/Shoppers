@@ -194,10 +194,12 @@ export default function DeliveryPatientSearch({
                   }
                     </button>
                     <div className="flex flex-col gap-1 ml-1">
-                      <Button type="button" variant="ghost" size="sm" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground rounded-md text-xs h-6 w-6 p-0 hover:bg-blue-100" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
+                      <Button type="button" variant="ghost" size="sm" className="justify-start rounded-md text-xs h-7 px-2 hover:bg-blue-100" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
+                        <span className="text-blue-700">Duplicate</span>
                         <Copy className="w-3 h-3 text-blue-600" />
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" className="mb-1 p-0 text-xs font-medium rounded-md inline-flex min-h-9 min-w-9 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-6 w-6 hover:bg-purple-100" onClick={(e) => {e.stopPropagation();onNewAddressPatient(patient);}} title="New Address">
+                      <Button type="button" variant="ghost" size="sm" className="justify-start rounded-md text-xs h-7 px-2 hover:bg-purple-100" onClick={(e) => {e.stopPropagation();onNewAddressPatient(patient);}} title="New Address">
+                        <span className="text-purple-700">Change</span>
                         <MapPin className="w-3 h-3 text-purple-600" />
                       </Button>
                     </div>
