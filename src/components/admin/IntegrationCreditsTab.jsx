@@ -232,7 +232,7 @@ export default function IntegrationCreditsTab() {
   }
 
   return (
-    <div className="flex-1 min-h-0 h-auto space-y-2 overflow-y-auto pr-1">
+    <div className="flex-1 min-h-0 h-auto w-full max-w-full max-h-[100dvh] overflow-x-hidden overflow-y-auto space-y-2 pr-1">
       <Alert>
         <AlertDescription>
           This now combines wrapped app integrations with Google and HERE API activity, including failures, so you can spot gaps, retry loops, and runaway usage faster.
