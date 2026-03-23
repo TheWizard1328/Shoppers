@@ -194,11 +194,11 @@ export default function DeliveryPatientSearch({
                   }
                     </button>
                     <div className="flex flex-col gap-1 ml-1">
-                      <Button type="button" variant="ghost" size="sm" className="justify-start rounded-md text-xs h-7 px-2 hover:bg-blue-100" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
+                      <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-7 px-2 hover:bg-blue-100" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
                         <span className="text-blue-700">Duplicate</span>
                         <Copy className="w-3 h-3 text-blue-600" />
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" className="justify-start rounded-md text-xs h-7 px-2 hover:bg-purple-100" onClick={(e) => {e.stopPropagation();onNewAddressPatient(patient);}} title="New Address">
+                      <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-7 px-2 hover:bg-purple-100" onClick={(e) => {e.stopPropagation();onNewAddressPatient(patient);}} title="New Address">
                         <span className="text-purple-700">Change</span>
                         <MapPin className="w-3 h-3 text-purple-600" />
                       </Button>
