@@ -44,6 +44,7 @@ import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliv
 import useDeliveryProjectionManager from './useDeliveryProjectionManager';
 import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
 import { resetBatchSaveDraftState, resumeManagersAndCloseBatchForm, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runDeleteOnlyBatchRefresh, runUpdateOnlyBatchRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
+import { runDeliverySubmitSideEffects } from './deliverySubmitSideEffects';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -2285,75 +2286,11 @@ export default function DeliveryForm({
         await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
 
-      // Send message if driver changed (from active driver to new driver)
-      if (driverChanged && oldDriver && newDriver && currentUser && userHasRole(currentUser, 'driver')) {
-        const patientName = delivery.patient_name || selectedPatient?.full_name || 'Unknown';
-        const messageContent = `🚚 ${getDriverDisplayName(oldDriver)} reassigned a Delivery to you:\n• ${patientName}\n• ${format(new Date(formData.delivery_date), 'MMM d, yyyy')}`;
-
-        await sendDeliveryMessage({
-          senderId: currentUser.id,
-          senderName: getDriverDisplayName(currentUser),
-          receiverId: newDriver.id,
-          receiverName: getDriverDisplayName(newDriver),
-          content: messageContent
-        });
-      }
-
-
-
-      // AUTO BACK ON DUTY: If driver is on_break and completes their next stop, auto set to on_duty
-      if (statusChangedToCompletion && delivery && formData.status === 'completed') {
-        try {
-          // Check if this was the isNextDelivery stop
-          if (delivery.isNextDelivery) {
-            // Get driver's AppUser to check status
-            const appUsers = await base44.entities.AppUser.filter({ user_id: formData.driver_id });
-            const driverAppUser = appUsers?.[0];
-            
-            if (driverAppUser && driverAppUser.driver_status === 'on_break') {
-              await base44.entities.AppUser.update(driverAppUser.id, {
-                driver_status: 'on_duty'
-              });
-            }
-          }
-        } catch (error) {
-          console.error('❌ [DeliveryForm] Auto back-on-duty failed:', error);
-        }
-      }
-
-      // CRITICAL: Resort completed/failed/cancelled deliveries, update stop order, and set next isNextDelivery flag
-      if (delivery && formData.driver_id && formData.delivery_date && statusChangedToCompletion) {
-        try {
-          const { base44 } = await import('@/api/base44Client');
-          const driverDeliveries = allDeliveries.filter(d => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date);
-          const completedDeliveries = driverDeliveries.filter(d => ['completed', 'failed', 'cancelled'].includes(d.id === delivery.id ? formData.status : d.status));
-          completedDeliveries.sort((a, b) => {
-            const timeA = a.id === delivery.id && dataToSave.actual_delivery_time ? new Date(dataToSave.actual_delivery_time).getTime() : a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-            const timeB = b.id === delivery.id && dataToSave.actual_delivery_time ? new Date(dataToSave.actual_delivery_time).getTime() : b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
-            return timeA - timeB;
-          });
-          let stopOrder = 1;
-          await Promise.all(completedDeliveries.map(d => {
-            const newStopOrder = stopOrder++;
-            return d.stop_order !== newStopOrder ? base44.entities.Delivery.update(d.id, { stop_order: newStopOrder }) : Promise.resolve();
-          }));
-          // CRITICAL: Find next incomplete delivery and set isNextDelivery flag
-          const COMPLETION_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
-          const incompleteDeliveries = driverDeliveries.filter(d => d.id !== delivery.id && !COMPLETION_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-          if (incompleteDeliveries.length > 0) {
-            try {
-              await base44.functions.invoke('setNextDeliveryFlag', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, targetDeliveryId: incompleteDeliveries[0].id });
-            } catch (e) { console.warn('[DeliveryForm] setNextDeliveryFlag failed:', e?.message); }
-          }
-        } catch (error) { console.error('❌ [DeliveryForm] Resort failed:', error); }
-      }
-      
-      // CRITICAL: Update ETAs for all incomplete stops if delivery time windows changed
       const timeWindowChanged = delivery && (
         delivery.time_window_start !== formData.time_window_start ||
         delivery.time_window_end !== formData.time_window_end
       );
-      
+
       if (timeWindowChanged && formData.driver_id && formData.delivery_date) {
         try {
           const incompleteStatuses = ['pending', 'in_transit', 'en_route'];
@@ -2370,63 +2307,21 @@ export default function DeliveryForm({
         }
       }
 
-      // CRITICAL: Always reorder stops after any delivery update or status change
-      if (delivery && formData.driver_id && formData.delivery_date) {
-        try {
-          setTimeout(() => {
-            reorderStops(formData.driver_id, formData.delivery_date, allDeliveries)
-              .then(()=>console.log('✅ [DeliveryForm] Stop reordering complete (bg)'))
-              .catch((error)=>console.error('❌ [DeliveryForm] Stop reordering failed (bg):', error));
-          }, 0);
-        } catch (error) {
-          console.error('❌ [DeliveryForm] Stop reordering failed:', error);
-        }
-      }
-
-      // CRITICAL: Trigger patient update function when delivery is completed
-      if (statusChangedToCompletion && delivery && formData.status === 'completed') {
-        setTimeout(() => {
-          base44.functions.invoke('updatePatientsAfterRouteCompletion', {
-            deliveryDate: formData.delivery_date,
-            driverId: formData.driver_id
-          }).catch((error) => {
-            console.error('❌ [DeliveryForm] Patient update failed:', error);
-          });
-        }, 0);
-      }
-
-      if (isPickupMode && delivery && formData.status === 'completed' && formData.store_id && formData.ampm_deliveries) {
-        const relatedDeliveries = allDeliveries.filter((d) =>
-        d &&
-        d.id !== delivery.id &&
-        d.delivery_date === formData.delivery_date &&
-        d.store_id === formData.store_id &&
-        d.ampm_deliveries === formData.ampm_deliveries &&
-        d.status === 'pending' &&
-        d.patient_id
-        );
-
-        if (relatedDeliveries.length > 0) {
-          // CRITICAL: Update all pending deliveries in parallel and WAIT for all to complete
-          const updatePromises = relatedDeliveries.map(relatedDelivery =>
-            updateDeliveryLocal(relatedDelivery.id, { status: 'in_transit' })
-              .catch(err => console.error(`Failed to update ${relatedDelivery.patient_name}:`, err))
-          );
-          await Promise.all(updatePromises);
-
-          // CRITICAL: Wait 500ms for route optimization to complete and isNextDelivery to be set
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-
-      // Resume managers immediately (non-blocking)
-      setTimeout(() => {
-        import('../utils/deliveryFormActionHelpers')
-          .then(({ resumeDeliveryFormManagers }) => resumeDeliveryFormManagers())
-          .catch((error) => {
-            console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
-          });
-      }, 0);
+      await runDeliverySubmitSideEffects({
+        delivery,
+        formData,
+        selectedPatient,
+        currentUser,
+        oldDriver,
+        newDriver,
+        driverChanged,
+        isCurrentUserDriver: userHasRole(currentUser, 'driver'),
+        statusChangedToCompletion,
+        actualDeliveryTimeChanged,
+        allDeliveries,
+        isPickupMode,
+        updateDeliveryLocal
+      });
     } catch (error) {
       setError(error.message);
     } finally {
