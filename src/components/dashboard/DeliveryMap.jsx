@@ -126,7 +126,8 @@ export default function DeliveryMap({
   onDriverRoutesCalculated = () => {},
   onMapReady = () => {},
   mapViewPhase = 1,
-  isMapViewLocked = false
+  isMapViewLocked = false,
+  topOverlayHeight = 0
 }) {
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
   const safePatients = Array.isArray(patients) ? patients : [];
@@ -632,7 +633,16 @@ export default function DeliveryMap({
     const targetDriverId = selectedDriverId && selectedDriverId !== "all" ? selectedDriverId : currentUser?.id;
     if (!targetDriverId) return;
 
-    const targetDriverMarker = routeAwareCurrentDriverMarker && (
+    const livePrimaryDriverMarker = currentDriverLocation?.latitude && currentDriverLocation?.longitude && targetDriverId === currentUser?.id
+      ? {
+          driverId: targetDriverId,
+          driver_id: targetDriverId,
+          latitude: currentDriverLocation.latitude,
+          longitude: currentDriverLocation.longitude
+        }
+      : null;
+
+    const targetDriverMarker = livePrimaryDriverMarker || (routeAwareCurrentDriverMarker && (
       routeAwareCurrentDriverMarker?.driverId === targetDriverId ||
       routeAwareCurrentDriverMarker?.driver_id === targetDriverId
     )
@@ -642,7 +652,7 @@ export default function DeliveryMap({
           marker?.driver_id === targetDriverId ||
           marker?.user_id === targetDriverId ||
           marker?.id === targetDriverId
-        );
+        ));
 
     const nextStop = [...(deliveryMarkers || []), ...(pickupMarkers || [])]
       .filter((stop) => stop?.driver_id === targetDriverId && !FINISHED_STATUSES.includes(stop.status) && stop.status !== "pending")
@@ -657,10 +667,10 @@ export default function DeliveryMap({
     }
 
     const nextKey = [
-      Number(targetDriverMarker.latitude).toFixed(5),
-      Number(targetDriverMarker.longitude).toFixed(5),
-      Number(nextStop.latitude).toFixed(5),
-      Number(nextStop.longitude).toFixed(5)
+      Number(targetDriverMarker.latitude).toFixed(6),
+      Number(targetDriverMarker.longitude).toFixed(6),
+      Number(nextStop.latitude).toFixed(6),
+      Number(nextStop.longitude).toFixed(6)
     ].join(":");
 
     if (phase2FollowKeyRef.current === nextKey) return;
@@ -673,14 +683,14 @@ export default function DeliveryMap({
         [nextStop.latitude, nextStop.longitude]
       ],
       {
-        paddingTopLeft: [25, isMobile ? 140 : 60],
+        paddingTopLeft: [25, isMobile ? (topOverlayHeight || 0) + 25 : 60],
         paddingBottomRight: [25, areStopCardsVisible ? stopCardsHeight + 10 : 60],
         maxZoom: 17.5,
         animate: true,
         duration: 0.6
       }
     );
-  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile, areStopCardsVisible, stopCardsHeight]);
+  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile, areStopCardsVisible, stopCardsHeight, topOverlayHeight]);
 
   useEffect(() => {
     if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
@@ -696,7 +706,7 @@ export default function DeliveryMap({
     if (!map) return;
 
     const updateCrosshairCoords = () => {
-      const topObscured = isMobile ? (isStatsCardExpanded ? 216 : 116) : 0;
+      const topObscured = isMobile ? (topOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0;
       const bottomObscured = areStopCardsVisible ? stopCardsHeight : 0;
       const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 15;
       const size = map.getSize();
@@ -856,7 +866,7 @@ export default function DeliveryMap({
         {showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} safeUsers={safeUsers} />}
       </MapContainer>
 
-      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? (isStatsCardExpanded ? 216 : 116) : 0} isMobile={isMobile} />
+      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? (topOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} />
     </div>
   );
 }
