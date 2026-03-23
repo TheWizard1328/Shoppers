@@ -2332,7 +2332,7 @@ export default function DeliveryForm({
 
           const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
           invalidate('Delivery');
-          invalidateDeliveriesForDate(formData.delivery_date);
+          invalidateDeliveriesForDate(refreshDeliveryDate);
 
           const { fabControlEvents } = await import('../utils/fabControlEvents');
           fabControlEvents.notifyDataReady();
