@@ -19,7 +19,7 @@ import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
 import PayrollMobileCard from './PayrollMobileCard';import LeftStatsAndNotes from './LeftStatsAndNotes';
-import { AppFeeAllDriversDialog, AppFeeSingleDriverDialog } from './AppFeeDialogs';
+import { AppFeeAllDriversDialog } from './AppFeeDialogs';
 import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { exportPayrollPdf } from './payrollPdfExport';
 
@@ -50,7 +50,6 @@ export default function PayrollSummaryCard({
   const [driverEdits, setDriverEdits] = useState({});
   const [deductionOverlayDriverId, setDeductionOverlayDriverId] = useState(null);
   const [bonusOverlayDriverId, setBonusOverlayDriverId] = useState(null);
-  const [appFeeOverlayDriverId, setAppFeeOverlayDriverId] = useState(null);
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
@@ -965,11 +964,7 @@ export default function PayrollSummaryCard({
           sumAllDriversAppFeePercent={sumAllDriversAppFeePercent} calculateAppFeeAmount={calculateAppFeeAmount}
           totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery}
           appFeesPerDelivery={appFeesPerDelivery} extraAppFeePercent={extraAppFeePercent} getDriverPayrollRecord={getDriverPayrollRecord} />
-      <AppFeeSingleDriverDialog
-          open={!!appFeeOverlayDriverId && !!driverEdits[appFeeOverlayDriverId]} driverId={appFeeOverlayDriverId}
-          onClose={() => setAppFeeOverlayDriverId(null)} driverEdits={driverEdits} setDriverEdits={setDriverEdits}
-          payrollData={payrollData} calculateAppFeeAmount={calculateAppFeeAmount}
-          totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery} savePayrollChanges={savePayrollChanges} />
+
       <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <DialogHeader>
@@ -1161,11 +1156,7 @@ export default function PayrollSummaryCard({
                       </tr>
                       {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) &&
                               <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
-                        <td className="text-left pr-2">
-                          <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
-                            App Fee %:
-                          </button>
-                        </td>
+                        <td className="text-left pr-2">App Fee %:</td>
                         <td className="text-right pr-0.5">+$</td>
                         <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0)).toFixed(2)}</td>
                         </tr>
