@@ -29,7 +29,7 @@ export function DeliveryStagedPanelDesktop({
   onRefreshProjections,
 }) {
   return (
-    <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+    <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full min-h-0 overflow-hidden" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
       <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
         Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})
       </Label>
@@ -53,17 +53,19 @@ export function DeliveryStagedPanelDesktop({
         setDeleteConfirmation={setDeleteConfirmation}
         isLoadingPredictions={isLoadingPredictions}
       />
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="w-full mt-2 text-xs relative z-10 flex-shrink-0"
-        onClick={onRefreshProjections}
-        disabled={isLoadingPredictions}
-        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-      >
-        {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
-      </Button>
+      <div className="pt-2 mt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full text-xs relative z-20 pointer-events-auto"
+          onClick={onRefreshProjections}
+          disabled={isLoadingPredictions}
+          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+        >
+          {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -139,17 +141,19 @@ export function DeliveryStagedPanelMobile({
                 isLoadingPredictions={isLoadingPredictions}
               />
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full mt-2 mx-3 mb-2 text-xs relative z-10 flex-shrink-0"
-              onClick={onRefreshProjections}
-              disabled={isLoadingPredictions}
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-            >
-              {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
-            </Button>
+            <div className="mx-3 mb-2 pt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full text-xs relative z-20 pointer-events-auto"
+                onClick={onRefreshProjections}
+                disabled={isLoadingPredictions}
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+              >
+                {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
+              </Button>
+            </div>
           </motion.div>
         </motion.div>
       )}
