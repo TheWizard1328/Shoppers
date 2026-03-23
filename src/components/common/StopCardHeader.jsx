@@ -20,10 +20,21 @@ const statusConfig = {
   returned: { label: "Return" }
 };
 
+function extractStoredTime(value) {
+  if (!value) return null;
+  const raw = String(value);
+  const isoMatch = raw.match(/T(\d{2}:\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  const timeMatch = raw.match(/^(\d{2}:\d{2})/);
+  if (timeMatch) return timeMatch[1];
+  return null;
+}
+
 function formatTime12Hour(timeString) {
   if (!timeString || ["--:--", "null", "undefined", "NaN:NaN"].includes(String(timeString))) return "--:--";
   try {
-    const [h, m] = String(timeString).split(":");
+    const normalized = extractStoredTime(timeString) || String(timeString);
+    const [h, m] = normalized.split(":");
     const hours = parseInt(h, 10);
     const minutes = parseInt(m, 10);
     if (isNaN(hours) || isNaN(minutes)) return "--:--";
@@ -70,11 +81,13 @@ export default function StopCardHeader({
 
   const timeDisplay = (() => {
     if (isFinished) {
-      const actual = delivery?.actual_delivery_time ? formatTime12Hour(format(new Date(delivery.actual_delivery_time), "HH:mm")) : null;
-      const arrival = delivery?.arrival_time ? formatTime12Hour(format(new Date(delivery.arrival_time), "HH:mm")) : null;
+      const actual = formatTime12Hour(delivery?.actual_delivery_time);
+      const arrival = formatTime12Hour(delivery?.arrival_time);
+      const hasActual = actual !== "--:--";
+      const hasArrival = arrival !== "--:--";
 
-      if (arrival || actual) {
-        return <span className="text-sm font-bold">{arrival && actual ? `${arrival} → ${actual}` : arrival || actual}</span>;
+      if (hasArrival || hasActual) {
+        return <span className="text-sm font-bold">{hasArrival && hasActual ? `${arrival} → ${actual}` : hasArrival ? arrival : actual}</span>;
       }
 
       return <span className="text-sm font-bold">--:--</span>;

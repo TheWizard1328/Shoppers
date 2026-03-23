@@ -382,27 +382,44 @@ const DeliveryListView = ({
 
   const getTimeDisplay = useCallback((delivery) => {
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
+    const extractStoredTime = (value) => {
+      if (!value) return null;
+      const raw = String(value);
+      const isoMatch = raw.match(/T(\d{2}:\d{2})/);
+      if (isoMatch) return isoMatch[1];
+      const timeMatch = raw.match(/^(\d{2}:\d{2})/);
+      return timeMatch ? timeMatch[1] : null;
+    };
+    const toComparableDate = (value) => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    };
 
-    if (finishedStatuses.includes(delivery.status) && delivery.actual_delivery_time) {
-      const at = new Date(delivery.actual_delivery_time);
-      const arr = delivery.arrival_time ? new Date(delivery.arrival_time) : null;
+    if (finishedStatuses.includes(delivery.status)) {
+      const actualLabel = extractStoredTime(delivery.actual_delivery_time);
+      const arrivalLabel = extractStoredTime(delivery.arrival_time);
+      const at = toComparableDate(delivery.actual_delivery_time);
+      const arr = toComparableDate(delivery.arrival_time);
       let minutesOnSite = null;
-      if (!isNaN(at.getTime()) && arr && !isNaN(arr.getTime())) {
+      if (at && arr) {
         try {
           minutesOnSite = Math.max(0, differenceInMinutes(at, arr));
         } catch {}
       }
-      return (
-        <div className="flex flex-col items-center text-green-700 leading-tight">
-          <div className="flex items-center gap-1">
-            <CheckCircle className="w-3.5 h-3.5" />
-            <span className="font-medium">{format(at, 'HH:mm')}</span>
-          </div>
-          {minutesOnSite !== null &&
-          <span className="text-[11px] text-slate-500">{minutesOnSite} min</span>
-          }
-        </div>);
 
+      if (actualLabel || arrivalLabel) {
+        return (
+          <div className="flex flex-col items-center text-green-700 leading-tight">
+            <div className="flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5" />
+              <span className="font-medium">{actualLabel || arrivalLabel}</span>
+            </div>
+            {minutesOnSite !== null &&
+            <span className="text-[11px] text-slate-500">{minutesOnSite} min</span>
+            }
+          </div>);
+      }
     }
 
     const eta = delivery.delivery_time_eta || delivery.delivery_time_start;
