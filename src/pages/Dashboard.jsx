@@ -704,13 +704,6 @@ function Dashboard() {
       try {
         const settings = await loadUserSettings(currentUser.id);
 
-        // Load saved date from settings
-        if (settings.selected_date) {
-          const savedDate = new Date(settings.selected_date + 'T00:00:00');
-          setSelectedDate(savedDate);
-          globalFilters.setSelectedDate(savedDate);
-          setCalendarMonth(savedDate);
-        }
 
         // CRITICAL: Load "Show All Markers" setting
         if (settings.show_all_driver_markers !== undefined) {
@@ -745,7 +738,7 @@ function Dashboard() {
         if (!driverToSelect) {
           if (userHasRole(currentUser, 'dispatcher')) {
             // DISPATCHERS: Auto-select based on drivers with deliveries for their stores on SELECTED date
-            const selectedDateStr = settings.selected_date || getEdmDate();
+            const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
             const dispatcherStoreIds = currentUser.store_ids || [];
 
             // Get drivers with at least 1 pickup or delivery for dispatcher's stores
@@ -3200,10 +3193,6 @@ function Dashboard() {
 
     const dateStr = format(date, 'yyyy-MM-dd');
 
-    // Save to user settings (async, don't wait)
-    if (currentUser?.id) {
-      saveSetting(currentUser.id, 'selected_date', dateStr);
-    }
 
     try {
       // STEP 1: Clear pending updates for clean slate
