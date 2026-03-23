@@ -40,7 +40,8 @@ import DeliveryFormStaged from './DeliveryFormStaged';
 import BarcodeScanner from './BarcodeScanner';
 import { checkPayrollLock } from '../utils/payrollLockManager';
 import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
-import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects'; import { getLocalDeliveryPredictions } from './getLocalDeliveryPredictions';
+import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
+import useDeliveryProjectionManager from './useDeliveryProjectionManager';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -209,9 +210,24 @@ export default function DeliveryForm({
   // State for creating new patient from existing patient data
   const [newPatientMode, setNewPatientMode] = useState(null); // 'duplicate' | 'new_address' | null
   const [stagedDeliveries, setStagedDeliveries] = useState([]);
-  const [projectedDeliveries, setProjectedDeliveries] = useState([]);
-  const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
-  const [predictionTrigger, setPredictionTrigger] = useState(0); const handleRefreshProjections = useCallback(async () => { console.log('[DeliveryForm] handleRefreshProjections fired', { selectedDate: formData.delivery_date, stagedCount: stagedDeliveries.length }); predictionsStopped.current = false; setIsLoadingPredictions(true); const startedAt = Date.now(); try { const formattedPredictions = getLocalDeliveryPredictions({ currentUser, stores, patients, allDeliveries, selectedDate: formData.delivery_date }); fullPredictionListRef.current = formattedPredictions; const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean)); setProjectedDeliveries(formattedPredictions.filter((pred) => !stagedPatientIds.has(pred.patient_id))); } catch { setProjectedDeliveries([]); } finally { const remainingMs = Math.max(0, 900 - (Date.now() - startedAt)); if (remainingMs > 0) await new Promise((resolve) => setTimeout(resolve, remainingMs)); setIsLoadingPredictions(false); } }, [currentUser, stores, patients, allDeliveries, formData.delivery_date, stagedDeliveries]);
+  const {
+    projectedDeliveries,
+    setProjectedDeliveries,
+    isLoadingPredictions,
+    setIsLoadingPredictions,
+    fullPredictionListRef,
+    handleRefreshProjections,
+    blockPredictions,
+    unblockPredictions
+  } = useDeliveryProjectionManager({
+    delivery,
+    currentUser,
+    stores,
+    patients,
+    allDeliveries,
+    selectedDate: formData.delivery_date,
+    stagedDeliveries
+  });
   const [showDayPopup, setShowDayPopup] = useState(false);
   const [activeRecurringType, setActiveRecurringType] = useState(null);
   const [editingStagedId, setEditingStagedId] = useState(null);
@@ -754,35 +770,6 @@ export default function DeliveryForm({
     return 'Weekly x4';
   }, [currentFrequency, hasAnyDaySelected, formData]);
 
-  // CRITICAL: Track if predictions should be stopped (when Done button is clicked or form is closing)
-  const predictionsStopped = useRef(false);
-  // CRITICAL: Store full prediction list from backend for local filtering
-  const fullPredictionListRef = useRef([]);
-
-  useEffect(() => {
-    if (delivery || !formData.delivery_date || !currentUser || !stores || !allDeliveries) return;
-    if (predictionsStopped.current) return;
-
-    setIsLoadingPredictions(true);
-
-    try {
-      const formattedPredictions = getLocalDeliveryPredictions({
-        currentUser,
-        stores,
-        patients,
-        allDeliveries,
-        selectedDate: formData.delivery_date
-      });
-
-      fullPredictionListRef.current = formattedPredictions;
-      const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
-      setProjectedDeliveries(formattedPredictions.filter((pred) => !stagedPatientIds.has(pred.patient_id)));
-    } catch (error) {
-      setProjectedDeliveries([]);
-    } finally {
-      setIsLoadingPredictions(false);
-    }
-  }, [delivery, formData.delivery_date, currentUser, stores, patients, allDeliveries, stagedDeliveries, predictionTrigger]);
 
   const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
     if (!patient) return;
@@ -1887,14 +1874,12 @@ export default function DeliveryForm({
 
   const handleBatchSave = useCallback(async () => {
     // CRITICAL: Stop prediction manager COMPLETELY when Done button is clicked
-    predictionsStopped.current = true; // Block predictions permanently
-    setIsLoadingPredictions(true); // Block predictions immediately
-    setProjectedDeliveries([]); // Clear projections
+    blockPredictions();
 
     if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
       hasLoadedPending.current = false; // Reset flag when closing without saves
-      predictionsStopped.current = false; // Reset for next open
+      unblockPredictions(); // Reset for next open
       import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();}); // Close form immediately
       return;
     }
@@ -1907,7 +1892,7 @@ export default function DeliveryForm({
       setHasPendingDeletes(false);
       setHasChanges(false);
       hasLoadedPending.current = false;
-      predictionsStopped.current = false;
+      unblockPredictions();
       setIsLoadingPredictions(true);
       
       // CRITICAL: Resume background operations before closing
@@ -1989,7 +1974,7 @@ export default function DeliveryForm({
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       hasLoadedPending.current = false;
-      predictionsStopped.current = false; // Reset for next open
+      unblockPredictions(); // Reset for next open
       setIsLoadingPredictions(true); // Keep predictions blocked
       import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
       return;
@@ -2269,7 +2254,7 @@ export default function DeliveryForm({
         setHasPendingDeletes(false);
         setHasChanges(false);
         hasLoadedPending.current = false;
-        predictionsStopped.current = false;
+        unblockPredictions();
         setIsLoadingPredictions(true);
 
         // CRITICAL: Resume background operations before closing
@@ -2326,7 +2311,7 @@ export default function DeliveryForm({
       setHasPendingDeletes(false);
       setHasChanges(false);
       hasLoadedPending.current = false;
-      predictionsStopped.current = false;
+      unblockPredictions();
       setIsLoadingPredictions(true);
 
       import('../utils/deliveryFormActionHelpers')
@@ -2374,7 +2359,7 @@ export default function DeliveryForm({
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
-      predictionsStopped.current = false; // Reset on error (form stays open, allow predictions)
+      unblockPredictions(); // Reset on error (form stays open, allow predictions)
       setIsLoadingPredictions(false); // Re-enable predictions on error
       
       // CRITICAL: Release batch flag on error

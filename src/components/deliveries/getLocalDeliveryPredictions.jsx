@@ -110,6 +110,7 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
       store_id: patient.store_id,
       reason: `${frequency} delivery`,
       frequency,
+      last_delivery_date: patient.last_delivery_date || null,
       cod_total_amount_required: 0,
       prescription_number: '',
       extra_time: 0
