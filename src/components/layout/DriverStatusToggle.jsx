@@ -684,7 +684,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           style={status !== 'on_break' ? { color: 'var(--text-slate-500)' } : {}}
           title="On Break - Location sharing disabled"
         >
-          Break
+          {statusConfig.on_break.label}
         </button>
       </div>
     </div>
