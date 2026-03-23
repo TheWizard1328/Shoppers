@@ -100,7 +100,7 @@ export default function DeliveryPatientSearch({
       </div>
 
       {patientSearch && !formData.patient_id &&
-      <div className="absolute top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto border rounded-lg shadow-lg z-[100]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <div className="absolute top-full left-0 right-0 mt-1 max-h-65 overflow-y-auto border rounded-lg shadow-lg z-[100]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           {selectedPatientIds.size > 1 &&
         <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 p-2 flex items-center justify-between z-10">
               <span className="text-sm font-medium text-emerald-700">{selectedPatientIds.size} selected</span>
@@ -197,7 +197,7 @@ export default function DeliveryPatientSearch({
                       <Button type="button" variant="ghost" size="sm" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground rounded-md text-xs h-6 w-6 p-0 hover:bg-blue-100" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
                         <Copy className="w-3 h-3 text-blue-600" />
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground rounded-md text-xs h-6 w-6 p-0 hover:bg-purple-100" onClick={(e) => {e.stopPropagation();onNewAddressPatient(patient);}} title="New Address">
+                      <Button type="button" variant="ghost" size="sm" className="mb-1 p-0 text-xs font-medium rounded-md inline-flex min-h-9 min-w-9 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-6 w-6 hover:bg-purple-100" onClick={(e) => {e.stopPropagation();onNewAddressPatient(patient);}} title="New Address">
                         <MapPin className="w-3 h-3 text-purple-600" />
                       </Button>
                     </div>
