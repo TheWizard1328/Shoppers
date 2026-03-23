@@ -31,7 +31,7 @@ const toLocalYMD = (d) => {
 const getFirstMondayOfYear = (year) => {
   const jan1 = new Date(year, 0, 1);
   const dayOfWeek = jan1.getDay();
-  const daysUntilMonday = dayOfWeek === 0 ? 1 : (dayOfWeek === 1 ? 0 : 8 - dayOfWeek);
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
   return new Date(year, 0, 1 + daysUntilMonday);
 };
 
@@ -93,98 +93,98 @@ const getClassificationYearForDate = (date, payPeriodType) => {
 // and then include only those whose majority of days fall in the requested year.
 const calculateAllPeriods = (year, payPeriodType) => {
   const periods = [];
-  
+
   switch (payPeriodType) {
-    case 'weekly': {
-      const stepDays = 7;
-      const anchor = getMondayOnOrBefore(new Date(year, 0, 1));
-      const endBoundary = new Date(year + 1, 0, 1);
-      endBoundary.setDate(endBoundary.getDate() + (stepDays - 1)); // cover spill
+    case 'weekly':{
+        const stepDays = 7;
+        const anchor = getMondayOnOrBefore(new Date(year, 0, 1));
+        const endBoundary = new Date(year + 1, 0, 1);
+        endBoundary.setDate(endBoundary.getDate() + (stepDays - 1)); // cover spill
 
-      let cur = new Date(anchor);
-      let weekNum = 1;
-      while (cur <= endBoundary) {
-        const start = new Date(cur);
-        const end = new Date(cur);
-        end.setDate(end.getDate() + (stepDays - 1));
-        const belongsToYear = classifyPeriodYear(start, end) === year;
-        if (belongsToYear) {
+        let cur = new Date(anchor);
+        let weekNum = 1;
+        while (cur <= endBoundary) {
+          const start = new Date(cur);
+          const end = new Date(cur);
+          end.setDate(end.getDate() + (stepDays - 1));
+          const belongsToYear = classifyPeriodYear(start, end) === year;
+          if (belongsToYear) {
+            periods.push({
+              year,
+              start,
+              end,
+              label: `Week ${weekNum}`,
+              weekNum
+            });
+            weekNum++;
+          }
+          cur.setDate(cur.getDate() + stepDays);
+        }
+        break;
+      }
+    case 'biweekly':{
+        const stepDays = 14;
+        const anchor = getMondayOnOrBefore(new Date(year, 0, 1));
+        const endBoundary = new Date(year + 1, 0, 1);
+        endBoundary.setDate(endBoundary.getDate() + (stepDays - 1));
+
+        let cur = new Date(anchor);
+        let periodNum = 1;
+        while (cur <= endBoundary) {
+          const start = new Date(cur);
+          const end = new Date(cur);
+          end.setDate(end.getDate() + (stepDays - 1));
+          const belongsToYear = classifyPeriodYear(start, end) === year;
+          if (belongsToYear) {
+            periods.push({
+              year,
+              start,
+              end,
+              label: `Period ${periodNum}`,
+              periodNum
+            });
+            periodNum++;
+          }
+          cur.setDate(cur.getDate() + stepDays);
+        }
+        break;
+      }
+    case 'semimonthly':{
+        for (let month = 0; month < 12; month++) {
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
           periods.push({
             year,
-            start,
-            end,
-            label: `Week ${weekNum}`,
-            weekNum
+            start: new Date(year, month, 1),
+            end: new Date(year, month, 15),
+            label: `${new Date(year, month, 1).toLocaleString('default', { month: 'short' })} 1-15`,
+            month: month + 1,
+            half: 1
           });
-          weekNum++;
-        }
-        cur.setDate(cur.getDate() + stepDays);
-      }
-      break;
-    }
-    case 'biweekly': {
-      const stepDays = 14;
-      const anchor = getMondayOnOrBefore(new Date(year, 0, 1));
-      const endBoundary = new Date(year + 1, 0, 1);
-      endBoundary.setDate(endBoundary.getDate() + (stepDays - 1));
-
-      let cur = new Date(anchor);
-      let periodNum = 1;
-      while (cur <= endBoundary) {
-        const start = new Date(cur);
-        const end = new Date(cur);
-        end.setDate(end.getDate() + (stepDays - 1));
-        const belongsToYear = classifyPeriodYear(start, end) === year;
-        if (belongsToYear) {
           periods.push({
             year,
-            start,
-            end,
-            label: `Period ${periodNum}`,
-            periodNum
+            start: new Date(year, month, 16),
+            end: new Date(year, month, daysInMonth),
+            label: `${new Date(year, month, 1).toLocaleString('default', { month: 'short' })} 16-${daysInMonth}`,
+            month: month + 1,
+            half: 2
           });
-          periodNum++;
         }
-        cur.setDate(cur.getDate() + stepDays);
+        break;
       }
-      break;
-    }
-    case 'semimonthly': {
-      for (let month = 0; month < 12; month++) {
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        periods.push({
-          year,
-          start: new Date(year, month, 1),
-          end: new Date(year, month, 15),
-          label: `${new Date(year, month, 1).toLocaleString('default', { month: 'short' })} 1-15`,
-          month: month + 1,
-          half: 1
-        });
-        periods.push({
-          year,
-          start: new Date(year, month, 16),
-          end: new Date(year, month, daysInMonth),
-          label: `${new Date(year, month, 1).toLocaleString('default', { month: 'short' })} 16-${daysInMonth}`,
-          month: month + 1,
-          half: 2
-        });
-      }
-      break;
-    }
     case 'monthly':
-    default: {
-      for (let month = 0; month < 12; month++) {
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        periods.push({
-          year,
-          start: new Date(year, month, 1),
-          end: new Date(year, month, daysInMonth),
-          label: new Date(year, month, 1).toLocaleString('default', { month: 'long' }),
-          month: month + 1
-        });
+    default:{
+        for (let month = 0; month < 12; month++) {
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+          periods.push({
+            year,
+            start: new Date(year, month, 1),
+            end: new Date(year, month, daysInMonth),
+            label: new Date(year, month, 1).toLocaleString('default', { month: 'long' }),
+            month: month + 1
+          });
+        }
+        break;
       }
-      break;
-    }
   }
   return periods;
 };
@@ -215,7 +215,7 @@ export default function DriverPayroll() {
   // CRITICAL: ALL hooks must be at the top, before any conditional logic
   const { currentUser } = useUser();
   const { smartRefreshActivity, setSmartRefreshActivity } = useAppData();
-  
+
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   const [selectedCityId, setSelectedCityId] = useState('all');
   const [selectedDriverId, setSelectedDriverId] = useState('all');
@@ -230,7 +230,7 @@ export default function DriverPayroll() {
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [showUpdated, setShowUpdated] = useState(false);
-  
+
   const contentRef = useRef(null);
   const isManualChangeRef = useRef(false);
   const hasLoadedInitialDataRef = useRef(false);
@@ -265,9 +265,9 @@ export default function DriverPayroll() {
 
   const filteredStores = useMemo(() => {
     if (!payrollData?.stores) return [];
-    let filtered = payrollData.stores.filter(s => s.status !== 'inactive');
+    let filtered = payrollData.stores.filter((s) => s.status !== 'inactive');
     if (selectedCityId && selectedCityId !== 'all') {
-      filtered = filtered.filter(s => s.city_id === selectedCityId);
+      filtered = filtered.filter((s) => s.city_id === selectedCityId);
     }
     return sortStores(filtered);
   }, [payrollData?.stores, selectedCityId]);
@@ -276,23 +276,23 @@ export default function DriverPayroll() {
   const allCityDeliveries = useMemo(() => {
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
     let filtered = deliveries;
-    
+
     if (selectedCityId !== 'all') {
-      const cityStoreIds = new Set(filteredStores.map(s => s.id));
-      filtered = filtered.filter(d => d && cityStoreIds.has(d.store_id));
+      const cityStoreIds = new Set(filteredStores.map((s) => s.id));
+      filtered = filtered.filter((d) => d && cityStoreIds.has(d.store_id));
     }
-    
+
     // Filter by pay cycle
     if (payrollData?.appUsers && payPeriod) {
       const matchingDriverIds = new Set();
-      payrollData.appUsers.forEach(au => {
+      payrollData.appUsers.forEach((au) => {
         if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
           matchingDriverIds.add(au.user_id);
         }
       });
-      filtered = filtered.filter(d => d && matchingDriverIds.has(d.driver_id));
+      filtered = filtered.filter((d) => d && matchingDriverIds.has(d.driver_id));
     }
-    
+
     return filtered;
   }, [payrollData?.deliveries, payrollData?.appUsers, filteredStores, selectedCityId, payPeriod]);
 
@@ -302,7 +302,7 @@ export default function DriverPayroll() {
     const matchingDriverIds = new Set();
     const appUsersByDriverId = new Map();
 
-    payrollData.appUsers.forEach(au => {
+    payrollData.appUsers.forEach((au) => {
       if (au?.user_id) {
         appUsersByDriverId.set(au.user_id, au);
       }
@@ -312,26 +312,26 @@ export default function DriverPayroll() {
     });
 
     return sortUsers(
-      payrollData.drivers
-        .filter(d => {
-          if (!d || d.status !== 'active') return false;
-          const driverId = d.user_id || d.id;
-          return matchingDriverIds.has(driverId);
-        })
-        .map(d => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
+      payrollData.drivers.
+      filter((d) => {
+        if (!d || d.status !== 'active') return false;
+        const driverId = d.user_id || d.id;
+        return matchingDriverIds.has(driverId);
+      }).
+      map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
   }, [payrollData?.drivers, payrollData?.appUsers, payPeriod]);
 
   const availablePayCycles = useMemo(() => {
     if (!payrollData?.appUsers) return [];
     const cycles = new Set();
-    payrollData.appUsers.forEach(au => {
+    payrollData.appUsers.forEach((au) => {
       if (au.pay_cycle_type && au.status === 'active') {
         cycles.add(au.pay_cycle_type);
       }
     });
     const order = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
-    return order.filter(c => cycles.has(c));
+    return order.filter((c) => cycles.has(c));
   }, [payrollData?.appUsers]);
 
   const driversInPayCycle = useMemo(() => {
@@ -346,7 +346,7 @@ export default function DriverPayroll() {
     const driverIdsToShow = new Set();
     const appUsersByDriverId = new Map();
 
-    payrollData.appUsers.forEach(au => {
+    payrollData.appUsers.forEach((au) => {
       if (au?.user_id) {
         appUsersByDriverId.set(au.user_id, au);
       }
@@ -361,13 +361,13 @@ export default function DriverPayroll() {
     }
 
     const result = sortUsers(
-      payrollData.drivers
-        .filter(d => {
-          if (!d || d.status !== 'active') return false;
-          const driverId = d.user_id || d.id;
-          return driverIdsToShow.has(driverId);
-        })
-        .map(d => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
+      payrollData.drivers.
+      filter((d) => {
+        if (!d || d.status !== 'active') return false;
+        const driverId = d.user_id || d.id;
+        return driverIdsToShow.has(driverId);
+      }).
+      map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
 
     console.log(`📋 [driversInPayCycle] Showing ${result.length} active drivers for pay period: ${payPeriod}`);
@@ -376,12 +376,12 @@ export default function DriverPayroll() {
 
   // Calculate available pay cycles and their counts for the selected city/year
   const payCycleInfo = useMemo(() => {
-        if (!payrollData?.appUsers) return { cycles: ['weekly', 'biweekly', 'semimonthly', 'monthly'], mostCommon: 'monthly', disabled: false };
+    if (!payrollData?.appUsers) return { cycles: ['weekly', 'biweekly', 'semimonthly', 'monthly'], mostCommon: 'monthly', disabled: false };
 
-        // Filter appUsers to drivers only
-        let filteredAppUsers = payrollData.appUsers.filter(au => 
-          au.status === 'active' && au.app_roles && au.app_roles.includes('driver')
-        );
+    // Filter appUsers to drivers only
+    let filteredAppUsers = payrollData.appUsers.filter((au) =>
+    au.status === 'active' && au.app_roles && au.app_roles.includes('driver')
+    );
 
     // If no drivers found, allow all cycle types
     if (filteredAppUsers.length === 0) {
@@ -391,7 +391,7 @@ export default function DriverPayroll() {
 
     // Count drivers by pay cycle type
     const cycleCounts = {};
-    filteredAppUsers.forEach(au => {
+    filteredAppUsers.forEach((au) => {
       if (au.pay_cycle_type) {
         cycleCounts[au.pay_cycle_type] = (cycleCounts[au.pay_cycle_type] || 0) + 1;
       }
@@ -399,7 +399,7 @@ export default function DriverPayroll() {
 
     const cycles = Object.keys(cycleCounts);
     const order = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
-    const sortedCycles = order.filter(c => cycles.includes(c));
+    const sortedCycles = order.filter((c) => cycles.includes(c));
 
     // Find most common cycle
     let mostCommon = null;
@@ -428,32 +428,32 @@ export default function DriverPayroll() {
     // CRITICAL: Ensure deliveries is always an array
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
     let filtered = deliveries;
-    
+
     // Filter by city (via store)
     if (selectedCityId !== 'all') {
-      const cityStoreIds = new Set(filteredStores.map(s => s.id));
-      filtered = filtered.filter(d => d && cityStoreIds.has(d.store_id));
+      const cityStoreIds = new Set(filteredStores.map((s) => s.id));
+      filtered = filtered.filter((d) => d && cityStoreIds.has(d.store_id));
     }
-    
+
     // CRITICAL: Filter by selected pay period date range
     // All year data is loaded; the grid/summary need only the current period's deliveries
     if (currentPeriod) {
       const periodStart = toLocalYMD(currentPeriod.start);
       const periodEnd = toLocalYMD(currentPeriod.end);
-      filtered = filtered.filter(d => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
+      filtered = filtered.filter((d) => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
     }
-    
+
     // Filter by pay cycle
     if (payrollData?.appUsers && payPeriod) {
       const matchingDriverIds = new Set();
-      payrollData.appUsers.forEach(au => {
+      payrollData.appUsers.forEach((au) => {
         if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
           matchingDriverIds.add(au.user_id);
         }
       });
-      filtered = filtered.filter(d => d && matchingDriverIds.has(d.driver_id));
+      filtered = filtered.filter((d) => d && matchingDriverIds.has(d.driver_id));
     }
-    
+
     return filtered;
   }, [payrollData?.deliveries, payrollData?.appUsers, selectedCityId, filteredStores, currentPeriod, payPeriod]);
 
@@ -478,14 +478,14 @@ export default function DriverPayroll() {
     for (let i = 0; i < nextPeriods.length; i++) {
       const s = toLocalYMD(nextPeriods[i].start);
       const e = toLocalYMD(nextPeriods[i].end);
-      if (todayStr >= s && todayStr <= e) { nextIdx = i; break; }
+      if (todayStr >= s && todayStr <= e) {nextIdx = i;break;}
     }
     if (nextIdx === -1) {
       let lastPastIdx = -1;
       let lastPastEnd = '0000-00-00';
       for (let i = 0; i < nextPeriods.length; i++) {
         const e = toLocalYMD(nextPeriods[i].end);
-        if (e < todayStr && e > lastPastEnd) { lastPastIdx = i; lastPastEnd = e; }
+        if (e < todayStr && e > lastPastEnd) {lastPastIdx = i;lastPastEnd = e;}
       }
       nextIdx = lastPastIdx !== -1 ? lastPastIdx : 0;
     }
@@ -512,16 +512,16 @@ export default function DriverPayroll() {
         setSelectedDriverId('all');
       }
 
-      setPayrollData(prev => {
+      setPayrollData((prev) => {
         if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
-          const driverAppUser = prev.appUsers.find(au => au.user_id === selectedDriverId);
+          const driverAppUser = prev.appUsers.find((au) => au.user_id === selectedDriverId);
           if (driverAppUser) {
             base44.entities.AppUser.update(driverAppUser.id, {
               pay_cycle_type: newPayPeriod
-            }).catch(error => console.error('Failed to save pay cycle type:', error));
+            }).catch((error) => console.error('Failed to save pay cycle type:', error));
             return {
               ...prev,
-              appUsers: prev.appUsers.map(au => au.id === driverAppUser.id ? { ...au, pay_cycle_type: newPayPeriod } : au)
+              appUsers: prev.appUsers.map((au) => au.id === driverAppUser.id ? { ...au, pay_cycle_type: newPayPeriod } : au)
             };
           }
         }
@@ -529,23 +529,23 @@ export default function DriverPayroll() {
       });
     });
 
-    setTimeout(() => { isManualChangeRef.current = false; }, 200);
+    setTimeout(() => {isManualChangeRef.current = false;}, 200);
   }, [selectedDriverId, selectedYear]);
 
   const refreshPayrollRecords = useCallback(async () => {
     if (!currentPeriod || !payrollData?.payrollRecords) {
       return;
     }
-    
+
     // CRITICAL: Just filter existing year data - no API calls
     // All year data is already loaded in fetchPayroll from getAdminMetricsAndPayrollData
     const periodStart = toLocalYMD(currentPeriod.start);
     const periodEnd = toLocalYMD(currentPeriod.end);
-    
-    const filtered = payrollData.payrollRecords.filter(r => 
-      r.pay_period_start === periodStart && r.pay_period_end === periodEnd
+
+    const filtered = payrollData.payrollRecords.filter((r) =>
+    r.pay_period_start === periodStart && r.pay_period_end === periodEnd
     );
-    
+
     setPayrollRecords(filtered);
   }, [currentPeriod, payrollData?.payrollRecords]);
 
@@ -576,26 +576,26 @@ export default function DriverPayroll() {
 
       // Hide Select dropdowns and other UI controls
       const selectTriggers = contentRef.current.querySelectorAll('[class*="SelectTrigger"]');
-      selectTriggers.forEach(el => {
+      selectTriggers.forEach((el) => {
         el.style.display = 'none';
       });
 
       // Hide any buttons within the content
       const buttons = contentRef.current.querySelectorAll('button');
-      buttons.forEach(el => {
+      buttons.forEach((el) => {
         el.style.display = 'none';
       });
 
       // Hide App Fee % rows
       const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
-      appFeeRows.forEach(row => { row.style.display = 'none'; });
+      appFeeRows.forEach((row) => {row.style.display = 'none';});
 
       // Hide Notes sections
       const notesSections = contentRef.current.querySelectorAll('[data-notes-section="true"]');
-      notesSections.forEach(el => { el.style.display = 'none'; });
+      notesSections.forEach((el) => {el.style.display = 'none';});
 
       // Small delay to ensure UI updates
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Capture with html2canvas using better settings for clean output
       const canvas = await html2canvas(contentRef.current, {
@@ -615,20 +615,20 @@ export default function DriverPayroll() {
         controlsElement.style.display = 'flex';
       }
 
-      selectTriggers.forEach(el => {
+      selectTriggers.forEach((el) => {
         el.style.display = '';
       });
 
-      buttons.forEach(el => {
+      buttons.forEach((el) => {
         el.style.display = '';
       });
 
       // Show App Fee % rows again
-      appFeeRows.forEach(row => { row.style.display = ''; });
+      appFeeRows.forEach((row) => {row.style.display = '';});
 
       // Show Notes sections again
       const notesSectionsToShow = contentRef.current.querySelectorAll('[data-notes-section="true"]');
-      notesSectionsToShow.forEach(el => { el.style.display = ''; });
+      notesSectionsToShow.forEach((el) => {el.style.display = '';});
 
       const dataUrl = canvas.toDataURL('image/png');
       setScreenshotDataUrl(dataUrl);
@@ -637,7 +637,7 @@ export default function DriverPayroll() {
     } catch (error) {
       console.error('Screenshot error:', error);
       toast.error('Failed to capture screenshot');
-      
+
       // Restore original state on error
       const htmlElement = document.documentElement;
       htmlElement.className = htmlElement.className.replace('light-theme', '').trim();
@@ -736,7 +736,7 @@ export default function DriverPayroll() {
     if (selectedPeriodIndex > 0) {
       isManualChangeRef.current = true; // Mark manual navigation to prevent auto-reset
       setSelectedPeriodIndex((idx) => Math.max(0, idx - 1));
-      setTimeout(() => { isManualChangeRef.current = false; }, 200);
+      setTimeout(() => {isManualChangeRef.current = false;}, 200);
     }
   }, [selectedPeriodIndex]);
 
@@ -744,7 +744,7 @@ export default function DriverPayroll() {
     if (selectedPeriodIndex < allPeriods.length - 1) {
       isManualChangeRef.current = true; // Mark manual navigation to prevent auto-reset
       setSelectedPeriodIndex((idx) => Math.min(allPeriods.length - 1, idx + 1));
-      setTimeout(() => { isManualChangeRef.current = false; }, 200);
+      setTimeout(() => {isManualChangeRef.current = false;}, 200);
     }
   }, [selectedPeriodIndex, allPeriods.length]);
 
@@ -775,20 +775,20 @@ export default function DriverPayroll() {
       let determinedPayCycle = 'monthly'; // fallback
       try {
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        const activeDrivers = (offlineAppUsers || []).filter(au => au.status === 'active' && au.app_roles?.includes('driver'));
+        const activeDrivers = (offlineAppUsers || []).filter((au) => au.status === 'active' && au.app_roles?.includes('driver'));
 
         if (isDriver) {
-          const myAppUser = activeDrivers.find(au => au.user_id === currentUser.id);
+          const myAppUser = activeDrivers.find((au) => au.user_id === currentUser.id);
           if (myAppUser?.pay_cycle_type) determinedPayCycle = myAppUser.pay_cycle_type;
         } else {
           // Admin: find the most common pay cycle
           const cycleCounts = {};
-          activeDrivers.forEach(au => {
+          activeDrivers.forEach((au) => {
             if (au.pay_cycle_type) cycleCounts[au.pay_cycle_type] = (cycleCounts[au.pay_cycle_type] || 0) + 1;
           });
           let maxCount = 0;
           Object.entries(cycleCounts).forEach(([cycle, count]) => {
-            if (count > maxCount) { maxCount = count; determinedPayCycle = cycle; }
+            if (count > maxCount) {maxCount = count;determinedPayCycle = cycle;}
           });
         }
       } catch (e) {
@@ -808,14 +808,14 @@ export default function DriverPayroll() {
       for (let i = 0; i < periods.length; i++) {
         const s = toLocalYMD(periods[i].start);
         const e = toLocalYMD(periods[i].end);
-        if (todayStr >= s && todayStr <= e) { idxClose = i; break; }
+        if (todayStr >= s && todayStr <= e) {idxClose = i;break;}
       }
       if (idxClose === -1) {
         let lastPastIdx = -1;
         let lastPastEnd = '0000-00-00';
         for (let i = 0; i < periods.length; i++) {
           const e = toLocalYMD(periods[i].end);
-          if (e < todayStr && e > lastPastEnd) { lastPastIdx = i; lastPastEnd = e; }
+          if (e < todayStr && e > lastPastEnd) {lastPastIdx = i;lastPastEnd = e;}
         }
         idxClose = lastPastIdx !== -1 ? lastPastIdx : 0;
       }
@@ -828,8 +828,8 @@ export default function DriverPayroll() {
 
       // Step 3: Read offline Payroll records to check ONLY previous (or closest past) cycle completeness
       try {
-        const offlinePayrolls = await offlineDB.getAll('payroll_records') || [];
-        const prevIdx = isInRange ? (idxClose > 0 ? idxClose - 1 : -1) : idxClose;
+        const offlinePayrolls = (await offlineDB.getAll('payroll_records')) || [];
+        const prevIdx = isInRange ? idxClose > 0 ? idxClose - 1 : -1 : idxClose;
         let targetIdx = isInRange ? idxClose : idxClose; // default to current or closest past
 
         if (prevIdx >= 0) {
@@ -837,7 +837,7 @@ export default function DriverPayroll() {
           const endStr = periods[prevIdx].end.toISOString().split('T')[0];
 
           // Apply city/driver filters
-          const filtered = offlinePayrolls.filter(r => {
+          const filtered = offlinePayrolls.filter((r) => {
             const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
             const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
             const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
@@ -845,8 +845,8 @@ export default function DriverPayroll() {
           });
 
           // If previous (or closest past) period has any unfinalized, select it; otherwise keep current/closest
-          const anyUnfinalized = filtered.length > 0 && !filtered.every(r =>
-            r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+          const anyUnfinalized = filtered.length > 0 && !filtered.every((r) =>
+          r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
           );
 
           targetIdx = anyUnfinalized ? prevIdx : idxClose;
@@ -863,7 +863,7 @@ export default function DriverPayroll() {
       setSelectedPeriodIndex(determinedPeriodIndex);
       setSelectedYear(year);
       setHasInitialized(true);
-      
+
       // Now fetch real data
       fetchPayroll(false, false);
     };
@@ -876,60 +876,60 @@ export default function DriverPayroll() {
   // Refine pay cycle when live data loads (if different from offline-based initial choice)
   useEffect(() => {
     if (!payrollData?.appUsers || hasLoadedInitialDataRef.current || isManualChangeRef.current) return;
-    
+
     let liveCycle = null;
     if (isDriver && selectedDriverId !== 'all') {
-      const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
+      const driverAppUser = payrollData.appUsers.find((au) => au.user_id === selectedDriverId);
       if (driverAppUser?.pay_cycle_type) liveCycle = driverAppUser.pay_cycle_type;
     } else if (!isDriver && selectedDriverId === 'all' && payCycleInfo.mostCommon) {
       liveCycle = payCycleInfo.mostCommon;
     }
-    
+
     // Only update if live data disagrees with offline-based selection
     if (liveCycle && liveCycle !== payPeriod) {
       setPayPeriod(liveCycle);
       // Reset period selection so it recalculates for new cycle
       periodSelectionDoneWithRecordsRef.current = false;
     }
-    
+
     hasLoadedInitialDataRef.current = true;
   }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon, payPeriod]);
 
   // Re-select period when live payroll records arrive (may override offline-based initial selection)
   const periodSelectionDoneWithRecordsRef = useRef(false);
-  
+
   // Ensure period index matches the current pay cycle whenever payPeriod changes
   useEffect(() => {
-     if (!hasInitialized || !payPeriod) return;
-     if (isManualChangeRef.current) return;
+    if (!hasInitialized || !payPeriod) return;
+    if (isManualChangeRef.current) return;
 
-     // Use the already-computed periods list for the selectedYear (weekly/biweekly are classification-filtered)
-     const periods = allPeriods;
-     // Robust index detection using local date strings
-     const today = new Date();
-     const todayStr = toLocalYMD(today);
-     let idx = -1;
-     for (let i = 0; i < periods.length; i++) {
-       const s = toLocalYMD(periods[i].start);
-       const e = toLocalYMD(periods[i].end);
-       if (todayStr >= s && todayStr <= e) { idx = i; break; }
-     }
-     if (idx === -1) {
-       let lastPastIdx = -1; let lastPastEnd = '0000-00-00';
-       for (let i = 0; i < periods.length; i++) {
-         const e = toLocalYMD(periods[i].end);
-         if (e < todayStr && e > lastPastEnd) { lastPastIdx = i; lastPastEnd = e; }
-       }
-       idx = lastPastIdx !== -1 ? lastPastIdx : 0;
-     }
-     if (idx !== selectedPeriodIndex) setSelectedPeriodIndex(idx);
-   }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex, allPeriods]);
-  
+    // Use the already-computed periods list for the selectedYear (weekly/biweekly are classification-filtered)
+    const periods = allPeriods;
+    // Robust index detection using local date strings
+    const today = new Date();
+    const todayStr = toLocalYMD(today);
+    let idx = -1;
+    for (let i = 0; i < periods.length; i++) {
+      const s = toLocalYMD(periods[i].start);
+      const e = toLocalYMD(periods[i].end);
+      if (todayStr >= s && todayStr <= e) {idx = i;break;}
+    }
+    if (idx === -1) {
+      let lastPastIdx = -1;let lastPastEnd = '0000-00-00';
+      for (let i = 0; i < periods.length; i++) {
+        const e = toLocalYMD(periods[i].end);
+        if (e < todayStr && e > lastPastEnd) {lastPastIdx = i;lastPastEnd = e;}
+      }
+      idx = lastPastIdx !== -1 ? lastPastIdx : 0;
+    }
+    if (idx !== selectedPeriodIndex) setSelectedPeriodIndex(idx);
+  }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex, allPeriods]);
+
   useEffect(() => {
-     if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
+    if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
 
-     // Skip auto-selection during manual navigation
-     if (isManualChangeRef.current) return;
+    // Skip auto-selection during manual navigation
+    if (isManualChangeRef.current) return;
 
     // Use full-year records if available to evaluate previous period; fallback to current state
     const allRecords = payrollData?.payrollRecords || payrollRecords || [];
@@ -941,7 +941,7 @@ export default function DriverPayroll() {
     for (let i = 0; i < allPeriods.length; i++) {
       const startStr = allPeriods[i].start.toISOString().split('T')[0];
       const endStr = allPeriods[i].end.toISOString().split('T')[0];
-      if (todayStr >= startStr && todayStr <= endStr) { todayPeriodIdx = i; break; }
+      if (todayStr >= startStr && todayStr <= endStr) {todayPeriodIdx = i;break;}
     }
 
     const prevIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : -1;
@@ -952,15 +952,15 @@ export default function DriverPayroll() {
       const startStr = allPeriods[prevIdx].start.toISOString().split('T')[0];
       const endStr = allPeriods[prevIdx].end.toISOString().split('T')[0];
 
-      const filtered = allRecords.filter(r => {
+      const filtered = allRecords.filter((r) => {
         const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
         const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
         const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
         return matchPeriod && matchCity && matchDriver;
       });
 
-      const allFinalized = filtered.length > 0 && filtered.every(r =>
-        r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
+      const allFinalized = filtered.length > 0 && filtered.every((r) =>
+      r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
       );
 
       if (!allFinalized) {
@@ -1002,14 +1002,14 @@ export default function DriverPayroll() {
   // Filter payroll records when period changes (don't re-fetch since all year data is loaded)
   // CRITICAL: Uses refs to avoid redundant updates
   const lastFilteredPeriodRef = useRef(null);
-  
+
   useEffect(() => {
     if (!currentPeriod || !hasInitialized || !payrollRecords.length) return;
-    
+
     // CRITICAL: Skip if we've already filtered for this exact period
     const periodKey = `${currentPeriod.start}-${currentPeriod.end}`;
     if (lastFilteredPeriodRef.current === periodKey) return;
-    
+
     lastFilteredPeriodRef.current = periodKey;
 
     // CRITICAL: Just filter, don't invalidate or re-fetch
@@ -1022,7 +1022,7 @@ export default function DriverPayroll() {
     if (isManualChangeRef.current) return;
     if (selectedPeriodIndex === 0) return; // Can't go back further
     if (triedPreviousPeriodRef.current) return; // Already tried going back
-    
+
     triedPreviousPeriodRef.current = true;
     setSelectedPeriodIndex(selectedPeriodIndex - 1);
   }, [payrollRecords, hasInitialized, selectedPeriodIndex]);
@@ -1035,55 +1035,55 @@ export default function DriverPayroll() {
   // Conditional rendering without early return to maintain hook order
   if (!isPayrollPageActive) return null;
 
-  return !currentUser ? (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+  return !currentUser ?
+  <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
       <span className="text-lg text-slate-600">Please log in to view payroll</span>
-    </div>
-  ) : (isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null) ? (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+    </div> :
+  isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null ?
+  <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
       <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
-    </div>
-  ) : (
-    <div className="h-full w-full max-w-full overflow-x-hidden flex flex-col p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
+    </div> :
+
+  <div className="h-full w-full max-w-full overflow-x-hidden flex flex-col p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl w-full mx-auto flex flex-col h-full" ref={contentRef}>
         {/* Header */}
-        <div className="sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4 pb-3 bg-[var(--bg-slate-50)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75 w-full overflow-x-hidden">
+        <div className="bg-[var(--bg-slate-50)]/95 pt-1 pb-1 sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75 w-full overflow-x-hidden">
           {/* Row 1 (Mobile) / Left section (Desktop) */}
           <div className="flex items-center gap-3 justify-between w-full lg:w-auto">
             <div className="flex items-center gap-3">
               <DollarSign className="w-8 h-8 text-emerald-600" />
-              <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
+              <h1 className="text-2xl font-bold min-w-[200px]" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
 
             </div>
             
             {/* Mobile/Tablet Portrait: Show Refresh and Share buttons next to title */}
             <div className="flex lg:hidden items-center gap-1">
               <Button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing || isLoadingPayroll}
-                size="sm"
-                variant="ghost"
-                className="p-2 h-auto border border-slate-900 dark:border-white"
-                title="Refresh payroll data"
-                style={{ color: 'var(--text-slate-900)' }}
-              >
+              onClick={handleManualRefresh}
+              disabled={isRefreshing || isLoadingPayroll}
+              size="sm"
+              variant="ghost"
+              className="p-2 h-auto border border-slate-900 dark:border-white"
+              title="Refresh payroll data"
+              style={{ color: 'var(--text-slate-900)' }}>
+              
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
-                onClick={handleCaptureScreenshot}
-                disabled={isCapturingScreenshot}
-                size="sm"
-                variant="ghost"
-                className="p-2 h-auto border border-slate-900 dark:border-white"
-                title="Capture and share screenshot"
-                style={{ color: 'var(--text-slate-900)' }}
-              >
-                {isCapturingScreenshot ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Share2 className="w-5 h-5" />
-                )}
+              onClick={handleCaptureScreenshot}
+              disabled={isCapturingScreenshot}
+              size="sm"
+              variant="ghost"
+              className="p-2 h-auto border border-slate-900 dark:border-white"
+              title="Capture and share screenshot"
+              style={{ color: 'var(--text-slate-900)' }}>
+              
+                {isCapturingScreenshot ?
+              <Loader2 className="w-5 h-5 animate-spin" /> :
+
+              <Share2 className="w-5 h-5" />
+              }
               </Button>
             </div>
           </div>
@@ -1094,74 +1094,74 @@ export default function DriverPayroll() {
             <div className="flex items-center gap-2">
               {/* City Filter */}
               <Select value={selectedCityId} onValueChange={(v) => {
-                React.startTransition(() => {
-                  setSelectedCityId(v);
-                });
-              }} disabled={isDriver}>
+              React.startTransition(() => {
+                setSelectedCityId(v);
+              });
+            }} disabled={isDriver}>
                 <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Cities</SelectItem>
-                  {sortedCities.map(city => (
-                    <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                  {sortedCities.map((city) =>
+                <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                       {city.name}
                     </SelectItem>
-                  ))}
+                )}
                 </SelectContent>
               </Select>
 
               {/* Year Filter */}
               <Select value={String(selectedYear)} onValueChange={(v) => {
-                React.startTransition(() => {
-                  setSelectedYear(Number(v));
-                });
-              }}>
+              React.startTransition(() => {
+                setSelectedYear(Number(v));
+              });
+            }}>
                 <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                  {years.map(year => (
-                    <SelectItem key={year} value={String(year)} style={{ color: 'var(--text-slate-900)' }}>
+                  {years.map((year) =>
+                <SelectItem key={year} value={String(year)} style={{ color: 'var(--text-slate-900)' }}>
                       {year}
                     </SelectItem>
-                  ))}
+                )}
                 </SelectContent>
               </Select>
 
               {/* Driver Filter - filtered by pay cycle type */}
-              <Select value={selectedDriverId} onValueChange={(v) => { 
-                isManualChangeRef.current = true;
+              <Select value={selectedDriverId} onValueChange={(v) => {
+              isManualChangeRef.current = true;
 
-                // Batch all state updates in a single transition
-                React.startTransition(() => {
-                  setSelectedDriverId(v);
-                  if (v === 'all') {
-                    // For admins viewing all drivers, select most common pay cycle
-                    if (payCycleInfo.mostCommon) {
-                      setPayPeriod(payCycleInfo.mostCommon);
-                    }
-                  } else {
-                    // For individual driver selection, use their pay cycle
-                    const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === v);
-                    if (driverAppUser?.pay_cycle_type) {
-                      setPayPeriod(driverAppUser.pay_cycle_type);
-                    }
+              // Batch all state updates in a single transition
+              React.startTransition(() => {
+                setSelectedDriverId(v);
+                if (v === 'all') {
+                  // For admins viewing all drivers, select most common pay cycle
+                  if (payCycleInfo.mostCommon) {
+                    setPayPeriod(payCycleInfo.mostCommon);
                   }
-                });
+                } else {
+                  // For individual driver selection, use their pay cycle
+                  const driverAppUser = payrollData?.appUsers?.find((au) => au.user_id === v);
+                  if (driverAppUser?.pay_cycle_type) {
+                    setPayPeriod(driverAppUser.pay_cycle_type);
+                  }
+                }
+              });
 
-                setTimeout(() => { isManualChangeRef.current = false; }, 200); 
-              }} disabled={isDriver}>
+              setTimeout(() => {isManualChangeRef.current = false;}, 200);
+            }} disabled={isDriver}>
                 <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue placeholder="Driver" />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers ({driversInPayCycle.length})</SelectItem>
-                  {driversInPayCycle.map(driver => (
-                    <SelectItem key={driver.user_id} value={driver.user_id} style={{ color: 'var(--text-slate-900)' }}>
+                  {driversInPayCycle.map((driver) =>
+                <SelectItem key={driver.user_id} value={driver.user_id} style={{ color: 'var(--text-slate-900)' }}>
                       {getDriverDisplayName(driver)}
                     </SelectItem>
-                  ))}
+                )}
                 </SelectContent>
               </Select>
 
@@ -1171,57 +1171,57 @@ export default function DriverPayroll() {
                   <SelectValue placeholder="Cycle" />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                  {payCycleInfo.cycles.map(cycle => (
-                    <SelectItem key={cycle} value={cycle} style={{ color: 'var(--text-slate-900)' }}>
+                  {payCycleInfo.cycles.map((cycle) =>
+                <SelectItem key={cycle} value={cycle} style={{ color: 'var(--text-slate-900)' }}>
                       {cycle.charAt(0).toUpperCase() + cycle.slice(1)}
                     </SelectItem>
-                  ))}
+                )}
                 </SelectContent>
               </Select>
-              {showUpdated && (
-                <span className="ml-2 text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">Updated</span>
-              )}
+              {showUpdated &&
+            <span className="ml-2 text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">Updated</span>
+            }
               </div>
 
             {/* Icon Buttons - Far Right (Desktop only) */}
             <div id="payroll-controls" className="hidden lg:flex items-center gap-1 ml-auto">
               <Button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing || isLoadingPayroll}
-                size="sm"
-                variant="ghost"
-                className="p-2 h-auto"
-                title="Refresh payroll data"
-                style={{ color: 'var(--text-slate-900)' }}
-              >
+              onClick={handleManualRefresh}
+              disabled={isRefreshing || isLoadingPayroll}
+              size="sm"
+              variant="ghost"
+              className="p-2 h-auto"
+              title="Refresh payroll data"
+              style={{ color: 'var(--text-slate-900)' }}>
+              
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
-                onClick={handleCaptureScreenshot}
-                disabled={isCapturingScreenshot}
-                size="sm"
-                variant="ghost"
-                className="p-2 h-auto"
-                title="Capture and share screenshot"
-                style={{ color: 'var(--text-slate-900)' }}
-              >
-                {isCapturingScreenshot ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Share2 className="w-5 h-5" />
-                )}
+              onClick={handleCaptureScreenshot}
+              disabled={isCapturingScreenshot}
+              size="sm"
+              variant="ghost"
+              className="p-2 h-auto"
+              title="Capture and share screenshot"
+              style={{ color: 'var(--text-slate-900)' }}>
+              
+                {isCapturingScreenshot ?
+              <Loader2 className="w-5 h-5 animate-spin" /> :
+
+              <Share2 className="w-5 h-5" />
+              }
               </Button>
             </div>
           </div>
         </div>
 
         <MobilePayrollSummary
-          periodLabel={periodLabel}
-          totalNetPay={totalNetPay}
-          totalDeliveries={totalDeliveries}
-          onPrev={goToPrevPeriod}
-          onNext={goToNextPeriod}
-        />
+        periodLabel={periodLabel}
+        totalNetPay={totalNetPay}
+        totalDeliveries={totalDeliveries}
+        onPrev={goToPrevPeriod}
+        onNext={goToNextPeriod} />
+      
 
         {/* Content Area for Screenshot */}
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-36 md:pb-12 overscroll-contain">
@@ -1233,22 +1233,22 @@ export default function DriverPayroll() {
           </div>
           <div className={detailsOpen ? '' : 'hidden lg:block'}>
             <DriverPayrollGrid
-              deliveries={cityFilteredDeliveries}
-              stores={filteredStores}
-              patients={payrollData?.patients || []}
-              appUsers={payrollData?.appUsers || []}
-              selectedYear={selectedYear}
-              selectedDriverId={selectedDriverId}
-              payPeriod={payPeriod}
-              onPayPeriodChange={handlePayPeriodChange}
-              currentPeriod={currentPeriod}
-              allPeriods={allPeriods}
-              selectedPeriodIndex={selectedPeriodIndex}
-              onPrevPeriod={goToPrevPeriod}
-              onNextPeriod={goToNextPeriod}
-              driverStats={payrollData?.driverStats || {}}
-              storeStats={payrollData?.storeStats || {}}
-            />
+            deliveries={cityFilteredDeliveries}
+            stores={filteredStores}
+            patients={payrollData?.patients || []}
+            appUsers={payrollData?.appUsers || []}
+            selectedYear={selectedYear}
+            selectedDriverId={selectedDriverId}
+            payPeriod={payPeriod}
+            onPayPeriodChange={handlePayPeriodChange}
+            currentPeriod={currentPeriod}
+            allPeriods={allPeriods}
+            selectedPeriodIndex={selectedPeriodIndex}
+            onPrevPeriod={goToPrevPeriod}
+            onNextPeriod={goToNextPeriod}
+            driverStats={payrollData?.driverStats || {}}
+            storeStats={payrollData?.storeStats || {}} />
+          
           </div>
 
           {/* Payroll Summary */}
@@ -1274,27 +1274,27 @@ export default function DriverPayroll() {
             payrollRecords={payrollRecords}
             refreshPayrollRecords={refreshPayrollRecords}
             driverStats={payrollData?.driverStats || {}}
-            storeStats={payrollData?.storeStats || {}}
-          />
+            storeStats={payrollData?.storeStats || {}} />
+          
           </div>
         </div>
         
         <MobileBottomActions
-          onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          onShare={handleCaptureScreenshot}
-          onRefresh={handleManualRefresh}
-          refreshing={isRefreshing || isLoadingPayroll}
-          capturing={isCapturingScreenshot}
-        />
+        onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        onShare={handleCaptureScreenshot}
+        onRefresh={handleManualRefresh}
+        refreshing={isRefreshing || isLoadingPayroll}
+        capturing={isCapturingScreenshot} />
+      
 
         {/* Screenshot Share Modal */}
         <ScreenshotShareModal
-          isOpen={showScreenshotModal}
-          onClose={() => setShowScreenshotModal(false)}
-          imageDataUrl={screenshotDataUrl}
-          filename={`driver-payroll-${selectedYear}.png`}
-        />
+        isOpen={showScreenshotModal}
+        onClose={() => setShowScreenshotModal(false)}
+        imageDataUrl={screenshotDataUrl}
+        filename={`driver-payroll-${selectedYear}.png`} />
+      
       </div>
-    </div>
-  );
+    </div>;
+
 }
