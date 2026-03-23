@@ -127,12 +127,12 @@ Deno.serve(async (req) => {
       } else if (patient.recurring_bimonthly) {
         if (!lastDate) {
           shouldDeliver = true;
-          frequency = 'Every 2 Months';
+          frequency = 'Bi-Monthly';
         } else {
           const dayDiff = Math.abs(selectedDateObj.getDate() - lastDate.getDate());
           if (dayDiff <= 3) {
             shouldDeliver = true;
-            frequency = 'Every 2 Months';
+            frequency = 'Bi-Monthly';
           }
         }
       }
