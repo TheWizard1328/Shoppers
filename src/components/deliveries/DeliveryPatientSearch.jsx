@@ -54,9 +54,9 @@ export default function DeliveryPatientSearch({
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       const direction = e.key === 'ArrowDown' ? 1 : -1;
-      const nextIndex = highlightedPatientIndex < 0
-        ? 0
-        : Math.max(0, Math.min(filteredPatients.length - 1, highlightedPatientIndex + direction));
+      const nextIndex = highlightedPatientIndex < 0 ?
+      0 :
+      Math.max(0, Math.min(filteredPatients.length - 1, highlightedPatientIndex + direction));
 
       setHighlightedPatientIndex(nextIndex);
       requestAnimationFrame(() => {
@@ -185,7 +185,7 @@ export default function DeliveryPatientSearch({
             return (
               <div
                 key={patient.id}
-                id={`patient-item-${index}`} className={`pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 ${isHighlighted ? 'bg-emerald-50 border-l-4 border-emerald-500' : 'hover:bg-slate-50'} ${isSelected ? 'bg-blue-50' : ''} ${isAlreadyStaged ? 'bg-amber-50 opacity-70' : ''}`}>
+                id={`patient-item-${index}`} className="bg-emerald-50 pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 border-l-4 border-emerald-500">
 
                 
                     {(isMultiSelectMode || selectedPatientIds.size > 0) &&
@@ -227,7 +227,7 @@ export default function DeliveryPatientSearch({
                       return <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: color }}>{storeAbbr}</Badge>;
                     })()}
                       </div>
-                      <div className="text-slate-600 my-1 text-xs truncate">{patient.address}</div>
+                      <div className="text-slate-600 my-2 pt-1 text-xs truncate">{patient.address}</div>
                       {patient.phone &&
                   <div className="text-xs text-slate-500 truncate">
                           {formatPhoneNumber(patient.phone)}{patient.unit_number && <> • #{patient.unit_number}</>}
