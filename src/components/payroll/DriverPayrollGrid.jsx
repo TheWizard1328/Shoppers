@@ -497,7 +497,7 @@ export default function DriverPayrollGrid({
                         <span>{dayNum}</span>
                         <button
                           onClick={() => handleNavigateToDashboard(dateObj)}
-                          className="p-0.5 rounded hover:bg-slate-200 transition-colors opacity-50 hover:opacity-100"
+                          className="!h-4 !w-4 !min-h-0 !p-0 rounded hover:bg-slate-200 transition-colors opacity-50 hover:opacity-100 inline-flex items-center justify-center align-middle"
                           title={`View ${format(dateObj, 'MMM d')} on Dashboard`}
                         >
                           <ExternalLink className="w-3 h-3" />
