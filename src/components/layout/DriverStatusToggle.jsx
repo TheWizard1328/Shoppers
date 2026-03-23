@@ -677,8 +677,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           onClick={() => handleStatusChange('on_break')}
           disabled={isUpdating}
           className={cn(
-            "relative z-10 flex-1 flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
-            vertical ? "w-full" : "h-full",
+            "relative z-10 flex flex-1 items-center justify-center rounded-full font-bold leading-none transition-colors min-h-0",
+            vertical ? "h-1/3 w-full text-[9px]" : "h-full text-[10px]",
             status === 'on_break' ? 'text-white' : ''
           )}
           style={status !== 'on_break' ? { color: 'var(--text-slate-500)' } : {}}
