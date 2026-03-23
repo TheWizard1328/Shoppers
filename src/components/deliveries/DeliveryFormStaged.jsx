@@ -27,6 +27,47 @@ export default function DeliveryFormStaged({
   isLoadingPredictions,
   shouldAutoFocusFields
 }) {
+  const getDaysSinceLastDelivery = (lastDeliveryDate) => {
+    if (!lastDeliveryDate) return null;
+    const [year, month, day] = String(lastDeliveryDate).split('-').map(Number);
+    if (!year || !month || !day) return null;
+
+    const deliveredAt = new Date(year, month - 1, day);
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const diffMs = todayStart.getTime() - deliveredAt.getTime();
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    return diffDays >= 0 ? diffDays : null;
+  };
+
+  const parseFrequencyDays = (frequency) => {
+    if (!frequency) return null;
+
+    const normalized = String(frequency).toLowerCase();
+    const match = normalized.match(/(\d+)\s*(day|days|wk|wks|week|weeks|mon|mons|month|months)/);
+    if (!match) return null;
+
+    const amount = Number(match[1]);
+    const unit = match[2];
+    if (unit.startsWith('day')) return amount;
+    if (unit.startsWith('wk') || unit.startsWith('week')) return amount * 7;
+    if (unit.startsWith('mon') || unit.startsWith('month')) return amount * 30;
+    return null;
+  };
+
+  const formatLastDelivered = (lastDeliveryDate, frequency) => {
+    const diffDays = getDaysSinceLastDelivery(lastDeliveryDate);
+    if (diffDays === null) return null;
+
+    const expectedDays = parseFrequencyDays(frequency);
+    const prefix = expectedDays && diffDays > expectedDays ? '>' : '';
+
+    if (diffDays < 7) return `LD: ${prefix}${diffDays} Days`;
+    if (diffDays < 30) return `LD: ${prefix}${Math.floor(diffDays / 7)} Wks`;
+    return `LD: ${prefix}${Math.floor(diffDays / 30)} Mon`;
+  };
+
   return (
     <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
       {/* Staged Deliveries Section (new, not yet saved) */}
@@ -286,7 +327,9 @@ export default function DeliveryFormStaged({
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.frequency || projected.reason}</div>
+                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">
+                  {[projected.frequency || projected.reason, formatLastDelivered(projectedPatient?.last_delivery_date || projected.last_delivery_date, projected.frequency)].filter(Boolean).join(' • ')}
+                </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <SpecialSymbolsBadges
                     delivery={projected}
