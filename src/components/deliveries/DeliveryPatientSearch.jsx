@@ -185,7 +185,16 @@ export default function DeliveryPatientSearch({
             return (
               <div
                 key={patient.id}
-                id={`patient-item-${index}`} className="bg-emerald-50 pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 border-l-4 border-emerald-500">
+                id={`patient-item-${index}`}
+                className={`pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 border-l-4 ${
+                  isAlreadyStaged
+                    ? 'bg-amber-50 border-amber-400'
+                    : isSelected
+                    ? 'bg-emerald-50 border-emerald-500'
+                    : isHighlighted
+                    ? 'bg-teal-50 border-teal-500'
+                    : 'bg-white border-transparent hover:bg-slate-50'
+                }`}>
 
                 
                     {(isMultiSelectMode || selectedPatientIds.size > 0) &&
