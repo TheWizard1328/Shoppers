@@ -196,7 +196,7 @@ export default function DeliveryMap({
     measureTopOverlay();
     window.addEventListener('resize', measureTopOverlay);
     return () => window.removeEventListener('resize', measureTopOverlay);
-  }, [driverRoutes.length, isStatsCardExpanded, highlightedDeliveryId]);
+  }, [isStatsCardExpanded, highlightedDeliveryId]);
 
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
