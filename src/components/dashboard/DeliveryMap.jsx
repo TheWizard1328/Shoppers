@@ -622,6 +622,66 @@ export default function DeliveryMap({
     } catch {}
   }, [map, shouldFitBounds, onBoundsFitted]);
 
+  const phase2FollowKeyRef = useRef("");
+  useEffect(() => {
+    if (!map || mapViewPhase !== 2 || !isMapViewLocked) {
+      phase2FollowKeyRef.current = "";
+      return;
+    }
+
+    const targetDriverId = selectedDriverId && selectedDriverId !== "all" ? selectedDriverId : currentUser?.id;
+    if (!targetDriverId) return;
+
+    const targetDriverMarker = routeAwareCurrentDriverMarker && (
+      routeAwareCurrentDriverMarker?.driverId === targetDriverId ||
+      routeAwareCurrentDriverMarker?.driver_id === targetDriverId
+    )
+      ? routeAwareCurrentDriverMarker
+      : (routeAwareDriverLocationMarkers || []).find((marker) =>
+          marker?.driverId === targetDriverId ||
+          marker?.driver_id === targetDriverId ||
+          marker?.user_id === targetDriverId ||
+          marker?.id === targetDriverId
+        );
+
+    const nextStop = [...(deliveryMarkers || []), ...(pickupMarkers || [])]
+      .filter((stop) => stop?.driver_id === targetDriverId && !FINISHED_STATUSES.includes(stop.status) && stop.status !== "pending")
+      .sort((a, b) => (a?.stop_order || 999) - (b?.stop_order || 999))
+      .find((stop) => stop?.isNextInLine || stop?.isNextDelivery) ||
+      [...(deliveryMarkers || []), ...(pickupMarkers || [])]
+        .filter((stop) => stop?.driver_id === targetDriverId && !FINISHED_STATUSES.includes(stop.status) && stop.status !== "pending")
+        .sort((a, b) => (a?.stop_order || 999) - (b?.stop_order || 999))[0];
+
+    if (!targetDriverMarker?.latitude || !targetDriverMarker?.longitude || !nextStop?.latitude || !nextStop?.longitude) {
+      return;
+    }
+
+    const nextKey = [
+      Number(targetDriverMarker.latitude).toFixed(5),
+      Number(targetDriverMarker.longitude).toFixed(5),
+      Number(nextStop.latitude).toFixed(5),
+      Number(nextStop.longitude).toFixed(5)
+    ].join(":");
+
+    if (phase2FollowKeyRef.current === nextKey) return;
+    phase2FollowKeyRef.current = nextKey;
+
+    window._lastProgrammaticMapMove = Date.now();
+    map.fitBounds(
+      [
+        [targetDriverMarker.latitude, targetDriverMarker.longitude],
+        [nextStop.latitude, nextStop.longitude]
+      ],
+      {
+        paddingTopLeft: [25, isMobile ? 140 : 60],
+        paddingBottomRight: [25, areStopCardsVisible ? stopCardsHeight + 10 : 60],
+        maxZoom: 17.5,
+        animate: true,
+        duration: 0.6
+      }
+    );
+  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile, areStopCardsVisible, stopCardsHeight]);
+
   useEffect(() => {
     if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
     const currentCenter = map.getCenter();
