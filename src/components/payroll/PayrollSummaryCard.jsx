@@ -1113,8 +1113,8 @@ export default function PayrollSummaryCard({
                 </div>
 
                 <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                  <div className="text-xs h-full flex items-start justify-center" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    <div className="flex gap-4">
+                  <div className="text-xs h-full flex items-start justify-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    <div className="ml-auto flex gap-4">
                       <div className="flex flex-col">
                         <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
                         <table className="border-collapse">
@@ -1236,8 +1236,8 @@ export default function PayrollSummaryCard({
                 </div>
 
                 <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                  <div className="text-xs h-full flex items-start justify-center" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    <div className="flex gap-6 items-start">
+                  <div className="text-xs h-full flex items-start justify-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    <div className="ml-auto flex gap-6 items-start">
                       {/* Period Column */}
                       <div className="flex flex-col">
                         <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>Month</div>
@@ -1495,8 +1495,8 @@ export default function PayrollSummaryCard({
                   </div>
 
                   <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                    <div className="text-xs h-full flex items-start justify-center" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      <div className="flex gap-4">
+                    <div className="text-xs h-full flex items-start justify-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      <div className="ml-auto flex gap-4">
                         <div className="flex flex-col">
                           <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
                           <table className="border-collapse">
