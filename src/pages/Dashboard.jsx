@@ -3741,7 +3741,7 @@ function Dashboard() {
             const deliveryStore = stores.find((s) => s && s.id === newDelivery.store_id) || null;
 
             // CRITICAL: For special stores, create pickup on-demand when first delivery is added
-            if (specialStoreNames.includes(deliveryStore.name)) {
+            if (deliveryStore && specialStoreNames.includes(deliveryStore.name)) {
               const deliveryAmpm = determineAMPMFromTime(newDelivery.delivery_time_start || '10:00');
 
               // Check if pickup already exists for this store/AM-PM combo
@@ -3788,8 +3788,8 @@ function Dashboard() {
               isNew: true,
               ...newDelivery,
               status: newDelivery.status || 'pending', // Use delivered status or fallback to 'pending'
-              latitude: patient.latitude,
-              longitude: patient.longitude,
+              latitude: patient?.latitude ?? newDelivery.latitude,
+              longitude: patient?.longitude ?? newDelivery.longitude,
               extra_time: newDelivery.extra_time || 5
             });
 
