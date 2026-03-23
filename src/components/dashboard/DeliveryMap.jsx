@@ -148,6 +148,7 @@ export default function DeliveryMap({
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
   const [routeRenderKey, setRouteRenderKey] = useState(0);
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
+  const [measuredTopOverlayHeight, setMeasuredTopOverlayHeight] = useState(0);
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
   const prevDriverLocationMarkersRef = useRef([]);
@@ -180,6 +181,22 @@ export default function DeliveryMap({
     if (routeRecalcVersion === 0) return;
     setPolylineRenderKey((value) => value + 1);
   }, [routeRecalcVersion]);
+
+  const effectiveTopOverlayHeight = topOverlayHeight || measuredTopOverlayHeight;
+  useEffect(() => {
+    const measureTopOverlay = () => {
+      const anchor = document.querySelector('[data-spotlight-anchor]');
+      const overlayContainer = anchor?.parentElement;
+      const nextHeight = overlayContainer?.offsetHeight || anchor?.offsetHeight || 0;
+      if (nextHeight > 0) {
+        setMeasuredTopOverlayHeight(nextHeight);
+      }
+    };
+
+    measureTopOverlay();
+    window.addEventListener('resize', measureTopOverlay);
+    return () => window.removeEventListener('resize', measureTopOverlay);
+  }, [driverRoutes.length, isStatsCardExpanded, highlightedDeliveryId]);
 
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
@@ -683,14 +700,14 @@ export default function DeliveryMap({
         [nextStop.latitude, nextStop.longitude]
       ],
       {
-        paddingTopLeft: [25, isMobile ? (topOverlayHeight || 0) + 25 : 60],
+        paddingTopLeft: [25, isMobile ? effectiveTopOverlayHeight + 25 : 60],
         paddingBottomRight: [25, areStopCardsVisible ? stopCardsHeight + 10 : 60],
         maxZoom: 17.5,
         animate: true,
         duration: 0.6
       }
     );
-  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile, areStopCardsVisible, stopCardsHeight, topOverlayHeight]);
+  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile, areStopCardsVisible, stopCardsHeight, effectiveTopOverlayHeight]);
 
   useEffect(() => {
     if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
@@ -706,7 +723,7 @@ export default function DeliveryMap({
     if (!map) return;
 
     const updateCrosshairCoords = () => {
-      const topObscured = isMobile ? (topOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0;
+      const topObscured = isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0;
       const bottomObscured = areStopCardsVisible ? stopCardsHeight : 0;
       const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 15;
       const size = map.getSize();
@@ -729,7 +746,7 @@ export default function DeliveryMap({
       map.off('zoom', updateCrosshairCoords);
       map.off('resize', updateCrosshairCoords);
     };
-  }, [map, isMobile, isStatsCardExpanded, areStopCardsVisible, stopCardsHeight]);
+  }, [map, isMobile, isStatsCardExpanded, areStopCardsVisible, stopCardsHeight, effectiveTopOverlayHeight]);
 
   const calculateFannedPositionWrapperWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers) => {
     const radius = 0.0008 + (18 - currentZoom) * 0.0008;
@@ -866,7 +883,7 @@ export default function DeliveryMap({
         {showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} safeUsers={safeUsers} />}
       </MapContainer>
 
-      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? (topOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} />
+      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} />
     </div>
   );
 }
