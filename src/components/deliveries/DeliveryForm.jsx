@@ -211,7 +211,7 @@ export default function DeliveryForm({
   const [stagedDeliveries, setStagedDeliveries] = useState([]);
   const [projectedDeliveries, setProjectedDeliveries] = useState([]);
   const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
-  const [predictionTrigger, setPredictionTrigger] = useState(0);
+  const [predictionTrigger, setPredictionTrigger] = useState(0); const handleRefreshProjections = useCallback(() => { predictionsStopped.current = false; setIsLoadingPredictions(true); setPredictionTrigger((prev) => prev + 1); }, []);
   const [showDayPopup, setShowDayPopup] = useState(false);
   const [activeRecurringType, setActiveRecurringType] = useState(null);
   const [editingStagedId, setEditingStagedId] = useState(null);
@@ -3540,7 +3540,7 @@ export default function DeliveryForm({
       projectedDeliveries={projectedDeliveries} setProjectedDeliveries={setProjectedDeliveries} fullPredictionListRef={fullPredictionListRef}
       setEditingStagedId={setEditingStagedId} handleStagedDeliveryClick={handleStagedDeliveryClick} handleClearForm={handleClearForm}
       confirmAddProjectedToStaged={confirmAddProjectedToStaged} isLoadingPredictions={isLoadingPredictions}
-      setPredictionTrigger={setPredictionTrigger} showStagedPanel={showStagedPanel} setShowStagedPanel={setShowStagedPanel}
+      handleRefreshProjections={handleRefreshProjections} showStagedPanel={showStagedPanel} setShowStagedPanel={setShowStagedPanel}
       deleteConfirmation={deleteConfirmation} setDeleteConfirmation={setDeleteConfirmation} isDeletingPending={isDeletingPending}
       handleConfirmDelete={handleConfirmDelete}
       currentFrequency={currentFrequency} weeklyLabel={weeklyLabel} biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
