@@ -34,7 +34,7 @@ export default function MapCrosshair({ stopCardsHeight = 75, statsCardHeight = 0
       <div 
         className="relative w-6 h-6"
         style={{
-          transform: verticalShift !== 0 ? `translateY(${verticalShift > 0 ? '-' : ''}${Math.abs(verticalShift)}px)` : 'none'
+          transform: verticalShift !== 0 ? `translateY(${verticalShift}px)` : 'none'
         }}
       >
         {/* Horizontal line */}
