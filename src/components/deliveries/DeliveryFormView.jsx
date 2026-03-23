@@ -733,7 +733,12 @@ export default function DeliveryFormView({
                     <Edit2 className="w-4 h-4" />Update
                   </Button> :
                 buttonState === 'add' ?
-                <Button type="button" size="sm" onClick={() => runLockedAction('add_staged_delivery', handleAddToStaging)} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || !isFormValid && !hasSelectedLocationAndDriver || requiresDriverSelection && !hasSelectedLocationAndDriver} title={!hasSelectedLocationAndDriver ? 'Select both a date and driver before adding' : requiresDriverSelection && !hasSelectedLocationAndDriver ? 'Select a driver to create a pickup for this store/date' : undefined}>
+                <Button type="button" size="sm" onClick={() => runLockedAction('add_staged_delivery', async () => {
+                  await handleAddToStaging();
+                  if (userHasRole(currentUser, 'admin')) {
+                    setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
+                  }
+                })} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || !isFormValid && !hasSelectedLocationAndDriver || requiresDriverSelection && !hasSelectedLocationAndDriver} title={!hasSelectedLocationAndDriver ? 'Select both a date and driver before adding' : requiresDriverSelection && !hasSelectedLocationAndDriver ? 'Select a driver to create a pickup for this store/date' : undefined}>
                     <Plus className="w-4 h-4" />Add
                   </Button> :
 
