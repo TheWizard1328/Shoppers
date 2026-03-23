@@ -7,7 +7,6 @@ import { base44 } from "@/api/base44Client";
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole } from "../utils/userRoles";
-import { hasDriverMovedEnoughForPhase2 } from "./mapViewPhaseHelpers";
 import MapCrosshair from "./MapCrosshair";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
@@ -31,6 +30,18 @@ L.Icon.Default.mergeOptions({
 const DRIVER_COLORS = ["", "#1E90FF", "#8A2BE2", "#00CED1", "#FF69B4", "#4B0082", "#A0522D"];
 const FINISHED_STATUSES = ["completed", "failed", "cancelled"];
 const ZOOM_LEVELS = { HIDE_ROUTES: 8, SIMPLIFY_ROUTES: 12, HIDE_NUMBERS: 11, HIDE_CIRCLES: 11, FULL_DETAIL: 13 };
+const hasDriverMovedEnoughForPhase2 = (previousLocation, nextLocation, minimumMeters = 50) => {
+  if (!nextLocation?.latitude || !nextLocation?.longitude) return false;
+  if (!previousLocation?.latitude || !previousLocation?.longitude) return true;
+  const toRadians = (value) => value * Math.PI / 180;
+  const earthRadiusMeters = 6371000;
+  const lat1 = toRadians(previousLocation.latitude);
+  const lat2 = toRadians(nextLocation.latitude);
+  const deltaLat = toRadians(nextLocation.latitude - previousLocation.latitude);
+  const deltaLon = toRadians(nextLocation.longitude - previousLocation.longitude);
+  const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) > minimumMeters;
+};
 
 const getEdmDate = () => {
   const parts = new Intl.DateTimeFormat("en-US", {
