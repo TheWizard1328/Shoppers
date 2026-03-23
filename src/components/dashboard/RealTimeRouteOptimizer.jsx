@@ -5,6 +5,14 @@ import { userHasRole } from '../utils/userRoles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Route, TrendingUp, CheckCircle } from 'lucide-react';
 
+const getGlobalOptimizationState = () => {
+  if (typeof window === 'undefined') return null;
+  if (!window.__rxdeliverRealtimeOptimizationState) {
+    window.__rxdeliverRealtimeOptimizationState = { activeKey: null };
+  }
+  return window.__rxdeliverRealtimeOptimizationState;
+};
+
 /**
  * Real-time route optimization service
  * ONLY runs on driver's mobile device

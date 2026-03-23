@@ -151,20 +151,7 @@ Deno.serve(async (req) => {
       (a.stop_order || Infinity) - (b.stop_order || Infinity)
     );
 
-    // Get or create polyline record for counter tracking
-    let polylineRecords = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    });
-    
-    let polylineRecord = polylineRecords?.[0];
-    if (!polylineRecord) {
-      polylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.create({
-        driver_id: driverId,
-        delivery_date: deliveryDate,
-        daily_generation_count: 0
-      });
-    }
+    // Polyline rows can be regenerated concurrently, so never create or rely on a placeholder row here.
 
     // Build waypoints for ONE API call with all incomplete stops
     const hereApiKey = Deno.env.get('HERE_API_KEY');
@@ -335,13 +322,21 @@ Deno.serve(async (req) => {
 
     const apiCallCount = 1; // Only ONE API call now
 
-    // Update polyline counter - only 1 API call now
-    await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
-      daily_generation_count: (polylineRecord.daily_generation_count || 0) + 1,
-      last_generated_at: new Date().toISOString()
-    });
-    console.log(`📊 Incremented polyline counter by 1 (total: ${(polylineRecord.daily_generation_count || 0) + 1})`);
-
+    try {
+      const latestPolylineRows = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      }, '-updated_date', 1);
+      const latestPolylineRow = latestPolylineRows?.[0];
+      if (latestPolylineRow?.id) {
+        await base44.asServiceRole.entities.DriverRoutePolyline.update(latestPolylineRow.id, {
+          daily_generation_count: Number(latestPolylineRow.daily_generation_count || 0) + 1,
+          last_generated_at: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ [calculateRealTimeETA] Skipping polyline counter update:', error?.message || error);
+    }
 
     console.log(`✅ Calculated ${etaUpdates.length} travel durations for driver ${driverId}`);
 
