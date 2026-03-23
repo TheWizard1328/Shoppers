@@ -107,13 +107,6 @@ const getAppUserByUserId = async (userId) => {
   return null;
 };
 
-const buildFallbackAuthUser = (userId, appUser, baseAuthUser = null) => ({
-  id: userId,
-  full_name: baseAuthUser?.full_name || appUser?.user_name || 'Unknown User',
-  email: baseAuthUser?.email || null,
-  role: baseAuthUser?.role || null
-});
-
 const cacheResolvedUser = (user) => {
   userCache.data = user;
   userCache.timestamp = Date.now();
@@ -134,7 +127,7 @@ const withTimeout = (promise, timeoutMs = 10000) => {
 };
 
 /**
- * Gets the effective user, handling impersonation and merging User + AppUser data.
+ * Gets the effective user by merging User + AppUser data.
  * @returns {Promise<object|null>} The effective user object (merged User + AppUser) or null if not logged in.
  */
 export const getEffectiveUser = async () => {
@@ -170,22 +163,6 @@ export const getEffectiveUser = async () => {
           try {
             const cachedAppUser = await getOfflineAppUser(cachedAuthUser.id);
             if (cachedAppUser) {
-              const impersonationId = sessionStorage.getItem('impersonationId');
-              if (impersonationId && cachedAuthUser.role === 'admin' && impersonationId !== cachedAuthUser.id) {
-                const impersonatedAppUser = await getOfflineAppUser(impersonationId);
-                if (impersonatedAppUser) {
-                  const impersonatedMerged = createMergedUser(
-                    buildFallbackAuthUser(impersonationId, impersonatedAppUser, cachedAuthUser),
-                    impersonatedAppUser
-                  );
-                  if (impersonatedMerged) {
-                    impersonatedMerged._isImpersonating = true;
-                    impersonatedMerged._realUserId = cachedAuthUser.id;
-                    return cacheResolvedUser(impersonatedMerged);
-                  }
-                }
-              }
-
               const mergedCachedUser = createMergedUser(cachedAuthUser, cachedAppUser);
               if (mergedCachedUser) {
                 return cacheResolvedUser(mergedCachedUser);
@@ -216,31 +193,6 @@ export const getEffectiveUser = async () => {
                 if (!appUser) {
                     console.warn(`⚠️ [auth.js] No AppUser found for ${authUser.full_name}`);
                     return null;
-                }
-
-                const impersonationId = sessionStorage.getItem('impersonationId');
-                if (impersonationId && authUser.role === 'admin' && impersonationId !== authUser.id) {
-                    try {
-                        const impersonatedAppUser = await getAppUserByUserId(impersonationId);
-                        if (impersonatedAppUser) {
-                          const impersonatedMerged = createMergedUser(
-                            buildFallbackAuthUser(impersonationId, impersonatedAppUser, authUser),
-                            impersonatedAppUser
-                          );
-
-                          if (impersonatedMerged) {
-                            impersonatedMerged._isImpersonating = true;
-                            impersonatedMerged._realUserId = authUser.id;
-                            return cacheResolvedUser(impersonatedMerged);
-                          }
-                        } else {
-                          console.warn('⚠️ [auth.js] Impersonation target AppUser not found, clearing impersonation.');
-                          sessionStorage.removeItem('impersonationId');
-                        }
-                    } catch (impersonationError) {
-                        console.warn('⚠️ [auth.js] Failed to load impersonation user, falling back to real user:', impersonationError.message);
-                        sessionStorage.removeItem('impersonationId');
-                    }
                 }
 
                 const mergedUser = createMergedUser(authUser, appUser);

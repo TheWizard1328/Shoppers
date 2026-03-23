@@ -26,7 +26,6 @@ import {
   Building2,
   BarChart3,
   LogOut,
-  Eye,
   UserCheck,
   Clock,
   CheckCircle,
@@ -50,12 +49,6 @@ import {
   CreditCard,
   Smartphone } from
 "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger } from
-"@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList, CommandItem } from "@/components/ui/command";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -328,54 +321,6 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
 
 };
 
-const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, impersonatingUser, currentUser }) => {
-  const [open, setOpen] = useState(false);
-
-  // CRITICAL: Deduplicate users by ID BEFORE sorting to prevent duplicates in View As User menu
-  const dedupedUsers = currentUser ? users.filter((u) => u && u.id !== currentUser.id) : users;
-  const uniqueUsersMap = new Map();
-  dedupedUsers.forEach((u) => {
-    if (u?.id && !uniqueUsersMap.has(u.id)) {
-      uniqueUsersMap.set(u.id, u);
-    }
-  });
-  const availableUsers = sortUsers(Array.from(uniqueUsersMap.values()));
-
-  return (
-    <div className="mt-2 space-y-2">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className="bg-background px-4 text-sm font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-9 w-full gap-2" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
-            <Eye className="w-4 h-4" style={{ color: 'var(--text-slate-700)' }} /> {impersonatingUser ? 'Switch User' : 'View as User'}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-          <Command style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-            <CommandList style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-              <CommandGroup style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-                {availableUsers.map((user) =>
-                <CommandItem
-                  key={user.id}
-                  value={`${user.user_name || user.full_name} ${formatRoles(user)}`}
-                  onSelect={() => {
-                    onImpersonate(user.id);
-                    setOpen(false);
-                  }}
-                  className="flex justify-between"
-                  style={{ color: 'var(--text-slate-900)' }}>
-
-                    <span>{user.user_name || user.full_name}</span>
-                    <span className="text-xs capitalize" style={{ color: 'var(--text-slate-500)' }}>{formatRoles(user)}</span>
-                  </CommandItem>
-                )}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    </div>);
-
-};
 
 const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, count, isActive }) => {
   return (
@@ -3634,25 +3579,12 @@ export default function Layout({ children, currentPageName }) {
 
                 <SidebarUserFooter
                 currentUser={currentUser}
-                realUser={realUser}
-                impersonatingUser={impersonatingUser}
                 users={users}
                 unreadMessageCount={unreadMessageCount}
                 onOpenMessaging={() => {setShowMessaging(true);setUnreadMessageCount(0);setSidebarOpen(false);}}
                 onOpenInviteQR={() => {setShowInviteQRModal(true);setSidebarOpen(false);}}
-                onImpersonate={handleImpersonate}
-                onStopImpersonating={handleStopImpersonating}
                 stores={stores}
-                filteredDeliveries={filteredDeliveries}
-                impersonationArea={impersonatingUser || userHasRole(realUser, 'admin') ?
-                <UserImpersonation
-                  users={users}
-                  currentUser={currentUser}
-                  onImpersonate={handleImpersonate}
-                  onStopImpersonating={handleStopImpersonating}
-                  impersonatingUser={impersonatingUser} /> :
-
-                null} />
+                filteredDeliveries={filteredDeliveries} />
 
                 </div>
             }

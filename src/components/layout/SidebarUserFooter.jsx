@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Phone, MessageCircle, QrCode, LogOut } from 'lucide-react';
+import { Phone, MessageCircle, QrCode } from 'lucide-react';
 import { formatRoles, userHasRole } from '@/components/utils/userRoles';
 import { getDriverDisplayName } from '@/components/utils/driverUtils';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
@@ -10,17 +10,12 @@ import { User } from '@/entities/User';
 
 export default function SidebarUserFooter({
   currentUser,
-  realUser,
-  impersonatingUser,
   users,
   unreadMessageCount = 0,
   onOpenMessaging,
   onOpenInviteQR,
-  onImpersonate,
-  onStopImpersonating,
   stores,
-  filteredDeliveries,
-  impersonationArea
+  filteredDeliveries
 }) {
   const canShowExportRoute = currentUser ? userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver') : false;
   const [selectedDriverId, setSelectedDriverId] = useState(() => globalFilters.getSelectedDriverId() || 'all');
@@ -69,7 +64,6 @@ export default function SidebarUserFooter({
 
 
           <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
-          impersonatingUser ? 'bg-gradient-to-br from-yellow-500 to-yellow-600' :
           userHasRole(currentUser, 'admin') ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
           userHasRole(currentUser, 'dispatcher') ? 'bg-gradient-to-br from-red-500 to-red-600' :
           userHasRole(currentUser, 'driver') ? 'bg-gradient-to-br from-emerald-500 to-emerald-600' :
@@ -78,9 +72,6 @@ export default function SidebarUserFooter({
             <span className="text-white font-bold text-sm">{(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}</span>
           </div>
           <div className="flex-1 min-w-0">
-            {impersonatingUser &&
-            <p className="text-xs font-semibold text-yellow-800 mb-1">Viewing As</p>
-            }
             <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
               {getDriverDisplayName(currentUser)}
             </p>
@@ -119,14 +110,6 @@ export default function SidebarUserFooter({
           </div>
         </div>
 
-        {impersonatingUser &&
-        <Button onClick={onStopImpersonating} variant="destructive" className="w-full gap-2 mb-3">
-            <LogOut className="w-4 h-4" /> Stop Viewing As
-          </Button>
-        }
-
-        {/* Impersonation area (provided by parent) */}
-        {impersonationArea}
 
         {canShowExportRoute &&
         <div className="mt-3">
