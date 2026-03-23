@@ -7,6 +7,7 @@ import { base44 } from "@/api/base44Client";
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole } from "../utils/userRoles";
+import { hasDriverMovedEnoughForPhase2 } from "./mapViewPhaseHelpers";
 import MapCrosshair from "./MapCrosshair";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
@@ -641,9 +642,11 @@ export default function DeliveryMap({
   }, [map, shouldFitBounds, onBoundsFitted]);
 
   const phase2FollowKeyRef = useRef("");
+  const phase2OwnDriverAnchorRef = useRef(null);
   useEffect(() => {
     if (!map || mapViewPhase !== 2 || !isMapViewLocked) {
       phase2FollowKeyRef.current = "";
+      phase2OwnDriverAnchorRef.current = null;
       return;
     }
 
@@ -681,6 +684,20 @@ export default function DeliveryMap({
 
     if (!targetDriverMarker?.latitude || !targetDriverMarker?.longitude || !nextStop?.latitude || !nextStop?.longitude) {
       return;
+    }
+
+    const isOwnPrimaryDriverFollow = !!livePrimaryDriverMarker && targetDriverId === currentUser?.id;
+    if (isOwnPrimaryDriverFollow) {
+      const nextDriverLocation = {
+        latitude: Number(targetDriverMarker.latitude),
+        longitude: Number(targetDriverMarker.longitude)
+      };
+      if (!hasDriverMovedEnoughForPhase2(phase2OwnDriverAnchorRef.current, nextDriverLocation)) {
+        return;
+      }
+      phase2OwnDriverAnchorRef.current = nextDriverLocation;
+    } else {
+      phase2OwnDriverAnchorRef.current = null;
     }
 
     const nextKey = [
