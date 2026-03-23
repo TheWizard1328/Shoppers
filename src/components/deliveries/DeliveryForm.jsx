@@ -25,8 +25,6 @@ import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
-import { sendDeliveryMessage } from '../utils/deliveryMessaging';
-import { reorderStops } from '../utils/stopReorderer';
 import {
   createPatient as createPatientLocal,
   updatePatient as updatePatientLocal,
@@ -45,6 +43,8 @@ import useDeliveryProjectionManager from './useDeliveryProjectionManager';
 import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
 import { resetBatchSaveDraftState, resumeManagersAndCloseBatchForm, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runDeleteOnlyBatchRefresh, runUpdateOnlyBatchRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
 import { runDeliverySubmitSideEffects } from './deliverySubmitSideEffects';
+import { resolvePatientDriverAssignment, buildSelectedPatientFormData, buildDuplicatePatientDraft, buildNewAddressPatientDraft } from './deliveryPatientSelectionHelpers';
+import { resetDraftEditorState, cleanupDetachedAutoCreatedPickups } from './deliveryDraftStateHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -803,112 +803,23 @@ export default function DeliveryForm({
 
     setSelectedPatient(patient);
 
-    // Find patient's store FIRST (needed throughout this function)
     const patientStore = stores.find((s) => s && s.id === patient.store_id);
+    const { autoSelectedDriverId, autoSelectedDriverName, deliveryAMPM } = resolvePatientDriverAssignment({
+      patient,
+      patientStore,
+      deliveryDate: formData.delivery_date,
+      drivers,
+      allDeliveries,
+      getDriverNameForStorage
+    });
 
-    let autoSelectedDriverId = '';
-    let autoSelectedDriverName = '';
-
-    if (patient.store_id && formData.delivery_date && stores && drivers && patientStore) {
-      const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
-      const dayOfWeek = selectedDate.getDay();
-
-      const deliveryAMPM = determineDeliveryAMPM(patient) || (patientStore ? getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries) : null) || 'AM'; // Prefer patient window, then store-assigned slot, default AM
-
-      let amDriverIdField = '';
-      let pmDriverIdField = '';
-      if (dayOfWeek === 6) {
-        amDriverIdField = 'saturday_am_driver_id';
-        pmDriverIdField = 'saturday_pm_driver_id';
-      } else if (dayOfWeek === 0) {
-        amDriverIdField = 'sunday_am_driver_id';
-        pmDriverIdField = 'sunday_pm_driver_id';
-      } else {
-        amDriverIdField = 'weekday_am_driver_id';
-        pmDriverIdField = 'weekday_pm_driver_id';
-      }
-
-      const preferredDriverIdField = deliveryAMPM === 'PM' ? pmDriverIdField : amDriverIdField;
-      const fallbackDriverIdField = deliveryAMPM === 'PM' ? amDriverIdField : pmDriverIdField;
-
-      let driverId = patientStore[preferredDriverIdField];
-      let usedField = preferredDriverIdField;
-
-      if (!driverId) {
-        driverId = patientStore[fallbackDriverIdField];
-        usedField = fallbackDriverIdField;
-      }
-
-      if (driverId) {
-        const driver = drivers.find((d) => d && d.id === driverId);
-
-        if (driver) {
-          autoSelectedDriverId = driverId;
-          autoSelectedDriverName = getDriverNameForStorage(driver);
-        }
-      }
-    }
-
-    // CRITICAL: Calculate AM/PM and set store variant in formData
-    const deliveryAMPM = determineDeliveryAMPM(patient);
-    let storeVariantId = patient.store_id || '';
-    
-    // If store has both AM & PM drivers, append variant suffix to show correct selection
-    if (patientStore) {
-      const dateObj = formData.delivery_date ? new Date(formData.delivery_date + 'T00:00:00') : new Date();
-      const dayOfWeek = dateObj.getDay();
-      
-      let amDriverId, pmDriverId;
-      if (dayOfWeek === 6) {
-        amDriverId = patientStore.saturday_am_driver_id;
-        pmDriverId = patientStore.saturday_pm_driver_id;
-      } else if (dayOfWeek === 0) {
-        amDriverId = patientStore.sunday_am_driver_id;
-        pmDriverId = patientStore.sunday_pm_driver_id;
-      } else {
-        amDriverId = patientStore.weekday_am_driver_id;
-        pmDriverId = patientStore.weekday_pm_driver_id;
-      }
-      
-      // If both AM & PM slots exist, set variant ID for UI display
-      if (amDriverId && pmDriverId && deliveryAMPM) {
-        storeVariantId = `${patient.store_id}_${deliveryAMPM}`;
-      }
-    }
-
-    const updatedFormData = {
-      ...formData,
-      patient_id: patient.id,
-      patient_name: patient.full_name,
-      patient_phone: patient.phone || '',
-      unit_number: patient.unit_number || '',
-      time_window_start: patient.time_window_start || patient.time_window_end ? patient.time_window_start || '' : '',
-      time_window_end: patient.time_window_start || patient.time_window_end ? patient.time_window_end || '' : '',
-      mailbox_ok: patient.mailbox_ok || false,
-      call_upon_arrival: patient.call_upon_arrival || false,
-      ring_bell: patient.ring_bell || false,
-      dont_ring_bell: patient.dont_ring_bell || false,
-      back_door: patient.back_door || false,
-      signature_needed: patient.signature_needed || false,
-      delivery_instructions: patient.notes || '',
-      store_id: patient.store_id || '',
-      ampm_deliveries: deliveryAMPM, // CRITICAL: Set calculated AM/PM
-      driver_id: autoSelectedDriverId,
-      driver_name: autoSelectedDriverName,
-      recurring: patient.recurring || false,
-      recurring_daily: patient.recurring_daily || false,
-      recurring_weekly_mon: patient.recurring_weekly_mon || false,
-      recurring_weekly_tue: patient.recurring_weekly_tue || false,
-      recurring_weekly_wed: patient.recurring_weekly_wed || false,
-      recurring_weekly_thu: patient.recurring_weekly_thu || false,
-      recurring_weekly_fri: patient.recurring_weekly_fri || false,
-      recurring_weekly_sat: patient.recurring_weekly_sat || false,
-      recurring_weekly_sun: patient.recurring_weekly_sun || false,
-      recurring_biweekly: patient.recurring_biweekly || false,
-      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
-      recurring_monthly: patient.recurring_monthly || false,
-      recurring_bimonthly: patient.recurring_bimonthly || false
-    };
+    const updatedFormData = buildSelectedPatientFormData({
+      formData,
+      patient,
+      deliveryAMPM,
+      autoSelectedDriverId,
+      autoSelectedDriverName
+    });
 
     setFormData(updatedFormData);
     if (!autoAddToStaged) {
@@ -981,56 +892,18 @@ export default function DeliveryForm({
     const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
 
-    // CRITICAL: Clear form completely after adding to staged
-    setError(null);
-    setSelectedPatient(null);
-    setSelectedPatientIds(new Set());
-    setPatientSearch('');
-    setHighlightedPatientIndex(-1);
-    setEditingStagedId(null);
-    setFormData((prev) => ({
-      ...prev,
-      patient_id: '',
-      patient_name: '',
-      patient_phone: '',
-      unit_number: '',
-      delivery_instructions: '',
-      delivery_notes: '',
-      prescription_number: '',
-      cod_total_amount_required: 0,
-      cod_payments: [],
-      cod_payment_type: 'No Payment',
-      cod_amount: '',
-      mailbox_ok: false,
-      call_upon_arrival: false,
-      ring_bell: false,
-      dont_ring_bell: false,
-      back_door: false,
-      signature_needed: false,
-      fridge_item: false,
-      oversized: false,
-      no_charge: false,
-      store_id: '',
-      delivery_time_start: '', delivery_time_end: '',
-      time_window_start: '', time_window_end: '', barcode_values: [], receipt_barcode_values: [],
-      recurring: false,
-      recurring_daily: false,
-      recurring_weekly_mon: false,
-      recurring_weekly_tue: false,
-      recurring_weekly_wed: false,
-      recurring_weekly_thu: false,
-      recurring_weekly_fri: false,
-      recurring_weekly_sat: false,
-      recurring_weekly_sun: false,
-      recurring_biweekly: false,
-      recurring_weekly_x4: false,
-      recurring_monthly: false,
-      recurring_bimonthly: false
-    }));
-    setSelectedPickupOption('');
-
-    // Only auto-focus on desktop
-    if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100);
+    resetDraftEditorState({
+      setSelectedPatient,
+      setSelectedPatientIds,
+      setPatientSearch,
+      setError,
+      setEditingStagedId,
+      setHighlightedPatientIndex,
+      setFormData,
+      setSelectedPickupOption,
+      shouldAutoFocusFields,
+      focusRef: codAmountInputRef
+    });
     
     // Resume location poller after operations complete
     driverLocationPoller.resume();
@@ -1310,221 +1183,61 @@ export default function DeliveryForm({
   // Handler for "Duplicate Patient" button - opens PatientForm to create new patient
   const handleDuplicatePatient = useCallback((patient) => {
     if (!patient || !onCreatePatient) return;
-    
-    // Get full patient data
-    const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
-    
-    // Create patient object for form with empty name/phone/patient_id (indicating duplicate mode)
-    const patientWithEmpty = {
-      ...fullPatient,
-      patient_id: '', // CRITICAL: Clear patient_id to trigger new PID generation
-      full_name: '',
-      phone: '',
-      phone_secondary: '',
-      _duplicateSource: true,
-      _isNew: true
-    };
-    
-    // Open patient form with duplicate mode
+
+    const { patientWithEmpty, nextFormData, duplicateSelectedPatient } = buildDuplicatePatientDraft({
+      patient,
+      patients,
+      deliveryDate: formData.delivery_date,
+      stores,
+      drivers,
+      allDeliveries,
+      getDriverNameForStorage,
+      formData
+    });
+
     setIsPatientFormOpen(true);
     onCreatePatient((createdPatient) => {
       setIsPatientFormOpen(false);
       handlePatientSelect(createdPatient, true);
     }, patientWithEmpty, 'duplicate');
-    
+
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
-    
-    // Find patient's store
-    const patientStore = stores.find((s) => s && s.id === patient.store_id);
-    
-    // Auto-select driver based on patient's store
-    let autoSelectedDriverId = '';
-    let autoSelectedDriverName = '';
-    
-    if (patient.store_id && formData.delivery_date && stores && drivers && patientStore) {
-      const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
-      const dayOfWeek = selectedDate.getDay();
-      const deliveryAMPM = determineDeliveryAMPM(patient);
-      
-      let amDriverIdField = '';
-      let pmDriverIdField = '';
-      if (dayOfWeek === 6) {
-        amDriverIdField = 'saturday_am_driver_id';
-        pmDriverIdField = 'saturday_pm_driver_id';
-      } else if (dayOfWeek === 0) {
-        amDriverIdField = 'sunday_am_driver_id';
-        pmDriverIdField = 'sunday_pm_driver_id';
-      } else {
-        amDriverIdField = 'weekday_am_driver_id';
-        pmDriverIdField = 'weekday_pm_driver_id';
-      }
-      
-      const preferredDriverIdField = deliveryAMPM === 'PM' ? pmDriverIdField : amDriverIdField;
-      const fallbackDriverIdField = deliveryAMPM === 'PM' ? amDriverIdField : pmDriverIdField;
-      
-      let driverId = patientStore[preferredDriverIdField];
-      if (!driverId) driverId = patientStore[fallbackDriverIdField];
-      
-      if (driverId) {
-        const driver = drivers.find((d) => d && d.id === driverId);
-        if (driver) {
-          autoSelectedDriverId = driverId;
-          autoSelectedDriverName = getDriverNameForStorage(driver);
-        }
-      }
-    }
-    
-    // Fill form with patient data but clear patient_id (to create new) and name
-    setFormData((prev) => ({
-      ...prev,
-      patient_id: '', // Empty to create new patient
-      patient_name: '', // Clear name for user to enter
-      patient_phone: patient.phone || '',
-      unit_number: patient.unit_number || '',
-      time_window_start: patient.time_window_start || '',
-      time_window_end: patient.time_window_end || '',
-      mailbox_ok: patient.mailbox_ok || false,
-      call_upon_arrival: patient.call_upon_arrival || false,
-      ring_bell: patient.ring_bell || false,
-      dont_ring_bell: patient.dont_ring_bell || false,
-      back_door: patient.back_door || false,
-      signature_needed: patient.signature_needed || false,
-      delivery_instructions: patient.notes || '',
-      store_id: patient.store_id || '',
-      driver_id: autoSelectedDriverId,
-      driver_name: autoSelectedDriverName,
-      recurring: patient.recurring || false,
-      recurring_daily: patient.recurring_daily || false,
-      recurring_weekly_mon: patient.recurring_weekly_mon || false,
-      recurring_weekly_tue: patient.recurring_weekly_tue || false,
-      recurring_weekly_wed: patient.recurring_weekly_wed || false,
-      recurring_weekly_thu: patient.recurring_weekly_thu || false,
-      recurring_weekly_fri: patient.recurring_weekly_fri || false,
-      recurring_weekly_sat: patient.recurring_weekly_sat || false,
-      recurring_weekly_sun: patient.recurring_weekly_sun || false,
-      recurring_biweekly: patient.recurring_biweekly || false,
-      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
-      recurring_monthly: patient.recurring_monthly || false,
-      recurring_bimonthly: patient.recurring_bimonthly || false
-    }));
-    
-    // Store original patient data for reference when creating new patient
-    setSelectedPatient({ ...patient, _duplicateSource: true });
-    
+    setFormData(nextFormData);
+    setSelectedPatient(duplicateSelectedPatient);
+
     if (shouldAutoFocusFields) setTimeout(() => patientNameInputRef.current?.focus(), 150);
-  }, [formData.delivery_date, stores, drivers]);
+  }, [patients, formData, stores, drivers, allDeliveries, onCreatePatient, handlePatientSelect, shouldAutoFocusFields]);
 
   // Handler for "New Address" button - creates new patient with same info but empty address/unit
   const handleNewAddressPatient = useCallback((patient) => {
-    if (!patient) return;
-    
-    // CRITICAL: Get full patient data to ensure all fields are populated
-    const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
-    
+    if (!patient || !onCreatePatient) return;
+
+    const { nextFormData, patientWithoutAddress } = buildNewAddressPatientDraft({
+      patient,
+      patients,
+      deliveryDate: formData.delivery_date,
+      stores,
+      drivers,
+      allDeliveries,
+      getDriverNameForStorage,
+      formData,
+      shouldAutoFocusFields
+    });
+
     setNewPatientMode('new_address');
-    setSelectedPatient(null); // Clear selected patient since we're creating new
+    setSelectedPatient(null);
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
-    
-    // Find patient's store
-    const patientStore = stores.find((s) => s && s.id === fullPatient.store_id);
-    
-    // Auto-select driver based on patient's store
-    let autoSelectedDriverId = '';
-    let autoSelectedDriverName = '';
-    
-    if (patient.store_id && formData.delivery_date && stores && drivers && patientStore) {
-      const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
-      const dayOfWeek = selectedDate.getDay();
-      const deliveryAMPM = determineDeliveryAMPM(patient);
-      
-      let amDriverIdField = '';
-      let pmDriverIdField = '';
-      if (dayOfWeek === 6) {
-        amDriverIdField = 'saturday_am_driver_id';
-        pmDriverIdField = 'saturday_pm_driver_id';
-      } else if (dayOfWeek === 0) {
-        amDriverIdField = 'sunday_am_driver_id';
-        pmDriverIdField = 'sunday_pm_driver_id';
-      } else {
-        amDriverIdField = 'weekday_am_driver_id';
-        pmDriverIdField = 'weekday_pm_driver_id';
-      }
-      
-      const preferredDriverIdField = deliveryAMPM === 'PM' ? pmDriverIdField : amDriverIdField;
-      const fallbackDriverIdField = deliveryAMPM === 'PM' ? amDriverIdField : pmDriverIdField;
-      
-      let driverId = patientStore[preferredDriverIdField];
-      if (!driverId) driverId = patientStore[fallbackDriverIdField];
-      
-      if (driverId) {
-        const driver = drivers.find((d) => d && d.id === driverId);
-        if (driver) {
-          autoSelectedDriverId = driverId;
-          autoSelectedDriverName = getDriverNameForStorage(driver);
-        }
-      }
-    }
-    
-    // Fill form with patient data but clear patient_id (to create new), address and unit_number
-    setFormData((prev) => ({
-      ...prev,
-      patient_id: '', // Empty to create new patient
-      patient_name: fullPatient.full_name || '',
-      patient_phone: fullPatient.phone || '',
-      unit_number: '', // Clear unit number
-      time_window_start: fullPatient.time_window_start || '',
-      time_window_end: fullPatient.time_window_end || '',
-      mailbox_ok: fullPatient.mailbox_ok || false,
-      call_upon_arrival: fullPatient.call_upon_arrival || false,
-      ring_bell: fullPatient.ring_bell || false,
-      dont_ring_bell: fullPatient.dont_ring_bell || false,
-      back_door: fullPatient.back_door || false,
-      signature_needed: fullPatient.signature_needed || false,
-      delivery_instructions: fullPatient.notes || '',
-      store_id: fullPatient.store_id || '',
-      driver_id: autoSelectedDriverId,
-      driver_name: autoSelectedDriverName,
-      recurring: fullPatient.recurring || false,
-      recurring_daily: fullPatient.recurring_daily || false,
-      recurring_weekly_mon: fullPatient.recurring_weekly_mon || false,
-      recurring_weekly_tue: fullPatient.recurring_weekly_tue || false,
-      recurring_weekly_wed: fullPatient.recurring_weekly_wed || false,
-      recurring_weekly_thu: fullPatient.recurring_weekly_thu || false,
-      recurring_weekly_fri: fullPatient.recurring_weekly_fri || false,
-      recurring_weekly_sat: fullPatient.recurring_weekly_sat || false,
-      recurring_weekly_sun: fullPatient.recurring_weekly_sun || false,
-      recurring_biweekly: fullPatient.recurring_biweekly || false,
-      recurring_weekly_x4: fullPatient.recurring_weekly_x4 || false,
-      recurring_monthly: fullPatient.recurring_monthly || false,
-      recurring_bimonthly: fullPatient.recurring_bimonthly || false
-    }));
-    
-    // Create patient object with all pre-filled data but empty address/patient_id
-    const patientWithoutAddress = {
-      ...fullPatient,
-      patient_id: '',
-      address: '',
-      unit_number: '',
-      latitude: null, longitude: null, distance_from_store: null,
-      _newAddressSource: true,
-      _isNew: true, _focusAddress: shouldAutoFocusFields
-    };
-    
+    setFormData(nextFormData);
     setSelectedPatient(patientWithoutAddress);
-    
-    // Trigger patient form to open with pre-filled data
-    if (onCreatePatient) {
-      setIsPatientFormOpen(true);
-      onCreatePatient((createdPatient) => {
-        setIsPatientFormOpen(false);
-        setNewPatientMode(null);
-        // CRITICAL: Auto-add new patient to staged (true parameter)
-        handlePatientSelect(createdPatient, true);
-      }, patientWithoutAddress, 'newAddress');
-    }
-  }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
+    setIsPatientFormOpen(true);
+    onCreatePatient((createdPatient) => {
+      setIsPatientFormOpen(false);
+      setNewPatientMode(null);
+      handlePatientSelect(createdPatient, true);
+    }, patientWithoutAddress, 'newAddress');
+  }, [patients, formData, stores, drivers, allDeliveries, onCreatePatient, handlePatientSelect, shouldAutoFocusFields]);
 
   const handleStagedDeliveryClick = useCallback((staged) => {
     // Hide staged panel on mobile when clicking a staged item
@@ -1777,33 +1490,19 @@ export default function DeliveryForm({
     const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
 
-    // CRITICAL: Clear form completely after adding to staged
-    setError(null);
-    setSelectedPatient(null);
-    setSelectedPatientIds(new Set());
-    setPatientSearch('');
-    setHighlightedPatientIndex(-1);
-    setEditingStagedId(null);
-    setNewPatientMode(null); // Reset new patient mode
-    setFormData((prev) => ({
-      ...prev, patient_id: '', patient_name: '', patient_phone: '',
-      unit_number: '', delivery_instructions: '', delivery_notes: '',
-      prescription_number: '', cod_total_amount_required: 0,
-      cod_payments: [], cod_payment_type: 'No Payment', cod_amount: '',
-      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-      dont_ring_bell: false, back_door: false, signature_needed: false, 
-      fridge_item: false, oversized: false, no_charge: false, store_id: '', delivery_time_start: '', delivery_time_end: '', time_window_start: '', time_window_end: '', barcode_values: [], receipt_barcode_values: [],
-      time_window_start: '', time_window_end: '',
-      recurring: false, recurring_daily: false,
-      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
-      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
-      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-      recurring_monthly: false, recurring_bimonthly: false
-    }));
-    setSelectedPickupOption('');
-
-    // Only auto-focus on desktop
-    if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    resetDraftEditorState({
+      setSelectedPatient,
+      setSelectedPatientIds,
+      setPatientSearch,
+      setError,
+      setEditingStagedId,
+      setHighlightedPatientIndex,
+      setFormData,
+      setSelectedPickupOption,
+      shouldAutoFocusFields,
+      focusRef: patientSearchInputRef,
+      setNewPatientMode
+    });
   }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption]);
 
   const handleUpdateStaged = useCallback(async () => {
@@ -2102,27 +1801,19 @@ export default function DeliveryForm({
       e.preventDefault();
       // If there's form data, clear the form (like clicking Clear button)
       if (hasFormData) {
-        // Inline clear form logic to avoid circular dependency
-        setSelectedPatient(null);
-        setSelectedPatientIds(new Set());
-        setPatientSearch('');
-        setError(null);
-        setEditingStagedId(null);
-        setFormData((prev) => ({
-          ...prev, patient_id: '', patient_name: '', patient_phone: '',
-          unit_number: '', delivery_instructions: '', delivery_notes: '',
-          prescription_number: '', cod_total_amount_required: 0,
-          cod_payments: [], cod_payment_type: 'No Payment', cod_amount: '',
-          mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-          dont_ring_bell: false, back_door: false, signature_needed: false, no_charge: false, store_id: '', delivery_time_start: '', delivery_time_end: '', time_window_start: '', time_window_end: '', barcode_values: [], receipt_barcode_values: [],
-          recurring: false, recurring_daily: false,
-          recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
-          recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
-          recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-          recurring_monthly: false, recurring_bimonthly: false
-        }));
-        setSelectedPickupOption('');
-        if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+        resetDraftEditorState({
+          setSelectedPatient,
+          setSelectedPatientIds,
+          setPatientSearch,
+          setError,
+          setEditingStagedId,
+          setHighlightedPatientIndex,
+          setFormData,
+          setSelectedPickupOption,
+          shouldAutoFocusFields,
+          focusRef: patientSearchInputRef,
+          setNewPatientMode
+        });
       } else {
         // Just clear the search field
         setPatientSearch('');
@@ -2321,30 +2012,26 @@ export default function DeliveryForm({
   };
 
   const handleClearForm = useCallback(() => {
-    (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
-    setSelectedPatient(null);
-    setSelectedPatientIds(new Set());
-    setPatientSearch('');
-    setError(null);
-    setEditingStagedId(null);
-    setNewPatientMode(null);
-    setFormData((prev) => ({
-      ...prev, patient_id: '', patient_name: '', patient_phone: '',
-      unit_number: '', delivery_instructions: '', delivery_notes: '',
-      prescription_number: '', cod_total_amount_required: 0,
-      cod_payments: [], cod_payment_type: 'No Payment', cod_amount: '',
-      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-      dont_ring_bell: false, back_door: false, signature_needed: false, no_charge: false, store_id: '', delivery_time_start: '', delivery_time_end: '', time_window_start: '', time_window_end: '', barcode_values: [], receipt_barcode_values: [],
-      recurring: false, recurring_daily: false,
-      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
-      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
-      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-      recurring_monthly: false, recurring_bimonthly: false
-    }));
-    setSelectedPickupOption('');
-    // Only auto-focus on desktop
-    if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-  }, [shouldAutoFocusFields]);
+    void cleanupDetachedAutoCreatedPickups({
+      stagedDeliveries,
+      deleteDeliveryLocal,
+      autoCreatedPickupsRef,
+      setStagedDeliveries
+    });
+    resetDraftEditorState({
+      setSelectedPatient,
+      setSelectedPatientIds,
+      setPatientSearch,
+      setError,
+      setEditingStagedId,
+      setHighlightedPatientIndex,
+      setFormData,
+      setSelectedPickupOption,
+      shouldAutoFocusFields,
+      focusRef: patientSearchInputRef,
+      setNewPatientMode
+    });
+  }, [stagedDeliveries, shouldAutoFocusFields]);
 
   const handleCancelClick = useCallback(() => {
     // Only show confirmation if there are NEW staged deliveries (without an id)
