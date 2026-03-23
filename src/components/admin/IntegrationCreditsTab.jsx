@@ -427,16 +427,16 @@ export default function IntegrationCreditsTab() {
                 }
                 {filteredLogs.map((log) =>
                 <tr key={log.id} className="border-t">
-                    <td className="p-3 text-slate-600">{formatDistanceToNowStrict(new Date(log.timestamp || log.created_date), { addSuffix: true })}</td>
-                    <td className="p-3 text-slate-900">{log.app_user_name || 'Unknown user'}</td>
-                    <td className="p-3 text-slate-900">{log.feature || '—'}</td>
-                    <td className="p-3 text-slate-600">{log.integration_name}.{log.operation_name}</td>
-                    <td className="p-3 text-slate-900">{log.estimated_credits_used || 0}</td>
-                    <td className="p-3 text-slate-600">{formatDuration(log.duration_ms)}</td>
-                    <td className="p-3">
+                    <td className="text-slate-600 px-3 py-1">{formatDistanceToNowStrict(new Date(log.timestamp || log.created_date), { addSuffix: true })}</td>
+                    <td className="text-slate-900 px-3 py-1">{log.app_user_name || 'Unknown user'}</td>
+                    <td className="text-slate-900 px-3 py-1">{log.feature || '—'}</td>
+                    <td className="text-slate-600 px-3 py-1">{log.integration_name}.{log.operation_name}</td>
+                    <td className="text-slate-900 px-3 py-1">{log.estimated_credits_used || 0}</td>
+                    <td className="text-slate-600 px-3 py-1">{formatDuration(log.duration_ms)}</td>
+                    <td className="px-3 py-1">
                       <Badge variant={log.success ? 'default' : 'destructive'}>{log.success ? 'Success' : 'Failed'}</Badge>
                     </td>
-                    <td className="p-3 text-slate-600 max-w-[280px] truncate" title={log.error_message || ''}>
+                    <td className="text-slate-600 px-3 py-1 max-w-[280px] truncate" title={log.error_message || ''}>
                       {log.error_message || '—'}
                     </td>
                   </tr>
