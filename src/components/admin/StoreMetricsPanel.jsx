@@ -356,7 +356,7 @@ export default function StoreMetricsPanel() {
               </Select>
 
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-32 shrink-0">
+                <SelectTrigger className="w-24 shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
