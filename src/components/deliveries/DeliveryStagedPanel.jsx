@@ -67,7 +67,7 @@ export function DeliveryStagedPanelDesktop({
           }}
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
         >
-          {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
+          {isLoadingPredictions ? 'Refreshing Projections...' : 'Refresh Projections'}
         </Button>
       </div>
     </div>
@@ -159,7 +159,7 @@ export function DeliveryStagedPanelMobile({
                 }}
                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
               >
-                {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
+                {isLoadingPredictions ? 'Refreshing Projections...' : 'Refresh Projections'}
               </Button>
             </div>
           </motion.div>

@@ -363,7 +363,7 @@ export default function DeliveryFormStaged({
       {isLoadingPredictions && (
         <div className="p-4 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
           <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></div>
-          Analyzing patterns...
+          Refreshing projections...
         </div>
       )}
 
