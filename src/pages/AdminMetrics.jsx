@@ -284,9 +284,9 @@ export default function AdminMetrics() {
 
   return (
     <div className="h-full min-h-0 overflow-hidden p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-7xl mx-auto h-full min-h-0 flex flex-col gap-4 md:gap-6">
+      <div className="max-w-7xl mx-auto h-full min-h-0 flex flex-col gap-3 md:gap-4">
         {/* Header */}
-        <div className="shrink-0 space-y-4">
+        <div className="shrink-0 space-y-3">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
               Admin Metrics
@@ -326,9 +326,9 @@ export default function AdminMetrics() {
         </div>
 
         {/* Summary Cards */}
-        <div className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <CardContent className="p-6 pt-4 pb-4 min-w-[75px]">
+            <CardContent className="p-4 pt-3 pb-3 min-w-[75px]">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Billable` : `${selectedYear} Deliveries`}</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#d1fae5' }}>
@@ -350,7 +350,7 @@ export default function AdminMetrics() {
           </Card>
 
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="p-4 pt-3 pb-3">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Non-Billable` : `${selectedYear} Non-Billable`}</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#fed7aa' }}>
@@ -367,7 +367,7 @@ export default function AdminMetrics() {
           </Card>
 
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="p-4 pt-3 pb-3">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Active Drivers</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#e9d5ff' }}>
@@ -379,7 +379,7 @@ export default function AdminMetrics() {
           </Card>
 
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="p-4 pt-3 pb-3">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Stores Paying</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#dbeafe' }}>
@@ -393,7 +393,7 @@ export default function AdminMetrics() {
           </Card>
 
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="p-4 pt-3 pb-3">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Fee Rate</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: 'var(--bg-slate-200)' }}>
@@ -407,7 +407,7 @@ export default function AdminMetrics() {
           </Card>
 
           <Card style={{ background: '#fef3c7', borderColor: '#fcd34d' }}>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="p-4 pt-3 pb-3">
               <p className="text-sm mb-2" style={{ color: '#b45309' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#f59e0b' }}>
