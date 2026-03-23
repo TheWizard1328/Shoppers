@@ -96,10 +96,10 @@ export default function SidebarUserFooter({
               </div>
             }
           </div>
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center">
             <button
-              onClick={onOpenMessaging}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
+              onClick={onOpenMessaging} className="p-3 hover:bg-slate-100 rounded-lg transition-colors relative"
+
               title="Messages">
 
               <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
@@ -110,8 +110,8 @@ export default function SidebarUserFooter({
               }
             </button>
             <button
-              onClick={onOpenInviteQR}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              onClick={onOpenInviteQR} className="p-3 hover:bg-slate-100 rounded-lg transition-colors"
+
               title="Generate Invite QR Code">
 
               <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
