@@ -3737,17 +3737,8 @@ function Dashboard() {
           for (const newDelivery of driverDeliveries) {
             if (!newDelivery) continue;
 
-            const patient = patients.find((p) => p && p.id === newDelivery.patient_id);
-            if (!patient) {
-              console.warn(`[AddToRoute]   ⚠️ Patient not found: ${newDelivery.patient_id}`);
-              continue;
-            }
-
-            const deliveryStore = stores.find((s) => s.id === newDelivery.store_id);
-            if (!deliveryStore) {
-              console.warn(`[AddToRoute]   ⚠️ Store not found for patient: ${newDelivery.store_id}`);
-              continue;
-            }
+            const patient = patients.find((p) => p && p.id === newDelivery.patient_id) || null;
+            const deliveryStore = stores.find((s) => s && s.id === newDelivery.store_id) || null;
 
             // CRITICAL: For special stores, create pickup on-demand when first delivery is added
             if (specialStoreNames.includes(deliveryStore.name)) {
@@ -4055,9 +4046,9 @@ function Dashboard() {
               stop_order: stop.stop_order,
               tracking_number: stop.tracking_number,
               delivery_notes: stop.delivery_notes || '',
-              patient_name: stop.patient_id ? stopPatient?.full_name || '' : '',
-              patient_phone: stop.patient_id ? stopPatient?.phone || '' : '',
-              store_phone: stopStore?.phone || '',
+              patient_name: stop.patient_id ? stop.patient_name || stopPatient?.full_name || '' : '',
+              patient_phone: stop.patient_id ? stop.patient_phone || stopPatient?.phone || '' : '',
+              store_phone: stop.store_phone || stopStore?.phone || '',
               cod_payments: stop.cod_payments || null,
               cod_total_amount_required: stop.cod_total_amount_required || 0,
               barcode_values: Array.isArray(stop.barcode_values) ? stop.barcode_values : [], receipt_barcode_values: Array.isArray(stop.receipt_barcode_values) ? stop.receipt_barcode_values : [],

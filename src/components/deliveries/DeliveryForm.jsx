@@ -2170,11 +2170,7 @@ export default function DeliveryForm({
       }
       
       // Then save new deliveries OR trigger data refresh
-      if (newDeliveries.length > 0) {
-        // CRITICAL: Convert status before saving
-        // - 'Staged' → 'pending' for regular deliveries
-        // - 'Staged' → 'in_transit' for InterStore deliveries (patient with 'InterStore', '(ISP)', or '(ISD)' in name/notes/address)
-        const deliveriesReadyForDB = deliveriesWithTRs.map(d => {
+      const deliveriesReadyForDB = newDeliveries.length > 0 ? deliveriesWithTRs.map(d => {
           if (d.status === 'Staged') {
             let newStatus = (!d.patient_id) ? 'en_route' : 'pending';
             // If it's a delivery (not a pickup) check if it's InterStore
@@ -2192,7 +2188,7 @@ export default function DeliveryForm({
             return { ...deliveryPayload, status: newStatus };
           }
           return d;
-        });
+        }) : [];
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
         
         // SQUARE INTEGRATION: Create COD items only for in_transit deliveries (not pending) - batched for speed
@@ -2317,18 +2313,17 @@ export default function DeliveryForm({
       // Keep the heavier refresh work in the background
       Promise.resolve().then(async () => {
         try {
-          const freshDeliveries = await base44.entities.Delivery.filter({
-            driver_id: formData.driver_id,
-            delivery_date: formData.delivery_date
-          });
+          const refreshDriverId = deliveriesReadyForDB[0]?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
+          const refreshDeliveryDate = deliveriesReadyForDB[0]?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
+          const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: refreshDriverId, delivery_date: refreshDeliveryDate });
 
           const { offlineDB } = await import('../utils/offlineDatabase');
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
 
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
             detail: {
-              deliveryDate: formData.delivery_date,
-              driverId: formData.driver_id,
+              deliveryDate: refreshDeliveryDate,
+              driverId: refreshDriverId,
               triggeredBy: 'doneButtonCreates',
               immediate: true,
               freshDeliveries
