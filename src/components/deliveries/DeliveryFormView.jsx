@@ -729,14 +729,18 @@ export default function DeliveryFormView({
                   {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
                 </Button>
 
-                {buttonState === 'done' || canDoneSaveCurrentDraft ?
-                <Button type="button" size="sm" onClick={() => runLockedAction(canDoneSaveCurrentDraft ? 'add_and_batch_save' : 'batch_save', async () => {
-                    if (canDoneSaveCurrentDraft) {
-                      await handleAddToStaging();
-                      await new Promise((resolve) => setTimeout(resolve, 0));
-                    }
+                {canDoneSaveCurrentDraft &&
+                <Button type="button" size="sm" onClick={() => runLockedAction('add_and_batch_save', async () => {
+                    await handleAddToStaging();
+                    await new Promise((resolve) => setTimeout(resolve, 0));
                     await latestHandleBatchSaveRef.current();
-                  })} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasChanges && !canDoneSaveCurrentDraft || canDoneSaveCurrentDraft && !isFormValid}>
+                  })} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid}>
+                    {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
+                  </Button>
+                }
+
+                {buttonState === 'done' ?
+                <Button type="button" size="sm" onClick={() => runLockedAction('batch_save', handleBatchSave)} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasChanges}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button> :
                 buttonState === 'updateStaged' ?
