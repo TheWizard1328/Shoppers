@@ -607,7 +607,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       position: 'left-1/3'
     },
     on_break: {
-      label: 'Break',
+      label: 'Br',
       color: 'bg-blue-500',
       activeColor: 'bg-blue-600',
       textColor: 'text-white',
