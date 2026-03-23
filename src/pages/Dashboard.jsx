@@ -4128,9 +4128,7 @@ function Dashboard() {
             }
           }
 
-          if (deliveriesToCreate.length > 0) {
-            await batchCreateDeliveriesLocal(deliveriesToCreate);
-          }
+          const createdDeliveries=deliveriesToCreate.length>0?await batchCreateDeliveriesLocal(deliveriesToCreate):[];createdDeliveries.length&&updateDeliveriesLocally&&updateDeliveriesLocally([...deliveries.filter((d)=>!createdDeliveries.some((c)=>c?.id===d?.id)),...createdDeliveries],true);
 
           if (deliveriesToUpdate.length > 0) {
             for (const { id, updates } of deliveriesToUpdate) {
