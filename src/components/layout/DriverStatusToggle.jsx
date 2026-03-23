@@ -669,7 +669,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           style={status !== 'on_duty' ? { color: 'var(--text-slate-500)' } : {}}
           title="On Duty - Location sharing enabled"
         >
-          On
+          {statusConfig.on_duty.label}
         </button>
         
         {/* On Break button */}
