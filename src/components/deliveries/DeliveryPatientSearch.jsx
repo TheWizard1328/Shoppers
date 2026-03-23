@@ -44,6 +44,41 @@ export default function DeliveryPatientSearch({
   handleSearchKeyDown
 }) {
   const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  const handlePatientSearchKeyDown = (e) => {
+    if (!filteredPatients.length) {
+      handleSearchKeyDown?.(e);
+      return;
+    }
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const direction = e.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex = highlightedPatientIndex < 0
+        ? 0
+        : Math.max(0, Math.min(filteredPatients.length - 1, highlightedPatientIndex + direction));
+
+      setHighlightedPatientIndex(nextIndex);
+      requestAnimationFrame(() => {
+        document.getElementById(`patient-item-${nextIndex}`)?.scrollIntoView({ block: 'nearest' });
+      });
+      return;
+    }
+
+    if (e.key === 'Enter' && highlightedPatientIndex >= 0) {
+      e.preventDefault();
+      const highlightedPatient = filteredPatients[highlightedPatientIndex];
+      if (!highlightedPatient?._isAlreadyStaged) {
+        onPatientSelect(highlightedPatient, false);
+      }
+      setPatientSearch('');
+      setHighlightedPatientIndex(-1);
+      return;
+    }
+
+    handleSearchKeyDown?.(e);
+  };
+
   return (
     <div className="relative flex-[2] space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
       <div className="flex items-center justify-between mb-1">
@@ -79,7 +114,7 @@ export default function DeliveryPatientSearch({
             placeholder="Search by name, address, phone..."
             value={patientSearch}
             onChange={(e) => {setPatientSearch(e.target.value);setHighlightedPatientIndex(-1);}}
-            onKeyDown={handleSearchKeyDown}
+            onKeyDown={handlePatientSearchKeyDown}
             className="pl-10 h-9"
             disabled={isSaving} />
           
@@ -144,7 +179,7 @@ export default function DeliveryPatientSearch({
             return (
               <div
                 key={patient.id}
-                id={`patient-item-${index}`} className="pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 hover:bg-slate-50">
+                id={`patient-item-${index}`} className={`pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 ${isHighlighted ? 'bg-emerald-50 border-l-4 border-emerald-500' : 'hover:bg-slate-50'} ${isSelected ? 'bg-blue-50' : ''} ${isAlreadyStaged ? 'bg-amber-50 opacity-70' : ''}`}>
 
                 
                     {(isMultiSelectMode || selectedPatientIds.size > 0) &&
