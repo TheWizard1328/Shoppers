@@ -84,7 +84,7 @@ export default function StopCardTimingDisplay({
           )}
           {delivery?.arrival_time && delivery?.actual_delivery_time && <span>•</span>}
           {delivery?.actual_delivery_time && (
-            <span>Done: {formatTime12Hour(format(new Date(delivery.actual_delivery_time), 'HH:mm'))}</span>
+            <span>Done: {formatTime12Hour(delivery.actual_delivery_time)}</span>
           )}
         </div>
       }
