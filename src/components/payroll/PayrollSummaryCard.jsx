@@ -1525,13 +1525,7 @@ export default function PayrollSummaryCard({
                             </tr>
                             {isPeriodEndOfMonth &&
                             <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-left pr-2">
-                                <button
-                                  onClick={() => setAppFeeOverlayAllDriversId('all')}
-                                  className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
-                                  Extra App Fee Cut:
-                                </button>
-                              </td>
+                              <td className="text-left pr-2">Extra App Fee Cut:</td>
                               <td className="text-right pr-0.5">-$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
                             </tr>
