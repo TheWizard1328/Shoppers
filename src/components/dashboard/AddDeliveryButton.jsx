@@ -12,6 +12,9 @@ const AddDeliveryButton = forwardRef(function AddDeliveryButton(
   const buttonRef = (ref || localRef);
 
   const [showSpotlight, setShowSpotlight] = useState(true);
+  const handleCloseSpotlight = useCallback(() => {
+    setShowSpotlight(false);
+  }, []);
 
   // Auto-show on load/refresh for 15s
   useEffect(() => {
