@@ -18,7 +18,7 @@ import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
-import PayrollMobileCard from './PayrollMobileCard'; import LeftStatsAndNotes from './LeftStatsAndNotes';
+import PayrollMobileCard from './PayrollMobileCard';import LeftStatsAndNotes from './LeftStatsAndNotes';
 import { AppFeeAllDriversDialog, AppFeeSingleDriverDialog } from './AppFeeDialogs';
 import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { exportPayrollPdf } from './payrollPdfExport';
@@ -85,8 +85,8 @@ export default function PayrollSummaryCard({
       const periodDeliveries = deliveries.filter((d) => {
         if (!d || !d.delivery_date || d.driver_id !== driverId) return false;
         if (!d.patient_id && !d.after_hours_pickup) return false;
-        if (d.status === 'completed' || d.status === 'failed') { /* valid */ }
-        else if (d.status === 'cancelled') {
+        if (d.status === 'completed' || d.status === 'failed') {/* valid */} else
+        if (d.status === 'cancelled') {
           const isStoreReturn = /\[[\w\s]+\]/.test(d.patient_name || '') && (d.patient_name || '').toLowerCase().includes('return');
           if (!d.after_hours_pickup && !isStoreReturn) return false;
         } else return false;
@@ -97,11 +97,11 @@ export default function PayrollSummaryCard({
       const deliveryCount = periodDeliveries.length;
       const basePay = deliveryCount * payRate;
 
-      let extraKmPay = 0, totalExtraKm = 0;
+      let extraKmPay = 0,totalExtraKm = 0;
       periodDeliveries.forEach((d) => {
         let dist = d.paid_km_override || 0;
-        if (!dist && d.patient_id && patients) { dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0; }
-        if (dist > extraKmLimit && extraKmRate > 0) { const ek = dist - extraKmLimit; totalExtraKm += ek; extraKmPay += ek * extraKmRate; }
+        if (!dist && d.patient_id && patients) {dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0;}
+        if (dist > extraKmLimit && extraKmRate > 0) {const ek = dist - extraKmLimit;totalExtraKm += ek;extraKmPay += ek * extraKmRate;}
       });
 
       const oversizedCount = periodDeliveries.filter((d) => d.oversized).length;
@@ -121,14 +121,14 @@ export default function PayrollSummaryCard({
       }).length;
       const totalPay = basePay + extraKmPay + oversizedPay;
       const gstHstEnabled = appUser?.gst_hst_enabled || false;
-      let taxAmount = 0, taxRate = 0, provinceCode = null;
+      let taxAmount = 0,taxRate = 0,provinceCode = null;
       if (gstHstEnabled && cities) {
         const driverCity = appUser?.city_id ? cities.find((c) => c && c.id === appUser.city_id) : null;
         if (driverCity?.province_state) {
           const prov = driverCity.province_state.toUpperCase();
           const PM = { 'ALBERTA': 'AB', 'BRITISH COLUMBIA': 'BC', 'SASKATCHEWAN': 'SK', 'MANITOBA': 'MB', 'ONTARIO': 'ON', 'QUEBEC': 'QC', 'NEW BRUNSWICK': 'NB', 'NOVA SCOTIA': 'NS', 'PRINCE EDWARD ISLAND': 'PE', 'NEWFOUNDLAND': 'NL', 'NEWFOUNDLAND AND LABRADOR': 'NL', 'YUKON': 'YT', 'NORTHWEST TERRITORIES': 'NT', 'NUNAVUT': 'NU' };
           provinceCode = prov.length === 2 && PROVINCE_TAX_RATES[prov] ? prov : PM[prov] || null;
-          if (provinceCode && PROVINCE_TAX_RATES[provinceCode]) { taxRate = PROVINCE_TAX_RATES[provinceCode]; taxAmount = totalPay * taxRate; }
+          if (provinceCode && PROVINCE_TAX_RATES[provinceCode]) {taxRate = PROVINCE_TAX_RATES[provinceCode];taxAmount = totalPay * taxRate;}
         }
       }
       const deductionsArray = Array.isArray(appUser?.deductions) ? appUser.deductions : [];
@@ -158,12 +158,12 @@ export default function PayrollSummaryCard({
     initialYtdCalculationDone.current = true;
     const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
     const periodEnd = currentPeriod.end.toISOString().split('T')[0];
-    base44.entities.Payroll.filter({ pay_period_end: { $gte: yearStart, $lte: periodEnd } }).then((records) => { setPayrollRecords(records || []); if (onPayrollRecordsChange) onPayrollRecordsChange(records || []); }).catch(() => {});
+    base44.entities.Payroll.filter({ pay_period_end: { $gte: yearStart, $lte: periodEnd } }).then((records) => {setPayrollRecords(records || []);if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);}).catch(() => {});
   }, [currentPeriod, periodStartStr, periodEndStr]);
 
   // Fetch payroll records (external or local with 15-sec refresh)
   useEffect(() => {
-    if (externalPayrollRecords) { setPayrollRecords(externalPayrollRecords); setIsLoadingRecords(false); return; }
+    if (externalPayrollRecords) {setPayrollRecords(externalPayrollRecords);setIsLoadingRecords(false);return;}
     if (!currentPeriod) return;
     const fetch = async (force = false) => {
       const now = Date.now();
@@ -173,9 +173,9 @@ export default function PayrollSummaryCard({
         const ys = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
         const pe = currentPeriod.end.toISOString().split('T')[0];
         const records = await base44.entities.Payroll.filter({ pay_period_end: { $gte: ys, $lte: pe } });
-        setPayrollRecords(records || []); if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);
+        setPayrollRecords(records || []);if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);
         lastFetchRef.current.timestamp = now;
-      } catch (e) { /* ignore */ } finally { setIsLoadingRecords(false); }
+      } catch (e) {/* ignore */} finally {setIsLoadingRecords(false);}
     };
     fetch(true);
     const interval = setInterval(() => fetch(), 15000);
@@ -223,8 +223,8 @@ export default function PayrollSummaryCard({
         const allRecords = [...latestRecords, ...newRecords];
         setPayrollRecords(allRecords);
         if (onPayrollRecordsChange) onPayrollRecordsChange(allRecords);
-      } catch (error) { console.error('❌ [Payroll] Auto-create failed:', error); }
-      finally { autoCreateInProgressRef.current = false; }
+      } catch (error) {console.error('❌ [Payroll] Auto-create failed:', error);} finally
+      {autoCreateInProgressRef.current = false;}
     };
     autoCreateMissingRecords();
   }, [periodStartStr, periodEndStr]);
@@ -251,7 +251,7 @@ export default function PayrollSummaryCard({
   const countBillableDeliveries = useCallback((driverId) => {
     let count = 0;
     deliveries.forEach((d) => {
-      if (!d || (driverId && d.driver_id !== driverId)) return;
+      if (!d || driverId && d.driver_id !== driverId) return;
       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
       if (deliveryDate < new Date(periodStartStr + 'T00:00:00') || deliveryDate > new Date(periodEndStr + 'T00:00:00')) return;
       const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
@@ -309,10 +309,10 @@ export default function PayrollSummaryCard({
       const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(recalculatedUpdates));
       setPayrollRecords((prev) => prev.map((r) => r.id === existingRecord.id ? { ...r, ...updatedRecord } : r));
       if (onPayrollRecordsChange) onPayrollRecordsChange(payrollRecords.map((r) => r.id === existingRecord.id ? { ...r, ...updatedRecord } : r));
-      try { const { offlineDB } = await import('../utils/offlineDatabase'); await offlineDB.save(offlineDB.STORES.PAYROLL, { ...existingRecord, ...updatedRecord }); } catch (e) { /* ignore */ }
+      try {const { offlineDB } = await import('../utils/offlineDatabase');await offlineDB.save(offlineDB.STORES.PAYROLL, { ...existingRecord, ...updatedRecord });} catch (e) {/* ignore */}
       lastFetchRef.current.timestamp = 0;
       if (refreshPayrollRecords) await refreshPayrollRecords();
-    } catch (error) { console.error('❌ [Payroll] Failed to save changes:', error); }
+    } catch (error) {console.error('❌ [Payroll] Failed to save changes:', error);}
   };
 
   // Initialize deduction input drafts when dialog opens
@@ -381,13 +381,13 @@ export default function PayrollSummaryCard({
         extra_km_rate: driverData.extraKmRate, extra_km_limit: driverData.extraKmLimit,
         oversized_item_rate: driverData.oversizedRate, gst_hst_enabled: driverData.gstHstEnabled,
         status: 'driver_finalized', driver_finalized_at: new Date().toISOString() };
-      if (existingRecord) await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord));
-      else await base44.entities.Payroll.create(roundPayrollData(payrollRecord));
-      try { await notifyDriverConfirmedPayroll({ driver: currentUser, periodLabel: currentPeriod?.label || 'this period', appUsers, excludeUserId: isAdmin ? currentUser?.id : null }); } catch (e) { /* ignore */ }
-      if (refreshPayrollRecords) await refreshPayrollRecords();
-      else { const records = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr }); setPayrollRecords(records || []); if (onPayrollRecordsChange) onPayrollRecordsChange(records || []); }
-    } catch (error) { console.error('❌ [Payroll] Failed to finalize:', error); alert('Failed to save payroll confirmation.'); }
-    finally { setIsFinalizing(false); setShowConfirmDialog(false); }
+      if (existingRecord) await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord));else
+      await base44.entities.Payroll.create(roundPayrollData(payrollRecord));
+      try {await notifyDriverConfirmedPayroll({ driver: currentUser, periodLabel: currentPeriod?.label || 'this period', appUsers, excludeUserId: isAdmin ? currentUser?.id : null });} catch (e) {/* ignore */}
+      if (refreshPayrollRecords) await refreshPayrollRecords();else
+      {const records = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr });setPayrollRecords(records || []);if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);}
+    } catch (error) {console.error('❌ [Payroll] Failed to finalize:', error);alert('Failed to save payroll confirmation.');} finally
+    {setIsFinalizing(false);setShowConfirmDialog(false);}
   };
 
   // Handle admin finalization (all drivers)
@@ -400,11 +400,11 @@ export default function PayrollSummaryCard({
         if (rec) await base44.entities.Payroll.update(rec.id, { status: 'admin_finalized', admin_finalized_at: new Date().toISOString(), admin_finalized_by: currentUser?.id });
       }
       await notifyAdminApprovedPayroll({ admin: currentUser, periodLabel: currentPeriod?.label || 'this period', driversWithDeliveries: dwdList, appUsers });
-      if (refreshPayrollRecords) { await refreshPayrollRecords(); }
-      else { const records = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr }); setPayrollRecords(records || []); if (onPayrollRecordsChange) onPayrollRecordsChange(records || []); }
+      if (refreshPayrollRecords) {await refreshPayrollRecords();} else
+      {const records = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr });setPayrollRecords(records || []);if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);}
       if (onFinalizePayroll) onFinalizePayroll({ period: currentPeriod, payrollData: dwdList, grandTotals: { Gross: grandTotalAllDrivers, tax: grandTotalTax, deductions: grandTotalDeductions, Net: grandTotalGross } });
-    } catch (error) { console.error('Failed to admin finalize payroll:', error); }
-    finally { setIsFinalizing(false); setShowConfirmDialog(false); }
+    } catch (error) {console.error('Failed to admin finalize payroll:', error);} finally
+    {setIsFinalizing(false);setShowConfirmDialog(false);}
   };
 
   // Handle screenshot capture for sharing
@@ -417,15 +417,15 @@ export default function PayrollSummaryCard({
       const userCanSeeAppFee = isAppOwner(currentUser) || isDriver && selectedDriverId === currentUser?.id;
       const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
       const appFeeYtdRows = document.querySelectorAll('[data-app-fee-ytd-row="true"]');
-      if (!userCanSeeAppFee) { appFeeRows.forEach((r) => r.style.display = 'none'); appFeeYtdRows.forEach((r) => r.style.display = 'none'); }
+      if (!userCanSeeAppFee) {appFeeRows.forEach((r) => r.style.display = 'none');appFeeYtdRows.forEach((r) => r.style.display = 'none');}
       const canvas = await html2canvas(contentRef.current, { backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false });
       setScreenshotDataUrl(canvas.toDataURL('image/png'));
       setShowScreenshotModal(true);
       if (controlsElement) controlsElement.style.display = 'flex';
       appFeeRows.forEach((r) => r.style.display = '');
       appFeeYtdRows.forEach((r) => r.style.display = '');
-    } catch (error) { console.error('Failed to capture screenshot:', error); }
-    finally { setIsCapturingScreenshot(false); }
+    } catch (error) {console.error('Failed to capture screenshot:', error);} finally
+    {setIsCapturingScreenshot(false);}
   };
 
   // Export to PDF (extracted to payrollPdfExport.js)
@@ -442,7 +442,7 @@ export default function PayrollSummaryCard({
   const formatCurrency = (amount, decimals = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(amount);
   const roundPayrollData = (data) => {
     const rounded = { ...data };
-    ['gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount', 'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate', 'total_extra_km'].forEach((f) => { if (rounded[f] != null) rounded[f] = Math.round(rounded[f] * 100) / 100; });
+    ['gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount', 'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate', 'total_extra_km'].forEach((f) => {if (rounded[f] != null) rounded[f] = Math.round(rounded[f] * 100) / 100;});
     return rounded;
   };
 
@@ -452,9 +452,9 @@ export default function PayrollSummaryCard({
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + d.deductions, 0);
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
   const driversWithDeliveriesIds = useMemo(() => driversWithDeliveries.map((d) => d.driver.id), [driversWithDeliveries]);
-  const finalizedDriversCount = useMemo(() => driversWithDeliveriesIds.filter((id) => { const r = getDriverPayrollRecord(id); return r?.status === 'driver_finalized' || r?.status === 'admin_finalized' || r?.status === 'paid'; }).length, [driversWithDeliveriesIds, payrollRecords]);
+  const finalizedDriversCount = useMemo(() => driversWithDeliveriesIds.filter((id) => {const r = getDriverPayrollRecord(id);return r?.status === 'driver_finalized' || r?.status === 'admin_finalized' || r?.status === 'paid';}).length, [driversWithDeliveriesIds, payrollRecords]);
   const allDriversFinalized = finalizedDriversCount === driversWithDeliveriesIds.length && driversWithDeliveriesIds.length > 0;
-  const isPeriodEndOfMonth = useMemo(() => { if (!currentPeriod?.end) return false; const d = new Date(currentPeriod.end); const n = new Date(d); n.setDate(n.getDate() + 1); return n.getMonth() !== d.getMonth(); }, [currentPeriod?.end]);
+  const isPeriodEndOfMonth = useMemo(() => {if (!currentPeriod?.end) return false;const d = new Date(currentPeriod.end);const n = new Date(d);n.setDate(n.getDate() + 1);return n.getMonth() !== d.getMonth();}, [currentPeriod?.end]);
 
   // Check if finalization is allowed (6pm local time on last day of pay period, or after)
   const canFinalize = useMemo(() => {
@@ -464,14 +464,14 @@ export default function PayrollSummaryCard({
     const pc = userCity?.province_state?.toUpperCase()?.substring(0, 2);
     const tz = pc && TZ[pc] || 'America/Edmonton';
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
-    const today = new Date(now); today.setHours(0, 0, 0, 0);
-    const pe = new Date(currentPeriod.end); pe.setHours(0, 0, 0, 0);
+    const today = new Date(now);today.setHours(0, 0, 0, 0);
+    const pe = new Date(currentPeriod.end);pe.setHours(0, 0, 0, 0);
     if (today > pe) return true;
     if (today.getTime() === pe.getTime()) return now.getHours() >= 18;
     return false;
   }, [currentPeriod?.end, cities, currentUser, selectedCityId]);
 
-  const isAdminFinalized = useMemo(() => driversWithDeliveriesIds.length > 0 && driversWithDeliveriesIds.every((id) => { const r = getDriverPayrollRecord(id); return r?.status === 'admin_finalized' || r?.status === 'paid'; }), [driversWithDeliveriesIds, payrollRecords]);
+  const isAdminFinalized = useMemo(() => driversWithDeliveriesIds.length > 0 && driversWithDeliveriesIds.every((id) => {const r = getDriverPayrollRecord(id);return r?.status === 'admin_finalized' || r?.status === 'paid';}), [driversWithDeliveriesIds, payrollRecords]);
 
   // Calculate YTD data from payroll records
   const ytdDataByDriver = useMemo(() => {
@@ -562,7 +562,7 @@ export default function PayrollSummaryCard({
         // Update local payrollRecords state with the synced values
         setPayrollRecords((prev) => {
           const updatedMap = {};
-          updated.forEach((u) => { updatedMap[u.recordId] = u.updates; });
+          updated.forEach((u) => {updatedMap[u.recordId] = u.updates;});
           return prev.map((r) => updatedMap[r.id] ? { ...r, ...updatedMap[r.id] } : r);
         });
         if (onPayrollRecordsChange) {
@@ -572,7 +572,7 @@ export default function PayrollSummaryCard({
           }));
         }
       }
-    }).finally(() => { syncInProgressRef.current = false; });
+    }).finally(() => {syncInProgressRef.current = false;});
   }, [payrollData, payrollRecords, periodStartStr, periodEndStr]);
 
   // Guard clause AFTER all hooks
@@ -601,7 +601,7 @@ export default function PayrollSummaryCard({
         }
       `}</style>
      <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-       <CardHeader className="pb-3">
+       <CardHeader className="px-6 py-1 flex flex-col">
         {/* Mobile View: 2 rows */}
         <div className="md:hidden flex flex-col gap-2">
           {/* Row 1: Title and PDF Button */}
@@ -959,17 +959,17 @@ export default function PayrollSummaryCard({
         }
 
       <AppFeeAllDriversDialog
-        open={appFeeOverlayAllDriversId === 'all' && isAppOwner(currentUser)} onClose={() => setAppFeeOverlayAllDriversId(null)}
-        driversWithDeliveries={driversWithDeliveries} driverEdits={driverEdits} setDriverEdits={setDriverEdits}
-        currentUser={currentUser} otherAppFeePercent={otherAppFeePercent} setOtherAppFeePercent={setOtherAppFeePercent}
-        sumAllDriversAppFeePercent={sumAllDriversAppFeePercent} calculateAppFeeAmount={calculateAppFeeAmount}
-        totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery}
-        appFeesPerDelivery={appFeesPerDelivery} extraAppFeePercent={extraAppFeePercent} getDriverPayrollRecord={getDriverPayrollRecord} />
+          open={appFeeOverlayAllDriversId === 'all' && isAppOwner(currentUser)} onClose={() => setAppFeeOverlayAllDriversId(null)}
+          driversWithDeliveries={driversWithDeliveries} driverEdits={driverEdits} setDriverEdits={setDriverEdits}
+          currentUser={currentUser} otherAppFeePercent={otherAppFeePercent} setOtherAppFeePercent={setOtherAppFeePercent}
+          sumAllDriversAppFeePercent={sumAllDriversAppFeePercent} calculateAppFeeAmount={calculateAppFeeAmount}
+          totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery}
+          appFeesPerDelivery={appFeesPerDelivery} extraAppFeePercent={extraAppFeePercent} getDriverPayrollRecord={getDriverPayrollRecord} />
       <AppFeeSingleDriverDialog
-        open={!!appFeeOverlayDriverId && !!driverEdits[appFeeOverlayDriverId]} driverId={appFeeOverlayDriverId}
-        onClose={() => setAppFeeOverlayDriverId(null)} driverEdits={driverEdits} setDriverEdits={setDriverEdits}
-        payrollData={payrollData} calculateAppFeeAmount={calculateAppFeeAmount}
-        totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery} savePayrollChanges={savePayrollChanges} />
+          open={!!appFeeOverlayDriverId && !!driverEdits[appFeeOverlayDriverId]} driverId={appFeeOverlayDriverId}
+          onClose={() => setAppFeeOverlayDriverId(null)} driverEdits={driverEdits} setDriverEdits={setDriverEdits}
+          payrollData={payrollData} calculateAppFeeAmount={calculateAppFeeAmount}
+          totalMonthlyAppFees={countBillableDeliveries(null) * appFeesPerDelivery} savePayrollChanges={savePayrollChanges} />
       <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <DialogHeader>
@@ -1104,17 +1104,17 @@ export default function PayrollSummaryCard({
               <div>
                 <div className="flex justify-between items-start">
                   <LeftStatsAndNotes
-                    data={data}
-                    formatCurrency={formatCurrency}
-                    isAdmin={isAdmin}
-                    isDriver={isDriver}
-                    currentUser={currentUser}
-                    driverKey={driverKey}
-                    setDeductionOverlayDriverId={setDeductionOverlayDriverId}
-                    setBonusOverlayDriverId={setBonusOverlayDriverId}
-                    getDriverPayrollRecord={getDriverPayrollRecord}
-                    savePayrollChanges={savePayrollChanges}
-                  />
+                        data={data}
+                        formatCurrency={formatCurrency}
+                        isAdmin={isAdmin}
+                        isDriver={isDriver}
+                        currentUser={currentUser}
+                        driverKey={driverKey}
+                        setDeductionOverlayDriverId={setDeductionOverlayDriverId}
+                        setBonusOverlayDriverId={setBonusOverlayDriverId}
+                        getDriverPayrollRecord={getDriverPayrollRecord}
+                        savePayrollChanges={savePayrollChanges} />
+                      
 
                 {/* Right: Pay Summary with YTD */}
                 <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -1722,6 +1722,6 @@ export default function PayrollSummaryCard({
                   </div>
                   </CardContent>
                   </Card>
-        </>
-  );
+        </>);
+
 }
