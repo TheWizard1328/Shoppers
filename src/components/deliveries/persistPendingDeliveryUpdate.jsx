@@ -62,6 +62,7 @@ export async function persistPendingDeliveryUpdate({
       ...updatedDelivery,
       ...immediateUpdateData,
       _tempId: editingStagedId,
+      _wasEdited: true,
       patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
       store_name: store.name,
       store_abbreviation: store.abbreviation,

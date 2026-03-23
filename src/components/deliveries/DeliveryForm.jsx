@@ -2094,10 +2094,8 @@ export default function DeliveryForm({
             });
         });
 
-        existingUpdatesDone = Promise.allSettled(updatePromises);
-        existingUpdatesDone.then(() => {
-          (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(existingDeliveriesWithTRs.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});if(ids.length)console.log('🗓️ [BatchSave] Updated last_delivery_date for',ids.length,'patients');}catch(_){}})()
-        }).catch(() => {});
+        await Promise.allSettled(updatePromises);
+        (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(existingDeliveriesWithTRs.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});if(ids.length)console.log('🗓️ [BatchSave] Updated last_delivery_date for',ids.length,'patients');}catch(_){}})();
       }
 
       // CRITICAL: Create ALL default pickups for brand-new routes BEFORE the UI refresh runs
