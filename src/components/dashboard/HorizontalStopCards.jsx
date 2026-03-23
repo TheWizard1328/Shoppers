@@ -304,57 +304,39 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
   }, [selectedCardId, scrollToCenterCard]);
 
-  // Sort pickup cards: completed deliveries first (by actual_delivery_time), then incomplete (by ETA/stop_order)
-  // Secondary sort by driver sort_order when times are equal
+  // Match Routes page ordering: active stops first, finished stops after
   const sortedPickupCards = [...validCards].sort((a, b) => {
-    // CRITICAL: Add defensive null checks
     if (!a || !b) return 0;
 
-    const isACompleted = finishedStatuses.includes(a.status);
-    const isBCompleted = finishedStatuses.includes(b.status);
+    const isAFinished = finishedStatuses.includes(a.status);
+    const isBFinished = finishedStatuses.includes(b.status);
 
-    // 1. Separate completed from incomplete (completed first - left side)
-    if (isACompleted && !isBCompleted) return -1; // a (completed) comes first
-    if (!isACompleted && isBCompleted) return 1; // b (completed) comes first
+    if (!isAFinished && isBFinished) return -1;
+    if (isAFinished && !isBFinished) return 1;
 
-    // 2. CRITICAL: For incomplete deliveries, isNextDelivery ALWAYS comes first
-    if (!isACompleted && !isBCompleted) {
-      if (a.isNextDelivery && !b.isNextDelivery) return -1; // a is next delivery, comes first
-      if (!a.isNextDelivery && b.isNextDelivery) return 1; // b is next delivery, comes first
+    if (!isAFinished && !isBFinished) {
+      if (a.isNextDelivery && !b.isNextDelivery) return -1;
+      if (!a.isNextDelivery && b.isNextDelivery) return 1;
+
+      const stopOrderA = a.stop_order ?? Infinity;
+      const stopOrderB = b.stop_order ?? Infinity;
+      if (stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
+
+      const timeA = a.delivery_time_start || a.delivery_time_eta || '';
+      const timeB = b.delivery_time_start || b.delivery_time_eta || '';
+      if (timeA !== timeB) return timeA.localeCompare(timeB);
     }
 
-    // 3. Sort by time
-    let timeA, timeB;
+    if (isAFinished && isBFinished) {
+      const actualA = Date.parse(a.actual_delivery_time || '') || Infinity;
+      const actualB = Date.parse(b.actual_delivery_time || '') || Infinity;
+      if (actualA !== actualB) return actualA - actualB;
 
-    if (isACompleted) {
-      // For completed: sort by completion time first
-      timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.stop_order || 999) * 1000000;
-    } else {
-      // For incomplete: use stop_order first, then ETA
-      const stopOrderA = a.stop_order || 999;
-      const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
-      const [hoursA, minutesA] = etaA.split(':').map(Number);
-      const etaMinutesA = (isNaN(hoursA) ? 99 : hoursA) * 60 + (isNaN(minutesA) ? 99 : minutesA);
-      timeA = stopOrderA * 10000 + etaMinutesA;
+      const stopOrderA = a.stop_order ?? Infinity;
+      const stopOrderB = b.stop_order ?? Infinity;
+      if (stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
     }
 
-    if (isBCompleted) {
-      // For completed: sort by completion time first
-      timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.stop_order || 999) * 1000000;
-    } else {
-      // For incomplete: use stop_order first, then ETA
-      const stopOrderB = b.stop_order || 999;
-      const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
-      const [hoursB, minutesB] = etaB.split(':').map(Number);
-      const etaMinutesB = (isNaN(hoursB) ? 99 : hoursB) * 60 + (isNaN(minutesB) ? 99 : minutesB);
-      timeB = stopOrderB * 10000 + etaMinutesB;
-    }
-
-    if (timeA !== timeB) {
-      return timeA - timeB;
-    }
-
-    // 3. If times are equal, sort by driver sort order
     const driverA = (drivers || []).find((d) => d && d.id === a.driver_id);
     const driverB = (drivers || []).find((d) => d && d.id === b.driver_id);
     const sortOrderA = driverA?.sort_order ?? 999;
