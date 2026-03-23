@@ -1136,7 +1136,7 @@ export default function PayrollSummaryCard({
                       <tr style={{ color: 'var(--text-slate-600)' }}>
                         <td className="text-left pr-2">
                           {isAdmin ?
-                                  <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                                  <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                               Deductions:
                             </button> :
 
@@ -1149,7 +1149,7 @@ export default function PayrollSummaryCard({
                       <tr style={{ color: 'var(--text-slate-600)' }}>
                         <td className="text-left pr-2">
                           {isAdmin ?
-                                  <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                                  <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                               Bonus:
                             </button> :
 
@@ -1162,7 +1162,7 @@ export default function PayrollSummaryCard({
                       {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) &&
                               <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
                         <td className="text-left pr-2">
-                          <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                          <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                             App Fee %:
                           </button>
                         </td>
