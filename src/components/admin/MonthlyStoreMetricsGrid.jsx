@@ -224,9 +224,9 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             Monthly Store {metricsViewMode === 'deliveries' ? 'Deliveries' : 'App Fees'} ({selectedYear})
           </CardTitle>
           
-          <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
+          <div className="flex w-full items-center justify-between gap-2 flex-nowrap md:w-auto md:justify-end">
             {/* Centered Envelope Totals Toggle */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 shrink-0">
               <Switch
                 id="envelope-totals-grid"
                 checked={showEnvelopeAdjustedTotals}
@@ -235,7 +235,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
               <Label htmlFor="envelope-totals-grid" className="text-xs whitespace-nowrap">Envelope Totals</Label>
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               {(selectedMonth || selectedStoreMonth) &&
               <Button
                 size="sm"
