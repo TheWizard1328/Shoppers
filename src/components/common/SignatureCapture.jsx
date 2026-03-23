@@ -93,13 +93,13 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
 
     setIsSaving(true);
     try {
-      // Rotate 90° counter-clockwise into a new canvas
+      // Rotate 90° clockwise into a new canvas
       const rotated = document.createElement('canvas');
       rotated.width = canvas.height;
       rotated.height = canvas.width;
       const rCtx = rotated.getContext('2d');
-      rCtx.translate(0, canvas.width);
-      rCtx.rotate(-Math.PI / 2);
+      rCtx.translate(canvas.height, 0);
+      rCtx.rotate(Math.PI / 2);
       rCtx.drawImage(canvas, 0, 0);
 
       const dataURL = rotated.toDataURL('image/png');
@@ -163,7 +163,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
             />
             {!hasSignature && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(90deg)' }}>
+                <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(180deg)' }}>
                   ✍️ Sign here
                 </span>
               </div>
