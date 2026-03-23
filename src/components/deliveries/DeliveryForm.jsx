@@ -43,6 +43,7 @@ import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
 import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
 import useDeliveryProjectionManager from './useDeliveryProjectionManager';
 import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
+import { resetBatchSaveDraftState, resumeManagersAndCloseBatchForm, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runDeleteOnlyBatchRefresh, runUpdateOnlyBatchRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -1881,54 +1882,17 @@ export default function DeliveryForm({
 
     // CRITICAL: If only pending deletes (no staged items), close form FIRST then refresh
     if (stagedDeliveries.length === 0 && hasPendingDeletes) {
-      // Clear state and close form IMMEDIATELY
-      setStagedDeliveries([]);
-      setProjectedDeliveries([]);
-      setHasPendingDeletes(false);
-      setHasChanges(false);
-      hasLoadedPending.current = false;
-      unblockPredictions();
-      setIsLoadingPredictions(true);
-      
-      // CRITICAL: Resume background operations before closing
-      (await import('../utils/deliveryFormActionHelpers')).resumeDeliveryFormManagers().catch((error) => {
-        console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
+      resetBatchSaveDraftState({
+        setStagedDeliveries,
+        setProjectedDeliveries,
+        setHasPendingDeletes,
+        setHasChanges,
+        hasLoadedPendingRef: hasLoadedPending,
+        unblockPredictions,
+        setIsLoadingPredictions
       });
-      
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
-      
-      // Background refresh (non-blocking)
-      setTimeout(async () => {
-        try {
-          const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
-          invalidate('Delivery');
-          invalidateDeliveriesForDate(formData.delivery_date);
-          
-          if (formData.driver_id && formData.delivery_date) {
-            const { base44 } = await import('@/api/base44Client');
-            const freshDeliveries = await base44.entities.Delivery.filter({
-              driver_id: formData.driver_id,
-              delivery_date: formData.delivery_date
-            });
-          }
-          
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { 
-              deliveryDate: formData.delivery_date, 
-              driverId: formData.driver_id,
-              triggeredBy: 'doneButtonDeletes' 
-            }
-          }));
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          
-          const { fabControlEvents } = await import('../utils/fabControlEvents');
-          fabControlEvents.notifyDataReady();
-          
-        } catch (error) {
-          console.error('[AddToRoute] ❌ Background refresh failed:', error);
-        }
-      }, 100);
-      
+      await resumeManagersAndCloseBatchForm({ handleClearForm, onCancel });
+      runDeleteOnlyBatchRefresh({ deliveryDate: formData.delivery_date, driverId: formData.driver_id });
       return;
     }
 
@@ -2072,142 +2036,60 @@ export default function DeliveryForm({
         if (squarePromises.length > 0) Promise.allSettled(squarePromises).then(()=>console.log('✅ [Square] COD background tasks done')).catch(()=>{});
       }
 
-      // CRITICAL: Resume SmartRefresh ONCE after all updates complete
-      try {
-        setBatchFormSaving(false); // Release batch flag FIRST
-        
-        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-        smartRefreshManager.restart();
-      } catch (error) {
-        console.warn('⚠️ [AddToRoute] Failed to resume SmartRefresh:', error);
-      }
+      await restartBatchSmartRefresh(() => setBatchFormSaving(false));
 
       // CRITICAL: Always trigger data refresh if only updating existing deliveries
       if (existingDeliveries.length > 0 && newDeliveries.length === 0) {
-        
-        // Clear staged deliveries and close form FIRST
-        setStagedDeliveries([]);
-        setProjectedDeliveries([]);
-        setHasPendingDeletes(false);
-        setHasChanges(false);
-        hasLoadedPending.current = false;
-        unblockPredictions();
-        setIsLoadingPredictions(true);
-
-        // CRITICAL: Resume background operations before closing
-        (await import('../utils/deliveryFormActionHelpers')).resumeDeliveryFormManagers().catch((error) => {
-          console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
+        resetBatchSaveDraftState({
+          setStagedDeliveries,
+          setProjectedDeliveries,
+          setHasPendingDeletes,
+          setHasChanges,
+          hasLoadedPendingRef: hasLoadedPending,
+          unblockPredictions,
+          setIsLoadingPredictions
         });
 
-        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();}); // Close form IMMEDIATELY
+        await resumeManagersAndCloseBatchForm({ handleClearForm, onCancel });
 
-        // CRITICAL: Immediate UI refresh events
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
-            deliveryDate: formData.delivery_date, 
+          detail: {
+            deliveryDate: formData.delivery_date,
             driverId: formData.driver_id,
             triggeredBy: 'doneButtonUpdates',
             immediate: true
           }
         }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        runUpdateOnlyBatchRefresh({ deliveryDate: formData.delivery_date, driverId: formData.driver_id });
 
-        // Background refresh (non-blocking)
-        setTimeout(async () => {
-          try {
-            const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
-            invalidate('Delivery');
-            invalidateDeliveriesForDate(formData.delivery_date);
-            
-            if (formData.driver_id && formData.delivery_date) {
-              const { base44 } = await import('@/api/base44Client');
-              const freshDeliveries = await base44.entities.Delivery.filter({
-                driver_id: formData.driver_id,
-                delivery_date: formData.delivery_date
-              });
-            }
-
-            const { fabControlEvents } = await import('../utils/fabControlEvents');
-            fabControlEvents.notifyDataReady();
-
-            // CRITICAL: Trigger done button event to activate FAB phase 1 for 500ms
-            fabControlEvents.notifyDoneButtonClicked();
-          } catch (error) {
-            console.error('[AddToRoute] ❌ Background refresh failed:', error);
-          }
-        }, 100);
-
-        return; // CRITICAL: Exit early to prevent duplicate processing
+        return;
       }
 
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-      // Clear local UI state and close immediately
-      setStagedDeliveries([]);
-      setProjectedDeliveries([]);
-      setHasPendingDeletes(false);
-      setHasChanges(false);
-      hasLoadedPending.current = false;
-      unblockPredictions();
-      setIsLoadingPredictions(true);
-
-      import('../utils/deliveryFormActionHelpers')
-        .then(({ closeDeliveryFormAfterSave, resumeDeliveryFormManagers }) => {
-          closeDeliveryFormAfterSave({ handleClearForm, onCancel });
-          return resumeDeliveryFormManagers();
-        })
-        .catch(() => {
-          handleClearForm();
-          onCancel();
-        });
-
-      // Keep the heavier refresh work in the background
-      Promise.resolve().then(async () => {
-        try {
-          const refreshDriverId = deliveriesReadyForDB[0]?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
-          const refreshDeliveryDate = deliveriesReadyForDB[0]?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
-          const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: refreshDriverId, delivery_date: refreshDeliveryDate });
-
-          const { offlineDB } = await import('../utils/offlineDatabase');
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: {
-              deliveryDate: refreshDeliveryDate,
-              driverId: refreshDriverId,
-              triggeredBy: 'doneButtonCreates',
-              immediate: true,
-              freshDeliveries
-            }
-          }));
-
-          const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
-          invalidate('Delivery');
-          invalidateDeliveriesForDate(refreshDeliveryDate);
-
-          const { fabControlEvents } = await import('../utils/fabControlEvents');
-          fabControlEvents.notifyDataReady();
-          fabControlEvents.notifyDoneButtonClicked();
-        } catch (e) {
-          console.warn('⚠️ [AddToRoute] Background refresh failed:', e);
-        }
+      resetBatchSaveDraftState({
+        setStagedDeliveries,
+        setProjectedDeliveries,
+        setHasPendingDeletes,
+        setHasChanges,
+        hasLoadedPendingRef: hasLoadedPending,
+        unblockPredictions,
+        setIsLoadingPredictions
       });
+
+      await closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
+
+      const refreshDriverId = deliveriesReadyForDB[0]?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
+      const refreshDeliveryDate = deliveriesReadyForDB[0]?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
+      runCreateBatchRefresh({ refreshDriverId, refreshDeliveryDate });
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
       unblockPredictions(); // Reset on error (form stays open, allow predictions)
       setIsLoadingPredictions(false); // Re-enable predictions on error
       
-      // CRITICAL: Release batch flag on error
-      setBatchFormSaving(false);
-      
-      // Resume SmartRefresh on error
-      try {
-        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-        smartRefreshManager.restart();
-      } catch (error) {
-        console.warn('⚠️ [AddToRoute] Failed to resume SmartRefresh on error:', error);
-      }
+      await restartBatchSmartRefresh(() => setBatchFormSaving(false));
     } finally {
       batchSaveLockRef.current = false; setIsSaving(false);
     }
