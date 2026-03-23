@@ -286,7 +286,13 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[85vh]" style={{ background: "var(--bg-white)" }}>
+        <DrawerContent
+          className="z-[300] max-h-[calc(100vh-var(--bottom-nav-height)-0.75rem)]"
+          style={{
+            background: "var(--bg-white)",
+            bottom: "var(--bottom-nav-height)",
+          }}
+        >
           <DrawerHeader>
             <DrawerTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</DrawerTitle>
             <DrawerDescription style={{ color: "var(--text-slate-500)" }}>
