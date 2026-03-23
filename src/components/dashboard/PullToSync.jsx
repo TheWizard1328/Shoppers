@@ -181,16 +181,17 @@ export default function PullToSync({
         }
 
         const batchSize = 50;
-        const syncedPatients = [];
-
+        const patientBatches = [];
         for (let i = 0; i < patientIds.length; i += batchSize) {
-          const batchIds = patientIds.slice(i, i + batchSize);
-          const batchPatients = await base44.entities.Patient.filter({ id: { $in: batchIds } });
+          patientBatches.push(patientIds.slice(i, i + batchSize));
+        }
 
-          if (batchPatients && batchPatients.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
-            syncedPatients.push(...batchPatients);
-          }
+        const syncedPatients = (await Promise.all(
+          patientBatches.map((batchIds) => base44.entities.Patient.filter({ id: { $in: batchIds } }))
+        )).flat().filter(Boolean);
+
+        if (syncedPatients.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, syncedPatients);
         }
 
         console.log(`✅ [Pull to Sync] Saved ${syncedPatients.length} delivery-linked patients to offline DB`);
@@ -202,46 +203,20 @@ export default function PullToSync({
       
       const syncPromises = [
         patientPromise,
-        // CRITICAL: Preserve existing AppUsers from offline DB (kept in sync by WebSocket subscriptions)
-         // AppUser.list() has RLS restrictions and returns limited data
-         // Only refetch if WebSocket sync isn't working
-         (async () => {
-           console.log(`👥 [Pull to Sync] Preserving AppUsers from offline DB (RLS-protected API)...`);
-           const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-           // CRITICAL: Filter junk records that have undefined user_id (corrupted offline DB entries)
-           const validAppUsers = (existingAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined');
-           console.log(`✅ [Pull to Sync] Using ${validAppUsers.length}/${existingAppUsers?.length || 0} valid AppUsers from offline DB`);
-           return validAppUsers;
-         })().catch((error) => {
-           console.warn('⚠️ [Pull to Sync] AppUsers sync failed:', error.message);
-           return [];
-         }),
-        
-        // Fetch Cities
-        base44.entities.City.list().then(async (freshCities) => {
-          if (freshCities && freshCities.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities);
-            console.log(`✅ [Pull to Sync] Saved ${freshCities.length} cities to offline DB`);
-          }
-          return freshCities || [];
-        }).catch((error) => {
-          console.warn('⚠️ [Pull to Sync] Cities sync failed:', error.message);
+        (async () => {
+          console.log(`👥 [Pull to Sync] Preserving AppUsers from offline DB (RLS-protected API)...`);
+          const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          const validAppUsers = (existingAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined');
+          console.log(`✅ [Pull to Sync] Using ${validAppUsers.length}/${existingAppUsers?.length || 0} valid AppUsers from offline DB`);
+          return validAppUsers;
+        })().catch((error) => {
+          console.warn('⚠️ [Pull to Sync] AppUsers sync failed:', error.message);
           return [];
         }),
-        
-        // Fetch Stores
-        base44.entities.Store.list().then(async (freshStores) => {
-          if (freshStores && freshStores.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores);
-            console.log(`✅ [Pull to Sync] Saved ${freshStores.length} stores to offline DB`);
-          }
-          return freshStores || [];
-        }).catch((error) => {
-          console.warn('⚠️ [Pull to Sync] Stores sync failed:', error.message);
-          return [];
-        })
+        offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => []),
+        offlineDB.getAll(offlineDB.STORES.STORES).catch(() => [])
       ];
-      
+
       // CRITICAL: Wait for ALL fetches to complete and save to offline DB
       const [freshPatients, freshAppUsers, freshCities, freshStores] = await Promise.all(syncPromises);
 

@@ -849,48 +849,28 @@ function Dashboard() {
     Object.keys(groupedByDriver).forEach((driverId) => {
       const driverDeliveries = groupedByDriver[driverId];
 
-      // CRITICAL: Separate pending from active deliveries
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const pendingDeliveries = driverDeliveries.filter((d) => d && d.status === 'pending');
-      const activeDeliveries = driverDeliveries.filter((d) => d && d.status !== 'pending');
-
-      const completedDeliveries = activeDeliveries.filter((d) => d && finishedStatuses.includes(d.status));
-      const incompleteDeliveries = activeDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
-
-      // CRITICAL: Sort completed by actual completion time
-      completedDeliveries.sort((a, b) => {
+      const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
         if (!a || !b) return 0;
-
-        const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-        const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
-
-        if (timeA !== timeB) {
-          return timeA - timeB;
+        const aPending = a.status === 'pending', bPending = b.status === 'pending';
+        if (aPending && !bPending) return 1;
+        if (!aPending && bPending) return -1;
+        const aOrder = Number(a.stop_order), bOrder = Number(b.stop_order);
+        const hasAOrder = Number.isFinite(aOrder) && aOrder > 0, hasBOrder = Number.isFinite(bOrder) && bOrder > 0;
+        if (hasAOrder && hasBOrder && aOrder !== bOrder) return aOrder - bOrder;
+        const aFinished = finishedStatuses.includes(a.status), bFinished = finishedStatuses.includes(b.status);
+        if (aFinished && bFinished) {
+          const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+          const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+          if (timeA !== timeB) return timeA - timeB;
         }
-
-        return (a.stop_order || 999) - (b.stop_order || 999);
-      });
-
-      // CRITICAL: Sort incomplete by stop_order (imported from active routes), fallback to ETA
-      incompleteDeliveries.sort((a, b) => {
-        if (!a || !b) return 0;
-
-        // Sort by stop_order if both have it
-        if (a.stop_order && b.stop_order) {
-          return a.stop_order - b.stop_order;
-        }
-
-        // Fallback to ETA
         const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
         const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
-        return etaA.localeCompare(etaB);
+        if (etaA !== etaB) return etaA.localeCompare(etaB);
+        if (hasAOrder) return -1;
+        if (hasBOrder) return 1;
+        return 0;
       });
-
-      // Combine: completed + incomplete + pending at end (no special handling for isNextDelivery)
-      const sortedDeliveries = [
-      ...completedDeliveries,
-      ...incompleteDeliveries,
-      ...pendingDeliveries];
 
 
       // CRITICAL: Include ALL deliveries (including pending) in result

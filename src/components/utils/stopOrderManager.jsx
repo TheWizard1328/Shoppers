@@ -34,56 +34,54 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     }
   })();
 
-  // Sort: active stops first, finished stops after them by completion time, pending always last
+  // Preserve visible stop positions; only repair missing/duplicate orders, with pending always last.
   const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
-    const isAFinished = finishedStatuses.includes(a.status);
-    const isBFinished = finishedStatuses.includes(b.status);
     const isAPending = a.status === 'pending';
     const isBPending = b.status === 'pending';
+    if (isAPending && !isBPending) return 1;
+    if (!isAPending && isBPending) return -1;
 
-    // Keep unfinished stops above finished stops
-    if (isAFinished && !isBFinished) return 1;
-    if (!isAFinished && isBFinished) return -1;
+    const aOrder = Number(a.stop_order);
+    const bOrder = Number(b.stop_order);
+    const hasAOrder = Number.isFinite(aOrder) && aOrder > 0;
+    const hasBOrder = Number.isFinite(bOrder) && bOrder > 0;
+    if (hasAOrder && hasBOrder && aOrder !== bOrder) return aOrder - bOrder;
 
-    // Among finished, sort by completion time
+    const isAFinished = finishedStatuses.includes(a.status);
+    const isBFinished = finishedStatuses.includes(b.status);
     if (isAFinished && isBFinished) {
       const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
       const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
       if (timeA !== timeB) return timeA - timeB;
-      return (a.stop_order || 999) - (b.stop_order || 999);
     }
 
-    // Among unfinished: pending always last
-    if (isAPending && !isBPending) return 1;
-    if (!isAPending && isBPending) return -1;
-
-    // CRITICAL: isNextDelivery must always be first active stop after finished stops
-    if (a.isNextDelivery === true && b.isNextDelivery !== true) return -1;
-    if (a.isNextDelivery !== true && b.isNextDelivery === true) return 1;
-
-    // Among remaining active stops, sort by ETA (then stop_order as fallback)
     const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
     const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
-    
-    if (etaA !== etaB) {
-      return etaA.localeCompare(etaB);
-    }
-    
-    // If ETAs are equal, use stop_order as tiebreaker
-    return (a.stop_order || 999) - (b.stop_order || 999);
+    if (etaA !== etaB) return etaA.localeCompare(etaB);
+    if (hasAOrder) return -1;
+    if (hasBOrder) return 1;
+    return 0;
   });
 
-  // Reassign stop_order sequentially to ALL deliveries
-  const updates = [];
-  for (let i = 0; i < sortedDeliveries.length; i++) {
-    const delivery = sortedDeliveries[i];
-    const newStopOrder = i + 1;
+  const existingOrders = sortedDeliveries
+    .map((delivery) => Number(delivery.stop_order))
+    .filter((order) => Number.isFinite(order) && order > 0);
+  const usedOrders = new Set();
+  let nextGeneratedOrder = existingOrders.length > 0 ? Math.max(...existingOrders) + 1 : 1;
 
-    if (delivery.stop_order !== newStopOrder || delivery.display_stop_order !== newStopOrder) {
-      updates.push({ id: delivery.id, stop_order: newStopOrder, display_stop_order: newStopOrder });
+  const updates = [];
+  for (const delivery of sortedDeliveries) {
+    const currentStopOrder = Number(delivery.stop_order);
+    const newStopOrder = Number.isFinite(currentStopOrder) && currentStopOrder > 0 && !usedOrders.has(currentStopOrder)
+      ? currentStopOrder
+      : nextGeneratedOrder++;
+    usedOrders.add(newStopOrder);
+
+    if (currentStopOrder !== newStopOrder) {
+      updates.push({ id: delivery.id, stop_order: newStopOrder });
       await updateDeliveryLocal(
         delivery.id,
-        { stop_order: newStopOrder, display_stop_order: newStopOrder },
+        { stop_order: newStopOrder },
         { skipSmartRefresh: true, isBatchOperation: true }
       );
     }
@@ -97,7 +95,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
       const slice = updates.slice(i, i + chunkSize);
       try {
         await Promise.all(
-          slice.map(u => base44.entities.Delivery.update(u.id, { stop_order: u.stop_order, display_stop_order: u.display_stop_order }))
+          slice.map(u => base44.entities.Delivery.update(u.id, { stop_order: u.stop_order }))
         );
       } catch (err) {
         console.warn('[StopOrderManager] Partial backend update failed (continuing):', err?.message || err);

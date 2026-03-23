@@ -172,20 +172,6 @@ Deno.serve(async (req) => {
       return new Date(a.actual_delivery_time).getTime() - new Date(b.actual_delivery_time).getTime();
     });
 
-    const completedUpdates = completedDeliveries
-      .map((delivery, index) => {
-        const sequentialOrder = index + 1;
-        if (delivery.stop_order === sequentialOrder) return null;
-        return base44.asServiceRole.entities.Delivery.update(delivery.id, {
-          stop_order: sequentialOrder
-        });
-      })
-      .filter(Boolean);
-
-    if (completedUpdates.length > 0) {
-      await Promise.all(completedUpdates);
-    }
-
     if (incompleteDeliveries.length === 0) {
       return Response.json({ message: 'No incomplete deliveries to optimize', routeChanged: false });
     }
@@ -415,13 +401,15 @@ Deno.serve(async (req) => {
     }
 
     const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
-    let stopOrderCounter = completedDeliveries.length;
+    const usedFinishedOrders = new Set(completedDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0));
+    const availableActiveOrders = incompleteDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0 && !usedFinishedOrders.has(order)).sort((a, b) => a - b);
+    let nextGeneratedOrder = Math.max(0, ...allDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0)) + 1;
     let assignedNextDeliveryStopOrder = null;
 
-    const deliveryUpdates = arrangedStops.map(({ stop, waypoint, leg, locked }) => {
-      stopOrderCounter += 1;
+    const deliveryUpdates = arrangedStops.map(({ stop, waypoint, leg, locked }, index) => {
+      const stopOrder = availableActiveOrders[index] || nextGeneratedOrder++;
       if (stop.delivery.isNextDelivery && assignedNextDeliveryStopOrder === null) {
-        assignedNextDeliveryStopOrder = stopOrderCounter;
+        assignedNextDeliveryStopOrder = stopOrder;
       }
 
       const eta = waypoint
@@ -429,7 +417,7 @@ Deno.serve(async (req) => {
         : stop.delivery.delivery_time_eta || null;
       const resolvedLeg = waypoint ? interconnectionByToWaypoint.get(waypoint.id) : (leg || null);
       const updateData = {
-        stop_order: stopOrderCounter
+        stop_order: stopOrder
       };
 
       if (eta) {
@@ -441,7 +429,7 @@ Deno.serve(async (req) => {
         waypoint,
         leg: resolvedLeg,
         locked: !!locked,
-        order: stopOrderCounter,
+        order: stopOrder,
         eta,
         updatePromise: base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData)
       };
