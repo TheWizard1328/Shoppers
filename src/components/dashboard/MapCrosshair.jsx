@@ -17,8 +17,8 @@ export default function MapCrosshair({ stopCardsHeight = 75, statsCardHeight = 0
   const bottomObscured = stopCardsHeight;
   
   // Net shift = (bottomObscured - topObscured) / 2
-  // Positive = shift up, Negative = shift down
-  // CRITICAL: Shift crosshairs DOWN by 15px to align with map's actual center
+  // Positive = shift down, Negative = shift up
+  // CRITICAL: Shift crosshairs DOWN slightly to align with the visible map center
   const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 15;
 
   return (
