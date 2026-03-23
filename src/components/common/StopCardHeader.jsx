@@ -23,6 +23,13 @@ const statusConfig = {
 function extractStoredTime(value) {
   if (!value) return null;
   const raw = String(value);
+  const hasTimezoneSuffix = /Z$|[+-]\d{2}:?\d{2}$/.test(raw);
+  if (hasTimezoneSuffix) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+    }
+  }
   const isoMatch = raw.match(/T(\d{2}:\d{2})/);
   if (isoMatch) return isoMatch[1];
   const timeMatch = raw.match(/^(\d{2}:\d{2})/);
