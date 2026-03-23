@@ -86,16 +86,16 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
       frequency = 'Weekly';
     } else if (patient.recurring_biweekly && hasDaySelected && (!lastDate || daysSinceLast >= 14)) {
       shouldDeliver = true;
-      frequency = 'Every 2 Weeks';
+      frequency = 'Bi-Weekly';
     } else if (patient.recurring_weekly_x4 && (!lastDate || Math.abs(dateObj.getDate() - lastDate.getDate()) <= 3)) {
       shouldDeliver = true;
-      frequency = 'Every 4 Weeks';
+      frequency = 'x4 Weeks';
     } else if (patient.recurring_monthly && (!lastDate || Math.abs(dateObj.getDate() - lastDate.getDate()) <= 3)) {
       shouldDeliver = true;
       frequency = 'Monthly';
     } else if (patient.recurring_bimonthly && (!lastDate || Math.abs(dateObj.getDate() - lastDate.getDate()) <= 3)) {
       shouldDeliver = true;
-      frequency = 'Every 2 Months';
+      frequency = 'Bi-Monthly';
     } else if (patient.recurring && !lastDate) {
       shouldDeliver = true;
       frequency = 'Recurring';
