@@ -211,7 +211,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
   }
 
   return (
-    <Card className="bg-card text-card-foreground rounded-xl border shadow flex flex-col max-h-[calc(100vh-220px)] overflow-hidden">
+    <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[50vh] lg:max-h-[42vh] overflow-hidden">
       <CardHeader className="pb-3 shrink-0">
         <p className="text-xs text-slate-500 mb-2">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
         <div className="flex items-center justify-between">
@@ -267,7 +267,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
         </div>
       </CardHeader>
       <CardContent className="p-0 flex-1 overflow-hidden">
-        <div className="overflow-x-auto overflow-y-auto h-full max-h-[calc(100vh-260px)]">
+        <div className="min-h-0 h-full overflow-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 bg-slate-50">
               <tr className="border-b bg-slate-50">

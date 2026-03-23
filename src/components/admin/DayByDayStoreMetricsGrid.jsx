@@ -78,8 +78,8 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
   };
 
   return (
-    <Card>
-      <CardContent className="p-0">
+    <Card className="min-h-0 overflow-hidden">
+      <CardContent className="p-0 overflow-hidden">
         <div className="mb-2 px-4 pt-4 flex items-center justify-between">
           <h3 className="font-semibold text-slate-900">
             {viewMode === 'deliveries' ? 'Daily Deliveries' : 'Daily Extra Km'} - {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
@@ -103,7 +103,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
             </Button>
           </div>
         </div>
-        <div className="overflow-x-auto w-full">
+        <div className="w-full max-h-[42vh] overflow-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-slate-50">
