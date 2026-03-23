@@ -67,12 +67,18 @@ export default function DeliveryPatientSearch({
 
     if (e.key === 'Enter' && highlightedPatientIndex >= 0) {
       e.preventDefault();
+      e.stopPropagation();
+      addPatientButtonRef?.current?.blur?.();
       const highlightedPatient = filteredPatients[highlightedPatientIndex];
       if (!highlightedPatient?._isAlreadyStaged) {
         onPatientSelect(highlightedPatient, false);
       }
       setPatientSearch('');
       setHighlightedPatientIndex(-1);
+      requestAnimationFrame(() => {
+        patientSearchInputRef?.current?.focus?.();
+        addPatientButtonRef?.current?.blur?.();
+      });
       return;
     }
 
