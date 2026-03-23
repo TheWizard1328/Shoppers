@@ -1637,7 +1637,7 @@ export default function Layout({ children, currentPageName }) {
     if (updates.patients) setPatients(updates.patients);
     if (updates.appUsers) {
 
-      if (currentUser && !currentUser._isImpersonating && !isReloadingFromAppUserChange.current) {
+      if (currentUser && !isReloadingFromAppUserChange.current) {
         const updatedAppUserForCurrentUser = updates.appUsers.find((au) => au && au.user_id === currentUser.id);
 
         if (updatedAppUserForCurrentUser) {
@@ -1855,18 +1855,9 @@ export default function Layout({ children, currentPageName }) {
     } catch (error) {
       // Silent fail
     }
-  };const handleImpersonate = useCallback(async (userId) => {sessionStorage.setItem('impersonationId', userId);
-      clearUserCache(); // Force refresh on impersonate
-      window.location.reload();
-    }, []);
+  };
 
-  const handleStopImpersonating = useCallback(() => {
-    sessionStorage.removeItem('impersonationId');
-    window.location.reload();
-  }, []);
-
-  const realUser = currentUser && !currentUser._isImpersonating ? currentUser : null;
-  const impersonatingUser = currentUser && currentUser._isImpersonating ? currentUser : null;
+  const realUser = currentUser;
 
   const handleCitySelected = useCallback(async (cityId) => {
     try {
@@ -2000,7 +1991,7 @@ export default function Layout({ children, currentPageName }) {
           });
 
           const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
-          // CRITICAL: Deduplicate by id to prevent duplicates in View As User
+          // CRITICAL: Deduplicate by id to prevent duplicate users in state
           const dedupedUsers = Array.from(new Map(mergedUsers.map((u) => [u.id, u])).values());
           setUsers(dedupedUsers);
 
