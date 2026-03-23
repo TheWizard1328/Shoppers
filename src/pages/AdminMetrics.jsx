@@ -425,7 +425,13 @@ export default function AdminMetrics() {
           </Card>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1 md:pr-2 pb-4 space-y-6">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-6"
+          style={{
+            paddingBottom: 'calc(var(--bottom-nav-height, 0px) + 1rem)',
+            scrollPaddingBottom: 'calc(var(--bottom-nav-height, 0px) + 1rem)'
+          }}>
+
         {/* Row 1: Monthly Store App Fees */}
         <div>
           <MonthlyStoreMetricsGrid
