@@ -1099,17 +1099,17 @@ export default function PayrollSummaryCard({
               <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
                 <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <LeftStatsAndNotes
-                    data={data}
-                    formatCurrency={formatCurrency}
-                    isAdmin={isAdmin}
-                    isDriver={isDriver}
-                    currentUser={currentUser}
-                    driverKey={driverKey}
-                    setDeductionOverlayDriverId={setDeductionOverlayDriverId}
-                    setBonusOverlayDriverId={setBonusOverlayDriverId}
-                    getDriverPayrollRecord={getDriverPayrollRecord}
-                    savePayrollChanges={savePayrollChanges}
-                  />
+                        data={data}
+                        formatCurrency={formatCurrency}
+                        isAdmin={isAdmin}
+                        isDriver={isDriver}
+                        currentUser={currentUser}
+                        driverKey={driverKey}
+                        setDeductionOverlayDriverId={setDeductionOverlayDriverId}
+                        setBonusOverlayDriverId={setBonusOverlayDriverId}
+                        getDriverPayrollRecord={getDriverPayrollRecord}
+                        savePayrollChanges={savePayrollChanges} />
+                      
                 </div>
 
                 <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
@@ -1132,11 +1132,11 @@ export default function PayrollSummaryCard({
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">
                                 {isAdmin ?
-                                  <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
+                                    <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                                     Deductions:
                                   </button> :
-                                  'Deductions:'
-                                }
+                                    'Deductions:'
+                                    }
                               </td>
                               <td className="text-right pr-0.5">-$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
@@ -1144,22 +1144,22 @@ export default function PayrollSummaryCard({
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">
                                 {isAdmin ?
-                                  <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
+                                    <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                                     Bonus:
                                   </button> :
-                                  'Bonus:'
-                                }
+                                    'Bonus:'
+                                    }
                               </td>
                               <td className="text-right pr-0.5">+$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.bonusPay || 0).toFixed(2)}</td>
                             </tr>
                             {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) &&
-                              <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
+                                <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
                                 <td className="text-left pr-2">App Fee %:</td>
                                 <td className="text-right pr-0.5">+$</td>
                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0)).toFixed(2)}</td>
                               </tr>
-                            }
+                                }
                             <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
                               <td colSpan="3" className="pt-1"></td>
                             </tr>
@@ -1195,11 +1195,11 @@ export default function PayrollSummaryCard({
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
                             </tr>
                             {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || driverEdits[data.driver.id]?.appFeePercent > 0) &&
-                              <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-ytd-row="true">
+                                <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-ytd-row="true">
                                 <td className="text-right pr-0.5">+$</td>
                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
                               </tr>
-                            }
+                                }
                             <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
                               <td colSpan="2" className="pt-1"></td>
                             </tr>
@@ -1223,7 +1223,7 @@ export default function PayrollSummaryCard({
             <div className="pt-2">
             {/* Desktop View */}
             <div className="hidden md:block">
-              <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
+              <div className="pr-3 pl-3 grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
                 <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex h-full flex-col justify-center gap-2">
                     <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
@@ -1235,7 +1235,7 @@ export default function PayrollSummaryCard({
                   </div>
                 </div>
 
-                <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <div className="pt-3 pr-4 pb-3 pl-4 rounded-lg border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <div className="text-xs h-full flex items-start justify-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
                     <div className="ml-auto flex gap-6 items-start">
                       {/* Period Column */}
@@ -1246,8 +1246,8 @@ export default function PayrollSummaryCard({
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">
                                 <button
-                                   onClick={() => setAppFeeOverlayAllDriversId('all')}
-                                   className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
+                                    onClick={() => setAppFeeOverlayAllDriversId('all')}
+                                    className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                                   Total Fees:
                                 </button>
                               </td>
@@ -1458,7 +1458,7 @@ export default function PayrollSummaryCard({
                 </div>
 
                 {/* Two Column Layout */}
-                <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
+                <div className="pr-3 pl-3 grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
                   <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                     <div className="grid gap-2 text-sm">
                       <div className="flex items-center justify-between">
@@ -1507,14 +1507,14 @@ export default function PayrollSummaryCard({
                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalAllDrivers.toFixed(2)}</td>
                               </tr>
                               {grandTotalTax > 0 &&
-                                <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <tr style={{ color: 'var(--text-slate-600)' }}>
                                   <td className="text-left pr-2">Tax:</td>
                                   <td className="text-right pr-0.5">$</td>
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalTax.toFixed(2)}</td>
                                 </tr>
                               }
                               {grandTotalDeductions > 0 &&
-                                <tr style={{ color: '#ef4444' }}>
+                              <tr style={{ color: '#ef4444' }}>
                                   <td className="text-left pr-2">Deductions:</td>
                                   <td className="text-right pr-0.5">-$</td>
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalDeductions.toFixed(2)}</td>
@@ -1526,7 +1526,7 @@ export default function PayrollSummaryCard({
                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</td>
                               </tr>
                               {isPeriodEndOfMonth &&
-                                <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <tr style={{ color: 'var(--text-slate-600)' }}>
                                   <td className="text-left pr-2">Extra App Fee Cut:</td>
                                   <td className="text-right pr-0.5">-$</td>
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
@@ -1555,13 +1555,13 @@ export default function PayrollSummaryCard({
                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalNet.toFixed(2)}</td>
                               </tr>
                               {ytdGrandTotalTax > 0 &&
-                                <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <tr style={{ color: 'var(--text-slate-600)' }}>
                                   <td className="text-right pr-0.5">$</td>
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalTax.toFixed(2)}</td>
                                 </tr>
                               }
                               {ytdGrandTotalDeductions > 0 &&
-                                <tr style={{ color: '#ef4444' }}>
+                              <tr style={{ color: '#ef4444' }}>
                                   <td className="text-right pr-0.5">-$</td>
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalDeductions.toFixed(2)}</td>
                                 </tr>
@@ -1571,7 +1571,7 @@ export default function PayrollSummaryCard({
                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalBonus.toFixed(2)}</td>
                               </tr>
                               {isPeriodEndOfMonth &&
-                                <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <tr style={{ color: 'var(--text-slate-600)' }}>
                                   <td className="text-right pr-0.5">-$</td>
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
                                 </tr>
