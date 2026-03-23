@@ -59,8 +59,12 @@ export function DeliveryStagedPanelDesktop({
           variant="outline"
           size="sm"
           className="w-full text-xs relative z-20 pointer-events-auto"
-          onClick={onRefreshProjections}
-          disabled={isLoadingPredictions}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[DeliveryStagedPanel] Refresh Projections clicked (desktop)');
+            onRefreshProjections?.();
+          }}
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
         >
           {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
@@ -147,8 +151,12 @@ export function DeliveryStagedPanelMobile({
                 variant="outline"
                 size="sm"
                 className="w-full text-xs relative z-20 pointer-events-auto"
-                onClick={onRefreshProjections}
-                disabled={isLoadingPredictions}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[DeliveryStagedPanel] Refresh Projections clicked (mobile)');
+                  onRefreshProjections?.();
+                }}
                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
               >
                 {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
