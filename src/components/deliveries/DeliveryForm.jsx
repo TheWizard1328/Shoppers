@@ -49,6 +49,7 @@ import { filterPendingDeliveriesForUser, mapPendingDeliveriesToStaged } from './
 import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescriptionScanHelpers';
 import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './projectedDeliveryHelpers';
 import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
+import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -843,13 +844,11 @@ export default function DeliveryForm({
       try { await updatePatientLocal(patient.id, buildPatientUpdatePayload(updatedFormData)); } catch (error) { console.error('Failed to update patient:', error); }
     }
 
-    // Use existing distance_from_store if available, otherwise calculate
-    let distanceFromStore = patient.distance_from_store;
-    if (distanceFromStore === null || distanceFromStore === undefined) {
-      if (patient.latitude && patient.longitude && patientStore.latitude && patientStore.longitude) {
-        distanceFromStore = calculateDistance(patientStore.latitude, patientStore.longitude, patient.latitude, patient.longitude);
-      }
-    }
+    const distanceFromStore = resolveDistanceFromStore({
+      patient,
+      store: patientStore,
+      calculateDistance
+    });
 
     const timeSlot = getStoreAssignedTimeSlotForDriver(patientStore, formData.delivery_date, autoSelectedDriverId, allDeliveries);
 
@@ -1287,38 +1286,26 @@ export default function DeliveryForm({
       }
     }
 
-    // Use existing distance_from_store if available, otherwise calculate
-    let distanceFromStore = patient?.distance_from_store;
-    if (distanceFromStore === null || distanceFromStore === undefined) {
-      if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
-        distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
-      }
-    }
+    const distanceFromStore = resolveDistanceFromStore({
+      patient,
+      store,
+      calculateDistance
+    });
 
     const selectedStore = availableStores.find((s) => s && s.id === selectedPickupOption);
     const timeSlot = selectedStore?._timeSlot || formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, formData.driver_id, allDeliveries) || 'AM';
     let newStagedDelivery;
 
     if (isPickupMode) {
-      const ids = [...(allDeliveries || []).map((d) => d?.stop_id), ...(stagedDeliveries || []).map((d) => d?.stop_id)].filter(Boolean);
-      const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let sid = '', tries = 0;
-      do {
-        sid = '';
-        for (let i = 0; i < 3; i++) sid += chars.charAt(Math.floor(Math.random() * chars.length));
-        tries += 1;
-      } while (ids.includes(sid) && tries < 10000);
-      newStagedDelivery = {
-        ...formData,
-        patient_id: '', patient_name: 'Pickup', patient_phone: '', unit_number: '',
-        cod_total_amount_required: codAmount,
-        delivery_date: formData.delivery_date,
-        driver_id: formData.driver_id, driver_name: formData.driver_name,
-        store_id: store.id, store_name: store.name, store_abbreviation: store.abbreviation, store_phone: store.phone || '',
-        stop_id: sid, puid: sid, ampm_deliveries: timeSlot, status: 'en_route',
-        delivery_address: store.address, latitude: store.latitude, longitude: store.longitude,
-        extra_time: formData.extra_time || 15, _tempId: Date.now() + Math.random()
-      };
+      newStagedDelivery = buildPickupStagedDelivery({
+        formData: {
+          ...formData,
+          stop_id: [...(allDeliveries || []).map((d) => d?.stop_id), ...(stagedDeliveries || []).map((d) => d?.stop_id)].filter(Boolean).join('|')
+        },
+        codAmount,
+        store,
+        timeSlot
+      });
     } else {
       let puid = null;
       const stagedPickup = stagedDeliveries.find((d) => !d.patient_id && d.store_id === store.id && d.delivery_date === formData.delivery_date && d.driver_id === formData.driver_id && (d.ampm_deliveries || 'AM') === timeSlot);
@@ -1331,18 +1318,16 @@ export default function DeliveryForm({
           base44.functions.invoke('ensurePickupForDelivery', { storeId: store.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, ampmDeliveries: timeSlot, allowCreateIfMissing: true }).catch(err => console.warn('⚠️ [handleAddToStaging] ensurePickup bg failed:', err?.message));
         }
       }
-      newStagedDelivery = {
-        ...formData,
-        time_window_start: formData.time_window_start || patient?.time_window_start || '',
-        time_window_end: formData.time_window_end || patient?.time_window_end || '',
-        cod_total_amount_required: codAmount,
-        puid: puid || '', ampm_deliveries: timeSlot, status: formData.status || 'Staged', _tempId: Date.now() + Math.random(),
-        patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
-        store_name: store.name, store_abbreviation: store.abbreviation, distanceFromStore: distanceFromStore,
-        delivery_address: patient?.address || store.address,
-        paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null,
-        first_delivery: isNewPatient || !patient?.last_delivery_date
-      };
+      newStagedDelivery = buildPatientStagedDelivery({
+        formData,
+        patient,
+        store,
+        codAmount,
+        puid,
+        timeSlot,
+        distanceFromStore,
+        isNewPatient
+      });
     }
 
     if(isPickupMode) { await createDeliveryLocal(newStagedDelivery); setHasPendingDeletes(true); } else setStagedDeliveries((prev) => [...prev, newStagedDelivery]);

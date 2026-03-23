@@ -1,0 +1,76 @@
+export const resolveDistanceFromStore = ({ patient, store, calculateDistance }) => {
+  let distanceFromStore = patient?.distance_from_store;
+
+  if (distanceFromStore === null || distanceFromStore === undefined) {
+    if (patient && patient.latitude && patient.longitude && store?.latitude && store?.longitude) {
+      distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
+    }
+  }
+
+  return distanceFromStore;
+};
+
+export const buildPickupStagedDelivery = ({ formData, codAmount, store, timeSlot }) => {
+  const ids = [formData.stop_id].filter(Boolean);
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let sid = '';
+  let tries = 0;
+
+  do {
+    sid = '';
+    for (let i = 0; i < 3; i += 1) sid += chars.charAt(Math.floor(Math.random() * chars.length));
+    tries += 1;
+  } while (ids.includes(sid) && tries < 10000);
+
+  return {
+    ...formData,
+    patient_id: '',
+    patient_name: 'Pickup',
+    patient_phone: '',
+    unit_number: '',
+    cod_total_amount_required: codAmount,
+    delivery_date: formData.delivery_date,
+    driver_id: formData.driver_id,
+    driver_name: formData.driver_name,
+    store_id: store.id,
+    store_name: store.name,
+    store_abbreviation: store.abbreviation,
+    store_phone: store.phone || '',
+    stop_id: sid,
+    puid: sid,
+    ampm_deliveries: timeSlot,
+    status: 'en_route',
+    delivery_address: store.address,
+    latitude: store.latitude,
+    longitude: store.longitude,
+    extra_time: formData.extra_time || 15,
+    _tempId: Date.now() + Math.random()
+  };
+};
+
+export const buildPatientStagedDelivery = ({
+  formData,
+  patient,
+  store,
+  codAmount,
+  puid,
+  timeSlot,
+  distanceFromStore,
+  isNewPatient
+}) => ({
+  ...formData,
+  time_window_start: formData.time_window_start || patient?.time_window_start || '',
+  time_window_end: formData.time_window_end || patient?.time_window_end || '',
+  cod_total_amount_required: codAmount,
+  puid: puid || '',
+  ampm_deliveries: timeSlot,
+  status: formData.status || 'Staged',
+  _tempId: Date.now() + Math.random(),
+  patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
+  store_name: store.name,
+  store_abbreviation: store.abbreviation,
+  distanceFromStore,
+  delivery_address: patient?.address || store.address,
+  paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null,
+  first_delivery: isNewPatient || !patient?.last_delivery_date
+});
