@@ -93,7 +93,6 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
 
     setIsSaving(true);
     try {
-      // Rotate 90° clockwise into a new canvas
       const rotated = document.createElement('canvas');
       rotated.width = canvas.height;
       rotated.height = canvas.width;
@@ -102,11 +101,16 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
       rCtx.rotate(Math.PI / 2);
       rCtx.drawImage(canvas, 0, 0);
 
-      const dataURL = rotated.toDataURL('image/png');
-      if (!dataURL || dataURL === 'data:,') throw new Error('Canvas produced empty dataURL');
-      const response = await fetch(dataURL);
-      const blob = await response.blob();
-      if (!blob.size) throw new Error('Signature blob is empty');
+      const blob = await new Promise((resolve, reject) => {
+        rotated.toBlob((result) => {
+          if (!result || !result.size) {
+            reject(new Error('Signature blob is empty'));
+            return;
+          }
+          resolve(result);
+        }, 'image/png');
+      });
+
       await onSave(blob);
       setShowClear(true);
     } catch (error) {

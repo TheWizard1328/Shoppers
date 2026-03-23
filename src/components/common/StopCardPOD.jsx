@@ -37,9 +37,11 @@ export default function StopCardPOD({
       failureStage = 'persist_delivery_proof';
       await persistDeliveryProof(delivery.id, { signature_image_url: fileUrl });
       setShowSignatureCapture(false);
-      invalidate('Delivery');
-      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
       toast.success('Signature saved!');
+      invalidate('Delivery');
+      Promise.resolve(forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date)).catch((refreshError) => {
+        console.warn('⚠️ [Signature] Background refresh failed:', refreshError?.message || refreshError);
+      });
     } catch (error) {
       base44.analytics.track({
         eventName: 'proof_of_delivery_upload_error',
