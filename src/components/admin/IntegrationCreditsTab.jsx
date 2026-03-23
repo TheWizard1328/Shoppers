@@ -400,7 +400,7 @@ export default function IntegrationCreditsTab() {
       </div>
 
       <Card className="rounded-xl border bg-card text-card-foreground shadow min-h-0 flex-1 overflow-hidden flex flex-col">
-        <CardHeader>
+        <CardHeader className="px-6 py-3 flex flex-col space-y-1.5">
           <CardTitle>Recent Integration Usage</CardTitle>
           <CardDescription>Latest wrapped integration calls with user, task, duration, and estimated credits.</CardDescription>
         </CardHeader>
