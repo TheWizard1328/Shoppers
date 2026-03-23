@@ -219,7 +219,7 @@ export default function RouteManagementContent({
   }
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       {canBulkEdit &&
       <Card className="sticky top-0 z-10 flex-shrink-0 shadow-sm mb-2" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
           <CardContent className="px-3 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
