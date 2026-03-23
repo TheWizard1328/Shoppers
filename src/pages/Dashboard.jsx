@@ -1986,7 +1986,7 @@ function Dashboard() {
 
     // CRITICAL: Only skip phase 2 (driver+next-stop) if not a driver or no location.
     // Phase 3 CAN run for dispatchers (shows incomplete stops for their stores).
-    if (mapViewPhase === 2 && (!isDriver || !getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice }))) {
+    if (mapViewPhase === 2 && (!(isDispatcher && !isAdmin || isAdmin && selectedDriverId === 'all') && !getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice }))) {
       return;
     }
 
