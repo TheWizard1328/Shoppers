@@ -4435,7 +4435,7 @@ export default function AdminUtilities() {
         </div>
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
-          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
+          <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
             <TabsList className="grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-10" style={{gridTemplateColumns:'repeat(8,minmax(max-content,1fr))'}}>
               <TabsTrigger value="data" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Data</TabsTrigger>
               <TabsTrigger value="store-metrics" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Metrics</TabsTrigger>
@@ -4457,7 +4457,7 @@ export default function AdminUtilities() {
             ) : (
               <div className="space-y-6">
                 <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full">
-                   <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-10" style={{gridTemplateColumns:'repeat(6,minmax(max-content,1fr))'}}>
+                   <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-10" style={{gridTemplateColumns:'repeat(6,minmax(max-content,1fr))'}}>
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Deliveries</TabsTrigger>
                        <TabsTrigger value="patients" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Patients</TabsTrigger>
                        <TabsTrigger value="stores" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Stores</TabsTrigger>
