@@ -2311,7 +2311,7 @@ function Dashboard() {
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
 
-        if (isDispatcher && !isAdmin) {
+        if (isDispatcher && !isAdmin || isAdmin && selectedDriverId === 'all') {
           // DISPATCHER PHASE 2: Show all active drivers (for dispatcher's stores) + their next stops
           const dispatcherStoreIds2 = new Set((currentUser?.store_ids || []).map((id) => String(id)));
           const selectedDateStr2 = format(selectedDate, 'yyyy-MM-dd');
