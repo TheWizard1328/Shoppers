@@ -4110,7 +4110,7 @@ function Dashboard() {
             if (stop.isNew) {
               deliveriesToCreate.push(payload);
             } else {
-              deliveriesToUpdate.push({ id: stop.id, updates: payload });
+              deliveriesToUpdate.push({ id: stop.id, updates: stop._wasEdited ? payload : { stop_id: payload.stop_id, puid: payload.puid, stop_order: payload.stop_order, tracking_number: payload.tracking_number, delivery_time_start: payload.delivery_time_start, delivery_time_end: payload.delivery_time_end, delivery_time_eta: payload.delivery_time_eta, time_window_start: payload.time_window_start, time_window_end: payload.time_window_end, ampm_deliveries: payload.ampm_deliveries, status: payload.status } });
             }
           }
 

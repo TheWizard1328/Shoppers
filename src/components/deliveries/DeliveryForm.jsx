@@ -257,7 +257,7 @@ export default function DeliveryForm({
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
   const originalPidRef = useRef('');
-  const autoCreatedPickupsRef = useRef(new Set());
+  const autoCreatedPickupsRef = useRef(new Set()), batchSaveLockRef = useRef(false);
 
   // Camera state
   const videoRef = useRef(null);
@@ -1867,7 +1867,7 @@ export default function DeliveryForm({
   }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
   const handleBatchSave = useCallback(async () => {
-    // CRITICAL: Stop prediction manager COMPLETELY when Done button is clicked
+    if (batchSaveLockRef.current || isSaving) return; batchSaveLockRef.current = true;
     blockPredictions();
 
     if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
@@ -2227,8 +2227,6 @@ export default function DeliveryForm({
         }
       }
 
-      if (formData.driver_id && formData.delivery_date) Promise.resolve().then(async()=>{await existingUpdatesDone;try{await base44.functions.invoke('optimizeRouteRealTime',{driverId:formData.driver_id,deliveryDate:formData.delivery_date,currentLocalTime:format(new Date(),'HH:mm'),generatePolyline:false});}catch(error){console.warn('⚠️ [AddToRoute] Route optimizer failed before TR correction:', error?.message || error);}const optimizedDeliveries=await base44.entities.Delivery.filter({driver_id:formData.driver_id,delivery_date:formData.delivery_date});const trackingUpdates=buildOptimizedTrackingUpdates(optimizedDeliveries);if(trackingUpdates.length)await Promise.allSettled(trackingUpdates.map((update)=>base44.entities.Delivery.update(update.id,{tracking_number:update.tracking_number})));}).catch((error)=>console.warn('⚠️ [AddToRoute] Post-optimization TR correction failed:', error?.message || error));
-
       // CRITICAL: Resume SmartRefresh ONCE after all updates complete
       try {
         setBatchFormSaving(false); // Release batch flag FIRST
@@ -2367,9 +2365,9 @@ export default function DeliveryForm({
         console.warn('⚠️ [AddToRoute] Failed to resume SmartRefresh on error:', error);
       }
     } finally {
-      setIsSaving(false);
+      batchSaveLockRef.current = false; setIsSaving(false);
     }
-  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId, isNewRouteWithZeroStops, stores]);
+  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId, isNewRouteWithZeroStops, stores, isSaving]);
 
   const handleSearchKeyDown = useCallback((e) => {
     // Handle Escape key - always trigger Clear button behavior
