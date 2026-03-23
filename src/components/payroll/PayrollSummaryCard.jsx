@@ -1220,111 +1220,120 @@ export default function PayrollSummaryCard({
           
           {/* Total App Fees Collected - App Owner Only */}
           {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) && isAppOwner(currentUser) &&
-            <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
+            <div className="pt-2">
             {/* Desktop View */}
             <div className="hidden md:block">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
-                  Total App Fees Collected
-                </div>
-                <div className="flex gap-6 items-start">
-                  {/* Period Column */}
-                  <div className="flex flex-col">
-                    <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>Month</div>
-                    <table className="border-collapse">
-                      <tbody>
-                        <tr style={{ color: 'var(--text-slate-600)' }}>
-                          <td className="text-left pr-2">
-                            <button
-                               onClick={() => setAppFeeOverlayAllDriversId('all')}
-                               className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
-                              Total Fees:
-                            </button>
-                          </td>
-                          <td className="text-right pr-0.5">$</td>
-                          <td className="text-right font-semibold" style={{ width: '60px' }}>
-                            {(() => {
-                                // Calculate total billable deliveries in calendar month
-                                const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                                const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                let totalBillableCount = 0;
-                                deliveries.forEach((d) => {
-                                  if (!d || !d.store_id) return;
-                                  const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                  if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                  const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                  if (!validStatus) return;
-                                  if (!d.patient_id && !d.after_hours_pickup) return;
-                                  const store = stores.find((s) => s?.id === d.store_id);
-                                  if (!store) return;
-                                  let paysAppFees = store.pays_app_fees || false;
-                                  if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                    const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                    new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                    );
-                                    if (sortedHistory[0]) {
-                                      paysAppFees = sortedHistory[0].pays_app_fees;
-                                    }
-                                  }
-                                  if (paysAppFees) {
-                                    totalBillableCount++;
-                                  }
-                                });
-                                return (totalBillableCount * appFeesPerDelivery).toFixed(2);
-                              })()}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+              <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
+                <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className="flex h-full flex-col justify-center gap-2">
+                    <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                      Total App Fees Collected
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      Monthly and year-to-date app fee totals.
+                    </div>
                   </div>
+                </div>
 
-                  {/* Vertical Divider */}
-                  <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+                <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className="text-xs h-full flex items-start justify-center" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    <div className="flex gap-6 items-start">
+                      {/* Period Column */}
+                      <div className="flex flex-col">
+                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>Month</div>
+                        <table className="border-collapse">
+                          <tbody>
+                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <td className="text-left pr-2">
+                                <button
+                                   onClick={() => setAppFeeOverlayAllDriversId('all')}
+                                   className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
+                                  Total Fees:
+                                </button>
+                              </td>
+                              <td className="text-right pr-0.5">$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>
+                                {(() => {
+                                    const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                                    const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                                    let totalBillableCount = 0;
+                                    deliveries.forEach((d) => {
+                                      if (!d || !d.store_id) return;
+                                      const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                                      if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                                      if (!validStatus) return;
+                                      if (!d.patient_id && !d.after_hours_pickup) return;
+                                      const store = stores.find((s) => s?.id === d.store_id);
+                                      if (!store) return;
+                                      let paysAppFees = store.pays_app_fees || false;
+                                      if (store.app_fee_history && store.app_fee_history.length > 0) {
+                                        const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                        new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                                        );
+                                        if (sortedHistory[0]) {
+                                          paysAppFees = sortedHistory[0].pays_app_fees;
+                                        }
+                                      }
+                                      if (paysAppFees) {
+                                        totalBillableCount++;
+                                      }
+                                    });
+                                    return (totalBillableCount * appFeesPerDelivery).toFixed(2);
+                                  })()}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
 
-                  {/* YTD Column */}
-                  <div className="flex flex-col">
-                    <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>YTD</div>
-                    <table className="border-collapse">
-                      <tbody>
-                        <tr style={{ color: 'var(--text-slate-600)' }}>
-                          <td className="text-right pr-0.5">$</td>
-                          <td className="text-right font-semibold" style={{ width: '60px' }}>
-                            {(() => {
-                                // Calculate YTD total app fees (Jan 1 to current month end)
-                                const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-                                const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                let ytdTotalBillable = 0;
-                                deliveries.forEach((d) => {
-                                  if (!d || !d.store_id) return;
-                                  const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                  if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                                  const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                  if (!validStatus) return;
-                                  if (!d.patient_id && !d.after_hours_pickup) return;
-                                  const store = stores.find((s) => s?.id === d.store_id);
-                                  if (!store) return;
-                                  let paysAppFees = store.pays_app_fees || false;
-                                  if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                    const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                    new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                    );
-                                    const applicableEntry = sortedHistory.find((entry) =>
-                                    new Date(entry.effective_date) <= deliveryDate
-                                    );
-                                    if (applicableEntry) {
-                                      paysAppFees = applicableEntry.pays_app_fees;
-                                    }
-                                  }
-                                  if (paysAppFees) {
-                                    ytdTotalBillable++;
-                                  }
-                                });
-                                return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
-                              })()}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                      <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+
+                      {/* YTD Column */}
+                      <div className="flex flex-col">
+                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>YTD</div>
+                        <table className="border-collapse">
+                          <tbody>
+                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <td className="text-right pr-0.5">$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>
+                                {(() => {
+                                    const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
+                                    const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                                    let ytdTotalBillable = 0;
+                                    deliveries.forEach((d) => {
+                                      if (!d || !d.store_id) return;
+                                      const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                                      if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
+                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                                      if (!validStatus) return;
+                                      if (!d.patient_id && !d.after_hours_pickup) return;
+                                      const store = stores.find((s) => s?.id === d.store_id);
+                                      if (!store) return;
+                                      let paysAppFees = store.pays_app_fees || false;
+                                      if (store.app_fee_history && store.app_fee_history.length > 0) {
+                                        const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                        new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                                        );
+                                        const applicableEntry = sortedHistory.find((entry) =>
+                                        new Date(entry.effective_date) <= deliveryDate
+                                        );
+                                        if (applicableEntry) {
+                                          paysAppFees = applicableEntry.pays_app_fees;
+                                        }
+                                      }
+                                      if (paysAppFees) {
+                                        ytdTotalBillable++;
+                                      }
+                                    });
+                                    return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
+                                  })()}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
