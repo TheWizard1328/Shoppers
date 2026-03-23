@@ -47,6 +47,8 @@ import { resolvePatientDriverAssignment, buildSelectedPatientFormData, buildDupl
 import { resetDraftEditorState, cleanupDetachedAutoCreatedPickups } from './deliveryDraftStateHelpers';
 import { filterPendingDeliveriesForUser, mapPendingDeliveriesToStaged } from './deliveryPendingLoadHelpers';
 import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescriptionScanHelpers';
+import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './projectedDeliveryHelpers';
+import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -1763,12 +1765,15 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, ...dataToSave } = { ...formData };
-      if (dataToSave.cod_total_amount_required > 0) dataToSave.cod_total_amount_required = dataToSave.cod_total_amount_required / 100;
-      if (delivery && isCompletionStatus && completionTime) dataToSave.actual_delivery_time = `${formData.delivery_date}T${completionTime}:00`;
+      const dataToSave = prepareDeliverySaveData({
+        formData,
+        delivery,
+        isCompletionStatus,
+        completionTime
+      });
       if (delivery?.id && !delivery?.patient_id) {
-        const currentPickupSnapshot = JSON.stringify({ delivery_date: delivery.delivery_date || null, delivery_time_start: delivery.delivery_time_start || null, delivery_time_end: delivery.delivery_time_end || null, delivery_time_eta: delivery.delivery_time_eta || null, status: delivery.status || null, driver_name: delivery.driver_name || null, driver_id: delivery.driver_id || null, prescription_number: delivery.prescription_number || null, delivery_instructions: delivery.delivery_instructions || null, delivery_notes: delivery.delivery_notes || null, cod_total_amount_required: Number(delivery.cod_total_amount_required || 0), cod_payments: Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [], cod_payment_type: delivery.cod_payment_type || null, cod_amount: delivery.cod_amount || null, tracking_number: delivery.tracking_number || null, stop_id: delivery.stop_id || null, puid: delivery.puid || null, store_id: delivery.store_id || null, ampm_deliveries: delivery.ampm_deliveries || null, signature_needed: !!delivery.signature_needed, fridge_item: !!delivery.fridge_item, oversized: !!delivery.oversized, after_hours_pickup: !!delivery.after_hours_pickup, no_charge: !!delivery.no_charge, extra_time: Number(delivery.extra_time || 0), barcode_values: Array.isArray(delivery.barcode_values) ? delivery.barcode_values : [], receipt_barcode_values: Array.isArray(delivery.receipt_barcode_values) ? delivery.receipt_barcode_values : [], paid_km_override: delivery.paid_km_override ?? null, actual_delivery_time: delivery.actual_delivery_time || null });
-        const nextPickupSnapshot = JSON.stringify({ delivery_date: dataToSave.delivery_date || null, delivery_time_start: dataToSave.delivery_time_start || null, delivery_time_end: dataToSave.delivery_time_end || null, delivery_time_eta: dataToSave.delivery_time_eta || null, status: dataToSave.status || null, driver_name: dataToSave.driver_name || null, driver_id: dataToSave.driver_id || null, prescription_number: dataToSave.prescription_number || null, delivery_instructions: dataToSave.delivery_instructions || null, delivery_notes: dataToSave.delivery_notes || null, cod_total_amount_required: Number(dataToSave.cod_total_amount_required || 0), cod_payments: Array.isArray(dataToSave.cod_payments) ? dataToSave.cod_payments : [], cod_payment_type: dataToSave.cod_payment_type || null, cod_amount: dataToSave.cod_amount || null, tracking_number: dataToSave.tracking_number || null, stop_id: dataToSave.stop_id || null, puid: dataToSave.puid || null, store_id: dataToSave.store_id || null, ampm_deliveries: dataToSave.ampm_deliveries || null, signature_needed: !!dataToSave.signature_needed, fridge_item: !!dataToSave.fridge_item, oversized: !!dataToSave.oversized, after_hours_pickup: !!dataToSave.after_hours_pickup, no_charge: !!dataToSave.no_charge, extra_time: Number(dataToSave.extra_time || 0), barcode_values: Array.isArray(dataToSave.barcode_values) ? dataToSave.barcode_values : [], receipt_barcode_values: Array.isArray(dataToSave.receipt_barcode_values) ? dataToSave.receipt_barcode_values : [], paid_km_override: dataToSave.paid_km_override ?? null, actual_delivery_time: dataToSave.actual_delivery_time || null });
+        const currentPickupSnapshot = buildPickupSnapshot(delivery);
+        const nextPickupSnapshot = buildPickupSnapshot(dataToSave);
         if (currentPickupSnapshot === nextPickupSnapshot) {
           import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); });
           return;
@@ -1780,43 +1785,33 @@ export default function DeliveryForm({
         } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
       }
 
-      // CRITICAL: Check if driver assignment changed
-      const driverChanged = delivery && delivery.driver_id !== formData.driver_id;
+      const {
+        driverChanged,
+        dateChanged,
+        statusChangedToInTransit,
+        statusChangedToCompletion,
+        actualDeliveryTimeChanged,
+        codWasRemoved
+      } = getDeliverySubmitFlags({ delivery, formData, dataToSave });
       const oldDriver = driverChanged ? drivers.find((d) => d?.id === delivery.driver_id) : null;
       const newDriver = driverChanged ? drivers.find((d) => d?.id === formData.driver_id) : null;
 
-      // CRITICAL: Check if delivery date changed
-      const dateChanged = delivery && delivery.delivery_date !== formData.delivery_date;
-
-      // CRITICAL: If date changes, keep status as in_transit and set delivery_time_start to 10:00
       if (dateChanged) {
         dataToSave.status = 'in_transit';
         dataToSave.time_window_start = '10:00';
       }
-
-      // Check if status changed to in_transit (trigger Square COD creation)
-      const statusChangedToInTransit = delivery &&
-      formData.status === 'in_transit' &&
-      delivery.status !== 'in_transit';
 
       if (statusChangedToInTransit && delivery?.id && formData.cod_total_amount_required > 0) {
         const store = stores?.find(s => s && s.id === formData.store_id);
         triggerSquareCodCreate({ deliveryId: delivery.id, patientName: formData.patient_name, storeAbbreviation: store?.abbreviation || '', codAmount: formData.cod_total_amount_required / 100, deliveryDate: formData.delivery_date, storeId: formData.store_id });
       }
 
-      // Check if status changed to a completion status (completed, cancelled, failed)
-      const statusChangedToCompletion = !!(delivery && ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) && delivery.status !== formData.status);
-      const actualDeliveryTimeChanged = !!(delivery && ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) && dataToSave.actual_delivery_time && dataToSave.actual_delivery_time !== (delivery.actual_delivery_time || ''));
       if (statusChangedToCompletion) dataToSave.isNextDelivery = false;
 
       if (statusChangedToCompletion) {
         triggerSquareCodDelete({ deliveryId: delivery?.id, nextStatus: formData.status, delivery: { ...delivery, ...dataToSave, cod_payments: formData.cod_payments, cod_payment_type: formData.cod_payment_type } });
       }
 
-      // SQUARE INTEGRATION: Delete COD item if COD was removed (checkbox unchecked)
-      const codWasRemoved = delivery?.cod_total_amount_required > 0 && 
-        (formData.cod_total_amount_required === 0 || !formData.cod_total_amount_required);
-      
       if (codWasRemoved && delivery?.id) {
         dataToSave.cod_payments = [];
         dataToSave.cod_payment_type = 'No Payment';
@@ -2305,43 +2300,13 @@ export default function DeliveryForm({
       }
     }
 
-    // Auto-select driver based on patient's store and time window
-    let autoSelectedDriverId = '';
-    let autoSelectedDriverName = '';
-
-    const deliveryDate = formData.delivery_date ? new Date(formData.delivery_date + 'T00:00:00') : new Date();
-    const dayOfWeek = deliveryDate.getDay();
-
-    const deliveryAMPM = determineDeliveryAMPM(patient);
-
-    let amDriverIdField = '';
-    let pmDriverIdField = '';
-    if (dayOfWeek === 6) {
-      amDriverIdField = 'saturday_am_driver_id';
-      pmDriverIdField = 'saturday_pm_driver_id';
-    } else if (dayOfWeek === 0) {
-      amDriverIdField = 'sunday_am_driver_id';
-      pmDriverIdField = 'sunday_pm_driver_id';
-    } else {
-      amDriverIdField = 'weekday_am_driver_id';
-      pmDriverIdField = 'weekday_pm_driver_id';
-    }
-
-    const preferredDriverIdField = deliveryAMPM === 'PM' ? pmDriverIdField : amDriverIdField;
-    const fallbackDriverIdField = deliveryAMPM === 'PM' ? amDriverIdField : pmDriverIdField;
-
-    let driverId = store[preferredDriverIdField];
-    if (!driverId) {
-      driverId = store[fallbackDriverIdField];
-    }
-
-    if (driverId) {
-      const driver = drivers.find((d) => d && d.id === driverId);
-      if (driver) {
-        autoSelectedDriverId = driverId;
-        autoSelectedDriverName = getDriverNameForStorage(driver);
-      }
-    }
+    const { autoSelectedDriverId, autoSelectedDriverName } = resolveProjectedDeliveryDriver({
+      store,
+      patient,
+      deliveryDate: formData.delivery_date,
+      drivers,
+      getDriverNameForStorage
+    });
 
     // Check for existing pickup for this store/driver/date
     let puid = null;
@@ -2360,67 +2325,16 @@ export default function DeliveryForm({
       puid = stagedPickup.puid || stagedPickup.stop_id;
     }
 
-    // CRITICAL: Build staged item FIRST, then update both states atomically
-    const newStagedItem = {
-      patient_id: projected.patient_id,
-      patient_name: projected.patient_name,
-      patient_phone: patient.phone || '',
-      unit_number: patient.unit_number || '',
-      delivery_date: formData.delivery_date,
-      delivery_time_start: patient.delivery_time_start || '',
-      delivery_time_end: patient.delivery_time_end || (patient.delivery_time_start ? '' : ''),
-      time_window_start: patient.time_window_start || '',
-      time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
-      puid: '', // Will be updated after async call
-      ampm_deliveries: timeSlot,
-      status: 'Staged',
-      driver_id: autoSelectedDriverId,
-      driver_name: autoSelectedDriverName,
-      prescription_number: projected.prescription_number || '',
-      delivery_instructions: patient.notes || '',
-      delivery_notes: '',
-      cod_total_amount_required: projected.cod_total_amount_required || 0,
-      cod_payments: [],
-      cod_payment_type: 'No Payment',
-      tracking_number: '',
-      delivery_stop_id: '',
-      stop_id: '',
-      store_id: projected.store_id,
-      store_name: store.name,
-      store_abbreviation: store.abbreviation,
-      store_phone: store.phone || '',
-      mailbox_ok: patient.mailbox_ok || false,
-      call_upon_arrival: patient.call_upon_arrival || false,
-      ring_bell: patient.ring_bell || false,
-      dont_ring_bell: patient.dont_ring_bell || false,
-      back_door: patient.back_door || false,
-      signature_needed: patient.signature_needed || false,
-      fridge_item: patient.fridge_item || false,
-      oversized: patient.oversized || false,
-      after_hours_pickup: false,
-      no_charge: false,
-      extra_time: projected.extra_time || 0,
-      recurring: patient.recurring || false,
-      recurring_daily: patient.recurring_daily || false,
-      recurring_weekly_mon: patient.recurring_weekly_mon || false,
-      recurring_weekly_tue: patient.recurring_weekly_tue || false,
-      recurring_weekly_wed: patient.recurring_weekly_wed || false,
-      recurring_weekly_thu: patient.recurring_weekly_thu || false,
-      recurring_weekly_fri: patient.recurring_weekly_fri || false,
-      recurring_weekly_sat: patient.recurring_weekly_sat || false,
-      recurring_weekly_sun: patient.recurring_weekly_sun || false,
-      recurring_biweekly: patient.recurring_biweekly || false,
-      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
-      recurring_monthly: patient.recurring_monthly || false,
-      recurring_bimonthly: patient.recurring_bimonthly || false,
-      _tempId: Date.now() + Math.random(),
-      _wasProjected: true,
-      _originalProjected: projected,
-      distanceFromStore: distanceFromStore,
-      delivery_address: patient.address || '',
-      isNextDelivery: false,
-      paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null
-      };
+    const newStagedItem = buildProjectedStagedItem({
+      projected,
+      patient,
+      store,
+      formData,
+      timeSlot,
+      autoSelectedDriverId,
+      autoSelectedDriverName,
+      distanceFromStore
+    });
 
     // CRITICAL: Remove from projected and add to staged in one synchronous batch
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));

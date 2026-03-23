@@ -1,0 +1,91 @@
+export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus, completionTime }) => {
+  const {
+    patient_name,
+    patient_phone,
+    unit_number,
+    store_phone,
+    delivery_stop_id,
+    mailbox_ok,
+    call_upon_arrival,
+    ring_bell,
+    dont_ring_bell,
+    back_door,
+    ...dataToSave
+  } = { ...formData };
+
+  if (dataToSave.cod_total_amount_required > 0) {
+    dataToSave.cod_total_amount_required = dataToSave.cod_total_amount_required / 100;
+  }
+
+  if (delivery && isCompletionStatus && completionTime) {
+    dataToSave.actual_delivery_time = `${formData.delivery_date}T${completionTime}:00`;
+  }
+
+  return dataToSave;
+};
+
+export const buildPickupSnapshot = (data) => JSON.stringify({
+  delivery_date: data.delivery_date || null,
+  delivery_time_start: data.delivery_time_start || null,
+  delivery_time_end: data.delivery_time_end || null,
+  delivery_time_eta: data.delivery_time_eta || null,
+  status: data.status || null,
+  driver_name: data.driver_name || null,
+  driver_id: data.driver_id || null,
+  prescription_number: data.prescription_number || null,
+  delivery_instructions: data.delivery_instructions || null,
+  delivery_notes: data.delivery_notes || null,
+  cod_total_amount_required: Number(data.cod_total_amount_required || 0),
+  cod_payments: Array.isArray(data.cod_payments) ? data.cod_payments : [],
+  cod_payment_type: data.cod_payment_type || null,
+  cod_amount: data.cod_amount || null,
+  tracking_number: data.tracking_number || null,
+  stop_id: data.stop_id || null,
+  puid: data.puid || null,
+  store_id: data.store_id || null,
+  ampm_deliveries: data.ampm_deliveries || null,
+  signature_needed: !!data.signature_needed,
+  fridge_item: !!data.fridge_item,
+  oversized: !!data.oversized,
+  after_hours_pickup: !!data.after_hours_pickup,
+  no_charge: !!data.no_charge,
+  extra_time: Number(data.extra_time || 0),
+  barcode_values: Array.isArray(data.barcode_values) ? data.barcode_values : [],
+  receipt_barcode_values: Array.isArray(data.receipt_barcode_values) ? data.receipt_barcode_values : [],
+  paid_km_override: data.paid_km_override ?? null,
+  actual_delivery_time: data.actual_delivery_time || null
+});
+
+export const getDeliverySubmitFlags = ({ delivery, formData, dataToSave }) => {
+  const driverChanged = delivery && delivery.driver_id !== formData.driver_id;
+  const dateChanged = delivery && delivery.delivery_date !== formData.delivery_date;
+  const statusChangedToInTransit = !!(
+    delivery &&
+    formData.status === 'in_transit' &&
+    delivery.status !== 'in_transit'
+  );
+  const statusChangedToCompletion = !!(
+    delivery &&
+    ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) &&
+    delivery.status !== formData.status
+  );
+  const actualDeliveryTimeChanged = !!(
+    delivery &&
+    ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) &&
+    dataToSave.actual_delivery_time &&
+    dataToSave.actual_delivery_time !== (delivery.actual_delivery_time || '')
+  );
+  const codWasRemoved = !!(
+    delivery?.cod_total_amount_required > 0 &&
+    (formData.cod_total_amount_required === 0 || !formData.cod_total_amount_required)
+  );
+
+  return {
+    driverChanged,
+    dateChanged,
+    statusChangedToInTransit,
+    statusChangedToCompletion,
+    actualDeliveryTimeChanged,
+    codWasRemoved
+  };
+};
