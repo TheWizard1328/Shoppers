@@ -52,7 +52,7 @@ const AddDeliveryButton = forwardRef(function AddDeliveryButton(
         targetRef={buttonRef}
         text="Start here to add new stop locations to your driver(s)."
         visible={showSpotlight}
-        onClose={() => setShowSpotlight(false)}
+        onClose={handleCloseSpotlight}
         durationMs={15000}
       />
     </>
