@@ -29,10 +29,15 @@ export default function DeliveryFormStaged({
 }) {
   const getDaysSinceLastDelivery = (lastDeliveryDate) => {
     if (!lastDeliveryDate) return null;
-    const [year, month, day] = String(lastDeliveryDate).split('-').map(Number);
+
+    const rawValue = String(lastDeliveryDate).trim();
+    const normalizedDate = rawValue.includes('T') ? rawValue.split('T')[0] : rawValue;
+    const [year, month, day] = normalizedDate.split('-').map(Number);
     if (!year || !month || !day) return null;
 
     const deliveredAt = new Date(year, month - 1, day);
+    if (Number.isNaN(deliveredAt.getTime())) return null;
+
     const today = new Date();
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const diffMs = todayStart.getTime() - deliveredAt.getTime();
