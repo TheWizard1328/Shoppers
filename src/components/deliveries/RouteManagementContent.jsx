@@ -386,6 +386,6 @@ export default function RouteManagementContent({
         onApply={handleBulkEditApply}
         isSaving={isBulkUpdating} />
       
-    </>);
+    </div>);
 
 }
