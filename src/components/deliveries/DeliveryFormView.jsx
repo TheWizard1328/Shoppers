@@ -117,6 +117,10 @@ export default function DeliveryFormView({
       releaseDeliveryActionLock(lock);
     }
   }, []);
+  const latestHandleBatchSaveRef = React.useRef(handleBatchSave);
+  React.useEffect(() => {
+    latestHandleBatchSaveRef.current = handleBatchSave;
+  }, [handleBatchSave]);
 
   // Require driver selection when no regular pickup exists for the patient's store/date/slot
   const requiresDriverSelection = (() => {
@@ -172,6 +176,7 @@ export default function DeliveryFormView({
     (delivery.time_window_end || '') !== (formData.time_window_end || ''))
 
   );
+  const canDoneSaveCurrentDraft = !delivery && !editingStagedId && buttonState === 'add' && stagedDeliveries.length > 0;
 
   // Auto-focus COD amount when a staged or pending item is selected (desktop only)
   React.useEffect(() => {
@@ -724,8 +729,14 @@ export default function DeliveryFormView({
                   {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
                 </Button>
 
-                {buttonState === 'done' ?
-                <Button type="button" size="sm" onClick={() => runLockedAction('batch_save', handleBatchSave)} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasChanges}>
+                {buttonState === 'done' || canDoneSaveCurrentDraft ?
+                <Button type="button" size="sm" onClick={() => runLockedAction(canDoneSaveCurrentDraft ? 'add_and_batch_save' : 'batch_save', async () => {
+                    if (canDoneSaveCurrentDraft) {
+                      await handleAddToStaging();
+                      await new Promise((resolve) => setTimeout(resolve, 0));
+                    }
+                    await latestHandleBatchSaveRef.current();
+                  })} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasChanges && !canDoneSaveCurrentDraft || canDoneSaveCurrentDraft && !isFormValid}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button> :
                 buttonState === 'updateStaged' ?
