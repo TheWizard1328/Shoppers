@@ -69,16 +69,15 @@ export default function StopCardHeader({
   'var(--text-slate-600)';
 
   const timeDisplay = (() => {
-    if (isFinished && delivery?.actual_delivery_time) {
-      return (
-        <>
-          {(() => {
-            const actual = formatTime12Hour(format(new Date(delivery.actual_delivery_time), "HH:mm"));
-            const arrival = delivery?.arrival_time ? formatTime12Hour(format(new Date(delivery.arrival_time), "HH:mm")) : null;
-            return <span className="text-sm font-bold">{arrival ? `${arrival} → ${actual}` : actual}</span>;
-          })()}
-        </>);
+    if (isFinished) {
+      const actual = delivery?.actual_delivery_time ? formatTime12Hour(format(new Date(delivery.actual_delivery_time), "HH:mm")) : null;
+      const arrival = delivery?.arrival_time ? formatTime12Hour(format(new Date(delivery.arrival_time), "HH:mm")) : null;
 
+      if (arrival || actual) {
+        return <span className="text-sm font-bold">{arrival && actual ? `${arrival} → ${actual}` : arrival || actual}</span>;
+      }
+
+      return <span className="text-sm font-bold">--:--</span>;
     }
     const eta = getCurrentEtaForDelivery(
       delivery?.id,
