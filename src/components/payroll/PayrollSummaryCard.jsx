@@ -1248,8 +1248,8 @@ export default function PayrollSummaryCard({
                         <tr style={{ color: 'var(--text-slate-600)' }}>
                           <td className="text-left pr-2">
                             <button
-                                onClick={() => setAppFeeOverlayAllDriversId('all')}
-                                className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                               onClick={() => setAppFeeOverlayAllDriversId('all')}
+                               className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                               Total Fees:
                             </button>
                           </td>
@@ -1537,7 +1537,7 @@ export default function PayrollSummaryCard({
                               <td className="text-left pr-2">
                                 <button
                                   onClick={() => setAppFeeOverlayAllDriversId('all')}
-                                  className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                                  className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                                   Extra App Fee Cut:
                                 </button>
                               </td>
