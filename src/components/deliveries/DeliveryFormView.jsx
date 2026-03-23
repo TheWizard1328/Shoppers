@@ -479,7 +479,7 @@ export default function DeliveryFormView({
                                 {formData.cod_total_amount_required >= 0 &&
                               <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                                    <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} placeholder="0.00" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
+                                    <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
                                   </div>
                               }
                               </div>
@@ -507,11 +507,11 @@ export default function DeliveryFormView({
                               <div className="flex gap-3">
                                 <div className="flex-1 space-y-1">
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
-                                  <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" disabled={isSaving} className="h-9 text-sm" />
+                                  <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                                 <div className="flex-1 space-y-1">
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Phone</Label>
-                                  <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} disabled={isSaving} className="h-9 text-sm" />
+                                  <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                               </div>
                               <div className="flex gap-3">
@@ -522,7 +522,7 @@ export default function DeliveryFormView({
 
                                 <div className="flex-[35] space-y-1">
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
-                                  <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
+                                  <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                               </div>
                             </div>

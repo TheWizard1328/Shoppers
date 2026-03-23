@@ -119,6 +119,7 @@ export default function DeliveryStatusAndTiming({
         value={value || ''}
         onChange={onChange}
         disabled={isSaving}
+        data-hotkey-add="true"
         className="compact-time-input h-9 w-full px-2 pr-8 text-sm"
       />
       {value && !isSaving && (
