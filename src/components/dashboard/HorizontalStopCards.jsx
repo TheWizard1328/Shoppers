@@ -304,33 +304,30 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
   }, [selectedCardId, scrollToCenterCard]);
 
-  // Match Routes page ordering: active stops first, finished stops after
+  // Dashboard ordering: finished stops first by actual delivery time, then incomplete stops by ETA
   const sortedPickupCards = [...validCards].sort((a, b) => {
     if (!a || !b) return 0;
 
     const isAFinished = finishedStatuses.includes(a.status);
     const isBFinished = finishedStatuses.includes(b.status);
 
-    if (!isAFinished && isBFinished) return -1;
-    if (isAFinished && !isBFinished) return 1;
+    if (isAFinished && !isBFinished) return -1;
+    if (!isAFinished && isBFinished) return 1;
 
-    if (!isAFinished && !isBFinished) {
-      if (a.isNextDelivery && !b.isNextDelivery) return -1;
-      if (!a.isNextDelivery && b.isNextDelivery) return 1;
-
-      const etaA = a.delivery_time_eta || a.delivery_time_start || '';
-      const etaB = b.delivery_time_eta || b.delivery_time_start || '';
-      if (etaA !== etaB) return etaA.localeCompare(etaB);
+    if (isAFinished && isBFinished) {
+      const actualA = Date.parse(a.actual_delivery_time || '') || Infinity;
+      const actualB = Date.parse(b.actual_delivery_time || '') || Infinity;
+      if (actualA !== actualB) return actualA - actualB;
 
       const stopOrderA = a.stop_order ?? Infinity;
       const stopOrderB = b.stop_order ?? Infinity;
       if (stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
     }
 
-    if (isAFinished && isBFinished) {
-      const actualA = Date.parse(a.actual_delivery_time || '') || Infinity;
-      const actualB = Date.parse(b.actual_delivery_time || '') || Infinity;
-      if (actualA !== actualB) return actualA - actualB;
+    if (!isAFinished && !isBFinished) {
+      const etaA = a.delivery_time_eta || a.delivery_time_start || '';
+      const etaB = b.delivery_time_eta || b.delivery_time_start || '';
+      if (etaA !== etaB) return etaA.localeCompare(etaB);
 
       const stopOrderA = a.stop_order ?? Infinity;
       const stopOrderB = b.stop_order ?? Infinity;
