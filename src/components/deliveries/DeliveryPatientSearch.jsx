@@ -43,6 +43,7 @@ export default function DeliveryPatientSearch({
   setIsPatientFormOpen,
   handleSearchKeyDown,
 }) {
+  const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   return (
     <div className="relative flex-[2] space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
       <div className="flex items-center justify-between mb-1">
@@ -88,10 +89,14 @@ export default function DeliveryPatientSearch({
             </button>
           )}
         </div>
-        <input type="file" accept="image/*" capture="environment" className="hidden" />
-        <Button type="button" size="sm" variant="outline" className="h-9 w-9 p-0 flex-shrink-0" onClick={onStartCamera} disabled={isSaving || isScanning} title="Scan prescription label">
-          {isScanning ? <div className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full" /> : <Camera className="w-4 h-4" />}
-        </Button>
+        {showCameraButton && (
+          <>
+            <input type="file" accept="image/*" capture="environment" className="hidden" />
+            <Button type="button" size="sm" variant="outline" className="h-9 w-9 p-0 flex-shrink-0" onClick={onStartCamera} disabled={isSaving || isScanning} title="Scan prescription label">
+              {isScanning ? <div className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full" /> : <Camera className="w-4 h-4" />}
+            </Button>
+          </>
+        )}
       </div>
 
       {patientSearch && !formData.patient_id && (
