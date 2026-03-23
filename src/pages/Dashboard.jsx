@@ -6455,10 +6455,7 @@ function Dashboard() {
         const today = selectedDateStr === getEdmDate();
         if ((await offlineDB.getCacheValidation('Delivery', { scopeKey: `date:${selectedDateStr}`, maxAgeMs: today ? 60 * 1000 : 10 * 60 * 1000, allowEmpty: true })).isValid) return;
         const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');await performPrioritySyncBeforeRefresh(selectedDateStr, globalFilters.getSelectedCityId(), smartRefreshManager);
-        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], { scopeKey: `date:${selectedDateStr}`, syncType: 'startup_full' });if (updateDeliveriesLocally && freshDeliveries) {
-          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-        }
+        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], { scopeKey: `date:${selectedDateStr}`, syncType: 'startup_full' });if (updateDeliveriesLocally && freshDeliveries?.length || updateDeliveriesLocally && !deliveries.some((d) => d && d.delivery_date === selectedDateStr)) {const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);updateDeliveriesLocally([...otherDateDeliveries, ...(freshDeliveries || [])], true);}
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' } }));
         const isTodaySelected = selectedDateStr === getEdmDate(),m = await offlineDB.getSyncMetadata('Delivery'),t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
         const active = (freshDeliveries || []).some((d) => d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status));
