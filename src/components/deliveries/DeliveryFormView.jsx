@@ -117,10 +117,6 @@ export default function DeliveryFormView({
       releaseDeliveryActionLock(lock);
     }
   }, []);
-  const latestHandleBatchSaveRef = React.useRef(handleBatchSave);
-  React.useEffect(() => {
-    latestHandleBatchSaveRef.current = handleBatchSave;
-  }, [handleBatchSave]);
 
   // Require driver selection when no regular pickup exists for the patient's store/date/slot
   const requiresDriverSelection = (() => {
@@ -176,7 +172,6 @@ export default function DeliveryFormView({
     (delivery.time_window_end || '') !== (formData.time_window_end || ''))
 
   );
-  const canDoneSaveCurrentDraft = !delivery && !editingStagedId && buttonState === 'add' && stagedDeliveries.length > 0;
 
   // Auto-focus COD amount when a staged or pending item is selected (desktop only)
   React.useEffect(() => {
@@ -728,16 +723,6 @@ export default function DeliveryFormView({
                 }} disabled={isSaving || effectiveDeliveryActionBusy} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} className="inline-flex min-h-11 min-w-20 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs">
                   {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
                 </Button>
-
-                {canDoneSaveCurrentDraft &&
-                <Button type="button" size="sm" onClick={() => runLockedAction('add_and_batch_save', async () => {
-                    await handleAddToStaging();
-                    await new Promise((resolve) => setTimeout(resolve, 0));
-                    await latestHandleBatchSaveRef.current();
-                  })} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid}>
-                    {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
-                  </Button>
-                }
 
                 {buttonState === 'done' ?
                 <Button type="button" size="sm" onClick={() => runLockedAction('batch_save', handleBatchSave)} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasChanges}>
