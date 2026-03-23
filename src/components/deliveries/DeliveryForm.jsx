@@ -211,7 +211,7 @@ export default function DeliveryForm({
   const [stagedDeliveries, setStagedDeliveries] = useState([]);
   const [projectedDeliveries, setProjectedDeliveries] = useState([]);
   const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
-  const [predictionTrigger, setPredictionTrigger] = useState(0); const handleRefreshProjections = useCallback(() => { predictionsStopped.current = false; setIsLoadingPredictions(true); setPredictionTrigger((prev) => prev + 1); }, []);
+  const [predictionTrigger, setPredictionTrigger] = useState(0); const handleRefreshProjections = useCallback(() => { predictionsStopped.current = false; setIsLoadingPredictions(true); try { const formattedPredictions = getLocalDeliveryPredictions({ currentUser, stores, patients, allDeliveries, selectedDate: formData.delivery_date }); fullPredictionListRef.current = formattedPredictions; const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean)); setProjectedDeliveries(formattedPredictions.filter((pred) => !stagedPatientIds.has(pred.patient_id))); } catch { setProjectedDeliveries([]); } finally { setIsLoadingPredictions(false); } setPredictionTrigger((prev) => prev + 1); }, [currentUser, stores, patients, allDeliveries, formData.delivery_date, stagedDeliveries]);
   const [showDayPopup, setShowDayPopup] = useState(false);
   const [activeRecurringType, setActiveRecurringType] = useState(null);
   const [editingStagedId, setEditingStagedId] = useState(null);
