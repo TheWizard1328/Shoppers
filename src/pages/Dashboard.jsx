@@ -4110,25 +4110,11 @@ function Dashboard() {
             if (stop.isNew) {
               deliveriesToCreate.push(payload);
             } else {
-              deliveriesToUpdate.push({
-                id: stop.id,
-                updates: {
-                  stop_id: payload.stop_id,
-                  puid: payload.puid,
-                  stop_order: payload.stop_order,
-                  tracking_number: payload.tracking_number,
-                  delivery_time_start: payload.delivery_time_start,
-                  delivery_time_end: payload.delivery_time_end,
-                  delivery_time_eta: payload.delivery_time_eta,
-                  time_window_start: payload.time_window_start,
-                  time_window_end: payload.time_window_end,
-                  ampm_deliveries: payload.ampm_deliveries
-                }
-              });
+              deliveriesToUpdate.push({ id: stop.id, updates: payload });
             }
           }
 
-          const createdDeliveries=deliveriesToCreate.length>0?await batchCreateDeliveriesLocal(deliveriesToCreate):[];createdDeliveries.length&&updateDeliveriesLocally&&updateDeliveriesLocally([...deliveries.filter((d)=>!createdDeliveries.some((c)=>c?.id===d?.id)),...createdDeliveries],true);
+          const createdDeliveries=deliveriesToCreate.length>0?await batchCreateDeliveriesLocal(deliveriesToCreate):[];
 
           if (deliveriesToUpdate.length > 0) {
             for (const { id, updates } of deliveriesToUpdate) {
@@ -4139,18 +4125,23 @@ function Dashboard() {
 
           // NOTE: Route optimizer is NOT run here - deliveries are saved as 'pending'.
           // Optimization runs when stops are transitioned to 'in_transit' status.
-
         }
 
         invalidate('Delivery');
 
         const batchDeliveryDate = stagedDeliveries[0]?.delivery_date || format(selectedDate, 'yyyy-MM-dd');
         const batchDriverId = stagedDeliveries[0]?.driver_id;
+        const freshBatchDeliveries=batchDriverId?await base44.entities.Delivery.filter({driver_id:batchDriverId,delivery_date:batchDeliveryDate}):await base44.entities.Delivery.filter({delivery_date:batchDeliveryDate});
+        const preservedDeliveries=deliveries.filter((d)=>!(d?.delivery_date===batchDeliveryDate&&(!batchDriverId||d?.driver_id===batchDriverId)));
+        updateDeliveriesLocally&&updateDeliveriesLocally([...preservedDeliveries,...freshBatchDeliveries],true);
 
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { deliveryDate: batchDeliveryDate, driverId: batchDriverId, triggeredBy: 'batchSaveImmediate' }
+          detail: { immediate:true, freshDeliveries:freshBatchDeliveries, deliveryDate: batchDeliveryDate, driverId: batchDriverId, triggeredBy: 'batchSaveImmediate' }
         }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        setShowDeliveryForm(false);
+        setEditingDelivery(null);
+        hasAutoSelectedRef.current = false;
 
         setTimeout(async () => {
           try {
