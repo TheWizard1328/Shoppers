@@ -1503,12 +1503,12 @@ export default function DeliveriesPage() {
 
     incomplete.sort((a, b) => {
       if (!a || !b) return 0;
-      const stopOrderA = a.stop_order ?? Infinity;
-      const stopOrderB = b.stop_order ?? Infinity;
-      if (stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
-      const timeA = a.delivery_time_start || '';
-      const timeB = b.delivery_time_start || '';
-      return timeA.localeCompare(timeB);
+      if (a.isNextDelivery && !b.isNextDelivery) return -1;
+      if (!a.isNextDelivery && b.isNextDelivery) return 1;
+      const timeA = a.delivery_time_eta || a.delivery_time_start || '';
+      const timeB = b.delivery_time_eta || b.delivery_time_start || '';
+      if (timeA !== timeB) return timeA.localeCompare(timeB);
+      return (a.stop_order ?? Infinity) - (b.stop_order ?? Infinity);
     });
 
     completed.sort((a, b) => {
