@@ -1298,13 +1298,11 @@ export default function DeliveryForm({
 
     if (isPickupMode) {
       newStagedDelivery = buildPickupStagedDelivery({
-        formData: {
-          ...formData,
-          stop_id: [...(allDeliveries || []).map((d) => d?.stop_id), ...(stagedDeliveries || []).map((d) => d?.stop_id)].filter(Boolean).join('|')
-        },
+        formData,
         codAmount,
         store,
-        timeSlot
+        timeSlot,
+        existingStopIds: [...(allDeliveries || []).map((d) => d?.stop_id), ...(stagedDeliveries || []).map((d) => d?.stop_id)]
       });
     } else {
       let puid = null;

@@ -10,8 +10,8 @@ export const resolveDistanceFromStore = ({ patient, store, calculateDistance }) 
   return distanceFromStore;
 };
 
-export const buildPickupStagedDelivery = ({ formData, codAmount, store, timeSlot }) => {
-  const ids = [formData.stop_id].filter(Boolean);
+export const buildPickupStagedDelivery = ({ formData, codAmount, store, timeSlot, existingStopIds = [] }) => {
+  const ids = existingStopIds.filter(Boolean);
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let sid = '';
   let tries = 0;
