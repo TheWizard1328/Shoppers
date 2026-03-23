@@ -385,7 +385,7 @@ export default function RouteManagementContent({
         currentUser={currentUser}
         onApply={handleBulkEditApply}
         isSaving={isBulkUpdating} />
-      
-    </div>);
+    </div>
+  );
 
 }
