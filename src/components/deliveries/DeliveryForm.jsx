@@ -42,6 +42,7 @@ import { checkPayrollLock } from '../utils/payrollLockManager';
 import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
 import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
 import useDeliveryProjectionManager from './useDeliveryProjectionManager';
+import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB } from './deliveryBatchSaveHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -1931,95 +1932,26 @@ export default function DeliveryForm({
       return;
     }
 
-    // CRITICAL: Filter out any deliveries that no longer exist in the database
-    // This prevents errors when a delivery was deleted but still in stagedDeliveries
-    const validStagedDeliveries = stagedDeliveries.filter((staged) => {
-      // If it has an id, verify it still exists in allDeliveries
-      if (staged.id) {
-        const stillExists = allDeliveries?.some((d) => d && d.id === staged.id);
-        if (!stillExists) {
-          return false;
-        }
-      }
-      return true;
-    });
-
-    // CRITICAL: Separate into 2 groups:
-    // 1. New deliveries (no id) - create new
-    // 2. Existing deliveries (id) - update, BUT only process:
-    //    - Items explicitly edited by user (_wasEdited = true), OR
-    //    - Items that are NOT in a completion status (i.e. pending/in_transit still need to be saved)
-    //    - SKIP unedited items with completed/cancelled/failed status
-    const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
-    const existingDeliveries = validStagedDeliveries.filter((staged) => {
-      if (!staged.id) return false;
-      // Always process explicitly edited items
-      if (staged._wasEdited) return true;
-      // Skip unedited completion-status items (completed, failed, cancelled)
-      const completionStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      if (completionStatuses.includes(staged.status)) {
-        return false;
-      }
-      // Process unedited pending/in_transit items (they need status transition to pending)
-      return true;
-    });
+    const validStagedDeliveries = filterValidStagedDeliveries(stagedDeliveries, allDeliveries);
+    const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(validStagedDeliveries);
 
     if (newDeliveries.length === 0 && existingDeliveries.length === 0) {
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       hasLoadedPending.current = false;
-      unblockPredictions(); // Reset for next open
-      setIsLoadingPredictions(true); // Keep predictions blocked
+      unblockPredictions();
+      setIsLoadingPredictions(true);
       import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
       return;
     }
 
-    // Get delivery date from form data for use in TR# calculation
-    const calculateSequentialTRAssignments = (newItems, existingItems) => {
-      const groups = {}, assignments = new Map();
-      [...newItems, ...existingItems].forEach((delivery) => {
-        if (!delivery?.patient_id) return;
-        const groupKey = `${delivery.store_id}_${delivery.driver_id}_${delivery.ampm_deliveries || 'AM'}`;
-        if (!groups[groupKey]) {
-          const store = stores?.find((s) => s && s.id === delivery.store_id);
-          const pickup = allDeliveries?.find((d) => d && !d.patient_id && d.store_id === delivery.store_id && d.delivery_date === formData.delivery_date && d.driver_id === delivery.driver_id && (d.ampm_deliveries || 'AM') === (delivery.ampm_deliveries || 'AM'));
-          let pickupTR = store?.base_tracking_number || 0, parsedTR = parseInt(pickup?.tracking_number, 10);
-          if (!isNaN(parsedTR)) pickupTR = parsedTR;
-          groups[groupKey] = { pickupTR, deliveries: [] };
-        }
-        groups[groupKey].deliveries.push(delivery);
-      });
-      Object.values(groups).forEach((group) => [...group.deliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || '')).forEach((delivery, index) => assignments.set(delivery.id || delivery._tempId, String(group.pickupTR + index + 1))));
-      return assignments;
-    };
-    const buildOptimizedTrackingUpdates = (deliveries) => {
-      const groups = {}, updates = [];
-      deliveries.forEach((delivery) => {
-        if (!delivery?.patient_id) return;
-        const groupKey = `${delivery.store_id}_${delivery.driver_id}_${delivery.ampm_deliveries || 'AM'}`;
-        if (!groups[groupKey]) {
-          const store = stores?.find((s) => s && s.id === delivery.store_id);
-          const pickup = deliveries.find((d) => d && !d.patient_id && d.store_id === delivery.store_id && d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id && (d.ampm_deliveries || 'AM') === (delivery.ampm_deliveries || 'AM'));
-          let pickupTR = store?.base_tracking_number || 0, parsedTR = parseInt(pickup?.tracking_number, 10);
-          if (!isNaN(parsedTR)) pickupTR = parsedTR;
-          groups[groupKey] = { pickupTR, deliveries: [] };
-        }
-        groups[groupKey].deliveries.push(delivery);
-      });
-      Object.values(groups).forEach((group) => [...group.deliveries].sort((a, b) => ((a.stop_order ?? Number.MAX_SAFE_INTEGER) - (b.stop_order ?? Number.MAX_SAFE_INTEGER)) || (a.patient_name || '').localeCompare(b.patient_name || '')).forEach((delivery, index) => {
-        const tracking_number = String(group.pickupTR + index + 1);
-        if ((!delivery.tracking_number || delivery.tracking_number === '' || delivery.tracking_number === '99') && String(delivery.tracking_number ?? '') !== tracking_number) updates.push({ id: delivery.id, tracking_number });
-      }));
-      return updates;
-    };
-    const deliveriesWithCorrectStores = newDeliveries.map((del) => {
-      if (!del.patient_id || !del.puid) return del;
-      const parentPickup = allDeliveries?.find((d) => d && !d.patient_id && d.stop_id === del.puid);
-      return parentPickup?.store_id ? { ...del, store_id: parentPickup.store_id, ampm_deliveries: parentPickup.ampm_deliveries || del.ampm_deliveries } : del;
+    const { deliveriesWithTRs, existingDeliveriesWithTRs } = attachTrackingNumbers({
+      newDeliveries,
+      existingDeliveries,
+      stores,
+      allDeliveries,
+      deliveryDate: formData.delivery_date
     });
-    const trAssignments = calculateSequentialTRAssignments(deliveriesWithCorrectStores, existingDeliveries.filter((delivery) => delivery?.status === 'Staged'));
-    const deliveriesWithTRs = deliveriesWithCorrectStores.map((delivery) => ({ ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number }));
-    const existingDeliveriesWithTRs = existingDeliveries.map((delivery) => delivery?.status === 'Staged' ? { ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number } : delivery);
 
     setIsSaving(true);
     setError(null);
@@ -2170,18 +2102,7 @@ export default function DeliveryForm({
       }
       
       // Then save new deliveries OR trigger data refresh
-      const deliveriesReadyForDB = newDeliveries.length > 0 ? deliveriesWithTRs.map(d => {
-        if (d.status === 'Staged') {
-          let newStatus = (!d.patient_id) ? 'en_route' : 'pending';
-          if (d.patient_id) {
-            const patientName = (d.patient_name || '').toLowerCase(), deliveryNotes = (d.delivery_notes || '').toLowerCase(), patientNotes = (d.delivery_instructions || '').toLowerCase(), deliveryAddress = (d.delivery_address || '').toLowerCase();
-            if (patientName.includes('interstore') || deliveryNotes.includes('interstore') || patientNotes.includes('interstore') || deliveryAddress.includes('(isp)') || deliveryAddress.includes('(isd)')) newStatus = 'in_transit';
-          }
-          const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, ...deliveryPayload } = d;
-          return { ...deliveryPayload, status: newStatus };
-        }
-        return d;
-      }) : [];
+      const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
       if (deliveriesReadyForDB.length > 0) {
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
         const squarePromises = deliveriesReadyForDB.filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit').map(delivery => {
