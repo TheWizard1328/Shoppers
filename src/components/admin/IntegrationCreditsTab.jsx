@@ -404,8 +404,8 @@ export default function IntegrationCreditsTab() {
           <CardTitle>Recent Integration Usage</CardTitle>
           <CardDescription>Latest wrapped integration calls with user, task, duration, and estimated credits.</CardDescription>
         </CardHeader>
-        <CardContent className="min-h-0 flex-1 overflow-hidden">
-          <div className="h-full min-h-0 overflow-auto rounded-md border">
+        <CardContent className="min-h-0 flex flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-auto rounded-md border max-h-[42vh] lg:max-h-[calc(100dvh-22rem)]">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-slate-50 text-left">
                 <tr>
