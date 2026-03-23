@@ -38,7 +38,7 @@ import PolylineViewer from '../components/admin/PolylineViewer';
 import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
-import PatientAnalysisReview from '../components/admin/PatientAnalysisReview'; import IntegrationCreditsTab from '../components/admin/IntegrationCreditsTab'; import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';
+import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';import IntegrationCreditsTab from '../components/admin/IntegrationCreditsTab';import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';
 
 // Wrapper to reload data when Routes tab is opened
 const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
@@ -73,8 +73,8 @@ const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm,
         <DialogFooter className="gap-2 sm:gap-0">
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+            onClick={() => onOpenChange(false)}>
+            
             Cancel
           </Button>
           <Button
@@ -82,14 +82,14 @@ const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm,
             onClick={() => {
               onConfirm();
               onOpenChange(false);
-            }}
-          >
+            }}>
+            
             {confirmText}
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>);
+
 };
 
 // --- Updated RouteImport component with fuzzy matching ---
@@ -117,21 +117,21 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
 
     try {
       const text = await csvFile.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      
+      const lines = text.split('\n').filter((line) => line.trim());
+
       if (lines.length < 2) {
         throw new Error("CSV file is empty or only contains a header.");
       }
 
       setStatus(`Processing ${lines.length - 1} rows...`);
-      
+
       const { offlineDB } = await import('../components/utils/offlineDatabase');
       const allPatients = await Patient.list();
-      
+
       // CRITICAL: Extract unique delivery dates from CSV for purge/resync
       const uniqueDeliveryDates = new Set();
       for (let i = 1; i < lines.length; i++) {
-        const row = lines[i].split(',').map(cell => cell.trim());
+        const row = lines[i].split(',').map((cell) => cell.trim());
         const deliveryDateStr = row[6]; // Assuming delivery_date is in column 7 (index 6)
         if (deliveryDateStr) {
           const parsedDate = parseFlexibleDate(deliveryDateStr);
@@ -146,7 +146,7 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
       // CRITICAL: Daily Purge and Resync for ALL imported dates (not just mismatches)
       for (const dateStr of Array.from(uniqueDeliveryDates)) {
         setStatus(`Purging and resyncing ${dateStr}...`);
-        
+
         // CRITICAL: Always purge and resync to ensure consistency, regardless of count match
         // This prevents stale/duplicate data from the importer from accumulating
         const deleteResult = await offlineDB.deleteDeliveriesByDate(dateStr);
@@ -159,20 +159,20 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
         // Resync to offline DB
         const saveResult = await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveriesForDate);
         console.log(`[RouteImport] Save result for ${dateStr}:`, saveResult);
-        
+
         // Verify the resync worked
         const verifyOfflineCount = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
         console.log(`✅ [RouteImport] Verified ${verifyOfflineCount.length} deliveries in offline DB for ${dateStr}`);
       }
-      
+
       let exactMatched = 0;
       let fuzzyMatched = 0;
       let skipped = 0;
       let errors = 0;
 
-      for (let i = 1; i < lines.length; i++) { // i=1 skips header automatically, don't count it
-        const row = lines[i].split(',').map(cell => cell.trim());
-        
+      for (let i = 1; i < lines.length; i++) {// i=1 skips header automatically, don't count it
+        const row = lines[i].split(',').map((cell) => cell.trim());
+
         if (row.length < 2) {
           console.warn(`Skipping row ${i} due to insufficient columns:`, lines[i]);
           errors++;
@@ -181,29 +181,29 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
 
         const ampmIndicator = row[1];
         const ampm = ampmIndicator === '1' ? 'AM' : ampmIndicator === '2' ? 'PM' : null;
-        
+
         if (!ampm) {
           console.warn(`Skipping row ${i} due to invalid AM/PM indicator:`, ampmIndicator);
           skipped++;
           continue;
         }
-        
+
         try {
           const identifier = row[0];
-          
+
           if (!identifier) {
             console.warn(`Skipping row ${i} due to missing identifier`);
             skipped++;
             continue;
           }
-          
+
           // STEP 1: Try EXACT MATCH (use refreshed data from offline DB after purge/resync)
           const currentOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const exactMatch = (currentOfflineDeliveries || []).find(d => 
-            (d.stop_id && normalizeText(d.stop_id) === normalizeText(identifier)) || 
-            (d.tracking_number && normalizeText(d.tracking_number) === normalizeText(identifier))
+          const exactMatch = (currentOfflineDeliveries || []).find((d) =>
+          d.stop_id && normalizeText(d.stop_id) === normalizeText(identifier) ||
+          d.tracking_number && normalizeText(d.tracking_number) === normalizeText(identifier)
           );
-          
+
           if (exactMatch) {
             const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
             await updateDeliveryLocal(exactMatch.id, { ampm_deliveries: ampm });
@@ -211,7 +211,7 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
             console.log(`✅ EXACT MATCH: Updated delivery ${identifier} with AM/PM: ${ampm}`);
             continue;
           }
-          
+
           // STEP 2: Try FUZZY MATCHING
           const importedData = {
             stop_id: identifier,
@@ -225,26 +225,26 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
             prescription_number: row[9] || null,
             driver_name: row[10] || null
           };
-          
+
           let candidateDeliveries = currentOfflineDeliveries || [];
           if (importedData.delivery_date) {
             const parsedImportDate = parseFlexibleDate(importedData.delivery_date);
             if (parsedImportDate) {
               const formattedImportDate = format(parsedImportDate, 'yyyy-MM-dd');
-              candidateDeliveries = candidateDeliveries.filter(d => 
-                d.delivery_date && d.delivery_date === formattedImportDate
+              candidateDeliveries = candidateDeliveries.filter((d) =>
+              d.delivery_date && d.delivery_date === formattedImportDate
               );
             }
           }
-          
+
           if (candidateDeliveries.length > 0 && (importedData.patient_name || importedData.address || importedData.phone)) {
             const fuzzyResult = findFuzzyMatch(importedData, candidateDeliveries, allPatients);
-            
+
             if (fuzzyResult) {
               console.log(`🔍 FUZZY MATCH: Row ${i} - Score: ${fuzzyResult.score}, Tier: ${fuzzyResult.tier}`);
               console.log(`   Details: ${fuzzyResult.details.join(', ')}`);
             }
-            
+
             if (fuzzyResult && (fuzzyResult.tier === 'strong' || fuzzyResult.tier === 'moderate')) {
               const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
               await updateDeliveryLocal(fuzzyResult.match.id, { ampm_deliveries: ampm });
@@ -253,16 +253,16 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
               continue;
             }
           }
-          
-          // STEP 3: No match found - Skip
-           console.warn(`⚠️ NO MATCH: No suitable match for identifier ${identifier}`);
-           skipped++;
 
-          } catch (error) {
-           console.error(`Error processing row ${i}:`, error);
-           errors++;
-          }
-          }
+          // STEP 3: No match found - Skip
+          console.warn(`⚠️ NO MATCH: No suitable match for identifier ${identifier}`);
+          skipped++;
+
+        } catch (error) {
+          console.error(`Error processing row ${i}:`, error);
+          errors++;
+        }
+      }
 
       // Final deduplication after all imports are processed
       setStatus(`Running final deduplication...`);
@@ -276,11 +276,11 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
       }
 
       setLoading(false);
-      
+
       setTimeout(() => {
         onImportComplete();
       }, 1500);
-      
+
     } catch (error) {
       console.error('Import error:', error);
       setStatus(`❌ Import failed: ${error.message}`);
@@ -317,8 +317,8 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
             type="file"
             accept=".csv"
             onChange={handleFileUpload}
-            disabled={loading}
-          />
+            disabled={loading} />
+          
           <div className="text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="font-semibold mb-1">CSV Format:</p>
             <ul className="list-disc list-inside space-y-1">
@@ -341,74 +341,74 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>);
+
 };
 
 const COLUMN_CONFIGS = {
   deliveries: [
-    { id: 'date', label: 'Date / Time', defaultVisible: true },
-    { id: 'order', label: 'Order', defaultVisible: true },
-    { id: 'sid_pid', label: 'SID / PID', defaultVisible: true },
-    { id: 'tracking', label: 'TR#', defaultVisible: true },
-    { id: 'delivery_to', label: 'Delivery To', defaultVisible: true },
-    { id: 'driver', label: 'Driver', defaultVisible: true },
-    { id: 'distance', label: 'Distance', defaultVisible: true },
-    { id: 'status', label: 'Status', defaultVisible: true },
-    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
-  ],
+  { id: 'date', label: 'Date / Time', defaultVisible: true },
+  { id: 'order', label: 'Order', defaultVisible: true },
+  { id: 'sid_pid', label: 'SID / PID', defaultVisible: true },
+  { id: 'tracking', label: 'TR#', defaultVisible: true },
+  { id: 'delivery_to', label: 'Delivery To', defaultVisible: true },
+  { id: 'driver', label: 'Driver', defaultVisible: true },
+  { id: 'distance', label: 'Distance', defaultVisible: true },
+  { id: 'status', label: 'Status', defaultVisible: true },
+  { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }],
+
   patients: [
-    { id: 'id', label: 'ID', defaultVisible: false },
-    { id: 'full_name', label: 'Full Name', defaultVisible: true },
-    { id: 'patient_id', label: 'PID', defaultVisible: true },
-    { id: 'phone', label: 'Phone', defaultVisible: true },
-    { id: 'address', label: 'Address', defaultVisible: true },
-    { id: 'unit', label: 'Unit', defaultVisible: false },
-    { id: 'store', label: 'Store', defaultVisible: true },
-    { id: 'last_delivery_date', label: 'Last Delivery', defaultVisible: true },
-    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
-  ],
+  { id: 'id', label: 'ID', defaultVisible: false },
+  { id: 'full_name', label: 'Full Name', defaultVisible: true },
+  { id: 'patient_id', label: 'PID', defaultVisible: true },
+  { id: 'phone', label: 'Phone', defaultVisible: true },
+  { id: 'address', label: 'Address', defaultVisible: true },
+  { id: 'unit', label: 'Unit', defaultVisible: false },
+  { id: 'store', label: 'Store', defaultVisible: true },
+  { id: 'last_delivery_date', label: 'Last Delivery', defaultVisible: true },
+  { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }],
+
   stores: [
-    { id: 'id', label: 'ID', defaultVisible: false },
-    { id: 'name', label: 'Name', defaultVisible: true },
-    { id: 'abbreviation', label: 'Abbr', defaultVisible: true },
-    { id: 'address', label: 'Address', defaultVisible: true },
-    { id: 'phone', label: 'Phone', defaultVisible: true },
-    { id: 'city', label: 'City', defaultVisible: false },
-    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
-  ],
+  { id: 'id', label: 'ID', defaultVisible: false },
+  { id: 'name', label: 'Name', defaultVisible: true },
+  { id: 'abbreviation', label: 'Abbr', defaultVisible: true },
+  { id: 'address', label: 'Address', defaultVisible: true },
+  { id: 'phone', label: 'Phone', defaultVisible: true },
+  { id: 'city', label: 'City', defaultVisible: false },
+  { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }],
+
   users: [
-    { id: 'id', label: 'ID', defaultVisible: false },
-    { id: 'user_name', label: 'User Name', defaultVisible: true },
-    { id: 'phone', label: 'Phone', defaultVisible: true },
-    { id: 'roles', label: 'Roles', defaultVisible: true },
-    { id: 'status', label: 'Status', defaultVisible: true },
-    { id: 'location_tracking', label: 'Location Tracking', defaultVisible: true },
-    { id: 'home_coords', label: 'Home Coords', defaultVisible: false },
-    { id: 'current_coords', label: 'Current Coords', defaultVisible: false },
-    { id: 'city', label: 'City', defaultVisible: false },
-    { id: 'stores', label: 'Stores', defaultVisible: false },
-    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
-  ],
+  { id: 'id', label: 'ID', defaultVisible: false },
+  { id: 'user_name', label: 'User Name', defaultVisible: true },
+  { id: 'phone', label: 'Phone', defaultVisible: true },
+  { id: 'roles', label: 'Roles', defaultVisible: true },
+  { id: 'status', label: 'Status', defaultVisible: true },
+  { id: 'location_tracking', label: 'Location Tracking', defaultVisible: true },
+  { id: 'home_coords', label: 'Home Coords', defaultVisible: false },
+  { id: 'current_coords', label: 'Current Coords', defaultVisible: false },
+  { id: 'city', label: 'City', defaultVisible: false },
+  { id: 'stores', label: 'Stores', defaultVisible: false },
+  { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }],
+
   cities: [
-    { id: 'id', label: 'ID', defaultVisible: false },
-    { id: 'name', label: 'Name', defaultVisible: true },
-    { id: 'province', label: 'Province/State', defaultVisible: true },
-    { id: 'country', label: 'Country', defaultVisible: true },
-    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
-  ],
+  { id: 'id', label: 'ID', defaultVisible: false },
+  { id: 'name', label: 'Name', defaultVisible: true },
+  { id: 'province', label: 'Province/State', defaultVisible: true },
+  { id: 'country', label: 'Country', defaultVisible: true },
+  { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }],
+
   userSettings: [
-    { id: 'user_name', label: 'User', defaultVisible: true, alwaysVisible: true },
-    { id: 'device_type', label: 'Device Type', defaultVisible: true },
-    { id: 'selected_driver', label: 'Selected Driver', defaultVisible: true },
-    { id: 'selected_date', label: 'Selected Date', defaultVisible: true },
-    { id: 'show_all_markers', label: 'Show All Markers', defaultVisible: true },
-    { id: 'sidebar_width', label: 'Sidebar Width', defaultVisible: true },
-    { id: 'theme', label: 'Theme', defaultVisible: true },
-    { id: 'created', label: 'Created', defaultVisible: false },
-    { id: 'updated', label: 'Updated', defaultVisible: false },
-    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
-  ]
+  { id: 'user_name', label: 'User', defaultVisible: true, alwaysVisible: true },
+  { id: 'device_type', label: 'Device Type', defaultVisible: true },
+  { id: 'selected_driver', label: 'Selected Driver', defaultVisible: true },
+  { id: 'selected_date', label: 'Selected Date', defaultVisible: true },
+  { id: 'show_all_markers', label: 'Show All Markers', defaultVisible: true },
+  { id: 'sidebar_width', label: 'Sidebar Width', defaultVisible: true },
+  { id: 'theme', label: 'Theme', defaultVisible: true },
+  { id: 'created', label: 'Created', defaultVisible: false },
+  { id: 'updated', label: 'Updated', defaultVisible: false },
+  { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }]
+
 };
 
 const useColumnVisibility = (entityType) => {
@@ -424,14 +424,14 @@ const useColumnVisibility = (entityType) => {
         console.error('Failed to parse column visibility from localStorage:', e);
       }
     }
-    return config.filter(c => c.defaultVisible || c.alwaysVisible).map(c => c.id);
+    return config.filter((c) => c.defaultVisible || c.alwaysVisible).map((c) => c.id);
   });
 
   const toggleColumn = useCallback((columnId) => {
-    setVisibleColumns(prev => {
-      const newVisible = prev.includes(columnId)
-        ? prev.filter(id => id !== columnId)
-        : [...prev, columnId];
+    setVisibleColumns((prev) => {
+      const newVisible = prev.includes(columnId) ?
+      prev.filter((id) => id !== columnId) :
+      [...prev, columnId];
       localStorage.setItem(storageKey, JSON.stringify(newVisible));
       return newVisible;
     });
@@ -480,10 +480,10 @@ const ResizableColumnHeader = ({ children, onResize, width, minWidth = 80 }) => 
       <div
         className="absolute right-0 top-0 bottom-0 w-1 bg-transparent hover:bg-emerald-300 transition-colors cursor-col-resize z-10"
         onMouseDown={handleMouseDown}
-        style={{ userSelect: 'none' }}
-      />
-    </th>
-  );
+        style={{ userSelect: 'none' }} />
+      
+    </th>);
+
 };
 
 const ColumnVisibilityControl = ({ config, visibleColumns, onToggle }) => {
@@ -498,28 +498,28 @@ const ColumnVisibilityControl = ({ config, visibleColumns, onToggle }) => {
       <PopoverContent className="w-64 p-2" align="end" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
         <div className="space-y-2">
           <h4 className="font-semibold text-sm mb-3 px-1" style={{ color: 'var(--text-slate-900)' }}>Toggle Columns</h4>
-          {config.map(column => (
-            <div key={column.id} className="flex items-center gap-2 p-1 rounded-sm" style={{ ':hover': { background: 'var(--bg-slate-50)' } }}>
+          {config.map((column) =>
+          <div key={column.id} className="flex items-center gap-2 p-1 rounded-sm" style={{ ':hover': { background: 'var(--bg-slate-50)' } }}>
               <Checkbox
-                id={`column-${column.id}`}
-                checked={visibleColumns.includes(column.id)}
-                onCheckedChange={() => !column.alwaysVisible && onToggle(column.id)}
-                disabled={column.alwaysVisible}
-              />
+              id={`column-${column.id}`}
+              checked={visibleColumns.includes(column.id)}
+              onCheckedChange={() => !column.alwaysVisible && onToggle(column.id)}
+              disabled={column.alwaysVisible} />
+            
               <label
-                htmlFor={`column-${column.id}`}
-                className="text-sm cursor-pointer"
-                style={{ color: column.alwaysVisible ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
-              >
+              htmlFor={`column-${column.id}`}
+              className="text-sm cursor-pointer"
+              style={{ color: column.alwaysVisible ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}>
+              
                 {column.label}
                 {column.alwaysVisible && ' (required)'}
               </label>
             </div>
-          ))}
+          )}
         </div>
       </PopoverContent>
-    </Popover>
-  );
+    </Popover>);
+
 };
 
 const getData = async (entityName, sortKey) => {
@@ -630,7 +630,7 @@ const DeliveryDataTable = ({
   const [showMostRecentOnly, setShowMostRecentOnly] = useState(false);
 
   const updateColumnWidth = useCallback((columnId, width) => {
-    setColumnWidths(prev => {
+    setColumnWidths((prev) => {
       const newWidths = { ...prev, [columnId]: width };
       localStorage.setItem('admin_delivery_column_widths', JSON.stringify(newWidths));
       return newWidths;
@@ -654,10 +654,10 @@ const DeliveryDataTable = ({
   const handleDriverChange = async (delivery, newDriverId) => {
     try {
       const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
-      const driver = driversForDropdown.find(d => d && d.id === newDriverId);
+      const driver = driversForDropdown.find((d) => d && d.id === newDriverId);
       const driverName = driver ? getDriverDisplayName(driver) : '';
-      
-      await updateDeliveryLocal(delivery.id, { 
+
+      await updateDeliveryLocal(delivery.id, {
         driver_id: newDriverId,
         driver_name: driverName
       });
@@ -681,7 +681,7 @@ const DeliveryDataTable = ({
   const getDriverName = (delivery) => {
     if (!delivery || !delivery.driver_name) return 'Unassigned';
     if (!drivers || !Array.isArray(drivers)) return delivery.driver_name.split(' ')[0];
-    const driver = drivers.find(d => d && (d.full_name === delivery.driver_name || d.user_name === delivery.driver_name));
+    const driver = drivers.find((d) => d && (d.full_name === delivery.driver_name || d.user_name === delivery.driver_name));
     if (driver) {
       return getDriverDisplayName(driver);
     }
@@ -690,14 +690,14 @@ const DeliveryDataTable = ({
 
   const getDeliveryInfo = (delivery) => {
     if (!delivery || !delivery.patient_id) {
-      const store = (stores || []).find(s => s && s.id === delivery?.store_id);
+      const store = (stores || []).find((s) => s && s.id === delivery?.store_id);
       return {
         name: 'Store Pickup',
         address: store?.address || 'Unknown Store',
         patientPID: null
       };
     }
-    const patient = (patients || []).find(p => p && p.id === delivery.patient_id);
+    const patient = (patients || []).find((p) => p && p.id === delivery.patient_id);
     const address = patient?.address || 'Unknown Address';
     const unitNumber = patient?.unit_number ? `, Unit: ${patient.unit_number}` : '';
     return {
@@ -728,7 +728,7 @@ const DeliveryDataTable = ({
         const hours = parseInt(timeParts[1]);
         const minutes = timeParts[2];
         const isPM = hours >= 12;
-        const displayHours = hours > 12 ? hours - 12 : (hours === 0 ? 12 : hours);
+        const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
         time = `${displayHours}:${minutes} ${isPM ? 'PM' : 'AM'}`;
       } else {
         try {
@@ -737,18 +737,18 @@ const DeliveryDataTable = ({
             time = dateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
           }
         } catch (e) {
+
+
+
+
+
+
+
+
+
+
           // Fallback
-        }
-      }
-    } else if (delivery.delivery_time_eta && typeof delivery.delivery_time_eta === 'string') {
-      time = `ETA: ${delivery.delivery_time_eta}`;
-    }
-
-    return { date, time };
-  };
-
-
-
+        }}} else if (delivery.delivery_time_eta && typeof delivery.delivery_time_eta === 'string') {time = `ETA: ${delivery.delivery_time_eta}`;}return { date, time };};
   const getStatusBadge = (delivery) => {
     const status = delivery.status;
     const isEditing = editingStatusId === delivery.id;
@@ -760,8 +760,8 @@ const DeliveryDataTable = ({
           onValueChange={(newStatus) => handleStatusChange(delivery, newStatus)}
           onOpenChange={(open) => {
             if (!open) setEditingStatusId(null);
-          }}
-        >
+          }}>
+          
           <SelectTrigger className="h-7 w-full text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -775,35 +775,35 @@ const DeliveryDataTable = ({
             <SelectItem value="cancelled">Cancelled</SelectItem>
             <SelectItem value="returned">Returned</SelectItem>
           </SelectContent>
-        </Select>
-      );
+        </Select>);
+
     }
 
     return (
-      <Badge 
+      <Badge
         variant={
-          status === 'completed' ? 'default' :
-          status === 'failed' ? 'destructive' :
-          'secondary'
+        status === 'completed' ? 'default' :
+        status === 'failed' ? 'destructive' :
+        'secondary'
         }
         className="cursor-pointer hover:opacity-80"
-        onClick={() => setEditingStatusId(delivery.id)}
-      >
+        onClick={() => setEditingStatusId(delivery.id)}>
+        
         {status}
-      </Badge>
-    );
+      </Badge>);
+
   };
 
   const handleSelectAll = (checked) => {
     if (checked) {
-      setSelectedDeliveries(new Set((displayDeliveries || []).map(d => d.id)));
+      setSelectedDeliveries(new Set((displayDeliveries || []).map((d) => d.id)));
     } else {
       setSelectedDeliveries(new Set());
     }
   };
 
   const handleSelectDelivery = (deliveryId, checked) => {
-    setSelectedDeliveries(prev => {
+    setSelectedDeliveries((prev) => {
       const newSet = new Set(prev);
       if (checked) {
         newSet.add(deliveryId);
@@ -828,21 +828,21 @@ const DeliveryDataTable = ({
   // Filter and sort deliveries when in duplicate filter mode or most recent date filter
   const displayDeliveries = useMemo(() => {
     let result = deliveries;
-    
+
     // CRITICAL: Filter to most recent date if checkbox is checked
     if (showMostRecentOnly && result && result.length > 0) {
-      const allDates = [...new Set(result.map(d => d.delivery_date).filter(Boolean))];
+      const allDates = [...new Set(result.map((d) => d.delivery_date).filter(Boolean))];
       if (allDates.length > 0) {
         const mostRecentDate = allDates.sort((a, b) => b.localeCompare(a))[0];
-        result = result.filter(d => d.delivery_date === mostRecentDate);
+        result = result.filter((d) => d.delivery_date === mostRecentDate);
       }
     }
-    
+
     // Filter to only show duplicates when in duplicate filter mode
     if (duplicateFilterMode && autoSelectIds.length > 0) {
       // Get all delivery IDs that are part of duplicate groups (includes the ones we auto-selected AND the ones we kept)
       const duplicateGroups = new Map();
-      deliveries.forEach(d => {
+      deliveries.forEach((d) => {
         if (!d || !d.stop_id || !d.delivery_date) return;
         const key = `${d.stop_id}|${d.delivery_date}`;
         if (!duplicateGroups.has(key)) {
@@ -850,18 +850,18 @@ const DeliveryDataTable = ({
         }
         duplicateGroups.get(key).push(d);
       });
-      
+
       // Get all IDs from groups that have duplicates (size > 1)
       const allDuplicateIds = [];
       duplicateGroups.forEach((group, key) => {
         if (group.length > 1) {
-          group.forEach(d => allDuplicateIds.push(d.id));
+          group.forEach((d) => allDuplicateIds.push(d.id));
         }
       });
-      
+
       // Show ALL deliveries that are part of duplicate groups (not just the auto-selected ones)
-      result = result.filter(d => allDuplicateIds.includes(d.id));
-      
+      result = result.filter((d) => allDuplicateIds.includes(d.id));
+
       // Sort by delivery_date, then driver_id, then stop_id
       result = result.sort((a, b) => {
         // First sort by delivery_date
@@ -876,12 +876,12 @@ const DeliveryDataTable = ({
         return (a.stop_id || '').localeCompare(b.stop_id || '');
       });
     }
-    
+
     return result;
   }, [deliveries, duplicateFilterMode, autoSelectIds, showMostRecentOnly]);
 
   const handleDeleteSelected = () => {
-    const selectedDeliveriesArray = (displayDeliveries || []).filter(d => selectedDeliveries.has(d.id));
+    const selectedDeliveriesArray = (displayDeliveries || []).filter((d) => selectedDeliveries.has(d.id));
     onDeleteSelected(selectedDeliveriesArray);
     setSelectedDeliveries(new Set());
   };
@@ -898,71 +898,71 @@ const DeliveryDataTable = ({
             <ColumnVisibilityControl
               config={config}
               visibleColumns={visibleColumns}
-              onToggle={toggleColumn}
-            />
-            {selectedDeliveries.size > 0 && (
-               <>
+              onToggle={toggleColumn} />
+            
+            {selectedDeliveries.size > 0 &&
+            <>
                  <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDeleteSelected}
-                  disabled={isLoadingData}
-                >
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={isLoadingData}>
+                
                   Delete Selected ({selectedDeliveries.size})
                 </Button>
               </>
-            )}
-            {(deliveries || []).length > 0 && (
-               <>
+            }
+            {(deliveries || []).length > 0 &&
+            <>
                  <Button
-                   variant="outline"
-                   size="sm"
-                   onClick={() => onFindDuplicates(displayDeliveries)}
-                   disabled={isLoadingData}
-                   className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                 >
+                variant="outline"
+                size="sm"
+                onClick={() => onFindDuplicates(displayDeliveries)}
+                disabled={isLoadingData}
+                className="text-orange-600 border-orange-300 hover:bg-orange-50">
+                
                    Find Duplicates
                  </Button>
                  <Button
-                   variant="outline"
-                   size="sm"
-                   onClick={async () => {
-                     if (!window.confirm('Clean all delivery timestamps by removing timezone offsets like -0700? This will update ALL deliveries with actual_delivery_time set.')) return;
-                     try {
-                       const result = await base44.functions.invoke('cleanActualDeliveryTimes', { dryRun: false, batchSize: 100 });
-                       alert(`Cleanup completed!\n\nUpdated: ${result.data.updated}\nErrors: ${result.data.errors}\nAlready clean: ${result.data.alreadyClean}`);
-                     } catch (error) {
-                       alert('Failed to clean timestamps: ' + error.message);
-                     }
-                   }}
-                   disabled={isLoadingData}
-                   className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                 >
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!window.confirm('Clean all delivery timestamps by removing timezone offsets like -0700? This will update ALL deliveries with actual_delivery_time set.')) return;
+                  try {
+                    const result = await base44.functions.invoke('cleanActualDeliveryTimes', { dryRun: false, batchSize: 100 });
+                    alert(`Cleanup completed!\n\nUpdated: ${result.data.updated}\nErrors: ${result.data.errors}\nAlready clean: ${result.data.alreadyClean}`);
+                  } catch (error) {
+                    alert('Failed to clean timestamps: ' + error.message);
+                  }
+                }}
+                disabled={isLoadingData}
+                className="text-blue-600 border-blue-300 hover:bg-blue-50">
+                
                    Clean Timestamps
                  </Button>
-                 {duplicateFilterMode && (
-                   <Button
-                     variant="outline"
-                     size="sm"
-                     onClick={onClearDuplicateFilter}
-                     disabled={isLoadingData}
-                     className="bg-blue-50 border-blue-300"
-                   >
+                 {duplicateFilterMode &&
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onClearDuplicateFilter}
+                disabled={isLoadingData}
+                className="bg-blue-50 border-blue-300">
+                
                      Clear Filter
                    </Button>
-                 )}
-                {selectedDeliveries.size === 0 && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={onDeleteAll}
-                    disabled={isLoadingData}
-                  >
+              }
+                {selectedDeliveries.size === 0 &&
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={onDeleteAll}
+                disabled={isLoadingData}>
+                
                     Delete All Filtered ({(displayDeliveries || []).length})
                   </Button>
-                )}
+              }
               </>
-            )}
+            }
           </div>
         </CardTitle>
         <CardDescription style={{ color: 'var(--text-slate-500)' }}>Filtered and sorted list of deliveries by year, month, and driver.</CardDescription>
@@ -975,9 +975,9 @@ const DeliveryDataTable = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Years</SelectItem>
-              {(availableYears || []).map(year => (
-                <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-              ))}
+              {(availableYears || []).map((year) =>
+              <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+              )}
             </SelectContent>
           </Select>
 
@@ -987,9 +987,9 @@ const DeliveryDataTable = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Months</SelectItem>
-              {monthNames.map((month, index) => (
-                <SelectItem key={index + 1} value={(index + 1).toString()}>{month}</SelectItem>
-              ))}
+              {monthNames.map((month, index) =>
+              <SelectItem key={index + 1} value={(index + 1).toString()}>{month}</SelectItem>
+              )}
             </SelectContent>
           </Select>
 
@@ -999,15 +999,15 @@ const DeliveryDataTable = ({
              </SelectTrigger>
              <SelectContent>
                <SelectItem value="all">All Drivers</SelectItem>
-               {drivers && drivers.length > 0 ? (
-                 drivers.map(driver => (
-                   <SelectItem key={driver.id} value={driver.user_name || driver.full_name || ''}>
+               {drivers && drivers.length > 0 ?
+              drivers.map((driver) =>
+              <SelectItem key={driver.id} value={driver.user_name || driver.full_name || ''}>
                      {getDriverDisplayName(driver)}
                    </SelectItem>
-                 ))
-               ) : (
-                 <div className="p-2 text-xs text-slate-500">No drivers available</div>
-               )}
+              ) :
+
+              <div className="p-2 text-xs text-slate-500">No drivers available</div>
+              }
              </SelectContent>
            </Select>
 
@@ -1016,15 +1016,15 @@ const DeliveryDataTable = ({
             value={filterText}
             onChange={(e) => onFilterChange(e.target.value)}
             className="flex-1 min-w-[200px]"
-            disabled={isLoadingData}
-          />
+            disabled={isLoadingData} />
+          
           
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
             <Checkbox
               id="show-most-recent"
               checked={showMostRecentOnly}
-              onCheckedChange={setShowMostRecentOnly}
-            />
+              onCheckedChange={setShowMostRecentOnly} />
+            
             <label htmlFor="show-most-recent" className="text-sm font-medium cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
               Most Recent Date Only
             </label>
@@ -1033,28 +1033,28 @@ const DeliveryDataTable = ({
 
         <div className="mb-2 text-sm" style={{ color: 'var(--text-slate-600)' }}>
           {(() => {
-            const pickups = (deliveries || []).filter(d => !d.patient_id).length;
-            const patientDeliveries = (deliveries || []).filter(d => d.patient_id).length;
-            const driverName = selectedDriver !== 'all' 
-              ? ((drivers || []).find(d => d && d.user_name === selectedDriver) 
-                ? getDriverDisplayName((drivers || []).find(d => d && d.user_name === selectedDriver)) 
-                : (selectedDriver || '').split(' ')[0])
-              : 'All Drivers';
+            const pickups = (deliveries || []).filter((d) => !d.patient_id).length;
+            const patientDeliveries = (deliveries || []).filter((d) => d.patient_id).length;
+            const driverName = selectedDriver !== 'all' ?
+            (drivers || []).find((d) => d && d.user_name === selectedDriver) ?
+            getDriverDisplayName((drivers || []).find((d) => d && d.user_name === selectedDriver)) :
+            (selectedDriver || '').split(' ')[0] :
+            'All Drivers';
             const yearLabel = selectedYear !== 'all' ? selectedYear : 'All Years';
             const monthLabel = selectedMonth !== 'all' ? monthNames[parseInt(selectedMonth) - 1] : 'All Months';
-            
+
             return `Showing: Pickups: ${pickups} | Deliveries: ${patientDeliveries} for ${yearLabel} - ${monthLabel} - ${driverName}`;
           })()}
         </div>
 
         <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
-          {duplicateFilterMode && (
-            <div className="px-4 py-2 bg-blue-50 border-b" style={{ borderColor: 'var(--border-slate-200)' }}>
+          {duplicateFilterMode &&
+          <div className="px-4 py-2 bg-blue-50 border-b" style={{ borderColor: 'var(--border-slate-200)' }}>
               <p className="text-sm font-medium text-blue-900">
                 📍 Duplicate Filter Active: Showing {displayDeliveries.length} duplicates sorted by Date → Driver → Stop ID
               </p>
             </div>
-          )}
+          }
           <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
             <table className="w-full text-sm table-fixed">
               <thead className="border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
@@ -1063,225 +1063,225 @@ const DeliveryDataTable = ({
                     <Checkbox
                       checked={isAllSelected}
                       onCheckedChange={handleSelectAll}
-                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
-                    />
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''} />
+                    
                   </ResizableColumnHeader>
-                  {visibleColumns.includes('date') && (
-                    <ResizableColumnHeader width={columnWidths.date} onResize={(w) => updateColumnWidth('date', w)}>
+                  {visibleColumns.includes('date') &&
+                  <ResizableColumnHeader width={columnWidths.date} onResize={(w) => updateColumnWidth('date', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('delivery_date')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         Date / Time {getSortIcon('delivery_date')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('order') && (
-                    <ResizableColumnHeader width={columnWidths.order} onResize={(w) => updateColumnWidth('order', w)}>
+                  }
+                  {visibleColumns.includes('order') &&
+                  <ResizableColumnHeader width={columnWidths.order} onResize={(w) => updateColumnWidth('order', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('stop_order')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         Order {getSortIcon('stop_order')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('sid_pid') && (
-                    <ResizableColumnHeader width={columnWidths.sid_pid} onResize={(w) => updateColumnWidth('sid_pid', w)}>
+                  }
+                  {visibleColumns.includes('sid_pid') &&
+                  <ResizableColumnHeader width={columnWidths.sid_pid} onResize={(w) => updateColumnWidth('sid_pid', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('stop_id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         SID / PID {getSortIcon('stop_id')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('tracking') && (
-                    <ResizableColumnHeader width={columnWidths.tracking} onResize={(w) => updateColumnWidth('tracking', w)}>
+                  }
+                  {visibleColumns.includes('tracking') &&
+                  <ResizableColumnHeader width={columnWidths.tracking} onResize={(w) => updateColumnWidth('tracking', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('tracking_number')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         TR# {getSortIcon('tracking_number')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('delivery_to') && (
-                    <ResizableColumnHeader width={columnWidths.delivery_to} onResize={(w) => updateColumnWidth('delivery_to', w)}>
+                  }
+                  {visibleColumns.includes('delivery_to') &&
+                  <ResizableColumnHeader width={columnWidths.delivery_to} onResize={(w) => updateColumnWidth('delivery_to', w)}>
                       <span className="font-semibold">Delivery To</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('driver') && (
-                    <ResizableColumnHeader width={columnWidths.driver} onResize={(w) => updateColumnWidth('driver', w)}>
+                  }
+                  {visibleColumns.includes('driver') &&
+                  <ResizableColumnHeader width={columnWidths.driver} onResize={(w) => updateColumnWidth('driver', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('driver_name')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         Driver {getSortIcon('driver_name')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('distance') && (
-                    <ResizableColumnHeader width={columnWidths.distance} onResize={(w) => updateColumnWidth('distance', w)}>
+                  }
+                  {visibleColumns.includes('distance') &&
+                  <ResizableColumnHeader width={columnWidths.distance} onResize={(w) => updateColumnWidth('distance', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('travel_dist')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         Dist {getSortIcon('travel_dist')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('status') && (
-                    <ResizableColumnHeader width={columnWidths.status} onResize={(w) => updateColumnWidth('status', w)}>
+                  }
+                  {visibleColumns.includes('status') &&
+                  <ResizableColumnHeader width={columnWidths.status} onResize={(w) => updateColumnWidth('status', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('status')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         Status {getSortIcon('status')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('actions') && (
-                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                  }
+                  {visibleColumns.includes('actions') &&
+                  <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
                       <span className="font-semibold">Actions</span>
                     </ResizableColumnHeader>
-                  )}
+                  }
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading deliveries...</td></tr>
-                ) : (displayDeliveries || []).length > 0 ? (
-                  (displayDeliveries || []).map(delivery => {
-                    const info = getDeliveryInfo(delivery);
-                    const dateTime = getDeliveryDateTime(delivery);
-                    const driverName = getDriverName(delivery);
-                    return (
-                      <tr key={delivery.id} className="border-b" style={{ borderColor: 'var(--border-slate-200)', ':hover': { background: 'var(--bg-slate-50)' } }}>
+                {isLoadingData ?
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading deliveries...</td></tr> :
+                (displayDeliveries || []).length > 0 ?
+                (displayDeliveries || []).map((delivery) => {
+                  const info = getDeliveryInfo(delivery);
+                  const dateTime = getDeliveryDateTime(delivery);
+                  const driverName = getDriverName(delivery);
+                  return (
+                    <tr key={delivery.id} className="border-b" style={{ borderColor: 'var(--border-slate-200)', ':hover': { background: 'var(--bg-slate-50)' } }}>
                         <td className="p-2">
                           <Checkbox
-                            checked={selectedDeliveries.has(delivery.id)}
-                            onCheckedChange={(checked) => handleSelectDelivery(delivery.id, checked)}
-                          />
+                          checked={selectedDeliveries.has(delivery.id)}
+                          onCheckedChange={(checked) => handleSelectDelivery(delivery.id, checked)} />
+                        
                         </td>
-                        {visibleColumns.includes('date') && (
-                          <td className="p-2">
+                        {visibleColumns.includes('date') &&
+                      <td className="p-2">
                             <div className="flex flex-col">
                               <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{dateTime.date}</span>
                               <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{dateTime.time}</span>
                             </div>
                           </td>
-                        )}
-                        {visibleColumns.includes('order') && (
-                          <td className="p-2 font-mono text-sm">
+                      }
+                        {visibleColumns.includes('order') &&
+                      <td className="p-2 font-mono text-sm">
                             <div className="flex flex-col">
                               <span className="font-semibold">
                                 {delivery.stop_order !== null && delivery.stop_order !== undefined ? delivery.stop_order : '-'}
                               </span>
-                              {delivery.ampm_deliveries && (
-                                <span className="text-xs text-slate-600">{delivery.ampm_deliveries}</span>
-                              )}
+                              {delivery.ampm_deliveries &&
+                          <span className="text-xs text-slate-600">{delivery.ampm_deliveries}</span>
+                          }
                             </div>
                           </td>
-                        )}
-                        {visibleColumns.includes('sid_pid') && (
-                          <td className="p-2 font-mono text-xs">
+                      }
+                        {visibleColumns.includes('sid_pid') &&
+                      <td className="p-2 font-mono text-xs">
                             <div className="flex flex-col">
                               {delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}
                               {info.patientPID && <span className="text-slate-600">{info.patientPID}</span>}
                               {!delivery.stop_id && !info.patientPID && <span>-</span>}
                             </div>
                           </td>
-                        )}
-                        {visibleColumns.includes('tracking') && (
-                          <td className="p-2 font-mono text-xs">
+                      }
+                        {visibleColumns.includes('tracking') &&
+                      <td className="p-2 font-mono text-xs">
                             <div className="flex flex-col">
                               <span>{delivery.tracking_number || '-'}</span>
-                              {delivery.puid && (
-                                <span className="text-slate-600 text-[10px]">{delivery.puid}</span>
-                              )}
+                              {delivery.puid &&
+                          <span className="text-slate-600 text-[10px]">{delivery.puid}</span>
+                          }
                             </div>
                           </td>
-                        )}
-                        {visibleColumns.includes('delivery_to') && (
-                          <td className="p-2">
+                      }
+                        {visibleColumns.includes('delivery_to') &&
+                      <td className="p-2">
                             <div className="flex flex-col">
                               <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{info.name}</span>
                               <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{info.address}</span>
                             </div>
                           </td>
-                        )}
-                        {visibleColumns.includes('driver') && (
-                          <td className="p-2">
-                            {editingDriverId === delivery.id ? (
-                              <Select
-                                value={delivery.driver_id || ''}
-                                onValueChange={(newDriverId) => handleDriverChange(delivery, newDriverId)}
-                                onOpenChange={(open) => {
-                                  if (!open) setEditingDriverId(null);
-                                }}
-                              >
+                      }
+                        {visibleColumns.includes('driver') &&
+                      <td className="p-2">
+                            {editingDriverId === delivery.id ?
+                        <Select
+                          value={delivery.driver_id || ''}
+                          onValueChange={(newDriverId) => handleDriverChange(delivery, newDriverId)}
+                          onOpenChange={(open) => {
+                            if (!open) setEditingDriverId(null);
+                          }}>
+                          
                                 <SelectTrigger className="h-7 w-full text-xs">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="z-[9999]">
-                                  {driversForDropdown.map((driver) => (
-                                    <SelectItem key={driver.id} value={driver.id}>
+                                  {driversForDropdown.map((driver) =>
+                            <SelectItem key={driver.id} value={driver.id}>
                                       {getDriverDisplayName(driver)}
                                     </SelectItem>
-                                  ))}
+                            )}
                                 </SelectContent>
-                              </Select>
-                            ) : (
-                              <div className="flex flex-col gap-1">
-                                <span 
-                                  className="cursor-pointer hover:bg-slate-100 px-2 py-1 rounded transition-colors inline-block"
-                                  onClick={() => setEditingDriverId(delivery.id)}
-                                >
+                              </Select> :
+
+                        <div className="flex flex-col gap-1">
+                                <span
+                            className="cursor-pointer hover:bg-slate-100 px-2 py-1 rounded transition-colors inline-block"
+                            onClick={() => setEditingDriverId(delivery.id)}>
+                            
                                   {driverName}
                                 </span>
-                                {delivery.isNextDelivery && (
-                                  <Badge className="bg-green-100 !text-green-800 border-green-300 w-fit">
+                                {delivery.isNextDelivery &&
+                          <Badge className="bg-green-100 !text-green-800 border-green-300 w-fit">
                                     Next
                                   </Badge>
-                                )}
+                          }
                               </div>
-                            )}
+                        }
                           </td>
-                        )}
-                        {visibleColumns.includes('distance') && (
-                          <td className="p-2">
+                      }
+                        {visibleColumns.includes('distance') &&
+                      <td className="p-2">
                             <div className="flex flex-col text-sm font-mono" style={{ color: 'var(--text-slate-900)' }}>
                               <span>{delivery.travel_dist ? `${delivery.travel_dist.toFixed(2)}k` : '-'}</span>
                               {(() => {
-                                const patient = (patients || []).find(p => p.id === delivery.patient_id);
-                                const patientDist = patient?.distance_from_store;
-                                return patientDist ? (
-                                  <span className="text-xs text-slate-600">{patientDist.toFixed(2)}k</span>
-                                ) : null;
-                              })()}
+                            const patient = (patients || []).find((p) => p.id === delivery.patient_id);
+                            const patientDist = patient?.distance_from_store;
+                            return patientDist ?
+                            <span className="text-xs text-slate-600">{patientDist.toFixed(2)}k</span> :
+                            null;
+                          })()}
                             </div>
                           </td>
-                        )}
-                        {visibleColumns.includes('status') && (
-                          <td className="p-2">
+                      }
+                        {visibleColumns.includes('status') &&
+                      <td className="p-2">
                             {getStatusBadge(delivery)}
                           </td>
-                        )}
-                        {visibleColumns.includes('actions') && (
-                          <td className="p-2 text-right">
+                      }
+                        {visibleColumns.includes('actions') &&
+                      <td className="p-2 text-right">
                             <div className="flex justify-end gap-2">
                               <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => onEdit(delivery)}
-                              >
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => onEdit(delivery)}>
+                            
                                 <Edit className="w-4 h-4" />
                               </Button>
                               <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => onDelete(delivery)}
-                              >
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => onDelete(delivery)}>
+                            
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
                           </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No deliveries found.</td></tr>
-                )}
+                      }
+                      </tr>);
+
+                }) :
+
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No deliveries found.</td></tr>
+                }
               </tbody>
             </table>
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 };
 
 const PatientDataTable = ({
@@ -1310,7 +1310,7 @@ const PatientDataTable = ({
   const [selectedPatients, setSelectedPatients] = useState(new Set());
 
   const updateColumnWidth = useCallback((columnId, width) => {
-    setColumnWidths(prev => {
+    setColumnWidths((prev) => {
       const newWidths = { ...prev, [columnId]: width };
       localStorage.setItem('admin_patient_column_widths', JSON.stringify(newWidths));
       return newWidths;
@@ -1335,14 +1335,14 @@ const PatientDataTable = ({
 
   const handleSelectAll = (checked) => {
     if (checked) {
-      setSelectedPatients(new Set(filteredPatients.map(p => p.id)));
+      setSelectedPatients(new Set(filteredPatients.map((p) => p.id)));
     } else {
       setSelectedPatients(new Set());
     }
   };
 
   const handleSelectPatient = (patientId, checked) => {
-    setSelectedPatients(prev => {
+    setSelectedPatients((prev) => {
       const newSet = new Set(prev);
       if (checked) {
         newSet.add(patientId);
@@ -1354,7 +1354,7 @@ const PatientDataTable = ({
   };
 
   const handleDeleteSelected = () => {
-    const selectedPatientsArray = filteredPatients.filter(p => selectedPatients.has(p.id));
+    const selectedPatientsArray = filteredPatients.filter((p) => selectedPatients.has(p.id));
     onDeleteSelected(selectedPatientsArray);
     setSelectedPatients(new Set());
   };
@@ -1374,7 +1374,7 @@ const PatientDataTable = ({
     const phoneMap = new Map();
     const pidMap = new Map();
 
-    patients.forEach(patient => {
+    patients.forEach((patient) => {
       if (patient.address) {
         const addr = patient.address.toLowerCase().trim();
         if (!addressMap.has(addr)) addressMap.set(addr, []);
@@ -1407,20 +1407,20 @@ const PatientDataTable = ({
     const duplicatePhoneIds = new Set();
     const duplicatePidIds = new Set();
 
-    addressMap.forEach(ids => {
-      if (ids.length > 1) ids.forEach(id => duplicateAddressIds.add(id));
+    addressMap.forEach((ids) => {
+      if (ids.length > 1) ids.forEach((id) => duplicateAddressIds.add(id));
     });
 
-    nameMap.forEach(ids => {
-      if (ids.length > 1) ids.forEach(id => duplicateNameIds.add(id));
+    nameMap.forEach((ids) => {
+      if (ids.length > 1) ids.forEach((id) => duplicateNameIds.add(id));
     });
 
-    phoneMap.forEach(ids => {
-      if (ids.length > 1) ids.forEach(id => duplicatePhoneIds.add(id));
+    phoneMap.forEach((ids) => {
+      if (ids.length > 1) ids.forEach((id) => duplicatePhoneIds.add(id));
     });
 
-    pidMap.forEach(ids => {
-      if (ids.length > 1) ids.forEach(id => duplicatePidIds.add(id));
+    pidMap.forEach((ids) => {
+      if (ids.length > 1) ids.forEach((id) => duplicatePidIds.add(id));
     });
 
     return {
@@ -1437,16 +1437,16 @@ const PatientDataTable = ({
     if (duplicateFilter !== 'none') {
       switch (duplicateFilter) {
         case 'address':
-          filtered = filtered.filter(p => detectDuplicates.address.has(p.id));
+          filtered = filtered.filter((p) => detectDuplicates.address.has(p.id));
           break;
         case 'name':
-          filtered = filtered.filter(p => detectDuplicates.name.has(p.id));
+          filtered = filtered.filter((p) => detectDuplicates.name.has(p.id));
           break;
         case 'phone':
-          filtered = filtered.filter(p => detectDuplicates.phone.has(p.id));
+          filtered = filtered.filter((p) => detectDuplicates.phone.has(p.id));
           break;
         case 'pid':
-          filtered = filtered.filter(p => detectDuplicates.pid.has(p.id));
+          filtered = filtered.filter((p) => detectDuplicates.pid.has(p.id));
           break;
         default:
           filtered = patients || [];
@@ -1454,25 +1454,25 @@ const PatientDataTable = ({
     }
 
     if (storeFilter !== 'all') {
-      filtered = filtered.filter(patient => patient.store_id === storeFilter);
+      filtered = filtered.filter((patient) => patient.store_id === storeFilter);
     }
 
     if (filterText && filterText.trim()) {
       const searchText = filterText.toLowerCase().trim();
-      filtered = filtered.filter(patient => {
-        const patientStore = stores.find(s => s.id === patient.store_id);
+      filtered = filtered.filter((patient) => {
+        const patientStore = stores.find((s) => s.id === patient.store_id);
         const storeName = patientStore?.name?.toLowerCase() || '';
         const lastDeliveryDate = patient.last_delivery_date ? patient.last_delivery_date.toLowerCase() : '';
 
         return (
-          (patient.id && patient.id.toLowerCase().includes(searchText)) ||
-          (patient.full_name && patient.full_name.toLowerCase().includes(searchText)) ||
-          (patient.phone && patient.phone.toLowerCase().includes(searchText)) ||
-          (patient.address && patient.address.toLowerCase().includes(searchText)) ||
-          (patient.patient_id && patient.patient_id.toLowerCase().includes(searchText)) ||
+          patient.id && patient.id.toLowerCase().includes(searchText) ||
+          patient.full_name && patient.full_name.toLowerCase().includes(searchText) ||
+          patient.phone && patient.phone.toLowerCase().includes(searchText) ||
+          patient.address && patient.address.toLowerCase().includes(searchText) ||
+          patient.patient_id && patient.patient_id.toLowerCase().includes(searchText) ||
           storeName.includes(searchText) ||
-          lastDeliveryDate.includes(searchText)
-        );
+          lastDeliveryDate.includes(searchText));
+
       });
     }
 
@@ -1481,12 +1481,12 @@ const PatientDataTable = ({
         let aValue, bValue;
 
         if (sortColumn === 'store_id') {
-          const aStore = stores.find(s => s.id === a.store_id);
-          const bStore = stores.find(s => s.id === b.store_id);
+          const aStore = stores.find((s) => s.id === a.store_id);
+          const bStore = stores.find((s) => s.id === b.store_id);
           aValue = aStore?.name || '';
           bValue = bStore?.name || '';
-        }
-        else if (sortColumn === 'last_delivery_date') {
+        } else
+        if (sortColumn === 'last_delivery_date') {
           const aDateObj = parseFlexibleDate(a.last_delivery_date);
           const bDateObj = parseFlexibleDate(b.last_delivery_date);
 
@@ -1501,8 +1501,8 @@ const PatientDataTable = ({
           if (bIsEmpty) return -1;
 
           return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
-        }
-        else {
+        } else
+        {
           aValue = a[sortColumn];
           bValue = b[sortColumn];
         }
@@ -1542,28 +1542,28 @@ const PatientDataTable = ({
             <ColumnVisibilityControl
               config={config}
               visibleColumns={visibleColumns}
-              onToggle={toggleColumn}
-            />
-            {selectedPatients.size > 0 && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDeleteSelected}
-                disabled={isLoadingData}
-              >
+              onToggle={toggleColumn} />
+            
+            {selectedPatients.size > 0 &&
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteSelected}
+              disabled={isLoadingData}>
+              
                 Delete Selected ({selectedPatients.size})
               </Button>
-            )}
-            {filteredPatients.length > 0 && selectedPatients.size === 0 && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => onDeleteAll(filteredPatients)}
-                disabled={isLoadingData}
-              >
+            }
+            {filteredPatients.length > 0 && selectedPatients.size === 0 &&
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => onDeleteAll(filteredPatients)}
+              disabled={isLoadingData}>
+              
                 Delete All ({filteredPatients.length})
               </Button>
-            )}
+            }
           </div>
         </CardTitle>
         <CardDescription style={textMuted}>Filtered and sorted list of patients.</CardDescription>
@@ -1576,8 +1576,8 @@ const PatientDataTable = ({
               value={filterText}
               onChange={(e) => onFilterChange(e.target.value)}
               disabled={isLoadingData}
-              className="flex-1 min-w-[250px]"
-            />
+              className="flex-1 min-w-[250px]" />
+            
 
             <Select value={storeFilter} onValueChange={setStoreFilter} disabled={isLoadingData}>
               <SelectTrigger className="w-48">
@@ -1585,11 +1585,11 @@ const PatientDataTable = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Stores</SelectItem>
-                {stores.map(store => (
-                  <SelectItem key={store.id} value={store.id}>
+                {stores.map((store) =>
+                <SelectItem key={store.id} value={store.id}>
                     {store.name}
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -1598,16 +1598,16 @@ const PatientDataTable = ({
             <Button
               variant={duplicateFilter === 'none' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setDuplicateFilter('none')}
-            >
+              onClick={() => setDuplicateFilter('none')}>
+              
               All Patients ({patients?.length || 0})
             </Button>
             <Button
               variant={duplicateFilter === 'address' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setDuplicateFilter('address')}
-              disabled={duplicateCounts.address === 0}
-            >
+              disabled={duplicateCounts.address === 0}>
+              
               <Database className="w-4 h-4 mr-1" />
               Duplicate Addresses ({duplicateCounts.address})
             </Button>
@@ -1615,8 +1615,8 @@ const PatientDataTable = ({
               variant={duplicateFilter === 'name' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setDuplicateFilter('name')}
-              disabled={duplicateCounts.name === 0}
-            >
+              disabled={duplicateCounts.name === 0}>
+              
               <Database className="w-4 h-4 mr-1" />
               Duplicate Names ({duplicateCounts.name})
             </Button>
@@ -1624,8 +1624,8 @@ const PatientDataTable = ({
               variant={duplicateFilter === 'phone' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setDuplicateFilter('phone')}
-              disabled={duplicateCounts.phone === 0}
-            >
+              disabled={duplicateCounts.phone === 0}>
+              
               <Database className="w-4 h-4 mr-1" />
               Duplicate Phones ({duplicateCounts.phone})
             </Button>
@@ -1633,8 +1633,8 @@ const PatientDataTable = ({
               variant={duplicateFilter === 'pid' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setDuplicateFilter('pid')}
-              disabled={duplicateCounts.pid === 0}
-            >
+              disabled={duplicateCounts.pid === 0}>
+              
               <Database className="w-4 h-4 mr-1" />
               Duplicate PIDs ({duplicateCounts.pid})
             </Button>
@@ -1650,187 +1650,187 @@ const PatientDataTable = ({
                     <Checkbox
                       checked={isAllSelected}
                       onCheckedChange={handleSelectAll}
-                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
-                    />
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''} />
+                    
                   </ResizableColumnHeader>
-                  {visibleColumns.includes('id') && (
-                    <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
+                  {visibleColumns.includes('id') &&
+                  <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold" style={textPrimary}>
                         System ID {getSortIcon('id')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('full_name') && (
-                    <ResizableColumnHeader width={columnWidths.full_name} onResize={(w) => updateColumnWidth('full_name', w)}>
+                  }
+                  {visibleColumns.includes('full_name') &&
+                  <ResizableColumnHeader width={columnWidths.full_name} onResize={(w) => updateColumnWidth('full_name', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('full_name')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold" style={textPrimary}>
                         Full Name {getSortIcon('full_name')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('patient_id') && (
-                    <ResizableColumnHeader width={columnWidths.patient_id} onResize={(w) => updateColumnWidth('patient_id', w)}>
+                  }
+                  {visibleColumns.includes('patient_id') &&
+                  <ResizableColumnHeader width={columnWidths.patient_id} onResize={(w) => updateColumnWidth('patient_id', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('patient_id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         PID {getSortIcon('patient_id')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('phone') && (
-                    <ResizableColumnHeader width={columnWidths.phone} onResize={(w) => updateColumnWidth('phone', w)}>
+                  }
+                  {visibleColumns.includes('phone') &&
+                  <ResizableColumnHeader width={columnWidths.phone} onResize={(w) => updateColumnWidth('phone', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('phone')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         Phone {getSortIcon('phone')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('address') && (
-                    <ResizableColumnHeader width={columnWidths.address} onResize={(w) => updateColumnWidth('address', w)}>
+                  }
+                  {visibleColumns.includes('address') &&
+                  <ResizableColumnHeader width={columnWidths.address} onResize={(w) => updateColumnWidth('address', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('address')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         Address {getSortIcon('address')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('unit') && (
-                    <ResizableColumnHeader width={columnWidths.unit} onResize={(w) => updateColumnWidth('unit', w)}>
+                  }
+                  {visibleColumns.includes('unit') &&
+                  <ResizableColumnHeader width={columnWidths.unit} onResize={(w) => updateColumnWidth('unit', w)}>
                       <span className="font-semibold">Unit</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('store') && (
-                    <ResizableColumnHeader width={columnWidths.store} onResize={(w) => updateColumnWidth('store', w)}>
+                  }
+                  {visibleColumns.includes('store') &&
+                  <ResizableColumnHeader width={columnWidths.store} onResize={(w) => updateColumnWidth('store', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('store_id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
                         Store {getSortIcon('store_id')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('last_delivery_date') && (
-                    <ResizableColumnHeader width={columnWidths.last_delivery_date} onResize={(w) => updateColumnWidth('last_delivery_date', w)}>
+                  }
+                  {visibleColumns.includes('last_delivery_date') &&
+                  <ResizableColumnHeader width={columnWidths.last_delivery_date} onResize={(w) => updateColumnWidth('last_delivery_date', w)}>
                       <Button
-                        variant="ghost"
-                        onClick={() => {
-                          onSortChange('last_delivery_date');
-                        }}
-                        className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold"
-                      >
+                      variant="ghost"
+                      onClick={() => {
+                        onSortChange('last_delivery_date');
+                      }}
+                      className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                      
                         Last Delivery {getSortIcon('last_delivery_date')}
                       </Button>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('actions') && (
-                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                  }
+                  {visibleColumns.includes('actions') &&
+                  <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
                       <span className="font-semibold">Actions</span>
                     </ResizableColumnHeader>
-                  )}
+                  }
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading patients...</td></tr>
-                ) : filteredPatients.length > 0 ? (
-                  filteredPatients.map(patient => {
-                    const isDuplicateAddress = detectDuplicates.address.has(patient.id);
-                    const isDuplicateName = detectDuplicates.name.has(patient.id);
-                    const isDuplicatePhone = detectDuplicates.phone.has(patient.id);
-                    const isDuplicatePid = detectDuplicates.pid.has(patient.id);
-                    const patientStore = stores.find(s => s.id === patient.store_id);
+                {isLoadingData ?
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading patients...</td></tr> :
+                filteredPatients.length > 0 ?
+                filteredPatients.map((patient) => {
+                  const isDuplicateAddress = detectDuplicates.address.has(patient.id);
+                  const isDuplicateName = detectDuplicates.name.has(patient.id);
+                  const isDuplicatePhone = detectDuplicates.phone.has(patient.id);
+                  const isDuplicatePid = detectDuplicates.pid.has(patient.id);
+                  const patientStore = stores.find((s) => s.id === patient.store_id);
 
-                    return (
-                      <tr key={patient.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  return (
+                    <tr key={patient.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                         <td className="p-3">
                           <Checkbox
-                            checked={selectedPatients.has(patient.id)}
-                            onCheckedChange={(checked) => handleSelectPatient(patient.id, checked)}
-                          />
+                          checked={selectedPatients.has(patient.id)}
+                          onCheckedChange={(checked) => handleSelectPatient(patient.id, checked)} />
+                        
                         </td>
-                        {visibleColumns.includes('id') && (
-                          <td className="p-3 font-mono text-xs select-all" style={{ color: 'var(--text-slate-700)' }}>
+                        {visibleColumns.includes('id') &&
+                      <td className="p-3 font-mono text-xs select-all" style={{ color: 'var(--text-slate-700)' }}>
                             {patient.id}
                           </td>
-                        )}
-                        {visibleColumns.includes('full_name') && (
-                          <td className={`p-3 ${isDuplicateName ? 'bg-yellow-50' : ''}`} style={textPrimary}>
+                      }
+                        {visibleColumns.includes('full_name') &&
+                      <td className={`p-3 ${isDuplicateName ? 'bg-yellow-50' : ''}`} style={textPrimary}>
                             {patient.full_name}
                             {isDuplicateName && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
                           </td>
-                        )}
-                        {visibleColumns.includes('patient_id') && (
-                          <td className={`p-3 font-mono text-xs ${isDuplicatePid ? 'bg-yellow-50' : ''}`} style={textPrimary}>
+                      }
+                        {visibleColumns.includes('patient_id') &&
+                      <td className={`p-3 font-mono text-xs ${isDuplicatePid ? 'bg-yellow-50' : ''}`} style={textPrimary}>
                             {patient.patient_id || '-'}
                             {isDuplicatePid && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
                           </td>
-                        )}
-                        {visibleColumns.includes('phone') && (
-                          <td className={`p-3 ${isDuplicatePhone ? 'bg-yellow-50' : ''}`} style={textPrimary}>
+                      }
+                        {visibleColumns.includes('phone') &&
+                      <td className={`p-3 ${isDuplicatePhone ? 'bg-yellow-50' : ''}`} style={textPrimary}>
                             {patient.phone}
                             {isDuplicatePhone && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
                           </td>
-                        )}
-                        {visibleColumns.includes('address') && (
-                          <td className={`p-3 ${isDuplicateAddress ? 'bg-yellow-50' : ''}`} style={textPrimary}>
+                      }
+                        {visibleColumns.includes('address') &&
+                      <td className={`p-3 ${isDuplicateAddress ? 'bg-yellow-50' : ''}`} style={textPrimary}>
                             {patient.address}
                             {isDuplicateAddress && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
                           </td>
-                        )}
-                        {visibleColumns.includes('unit') && (
-                          <td className="p-3 text-xs" style={textPrimary}>{patient.unit_number || '-'}</td>
-                        )}
-                        {visibleColumns.includes('store') && (
-                          <td className="p-3">
-                            {patientStore ? (
-                              <div className="flex flex-col">
+                      }
+                        {visibleColumns.includes('unit') &&
+                      <td className="p-3 text-xs" style={textPrimary}>{patient.unit_number || '-'}</td>
+                      }
+                        {visibleColumns.includes('store') &&
+                      <td className="p-3">
+                            {patientStore ?
+                        <div className="flex flex-col">
                                 <span className="font-medium" style={textPrimary}>{patientStore.name}</span>
                                 <span className="text-xs font-mono" style={textMuted}>{patientStore.id}</span>
-                              </div>
-                            ) : (
-                              <span style={{ color: 'var(--text-slate-400)' }}>Unassigned</span>
-                            )}
+                              </div> :
+
+                        <span style={{ color: 'var(--text-slate-400)' }}>Unassigned</span>
+                        }
                           </td>
-                        )}
-                        {visibleColumns.includes('last_delivery_date') && (
-                          <td className="p-3 text-sm" style={textPrimary}>
+                      }
+                        {visibleColumns.includes('last_delivery_date') &&
+                      <td className="p-3 text-sm" style={textPrimary}>
                             {patient.last_delivery_date ? (() => {
-                              const dateObj = parseFlexibleDate(patient.last_delivery_date);
-                              if (dateObj && !isNaN(dateObj.getTime())) {
-                                return format(dateObj, 'MMM d, yyyy');
-                              }
-                              return <span className="text-amber-600 text-xs" title="Unrecognized date format">{patient.last_delivery_date}</span>;
-                            })() : (
-                              <span style={{ color: 'var(--text-slate-400)' }}>Never</span>
-                            )}
+                          const dateObj = parseFlexibleDate(patient.last_delivery_date);
+                          if (dateObj && !isNaN(dateObj.getTime())) {
+                            return format(dateObj, 'MMM d, yyyy');
+                          }
+                          return <span className="text-amber-600 text-xs" title="Unrecognized date format">{patient.last_delivery_date}</span>;
+                        })() :
+                        <span style={{ color: 'var(--text-slate-400)' }}>Never</span>
+                        }
                           </td>
-                        )}
-                        {visibleColumns.includes('actions') && (
-                          <td className="p-3 text-right">
+                      }
+                        {visibleColumns.includes('actions') &&
+                      <td className="p-3 text-right">
                             <div className="flex justify-end gap-2">
                               <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => onEdit(patient)}
-                              >
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => onEdit(patient)}>
+                            
                                 <Edit className="w-4 h-4" />
                               </Button>
                               <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => onDelete(patient)}
-                              >
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => onDelete(patient)}>
+                            
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
                           </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={textMuted}>No patients found.</td></tr>
-                )}
+                      }
+                      </tr>);
+
+                }) :
+
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={textMuted}>No patients found.</td></tr>
+                }
               </tbody>
             </table>
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 };
 
 const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
@@ -1852,7 +1852,7 @@ const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingD
   const [selectedStores, setSelectedStores] = useState(new Set());
 
   const updateColumnWidth = useCallback((columnId, width) => {
-    setColumnWidths(prev => {
+    setColumnWidths((prev) => {
       const newWidths = { ...prev, [columnId]: width };
       localStorage.setItem('admin_store_column_widths', JSON.stringify(newWidths));
       return newWidths;
@@ -1861,14 +1861,14 @@ const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingD
 
   const handleSelectAll = (checked) => {
     if (checked) {
-      setSelectedStores(new Set((stores || []).map(s => s.id)));
+      setSelectedStores(new Set((stores || []).map((s) => s.id)));
     } else {
       setSelectedStores(new Set());
     }
   };
 
   const handleSelectStore = (storeId, checked) => {
-    setSelectedStores(prev => {
+    setSelectedStores((prev) => {
       const newSet = new Set(prev);
       if (checked) {
         newSet.add(storeId);
@@ -1880,7 +1880,7 @@ const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingD
   };
 
   const handleDeleteSelected = () => {
-    const selectedStoresArray = (stores || []).filter(s => selectedStores.has(s.id));
+    const selectedStoresArray = (stores || []).filter((s) => selectedStores.has(s.id));
     onDeleteSelected(selectedStoresArray);
     setSelectedStores(new Set());
   };
@@ -1897,18 +1897,18 @@ const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingD
             <ColumnVisibilityControl
               config={config}
               visibleColumns={visibleColumns}
-              onToggle={toggleColumn}
-            />
-            {selectedStores.size > 0 && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDeleteSelected}
-                disabled={isLoadingData}
-              >
+              onToggle={toggleColumn} />
+            
+            {selectedStores.size > 0 &&
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteSelected}
+              disabled={isLoadingData}>
+              
                 Delete Selected ({selectedStores.size})
               </Button>
-            )}
+            }
           </div>
         </CardTitle>
         <CardDescription style={{ color: 'var(--text-slate-500)' }}>List of all stores.</CardDescription>
@@ -1923,94 +1923,94 @@ const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingD
                     <Checkbox
                       checked={isAllSelected}
                       onCheckedChange={handleSelectAll}
-                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
-                    />
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''} />
+                    
                   </ResizableColumnHeader>
-                  {visibleColumns.includes('id') && (
-                    <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
+                  {visibleColumns.includes('id') &&
+                  <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
                       <span className="font-semibold">ID</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('name') && (
-                    <ResizableColumnHeader width={columnWidths.name} onResize={(w) => updateColumnWidth('name', w)}>
+                  }
+                  {visibleColumns.includes('name') &&
+                  <ResizableColumnHeader width={columnWidths.name} onResize={(w) => updateColumnWidth('name', w)}>
                       <span className="font-semibold">Name</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('abbreviation') && (
-                    <ResizableColumnHeader width={columnWidths.abbreviation} onResize={(w) => updateColumnWidth('abbreviation', w)}>
+                  }
+                  {visibleColumns.includes('abbreviation') &&
+                  <ResizableColumnHeader width={columnWidths.abbreviation} onResize={(w) => updateColumnWidth('abbreviation', w)}>
                       <span className="font-semibold">Abbr</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('address') && (
-                    <ResizableColumnHeader width={columnWidths.address} onResize={(w) => updateColumnWidth('address', w)}>
+                  }
+                  {visibleColumns.includes('address') &&
+                  <ResizableColumnHeader width={columnWidths.address} onResize={(w) => updateColumnWidth('address', w)}>
                       <span className="font-semibold">Address</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('phone') && (
-                    <ResizableColumnHeader width={columnWidths.phone} onResize={(w) => updateColumnWidth('phone', w)}>
+                  }
+                  {visibleColumns.includes('phone') &&
+                  <ResizableColumnHeader width={columnWidths.phone} onResize={(w) => updateColumnWidth('phone', w)}>
                       <span className="font-semibold">Phone</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('city') && (
-                    <ResizableColumnHeader width={columnWidths.city} onResize={(w) => updateColumnWidth('city', w)}>
+                  }
+                  {visibleColumns.includes('city') &&
+                  <ResizableColumnHeader width={columnWidths.city} onResize={(w) => updateColumnWidth('city', w)}>
                       <span className="font-semibold">City</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('actions') && (
-                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                  }
+                  {visibleColumns.includes('actions') &&
+                  <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
                       <span className="font-semibold">Actions</span>
                     </ResizableColumnHeader>
-                  )}
+                  }
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading stores...</td></tr>
-                ) : stores.length > 0 ? (
-                  stores.map(store => (
-                    <tr key={store.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                {isLoadingData ?
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading stores...</td></tr> :
+                stores.length > 0 ?
+                stores.map((store) =>
+                <tr key={store.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <td className="p-2">
                         <Checkbox
-                          checked={selectedStores.has(store.id)}
-                          onCheckedChange={(checked) => handleSelectStore(store.id, checked)}
-                        />
+                      checked={selectedStores.has(store.id)}
+                      onCheckedChange={(checked) => handleSelectStore(store.id, checked)} />
+                    
                       </td>
-                      {visibleColumns.includes('id') && (
-                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={store.id}>{store.id.substring(0, 8)}...</td>
-                      )}
-                      {visibleColumns.includes('name') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.name}</td>
-                      )}
-                      {visibleColumns.includes('abbreviation') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.abbreviation}</td>
-                      )}
-                      {visibleColumns.includes('address') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.address}</td>
-                      )}
-                      {visibleColumns.includes('phone') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.phone}</td>
-                      )}
-                      {visibleColumns.includes('city') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.city_id || '-'}</td>
-                      )}
-                      {visibleColumns.includes('actions') && (
-                        <td className="p-3 text-right">
+                      {visibleColumns.includes('id') &&
+                  <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={store.id}>{store.id.substring(0, 8)}...</td>
+                  }
+                      {visibleColumns.includes('name') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.name}</td>
+                  }
+                      {visibleColumns.includes('abbreviation') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.abbreviation}</td>
+                  }
+                      {visibleColumns.includes('address') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.address}</td>
+                  }
+                      {visibleColumns.includes('phone') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.phone}</td>
+                  }
+                      {visibleColumns.includes('city') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.city_id || '-'}</td>
+                  }
+                      {visibleColumns.includes('actions') &&
+                  <td className="p-3 text-right">
                           <Button variant="outline" size="sm" onClick={() => onEdit(store)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>Edit</Button>
                           <Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(store)}>Delete</Button>
                         </td>
-                      )}
+                  }
                     </tr>
-                  ))
-                ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No stores found.</td></tr>
-                )}
+                ) :
+
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No stores found.</td></tr>
+                }
               </tbody>
             </table>
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 };
 
 const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
@@ -2036,7 +2036,7 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
   const [selectedUsers, setSelectedUsers] = useState(new Set());
 
   const updateColumnWidth = useCallback((columnId, width) => {
-    setColumnWidths(prev => {
+    setColumnWidths((prev) => {
       const newWidths = { ...prev, [columnId]: width };
       localStorage.setItem('admin_user_column_widths', JSON.stringify(newWidths));
       return newWidths;
@@ -2045,14 +2045,14 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
 
   const handleSelectAll = (checked) => {
     if (checked) {
-      setSelectedUsers(new Set((users || []).map(u => u.id)));
+      setSelectedUsers(new Set((users || []).map((u) => u.id)));
     } else {
       setSelectedUsers(new Set());
     }
   };
 
   const handleSelectUser = (userId, checked) => {
-    setSelectedUsers(prev => {
+    setSelectedUsers((prev) => {
       const newSet = new Set(prev);
       if (checked) {
         newSet.add(userId);
@@ -2064,7 +2064,7 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
   };
 
   const handleDeleteSelected = () => {
-    const selectedUsersArray = (users || []).filter(u => selectedUsers.has(u.id));
+    const selectedUsersArray = (users || []).filter((u) => selectedUsers.has(u.id));
     onDeleteSelected(selectedUsersArray);
     setSelectedUsers(new Set());
   };
@@ -2081,18 +2081,18 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
             <ColumnVisibilityControl
               config={config}
               visibleColumns={visibleColumns}
-              onToggle={toggleColumn}
-            />
-            {selectedUsers.size > 0 && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDeleteSelected}
-                disabled={isLoadingData}
-              >
+              onToggle={toggleColumn} />
+            
+            {selectedUsers.size > 0 &&
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteSelected}
+              disabled={isLoadingData}>
+              
                 Delete Selected ({selectedUsers.size})
               </Button>
-            )}
+            }
           </div>
         </CardTitle>
         <CardDescription style={{ color: 'var(--text-slate-500)' }}>List of all application users.</CardDescription>
@@ -2107,145 +2107,145 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
                     <Checkbox
                       checked={isAllSelected}
                       onCheckedChange={handleSelectAll}
-                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
-                    />
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''} />
+                    
                   </ResizableColumnHeader>
-                  {visibleColumns.includes('id') && (
-                    <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
+                  {visibleColumns.includes('id') &&
+                  <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
                       <span className="font-semibold">ID</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('user_name') && (
-                    <ResizableColumnHeader width={columnWidths.user_name} onResize={(w) => updateColumnWidth('user_name', w)}>
+                  }
+                  {visibleColumns.includes('user_name') &&
+                  <ResizableColumnHeader width={columnWidths.user_name} onResize={(w) => updateColumnWidth('user_name', w)}>
                       <span className="font-semibold">User Name</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('phone') && (
-                    <ResizableColumnHeader width={columnWidths.phone} onResize={(w) => updateColumnWidth('phone', w)}>
+                  }
+                  {visibleColumns.includes('phone') &&
+                  <ResizableColumnHeader width={columnWidths.phone} onResize={(w) => updateColumnWidth('phone', w)}>
                       <span className="font-semibold">Phone</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('roles') && (
-                    <ResizableColumnHeader width={columnWidths.roles} onResize={(w) => updateColumnWidth('roles', w)}>
+                  }
+                  {visibleColumns.includes('roles') &&
+                  <ResizableColumnHeader width={columnWidths.roles} onResize={(w) => updateColumnWidth('roles', w)}>
                       <span className="font-semibold">Roles</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('status') && (
-                    <ResizableColumnHeader width={columnWidths.status} onResize={(w) => updateColumnWidth('status', w)}>
+                  }
+                  {visibleColumns.includes('status') &&
+                  <ResizableColumnHeader width={columnWidths.status} onResize={(w) => updateColumnWidth('status', w)}>
                       <span className="font-semibold">Status</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('location_tracking') && (
-                    <ResizableColumnHeader width={columnWidths.location_tracking} onResize={(w) => updateColumnWidth('location_tracking', w)}>
+                  }
+                  {visibleColumns.includes('location_tracking') &&
+                  <ResizableColumnHeader width={columnWidths.location_tracking} onResize={(w) => updateColumnWidth('location_tracking', w)}>
                       <span className="font-semibold">Location Tracking</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('home_coords') && (
-                    <ResizableColumnHeader width={columnWidths.home_coords} onResize={(w) => updateColumnWidth('home_coords', w)}>
+                  }
+                  {visibleColumns.includes('home_coords') &&
+                  <ResizableColumnHeader width={columnWidths.home_coords} onResize={(w) => updateColumnWidth('home_coords', w)}>
                       <span className="font-semibold">Home Coords</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('current_coords') && (
-                    <ResizableColumnHeader width={columnWidths.current_coords} onResize={(w) => updateColumnWidth('current_coords', w)}>
+                  }
+                  {visibleColumns.includes('current_coords') &&
+                  <ResizableColumnHeader width={columnWidths.current_coords} onResize={(w) => updateColumnWidth('current_coords', w)}>
                       <span className="font-semibold">Current Coords</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('city') && (
-                    <ResizableColumnHeader width={columnWidths.city} onResize={(w) => updateColumnWidth('city', w)}>
+                  }
+                  {visibleColumns.includes('city') &&
+                  <ResizableColumnHeader width={columnWidths.city} onResize={(w) => updateColumnWidth('city', w)}>
                       <span className="font-semibold">City</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('stores') && (
-                    <ResizableColumnHeader width={columnWidths.stores} onResize={(w) => updateColumnWidth('stores', w)}>
+                  }
+                  {visibleColumns.includes('stores') &&
+                  <ResizableColumnHeader width={columnWidths.stores} onResize={(w) => updateColumnWidth('stores', w)}>
                       <span className="font-semibold">Stores</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('actions') && (
-                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                  }
+                  {visibleColumns.includes('actions') &&
+                  <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
                       <span className="font-semibold">Actions</span>
                     </ResizableColumnHeader>
-                  )}
+                  }
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading app users...</td></tr>
-                ) : users.length > 0 ? (
-                  users.map(user => (
-                    <tr key={user.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                {isLoadingData ?
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading app users...</td></tr> :
+                users.length > 0 ?
+                users.map((user) =>
+                <tr key={user.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <td className="p-2">
                         <Checkbox
-                          checked={selectedUsers.has(user.id)}
-                          onCheckedChange={(checked) => handleSelectUser(user.id, checked)}
-                        />
+                      checked={selectedUsers.has(user.id)}
+                      onCheckedChange={(checked) => handleSelectUser(user.id, checked)} />
+                    
                       </td>
-                      {visibleColumns.includes('id') && (
-                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={user.id}>{user.id.substring(0, 8)}...</td>
-                      )}
-                      {visibleColumns.includes('user_name') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.user_name}</td>
-                      )}
-                      {visibleColumns.includes('phone') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.phone}</td>
-                      )}
-                      {visibleColumns.includes('roles') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.app_roles ? user.app_roles.join(', ') : 'N/A'}</td>
-                      )}
-                      {visibleColumns.includes('status') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.status}</td>
-                      )}
-                      {visibleColumns.includes('location_tracking') && (
-                        <td className="p-3">
+                      {visibleColumns.includes('id') &&
+                  <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={user.id}>{user.id.substring(0, 8)}...</td>
+                  }
+                      {visibleColumns.includes('user_name') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.user_name}</td>
+                  }
+                      {visibleColumns.includes('phone') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.phone}</td>
+                  }
+                      {visibleColumns.includes('roles') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.app_roles ? user.app_roles.join(', ') : 'N/A'}</td>
+                  }
+                      {visibleColumns.includes('status') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.status}</td>
+                  }
+                      {visibleColumns.includes('location_tracking') &&
+                  <td className="p-3">
                           <Badge variant={user.location_tracking_enabled ? 'default' : 'secondary'}>
                             {user.location_tracking_enabled ? '✓ Enabled' : 'Disabled'}
                           </Badge>
                         </td>
-                      )}
-                      {visibleColumns.includes('home_coords') && (
-                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>
-                          {user.home_latitude && user.home_longitude 
-                            ? `${user.home_latitude.toFixed(5)}, ${user.home_longitude.toFixed(5)}`
-                            : '-'
-                          }
+                  }
+                      {visibleColumns.includes('home_coords') &&
+                  <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>
+                          {user.home_latitude && user.home_longitude ?
+                    `${user.home_latitude.toFixed(5)}, ${user.home_longitude.toFixed(5)}` :
+                    '-'
+                    }
                         </td>
-                      )}
-                      {visibleColumns.includes('current_coords') && (
-                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>
-                          {user.current_latitude && user.current_longitude 
-                            ? `${user.current_latitude.toFixed(5)}, ${user.current_longitude.toFixed(5)}`
-                            : '-'
-                          }
+                  }
+                      {visibleColumns.includes('current_coords') &&
+                  <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>
+                          {user.current_latitude && user.current_longitude ?
+                    `${user.current_latitude.toFixed(5)}, ${user.current_longitude.toFixed(5)}` :
+                    '-'
+                    }
                         </td>
-                      )}
-                      {visibleColumns.includes('city') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.city_id || '-'}</td>
-                      )}
-                      {visibleColumns.includes('stores') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>
-                          {user.store_ids && user.store_ids.length > 0
-                            ? user.store_ids.map(id => id.substring(0,4)).join(', ') + '...'
-                            : '-'
-                          }
+                  }
+                      {visibleColumns.includes('city') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.city_id || '-'}</td>
+                  }
+                      {visibleColumns.includes('stores') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>
+                          {user.store_ids && user.store_ids.length > 0 ?
+                    user.store_ids.map((id) => id.substring(0, 4)).join(', ') + '...' :
+                    '-'
+                    }
                         </td>
-                      )}
-                      {visibleColumns.includes('actions') && (
-                        <td className="p-3 text-right">
+                  }
+                      {visibleColumns.includes('actions') &&
+                  <td className="p-3 text-right">
                           <Button variant="outline" size="sm" onClick={() => onEdit(user)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>Edit</Button>
                           <Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(user)}>Delete</Button>
                         </td>
-                      )}
+                  }
                     </tr>
-                  ))
-                ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No app users found.</td></tr>
-                )}
+                ) :
+
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No app users found.</td></tr>
+                }
               </tbody>
             </table>
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 };
 
 const UserSettingsTable = ({ appUsers, mergedUsers }) => {
@@ -2272,7 +2272,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
   });
 
   const updateColumnWidth = useCallback((columnId, width) => {
-    setColumnWidths(prev => {
+    setColumnWidths((prev) => {
       const newWidths = { ...prev, [columnId]: width };
       localStorage.setItem('admin_usersettings_column_widths', JSON.stringify(newWidths));
       return newWidths;
@@ -2284,13 +2284,13 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
       // Load cloud settings
       const settings = await UserSettings.list();
       setUserSettings(settings || []);
-      
+
       // Load local cached settings from IndexedDB
       const { offlineManager } = await import('../components/utils/offlineManager');
       const localSettings = await offlineManager.getAllCachedUserSettings();
       console.log('📋 [UserSettingsTable] Loaded local cached settings from IndexedDB:', localSettings?.length || 0);
       setLocalUserSettings(localSettings || []);
-      
+
       return settings || [];
     } catch (error) {
       console.error('Failed to load user settings:', error);
@@ -2317,29 +2317,29 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
       try {
         console.log('🔄 [UserSettingsTable] Checking for UserSettings changes...');
         const freshSettings = await UserSettings.list();
-        
+
         if (!freshSettings) return;
-        
+
         // Compare counts first
         if (freshSettings.length !== userSettings.length) {
           console.log('✅ [UserSettingsTable] Count changed, updating...');
           setUserSettings(freshSettings);
           return;
         }
-        
+
         // Compare each setting for changes
         let hasChanges = false;
         for (const fresh of freshSettings) {
-          const existing = userSettings.find(s => s.id === fresh.id);
+          const existing = userSettings.find((s) => s.id === fresh.id);
           if (!existing) {
             hasChanges = true;
             break;
           }
           // Check key fields that might change
           if (existing.selected_driver_id !== fresh.selected_driver_id ||
-              existing.selected_date !== fresh.selected_date ||
-              existing.sidebar_width !== fresh.sidebar_width ||
-              existing.theme_preference !== fresh.theme_preference) {
+          existing.selected_date !== fresh.selected_date ||
+          existing.sidebar_width !== fresh.sidebar_width ||
+          existing.theme_preference !== fresh.theme_preference) {
             console.log(`✅ [UserSettingsTable] Setting ${fresh.id} changed:`, {
               driver: `${existing.selected_driver_id} → ${fresh.selected_driver_id}`,
               date: `${existing.selected_date} → ${fresh.selected_date}`
@@ -2348,7 +2348,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
             break;
           }
         }
-        
+
         if (hasChanges) {
           console.log('✅ [UserSettingsTable] Updating with fresh data');
           setUserSettings(freshSettings);
@@ -2362,7 +2362,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
 
     // Initial check after mount
     const initialTimeout = setTimeout(performRefresh, 2000);
-    
+
     refreshIntervalRef.current = setInterval(performRefresh, 15000);
 
     return () => {
@@ -2375,9 +2375,9 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
 
   const getUserName = (userId) => {
     if (!userId) return 'Unknown';
-    const appUser = appUsers.find(au => au && au.user_id === userId);
+    const appUser = appUsers.find((au) => au && au.user_id === userId);
     if (appUser) return appUser.user_name || 'Unknown';
-    const user = mergedUsers.find(u => u && u.id === userId);
+    const user = mergedUsers.find((u) => u && u.id === userId);
     if (user) return user.user_name || 'Unknown';
     return userId.substring(0, 8) + '...';
   };
@@ -2387,21 +2387,21 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
     try {
       if (viewMode === 'cloud') {
         await UserSettings.delete(settingId);
-        setUserSettings(prev => prev.filter(s => s.id !== settingId));
+        setUserSettings((prev) => prev.filter((s) => s.id !== settingId));
       } else {
         // Delete from local IndexedDB cache
-        const setting = localUserSettings.find(s => s.id === settingId || s._cacheId === settingId);
+        const setting = localUserSettings.find((s) => s.id === settingId || s._cacheId === settingId);
         if (!setting) {
           alert('Setting not found in local cache.');
           return;
         }
-        
+
         const { offlineManager } = await import('../components/utils/offlineManager');
         const cacheId = setting._cacheId || settingId;
         const deleted = await offlineManager.deleteCachedUserSettings(cacheId);
-        
+
         if (deleted) {
-          setLocalUserSettings(prev => prev.filter(s => (s._cacheId || s.id) !== cacheId));
+          setLocalUserSettings((prev) => prev.filter((s) => (s._cacheId || s.id) !== cacheId));
         } else {
           alert('Failed to delete from local cache.');
         }
@@ -2430,23 +2430,23 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
               variant={viewMode === 'cloud' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setViewMode('cloud')}
-              style={viewMode !== 'cloud' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}
-            >
+              style={viewMode !== 'cloud' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}>
+              
               Cloud ({userSettings.length})
             </Button>
             <Button
               variant={viewMode === 'local' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setViewMode('local')}
-              style={viewMode !== 'local' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}
-            >
+              style={viewMode !== 'local' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}>
+              
               Local ({localUserSettings.length})
             </Button>
             <ColumnVisibilityControl
               config={config}
               visibleColumns={visibleColumns}
-              onToggle={toggleColumn}
-            />
+              onToggle={toggleColumn} />
+            
           </div>
         </CardTitle>
         <CardDescription style={{ color: 'var(--text-slate-500)' }}>
@@ -2454,157 +2454,157 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center items-center h-40">
+        {isLoading ?
+        <div className="flex justify-center items-center h-40">
             <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
             <span className="ml-2" style={{ color: 'var(--text-slate-600)' }}>Loading user settings...</span>
-          </div>
-        ) : displayedSettings.length === 0 ? (
-          <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>
+          </div> :
+        displayedSettings.length === 0 ?
+        <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>
             No {viewMode} user settings found.
-          </div>
-        ) : (
-          <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+          </div> :
+
+        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full text-sm table-fixed">
                 <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
                   <tr>
-                    {visibleColumns.includes('user_name') && (
-                      <ResizableColumnHeader width={columnWidths.user_name} onResize={(w) => updateColumnWidth('user_name', w)}>
+                    {visibleColumns.includes('user_name') &&
+                  <ResizableColumnHeader width={columnWidths.user_name} onResize={(w) => updateColumnWidth('user_name', w)}>
                         <span className="font-semibold">User</span>
                       </ResizableColumnHeader>
-                    )}
-                    {visibleColumns.includes('device_type') && (
-                      <ResizableColumnHeader width={columnWidths.device_type} onResize={(w) => updateColumnWidth('device_type', w)}>
+                  }
+                    {visibleColumns.includes('device_type') &&
+                  <ResizableColumnHeader width={columnWidths.device_type} onResize={(w) => updateColumnWidth('device_type', w)}>
                         <span className="font-semibold">Device Type</span>
                       </ResizableColumnHeader>
-                    )}
-                    {visibleColumns.includes('selected_driver') && (
-                      <ResizableColumnHeader width={columnWidths.selected_driver} onResize={(w) => updateColumnWidth('selected_driver', w)}>
+                  }
+                    {visibleColumns.includes('selected_driver') &&
+                  <ResizableColumnHeader width={columnWidths.selected_driver} onResize={(w) => updateColumnWidth('selected_driver', w)}>
                         <span className="font-semibold">Selected Driver</span>
                       </ResizableColumnHeader>
-                    )}
-                    {visibleColumns.includes('selected_date') && (
-                      <ResizableColumnHeader width={columnWidths.selected_date} onResize={(w) => updateColumnWidth('selected_date', w)}>
+                  }
+                    {visibleColumns.includes('selected_date') &&
+                  <ResizableColumnHeader width={columnWidths.selected_date} onResize={(w) => updateColumnWidth('selected_date', w)}>
                         <span className="font-semibold">Selected Date</span>
                       </ResizableColumnHeader>
-                    )}
-                    {visibleColumns.includes('show_all_markers') && (
-                      <ResizableColumnHeader width={columnWidths.show_all_markers} onResize={(w) => updateColumnWidth('show_all_markers', w)}>
+                  }
+                    {visibleColumns.includes('show_all_markers') &&
+                  <ResizableColumnHeader width={columnWidths.show_all_markers} onResize={(w) => updateColumnWidth('show_all_markers', w)}>
                         <span className="font-semibold">Show All Markers</span>
                       </ResizableColumnHeader>
-                    )}
-                    {visibleColumns.includes('sidebar_width') && (
-                      <ResizableColumnHeader width={columnWidths.sidebar_width} onResize={(w) => updateColumnWidth('sidebar_width', w)}>
+                  }
+                    {visibleColumns.includes('sidebar_width') &&
+                  <ResizableColumnHeader width={columnWidths.sidebar_width} onResize={(w) => updateColumnWidth('sidebar_width', w)}>
                         <span className="font-semibold">Sidebar Width</span>
                       </ResizableColumnHeader>
-                    )}
-                    {visibleColumns.includes('theme') && (
-                      <ResizableColumnHeader width={columnWidths.theme} onResize={(w) => updateColumnWidth('theme', w)}>
+                  }
+                    {visibleColumns.includes('theme') &&
+                  <ResizableColumnHeader width={columnWidths.theme} onResize={(w) => updateColumnWidth('theme', w)}>
                         <span className="font-semibold">Theme</span>
                       </ResizableColumnHeader>
-                    )}
-                    {visibleColumns.includes('created') && (
-                      <ResizableColumnHeader width={columnWidths.created} onResize={(w) => updateColumnWidth('created', w)}>
+                  }
+                    {visibleColumns.includes('created') &&
+                  <ResizableColumnHeader width={columnWidths.created} onResize={(w) => updateColumnWidth('created', w)}>
                         <span className="font-semibold">Created</span>
                       </ResizableColumnHeader>
-                    )}
-                    {visibleColumns.includes('updated') && (
-                      <ResizableColumnHeader width={columnWidths.updated} onResize={(w) => updateColumnWidth('updated', w)}>
+                  }
+                    {visibleColumns.includes('updated') &&
+                  <ResizableColumnHeader width={columnWidths.updated} onResize={(w) => updateColumnWidth('updated', w)}>
                         <span className="font-semibold">Updated</span>
                       </ResizableColumnHeader>
-                    )}
-                    {visibleColumns.includes('actions') && (
-                      <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                  }
+                    {visibleColumns.includes('actions') &&
+                  <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
                         <span className="font-semibold">Actions</span>
                       </ResizableColumnHeader>
-                    )}
+                  }
                   </tr>
                 </thead>
                 <tbody>
-                 {displayedSettings
-                   .sort((a, b) => {
-                     // Primary sort: updated_date descending
-                     const aUpdated = a.updated ? new Date(a.updated).getTime() : 0;
-                     const bUpdated = b.updated ? new Date(b.updated).getTime() : 0;
-                     if (aUpdated !== bUpdated) {
-                       return bUpdated - aUpdated;
-                     }
-                     // Secondary sort: created_date descending
-                     const aCreated = a.created ? new Date(a.created).getTime() : 0;
-                     const bCreated = b.created ? new Date(b.created).getTime() : 0;
-                     return bCreated - aCreated;
-                   })
-                   .map(setting => {
-                   const selectedDriverName = setting.selected_driver_id 
-                     ? (setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id))
-                     : '-';
+                 {displayedSettings.
+                sort((a, b) => {
+                  // Primary sort: updated_date descending
+                  const aUpdated = a.updated ? new Date(a.updated).getTime() : 0;
+                  const bUpdated = b.updated ? new Date(b.updated).getTime() : 0;
+                  if (aUpdated !== bUpdated) {
+                    return bUpdated - aUpdated;
+                  }
+                  // Secondary sort: created_date descending
+                  const aCreated = a.created ? new Date(a.created).getTime() : 0;
+                  const bCreated = b.created ? new Date(b.created).getTime() : 0;
+                  return bCreated - aCreated;
+                }).
+                map((setting) => {
+                  const selectedDriverName = setting.selected_driver_id ?
+                  setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id) :
+                  '-';
 
-                   return (
-                     <tr key={setting.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-                       {visibleColumns.includes('user_name') && (
-                         <td className="p-3 font-medium" style={{ color: 'var(--text-slate-900)' }}>{getUserName(setting.user_id)}</td>
-                       )}
-                       {visibleColumns.includes('device_type') && (
-                         <td className="p-3">
+                  return (
+                    <tr key={setting.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                       {visibleColumns.includes('user_name') &&
+                      <td className="p-3 font-medium" style={{ color: 'var(--text-slate-900)' }}>{getUserName(setting.user_id)}</td>
+                      }
+                       {visibleColumns.includes('device_type') &&
+                      <td className="p-3">
                            <Badge variant={setting.device_type === 'Mobile' ? 'default' : 'secondary'}>
                              {setting.device_type || 'Unknown'}
                            </Badge>
                          </td>
-                       )}
-                       {visibleColumns.includes('selected_driver') && (
-                         <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{selectedDriverName}</td>
-                       )}
-                       {visibleColumns.includes('selected_date') && (
-                         <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.selected_date || '-'}</td>
-                       )}
-                       {visibleColumns.includes('show_all_markers') && (
-                         <td className="p-3">
+                      }
+                       {visibleColumns.includes('selected_driver') &&
+                      <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{selectedDriverName}</td>
+                      }
+                       {visibleColumns.includes('selected_date') &&
+                      <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.selected_date || '-'}</td>
+                      }
+                       {visibleColumns.includes('show_all_markers') &&
+                      <td className="p-3">
                            <Badge variant={setting.show_all_driver_markers ? 'default' : 'secondary'}>
                              {setting.show_all_driver_markers ? '✓ Enabled' : 'Disabled'}
                            </Badge>
                          </td>
-                       )}
-                       {visibleColumns.includes('sidebar_width') && (
-                         <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.sidebar_width || 240}px</td>
-                       )}
-                       {visibleColumns.includes('theme') && (
-                         <td className="p-3">
+                      }
+                       {visibleColumns.includes('sidebar_width') &&
+                      <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.sidebar_width || 240}px</td>
+                      }
+                       {visibleColumns.includes('theme') &&
+                      <td className="p-3">
                            <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
                          </td>
-                       )}
-                       {visibleColumns.includes('created') && (
-                         <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                      }
+                       {visibleColumns.includes('created') &&
+                      <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
                            {setting.created ? format(new Date(setting.created), 'MMM d, yyyy h:mm a') : '-'}
                          </td>
-                       )}
-                       {visibleColumns.includes('updated') && (
-                         <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                      }
+                       {visibleColumns.includes('updated') &&
+                      <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
                            {setting.updated ? format(new Date(setting.updated), 'MMM d, yyyy h:mm a') : '-'}
                          </td>
-                       )}
-                       {visibleColumns.includes('actions') && (
-                         <td className="p-3">
-                           <Button 
-                             variant="destructive" 
-                             size="sm"
-                             onClick={() => handleDeleteSetting(setting.id)}
-                           >
+                      }
+                       {visibleColumns.includes('actions') &&
+                      <td className="p-3">
+                           <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteSetting(setting.id)}>
+                          
                              <Trash2 className="w-4 h-4" />
                            </Button>
                          </td>
-                       )}
-                     </tr>
-                   );
-                 })}
+                      }
+                     </tr>);
+
+                })}
                 </tbody>
               </table>
             </div>
           </div>
-        )}
+        }
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 };
 
 const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
@@ -2624,7 +2624,7 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
   const [selectedCities, setSelectedCities] = useState(new Set());
 
   const updateColumnWidth = useCallback((columnId, width) => {
-    setColumnWidths(prev => {
+    setColumnWidths((prev) => {
       const newWidths = { ...prev, [columnId]: width };
       localStorage.setItem('admin_city_column_widths', JSON.stringify(newWidths));
       return newWidths;
@@ -2633,14 +2633,14 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
 
   const handleSelectAll = (checked) => {
     if (checked) {
-      setSelectedCities(new Set((cities || []).map(c => c.id)));
+      setSelectedCities(new Set((cities || []).map((c) => c.id)));
     } else {
       setSelectedCities(new Set());
     }
   };
 
   const handleSelectCity = (cityId, checked) => {
-    setSelectedCities(prev => {
+    setSelectedCities((prev) => {
       const newSet = new Set(prev);
       if (checked) {
         newSet.add(cityId);
@@ -2652,7 +2652,7 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
   };
 
   const handleDeleteSelected = () => {
-    const selectedCitiesArray = (cities || []).filter(c => selectedCities.has(c.id));
+    const selectedCitiesArray = (cities || []).filter((c) => selectedCities.has(c.id));
     onDeleteSelected(selectedCitiesArray);
     setSelectedCities(new Set());
   };
@@ -2669,18 +2669,18 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
             <ColumnVisibilityControl
               config={config}
               visibleColumns={visibleColumns}
-              onToggle={toggleColumn}
-            />
-            {selectedCities.size > 0 && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDeleteSelected}
-                disabled={isLoadingData}
-              >
+              onToggle={toggleColumn} />
+            
+            {selectedCities.size > 0 &&
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteSelected}
+              disabled={isLoadingData}>
+              
                 Delete Selected ({selectedCities.size})
               </Button>
-            )}
+            }
           </div>
         </CardTitle>
         <CardDescription style={{ color: 'var(--text-slate-500)' }}>List of all cities.</CardDescription>
@@ -2695,94 +2695,94 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
                     <Checkbox
                       checked={isAllSelected}
                       onCheckedChange={handleSelectAll}
-                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
-                    />
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''} />
+                    
                   </ResizableColumnHeader>
-                  {visibleColumns.includes('id') && (
-                    <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
+                  {visibleColumns.includes('id') &&
+                  <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
                       <span className="font-semibold">ID</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('name') && (
-                    <ResizableColumnHeader width={columnWidths.name} onResize={(w) => updateColumnWidth('name', w)}>
+                  }
+                  {visibleColumns.includes('name') &&
+                  <ResizableColumnHeader width={columnWidths.name} onResize={(w) => updateColumnWidth('name', w)}>
                       <span className="font-semibold">Name</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('province') && (
-                    <ResizableColumnHeader width={columnWidths.province} onResize={(w) => updateColumnWidth('province', w)}>
+                  }
+                  {visibleColumns.includes('province') &&
+                  <ResizableColumnHeader width={columnWidths.province} onResize={(w) => updateColumnWidth('province', w)}>
                       <span className="font-semibold">Province/State</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('country') && (
-                    <ResizableColumnHeader width={columnWidths.country} onResize={(w) => updateColumnWidth('country', w)}>
+                  }
+                  {visibleColumns.includes('country') &&
+                  <ResizableColumnHeader width={columnWidths.country} onResize={(w) => updateColumnWidth('country', w)}>
                       <span className="font-semibold">Country</span>
                     </ResizableColumnHeader>
-                  )}
-                  {visibleColumns.includes('actions') && (
-                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                  }
+                  {visibleColumns.includes('actions') &&
+                  <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
                       <span className="font-semibold">Actions</span>
                     </ResizableColumnHeader>
-                  )}
+                  }
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading cities...</td></tr>
-                ) : cities.length > 0 ? (
-                  cities.map(city => (
-                    <tr key={city.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                {isLoadingData ?
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading cities...</td></tr> :
+                cities.length > 0 ?
+                cities.map((city) =>
+                <tr key={city.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <td className="p-2">
                         <Checkbox
-                          checked={selectedCities.has(city.id)}
-                          onCheckedChange={(checked) => handleSelectCity(city.id, checked)}
-                        />
+                      checked={selectedCities.has(city.id)}
+                      onCheckedChange={(checked) => handleSelectCity(city.id, checked)} />
+                    
                       </td>
-                      {visibleColumns.includes('id') && (
-                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={city.id}>{city.id.substring(0, 8)}...</td>
-                      )}
-                      {visibleColumns.includes('name') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.name}</td>
-                      )}
-                      {visibleColumns.includes('province') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.province}</td>
-                      )}
-                      {visibleColumns.includes('country') && (
-                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.country}</td>
-                      )}
-                      {visibleColumns.includes('actions') && (
-                        <td className="p-3 text-right">
+                      {visibleColumns.includes('id') &&
+                  <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={city.id}>{city.id.substring(0, 8)}...</td>
+                  }
+                      {visibleColumns.includes('name') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.name}</td>
+                  }
+                      {visibleColumns.includes('province') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.province}</td>
+                  }
+                      {visibleColumns.includes('country') &&
+                  <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.country}</td>
+                  }
+                      {visibleColumns.includes('actions') &&
+                  <td className="p-3 text-right">
                           <Button variant="outline" size="sm" onClick={() => onEdit(city)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>Edit</Button>
                           <Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(city)}>Delete</Button>
                         </td>
-                      )}
+                  }
                     </tr>
-                  ))
-                ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No cities found.</td></tr>
-                )}
+                ) :
+
+                <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No cities found.</td></tr>
+                }
               </tbody>
             </table>
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 };
 
 
 export default function AdminUtilities() {
   const queryClient = useQueryClient();
-  const { 
-    deliveries: contextDeliveries, 
-    patients: contextPatients, 
-    stores: contextStores, 
+  const {
+    deliveries: contextDeliveries,
+    patients: contextPatients,
+    stores: contextStores,
     users: contextUsers,
     appUsers: contextAppUsers,
     cities: contextCities,
     isDataLoaded: contextDataLoaded,
-    refreshData 
+    refreshData
   } = useAppData();
-  
+
   const [currentUser, setCurrentUser] = useState(null);
   const [hasAccess, setHasAccess] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -2817,7 +2817,7 @@ export default function AdminUtilities() {
     currentLabel: "",
     currentDelay: 0,
     retryQueue: 0,
-    entityLabel: "",
+    entityLabel: ""
   });
 
   const [deliveryFilterText, setDeliveryFilterText] = useState('');
@@ -2844,20 +2844,20 @@ export default function AdminUtilities() {
   const [editingDelivery, setEditingDelivery] = useState(null);
   const [editingStatusId, setEditingStatusId] = useState(null);
   const [editingDriverId, setEditingDriverId] = useState(null);
-  
+
   const refreshIntervalRef = useRef(null);
 
   const invalidate = async (entityName) => {
     let queryKey;
     switch (entityName) {
-      case 'Patient': queryKey = ['patients']; break;
-      case 'Store': queryKey = ['stores']; break;
-      case 'User': queryKey = ['authUsers']; break;
-      case 'AppUser': queryKey = ['appUsers']; break;
-      case 'Delivery': queryKey = ['deliveries']; break;
-      case 'ActiveDeliveries': queryKey = ['activeDeliveries']; break;
-      case 'City': queryKey = ['cities']; break;
-      default: return;
+      case 'Patient':queryKey = ['patients'];break;
+      case 'Store':queryKey = ['stores'];break;
+      case 'User':queryKey = ['authUsers'];break;
+      case 'AppUser':queryKey = ['appUsers'];break;
+      case 'Delivery':queryKey = ['deliveries'];break;
+      case 'ActiveDeliveries':queryKey = ['activeDeliveries'];break;
+      case 'City':queryKey = ['cities'];break;
+      default:return;
     }
     await queryClient.invalidateQueries({ queryKey });
   };
@@ -2866,7 +2866,7 @@ export default function AdminUtilities() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
-    staleTime: Infinity,
+    staleTime: Infinity
   };
 
   const { data: fetchedPatients, isLoading: patientsLoading, refetch: refetchPatients } = useQuery({
@@ -2876,7 +2876,7 @@ export default function AdminUtilities() {
     ...queryOptions
   });
   // Use context patients for real-time updates, or offline data if selected
-  const patients = dataViewMode.patients === 'offline' ? offlinePatients : (contextPatients?.length > 0 ? contextPatients : (fetchedPatients || []));
+  const patients = dataViewMode.patients === 'offline' ? offlinePatients : contextPatients?.length > 0 ? contextPatients : fetchedPatients || [];
 
   const { data: fetchedStores, isLoading: storesLoading, refetch: refetchStores } = useQuery({
     queryKey: ['stores'],
@@ -2884,7 +2884,7 @@ export default function AdminUtilities() {
     initialData: contextStores?.length > 0 ? contextStores : undefined,
     ...queryOptions
   });
-  const stores = dataViewMode.stores === 'offline' ? offlineStores : (contextStores?.length > 0 ? contextStores : (fetchedStores || []));
+  const stores = dataViewMode.stores === 'offline' ? offlineStores : contextStores?.length > 0 ? contextStores : fetchedStores || [];
 
   const { data: authUsers, isLoading: authUsersLoading, refetch: refetchAuthUsers } = useQuery({
     queryKey: ['authUsers'],
@@ -2899,11 +2899,11 @@ export default function AdminUtilities() {
     initialData: contextAppUsers?.length > 0 ? contextAppUsers : undefined,
     ...queryOptions
   });
-  const appUsers = dataViewMode.users === 'offline' ? offlineAppUsers : (contextAppUsers?.length > 0 ? contextAppUsers : (fetchedAppUsers || []));
-  
+  const appUsers = dataViewMode.users === 'offline' ? offlineAppUsers : contextAppUsers?.length > 0 ? contextAppUsers : fetchedAppUsers || [];
+
   // CRITICAL: Log appUsers when loaded to debug driver dropdown issue
   useEffect(() => {
-    console.log(`📋 [AdminUtilities] appUsers loaded: ${appUsers?.length || 0}`, appUsers?.slice(0, 3).map(u => ({ id: u.id, user_name: u.user_name, user_id: u.user_id })));
+    console.log(`📋 [AdminUtilities] appUsers loaded: ${appUsers?.length || 0}`, appUsers?.slice(0, 3).map((u) => ({ id: u.id, user_name: u.user_name, user_id: u.user_id })));
   }, [appUsers?.length]);
 
   const { data: fetchedCities, isLoading: citiesLoading, refetch: refetchCities } = useQuery({
@@ -2912,7 +2912,7 @@ export default function AdminUtilities() {
     initialData: contextCities?.length > 0 ? contextCities : undefined,
     ...queryOptions
   });
-  const cities = dataViewMode.cities === 'offline' ? offlineCities : (contextCities?.length > 0 ? contextCities : (fetchedCities || []));
+  const cities = dataViewMode.cities === 'offline' ? offlineCities : contextCities?.length > 0 ? contextCities : fetchedCities || [];
 
   // CRITICAL: Define mergedUsers and driversForDropdown BEFORE deliveries query to prevent initialization error
   const mergedUsers = useMemo(() => {
@@ -2922,39 +2922,39 @@ export default function AdminUtilities() {
 
     if (!authUsers || authUsers.length === 0) {
       // Non-admin: Create pseudo-users from AppUsers
-      return appUsers
-        .map((appUser) => ({
-          id: appUser.user_id,
-          user_id: appUser.user_id,
-          user_name: appUser.user_name,
-          full_name: appUser.user_name,
-          app_roles: appUser.app_roles || [],
-          status: appUser.status || 'active',
-          display_name: appUser.user_name,
-          first_name: (appUser.user_name || '').split(' ')[0]
-        }))
-        .filter((u) => u.user_name && u.status === 'active');
+      return appUsers.
+      map((appUser) => ({
+        id: appUser.user_id,
+        user_id: appUser.user_id,
+        user_name: appUser.user_name,
+        full_name: appUser.user_name,
+        app_roles: appUser.app_roles || [],
+        status: appUser.status || 'active',
+        display_name: appUser.user_name,
+        first_name: (appUser.user_name || '').split(' ')[0]
+      })).
+      filter((u) => u.user_name && u.status === 'active');
     }
 
     // Admin: Merge authUsers with appUsers
-    return authUsers
-      .map((authUser) => {
-        const appUser = appUsers.find((au) => au.user_id === authUser.id);
-        if (!appUser) return null;
+    return authUsers.
+    map((authUser) => {
+      const appUser = appUsers.find((au) => au.user_id === authUser.id);
+      if (!appUser) return null;
 
-        return {
-          ...authUser,
-          ...appUser,
-          id: authUser.id,
-          user_name: appUser.user_name || authUser.full_name,
-          app_roles: appUser.app_roles || ['driver'],
-          status: appUser.status || 'active',
-          display_name: appUser.user_name || authUser.full_name,
-          first_name: (appUser.user_name || authUser.full_name).split(' ')[0]
-        };
-      })
-      .filter(Boolean)
-      .filter((u) => u.status === 'active');
+      return {
+        ...authUser,
+        ...appUser,
+        id: authUser.id,
+        user_name: appUser.user_name || authUser.full_name,
+        app_roles: appUser.app_roles || ['driver'],
+        status: appUser.status || 'active',
+        display_name: appUser.user_name || authUser.full_name,
+        first_name: (appUser.user_name || authUser.full_name).split(' ')[0]
+      };
+    }).
+    filter(Boolean).
+    filter((u) => u.status === 'active');
   }, [authUsers, appUsers]);
 
   const driversForDropdown = useMemo(() => {
@@ -2977,27 +2977,27 @@ export default function AdminUtilities() {
       const isDriver = roles.includes('driver') || roles.includes('admin');
       return isDriver;
     });
-    
+
     console.log(`📋 [AdminUtilities] Filtered to ${drivers.length} driver/admin roles`);
     const sorted = sortUsers(drivers);
-    console.log(`📋 [AdminUtilities] driversForDropdown final: ${sorted.length} drivers:`, sorted.map(d => ({ id: d.id, user_name: d.user_name, roles: d.app_roles })));
+    console.log(`📋 [AdminUtilities] driversForDropdown final: ${sorted.length} drivers:`, sorted.map((d) => ({ id: d.id, user_name: d.user_name, roles: d.app_roles })));
     return sorted;
   }, [mergedUsers]);
 
   // CRITICAL: Disable automatic delivery loading - only load on explicit "Load Data" button click
   const [manualLoadTriggered, setManualLoadTriggered] = useState(false);
-  
+
   const { data: fetchedDeliveries, isLoading: deliveriesLoading, refetch: refetchDeliveries } = useQuery({
     queryKey: ['deliveries', selectedDeliveryYear, selectedDeliveryMonth, selectedDriver],
     queryFn: async () => {
       const filter = {};
-      
+
       if (selectedDeliveryYear && selectedDeliveryYear !== 'all') {
         const year = parseInt(selectedDeliveryYear);
         const startDate = `${year}-01-01`;
         const endDate = `${year}-12-31`;
         filter.delivery_date = { $gte: startDate, $lte: endDate };
-        
+
         if (selectedDeliveryMonth !== 'all') {
           const month = parseInt(selectedDeliveryMonth);
           const monthStartDate = `${year}-${month.toString().padStart(2, '0')}-01`;
@@ -3006,23 +3006,23 @@ export default function AdminUtilities() {
           filter.delivery_date = { $gte: monthStartDate, $lte: monthEndDate };
         }
       }
-      
+
       // Driver filter will be applied client-side after mergedUsers is ready
-      
-      const deliveries = Object.keys(filter).length > 0 
-        ? await Delivery.filter(filter, '-created_date', 1000)
-        : await Delivery.list('-created_date', 1000);
-        
+
+      const deliveries = Object.keys(filter).length > 0 ?
+      await Delivery.filter(filter, '-created_date', 1000) :
+      await Delivery.list('-created_date', 1000);
+
       return deliveries;
     },
     enabled: filtersReady && manualLoadTriggered,
     initialData: undefined,
     ...queryOptions
   });
-  
+
   // Use ONLY fetched deliveries (not context) for admin view
   const allDeliveries = useMemo(() => {
-    return dataViewMode.deliveries === 'offline' ? offlineDeliveries : (fetchedDeliveries || []);
+    return dataViewMode.deliveries === 'offline' ? offlineDeliveries : fetchedDeliveries || [];
   }, [fetchedDeliveries, dataViewMode.deliveries, offlineDeliveries]);
 
   const dataLoading = patientsLoading || storesLoading || authUsersLoading || appUsersLoading || citiesLoading || deliveriesLoading;
@@ -3030,11 +3030,11 @@ export default function AdminUtilities() {
   const handleRefreshAllData = async () => {
     setIsRefreshing(true);
     console.log('🔄 [AdminUtilities] Starting manual data refresh...');
-    
+
     try {
       // CRITICAL: Check if we're viewing offline data - reload from IndexedDB
       const { offlineDB } = await import('../components/utils/offlineDatabase');
-      
+
       if (dataViewMode.deliveries === 'offline') {
         const data = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
         setOfflineDeliveries(data || []);
@@ -3060,7 +3060,7 @@ export default function AdminUtilities() {
         setOfflineCities(data || []);
         console.log(`📦 Reloaded ${data?.length || 0} offline cities`);
       }
-      
+
       // Also invalidate and refetch online data
       await queryClient.invalidateQueries(['patients']);
       await queryClient.invalidateQueries(['stores']);
@@ -3068,18 +3068,18 @@ export default function AdminUtilities() {
       await queryClient.invalidateQueries(['appUsers']);
       await queryClient.invalidateQueries(['cities']);
       await queryClient.invalidateQueries(['deliveries']);
-      
+
       await Promise.all([
-        refetchPatients(),
-        refetchStores(),
-        refetchAuthUsers(),
-        refetchAppUsers(),
-        refetchCities(),
-        refetchDeliveries()
-      ]);
-      
+      refetchPatients(),
+      refetchStores(),
+      refetchAuthUsers(),
+      refetchAppUsers(),
+      refetchCities(),
+      refetchDeliveries()]
+      );
+
       await refreshData();
-      
+
       console.log('✅ [AdminUtilities] Manual data refresh complete');
     } catch (error) {
       console.error('❌ [AdminUtilities] Error during manual refresh:', error);
@@ -3107,13 +3107,13 @@ export default function AdminUtilities() {
 
       console.log('🔄 [AdminUtilities] Triggering immediate refetches...');
       await Promise.all([
-        refetchDeliveries(),
-        refetchPatients(),
-        refetchStores(),
-        refetchAppUsers(),
-        refetchAuthUsers(),
-        refetchCities()
-      ]);
+      refetchDeliveries(),
+      refetchPatients(),
+      refetchStores(),
+      refetchAppUsers(),
+      refetchAuthUsers(),
+      refetchCities()]
+      );
 
       console.log('✅ [AdminUtilities] Data refresh complete after import');
 
@@ -3133,7 +3133,7 @@ export default function AdminUtilities() {
     const loadOfflineData = async () => {
       try {
         const { offlineDB } = await import('../components/utils/offlineDatabase');
-        
+
         if (dataViewMode.deliveries === 'offline') {
           const data = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
           setOfflineDeliveries(data || []);
@@ -3163,7 +3163,7 @@ export default function AdminUtilities() {
         console.error('❌ Failed to load offline data:', error);
       }
     };
-    
+
     loadOfflineData();
   }, [dataViewMode]);
 
@@ -3174,13 +3174,13 @@ export default function AdminUtilities() {
         const realUserData = await User.me();
         setCurrentUser(user);
         setHasAccess(isAppOwner(realUserData));
-        
+
         // Load user settings for Admin Utilities filters
         if (user?.id) {
           try {
             const settings = await loadUserSettings(user.id);
             console.log('📋 [AdminUtilities] Loaded user settings:', settings);
-            
+
             if (settings.admin_utilities_year) {
               setSelectedDeliveryYear(settings.admin_utilities_year);
             }
@@ -3204,7 +3204,7 @@ export default function AdminUtilities() {
       }
     };
     checkAccess();
-    
+
     return () => {
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
@@ -3237,8 +3237,8 @@ export default function AdminUtilities() {
 
     if (allDeliveries.length > 0) {
       const years = [...new Set(
-        allDeliveries.map(d => d.delivery_date ? new Date(d.delivery_date).getFullYear() : null)
-          .filter(Boolean)
+        allDeliveries.map((d) => d.delivery_date ? new Date(d.delivery_date).getFullYear() : null).
+        filter(Boolean)
       )].sort((a, b) => b - a);
 
       setAvailableDeliveryYears(years);
@@ -3265,13 +3265,13 @@ export default function AdminUtilities() {
         console.log('⏭️ [AdminUtilities] Form open - skipping polling refresh');
         return;
       }
-      
+
       try {
         console.log('🔄 [AdminUtilities] Polling refetch for tab:', activeDataTab);
-        
+
         switch (activeDataTab) {
           case 'deliveries':
-            if (manualLoadTriggered) { await refetchDeliveries(); }
+            if (manualLoadTriggered) {await refetchDeliveries();}
             break;
           case 'patients':
             await refetchPatients();
@@ -3314,8 +3314,8 @@ export default function AdminUtilities() {
   }, []);
 
   const handleDeliverySort = useCallback((column) =>
-    handleSortChange(column, deliverySortColumn, deliverySortDirection, setDeliverySortColumn, setDeliverySortDirection),
-    [handleSortChange, deliverySortColumn, deliverySortDirection]
+  handleSortChange(column, deliverySortColumn, deliverySortDirection, setDeliverySortColumn, setDeliverySortDirection),
+  [handleSortChange, deliverySortColumn, deliverySortDirection]
   );
 
   const handlePatientSort = useCallback((column) => {
@@ -3324,14 +3324,14 @@ export default function AdminUtilities() {
 
   const filteredAndSortedDeliveries = useMemo(() => {
     let filtered = allDeliveries || [];
-    
+
     console.log(`📊 [AdminUtilities] filteredAndSortedDeliveries starting with ${filtered.length} deliveries`);
     console.log(`📊 [AdminUtilities] Filters: year=${selectedDeliveryYear}, month=${selectedDeliveryMonth}, driver=${selectedDriver}`);
 
     if (selectedDeliveryYear && selectedDeliveryYear !== 'all') {
       const year = parseInt(selectedDeliveryYear);
       const beforeFilter = filtered.length;
-      filtered = filtered.filter(d => {
+      filtered = filtered.filter((d) => {
         if (!d.delivery_date || typeof d.delivery_date !== 'string') return false;
         const dateParts = d.delivery_date.split('-');
         if (dateParts.length === 3) {
@@ -3345,7 +3345,7 @@ export default function AdminUtilities() {
       if (selectedDeliveryMonth !== 'all') {
         const month = parseInt(selectedDeliveryMonth);
         const beforeMonthFilter = filtered.length;
-        filtered = filtered.filter(d => {
+        filtered = filtered.filter((d) => {
           if (!d.delivery_date || typeof d.delivery_date !== 'string') return false;
           const dateParts = d.delivery_date.split('-');
           if (dateParts.length === 3) {
@@ -3359,7 +3359,7 @@ export default function AdminUtilities() {
     } else if (selectedDeliveryYear === 'all' && selectedDeliveryMonth !== 'all') {
       const month = parseInt(selectedDeliveryMonth);
       const beforeFilter = filtered.length;
-      filtered = filtered.filter(d => {
+      filtered = filtered.filter((d) => {
         if (!d.delivery_date || typeof d.delivery_date !== 'string') return false;
         const dateParts = d.delivery_date.split('-');
         if (dateParts.length === 3) {
@@ -3372,20 +3372,20 @@ export default function AdminUtilities() {
     }
 
     if (selectedDriver && selectedDriver !== 'all') {
-      const targetDriver = driversForDropdown.find(d => d.user_name === selectedDriver);
+      const targetDriver = driversForDropdown.find((d) => d.user_name === selectedDriver);
       if (targetDriver) {
-        filtered = filtered.filter(delivery => 
-          delivery.driver_id === targetDriver.id || 
-          delivery.driver_name === targetDriver.full_name ||
-          delivery.driver_name === targetDriver.user_name
+        filtered = filtered.filter((delivery) =>
+        delivery.driver_id === targetDriver.id ||
+        delivery.driver_name === targetDriver.full_name ||
+        delivery.driver_name === targetDriver.user_name
         );
       }
     }
 
 
-    filtered = filtered.filter(delivery => {
-      const patient = (patients || []).find(p => p.id === delivery.patient_id);
-      const store = (stores || []).find(s => s.id === delivery.store_id);
+    filtered = filtered.filter((delivery) => {
+      const patient = (patients || []).find((p) => p.id === delivery.patient_id);
+      const store = (stores || []).find((s) => s.id === delivery.store_id);
       const patientName = patient?.full_name || 'Store Pickup';
       const address = patient?.address || store?.address || 'Unknown Address';
       const unitNumber = patient?.unit_number ? `, Unit: ${patient.unit_number}` : '';
@@ -3400,12 +3400,12 @@ export default function AdminUtilities() {
         searchText === '' ||
         patientName.toLowerCase().includes(searchText) ||
         (address + unitNumber).toLowerCase().includes(searchText) ||
-        (delivery.status && delivery.status.toLowerCase().includes(searchText)) ||
+        delivery.status && delivery.status.toLowerCase().includes(searchText) ||
         stopId.includes(searchText) ||
         patientId.includes(searchText) ||
         trackingNumber.includes(searchText) ||
-        stopOrder.includes(searchText)
-      );
+        stopOrder.includes(searchText));
+
     });
 
     if (deliverySortColumn) {
@@ -3418,52 +3418,52 @@ export default function AdminUtilities() {
                 return date.getHours() * 60 + date.getMinutes();
               }
             } catch (e) {
+
+
+
+
+
+
+
+
+
+
               // Fallback
-            }
-          }
-          if (delivery.delivery_time_eta) {
-            const timeParts = delivery.delivery_time_eta.match(/(\d{2}):(\d{2})/);
-            if (timeParts) {
-              const hours = parseInt(timeParts[1]);
-              const minutes = parseInt(timeParts[2]);
-              return hours * 60 + minutes;
-            }
-          }
-          return 9999;
+            }}if (delivery.delivery_time_eta) {const timeParts = delivery.delivery_time_eta.match(/(\d{2}):(\d{2})/);if (timeParts) {const hours = parseInt(timeParts[1]);const minutes = parseInt(timeParts[2]);return hours * 60 + minutes;}}return 9999;
         };
 
         if (deliverySortColumn === 'stop_order') {
           const aOrder = a.stop_order ?? 99999;
           const bOrder = b.stop_order ?? 99999;
-          
+
           if (aOrder !== bOrder) {
             return deliverySortDirection === 'asc' ? aOrder - bOrder : bOrder - aOrder;
           }
-          
+
           const aDate = a.delivery_date || '';
           const bDate = b.delivery_date || '';
-          
+
           const dateComparison = deliverySortDirection === 'asc' ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate);
           if (dateComparison !== 0) {
-              return dateComparison;
+            return dateComparison;
           }
-          
+
           const aTime = getTimeValue(a);
           const bTime = getTimeValue(b);
-          
+
           return deliverySortDirection === 'asc' ? aTime - bTime : bTime - aTime;
         } else if (deliverySortColumn === 'delivery_date') {
           const aDate = a.delivery_date || '';
           const bDate = b.delivery_date || '';
-          
+
           const dateComparison = deliverySortDirection === 'asc' ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate);
           if (dateComparison !== 0) {
-              return dateComparison;
+            return dateComparison;
           }
-          
+
           const aTime = getTimeValue(a);
           const bTime = getTimeValue(b);
-          
+
           return deliverySortDirection === 'asc' ? aTime - bTime : bTime - aTime;
         } else {
           const aValue = a[deliverySortColumn];
@@ -3491,8 +3491,8 @@ export default function AdminUtilities() {
       console.warn('[AdminUtilities] filteredPatientsForDetectDuplicates: patients is not an array');
       return [];
     }
-    
-    return patients; 
+
+    return patients;
   }, [patients]);
 
   const performBulkDeletePatients = useCallback(async (patientsToDelete) => {
@@ -3501,7 +3501,7 @@ export default function AdminUtilities() {
       alert('Error: Invalid data provided for deletion. Please refresh and try again.');
       return;
     }
-    
+
     if (patientsToDelete.length === 0) {
       console.warn('[AdminUtilities] performBulkDeletePatients: Empty array provided');
       alert('No patients to delete.');
@@ -3548,20 +3548,20 @@ export default function AdminUtilities() {
 
         try {
           const { offlineDB } = await import('../components/utils/offlineDatabase');
-          
+
           if (isOfflineMode) {
             // OFFLINE MODE: Delete ONLY from offline DB
             await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, patient.id);
-            setOfflinePatients(prev => prev.filter(p => p.id !== patient.id));
+            setOfflinePatients((prev) => prev.filter((p) => p.id !== patient.id));
           } else {
             // ONLINE MODE: Delete ONLY from backend
             await Patient.delete(patient.id);
           }
-          
+
           successCount++;
         } catch (error) {
           // CRITICAL: Ignore 404 errors in online mode (already deleted)
-          if (!isOfflineMode && (error?.response?.status === 404 || String(error?.message||'').includes('404') || String(error?.message||'').toLowerCase().includes('not found'))) {
+          if (!isOfflineMode && (error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found'))) {
             console.log(`Patient ${patient.id} already deleted (404) - counting as success`);
             successCount++;
           } else {
@@ -3573,7 +3573,7 @@ export default function AdminUtilities() {
           }
         } finally {
           processed++;
-          setBulkDelete(prev => ({
+          setBulkDelete((prev) => ({
             ...prev,
             processed,
             success: successCount,
@@ -3596,7 +3596,7 @@ export default function AdminUtilities() {
             }
             opsSinceDelayChange = 0;
             segmentFailures = 0;
-            setBulkDelete(prev => ({ ...prev, currentDelay: delayMs }));
+            setBulkDelete((prev) => ({ ...prev, currentDelay: delayMs }));
           }
         }
       }
@@ -3604,27 +3604,27 @@ export default function AdminUtilities() {
       if (failedDeletions.length > 0) {
         console.log(`Retrying ${failedDeletions.length} failed patient deletions...`);
         const retryDelay = 500;
-        setBulkDelete(prev => ({ ...prev, retryQueue: failedDeletions.length }));
+        setBulkDelete((prev) => ({ ...prev, retryQueue: failedDeletions.length }));
 
         for (let i = 0; i < failedDeletions.length; i++) {
           const p = failedDeletions[i];
           if (!p || !p.id) continue;
-          
+
           const label = p.full_name || p.id;
 
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
 
           try {
             const { offlineDB } = await import('../components/utils/offlineDatabase');
-            
+
             if (isOfflineMode) {
               await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id);
-              setOfflinePatients(prev => prev.filter(pat => pat.id !== p.id));
+              setOfflinePatients((prev) => prev.filter((pat) => pat.id !== p.id));
             } else {
               await Patient.delete(p.id);
             }
-            
-            setBulkDelete(prev => ({
+
+            setBulkDelete((prev) => ({
               ...prev,
               processed: prev.processed + 1,
               success: prev.success + 1,
@@ -3635,9 +3635,9 @@ export default function AdminUtilities() {
             }));
           } catch (error) {
             // CRITICAL: Ignore 404 errors in online mode (already deleted)
-            if (!isOfflineMode && (error?.response?.status === 404 || String(error?.message||'').includes('404') || String(error?.message||'').toLowerCase().includes('not found'))) {
+            if (!isOfflineMode && (error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found'))) {
               console.log(`Patient ${p.id} already deleted (404) - counting as success`);
-              setBulkDelete(prev => ({
+              setBulkDelete((prev) => ({
                 ...prev,
                 processed: prev.processed + 1,
                 success: prev.success + 1,
@@ -3649,7 +3649,7 @@ export default function AdminUtilities() {
             } else {
               console.error(`Retry failed for patient ${p.id}:`, error);
               await new Promise((resolve) => setTimeout(resolve, 1000));
-              setBulkDelete(prev => ({
+              setBulkDelete((prev) => ({
                 ...prev,
                 processed: prev.processed + 1,
                 failed: prev.failed + 1,
@@ -3662,8 +3662,8 @@ export default function AdminUtilities() {
         }
       }
 
-      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "", open: false }));
-      
+      setBulkDelete((prev) => ({ ...prev, running: false, currentLabel: "", open: false }));
+
       if (!isOfflineMode) {
         queryClient.invalidateQueries(['patients']);
         await refetchPatients();
@@ -3671,7 +3671,7 @@ export default function AdminUtilities() {
       }
     } catch (error) {
       console.error('Error during bulk patient delete:', error);
-      setBulkDelete(prev => ({ ...prev, running: false, open: false }));
+      setBulkDelete((prev) => ({ ...prev, running: false, open: false }));
     }
   }, [dataViewMode.patients, queryClient, refetchPatients, refreshData]);
 
@@ -3683,7 +3683,7 @@ export default function AdminUtilities() {
       return;
     }
 
-    const isOfflineMode = dataViewMode.deliveries === 'offline', count = deliveriesToDelete.length;
+    const isOfflineMode = dataViewMode.deliveries === 'offline',count = deliveriesToDelete.length;
 
     setBulkDelete({
       open: true,
@@ -3700,43 +3700,43 @@ export default function AdminUtilities() {
 
     try {
       console.log(`🗑️ [AdminUtilities] Starting batch delete of ${count} duplicates...`);
-      
+
       // Delete in batches of 50 (much faster than one-at-a-time)
       const BATCH_SIZE = 25;
       let successCount = 0;
       let failCount = 0;
-      
+
       for (let i = 0; i < deliveriesToDelete.length; i += BATCH_SIZE) {
         const batch = deliveriesToDelete.slice(i, i + BATCH_SIZE);
-        
-        setBulkDelete(prev => ({
+
+        setBulkDelete((prev) => ({
           ...prev,
-          currentLabel: `Batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(count / BATCH_SIZE)}`,
+          currentLabel: `Batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(count / BATCH_SIZE)}`
         }));
-        
+
         // Delete all in this batch with minimal delay
         for (const delivery of batch) {
           try {
-            if (dataViewMode.deliveries==='offline' || String(delivery.id||'').startsWith('temp_')) { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); setOfflineDeliveries(prev=>prev.filter(d=>d.id!==delivery.id)); } else { await Delivery.delete(delivery.id); }
+            if (dataViewMode.deliveries === 'offline' || String(delivery.id || '').startsWith('temp_')) {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);setOfflineDeliveries((prev) => prev.filter((d) => d.id !== delivery.id));} else {await Delivery.delete(delivery.id);}
             successCount++;
           } catch (error) {
-            if (error?.response?.status === 404 || String(error?.message||'').includes('404') || String(error?.message||'').toLowerCase().includes('not found')) { try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (_) {} successCount++; } else { console.error(`Failed to delete ${delivery.id}:`, error); failCount++; }
+            if (error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found')) {try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);} catch (_) {}successCount++;} else {console.error(`Failed to delete ${delivery.id}:`, error);failCount++;}
           }
-          await new Promise(resolve => setTimeout(resolve, 100)); // Paced to reduce rate limits
+          await new Promise((resolve) => setTimeout(resolve, 100)); // Paced to reduce rate limits
         }
-        
-        setBulkDelete(prev => ({
+
+        setBulkDelete((prev) => ({
           ...prev,
           processed: Math.min(i + BATCH_SIZE, count),
           success: successCount,
-          failed: failCount,
+          failed: failCount
         }));
-        
+
         console.log(`✅ [AdminUtilities] Batch ${Math.floor(i / BATCH_SIZE) + 1} complete: ${successCount} deleted, ${failCount} failed`);
       }
 
-      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "", open: false }));
-      
+      setBulkDelete((prev) => ({ ...prev, running: false, currentLabel: "", open: false }));
+
       // Reload offline data if in offline mode
       if (dataViewMode.deliveries === 'offline') {
         const { offlineDB } = await import('../components/utils/offlineDatabase');
@@ -3744,17 +3744,17 @@ export default function AdminUtilities() {
         setOfflineDeliveries(data || []);
         console.log(`📦 Reloaded ${data?.length || 0} offline deliveries after delete`);
       }
-      
+
       queryClient.invalidateQueries(['deliveries']);
       await refetchDeliveries();
-      
+
       console.log('🔄 [AdminUtilities] Triggering global data refresh after batch delete');
       await refreshData();
-      
+
       console.log(`✅ [AdminUtilities] Batch delete complete: ${successCount} deleted, ${failCount} failed`);
     } catch (error) {
       console.error('Error during batch delivery delete:', error);
-      setBulkDelete(prev => ({ ...prev, running: false, open: false }));
+      setBulkDelete((prev) => ({ ...prev, running: false, open: false }));
     }
   }, [queryClient, refetchDeliveries, refreshData]);
 
@@ -3764,7 +3764,7 @@ export default function AdminUtilities() {
       alert('Error: Invalid data provided for deletion. Please refresh and try again.');
       return;
     }
-    
+
     if (deliveriesToDelete.length === 0) {
       console.warn('[AdminUtilities] performBulkDeleteDeliveries: Empty array provided');
       alert('No deliveries to delete.');
@@ -3811,21 +3811,21 @@ export default function AdminUtilities() {
 
         try {
           const { offlineDB } = await import('../components/utils/offlineDatabase');
-          
+
           if (isOfflineMode) {
             // OFFLINE MODE: Delete ONLY from offline DB
             await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);
-            setOfflineDeliveries(prev => prev.filter(d => d.id !== delivery.id));
+            setOfflineDeliveries((prev) => prev.filter((d) => d.id !== delivery.id));
           } else {
             // ONLINE MODE: Delete ONLY from backend
-            await Delivery.delete(delivery.id); try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (_) {}
+            await Delivery.delete(delivery.id);try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);} catch (_) {}
           }
-          
+
           successCount++;
         } catch (error) {
           // CRITICAL: Ignore 404 errors in online mode (already deleted)
-          if (!isOfflineMode && (error?.response?.status === 404 || String(error?.message||'').includes('404') || String(error?.message||'').toLowerCase().includes('not found'))) {
-            console.log(`Delivery ${delivery.id} already deleted (404) - counting as success`); try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (_) {}
+          if (!isOfflineMode && (error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found'))) {
+            console.log(`Delivery ${delivery.id} already deleted (404) - counting as success`);try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);} catch (_) {}
             successCount++;
           } else {
             console.error(`Failed to delete delivery ${delivery.id}:`, error);
@@ -3836,7 +3836,7 @@ export default function AdminUtilities() {
           }
         } finally {
           processed++;
-          setBulkDelete(prev => ({
+          setBulkDelete((prev) => ({
             ...prev,
             processed,
             success: successCount,
@@ -3859,7 +3859,7 @@ export default function AdminUtilities() {
             }
             opsSinceDelayChange = 0;
             segmentFailures = 0;
-            setBulkDelete(prev => ({ ...prev, currentDelay: delayMs }));
+            setBulkDelete((prev) => ({ ...prev, currentDelay: delayMs }));
           }
         }
       }
@@ -3867,27 +3867,27 @@ export default function AdminUtilities() {
       if (failedDeletions.length > 0) {
         console.log(`Retrying ${failedDeletions.length} failed delivery deletions...`);
         const retryDelay = 500;
-        setBulkDelete(prev => ({ ...prev, retryQueue: failedDeletions.length }));
+        setBulkDelete((prev) => ({ ...prev, retryQueue: failedDeletions.length }));
 
         for (let i = 0; i < failedDeletions.length; i++) {
           const d = failedDeletions[i];
           if (!d || !d.id) continue;
-          
+
           const label = d.tracking_number || d.id;
 
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
 
           try {
             const { offlineDB } = await import('../components/utils/offlineDatabase');
-            
+
             if (isOfflineMode) {
               await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
-              setOfflineDeliveries(prev => prev.filter(del => del.id !== d.id));
+              setOfflineDeliveries((prev) => prev.filter((del) => del.id !== d.id));
             } else {
               await Delivery.delete(d.id);
             }
-            
-            setBulkDelete(prev => ({
+
+            setBulkDelete((prev) => ({
               ...prev,
               processed: prev.processed + 1,
               success: prev.success + 1,
@@ -3898,9 +3898,9 @@ export default function AdminUtilities() {
             }));
           } catch (error) {
             // CRITICAL: Ignore 404 errors in online mode (already deleted)
-            if (!isOfflineMode && (error?.response?.status === 404 || String(error?.message||'').includes('404') || String(error?.message||'').toLowerCase().includes('not found'))) {
-              console.log(`Delivery ${d.id} already deleted (404) - counting as success`); try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id); } catch (_) {}
-              setBulkDelete(prev => ({
+            if (!isOfflineMode && (error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found'))) {
+              console.log(`Delivery ${d.id} already deleted (404) - counting as success`);try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);} catch (_) {}
+              setBulkDelete((prev) => ({
                 ...prev,
                 processed: prev.processed + 1,
                 success: prev.success + 1,
@@ -3912,7 +3912,7 @@ export default function AdminUtilities() {
             } else {
               console.error(`Retry failed for delivery ${d.id}:`, error);
               await new Promise((resolve) => setTimeout(resolve, 1000));
-              setBulkDelete(prev => ({
+              setBulkDelete((prev) => ({
                 ...prev,
                 processed: prev.processed + 1,
                 failed: prev.failed + 1,
@@ -3925,8 +3925,8 @@ export default function AdminUtilities() {
         }
       }
 
-      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "", open: false }));
-      
+      setBulkDelete((prev) => ({ ...prev, running: false, currentLabel: "", open: false }));
+
       // Reload offline data if in offline mode
       if (isOfflineMode) {
         const { offlineDB } = await import('../components/utils/offlineDatabase');
@@ -3940,7 +3940,7 @@ export default function AdminUtilities() {
       }
     } catch (error) {
       console.error('Error during bulk delivery delete:', error);
-      setBulkDelete(prev => ({ ...prev, running: false, open: false }));
+      setBulkDelete((prev) => ({ ...prev, running: false, open: false }));
     }
   }, [dataViewMode.deliveries, queryClient, refetchDeliveries, refreshData]);
 
@@ -4003,7 +4003,7 @@ export default function AdminUtilities() {
       currentLabel: "", currentDelay: 100, retryQueue: 0, entityLabel: "Stores"
     });
 
-    let successCount = 0, failCount = 0;
+    let successCount = 0,failCount = 0;
     for (const store of storesToDelete) {
       if (!store || !store.id) continue;
       try {
@@ -4013,13 +4013,13 @@ export default function AdminUtilities() {
         console.error(`Failed to delete store ${store.id}:`, error);
         failCount++;
       }
-      setBulkDelete(prev => ({
+      setBulkDelete((prev) => ({
         ...prev, processed: prev.processed + 1, success: successCount, failed: failCount, currentLabel: store.name || store.id
       }));
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
     }
 
-    setBulkDelete(prev => ({ ...prev, running: false, open: false }));
+    setBulkDelete((prev) => ({ ...prev, running: false, open: false }));
     await refetchStores();
     await refreshData();
   }, [refetchStores, refreshData]);
@@ -4046,7 +4046,7 @@ export default function AdminUtilities() {
       currentLabel: "", currentDelay: 100, retryQueue: 0, entityLabel: "App Users"
     });
 
-    let successCount = 0, failCount = 0;
+    let successCount = 0,failCount = 0;
     for (const user of usersToDelete) {
       if (!user || !user.id) continue;
       try {
@@ -4056,13 +4056,13 @@ export default function AdminUtilities() {
         console.error(`Failed to delete user ${user.id}:`, error);
         failCount++;
       }
-      setBulkDelete(prev => ({
+      setBulkDelete((prev) => ({
         ...prev, processed: prev.processed + 1, success: successCount, failed: failCount, currentLabel: user.user_name || user.id
       }));
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
     }
 
-    setBulkDelete(prev => ({ ...prev, running: false, open: false }));
+    setBulkDelete((prev) => ({ ...prev, running: false, open: false }));
     await refetchAppUsers();
     await refreshData();
   }, [refetchAppUsers, refreshData]);
@@ -4089,7 +4089,7 @@ export default function AdminUtilities() {
       currentLabel: "", currentDelay: 100, retryQueue: 0, entityLabel: "Cities"
     });
 
-    let successCount = 0, failCount = 0;
+    let successCount = 0,failCount = 0;
     for (const city of citiesToDelete) {
       if (!city || !city.id) continue;
       try {
@@ -4099,13 +4099,13 @@ export default function AdminUtilities() {
         console.error(`Failed to delete city ${city.id}:`, error);
         failCount++;
       }
-      setBulkDelete(prev => ({
+      setBulkDelete((prev) => ({
         ...prev, processed: prev.processed + 1, success: successCount, failed: failCount, currentLabel: city.name || city.id
       }));
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
     }
 
-    setBulkDelete(prev => ({ ...prev, running: false, open: false }));
+    setBulkDelete((prev) => ({ ...prev, running: false, open: false }));
     await refetchCities();
     await refreshData();
   }, [refetchCities, refreshData]);
@@ -4124,7 +4124,7 @@ export default function AdminUtilities() {
   const handleFindDuplicates = useCallback(async (deliveriesToProcess, onAutoSelect) => {
     console.log(`🔍 Finding duplicates in ${deliveriesToProcess?.length || 0} deliveries...`);
     console.log('📊 Data source:', dataViewMode.deliveries === 'offline' ? 'OFFLINE' : 'ONLINE');
-    
+
     if (!deliveriesToProcess || deliveriesToProcess.length === 0) {
       console.warn('⚠️ No deliveries to process');
       setConfirmDialog({
@@ -4137,31 +4137,31 @@ export default function AdminUtilities() {
       });
       return;
     }
-    
+
     const duplicateGroups = new Map();
     let skippedCount = 0;
     let processedCount = 0;
-    
+
     // DETAILED LOGGING: First 10 deliveries to debug
-    console.log('📊 First 10 deliveries being checked:', 
-      deliveriesToProcess.slice(0, 10).map(d => ({
-        id: d.id?.substring(0, 8),
-        sid: d.stop_id,
-        date: d.delivery_date,
-        driver_id: d.driver_id?.substring(0, 8),
-        patient: d.patient_name
-      }))
+    console.log('📊 First 10 deliveries being checked:',
+    deliveriesToProcess.slice(0, 10).map((d) => ({
+      id: d.id?.substring(0, 8),
+      sid: d.stop_id,
+      date: d.delivery_date,
+      driver_id: d.driver_id?.substring(0, 8),
+      patient: d.patient_name
+    }))
     );
-    
+
     deliveriesToProcess.forEach((d, idx) => {
       if (!d) {
         console.warn('⚠️ Null delivery at index', idx);
         return;
       }
-      
+
       const sid = d.stop_id?.toString().trim() || '';
       const date = d.delivery_date?.trim() || '';
-      
+
       // CRITICAL: Match by SID + Date ONLY (not driver_id)
       // Same stop appearing on same date for different drivers IS a duplicate
       if (!sid || !date) {
@@ -4171,46 +4171,46 @@ export default function AdminUtilities() {
         }
         return;
       }
-      
+
       processedCount++;
       const key = `${sid}|${date}`;
       if (!duplicateGroups.has(key)) {
         duplicateGroups.set(key, []);
       }
       duplicateGroups.get(key).push(d);
-      
+
       // Log first few keys being created
       if (processedCount <= 5) {
         console.log(`📊 Created key for delivery ${idx}: "${key}" (driver: ${d.driver_id?.substring(0, 8)})`);
       }
     });
-    
+
     console.log(`📊 Processed ${processedCount} deliveries, Skipped ${skippedCount}`);
     console.log(`📊 Found ${duplicateGroups.size} unique SID+Date combinations`);
-    
+
     // Log groups with their sizes
     const groupSizes = Array.from(duplicateGroups.entries()).map(([key, group]) => ({
       key,
       count: group.length
     })).sort((a, b) => b.count - a.count);
-    
+
     console.log(`📊 Top 10 groups by size:`, groupSizes.slice(0, 10));
-    
+
     const duplicateIds = [];
     let duplicateGroupCount = 0;
-    
+
     duplicateGroups.forEach((group, key) => {
       if (group.length > 1) {
         duplicateGroupCount++;
-        console.log(`📊 DUPLICATE Group "${key}": ${group.length} deliveries - IDs:`, group.map(d => d.id?.substring(0, 8)));
+        console.log(`📊 DUPLICATE Group "${key}": ${group.length} deliveries - IDs:`, group.map((d) => d.id?.substring(0, 8)));
         // Keep the oldest (first after sorting by created_date), mark all others as duplicates
         const sorted = [...group].sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
-        sorted.slice(1).forEach(d => duplicateIds.push(d.id));
+        sorted.slice(1).forEach((d) => duplicateIds.push(d.id));
       }
     });
-    
+
     console.log(`✅ Found ${duplicateGroupCount} duplicate groups with ${duplicateIds.length} duplicates to mark`);
-    
+
     if (duplicateIds.length === 0) {
       setConfirmDialog({
         open: true,
@@ -4222,14 +4222,14 @@ export default function AdminUtilities() {
       });
       return;
     }
-    
+
     // Auto-select the duplicate checkboxes and activate duplicate filter mode
     console.log(`✅ Auto-selecting ${duplicateIds.length} duplicate deliveries from ${duplicateGroupCount} groups`);
     setDuplicateFilterMode(true);
     if (onAutoSelect) {
       onAutoSelect(duplicateIds);
     }
-    
+
     setConfirmDialog({
       open: true,
       title: `✅ Found ${duplicateIds.length} Duplicates`,
@@ -4238,7 +4238,7 @@ export default function AdminUtilities() {
       variant: 'default',
       onConfirm: () => {}
     });
-    
+
   }, [dataViewMode.deliveries]);
 
 
@@ -4258,10 +4258,10 @@ export default function AdminUtilities() {
   const handleDriverChange = useCallback(async (delivery, newDriverId) => {
     try {
       const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
-      const driver = driversForDropdown.find(d => d && d.id === newDriverId);
+      const driver = driversForDropdown.find((d) => d && d.id === newDriverId);
       const driverName = driver ? getDriverDisplayName(driver) : '';
-      
-      await updateDeliveryLocal(delivery.id, { 
+
+      await updateDeliveryLocal(delivery.id, {
         driver_id: newDriverId,
         driver_name: driverName
       });
@@ -4275,13 +4275,13 @@ export default function AdminUtilities() {
 
   const handleEditEntity = (entity) => {
     console.log('Edit entity:', entity);
-    
+
     // If it's a delivery, open the form
     if (activeDataTab === 'deliveries') {
       setEditingDelivery(entity);
       return;
     }
-    
+
     // For other entities, show message
     alert('Edit functionality not implemented yet. Please use the dedicated management pages (Patients, Stores, etc.) to edit records.');
   };
@@ -4329,24 +4329,24 @@ export default function AdminUtilities() {
         try {
           console.log(`Deleting ${entityType} (${isOfflineMode ? 'offline' : 'online'}):`, entity.id);
           const { offlineDB } = await import('../components/utils/offlineDatabase');
-          
+
           if (isOfflineMode) {
             // OFFLINE MODE: Delete ONLY from offline DB
             if (entityType === 'patients') {
               await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, entity.id);
-              setOfflinePatients(prev => prev.filter(p => p.id !== entity.id));
+              setOfflinePatients((prev) => prev.filter((p) => p.id !== entity.id));
             } else if (entityType === 'deliveries') {
               await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);
-              setOfflineDeliveries(prev => prev.filter(d => d.id !== entity.id));
+              setOfflineDeliveries((prev) => prev.filter((d) => d.id !== entity.id));
             } else if (entityType === 'stores') {
               await offlineDB.deleteRecord(offlineDB.STORES.STORES, entity.id);
-              setOfflineStores(prev => prev.filter(s => s.id !== entity.id));
+              setOfflineStores((prev) => prev.filter((s) => s.id !== entity.id));
             } else if (entityType === 'users') {
               await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, entity.id);
-              setOfflineAppUsers(prev => prev.filter(u => u.id !== entity.id));
+              setOfflineAppUsers((prev) => prev.filter((u) => u.id !== entity.id));
             } else if (entityType === 'cities') {
               await offlineDB.deleteRecord(offlineDB.STORES.CITIES, entity.id);
-              setOfflineCities(prev => prev.filter(c => c.id !== entity.id));
+              setOfflineCities((prev) => prev.filter((c) => c.id !== entity.id));
             }
             console.log(`✅ Deleted ${entityName} from offline DB`);
           } else {
@@ -4354,7 +4354,7 @@ export default function AdminUtilities() {
             if (entityType === 'patients') {
               await Patient.delete(entity.id);
             } else if (entityType === 'deliveries') {
-              await Delivery.delete(entity.id); try { const { offlineDB } = await import('../components/utils/offlineDatabase'); await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id); } catch (_) {}
+              await Delivery.delete(entity.id);try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);} catch (_) {}
             } else if (entityType === 'stores') {
               await Store.delete(entity.id);
             } else if (entityType === 'users') {
@@ -4363,7 +4363,7 @@ export default function AdminUtilities() {
               await City.delete(entity.id);
             }
             console.log(`✅ Deleted ${entityName} from backend`);
-            
+
             // Refetch online data
             await invalidate(EntityClass.name);
             switch (entityType) {
@@ -4389,13 +4389,13 @@ export default function AdminUtilities() {
           alert(`✅ Successfully deleted "${entityName}" from ${isOfflineMode ? 'offline DB' : 'backend'}`);
         } catch (error) {
           console.error(`❌ Failed to delete ${entityName}:`, error);
-          
+
           // CRITICAL: Ignore 404 errors for offline mode (record already gone)
-          if (isOfflineMode || error?.response?.status === 404 || String(error?.message||'').includes('404') || String(error?.message||'').toLowerCase().includes('not found')) {
-            try { const { offlineDB } = await import('../components/utils/offlineDatabase'); if (entityType === 'deliveries') { await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id); } if (entityType === 'patients') { await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, entity.id); } } catch (_) {} alert(`✅ Successfully deleted "${entityName}"`);
+          if (isOfflineMode || error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found')) {
+            try {const { offlineDB } = await import('../components/utils/offlineDatabase');if (entityType === 'deliveries') {await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);}if (entityType === 'patients') {await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, entity.id);}} catch (_) {}alert(`✅ Successfully deleted "${entityName}"`);
             return;
           }
-          
+
           alert(`❌ Failed to delete "${entityName}": ${error.message}`);
         }
       }
@@ -4408,8 +4408,8 @@ export default function AdminUtilities() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
         <span className="ml-3 text-lg" style={{ color: 'var(--text-slate-600)' }}>Loading initial data...</span>
-      </div>
-    );
+      </div>);
+
   }
 
   if (!hasAccess) {
@@ -4420,8 +4420,8 @@ export default function AdminUtilities() {
           <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Access Denied</h2>
           <p style={{ color: 'var(--text-slate-600)' }}>Only app owners can access this page.</p>
         </Card>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -4436,28 +4436,28 @@ export default function AdminUtilities() {
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
           <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
-            <TabsList className="grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-10" style={{gridTemplateColumns:'repeat(8,minmax(max-content,1fr))'}}>
-              <TabsTrigger value="data" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Data</TabsTrigger>
-              <TabsTrigger value="store-metrics" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Metrics</TabsTrigger>
-              <TabsTrigger value="user-settings" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Settings</TabsTrigger>
-              <TabsTrigger value="app-settings" className="text-xs md:text-sm px-3 py-2 justify-center text-center">App</TabsTrigger>
-              <TabsTrigger value="message-rules" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Messages</TabsTrigger>
-              <TabsTrigger value="polylines" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Routes</TabsTrigger>
-              <TabsTrigger value="api-logs" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Logs</TabsTrigger>
-              <TabsTrigger value="patient-analysis" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Patient Analysis</TabsTrigger>
+            <TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(8,minmax(max-content,1fr))' }}>
+              <TabsTrigger value="data" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Data</TabsTrigger>
+              <TabsTrigger value="store-metrics" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Metrics</TabsTrigger>
+              <TabsTrigger value="user-settings" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Settings</TabsTrigger>
+              <TabsTrigger value="app-settings" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">App</TabsTrigger>
+              <TabsTrigger value="message-rules" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Messages</TabsTrigger>
+              <TabsTrigger value="polylines" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Routes</TabsTrigger>
+              <TabsTrigger value="api-logs" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Logs</TabsTrigger>
+              <TabsTrigger value="patient-analysis" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Patient Analysis</TabsTrigger>
             </TabsList>
           </div>
 
           <TabsContent value="data">
-            {(dataLoading && activeDataTab !== 'deliveries') || (dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length) ? (
-              <div className="flex justify-center items-center h-60">
+            {dataLoading && activeDataTab !== 'deliveries' || dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length ?
+            <div className="flex justify-center items-center h-60">
                 <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
                 <span className="ml-3 text-lg text-slate-600">Loading data...</span>
-              </div>
-            ) : (
-              <div className="space-y-6">
+              </div> :
+
+            <div className="space-y-6">
                 <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full">
-                   <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-10" style={{gridTemplateColumns:'repeat(6,minmax(max-content,1fr))'}}>
+                   <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(6,minmax(max-content,1fr))' }}>
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Deliveries</TabsTrigger>
                        <TabsTrigger value="patients" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Patients</TabsTrigger>
                        <TabsTrigger value="stores" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Stores</TabsTrigger>
@@ -4469,163 +4469,163 @@ export default function AdminUtilities() {
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
                       <div className="flex flex-col md:flex-row gap-2 flex-wrap items-stretch md:items-center justify-between">
-                        {!manualLoadTriggered ? (
-                          <Alert className="flex-1">
+                        {!manualLoadTriggered ?
+                      <Alert className="flex-1">
                             <AlertCircle className="h-4 w-4" />
                             <AlertDescription className="flex items-center justify-between">
                               <span>Select filters above, then click "Load Data" to fetch deliveries.</span>
                               <Button
-                                onClick={() => setManualLoadTriggered(true)}
-                                disabled={deliveriesLoading}
-                                size="sm"
-                              >
+                            onClick={() => setManualLoadTriggered(true)}
+                            disabled={deliveriesLoading}
+                            size="sm">
+                            
                                 <Database className="w-4 h-4 mr-2" />
                                 Load Data
                               </Button>
                             </AlertDescription>
-                          </Alert>
-                        ) : (
-                          <Button
-                            onClick={() => {
-                              setManualLoadTriggered(false);
-                              setTimeout(() => setManualLoadTriggered(true), 100);
-                            }}
-                            disabled={deliveriesLoading}
-                            variant="outline"
-                          >
+                          </Alert> :
+
+                      <Button
+                        onClick={() => {
+                          setManualLoadTriggered(false);
+                          setTimeout(() => setManualLoadTriggered(true), 100);
+                        }}
+                        disabled={deliveriesLoading}
+                        variant="outline">
+                        
                             <RefreshCw className={`w-4 h-4 mr-2 ${deliveriesLoading ? 'animate-spin' : ''}`} />
                             Reload Data
                           </Button>
-                        )}
-                        {manualLoadTriggered && (
-                           <div className="flex gap-2 w-full md:w-auto">
+                      }
+                        {manualLoadTriggered &&
+                      <div className="flex gap-2 w-full md:w-auto">
                              <Button
-                               variant={dataViewMode.deliveries === 'offline' ? 'default' : 'outline'}
-                               size="sm"
-                               onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'offline' }))}
-                               className="flex-1 md:flex-none min-h-10"
-                             >
+                          variant={dataViewMode.deliveries === 'offline' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setDataViewMode((prev) => ({ ...prev, deliveries: 'offline' }))}
+                          className="flex-1 md:flex-none min-h-10">
+                          
                                Offline
                              </Button>
                              <Button
-                               variant={dataViewMode.deliveries !== 'offline' ? 'default' : 'outline'}
-                               size="sm"
-                               onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'online' }))}
-                               className="flex-1 md:flex-none min-h-10"
-                             >
+                          variant={dataViewMode.deliveries !== 'offline' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setDataViewMode((prev) => ({ ...prev, deliveries: 'online' }))}
+                          className="flex-1 md:flex-none min-h-10">
+                          
                                Online
                              </Button>
                            </div>
-                         )}
+                      }
                       </div>
 
                       {manualLoadTriggered && <DeliveryDataTable
-                         deliveries={filteredAndSortedDeliveries}
-                         patients={patients || []}
-                         stores={stores || []}
-                         drivers={driversForDropdown}
-                         onEdit={handleEditEntity}
-                         onDelete={handleDeleteEntity}
-                         onDeleteAll={_confirmDeleteAllDeliveries}
-                         onDeleteSelected={_confirmDeleteSelectedDeliveries}
-                         onFindDuplicates={(deliveries) => handleFindDuplicates(deliveries, setAutoSelectDuplicateIds)}
-                         autoSelectIds={autoSelectDuplicateIds}
-                         duplicateFilterMode={duplicateFilterMode}
-                         onAutoSelectProcessed={() => setAutoSelectDuplicateIds([])}
-                         onClearDuplicateFilter={() => setDuplicateFilterMode(false)}
-                         filterText={deliveryFilterText}
-                         onFilterChange={setDeliveryFilterText}
-                         sortColumn={deliverySortColumn}
-                         sortDirection={deliverySortDirection}
-                         onSortChange={handleDeliverySort}
-                         isLoadingData={deliveriesLoading}
-                         selectedYear={selectedDeliveryYear}
-                         onYearChange={(year) => {
-                           if (currentUser?.id) {
-                             saveSetting(currentUser.id, 'admin_utilities_year', year);
-                           }
-                           setSelectedDeliveryYear(year);
-                         }}
-                         availableYears={availableDeliveryYears}
-                         selectedMonth={selectedDeliveryMonth}
-                         onMonthChange={(month) => {
-                           if (currentUser?.id) {
-                             saveSetting(currentUser.id, 'admin_utilities_month', month);
-                           }
-                           setSelectedDeliveryMonth(month);
-                         }}
-                         selectedDriver={selectedDriver}
-                         onDriverChange={(driver) => {
-                           if (currentUser?.id) {
-                             saveSetting(currentUser.id, 'admin_utilities_driver', driver);
-                           }
-                           setSelectedDriver(driver);
-                         }}
-                       />}
+                      deliveries={filteredAndSortedDeliveries}
+                      patients={patients || []}
+                      stores={stores || []}
+                      drivers={driversForDropdown}
+                      onEdit={handleEditEntity}
+                      onDelete={handleDeleteEntity}
+                      onDeleteAll={_confirmDeleteAllDeliveries}
+                      onDeleteSelected={_confirmDeleteSelectedDeliveries}
+                      onFindDuplicates={(deliveries) => handleFindDuplicates(deliveries, setAutoSelectDuplicateIds)}
+                      autoSelectIds={autoSelectDuplicateIds}
+                      duplicateFilterMode={duplicateFilterMode}
+                      onAutoSelectProcessed={() => setAutoSelectDuplicateIds([])}
+                      onClearDuplicateFilter={() => setDuplicateFilterMode(false)}
+                      filterText={deliveryFilterText}
+                      onFilterChange={setDeliveryFilterText}
+                      sortColumn={deliverySortColumn}
+                      sortDirection={deliverySortDirection}
+                      onSortChange={handleDeliverySort}
+                      isLoadingData={deliveriesLoading}
+                      selectedYear={selectedDeliveryYear}
+                      onYearChange={(year) => {
+                        if (currentUser?.id) {
+                          saveSetting(currentUser.id, 'admin_utilities_year', year);
+                        }
+                        setSelectedDeliveryYear(year);
+                      }}
+                      availableYears={availableDeliveryYears}
+                      selectedMonth={selectedDeliveryMonth}
+                      onMonthChange={(month) => {
+                        if (currentUser?.id) {
+                          saveSetting(currentUser.id, 'admin_utilities_month', month);
+                        }
+                        setSelectedDeliveryMonth(month);
+                      }}
+                      selectedDriver={selectedDriver}
+                      onDriverChange={(driver) => {
+                        if (currentUser?.id) {
+                          saveSetting(currentUser.id, 'admin_utilities_driver', driver);
+                        }
+                        setSelectedDriver(driver);
+                      }} />
+                    }
                     </div>
                   </TabsContent>
 
                   <TabsContent value="patients" className="mt-6">
                     <AdminPatientsTab
-                      dataViewMode={dataViewMode}
-                      setDataViewMode={setDataViewMode}
-                    >
+                    dataViewMode={dataViewMode}
+                    setDataViewMode={setDataViewMode}>
+                    
                       <PatientDataTable
-                        patients={filteredPatientsForDetectDuplicates || []}
-                        stores={stores || []}
-                        onEdit={handleEditEntity}
-                        onDelete={handleDeleteEntity}
-                        filterText={patientFilterText}
-                        onFilterChange={setPatientFilterText}
-                        sortColumn={patientSortColumn}
-                        sortDirection={patientSortDirection}
-                        onSortChange={handlePatientSort}
-                        isLoadingData={patientsLoading}
-                        onDeleteAll={_confirmDeleteAllPatients}
-                        onDeleteSelected={_confirmDeleteSelectedPatients}
-                      />
+                      patients={filteredPatientsForDetectDuplicates || []}
+                      stores={stores || []}
+                      onEdit={handleEditEntity}
+                      onDelete={handleDeleteEntity}
+                      filterText={patientFilterText}
+                      onFilterChange={setPatientFilterText}
+                      sortColumn={patientSortColumn}
+                      sortDirection={patientSortDirection}
+                      onSortChange={handlePatientSort}
+                      isLoadingData={patientsLoading}
+                      onDeleteAll={_confirmDeleteAllPatients}
+                      onDeleteSelected={_confirmDeleteSelectedPatients} />
+                    
                     </AdminPatientsTab>
                   </TabsContent>
 
                   <TabsContent value="stores" className="mt-6">
                     <SimpleDataViewTab viewKey="stores" dataViewMode={dataViewMode} setDataViewMode={setDataViewMode}>
                       <StoreDataTable
-                        stores={stores || []}
-                        onEdit={handleEditEntity}
-                        onDelete={handleDeleteEntity}
-                        onDeleteSelected={_confirmDeleteSelectedStores}
-                        isLoadingData={storesLoading}
-                      />
+                      stores={stores || []}
+                      onEdit={handleEditEntity}
+                      onDelete={handleDeleteEntity}
+                      onDeleteSelected={_confirmDeleteSelectedStores}
+                      isLoadingData={storesLoading} />
+                    
                     </SimpleDataViewTab>
                   </TabsContent>
 
                   <TabsContent value="users" className="mt-6">
                     <SimpleDataViewTab viewKey="users" dataViewMode={dataViewMode} setDataViewMode={setDataViewMode}>
                       <UserDataTable
-                        users={appUsers || []}
-                        onEdit={handleEditEntity}
-                        onDelete={handleDeleteEntity}
-                        onDeleteSelected={_confirmDeleteSelectedUsers}
-                        isLoadingData={appUsersLoading}
-                      />
+                      users={appUsers || []}
+                      onEdit={handleEditEntity}
+                      onDelete={handleDeleteEntity}
+                      onDeleteSelected={_confirmDeleteSelectedUsers}
+                      isLoadingData={appUsersLoading} />
+                    
                     </SimpleDataViewTab>
                   </TabsContent>
 
                   <TabsContent value="cities" className="mt-6">
                     <SimpleDataViewTab viewKey="cities" dataViewMode={dataViewMode} setDataViewMode={setDataViewMode}>
                       <CityDataTable
-                        cities={cities || []}
-                        onEdit={handleEditEntity}
-                        onDelete={handleDeleteEntity}
-                        onDeleteSelected={_confirmDeleteSelectedCities}
-                        isLoadingData={citiesLoading}
-                      />
+                      cities={cities || []}
+                      onEdit={handleEditEntity}
+                      onDelete={handleDeleteEntity}
+                      onDeleteSelected={_confirmDeleteSelectedCities}
+                      isLoadingData={citiesLoading} />
+                    
                     </SimpleDataViewTab>
                   </TabsContent>
                   <TabsContent value="credits" className="mt-6"><IntegrationCreditsTab /></TabsContent>
                 </Tabs>
               </div>
-            )}
+            }
           </TabsContent>
 
           <TabsContent value="store-metrics">
@@ -4633,10 +4633,10 @@ export default function AdminUtilities() {
           </TabsContent>
 
           <TabsContent value="user-settings">
-            <UserSettingsTable 
+            <UserSettingsTable
               appUsers={appUsers || []}
-              mergedUsers={mergedUsers}
-            />
+              mergedUsers={mergedUsers} />
+            
           </TabsContent>
 
           <TabsContent value="app-settings">
@@ -4661,55 +4661,55 @@ export default function AdminUtilities() {
         </Tabs>
       </div>
 
-      {showRouteImport && (
-        <RouteImport
-          onImportComplete={handleRouteImportComplete}
-          onCancel={() => setShowRouteImport(false)}
-          stores={stores || []}
-          drivers={driversForDropdown}
-          allUsers={mergedUsers}
-          currentUser={currentUser}
-          allDeliveries={allDeliveries || []}
-        />
-      )}
+      {showRouteImport &&
+      <RouteImport
+        onImportComplete={handleRouteImportComplete}
+        onCancel={() => setShowRouteImport(false)}
+        stores={stores || []}
+        drivers={driversForDropdown}
+        allUsers={mergedUsers}
+        currentUser={currentUser}
+        allDeliveries={allDeliveries || []} />
 
-      {editingDelivery && (
-        <DeliveryForm
-          delivery={editingDelivery}
-          patients={patients || []}
-          stores={stores || []}
-          drivers={mergedUsers || []}
-          currentUser={currentUser}
-          allDeliveries={allDeliveries || []}
-          onSave={async (updatedData) => {
-            try {
-              const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
-              await updateDeliveryLocal(editingDelivery.id, updatedData);
-              setEditingDelivery(null);
-              await refetchDeliveries();
-              await refreshData();
-            } catch (error) {
-              console.error('Failed to update delivery:', error);
-              throw error;
-            }
-          }}
-          onCancel={() => setEditingDelivery(null)}
-          closeOnSave={true}
-        />
-      )}
+      }
+
+      {editingDelivery &&
+      <DeliveryForm
+        delivery={editingDelivery}
+        patients={patients || []}
+        stores={stores || []}
+        drivers={mergedUsers || []}
+        currentUser={currentUser}
+        allDeliveries={allDeliveries || []}
+        onSave={async (updatedData) => {
+          try {
+            const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
+            await updateDeliveryLocal(editingDelivery.id, updatedData);
+            setEditingDelivery(null);
+            await refetchDeliveries();
+            await refreshData();
+          } catch (error) {
+            console.error('Failed to update delivery:', error);
+            throw error;
+          }
+        }}
+        onCancel={() => setEditingDelivery(null)}
+        closeOnSave={true} />
+
+      }
 
       <Dialog open={bulkDelete.open} onOpenChange={(open) => {
         if (!bulkDelete.running) {
-          setBulkDelete(prev => ({ ...prev, open }));
+          setBulkDelete((prev) => ({ ...prev, open }));
         }
       }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Deleting {bulkDelete.entityLabel}</DialogTitle>
             <DialogDescription>
-              {bulkDelete.running
-                ? `Please keep this window open while we delete the filtered ${bulkDelete.entityLabel.toLowerCase()}.`
-                : "Bulk delete completed."}
+              {bulkDelete.running ?
+              `Please keep this window open while we delete the filtered ${bulkDelete.entityLabel.toLowerCase()}.` :
+              "Bulk delete completed."}
             </DialogDescription>
           </DialogHeader>
 
@@ -4721,7 +4721,7 @@ export default function AdminUtilities() {
             <div className="text-xs text-slate-500">
               Current delay: {Math.round(bulkDelete.currentDelay)} ms • Retrying: {bulkDelete.retryQueue}
             </div>
-            <Progress value={bulkDelete.total ? (bulkDelete.processed / bulkDelete.total) * 100 : 0} />
+            <Progress value={bulkDelete.total ? bulkDelete.processed / bulkDelete.total * 100 : 0} />
             <div className="flex items-center justify-between text-sm">
               <div className="text-emerald-600 font-medium">Success: {bulkDelete.success}</div>
               <div className="text-red-600 font-medium">Failed: {bulkDelete.failed}</div>
@@ -4730,9 +4730,9 @@ export default function AdminUtilities() {
 
           <DialogFooter className="mt-4">
             <Button
-              onClick={() => setBulkDelete(prev => ({ ...prev, open: false }))}
-              disabled={bulkDelete.running}
-            >
+              onClick={() => setBulkDelete((prev) => ({ ...prev, open: false }))}
+              disabled={bulkDelete.running}>
+              
               {bulkDelete.running ? 'Deleting…' : 'Close'}
             </Button>
           </DialogFooter>
@@ -4741,13 +4741,13 @@ export default function AdminUtilities() {
 
       <ConfirmationDialog
         open={confirmDialog.open}
-        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}
+        onOpenChange={(open) => setConfirmDialog((prev) => ({ ...prev, open }))}
         title={confirmDialog.title}
         description={confirmDialog.description}
         onConfirm={confirmDialog.onConfirm}
         confirmText={confirmDialog.confirmText}
-        variant={confirmDialog.variant}
-      />
-    </div>
-  );
+        variant={confirmDialog.variant} />
+      
+    </div>);
+
 }
