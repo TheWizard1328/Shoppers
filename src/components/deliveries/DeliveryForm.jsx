@@ -2795,51 +2795,37 @@ export default function DeliveryForm({
 
   useEffect(() => {
     const handleEnterKey = (event) => {
-      if (event.key !== 'Enter') return;
-      // CRITICAL: Don't handle Enter if PatientForm is open
-      if (isPatientFormOpen) return;
-      if (event.target.tagName === 'TEXTAREA') return;
-      if (event.target.getAttribute('role') === 'combobox') return;
-      if (event.target === patientSearchInputRef.current) return;
-      // CRITICAL: Don't prevent Enter on buttons - let them execute their onClick handlers
-      if (event.target.tagName === 'BUTTON') return;
-
+      if (event.key !== 'Enter' || isPatientFormOpen) return;
+      if (event.target.tagName === 'TEXTAREA' || event.target.getAttribute('role') === 'combobox' || event.target === patientSearchInputRef.current || event.target.tagName === 'BUTTON') return;
       event.preventDefault();
-
-      // If editing an existing delivery, trigger submit (Update Delivery button)
-      if (delivery && isFormValid && !isSaving) {
-        handleSubmit(event);
+      if (event.target?.closest?.('[data-hotkey-add="true"]')) {
+        if (buttonState === 'add' && isFormValid) handleAddToStaging();
         return;
       }
-
-      // New delivery flow
-      if (buttonState === 'done') handleBatchSave();else
-      if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else
-      if (buttonState === 'add' && isFormValid) handleAddToStaging();
+      if (delivery && isFormValid && !isSaving) return handleSubmit(event);
+      if (buttonState === 'done') handleBatchSave();else if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else if (buttonState === 'add' && isFormValid) handleAddToStaging();
     };
-
     document.addEventListener('keydown', handleEnterKey);
     return () => document.removeEventListener('keydown', handleEnterKey);
   }, [buttonState, isFormValid, handleAddToStaging, handleUpdateStaged, handleBatchSave, delivery, isSaving, handleSubmit, isPatientFormOpen]);
 
   useEffect(() => {
     const handleEscapeKey = (event) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        // Always trigger cancel on Escape (closes form or clears based on state)
-        if (showCameraOverlay) {// If camera overlay is open, close it first
-          stopCamera();
-          setShowCameraOverlay(false);
-          setIsScanning(false);
-        } else {
-          handleCancelClick();
-        }
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (showCameraOverlay) {
+        stopCamera();
+        setShowCameraOverlay(false);
+        setIsScanning(false);
+      } else if (delivery || cancelButtonState !== 'clear') {
+        handleCancelClick();
+      } else {
+        handleClearForm();
       }
     };
-
     document.addEventListener('keydown', handleEscapeKey);
     return () => document.removeEventListener('keydown', handleEscapeKey);
-  }, [handleCancelClick, showCameraOverlay, stopCamera]);
+  }, [cancelButtonState, delivery, handleCancelClick, handleClearForm, showCameraOverlay, stopCamera]);
 
   useEffect(() => {
     if (!delivery && shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
