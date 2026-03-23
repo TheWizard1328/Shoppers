@@ -753,7 +753,7 @@ export default function DeliveryMap({
     const updateCrosshairCoords = () => {
       const topObscured = isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0;
       const bottomObscured = areStopCardsVisible ? stopCardsHeight : 0;
-      const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 15;
+      const verticalShift = Math.round((bottomObscured - topObscured) / 2);
       const size = map.getSize();
       const point = L.point(size.x / 2, size.y / 2 - verticalShift);
       const latLng = map.containerPointToLatLng(point);
