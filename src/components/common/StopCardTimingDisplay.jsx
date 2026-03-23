@@ -1,16 +1,8 @@
 import { Clock } from 'lucide-react';
-import { format } from 'date-fns';
 
 const extractStoredTime = (value) => {
   if (!value) return null;
   const raw = String(value);
-  const hasTimezoneSuffix = /Z$|[+-]\d{2}:?\d{2}$/.test(raw);
-  if (hasTimezoneSuffix) {
-    const parsed = new Date(raw);
-    if (!Number.isNaN(parsed.getTime())) {
-      return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
-    }
-  }
   const isoMatch = raw.match(/T(\d{2}:\d{2})/);
   if (isoMatch) return isoMatch[1];
   const timeMatch = raw.match(/^(\d{2}:\d{2})/);
@@ -29,8 +21,7 @@ const formatTime12Hour = (timeString) => {
   }
 
   try {
-    const normalized = extractStoredTime(timeString) || String(timeString);
-    const timeParts = normalized.split(':');
+    const timeParts = String(timeString).split(':');
     if (timeParts.length < 2) return '--:--';
 
     const hours = parseInt(timeParts[0], 10);
@@ -87,12 +78,12 @@ export default function StopCardTimingDisplay({
           {delivery?.arrival_time && (
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              Arr: {formatTime12Hour(delivery.arrival_time)}
+              Arr: {formatTime12Hour(format(new Date(delivery.arrival_time), 'HH:mm'))}
             </span>
           )}
           {delivery?.arrival_time && delivery?.actual_delivery_time && <span>•</span>}
           {delivery?.actual_delivery_time && (
-            <span>Done: {formatTime12Hour(delivery.actual_delivery_time)}</span>
+            <span>Done: {formatTime12Hour(format(new Date(delivery.actual_delivery_time), 'HH:mm'))}</span>
           )}
         </div>
       }
