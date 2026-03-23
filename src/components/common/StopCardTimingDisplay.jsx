@@ -79,7 +79,7 @@ export default function StopCardTimingDisplay({
           {delivery?.arrival_time && (
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              Arr: {formatTime12Hour(format(new Date(delivery.arrival_time), 'HH:mm'))}
+              Arr: {formatTime12Hour(delivery.arrival_time)}
             </span>
           )}
           {delivery?.arrival_time && delivery?.actual_delivery_time && <span>•</span>}
