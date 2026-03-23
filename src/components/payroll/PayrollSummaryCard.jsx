@@ -1449,157 +1449,138 @@ export default function PayrollSummaryCard({
                 </div>
 
                 {/* Two Column Layout */}
-                <div className="flex gap-3 items-start justify-between">
-                  {/* Left Column: Period Stats Summary */}
-                  <div className="text-xs grid gap-1" style={{ gridTemplateColumns: '150px 140px 140px', rowGap: '0.125rem' }}>
-                    {/* Row 1 */}
-                    <div className="flex items-center">
-                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
-                      <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
-                        {driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex items-center">
-                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                      <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
-                        {driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex items-center">
-                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                      <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
-                        {driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}
-                      </span>
-                    </div>
-                    
-                    {/* Row 2 */}
-                    <div className="flex items-center">
-                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
-                      <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">
-                        {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
-                      </span>
-                    </div>
-                    <div className="flex items-center">
-                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
-                      <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">
-                        {driversWithDeliveries.reduce((sum, d) => sum + d.storeReturnCount, 0)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Pay Totals with YTD */}
-                  <div className="flex items-start ml-auto gap-3">
-                  {/* Period Column */}
-                  <div className="flex flex-col">
-                    {grandTotalTax > 0 || grandTotalDeductions > 0 ?
-                      <>
-                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>Period</div>
-                        <table className="border-collapse">
-                          <tbody>
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-left pr-2">Gross:</td>
-                              <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalAllDrivers.toFixed(2)}</td>
-                            </tr>
-                            {grandTotalTax > 0 &&
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-left pr-2">Tax:</td>
-                              <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalTax.toFixed(2)}</td>
-                            </tr>
-                            }
-                            {grandTotalDeductions > 0 &&
-                            <tr style={{ color: '#ef4444' }}>
-                              <td className="text-left pr-2">Deductions:</td>
-                              <td className="text-right pr-0.5">-$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalDeductions.toFixed(2)}</td>
-                            </tr>
-                            }
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-left pr-2">Bonus:</td>
-                              <td className="text-right pr-0.5">+$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</td>
-                            </tr>
-                            {isPeriodEndOfMonth &&
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-left pr-2">Extra App Fee Cut:</td>
-                              <td className="text-right pr-0.5">-$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
-                            </tr>
-                            }
-                            <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
-                              <td colSpan="3" className="pt-1"></td>
-                            </tr>
-                            <tr className="text-lg font-bold text-emerald-600">
-                              <td className="text-left pr-2">Net:</td>
-                              <td className="text-right pr-0.5">$</td>
-                              <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </> :
-
-                      <div className="text-lg font-bold text-emerald-700">
-                        {formatCurrency(grandTotalGross)}
+                <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
+                  <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="grid gap-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span style={{ color: 'var(--text-slate-600)' }}>Deliveries</span>
+                        <span className="rounded-md px-2 py-1 text-xs font-semibold" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                          {driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}
+                        </span>
                       </div>
-                      }
-                  </div>
-
-                  {/* Vertical Divider */}
-                  <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
-
-                  {/* YTD Column */}
-                  <div className="flex flex-col">
-                    {ytdGrandTotalTax > 0 || ytdGrandTotalDeductions > 0 ?
-                      <>
-                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>YTD</div>
-                        <table className="border-collapse">
-                          <tbody>
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalNet.toFixed(2)}</td>
-                            </tr>
-                            {ytdGrandTotalTax > 0 &&
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalTax.toFixed(2)}</td>
-                            </tr>
-                            }
-                            {ytdGrandTotalDeductions > 0 &&
-                            <tr style={{ color: '#ef4444' }}>
-                              <td className="text-right pr-0.5">-$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalDeductions.toFixed(2)}</td>
-                            </tr>
-                            }
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-right pr-0.5">+$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalBonus.toFixed(2)}</td>
-                            </tr>
-                            {isPeriodEndOfMonth &&
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                              <td className="text-right pr-0.5">-$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
-                            </tr>
-                            }
-                            <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
-                              <td colSpan="2" className="pt-1"></td>
-                            </tr>
-                            <tr className="text-lg font-bold text-emerald-600">
-                              <td className="text-right pr-0.5">$</td>
-                              <td className="text-right" style={{ width: '60px' }}>{ytdGrandTotalGross.toFixed(2)}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </> :
-
-                      <div className="text-lg font-bold text-emerald-700">
-                        <div className="text-xs text-center font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>YTD</div>
-                        {formatCurrency(ytdGrandTotalGross)}
+                      <div className="flex items-center justify-between">
+                        <span style={{ color: 'var(--text-slate-600)' }}>Extra KM</span>
+                        <span className="rounded-md px-2 py-1 text-xs font-semibold" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                          {driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}
+                        </span>
                       </div>
-                      }
+                      <div className="flex items-center justify-between">
+                        <span style={{ color: 'var(--text-slate-600)' }}>Oversized</span>
+                        <span className="rounded-md px-2 py-1 text-xs font-semibold" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                          {driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span style={{ color: 'var(--text-slate-600)' }}>Failed</span>
+                        <span className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
+                          {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span style={{ color: 'var(--text-slate-600)' }}>Returns</span>
+                        <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">
+                          {driversWithDeliveries.reduce((sum, d) => sum + d.storeReturnCount, 0)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
+
+                  <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="text-xs h-full flex items-start justify-center" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      <div className="flex gap-4">
+                        <div className="flex flex-col">
+                          <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
+                          <table className="border-collapse">
+                            <tbody>
+                              <tr style={{ color: 'var(--text-slate-600)' }}>
+                                <td className="text-left pr-2">Gross:</td>
+                                <td className="text-right pr-0.5">$</td>
+                                <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalAllDrivers.toFixed(2)}</td>
+                              </tr>
+                              {grandTotalTax > 0 &&
+                                <tr style={{ color: 'var(--text-slate-600)' }}>
+                                  <td className="text-left pr-2">Tax:</td>
+                                  <td className="text-right pr-0.5">$</td>
+                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalTax.toFixed(2)}</td>
+                                </tr>
+                              }
+                              {grandTotalDeductions > 0 &&
+                                <tr style={{ color: '#ef4444' }}>
+                                  <td className="text-left pr-2">Deductions:</td>
+                                  <td className="text-right pr-0.5">-$</td>
+                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalDeductions.toFixed(2)}</td>
+                                </tr>
+                              }
+                              <tr style={{ color: 'var(--text-slate-600)' }}>
+                                <td className="text-left pr-2">Bonus:</td>
+                                <td className="text-right pr-0.5">+$</td>
+                                <td className="text-right font-semibold" style={{ width: '60px' }}>{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</td>
+                              </tr>
+                              {isPeriodEndOfMonth &&
+                                <tr style={{ color: 'var(--text-slate-600)' }}>
+                                  <td className="text-left pr-2">Extra App Fee Cut:</td>
+                                  <td className="text-right pr-0.5">-$</td>
+                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
+                                </tr>
+                              }
+                              <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
+                                <td colSpan="3" className="pt-1"></td>
+                              </tr>
+                              <tr className="text-lg font-bold text-emerald-600">
+                                <td className="text-left pr-2">Net:</td>
+                                <td className="text-right pr-0.5">$</td>
+                                <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+
+                        <div className="flex flex-col">
+                          <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>YTD</div>
+                          <table className="border-collapse">
+                            <tbody>
+                              <tr style={{ color: 'var(--text-slate-600)' }}>
+                                <td className="text-right pr-0.5">$</td>
+                                <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalNet.toFixed(2)}</td>
+                              </tr>
+                              {ytdGrandTotalTax > 0 &&
+                                <tr style={{ color: 'var(--text-slate-600)' }}>
+                                  <td className="text-right pr-0.5">$</td>
+                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalTax.toFixed(2)}</td>
+                                </tr>
+                              }
+                              {ytdGrandTotalDeductions > 0 &&
+                                <tr style={{ color: '#ef4444' }}>
+                                  <td className="text-right pr-0.5">-$</td>
+                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalDeductions.toFixed(2)}</td>
+                                </tr>
+                              }
+                              <tr style={{ color: 'var(--text-slate-600)' }}>
+                                <td className="text-right pr-0.5">+$</td>
+                                <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalBonus.toFixed(2)}</td>
+                              </tr>
+                              {isPeriodEndOfMonth &&
+                                <tr style={{ color: 'var(--text-slate-600)' }}>
+                                  <td className="text-right pr-0.5">-$</td>
+                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
+                                </tr>
+                              }
+                              <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
+                                <td colSpan="2" className="pt-1"></td>
+                              </tr>
+                              <tr className="text-lg font-bold text-emerald-600">
+                                <td className="text-right pr-0.5">$</td>
+                                <td className="text-right" style={{ width: '60px' }}>{ytdGrandTotalGross.toFixed(2)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  </div>
+                </div>
               </div>
 
               <div style={{
