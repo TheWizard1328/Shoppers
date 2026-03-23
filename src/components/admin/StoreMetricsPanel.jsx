@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, FileText, Calendar } from 'lucide-react';
+import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, Share2, Calendar } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
@@ -343,9 +343,9 @@ export default function StoreMetricsPanel() {
                 Monthly breakdown of deliveries and fees using the shared admin metrics dataset
               </CardDescription>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
               <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-28">
+                <SelectTrigger className="w-24 shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -356,7 +356,7 @@ export default function StoreMetricsPanel() {
               </Select>
 
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-36">
+                <SelectTrigger className="w-32 shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -366,14 +366,12 @@ export default function StoreMetricsPanel() {
                 </SelectContent>
               </Select>
 
-              <Button variant="outline" onClick={loadMetrics} disabled={isLoading}>
-                <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
+              <Button variant="outline" size="icon" onClick={loadMetrics} disabled={isLoading} aria-label="Refresh metrics" title="Refresh metrics" className="shrink-0">
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               </Button>
 
-              <Button variant="outline" onClick={exportToPDF} disabled={!metrics?.stores?.length}>
-                <FileText className="w-4 h-4 mr-2" />
-                Export PDF
+              <Button variant="outline" size="icon" onClick={exportToPDF} disabled={!metrics?.stores?.length} aria-label="Share PDF" title="Share PDF" className="shrink-0">
+                <Share2 className="w-4 h-4" />
               </Button>
             </div>
           </div>
