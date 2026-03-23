@@ -50,6 +50,8 @@ import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescript
 import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './projectedDeliveryHelpers';
 import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
+import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
+import { createPatientFromDraft, resolvePickupPuid } from './deliveryAddHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -158,41 +160,20 @@ export default function DeliveryForm({
     };
 
     if (!delivery && currentUser && stores && drivers) {
-      const isDriver = userHasRole(currentUser, 'driver');
-      const isDispatcher = userHasRole(currentUser, 'dispatcher');
-      const isAdmin = userHasRole(currentUser, 'admin');
+      const { driverId, driverName } = resolveDefaultDriverForNewDelivery({
+        currentUser,
+        stores,
+        drivers,
+        allDrivers,
+        deliveryDate: initialState.delivery_date,
+        initialDriverId,
+        userHasRole,
+        getDriverNameForStorage
+      });
 
-      if (isDriver && !isAdmin && !isDispatcher) {
-        const currentUserDriver = allDrivers.find((d) => d.id === (initialDriverId && initialDriverId !== 'all' ? initialDriverId : currentUser.id));
-        if (currentUserDriver) {
-          initialState.driver_id = initialDriverId && initialDriverId !== 'all' ? initialDriverId : currentUser.id;
-          initialState.driver_name = getDriverNameForStorage(currentUserDriver);
-        }
-      } else if (isDispatcher && !isDriver && !isAdmin) {
-        const dispatcherStoreIds = currentUser.store_ids || [];
-        if (dispatcherStoreIds.length === 1) {
-          const dispatcherStore = stores.find((s) => s && s.id === dispatcherStoreIds[0]);
-          if (dispatcherStore) {
-            const selectedDate = new Date(initialState.delivery_date + 'T00:00:00');
-            const dayOfWeek = selectedDate.getDay();
-            let driverIdField = '';
-            if (dayOfWeek === 6) {
-              driverIdField = 'saturday_am_driver_id';
-            } else if (dayOfWeek === 0) {
-              driverIdField = 'sunday_am_driver_id';
-            } else {
-              driverIdField = 'weekday_am_driver_id';
-            }
-            const driverId = dispatcherStore[driverIdField];
-            if (driverId) {
-              const driver = drivers.find((d) => d && d.id === driverId);
-              if (driver) {
-                initialState.driver_id = driverId;
-                initialState.driver_name = getDriverNameForStorage(driver);
-              }
-            }
-          }
-        }
+      if (driverId && driverName) {
+        initialState.driver_id = driverId;
+        initialState.driver_name = driverName;
       }
     }
 
@@ -319,45 +300,16 @@ export default function DeliveryForm({
 
     if (!currentUser || !stores || !drivers || allDrivers.length === 0) return;
 
-    const isDriver = userHasRole(currentUser, 'driver');
-    const isDispatcher = userHasRole(currentUser, 'dispatcher');
-    const isAdmin = userHasRole(currentUser, 'admin');
-
-    let driverIdToSet = '';
-    let driverNameToSet = '';
-
-    if (isDriver && !isAdmin && !isDispatcher) {
-      const currentUserDriver = allDrivers.find((d) => d.id === currentUser.id);
-      if (currentUserDriver) {
-        driverIdToSet = initialDriverId && initialDriverId !== 'all' ? initialDriverId : currentUser.id;
-        driverNameToSet = getDriverNameForStorage(currentUserDriver);
-      }
-    } else if (isDispatcher && !isDriver && !isAdmin) {
-      const dispatcherStoreIds = currentUser.store_ids || [];
-      if (dispatcherStoreIds.length === 1) {
-        const dispatcherStore = stores.find((s) => s && s.id === dispatcherStoreIds[0]);
-        if (dispatcherStore) {
-          const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
-          const dayOfWeek = selectedDate.getDay();
-          let driverIdField = '';
-          if (dayOfWeek === 6) {
-            driverIdField = 'saturday_am_driver_id';
-            } else if (dayOfWeek === 0) {
-            driverIdField = 'sunday_am_driver_id';
-            } else {
-            driverIdField = 'weekday_am_driver_id';
-            }
-          const driverId = dispatcherStore[driverIdField];
-          if (driverId) {
-            const driver = drivers.find((d) => d && d.id === driverId);
-            if (driver) {
-              driverIdToSet = driverId;
-              driverNameToSet = getDriverNameForStorage(driver);
-            }
-          }
-        }
-      }
-    }
+    const { driverId: driverIdToSet, driverName: driverNameToSet } = resolveDefaultDriverForNewDelivery({
+      currentUser,
+      stores,
+      drivers,
+      allDrivers,
+      deliveryDate: formData.delivery_date,
+      initialDriverId,
+      userHasRole,
+      getDriverNameForStorage
+    });
 
     if (driverIdToSet && driverNameToSet) {
       setFormData((prev) => ({
@@ -605,49 +557,10 @@ export default function DeliveryForm({
       }
     }
 
-    const processedStores = [];
-
-    relevantStores.forEach((store) => {
-      if (!store) return;
-
-      const dateObj = formData.delivery_date ? new Date(formData.delivery_date + 'T00:00:00') : new Date();
-      const dayOfWeek = dateObj.getDay();
-      const isSaturday = dayOfWeek === 6;
-      const isSunday = dayOfWeek === 0;
-
-      let amDriverId, pmDriverId;
-      if (isSaturday) {
-        amDriverId = store.saturday_am_driver_id;
-        pmDriverId = store.saturday_pm_driver_id;
-      } else if (isSunday) {
-        amDriverId = store.sunday_am_driver_id;
-        pmDriverId = store.sunday_pm_driver_id;
-      } else {
-        amDriverId = store.weekday_am_driver_id;
-        pmDriverId = store.weekday_pm_driver_id;
-      }
-
-      if (amDriverId && pmDriverId) {
-        processedStores.push({
-          ...store,
-          id: `${store.id}_AM`,
-          name: `${store.name} [AM]`,
-          _originalStoreId: store.id,
-          _timeSlot: 'AM'
-        });
-        processedStores.push({
-          ...store,
-          id: `${store.id}_PM`,
-          name: `${store.name} [PM]`,
-          _originalStoreId: store.id,
-          _timeSlot: 'PM'
-        });
-      } else {
-        processedStores.push(store);
-      }
-    });
-
-    return sortStores(processedStores);
+    return sortStores(expandStoresForTimeSlots({
+      stores: relevantStores,
+      deliveryDate: formData.delivery_date
+    }));
   }, [freshStores, stores, isPickupMode, formData.patient_id, formData.delivery_date, patients, currentUser, selectedPatient, delivery]);
 
   const filteredPatients = useMemo(() => {
@@ -851,41 +764,34 @@ export default function DeliveryForm({
     });
 
     const timeSlot = getStoreAssignedTimeSlotForDriver(patientStore, formData.delivery_date, autoSelectedDriverId, allDeliveries);
-
-    // CRITICAL: Check staged pickups FIRST before calling backend
-    const stagedPickup = stagedDeliveries.find((d) =>
-      !d.patient_id && d.store_id === patientStore.id &&
-      d.delivery_date === formData.delivery_date &&
-      d.driver_id === autoSelectedDriverId &&
-      (d.ampm_deliveries || 'AM') === timeSlot
-    );
-
-    let puid = stagedPickup?.puid || stagedPickup?.stop_id;
-
-    if (!puid) {
-      puid = getPickupStopIdForDelivery(patientStore.id, formData.delivery_date, timeSlot, allDeliveries);
-    }
+    const puid = await resolvePickupPuid({
+      stagedDeliveries,
+      allDeliveries,
+      storeId: patientStore.id,
+      deliveryDate: formData.delivery_date,
+      driverId: autoSelectedDriverId,
+      timeSlot
+    });
 
     const stagedDelivery = {
-      ...updatedFormData,
+      ...buildPatientStagedDelivery({
+        formData: updatedFormData,
+        patient,
+        store: patientStore,
+        codAmount: updatedFormData.cod_total_amount_required > 0 ? updatedFormData.cod_total_amount_required / 100 : 0,
+        puid,
+        timeSlot,
+        distanceFromStore,
+        isNewPatient: isFirstDelivery
+      }),
       time_window_start: patient.time_window_start || '',
       time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
-      puid: puid || '',
-      ampm_deliveries: timeSlot,
       status: 'Staged',
-      _tempId: Date.now() + Math.random(),
-      patient_name: updatedFormData.patient_name || patient.full_name || 'N/A',
-      store_name: patientStore.name,
-      store_abbreviation: patientStore.abbreviation,
-      distanceFromStore: distanceFromStore,
-      delivery_address: patient.address || patientStore.address,
       isNextDelivery: false,
-      paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null,
-      // CRITICAL: Include patient coordinates for map markers
       latitude: patient.latitude,
       longitude: patient.longitude
     };
-    
+
     setStagedDeliveries((prev) => [...prev, stagedDelivery]);
 
     setHasChanges(true);
@@ -1199,68 +1105,24 @@ export default function DeliveryForm({
 
     let patient = null;
     let isNewPatient = false;
-    
+
     if (!isPickupMode) {
       patient = patients.find((p) => p && p.id === formData.patient_id);
-      
-      // CRITICAL: If no patient_id but we have patient_name, create new patient
+
       if (!patient && formData.patient_name && (newPatientMode === 'duplicate' || newPatientMode === 'new_address')) {
-        if (!selectedPatient) {
-          setError('Patient information missing for new patient creation.');
+        try {
+          const created = await createPatientFromDraft({
+            formData,
+            selectedPatient,
+            createPatientLocal,
+            setFormData
+          });
+          patient = created.patient;
+          isNewPatient = created.isNewPatient;
+        } catch (error) {
+          console.error('Failed to create new patient:', error);
+          setError(error.message || 'Failed to create new patient. Please try again.');
           return;
-        }
-        
-        // CRITICAL: Check if we already have a patient_id in formData (patient was already created)
-        // This prevents duplicate creation when the form state was updated but patient lookup failed
-        if (formData.patient_id) {
-          patient = { id: formData.patient_id, full_name: formData.patient_name };
-          isNewPatient = false;
-        } else {
-          try {
-            // Create new patient with form data
-            const newPatientData = {
-              full_name: formData.patient_name,
-              address: selectedPatient.address || '', // Use original address for duplicate, empty for new_address
-              phone: formData.patient_phone || '',
-              unit_number: formData.unit_number || '',
-              store_id: formData.store_id,
-              notes: formData.delivery_instructions || '',
-              mailbox_ok: formData.mailbox_ok || false,
-              call_upon_arrival: formData.call_upon_arrival || false,
-              ring_bell: formData.ring_bell || false,
-              dont_ring_bell: formData.dont_ring_bell || false,
-              back_door: formData.back_door || false,
-              signature_needed: formData.signature_needed || false,
-              recurring: formData.recurring || false,
-              recurring_daily: formData.recurring_daily || false,
-              recurring_weekly_mon: formData.recurring_weekly_mon || false,
-              recurring_weekly_tue: formData.recurring_weekly_tue || false,
-              recurring_weekly_wed: formData.recurring_weekly_wed || false,
-              recurring_weekly_thu: formData.recurring_weekly_thu || false,
-              recurring_weekly_fri: formData.recurring_weekly_fri || false,
-              recurring_weekly_sat: formData.recurring_weekly_sat || false,
-              recurring_weekly_sun: formData.recurring_weekly_sun || false,
-              recurring_biweekly: formData.recurring_biweekly || false,
-              recurring_weekly_x4: formData.recurring_weekly_x4 || false,
-              recurring_monthly: formData.recurring_monthly || false,
-              recurring_bimonthly: formData.recurring_bimonthly || false,
-              latitude: selectedPatient.latitude,
-              longitude: selectedPatient.longitude,
-              distance_from_store: selectedPatient.distance_from_store,
-              status: 'active'
-            };
-            
-            patient = await createPatientLocal(newPatientData);
-            isNewPatient = true;
-            
-            // Update formData with new patient_id
-            setFormData(prev => ({ ...prev, patient_id: patient.id }));
-            
-          } catch (error) {
-            console.error('Failed to create new patient:', error);
-            setError('Failed to create new patient. Please try again.');
-            return;
-          }
         }
       } else if (!patient && !formData.patient_name) {
         setError('Patient information missing.');
@@ -1305,17 +1167,24 @@ export default function DeliveryForm({
         existingStopIds: [...(allDeliveries || []).map((d) => d?.stop_id), ...(stagedDeliveries || []).map((d) => d?.stop_id)]
       });
     } else {
-      let puid = null;
-      const stagedPickup = stagedDeliveries.find((d) => !d.patient_id && d.store_id === store.id && d.delivery_date === formData.delivery_date && d.driver_id === formData.driver_id && (d.ampm_deliveries || 'AM') === timeSlot);
-      if (stagedPickup) puid = stagedPickup.puid || stagedPickup.stop_id;
-      else {
-        const existingPickup = allDeliveries.find((d) => d && !d.patient_id && d.store_id === store.id && d.delivery_date === formData.delivery_date && d.driver_id === formData.driver_id && (d.ampm_deliveries || 'AM') === timeSlot);
-        if (existingPickup && ['pending','en_route','in_transit','Staged'].includes(existingPickup.status)) puid = existingPickup.stop_id;
-        if (!puid) {
-          puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
-          base44.functions.invoke('ensurePickupForDelivery', { storeId: store.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, ampmDeliveries: timeSlot, allowCreateIfMissing: true }).catch(err => console.warn('⚠️ [handleAddToStaging] ensurePickup bg failed:', err?.message));
-        }
-      }
+      const puid = await resolvePickupPuid({
+        stagedDeliveries,
+        allDeliveries,
+        storeId: store.id,
+        deliveryDate: formData.delivery_date,
+        driverId: formData.driver_id,
+        timeSlot,
+        ensureMissingPickup: () => base44.functions.invoke('ensurePickupForDelivery', {
+          storeId: store.id,
+          deliveryDate: formData.delivery_date,
+          driverId: formData.driver_id,
+          ampmDeliveries: timeSlot,
+          allowCreateIfMissing: true
+        }).catch((err) => {
+          console.warn('⚠️ [handleAddToStaging] ensurePickup bg failed:', err?.message);
+          throw err;
+        })
+      });
       newStagedDelivery = buildPatientStagedDelivery({
         formData,
         patient,
@@ -1377,12 +1246,11 @@ export default function DeliveryForm({
       return;
     }
 
-    let distanceFromStore = patient?.distance_from_store;
-    if (distanceFromStore === null || distanceFromStore === undefined) {
-      if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
-        distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
-      }
-    }
+    const distanceFromStore = resolveDistanceFromStore({
+      patient,
+      store,
+      calculateDistance
+    });
 
     const selectedStaged = stagedDeliveries.find((staged) => staged._tempId === editingStagedId);
 
@@ -2275,13 +2143,11 @@ export default function DeliveryForm({
       return;
     }
 
-    // Use existing distance_from_store if available, otherwise calculate
-    let distanceFromStore = patient.distance_from_store;
-    if (distanceFromStore === null || distanceFromStore === undefined) {
-      if (patient.latitude && patient.longitude && store.latitude && store.longitude) {
-        distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
-      }
-    }
+    const distanceFromStore = resolveDistanceFromStore({
+      patient,
+      store,
+      calculateDistance
+    });
 
     const { autoSelectedDriverId, autoSelectedDriverName } = resolveProjectedDeliveryDriver({
       store,
@@ -2291,22 +2157,24 @@ export default function DeliveryForm({
       getDriverNameForStorage
     });
 
-    // Check for existing pickup for this store/driver/date
-    let puid = null;
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
     const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, autoDriverId, allDeliveries);
-
-    // CRITICAL: Check staged pickups FIRST
-    const stagedPickup = stagedDeliveries.find((d) =>
-      !d.patient_id && d.store_id === projected.store_id &&
-      d.delivery_date === formData.delivery_date &&
-      d.driver_id === autoDriverId &&
-      (d.ampm_deliveries || 'AM') === timeSlot
-    );
-
-    if (stagedPickup) {
-      puid = stagedPickup.puid || stagedPickup.stop_id;
-    }
+    let puid = await resolvePickupPuid({
+      stagedDeliveries,
+      allDeliveries,
+      storeId: projected.store_id,
+      deliveryDate: formData.delivery_date,
+      driverId: autoDriverId,
+      timeSlot,
+      allowRecentlyCompleted: true,
+      ensureMissingPickup: () => base44.functions.invoke('ensurePickupForDelivery', {
+        storeId: store.id,
+        deliveryDate: formData.delivery_date,
+        driverId: autoDriverId,
+        ampmDeliveries: timeSlot,
+        allowCreateIfMissing: true
+      })
+    });
 
     const newStagedItem = buildProjectedStagedItem({
       projected,
@@ -2324,26 +2192,8 @@ export default function DeliveryForm({
     setStagedDeliveries((prev) => [...prev, newStagedItem]);
     setHasChanges(true);
 
-    // Determine or create PUID if not found in staged
-    if (!puid) {
-      const existingPickup = allDeliveries.find((d) => d && !d.patient_id && d.store_id === projected.store_id && d.delivery_date === formData.delivery_date && d.driver_id === autoDriverId && (d.ampm_deliveries || 'AM') === timeSlot);
-      let reusable = false;
-      if (existingPickup) {
-        const now = new Date();
-        reusable = ['pending','en_route','in_transit'].includes(existingPickup.status) || (existingPickup.status==='completed' && existingPickup.actual_delivery_time && (now - new Date(existingPickup.actual_delivery_time) < 60*60*1000));
-        if (reusable) puid = existingPickup.stop_id;
-      }
-      if (!puid) {
-        try {
-          const r = await base44.functions.invoke('ensurePickupForDelivery', { storeId: store.id, deliveryDate: formData.delivery_date, driverId: autoDriverId, ampmDeliveries: timeSlot, allowCreateIfMissing: true });
-          puid = r.data?.puid || getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
-        } catch {
-          puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
-        }
-      }
-      if (puid) {
-        setStagedDeliveries((prev) => prev.map((item) => item._tempId === newStagedItem._tempId ? { ...item, puid } : item));
-      }
+    if (puid) {
+      setStagedDeliveries((prev) => prev.map((item) => item._tempId === newStagedItem._tempId ? { ...item, puid } : item));
     }
   }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
 
