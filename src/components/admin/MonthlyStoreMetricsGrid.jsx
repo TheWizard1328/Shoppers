@@ -214,7 +214,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[50vh] lg:max-h-[42vh] overflow-hidden">
       <CardHeader className="pb-3 shrink-0">
         <p className="text-xs text-slate-500 mb-2">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             {metricsViewMode === 'deliveries' ?
             <Table className="w-5 h-5" /> :
@@ -224,45 +224,47 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             Monthly Store {metricsViewMode === 'deliveries' ? 'Deliveries' : 'App Fees'} ({selectedYear})
           </CardTitle>
           
-          {/* Centered Envelope Totals Toggle */}
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="envelope-totals-grid"
-              checked={showEnvelopeAdjustedTotals}
-              onCheckedChange={onEnvelopeToggleChange} />
+          <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
+            {/* Centered Envelope Totals Toggle */}
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="envelope-totals-grid"
+                checked={showEnvelopeAdjustedTotals}
+                onCheckedChange={onEnvelopeToggleChange} />
 
-            <Label htmlFor="envelope-totals-grid" className="text-xs whitespace-nowrap">Envelope Totals</Label>
-          </div>
-          
-          <div className="flex gap-2">
-            {(selectedMonth || selectedStoreMonth) &&
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onResetView?.()}
-              className="text-xs h-7 px-2">
+              <Label htmlFor="envelope-totals-grid" className="text-xs whitespace-nowrap">Envelope Totals</Label>
+            </div>
+            
+            <div className="flex gap-2">
+              {(selectedMonth || selectedStoreMonth) &&
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onResetView?.()}
+                className="text-xs h-7 px-2">
 
-                Reset View
+                  Reset View
+                </Button>
+              }
+              <Button
+                type="button"
+                size="sm"
+                variant={metricsViewMode === 'deliveries' ? 'default' : 'outline'}
+                onClick={() => onViewModeChange?.('deliveries')}
+                className="text-xs h-7 px-2">
+
+                Deliveries
               </Button>
-            }
-            <Button
-              type="button"
-              size="sm"
-              variant={metricsViewMode === 'deliveries' ? 'default' : 'outline'}
-              onClick={() => onViewModeChange?.('deliveries')}
-              className="text-xs h-7 px-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={metricsViewMode === 'fees' ? 'default' : 'outline'}
+                onClick={() => onViewModeChange?.('fees')}
+                className="text-xs h-7 px-2">
 
-              Deliveries
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={metricsViewMode === 'fees' ? 'default' : 'outline'}
-              onClick={() => onViewModeChange?.('fees')}
-              className="text-xs h-7 px-2">
-
-              App Fees
-            </Button>
+                App Fees
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
