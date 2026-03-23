@@ -251,35 +251,26 @@ export async function setAndCenterNextDelivery({
 }) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
 
-  if (scopedDeliveries.length > 0) {
-    const deliveriesToClear = scopedDeliveries.filter((item) => item.isNextDelivery && item.id !== targetDeliveryId);
-    await Promise.all(
-      deliveriesToClear.map((item) =>
-        updateDeliveryLocal(item.id, { isNextDelivery: false }, { skipSmartRefresh: true })
-      )
-    );
-  }
-
-  if (targetDeliveryId) {
-    await updateDeliveryLocal(targetDeliveryId, { isNextDelivery: true }, { skipSmartRefresh: true });
-  }
-
   await syncNextDeliveryFlagsLocally({
     driverDeliveries: scopedDeliveries,
     nextDeliveryId: targetDeliveryId,
     updateDeliveriesLocally
   });
 
-  if (driverId && deliveryDate) {
-    await base44.functions.invoke('setNextDeliveryFlag', {
-      driverId,
-      deliveryDate,
-      targetDeliveryId
-    });
-  }
-
   if (targetDeliveryId) {
     centerDeliveryCard(targetDeliveryId);
+  }
+
+  if (driverId && deliveryDate) {
+    Promise.resolve().then(() =>
+      base44.functions.invoke('setNextDeliveryFlag', {
+        driverId,
+        deliveryDate,
+        targetDeliveryId
+      }).catch((error) => {
+        console.warn('[stopCardActionHelpers] Background next-delivery sync failed:', error?.message || error);
+      })
+    );
   }
 
   return targetDeliveryId;
