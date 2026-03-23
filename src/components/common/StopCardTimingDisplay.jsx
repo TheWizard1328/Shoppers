@@ -21,7 +21,8 @@ const formatTime12Hour = (timeString) => {
   }
 
   try {
-    const timeParts = String(timeString).split(':');
+    const normalized = extractStoredTime(timeString) || String(timeString);
+    const timeParts = normalized.split(':');
     if (timeParts.length < 2) return '--:--';
 
     const hours = parseInt(timeParts[0], 10);
