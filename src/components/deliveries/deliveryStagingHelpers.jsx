@@ -56,7 +56,8 @@ export const buildPatientStagedDelivery = ({
   puid,
   timeSlot,
   distanceFromStore,
-  isNewPatient
+  isNewPatient,
+  includeFirstDelivery = true
 }) => ({
   ...formData,
   time_window_start: formData.time_window_start || patient?.time_window_start || '',
