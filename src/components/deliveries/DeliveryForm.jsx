@@ -42,7 +42,7 @@ import { checkPayrollLock } from '../utils/payrollLockManager';
 import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
 import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
 import useDeliveryProjectionManager from './useDeliveryProjectionManager';
-import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB } from './deliveryBatchSaveHelpers';
+import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
   <div className="flex items-center space-x-2">
@@ -1955,7 +1955,6 @@ export default function DeliveryForm({
 
     setIsSaving(true);
     setError(null);
-    let existingUpdatesDone = Promise.resolve();
     setBatchFormSaving(true);
     // CRITICAL: Pause SmartRefresh ONCE for the entire batch operation
     try {
@@ -1967,50 +1966,8 @@ export default function DeliveryForm({
 
     try {
       if (existingDeliveriesWithTRs.length > 0) {
-
-        // Check if any deliveries are completed for this driver/date
-        const hasCompletedDeliveries = allDeliveries?.some((d) =>
-        d &&
-        d.driver_id === formData.driver_id &&
-        d.delivery_date === formData.delivery_date &&
-        d.status === 'completed'
-        );
-
         const updatePromises = existingDeliveriesWithTRs.map((updated) => {
-          let finalStatus = updated.status;
-          if (finalStatus === 'Staged') {
-            finalStatus = (!updated.patient_id) ? 'en_route' : 'pending';
-            // If it's a delivery (not a pickup) check if it's InterStore
-            if (updated.patient_id) {
-              const patientName = (updated.patient_name || '').toLowerCase();
-              const deliveryNotes = (updated.delivery_notes || '').toLowerCase();
-              const patientNotes = (updated.delivery_instructions || '').toLowerCase();
-              const deliveryAddress = (updated.delivery_address || '').toLowerCase();
-              const isInterStore = patientName.includes('interstore') || deliveryNotes.includes('interstore') || patientNotes.includes('interstore') || deliveryAddress.includes('(isp)') || deliveryAddress.includes('(isd)');
-              if (isInterStore) {
-                finalStatus = 'in_transit';
-              }
-            }
-          }
-
-          const updateData = {
-            status: finalStatus,
-            delivery_notes: updated.delivery_notes || '',
-            prescription_number: updated.prescription_number || '',
-            cod_total_amount_required: updated.cod_total_amount_required || 0,
-            delivery_instructions: updated.delivery_instructions || '',
-            tracking_number: updated.tracking_number || '99',
-            isNextDelivery: updated.isNextDelivery && !['completed','failed','cancelled','returned','pending'].includes(finalStatus),
-            signature_needed: updated.signature_needed || false,
-            fridge_item: updated.fridge_item || false,
-            oversized: updated.oversized || false,
-            barcode_values: Array.isArray(updated.barcode_values) ? updated.barcode_values : [], receipt_barcode_values: Array.isArray(updated.receipt_barcode_values) ? updated.receipt_barcode_values : [],
-            no_charge: updated.no_charge || false, extra_time: updated.extra_time || 0,
-            paid_km_override: updated.paid_km_override ?? null,
-            store_id: updated.store_id || '',
-            ampm_deliveries: updated.ampm_deliveries || null,
-            puid: updated.puid || ''
-          };
+          const updateData = buildExistingDeliveryBatchUpdate(updated);
 
           return updateDeliveryLocal(updated.id, updateData, { isBatchOperation: true, skipSmartRefresh: true })
             .then(() => {
