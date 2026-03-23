@@ -15,7 +15,7 @@ export async function runDeliverySubmitSideEffects({
   isCurrentUserDriver,
   statusChangedToCompletion,
   actualDeliveryTimeChanged,
-  actualDeliveryTimestamp,
+  t,
   allDeliveries,
   isPickupMode,
   updateDeliveryLocal
@@ -55,8 +55,8 @@ export async function runDeliverySubmitSideEffects({
       const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date);
       const completedDeliveries = driverDeliveries.filter((d) => ['completed', 'failed', 'cancelled'].includes(d.id === delivery.id ? formData.status : d.status));
       completedDeliveries.sort((a, b) => {
-        const timeA = a.id === delivery.id && actualDeliveryTimestamp ? new Date(actualDeliveryTimestamp).getTime() : a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-        const timeB = b.id === delivery.id && actualDeliveryTimestamp ? new Date(actualDeliveryTimestamp).getTime() : b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+        const timeA = a.id === delivery.id && t ? new Date(t).getTime() : a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+        const timeB = b.id === delivery.id && t ? new Date(t).getTime() : b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
         return timeA - timeB;
       });
 

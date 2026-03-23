@@ -2308,19 +2308,10 @@ export default function DeliveryForm({
       }
 
       await runDeliverySubmitSideEffects({
-        delivery,
-        formData,
-        selectedPatient,
-        currentUser,
-        oldDriver,
-        newDriver,
-        driverChanged,
-        isCurrentUserDriver: userHasRole(currentUser, 'driver'),
-        statusChangedToCompletion,
-        actualDeliveryTimeChanged,
-        allDeliveries,
-        isPickupMode,
-        updateDeliveryLocal
+        delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
+        isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
+        actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
+        isPickupMode, updateDeliveryLocal
       });
     } catch (error) {
       setError(error.message);
