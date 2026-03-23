@@ -292,9 +292,9 @@ export default function AdminMetrics() {
               Admin Metrics
             </h1>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 md:gap-2 flex-nowrap">
             <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
-              <SelectTrigger className="w-[120px] md:w-[140px]">
+              <SelectTrigger className="w-[5.5rem] sm:w-[7rem] md:w-[140px]">
                 <SelectValue placeholder="Select City" />
               </SelectTrigger>
               <SelectContent>
@@ -305,7 +305,7 @@ export default function AdminMetrics() {
             </Select>
 
             <Select value={selectedYear} onValueChange={handleYearChange}>
-              <SelectTrigger className="w-[120px] md:w-[140px]">
+              <SelectTrigger className="w-[5rem] sm:w-[7rem] md:w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -314,7 +314,7 @@ export default function AdminMetrics() {
                 )}
               </SelectContent>
             </Select>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-0 md:ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
               <Button variant="outline" size="icon" onClick={() => fetchMetrics(selectedYear, selectedCityId, false)} disabled={isFetching}>
                 <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
               </Button>
