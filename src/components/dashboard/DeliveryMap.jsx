@@ -322,7 +322,7 @@ export default function DeliveryMap({
           isFirstTime: !!delivery.first_delivery,
           isNextInLine: !!delivery.isNextDelivery,
           markerType: "delivery",
-          useSimpleCircle: (isCurrentUserDispatcher && !isStopInDispatcherStore) || (showOtherDriverDeliveries && isOtherDriver),
+          useSimpleCircle: (showOtherDriverDeliveries && isOtherDriver),
           isOtherDriver,
           isReturn: `${patient?.full_name || delivery.patient_name || ""}`.toLowerCase().includes("return")
         };
