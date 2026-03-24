@@ -183,6 +183,21 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     }
   }, [isSmartRefreshActive, isOfflineSyncActive, isPollingActive]);
 
+  useEffect(() => {
+    const refreshLooksActive = smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive;
+
+    if (!refreshLooksActive) {
+      setIsRefreshStuck(false);
+      return;
+    }
+
+    const stuckTimer = setTimeout(() => {
+      setIsRefreshStuck(true);
+    }, 30000);
+
+    return () => clearTimeout(stuckTimer);
+  }, [smartRefreshActivity?.active, isManualRefreshing, isSmartRefreshActive, isOfflineSyncActive]);
+
   // Real-time sync broadcasts removed
 
   // Show for all users (removed app owner restriction)
