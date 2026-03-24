@@ -36,7 +36,6 @@ const AddDeliveryButton = forwardRef(function AddDeliveryButton(
               size="sm"
               className={baseClasses}
               disabled={disabled}
-              title={hasRateLimitError ? 'Rate limit detected - please wait' : 'Add delivery'}
             >
               <Plus className="w-4 h-4" />
             </Button>
