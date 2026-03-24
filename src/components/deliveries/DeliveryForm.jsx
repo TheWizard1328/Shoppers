@@ -1451,7 +1451,7 @@ export default function DeliveryForm({
         });
         if (squarePromises.length > 0) Promise.allSettled(squarePromises).then(()=>console.log('✅ [Square] COD background tasks done')).catch(()=>{});
       }
-
+      await Promise.all(Array.from(new Set([...existingDeliveriesWithTRs.flatMap((delivery) => { const originalDelivery = allDeliveries?.find((item) => item?.id === delivery?.id); return [[delivery?.driver_id, delivery?.delivery_date], [originalDelivery?.driver_id, originalDelivery?.delivery_date]]; }), ...deliveriesReadyForDB.map((delivery) => [delivery?.driver_id, delivery?.delivery_date])].filter(([driverId, deliveryDate]) => driverId && deliveryDate).map(([driverId, deliveryDate]) => `${driverId}__${deliveryDate}`))).map(async (key) => { const [driverId, deliveryDate] = key.split('__'); const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager'); return recalculateAndUpdateStopOrders(driverId, deliveryDate); }));
       await restartBatchSmartRefresh(() => setBatchFormSaving(false));
 
       // CRITICAL: Always trigger data refresh if only updating existing deliveries
@@ -2302,7 +2302,7 @@ export default function DeliveryForm({
         }
       }
       await deleteDeliveryLocal(staged.id);
-      if (staged.driver_id && staged.delivery_date && !['completed', 'failed', 'cancelled', 'returned'].includes(staged.status)) await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: staged.driver_id, deliveryDate: staged.delivery_date, scope: 'active_only' });
+      if (staged.driver_id && staged.delivery_date) { const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager'); await recalculateAndUpdateStopOrders(staged.driver_id, staged.delivery_date); } if (staged.driver_id && staged.delivery_date && !['completed', 'failed', 'cancelled', 'returned'].includes(staged.status)) await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: staged.driver_id, deliveryDate: staged.delivery_date, scope: 'active_only' });
       const { invalidate } = await import('../utils/dataManager');
       invalidate('Delivery');
       setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
