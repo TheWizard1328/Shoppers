@@ -3217,8 +3217,8 @@ export default function Layout({ children, currentPageName }) {
                     }
 
                       <img
-                      src={branding.favicon_url || branding.logo_url || "https://cdn-icons-png.flaticon.com/512/3843/3843479.png"}
-                      alt="App Logo"
+                      src={branding.favicon_url || "https://cdn-icons-png.flaticon.com/512/3843/3843479.png"}
+                      alt="App Icon"
                       className="w-10 h-10 rounded object-contain"
                       style={{ filter: 'var(--image-filter, none)' }} />
 
