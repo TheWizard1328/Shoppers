@@ -166,7 +166,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
               style={{ touchAction: 'none', display: 'block' }}
             />
             {!hasSignature && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="absolute inset-0 flex items-center justify-start pl-[50px] pointer-events-none">
                 <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(-90deg)' }}>
                   ✍️ Sign here
                 </span>
