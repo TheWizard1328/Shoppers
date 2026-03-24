@@ -2503,12 +2503,6 @@ function Dashboard() {
             // INCLUDE pending deliveries
             if (d.driver_id !== targetDriverId) return false;
 
-            // CRITICAL: For dispatchers, only include stops from their stores
-            if (isDispatcher && !isAdmin && currentUser?.store_ids) {
-              const dispatcherStoreIds = new Set(currentUser.store_ids);
-              if (!dispatcherStoreIds.has(d.store_id)) return false;
-            }
-
             return true;
           });
 
