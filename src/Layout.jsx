@@ -2192,12 +2192,10 @@ export default function Layout({ children, currentPageName }) {
     if (!stores.length || !patients.length) return [];
     const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
-    // CRITICAL: For dispatchers, only count patients from their assigned stores
     let relevantPatients = patients;
-    const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
-    if (isDispatcher && currentUser?.store_ids) {
-      const dispatcherStoreIds = new Set(currentUser.store_ids);
-      relevantPatients = patients.filter((p) => p && dispatcherStoreIds.has(p.store_id));
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      const sIds = new Set(currentUser.store_ids || []);
+      relevantPatients = patients.filter(p => p && sIds.has(p.store_id));
     }
 
     return sortedStores.map((store) => ({
