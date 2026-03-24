@@ -4,7 +4,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import { updateDeliveryLocal } from './offlineMutations';
+import { updateDeliveryLocal } from './entityMutations';
 
 /**
  * Recalculates and updates stop orders for all deliveries for a given driver/date
