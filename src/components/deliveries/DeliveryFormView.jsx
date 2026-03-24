@@ -183,6 +183,76 @@ export default function DeliveryFormView({
     }
   }, [editingStagedId, shouldAutoFocusFields, codAmountInputRef]);
 
+  const handleGlobalKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
+        return;
+      }
+      
+      e.preventDefault();
+      
+      if (isSaving || effectiveDeliveryActionBusy) return;
+
+      if (buttonState === 'done') {
+        const isDisabled = isSaving || effectiveDeliveryActionBusy || !hasChanges;
+        if (!isDisabled) {
+          runLockedAction('batch_save', handleBatchSave);
+        }
+      } else if (buttonState === 'updateStaged') {
+        const isDisabled = isSaving || effectiveDeliveryActionBusy || !isFormValid;
+        if (!isDisabled) {
+          runLockedAction('update_staged_delivery', handleUpdateStaged);
+        }
+      } else if (buttonState === 'add') {
+        const isDisabled = isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || (!isFormValid && !hasSelectedLocationAndDriver) || (requiresDriverSelection && !hasSelectedLocationAndDriver);
+        if (!isDisabled) {
+          runLockedAction('add_staged_delivery', async () => {
+            await handleAddToStaging();
+            if (userHasRole(currentUser, 'admin')) {
+              setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
+            }
+          });
+        }
+      } else if (!buttonState) {
+        const isDisabled = isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll;
+        if (!isDisabled) {
+          runLockedAction('update_delivery', async () => {
+            const driverId = formData?.driver_id;
+            const deliveryDate = formData?.delivery_date;
+            const previousDriverId = delivery?.driver_id;
+            const previousDeliveryDate = delivery?.delivery_date;
+            const shouldOptimizeInBackground = hasTimeWindowChanges;
+
+            await handleSubmit(e);
+
+            const affectedRoutes = [
+              [driverId, deliveryDate],
+              [previousDriverId, previousDeliveryDate]
+            ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
+
+            await Promise.all(
+              Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
+                .map((key) => {
+                  const [routeDriverId, routeDeliveryDate] = key.split('__');
+                  return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+                })
+            );
+
+            setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
+
+            runPostDeliveryUpdateSync({
+              driverId,
+              deliveryDate,
+              hasTimeWindowChanges: shouldOptimizeInBackground
+            });
+
+            window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
+          });
+        }
+      }
+    }
+  };
+
   return (
     <div
       className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : 'bg-black/60 flex items-center justify-center p-4'}`}
@@ -195,6 +265,7 @@ export default function DeliveryFormView({
         className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[625px] max-h-[90vh]' : 'max-w-[70rem] max-h-[90vh]' : 'max-w-[40rem] max-h-[90vh]'} flex`}>
         
         <Card
+          onKeyDown={handleGlobalKeyDown}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl'}`}
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
           

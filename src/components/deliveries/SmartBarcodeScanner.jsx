@@ -212,15 +212,21 @@ export default function SmartBarcodeScanner({
     }
 
     if (key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
       if (scannerModeRef.current && scannerBufferRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
         addBarcode(scannerBufferRef.current);
         scannerBufferRef.current = '';
         scannerModeRef.current = false;
         return;
       }
-      addBarcode(manualInput || scannerLeadCharRef.current);
+      if (manualInput || scannerLeadCharRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        addBarcode(manualInput || scannerLeadCharRef.current);
+        return;
+      }
+      // If empty, do not preventDefault or stopPropagation, let it bubble
       return;
     }
 
