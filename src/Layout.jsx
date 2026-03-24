@@ -1905,7 +1905,7 @@ export default function Layout({ children, currentPageName }) {
 
       // CRITICAL: Stagger initial data loads to prevent rate limiting
       const { offlineDB: offlineDBForCities } = await import('./components/utils/offlineDatabase');
-      const citiesData = workingCities?.length > 0 ? workingCities : await (async () => { const cached = await offlineDBForCities.getAll(offlineDBForCities.STORES.CITIES); return cached?.length ? cached : City.list(); })();
+      const citiesData = workingCities?.length > 0 ? workingCities : await (async () => { const cached = await offlineDBForCities.getAll(offlineDBForCities.STORES.CITIES); return cached?.length ? cached : await getData('City', null, null, forceRefresh); })();
 
       // Small delay before next batch
       await new Promise((resolve) => setTimeout(resolve, 500));

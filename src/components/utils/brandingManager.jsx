@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { getData } from './dataManager';
 
 const DEFAULT_BRANDING = {
   logo_url: '',
@@ -8,23 +9,27 @@ const DEFAULT_BRANDING = {
   accent_color: '#0066CC'
 };
 
+let cachedBranding = null;
+
 export async function getCompanyBranding(companyId) {
   if (!companyId) return DEFAULT_BRANDING;
+  if (cachedBranding) return cachedBranding;
 
-  const company = await base44.entities.Company.filter(
-    { id: companyId },
-    '-updated_date',
-    1
-  );
+  try {
+    const company = await getData('Company', '-updated_date', { id: companyId });
 
-  if (company && company.length > 0) {
-    return {
-      logo_url: company[0].logo_url || DEFAULT_BRANDING.logo_url,
-      favicon_url: company[0].favicon_url || DEFAULT_BRANDING.favicon_url,
-      primary_color: company[0].primary_color || DEFAULT_BRANDING.primary_color,
-      secondary_color: company[0].secondary_color || DEFAULT_BRANDING.secondary_color,
-      accent_color: company[0].accent_color || DEFAULT_BRANDING.accent_color
-    };
+    if (company && company.length > 0) {
+      cachedBranding = {
+        logo_url: company[0].logo_url || DEFAULT_BRANDING.logo_url,
+        favicon_url: company[0].favicon_url || DEFAULT_BRANDING.favicon_url,
+        primary_color: company[0].primary_color || DEFAULT_BRANDING.primary_color,
+        secondary_color: company[0].secondary_color || DEFAULT_BRANDING.secondary_color,
+        accent_color: company[0].accent_color || DEFAULT_BRANDING.accent_color
+      };
+      return cachedBranding;
+    }
+  } catch (error) {
+    console.warn('Failed to fetch company branding:', error);
   }
 
   return DEFAULT_BRANDING;
