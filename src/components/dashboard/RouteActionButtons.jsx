@@ -75,10 +75,8 @@ export default function RouteActionButtons({
                   optimized_stop_count: Number(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)
                 }
               });
+              await refreshData();
               setOptimizationMessage(`Route optimized! ${(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)} stops updated.`);
-              refreshData().catch((error) => {
-                console.warn("⚠️ [handleReoptimizeRoute] Background refresh failed:", error?.message || error);
-              });
               window.dispatchEvent(new CustomEvent("deliveriesUpdated", { detail: { driverId: selectedDriverId, deliveryDate, triggeredBy: "reoptimizeRoute", alreadyOptimized: true } }));
               window.dispatchEvent(new CustomEvent("routeReordered", { detail: { driverId: selectedDriverId, deliveryDate, source: "reoptimizeRoute" } }));
               setIsMapViewLocked(true);
