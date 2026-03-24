@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { flushSync } from "react-dom";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
@@ -20,13 +21,33 @@ export default function StopCardsSection({
   handleCODUpdate, handleCreateReturn, handleStartDelivery,
   refreshUser,
 }) {
+  const [mobileCardsHeight, setMobileCardsHeight] = useState(0);
+
+  useEffect(() => {
+    const element = horizontalStopCardsRef?.current;
+    if (!element) return;
+
+    const updateHeight = () => setMobileCardsHeight(element.offsetHeight || 0);
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [horizontalStopCardsRef, deliveriesWithStopOrder.length, selectedCardId, optimizationMessage]);
+
+  const mobileStopCardsTop = isMobile && mobileCardsHeight > 0
+    ? `calc(100% - var(--bottom-nav-height, 0px) - ${mobileCardsHeight}px - 0.25rem)`
+    : undefined;
+
   return (
     <div
       ref={stopCardsContainerRef}
       className="horizontal-cards-container absolute left-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end"
       style={{
         left: isSnapshotModeActive ? '5rem' : '0',
-        bottom: 'calc(var(--bottom-nav-height, 0px) + 0.25rem)'
+        top: mobileStopCardsTop,
+        bottom: isMobile && mobileStopCardsTop ? 'auto' : 'calc(var(--bottom-nav-height, 0px) + 0.25rem)'
       }}
       onClick={() => { if (retractClustersRef.current) retractClustersRef.current(); }}>
 
