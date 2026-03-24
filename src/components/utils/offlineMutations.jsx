@@ -371,7 +371,7 @@ export const createDeliveryLocal = async (deliveryData) => {
       throw new Error('Missing delivery_date');
     }
 
-    const normalizedDeliveryData = sanitizeDeliveryPayload(sourceDelivery);
+    const normalizedDeliveryData = await sanitizeDeliveryPayload(sourceDelivery);
 
     // Generate temporary ID if not provided
     const tempId = normalizedDeliveryData.id || `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -733,7 +733,7 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
     // Try immediate backend sync
     try {
       const { base44 } = await import('@/api/base44Client');
-      const backendPayloads = sanitizeDeliveryPayloads(deliveriesData);
+      const backendPayloads = await sanitizeDeliveryPayloads(deliveriesData);
       const backendDeliveries = await base44.entities.Delivery.bulkCreate(backendPayloads);
       console.log(`✅ [Sync] ${localDeliveries.length} deliveries synced to backend immediately`);
       
@@ -769,17 +769,32 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
     } catch (error) {
+      const isValidationError = error?.response?.status === 400 || error?.response?.status === 422 || /validation|invalid|schema|field|type/i.test(error?.message || '');
+
+      if (isValidationError) {
+        console.error('❌ [Sync] Bulk create rejected by backend validation:', error.message);
+        for (const delivery of localDeliveries) {
+          await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id).catch(() => null);
+          notifyMutation({
+            type: 'delete',
+            entity: 'Delivery',
+            id: delivery.id,
+            data: null
+          });
+        }
+        smartRefreshManager.restart();
+        throw error;
+      }
+
       console.warn('⚠️ [Sync] Immediate bulk sync failed, queuing for later:', error.message);
-      // Queue all for backend sync if immediate sync fails
       for (const delivery of localDeliveries) {
         await offlineDB.addPendingMutation({
           operation: 'create',
           entity: 'Delivery',
           recordId: delivery.id,
-          payload: sanitizeDeliveryPayload(delivery)
+          payload: await sanitizeDeliveryPayload(delivery)
         });
       }
-      // CRITICAL: Restart smart refresh even if queued
       smartRefreshManager.restart();
     }
     
