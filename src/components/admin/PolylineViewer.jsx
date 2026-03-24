@@ -385,7 +385,7 @@ export default function PolylineViewer({ users = [] }) {
   const isSomeSelected = selectedPolylines.size > 0 && selectedPolylines.size < activeItems.length;
 
   return (
-    <Card>
+    <Card className="h-full flex flex-col">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -462,7 +462,7 @@ export default function PolylineViewer({ users = [] }) {
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 flex flex-col min-h-0">
         {(isDeleting || isRecomputing) && opProgress.total > 0 ? (
           <div className="flex justify-center items-center h-24 mb-4 rounded border bg-slate-50 text-slate-700">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -470,7 +470,7 @@ export default function PolylineViewer({ users = [] }) {
           </div>
         ) : null}
         {isLoading ? (
-          <div className="flex justify-center items-center h-96">
+          <div className="flex flex-1 justify-center items-center min-h-[24rem]">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
             <span className="ml-3 text-slate-600">Loading polyline data...</span>
           </div>
@@ -626,7 +626,7 @@ export default function PolylineViewer({ users = [] }) {
               )}
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4" style={{ height: isMobile ? 'auto' : '600px' }}>
+            <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
               {/* Left: List */}
               <div className="hidden md:flex md:w-1/3 border rounded-lg overflow-hidden flex-col disabled:opacity-50">
                 <div className="bg-slate-100 p-3 border-b flex items-center justify-between">
@@ -729,7 +729,7 @@ export default function PolylineViewer({ users = [] }) {
               </div>
 
               {/* Right: Map */}
-              <div className="flex-1 border rounded-lg overflow-hidden h-[420px] md:h-auto">
+              <div className="flex-1 border rounded-lg overflow-hidden h-[420px] md:h-auto md:min-h-0">
                 {selectedPolyline && decodedCoordinates.length > 0 ? (
                   <MapContainer
                     center={decodedCoordinates[0]}
