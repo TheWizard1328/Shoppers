@@ -282,16 +282,9 @@ export default function DeliveryForm({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Update all staged deliveries when date or driver changes
   useEffect(() => {
     if (delivery || stagedDeliveries.length === 0) return;
-
-    setStagedDeliveries((prev) => prev.map((staged) => ({
-      ...staged,
-      delivery_date: formData.delivery_date,
-      driver_id: formData.driver_id,
-      driver_name: formData.driver_name
-    })));
+    setStagedDeliveries((prev) => prev.map((s) => s.id ? s : { ...s, delivery_date: formData.delivery_date, driver_id: formData.driver_id, driver_name: formData.driver_name }));
   }, [formData.delivery_date, formData.driver_id, formData.driver_name]);
 
   // Set default driver when form loads for new deliveries
