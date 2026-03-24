@@ -94,7 +94,10 @@ let deliverySchemaPromise = null;
 
 const getDeliverySchema = async () => {
   if (!deliverySchemaPromise) {
-    deliverySchemaPromise = base44.entities.Delivery.schema().catch(() => null);
+    const schemaLoader = base44?.entities?.Delivery?.schema;
+    deliverySchemaPromise = typeof schemaLoader === 'function'
+      ? schemaLoader().catch(() => null)
+      : Promise.resolve(null);
   }
   return deliverySchemaPromise;
 };
