@@ -3,6 +3,16 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, Bell, BellOff, Mailbox, StickyNote } from "lucide-react";
 import HelpTooltip, { HELP_CONTENT } from "../common/HelpTooltip";
 
+export function getCodSymbolColorClass(delivery) {
+  const paymentTypes = Array.from(
+    new Set((delivery?.cod_payments || []).map((payment) => String(payment?.type || '').toLowerCase()).filter(Boolean))
+  );
+
+  if (paymentTypes.some((type) => type === 'debit' || type === 'credit')) return 'text-blue-600';
+  if (paymentTypes.some((type) => type === 'cash')) return 'text-green-600';
+  return 'text-black dark:text-black';
+}
+
 /**
  * SpecialSymbolsBadges - Centralized single badge for all special delivery symbols
  * 
@@ -93,7 +103,7 @@ export default function SpecialSymbolsBadges({
       <Badge className={badgeBaseClass}>
 
         {/* Special flags: $ N O F S */}
-        {hasCOD && <span className={`text-black ${isCardSize ? config.text : ''}`}>$</span>}
+        {hasCOD && <span className={`${getCodSymbolColorClass(delivery)} ${isCardSize ? config.text : ''}`}>$</span>}
         {isFirstDelivery && <span className={`text-blue-800 ${isCardSize ? config.text : ''}`}>N</span>}
         {hasOversized && <span className={`text-orange-800 ${isCardSize ? config.text : ''}`}>O</span>}
         {hasFridge && <span className={`text-cyan-800 ${isCardSize ? config.text : ''}`}>F</span>}

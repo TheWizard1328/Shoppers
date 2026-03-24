@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FixedSizeList as List } from 'react-window';
 import StopDetailsPanel from '../deliveries/StopDetailsPanel';
 import BarcodeThumb from '../deliveries/BarcodeThumb';
+import { getCodSymbolColorClass } from '../utils/SpecialSymbolsBadges';
 
 // Memoized row component to prevent re-renders
 const DeliveryRow = memo(({
@@ -361,21 +362,22 @@ const DeliveryListView = ({
     const totalCollected = hasPayments ?
     delivery.cod_payments.reduce((sum, p) => sum + (p.amount || 0), 0) :
     0;
+    const codSymbolColorClass = getCodSymbolColorClass(delivery);
 
     if (hasPayments && totalCollected > 0) {
       const types = Array.from(new Set((delivery.cod_payments || []).map((p) => p.type).filter(Boolean)));
       return (
         <div className="flex flex-col items-center">
-          <span className="font-semibold text-green-700">${totalCollected.toFixed(2)}</span>
-          <span className="text-xs text-green-600">{types.join(' + ')}</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{totalCollected.toFixed(2)}</span>
+          <span className="text-xs text-slate-600 dark:text-slate-300">{types.join(' + ')}</span>
         </div>);
 
     }
 
     return (
       <div className="flex flex-col items-center">
-        <span className="font-semibold text-amber-700">${delivery.cod_total_amount_required.toFixed(2)}</span>
-        <span className="text-xs text-amber-600">Required</span>
+        <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{delivery.cod_total_amount_required.toFixed(2)}</span>
+        <span className="text-xs text-slate-600 dark:text-slate-300">Required</span>
       </div>);
 
   }, []);
