@@ -41,7 +41,7 @@ export default function RouteActionButtons({
       className="z-[100] flex items-center gap-2"
       style={{
         position: fabPosition,
-        bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 5}px`,
+        bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10}px`,
         right: "64px"
       }}
     >
