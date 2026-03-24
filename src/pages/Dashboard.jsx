@@ -7089,29 +7089,10 @@ function Dashboard() {
                   d.patient_id // Only patient deliveries, not other pickups
                   );
 
-                  // CRITICAL: For dispatchers, only show projected deliveries from their assigned stores
-                  if (isDispatcher && currentUser?.store_ids && currentUser.store_ids.length > 0) {
-                    const dispatcherStoreIds = new Set(currentUser.store_ids);
-                    pendingDeliveriesForPickup = pendingDeliveriesForPickup.filter((d) =>
-                    d && dispatcherStoreIds.has(d.store_id)
-                    );
-                  }
-
                   if (pendingDeliveriesForPickup.length > 0) {
                     return {
                       ...delivery,
                       projected_deliveries: pendingDeliveriesForPickup
-                    };
-                  }
-                }
-
-                // CRITICAL: For dispatchers, mark deliveries from other stores as stripped
-                // This shows them as simplified cards so dispatchers can see the full driver route
-                if (isDispatcher && currentUser.store_ids && currentUser.store_ids.length > 0) {
-                  if (!currentUser.store_ids.includes(delivery.store_id)) {
-                    return {
-                      ...delivery,
-                      _isStripped: true
                     };
                   }
                 }
