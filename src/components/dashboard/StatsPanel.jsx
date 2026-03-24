@@ -18,7 +18,6 @@ import ErrorFlagIndicator from "@/components/dashboard/ErrorFlagIndicator";
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ActivePayStats from '@/components/dashboard/ActivePayStats';
 import PullToSync from '@/components/dashboard/PullToSync';
-import DriverLocationBadge from '@/components/dashboard/DriverLocationBadge';
 import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
 import LocationTrackingToggle from "@/components/layout/LocationTrackingToggle";
 import { saveSetting } from "@/components/utils/userSettingsManager";
@@ -168,8 +167,6 @@ export default function StatsPanel({
             </Button>
           </div>
 
-          {isAppOwner(currentUser) && <DriverLocationBadge users={appUsers} />}
-
           <AnimatePresence>
             {isExpanded && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
               <div className="mt-2 pt-2 pb-2 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
@@ -318,7 +315,7 @@ export default function StatsPanel({
           </AnimatePresence>
         </motion.div>
 
-        {isAllDriversMode && driverRoutes.length > 0 &&
+        {driverRoutes.length > 0 &&
           <div className="backdrop-blur-sm rounded-lg shadow-lg border px-1 py-1" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
             onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
             <div className="flex flex-wrap gap-x-1 gap-y-1 items-center justify-center">
