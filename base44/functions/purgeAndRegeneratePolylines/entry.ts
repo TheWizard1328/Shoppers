@@ -433,6 +433,15 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error('[purgeAndRegeneratePolylines] Error:', error?.message || error);
+
+    if (isNotFoundError(error) || isRateLimitError(error)) {
+      return Response.json({
+        success: false,
+        skipped: true,
+        error: error?.message || 'Skipped'
+      });
+    }
+
     return Response.json({ error: error?.message || 'Internal error' }, { status: 500 });
   }
 });
