@@ -319,75 +319,63 @@ export default function DeliveryFormView({
           <CardContent className="p-3 flex-1 relative overflow-hidden">
             <div className="space-y-3 h-full flex flex-col">
 
-              {/* Pickup mode: Row 1 = Location + Date, Row 2 = Driver + Options */}
+              {/* Pickup mode: Row 1 = Location + Date + Driver */}
               {isPickupMode && !delivery &&
-              <>
-                  {/* Row 1: Pickup Location + Date */}
-                  <div className="flex gap-3">
-                    <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
-                      <Select value={selectedPickupOption} onValueChange={(value) => {
-                      setSelectedPickupOption(value);
-                      const sel = availableStores.find((s) => s.id === value);
-                      const storeId = sel?._originalStoreId || value;
-                      const timeSlot = sel?._timeSlot || null;
-                      const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                      // Auto-select default driver for this store/slot/date
-                      const defaultDriverId = getDefaultDriverForStoreSlot(storeId, timeSlot || 'AM', formData.delivery_date);
-                      const defaultDriver = defaultDriverId ? allDrivers.find((d) => d.id === defaultDriverId) : null;
-                      setFormData((prev) => ({
-                        ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '',
-                        driver_id: defaultDriver ? defaultDriverId : prev.driver_id,
-                        driver_name: defaultDriver ? getDriverNameForStorage(defaultDriver) : prev.driver_name
-                      }));
-                      // If no default driver, open the driver dropdown
-                      if (!defaultDriver) {
-                        setTimeout(() => setForceOpenDriverSelect(true), 150);
-                      }
-                    }} disabled={isSaving}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
-                        <SelectContent className="z-[999999]">
-                          {availableStores.map((store) => {
-                          const baseId = store._originalStoreId || store.id;
-                          const ts = store._timeSlot || null;
-                          const puid = getPickupStopIdForDelivery(baseId, formData.delivery_date, ts || 'AM', allDeliveries);
-                          const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
-                          return <SelectItem key={store.id} value={store.id}>{`${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`}</SelectItem>;
-                        })}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
-                      <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
-                    </div>
-                  </div>
-                  {/* Row 2: Driver + Pickup Options */}
-                  <div className="flex gap-3">
-                    <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver</Label>
-                      <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
-                      const newDriverId = driverId === 'all' ? '' : driverId;
-                      const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
-                      const newDriverName = driver ? getDriverNameForStorage(driver) : '';
-                      setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
-                      setForceOpenDriverSelect(false);
-                    }} disabled={isSaving}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
-                        <SelectContent className="z-[999999]">
-                          <SelectItem value="all">All Drivers</SelectItem>
-                          {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Options</Label>
-                      <div className="pt-1">
-                        <CheckboxField id="after_hours_pickup" label="After Hours Pickup" checked={formData.after_hours_pickup} onChange={(c) => setFormData((p) => ({ ...p, after_hours_pickup: c }))} disabled={isSaving} />
-                      </div>
-                    </div>
-                  </div>
-                </>
+              <div className={`flex ${useMobileLayout ? 'flex-col gap-3' : 'gap-3'}`}>
+                <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
+                  <Select value={selectedPickupOption} onValueChange={(value) => {
+                  setSelectedPickupOption(value);
+                  const sel = availableStores.find((s) => s.id === value);
+                  const storeId = sel?._originalStoreId || value;
+                  const timeSlot = sel?._timeSlot || null;
+                  const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
+                  // Auto-select default driver for this store/slot/date
+                  const defaultDriverId = getDefaultDriverForStoreSlot(storeId, timeSlot || 'AM', formData.delivery_date);
+                  const defaultDriver = defaultDriverId ? allDrivers.find((d) => d.id === defaultDriverId) : null;
+                  setFormData((prev) => ({
+                    ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '',
+                    driver_id: defaultDriver ? defaultDriverId : prev.driver_id,
+                    driver_name: defaultDriver ? getDriverNameForStorage(defaultDriver) : prev.driver_name
+                  }));
+                  // If no default driver, open the driver dropdown
+                  if (!defaultDriver) {
+                    setTimeout(() => setForceOpenDriverSelect(true), 150);
+                  }
+                }} disabled={isSaving}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
+                    <SelectContent className="z-[999999]">
+                      {availableStores.map((store) => {
+                      const baseId = store._originalStoreId || store.id;
+                      const ts = store._timeSlot || null;
+                      const puid = getPickupStopIdForDelivery(baseId, formData.delivery_date, ts || 'AM', allDeliveries);
+                      const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
+                      return <SelectItem key={store.id} value={store.id}>{`${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`}</SelectItem>;
+                    })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                  <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                </div>
+                <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver</Label>
+                  <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
+                  const newDriverId = driverId === 'all' ? '' : driverId;
+                  const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
+                  const newDriverName = driver ? getDriverNameForStorage(driver) : '';
+                  setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
+                  setForceOpenDriverSelect(false);
+                }} disabled={isSaving}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                    <SelectContent className="z-[999999]">
+                      <SelectItem value="all">All Drivers</SelectItem>
+                      {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               }
 
               {/* Delivery mode: Patient Search / Date / Driver row */}
