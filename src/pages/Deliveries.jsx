@@ -242,6 +242,7 @@ export default function DeliveriesPage() {
   const yearAutoSelectDone = useRef(false);
   const yearManuallySelected = useRef(false);
   const skipContextSyncUntil = useRef(0);
+  const manualDateSelectionRef = useRef(false);
 
   const checkAccess = useCallback(async () => {
     try {
@@ -1364,66 +1365,50 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // CRITICAL: When transitioning FROM Driver Overview TO Route Management, auto-select most recent date
     const transitionedToRouteManagement = prevModeRef.current === true && isDriverOverviewMode === false;
     prevModeRef.current = isDriverOverviewMode;
 
-    // On initial page load: select most recent date
+    const selectTopDate = (reason) => {
+      if (dateListWithStats.length === 0) return;
+      const topDate = dateListWithStats[0].date;
+      const topDateObj = new Date(topDate.replace(/-/g, '/'));
+      topDateObj.setHours(0, 0, 0, 0);
+      manualDateSelectionRef.current = false;
+      console.log(`📅 [Deliveries] ${reason}: ${format(topDateObj, 'yyyy-MM-dd')}`);
+      setSelectedDate(topDateObj);
+    };
+
     if (isInitialPageLoadRef.current) {
-      console.log('📅 [Deliveries] Initial page load - selecting most recent date');
-      if (dateListWithStats.length > 0) {
-        const mostRecentDate = dateListWithStats[0].date;
-        const topDateObj = new Date(mostRecentDate.replace(/-/g, '/'));
-        topDateObj.setHours(0, 0, 0, 0);
-        console.log(`📅 [Deliveries] Most recent date selected: ${format(topDateObj, 'yyyy-MM-dd')}`);
-        setSelectedDate(topDateObj);
-      }
+      selectTopDate('Initial page load - selecting most recent date');
       isInitialPageLoadRef.current = false;
       return;
     }
 
-    // When transitioning to Route Management from Driver Overview, always select most recent date
     if (transitionedToRouteManagement) {
-      console.log('📅 [Deliveries] Transitioned to Route Management - selecting most recent date');
-      if (dateListWithStats.length > 0) {
-        const mostRecentDate = dateListWithStats[0].date;
-        const topDateObj = new Date(mostRecentDate.replace(/-/g, '/'));
-        topDateObj.setHours(0, 0, 0, 0);
-        console.log(`📅 [Deliveries] Most recent date selected: ${format(topDateObj, 'yyyy-MM-dd')}`);
-        setSelectedDate(topDateObj);
-        return;
-      }
+      selectTopDate('Transitioned to Route Management - selecting most recent date');
+      return;
     }
 
-    // On refresh/month-year change: keep selected date or auto-select if invalid
-    if (selectedDate) {
-      const selectedDateYear = selectedDate.getFullYear();
-      const selectedDateMonth = selectedDate.getMonth();
+    const selectedDateString = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
+    const validDateStrings = new Set(dateListWithStats.map((item) => item.date));
 
-      // If selected date is NOT in the currently selected month/year, auto-select first valid date
-      if (selectedDateYear !== selectedYear || selectedDateMonth !== selectedMonth) {
-        if (dateListWithStats.length > 0) {
-          const topDate = dateListWithStats[0].date;
-          const topDateObj = new Date(topDate.replace(/-/g, '/'));
-          topDateObj.setHours(0, 0, 0, 0);
-
-          console.log(`📅 [Deliveries] Selected date not in month/year range, auto-selecting: ${format(topDateObj, 'yyyy-MM-dd')}`);
-          setSelectedDate(topDateObj);
-        }
-      }
-    } else if (!selectedDate && dateListWithStats.length > 0) {
-      // No date selected - select most recent
-      const topDate = dateListWithStats[0].date;
-      const topDateObj = new Date(topDate.replace(/-/g, '/'));
-      topDateObj.setHours(0, 0, 0, 0);
-      console.log(`📅 [Deliveries] No date selected, selecting most recent: ${format(topDateObj, 'yyyy-MM-dd')}`);
-      setSelectedDate(topDateObj);
+    if (!selectedDateString && dateListWithStats.length > 0) {
+      selectTopDate('No date selected, selecting most recent');
+      return;
     }
-  }, [selectedMonth, selectedYear, isDriverOverviewMode, isLoading, isLoadingData, dateListWithStats.length]);
+
+    if (selectedDateString && !validDateStrings.has(selectedDateString) && dateListWithStats.length > 0) {
+      selectTopDate('Selected date no longer valid, auto-selecting most recent');
+    }
+  }, [selectedDate, isDriverOverviewMode, isLoading, isLoadingData, dateListWithStats]);
 
 
   useEffect(() => {
     if (isDriverOverviewMode || isLoading || !dateListWithStats.length || !effectiveDrivers.length || !hasAccess || isLoadingData) {
+      return;
+    }
+
+    if (manualDateSelectionRef.current) {
       return;
     }
 
@@ -2614,12 +2599,14 @@ export default function DeliveriesPage() {
 
 
   const handleYearChange = useCallback((year) => {
+    manualDateSelectionRef.current = false;
     const newYear = parseInt(year);
     setSelectedYear(newYear);
     updateUrl({ year: newYear, month: selectedMonth + 1 });
   }, [selectedMonth, updateUrl]);
 
   const handleMonthChange = useCallback((month) => {
+    manualDateSelectionRef.current = false;
     const newMonth = parseInt(month);
     setSelectedMonth(newMonth);
     updateUrl({ year: selectedYear, month: newMonth + 1 });
@@ -2633,8 +2620,8 @@ export default function DeliveriesPage() {
       const dateObj = new Date(year, month - 1, day);
       dateObj.setHours(0, 0, 0, 0);
       if (isNaN(dateObj.getTime())) return;
+      manualDateSelectionRef.current = true;
       setSelectedDate(dateObj);
-      // CRITICAL: Switch year/month if clicked date is in a different month so groupedDeliveries includes it
       if (year !== selectedYear || month - 1 !== selectedMonth) {
         setSelectedYear(year);
         setSelectedMonth(month - 1);
@@ -2651,7 +2638,7 @@ export default function DeliveriesPage() {
 
   const handleDriverChange = useCallback((driverId) => {
     try {
-      // Keep current date; only change driver + URL
+      manualDateSelectionRef.current = false;
       setDriverFilter(driverId);
       updateUrl({
         driver: driverId,
