@@ -53,19 +53,13 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
     // Initial fetch shortly after mount
     const t = setTimeout(fetchCounts, 1000);
 
-    // Refresh on smart refresh completion
-    const onSmart = () => fetchCounts();
-    window.addEventListener("smartRefreshComplete", onSmart);
-
-    // Realtime refresh when API logs change
-    const unsubscribe = base44.entities.GoogleAPILog.subscribe(() => {
-      fetchCounts();
-    });
+    // Poll every 60 seconds instead of listening to every single log insertion
+    // which causes massive rate limits when many logs are created at once
+    const interval = setInterval(fetchCounts, 60000);
 
     return () => {
       clearTimeout(t);
-      unsubscribe();
-      window.removeEventListener("smartRefreshComplete", onSmart);
+      clearInterval(interval);
     };
   }, []);
 
