@@ -517,10 +517,9 @@ export default function DeliveryMap({
   }, [deliveryMarkers, pickupMarkers]);
 
   const driverHomeMarkers = useMemo(() => {
-    const hideHomeMarkersForDispatcher = currentUser && userHasRole(currentUser, "dispatcher") && !userHasRole(currentUser, "admin");
     const isPureDriver = currentUser && userHasRole(currentUser, "driver") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "dispatcher");
 
-    if (!showRoutes || !currentUser || hideHomeMarkersForDispatcher || (selectedDate && selectedDate < getEdmDate())) {
+    if (!showRoutes || !currentUser || (selectedDate && selectedDate < getEdmDate())) {
       prevDriverHomeMarkersRef.current = [];
       return [];
     }
