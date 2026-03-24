@@ -2080,14 +2080,59 @@ export default function Layout({ children, currentPageName }) {
     return unsubscribe;
   }, [dataLoaded]);
 
-  const { getFilteredDeliveries, getFilteredPatients } = require('./components/utils/deliveryFiltering');
-
   const filteredDeliveries = useMemo(() => {
-    return getFilteredDeliveries(deliveries, currentUser, patients, selectedStoreId);
+    if (!deliveries.length || !currentUser) return [];
+    let data = deliveries.filter((delivery) => delivery);
+
+    if (selectedStoreId && selectedStoreId !== 'all') {
+      data = data.filter((delivery) => delivery && delivery.store_id === selectedStoreId);
+    }
+
+    if (userHasRole(currentUser, 'dispatcher')) {
+      const dispatcherStoreIds = currentUser.store_ids || [];
+      if (selectedStoreId && selectedStoreId !== 'all' && !dispatcherStoreIds.includes(selectedStoreId)) {
+        return [];
+      }
+
+      const relevantStoreIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : dispatcherStoreIds;
+
+      const dispatcherPatientIds = new Set(
+        patients.filter((p) => p && relevantStoreIds.includes(p.store_id)).map((p) => p.id)
+      );
+      data = data.filter((delivery) => {
+        if (!delivery) return false;
+        if (delivery.patient_id) {
+          return dispatcherPatientIds.has(delivery.patient_id);
+        }
+        return delivery.store_id && relevantStoreIds.includes(delivery.store_id);
+      });
+    } else if (userHasRole(currentUser, 'driver')) {
+      data = data.filter((delivery) => delivery && delivery.driver_id === currentUser.id);
+      if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) {
+        return [];
+      }
+    }
+
+    return data;
   }, [deliveries, currentUser, patients, selectedStoreId]);
 
   const filteredPatients = useMemo(() => {
-    return getFilteredPatients(patients, currentUser, selectedStoreId);
+    if (!patients.length || !currentUser) return [];
+    let data = patients.filter((patient) => patient);
+
+    if (selectedStoreId && selectedStoreId !== 'all') {
+      data = data.filter((p) => p && p.store_id === selectedStoreId);
+    }
+
+    if (userHasRole(currentUser, 'dispatcher')) {
+      const dispatcherStoreIds = currentUser.store_ids || [];
+      if (selectedStoreId && selectedStoreId !== 'all' && !dispatcherStoreIds.includes(selectedStoreId)) {
+        return [];
+      }
+      const relevantStoreIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : dispatcherStoreIds;
+      data = data.filter((p) => p && relevantStoreIds.includes(p.store_id));
+    }
+    return data;
   }, [patients, currentUser, selectedStoreId]);
 
   // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)

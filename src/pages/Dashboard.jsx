@@ -121,7 +121,7 @@ function Dashboard() {
     dataSource
   } = useAppData();
 
-  const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') : false;
+  const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
 
   const [selectedDate, setSelectedDate] = useState(() => {
     // CRITICAL: Check URL params first, then globalFilters
@@ -1096,7 +1096,7 @@ function Dashboard() {
     }
 
     // DISPATCHER: Show drivers assigned to dispatcher's stores for selected day OR who have deliveries for dispatcher's stores on selected date
-    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+    if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
       const dispatcherStores = stores?.filter((s) => s && dispatcherStoreIds.includes(s.id)) || [];
 
