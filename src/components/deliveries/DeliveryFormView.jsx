@@ -742,15 +742,7 @@ export default function DeliveryFormView({
                     </div> :
                   null}
 
-                  {/* Pickup Options - shown inline in Row 2 for new pickups, standalone for edit */}
-                  {isPickupMode && delivery &&
-                  <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Options</Label>
-                      <div className="space-y-3">
-                        <CheckboxField id="after_hours_pickup" label="After Hours Pickup" checked={formData.after_hours_pickup} onChange={(c) => setFormData((p) => ({ ...p, after_hours_pickup: c }))} disabled={isSaving} />
-                      </div>
-                    </div>
-                  }
+
                 </div>
 
                 {/* Desktop Staged Panel - hidden in pickup mode */}
