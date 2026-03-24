@@ -1,4 +1,6 @@
-const DELIVERY_ALLOWED_FIELDS = new Set([
+import { base44 } from '@/api/base44Client';
+
+const FALLBACK_ALLOWED_FIELDS = new Set([
   'company_id',
   'delivery_id',
   'patient_id',
@@ -42,14 +44,7 @@ const DELIVERY_ALLOWED_FIELDS = new Set([
   'ampm_deliveries',
   'delivery_route_breadcrumbs',
   'finished_leg_encoded_polyline',
-  'PolylineUpdated',
-  // legacy / denormalized fields still used across the app
-  'patient_name',
-  'patient_phone',
-  'store_phone',
-  'time_window_start',
-  'time_window_end',
-  'unit_number'
+  'PolylineUpdated'
 ]);
 
 const INTERNAL_ONLY_FIELDS = new Set([
@@ -61,31 +56,77 @@ const INTERNAL_ONLY_FIELDS = new Set([
   '_tempId',
   '_isBatchSave',
   '_stagedDeliveries',
+  '_wasEdited',
+  'isNew',
   'store_name',
   'store_abbreviation',
   'distanceFromStore',
   'delivery_address',
   'latitude',
-  'longitude'
+  'longitude',
+  'patient_name',
+  'patient_phone',
+  'store_phone',
+  'time_window_start',
+  'time_window_end',
+  'unit_number',
+  'mailbox_ok',
+  'call_upon_arrival',
+  'ring_bell',
+  'dont_ring_bell',
+  'back_door',
+  'recurring',
+  'recurring_daily',
+  'recurring_weekly_mon',
+  'recurring_weekly_tue',
+  'recurring_weekly_wed',
+  'recurring_weekly_thu',
+  'recurring_weekly_fri',
+  'recurring_weekly_sat',
+  'recurring_weekly_sun',
+  'recurring_biweekly',
+  'recurring_weekly_x4',
+  'recurring_monthly',
+  'recurring_bimonthly'
 ]);
 
-const normalizeValue = (key, value) => {
+let deliverySchemaPromise = null;
+
+const getDeliverySchema = async () => {
+  if (!deliverySchemaPromise) {
+    deliverySchemaPromise = base44.entities.Delivery.schema().catch(() => null);
+  }
+  return deliverySchemaPromise;
+};
+
+const normalizeValue = (key, value, fieldSchema) => {
   if (value === undefined) return undefined;
+  if (value === null) {
+    if (fieldSchema?.type === 'string') return '';
+    if (fieldSchema?.type === 'array') return [];
+    return undefined;
+  }
   if ((key === 'barcode_values' || key === 'receipt_barcode_values' || key === 'proof_photo_urls') && !Array.isArray(value)) {
     return [];
   }
-  if (key === 'cod_payments' && value && !Array.isArray(value)) {
+  if (key === 'cod_payments' && !Array.isArray(value)) {
     return undefined;
   }
   return value;
 };
 
-export const sanitizeDeliveryPayload = (delivery = {}) => {
+export const sanitizeDeliveryPayload = async (delivery = {}) => {
+  const schema = await getDeliverySchema();
+  const schemaProperties = schema?.properties || {};
+  const allowedFields = Object.keys(schemaProperties).length > 0
+    ? new Set(Object.keys(schemaProperties))
+    : FALLBACK_ALLOWED_FIELDS;
+
   return Object.entries(delivery).reduce((clean, [key, rawValue]) => {
     if (INTERNAL_ONLY_FIELDS.has(key)) return clean;
-    if (!DELIVERY_ALLOWED_FIELDS.has(key)) return clean;
+    if (!allowedFields.has(key)) return clean;
 
-    const value = normalizeValue(key, rawValue);
+    const value = normalizeValue(key, rawValue, schemaProperties[key]);
     if (value === undefined) return clean;
 
     clean[key] = value;
@@ -93,4 +134,4 @@ export const sanitizeDeliveryPayload = (delivery = {}) => {
   }, {});
 };
 
-export const sanitizeDeliveryPayloads = (deliveries = []) => deliveries.map(sanitizeDeliveryPayload);
+export const sanitizeDeliveryPayloads = async (deliveries = []) => Promise.all((deliveries || []).map((delivery) => sanitizeDeliveryPayload(delivery)));
