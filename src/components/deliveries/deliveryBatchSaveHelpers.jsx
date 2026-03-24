@@ -8,7 +8,6 @@ export const splitStagedDeliveriesForBatch = (validStagedDeliveries) => {
   const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
   const existingDeliveries = validStagedDeliveries.filter((staged) => {
     if (!staged.id) return false;
-    if (staged._wasEdited) return true;
     if (COMPLETION_STATUSES.includes(staged.status)) return false;
     return true;
   });
@@ -122,7 +121,7 @@ export const buildExistingDeliveryBatchUpdate = (delivery) => {
 export const getDeliveryReadyForSave = (delivery) => {
   if (delivery.status !== 'Staged') return delivery;
 
-  const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, ...deliveryPayload } = delivery;
+  const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, _wasEdited, ...deliveryPayload } = delivery;
   return { ...deliveryPayload, status: getStagedActivationStatus(delivery) };
 };
 
