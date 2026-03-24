@@ -670,12 +670,12 @@ const DeliveryDataTable = ({
 
 
 
-          // Fallback
-        }}} else if (delivery.delivery_time_eta && typeof delivery.delivery_time_eta === 'string') {time = `ETA: ${delivery.delivery_time_eta}`;}return { date, time };};const getStatusBadge = (delivery) => {const status = delivery.status;
-    const isEditing = editingStatusId === delivery.id;
 
-    if (isEditing) {
-      return (
+
+
+
+          // Fallback
+        }}} else if (delivery.delivery_time_eta && typeof delivery.delivery_time_eta === 'string') {time = `ETA: ${delivery.delivery_time_eta}`;}return { date, time };};const getStatusBadge = (delivery) => {const status = delivery.status;const isEditing = editingStatusId === delivery.id;if (isEditing) {return (
         <Select
           value={status}
           onValueChange={(newStatus) => handleStatusChange(delivery, newStatus)}
@@ -812,7 +812,7 @@ const DeliveryDataTable = ({
 
   return (
     <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-      <CardHeader>
+      <CardHeader className="px-6 py-2 flex flex-col space-y-1.5">
         <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
           <span>Deliveries</span>
           <div className="flex gap-2">
@@ -888,7 +888,7 @@ const DeliveryDataTable = ({
         </CardTitle>
         <CardDescription style={{ color: 'var(--text-slate-500)' }}>Filtered and sorted list of deliveries by year, month, and driver.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-6 py-1">
         <div className="flex flex-wrap gap-3 mb-4">
           <Select value={selectedYear} onValueChange={onYearChange} disabled={isLoadingData}>
             <SelectTrigger className="w-32">
@@ -3129,12 +3129,12 @@ export default function AdminUtilities() {
 
 
 
-              // Fallback
-            }}if (delivery.delivery_time_eta) {const timeParts = delivery.delivery_time_eta.match(/(\d{2}):(\d{2})/);if (timeParts) {const hours = parseInt(timeParts[1]);const minutes = parseInt(timeParts[2]);return hours * 60 + minutes;}}return 9999;};
-        if (deliverySortColumn === 'stop_order') {
-          const aOrder = a.stop_order ?? 99999;
-          const bOrder = b.stop_order ?? 99999;
 
+
+
+
+              // Fallback
+            }}if (delivery.delivery_time_eta) {const timeParts = delivery.delivery_time_eta.match(/(\d{2}):(\d{2})/);if (timeParts) {const hours = parseInt(timeParts[1]);const minutes = parseInt(timeParts[2]);return hours * 60 + minutes;}}return 9999;};if (deliverySortColumn === 'stop_order') {const aOrder = a.stop_order ?? 99999;const bOrder = b.stop_order ?? 99999;
           if (aOrder !== bOrder) {
             return deliverySortDirection === 'asc' ? aOrder - bOrder : bOrder - aOrder;
           }
@@ -4155,7 +4155,7 @@ export default function AdminUtilities() {
               </div> :
 
             <div className="space-y-6">
-                <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full">
+                <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full h-full">
                    <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(6,minmax(max-content,1fr))' }}>
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Deliveries</TabsTrigger>
                        <TabsTrigger value="patients" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Patients</TabsTrigger>
@@ -4167,7 +4167,7 @@ export default function AdminUtilities() {
 
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
-                      <div className="flex flex-col md:flex-row gap-2 flex-wrap items-stretch md:items-center justify-between">
+                      <div className="flex flex-col md:flex-row gap-1 flex-wrap items-stretch md:items-center justify-between">
                         {!manualLoadTriggered ?
                       <Alert className="bg-background text-foreground pt-2 pr-3 pb-1 pl-3 text-sm rounded-lg relative w-full border [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7 flex-1">
                             <AlertCircle className="h-4 w-4" />
