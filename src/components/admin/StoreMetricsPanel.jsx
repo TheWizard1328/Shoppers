@@ -10,9 +10,9 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
+'January', 'February', 'March', 'April', 'May', 'June',
+'July', 'August', 'September', 'October', 'November', 'December'];
+
 
 const getMonthRange = (year, month) => {
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -211,9 +211,9 @@ export default function StoreMetricsPanel() {
       doc.text(store.pays_app_fees ? 'Paying' : 'Not Paying', startX, y);
       startX += colWidths[1];
 
-      const feePeriod = store.current_fee_period
-        ? `${format(new Date(store.current_fee_period.start + 'T00:00:00'), 'MMM dd, yyyy')} → ${store.current_fee_period.end ? format(new Date(store.current_fee_period.end + 'T00:00:00'), 'MMM dd, yyyy') : 'Present'}`
-        : '—';
+      const feePeriod = store.current_fee_period ?
+      `${format(new Date(store.current_fee_period.start + 'T00:00:00'), 'MMM dd, yyyy')} → ${store.current_fee_period.end ? format(new Date(store.current_fee_period.end + 'T00:00:00'), 'MMM dd, yyyy') : 'Present'}` :
+      '—';
       doc.text(feePeriod.substring(0, 28), startX, y);
       startX += colWidths[2];
 
@@ -259,15 +259,15 @@ export default function StoreMetricsPanel() {
           <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
           <span className="text-slate-600">Loading store metrics...</span>
         </CardContent>
-      </Card>
-    );
+      </Card>);
+
   }
 
   return (
-    <div className="w-full flex-1 min-h-0 flex flex-col space-y-6">
+    <div className="w-full flex-1 min-h-0 flex flex-col space-y-3">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="px-3 py-3">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-blue-100 rounded-lg">
                 <Store className="w-6 h-6 text-blue-600" />
@@ -283,7 +283,7 @@ export default function StoreMetricsPanel() {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="px-3 py-3">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-emerald-100 rounded-lg">
                 <Package className="w-6 h-6 text-emerald-600" />
@@ -299,7 +299,7 @@ export default function StoreMetricsPanel() {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="px-3 py-3">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-amber-100 rounded-lg">
                 <DollarSign className="w-6 h-6 text-amber-600" />
@@ -315,7 +315,7 @@ export default function StoreMetricsPanel() {
         </Card>
 
         <Card className="bg-emerald-50 border-emerald-200">
-          <CardContent className="pt-6">
+          <CardContent className="px-3 py-3">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-emerald-500 rounded-lg">
                 <DollarSign className="w-6 h-6 text-white" />
@@ -332,7 +332,7 @@ export default function StoreMetricsPanel() {
       </div>
 
       <Card className="flex flex-col max-h-[calc(100vh-220px)] min-h-[420px] overflow-hidden">
-        <CardHeader className="shrink-0">
+        <CardHeader className="px-3 py-2 flex flex-col space-y-1.5 shrink-0">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -349,9 +349,9 @@ export default function StoreMetricsPanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableYears.map((year) => (
-                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                  ))}
+                  {availableYears.map((year) =>
+                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
 
@@ -360,9 +360,9 @@ export default function StoreMetricsPanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MONTH_NAMES.map((month, idx) => (
-                    <SelectItem key={idx + 1} value={(idx + 1).toString()}>{month}</SelectItem>
-                  ))}
+                  {MONTH_NAMES.map((month, idx) =>
+                  <SelectItem key={idx + 1} value={(idx + 1).toString()}>{month}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
 
@@ -377,9 +377,9 @@ export default function StoreMetricsPanel() {
           </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden p-0">
-          <div className="h-full overflow-x-auto overflow-y-auto p-6">
-            {metrics?.stores?.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
+          <div className="px-3 py-3 h-full overflow-x-auto overflow-y-auto">
+            {metrics?.stores?.length > 0 ?
+            <div className="border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-slate-50">
                     <TableRow className="bg-slate-50">
@@ -393,39 +393,39 @@ export default function StoreMetricsPanel() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {metrics.stores.map((store) => (
-                      <TableRow key={store.store_id} className={store.pays_app_fees ? 'bg-amber-50/50' : ''}>
+                    {metrics.stores.map((store) =>
+                  <TableRow key={store.store_id} className={store.pays_app_fees ? 'bg-amber-50/50' : ''}>
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-medium text-slate-900">{store.store_name}</span>
-                            {store.store_abbreviation && (
-                              <span className="text-xs text-slate-500">{store.store_abbreviation}</span>
-                            )}
+                            {store.store_abbreviation &&
+                        <span className="text-xs text-slate-500">{store.store_abbreviation}</span>
+                        }
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          {store.pays_app_fees ? (
-                            <Badge className="bg-amber-100 text-amber-800">
+                          {store.pays_app_fees ?
+                      <Badge className="bg-amber-100 text-amber-800">
                               <DollarSign className="w-3 h-3 mr-1" />
                               Paying Fees
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">Not Paying</Badge>
-                          )}
+                            </Badge> :
+
+                      <Badge variant="secondary">Not Paying</Badge>
+                      }
                         </TableCell>
                         <TableCell>
-                          {store.current_fee_period ? (
-                            <div className="flex items-center gap-1 text-xs text-slate-600">
+                          {store.current_fee_period ?
+                      <div className="flex items-center gap-1 text-xs text-slate-600">
                               <Calendar className="w-3 h-3" />
                               {format(new Date(store.current_fee_period.start + 'T00:00:00'), 'MMM d, yyyy')}
                               <span className="mx-1">→</span>
-                              {store.current_fee_period.end
-                                ? format(new Date(store.current_fee_period.end + 'T00:00:00'), 'MMM d, yyyy')
-                                : 'Present'}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400">—</span>
-                          )}
+                              {store.current_fee_period.end ?
+                        format(new Date(store.current_fee_period.end + 'T00:00:00'), 'MMM d, yyyy') :
+                        'Present'}
+                            </div> :
+
+                      <span className="text-xs text-slate-400">—</span>
+                      }
                         </TableCell>
                         <TableCell className="text-right font-mono">{store.total_deliveries}</TableCell>
                         <TableCell className="text-right font-mono">{store.billable_deliveries}</TableCell>
@@ -434,7 +434,7 @@ export default function StoreMetricsPanel() {
                           {formatCurrency(store.total_fees_owed)}
                         </TableCell>
                       </TableRow>
-                    ))}
+                  )}
                     <TableRow className="bg-slate-100 font-semibold">
                       <TableCell>TOTAL</TableCell>
                       <TableCell className="text-center">
@@ -450,19 +450,19 @@ export default function StoreMetricsPanel() {
                     </TableRow>
                   </TableBody>
                 </Table>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-slate-500">
+              </div> :
+
+            <div className="text-center py-12 text-slate-500">
                 No store data available for {MONTH_NAMES[parseInt(selectedMonth, 10) - 1]} {selectedYear}
               </div>
-            )}
+            }
           </div>
         </CardContent>
-        <CardFooter className="shrink-0 justify-between">
+        <CardFooter className="px-6 py-3 flex items-center shrink-0 justify-between">
           <span className="text-xs text-slate-500">Showing {metrics?.stores?.length || 0} stores</span>
           <span className="text-xs text-slate-400">Scroll to view more</span>
         </CardFooter>
       </Card>
-    </div>
-  );
+    </div>);
+
 }
