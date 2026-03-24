@@ -1305,10 +1305,9 @@ export default function DeliveryForm({
       return;
     }
 
-    const validStagedDeliveries = filterValidStagedDeliveries(stagedDeliveries, allDeliveries);
-    const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(validStagedDeliveries);
-
-    if (newDeliveries.length === 0 && existingDeliveries.length === 0) {
+    const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
+    const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
+    if (newDeliveries.length === 0 && deliveriesToUpdate.length === 0) {
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       hasLoadedPending.current = false;
