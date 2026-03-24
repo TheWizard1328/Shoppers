@@ -1337,26 +1337,16 @@ export default function DeliveryForm({
     }
 
     try {
-      if (existingDeliveriesWithTRs.length > 0) {
-        const updatePromises = existingDeliveriesWithTRs.map((updated) => {
+      if (deliveriesToUpdate.length > 0) {
+        const updatePromises = deliveriesToUpdate.map((updated) => {
           const updateData = buildExistingDeliveryBatchUpdate(updated);
-
-          return updateDeliveryLocal(updated.id, updateData, { isBatchOperation: true, skipSmartRefresh: true })
-            .then(() => {
-              return null;
-            })
-            .catch((error) => {
-              // Skip deliveries that were deleted
-              if (error.message?.includes('not found') || error.response?.status === 404) {
-                return null;
-              }
-              const errorMessage = error.message?.replace(updated.id, updated.patient_name || 'Unknown Patient') || error.message;
-              throw new Error(errorMessage);
-            });
+          return updateDeliveryLocal(updated.id, updateData, { isBatchOperation: true, skipSmartRefresh: true }).catch((error) => {
+            if (error.message?.includes('not found') || error.response?.status === 404) return null;
+            throw new Error(error.message?.replace(updated.id, updated.patient_name || 'Unknown Patient') || error.message);
+          });
         });
-
         await Promise.allSettled(updatePromises);
-        (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(existingDeliveriesWithTRs.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});if(ids.length)console.log('🗓️ [BatchSave] Updated last_delivery_date for',ids.length,'patients');}catch(_){}})();
+        (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(deliveriesToUpdate.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});}catch(_){}})();
       }
 
       // CRITICAL: Create ALL default pickups for brand-new routes BEFORE the UI refresh runs
