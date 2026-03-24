@@ -11,6 +11,7 @@ import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 import { Company } from '@/entities/Company';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
+import { sanitizeDeliveryPayload, sanitizeDeliveryPayloads } from './deliveryPayloadSanitizer';
 
 // Listeners for UI updates
 let mutationListeners = [];
@@ -370,20 +371,8 @@ export const createDeliveryLocal = async (deliveryData) => {
       throw new Error('Missing delivery_date');
     }
 
-    const {
-      _isBatchSave,
-      _stagedDeliveries,
-      _tempId,
-      store_name,
-      store_abbreviation,
-      distanceFromStore,
-      delivery_address,
-      patient_name,
-      patient_phone,
-      store_phone,
-      ...normalizedDeliveryData
-    } = sourceDelivery;
-    
+    const normalizedDeliveryData = sanitizeDeliveryPayload(sourceDelivery);
+
     // Generate temporary ID if not provided
     const tempId = normalizedDeliveryData.id || `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const localDelivery = {
@@ -744,7 +733,8 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
     // Try immediate backend sync
     try {
       const { base44 } = await import('@/api/base44Client');
-      const backendDeliveries = await base44.entities.Delivery.bulkCreate(deliveriesData);
+      const backendPayloads = sanitizeDeliveryPayloads(deliveriesData);
+      const backendDeliveries = await base44.entities.Delivery.bulkCreate(backendPayloads);
       console.log(`✅ [Sync] ${localDeliveries.length} deliveries synced to backend immediately`);
       
       // CRITICAL: Remove all temp records from IndexedDB
@@ -786,7 +776,7 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
           operation: 'create',
           entity: 'Delivery',
           recordId: delivery.id,
-          payload: delivery
+          payload: sanitizeDeliveryPayload(delivery)
         });
       }
       // CRITICAL: Restart smart refresh even if queued
