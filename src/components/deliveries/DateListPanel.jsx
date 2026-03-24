@@ -165,7 +165,7 @@ export default function DateListPanel({
 
 
       {/* Date Cards List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div className="px-2 py-2 flex-1 overflow-y-auto space-y-2">
         {datesWithDeliveries.filter((d) => d.total > 0).length === 0 ?
         <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>
             <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
