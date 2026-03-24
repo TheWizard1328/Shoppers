@@ -167,7 +167,7 @@ export default function StopCardHeader({
         <h3 className="pt-0 text-xl font-semibold text-center truncate" style={{ color: "var(--text-slate-900)" }}>
           {finalDisplayName}
         </h3>
-        <div className="flex flex-col items-center min-h-[40px]">
+        <div className="flex flex-col items-center min-h-[43px]">
           <div className="text-lg flex items-center justify-center" style={{ color: timeColor }}>
             {timeDisplay}
             {showDriverName && safeDriver &&
