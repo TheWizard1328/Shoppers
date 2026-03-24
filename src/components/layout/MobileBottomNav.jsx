@@ -56,7 +56,7 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
   return (
     <nav
       data-mobile-bottom-nav
-      className="fixed bottom-0 left-0 right-0 z-[150] border-t"
+      className="relative z-[150] shrink-0 border-t"
       style={{
         background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
