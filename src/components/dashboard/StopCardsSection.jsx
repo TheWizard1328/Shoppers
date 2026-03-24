@@ -23,8 +23,11 @@ export default function StopCardsSection({
   return (
     <div
       ref={stopCardsContainerRef}
-      className="horizontal-cards-container absolute bottom-0 left-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end"
-      style={{ left: isSnapshotModeActive ? '5rem' : '0' }}
+      className="horizontal-cards-container absolute left-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end"
+      style={{
+        left: isSnapshotModeActive ? '5rem' : '0',
+        bottom: 'calc(var(--bottom-nav-height, 0px) + 0.25rem)'
+      }}
       onClick={() => { if (retractClustersRef.current) retractClustersRef.current(); }}>
 
       <AnimatePresence>
