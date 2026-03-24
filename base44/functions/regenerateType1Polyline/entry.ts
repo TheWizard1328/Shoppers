@@ -100,6 +100,54 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+function buildStopOrderRepairUpdates(deliveries) {
+  const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+  const getCompletionTime = (delivery) => {
+    const value = delivery?.actual_delivery_time || delivery?.arrival_time || delivery?.updated_date || delivery?.created_date || 0;
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : Number.MAX_SAFE_INTEGER;
+  };
+  const getStopOrder = (delivery) => {
+    const value = Number(delivery?.stop_order);
+    return Number.isFinite(value) && value > 0 ? value : Number.MAX_SAFE_INTEGER;
+  };
+  const getEta = (delivery) => delivery?.delivery_time_eta || delivery?.delivery_time_start || '99:99';
+
+  const sortedDeliveries = [...(deliveries || [])].sort((a, b) => {
+    const isAFinished = finishedStatuses.has(a?.status);
+    const isBFinished = finishedStatuses.has(b?.status);
+    if (isAFinished && !isBFinished) return -1;
+    if (!isAFinished && isBFinished) return 1;
+
+    if (isAFinished && isBFinished) {
+      const timeDiff = getCompletionTime(a) - getCompletionTime(b);
+      if (timeDiff !== 0) return timeDiff;
+      return getStopOrder(a) - getStopOrder(b);
+    }
+
+    const isAPending = a?.status === 'pending';
+    const isBPending = b?.status === 'pending';
+    if (isAPending && !isBPending) return 1;
+    if (!isAPending && isBPending) return -1;
+
+    const stopOrderDiff = getStopOrder(a) - getStopOrder(b);
+    if (stopOrderDiff !== 0) return stopOrderDiff;
+
+    return getEta(a).localeCompare(getEta(b));
+  });
+
+  return sortedDeliveries
+    .map((delivery, index) => ({
+      ...delivery,
+      normalized_stop_order: index + 1
+    }))
+    .filter((delivery) => Number(delivery?.stop_order) !== delivery.normalized_stop_order)
+    .map((delivery) => ({
+      id: delivery.id,
+      stop_order: delivery.normalized_stop_order
+    }));
+}
+
 async function getSegmentDirections(base44, from, to) {
   const response = await base44.functions.invoke('getHereDirections', {
     origin: { lat: from.lat, lng: from.lon },
