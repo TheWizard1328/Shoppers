@@ -2112,13 +2112,13 @@ export default function Layout({ children, currentPageName }) {
       data = data.filter((p) => p && p.store_id === selectedStoreId);
     }
 
-    if (userHasRole(currentUser, 'dispatcher')) {
-      const dispatcherStoreIds = currentUser.store_ids || [];
-      if (selectedStoreId && selectedStoreId !== 'all' && !dispatcherStoreIds.includes(selectedStoreId)) {
-        return [];
-      }
-      const relevantStoreIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : dispatcherStoreIds;
-      data = data.filter((p) => p && relevantStoreIds.includes(p.store_id));
+    if (userHasRole(currentUser, 'admin')) {
+      // Admins see all
+    } else if (userHasRole(currentUser, 'dispatcher')) {
+      const sIds = currentUser.store_ids || [];
+      if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
+      const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
+      data = data.filter(p => p && relIds.includes(p.store_id));
     }
     return data;
   }, [patients, currentUser, selectedStoreId]);
