@@ -413,29 +413,28 @@ Deno.serve(async (req) => {
 
       const emailStartedAt = Date.now();
       try {
-        await Promise.all(uniqueRecipientEmails.map(async (email) => {
-          const raw = buildGmailRawMessage({
-            to: email,
-            subject,
-            body,
-            pdfBytes,
-            fileName,
-          });
+        const toAddresses = uniqueRecipientEmails.join(', ');
+        const raw = buildGmailRawMessage({
+          to: toAddresses,
+          subject,
+          body,
+          pdfBytes,
+          fileName,
+        });
 
-          const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ raw }),
-          });
+        const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ raw }),
+        });
 
-          if (!gmailResponse.ok) {
-            const errorText = await gmailResponse.text();
-            throw new Error(errorText || 'Failed to send route email');
-          }
-        }));
+        if (!gmailResponse.ok) {
+          const errorText = await gmailResponse.text();
+          throw new Error(errorText || 'Failed to send route email');
+        }
 
         await logEmailIntegrationUsage({
           success: true,
