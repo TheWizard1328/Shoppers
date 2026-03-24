@@ -34,48 +34,49 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     }
   })();
 
-  // Preserve visible stop positions; only repair missing/duplicate orders, with pending always last.
+  const getSortableCompletionTime = (delivery) => {
+    if (!delivery) return Number.MAX_SAFE_INTEGER;
+    if (delivery.actual_delivery_time) return new Date(delivery.actual_delivery_time).getTime();
+    if (delivery.arrival_time) return new Date(delivery.arrival_time).getTime();
+    return Number.MAX_SAFE_INTEGER;
+  };
+
+  const getSortableStopOrder = (delivery) => {
+    const stopOrder = Number(delivery?.stop_order);
+    return Number.isFinite(stopOrder) && stopOrder > 0 ? stopOrder : Number.MAX_SAFE_INTEGER;
+  };
+
+  const getSortableEta = (delivery) => delivery?.delivery_time_eta || delivery?.delivery_time_start || '99:99';
+
+  // Always rebuild the full route order from actual route data.
   const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
-    const isAPending = a.status === 'pending';
-    const isBPending = b.status === 'pending';
+    const isAFinished = finishedStatuses.includes(a?.status);
+    const isBFinished = finishedStatuses.includes(b?.status);
+    if (isAFinished && !isBFinished) return -1;
+    if (!isAFinished && isBFinished) return 1;
+
+    if (isAFinished && isBFinished) {
+      const timeDiff = getSortableCompletionTime(a) - getSortableCompletionTime(b);
+      if (timeDiff !== 0) return timeDiff;
+      return getSortableStopOrder(a) - getSortableStopOrder(b);
+    }
+
+    const isAPending = a?.status === 'pending';
+    const isBPending = b?.status === 'pending';
     if (isAPending && !isBPending) return 1;
     if (!isAPending && isBPending) return -1;
 
-    const aOrder = Number(a.stop_order);
-    const bOrder = Number(b.stop_order);
-    const hasAOrder = Number.isFinite(aOrder) && aOrder > 0;
-    const hasBOrder = Number.isFinite(bOrder) && bOrder > 0;
-    if (hasAOrder && hasBOrder && aOrder !== bOrder) return aOrder - bOrder;
+    const stopOrderDiff = getSortableStopOrder(a) - getSortableStopOrder(b);
+    if (stopOrderDiff !== 0) return stopOrderDiff;
 
-    const isAFinished = finishedStatuses.includes(a.status);
-    const isBFinished = finishedStatuses.includes(b.status);
-    if (isAFinished && isBFinished) {
-      const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
-      const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
-      if (timeA !== timeB) return timeA - timeB;
-    }
-
-    const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
-    const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
-    if (etaA !== etaB) return etaA.localeCompare(etaB);
-    if (hasAOrder) return -1;
-    if (hasBOrder) return 1;
-    return 0;
+    return getSortableEta(a).localeCompare(getSortableEta(b));
   });
 
-  const existingOrders = sortedDeliveries
-    .map((delivery) => Number(delivery.stop_order))
-    .filter((order) => Number.isFinite(order) && order > 0);
-  const usedOrders = new Set();
-  let nextGeneratedOrder = existingOrders.length > 0 ? Math.max(...existingOrders) + 1 : 1;
-
   const updates = [];
-  for (const delivery of sortedDeliveries) {
+  for (let index = 0; index < sortedDeliveries.length; index += 1) {
+    const delivery = sortedDeliveries[index];
+    const newStopOrder = index + 1;
     const currentStopOrder = Number(delivery.stop_order);
-    const newStopOrder = Number.isFinite(currentStopOrder) && currentStopOrder > 0 && !usedOrders.has(currentStopOrder)
-      ? currentStopOrder
-      : nextGeneratedOrder++;
-    usedOrders.add(newStopOrder);
 
     if (currentStopOrder !== newStopOrder) {
       updates.push({ id: delivery.id, stop_order: newStopOrder });
@@ -87,21 +88,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     }
   }
 
-  // Persist updated stop orders to backend in small batches with retries
   if (updates.length > 0) {
-    const { base44 } = await import('@/api/base44Client');
-    const chunkSize = 10;
-    for (let i = 0; i < updates.length; i += chunkSize) {
-      const slice = updates.slice(i, i + chunkSize);
-      try {
-        await Promise.all(
-          slice.map(u => base44.entities.Delivery.update(u.id, { stop_order: u.stop_order }))
-        );
-      } catch (err) {
-        console.warn('[StopOrderManager] Partial backend update failed (continuing):', err?.message || err);
-      }
-    }
-
     try {
       await base44.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
