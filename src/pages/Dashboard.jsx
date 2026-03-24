@@ -1096,7 +1096,7 @@ function Dashboard() {
     }
 
     // DISPATCHER: Show drivers assigned to dispatcher's stores for selected day OR who have deliveries for dispatcher's stores on selected date
-    if (userHasRole(currentUser, 'dispatcher')) {
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
       const dispatcherStores = stores?.filter((s) => s && dispatcherStoreIds.includes(s.id)) || [];
 
