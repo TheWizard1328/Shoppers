@@ -905,7 +905,7 @@ function Dashboard() {
     // DISPATCHER: Filter to only dispatcher's store deliveries
     let relevantDeliveries = filteredDeliveries || [];
 
-    if (isDispatcher && currentUser?.store_ids) {
+    if (isDispatcher && !isAdmin && currentUser?.store_ids) {
       const dispatcherStoreIds = new Set(currentUser.store_ids);
       relevantDeliveries = relevantDeliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id));
     }
