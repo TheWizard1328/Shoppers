@@ -63,7 +63,7 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, s
               <BarcodeThumb value={val} />
               <button
                 type="button"
-                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center"
+                className="absolute -top-1 -right-1 h-5 w-5 min-h-5 min-w-5 rounded-full bg-red-600 text-white flex items-center justify-center p-0 leading-none"
                 onClick={(e) => {e.stopPropagation();onRemove(idx);}}
                 aria-label="Remove barcode">
                 <X className="w-3 h-3" />
