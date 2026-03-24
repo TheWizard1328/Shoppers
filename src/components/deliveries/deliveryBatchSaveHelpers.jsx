@@ -1,10 +1,7 @@
 export const COMPLETION_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
 export const filterValidStagedDeliveries = (stagedDeliveries, allDeliveries) => {
-  return stagedDeliveries.filter((staged) => {
-    if (!staged?.id) return true;
-    return allDeliveries?.some((delivery) => delivery && delivery.id === staged.id);
-  });
+  return (stagedDeliveries || []).filter(Boolean);
 };
 
 export const splitStagedDeliveriesForBatch = (validStagedDeliveries) => {
