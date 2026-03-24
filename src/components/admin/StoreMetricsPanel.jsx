@@ -264,7 +264,7 @@ export default function StoreMetricsPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full flex-1 min-h-0 flex flex-col space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
