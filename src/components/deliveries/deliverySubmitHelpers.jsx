@@ -17,10 +17,7 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     dataToSave.cod_total_amount_required = dataToSave.cod_total_amount_required / 100;
   }
 
-  const finishedStatuses = ['completed', 'cancelled', 'failed', 'returned'];
-  const wasAlreadyFinished = finishedStatuses.includes(delivery?.status);
-
-  if (delivery && isCompletionStatus && completionTime && !wasAlreadyFinished) {
+  if (isCompletionStatus && completionTime) {
     dataToSave.actual_delivery_time = `${formData.delivery_date}T${completionTime}:00`;
   }
 
