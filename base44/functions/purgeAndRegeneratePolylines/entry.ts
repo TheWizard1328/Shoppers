@@ -260,6 +260,22 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     }, 'stop_order', 50000);
 
+    const stopOrderRepairUpdates = buildStopOrderRepairUpdates(deliveries);
+    if (stopOrderRepairUpdates.length > 0) {
+      await Promise.all(
+        stopOrderRepairUpdates.map((update) =>
+          base44.asServiceRole.entities.Delivery.update(update.id, { stop_order: update.stop_order })
+        )
+      );
+
+      deliveries.forEach((delivery) => {
+        const repaired = stopOrderRepairUpdates.find((update) => update.id === delivery.id);
+        if (repaired) {
+          delivery.stop_order = repaired.stop_order;
+        }
+      });
+    }
+
     const existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
       driver_id: driverId,
       delivery_date: deliveryDate
@@ -287,7 +303,8 @@ Deno.serve(async (req) => {
         apiCallsMade: 0,
         segments: [],
         clearedFinishedLegs: 0,
-        regeneratedFinishedLegs: 0
+        regeneratedFinishedLegs: 0,
+        repairedStopOrders: 0
       });
     }
 
@@ -477,7 +494,8 @@ Deno.serve(async (req) => {
       segments: createdSegments,
       clearedFinishedLegs,
       regeneratedFinishedLegs: regeneratedFinishedLegStopIds.length,
-      regeneratedFinishedLegStopIds
+      regeneratedFinishedLegStopIds,
+      repairedStopOrders: stopOrderRepairUpdates.length
     });
   } catch (error) {
     console.error('[purgeAndRegeneratePolylines] Error:', error?.message || error);

@@ -207,12 +207,28 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     }, 'stop_order', 50000);
 
+    const stopOrderRepairUpdates = buildStopOrderRepairUpdates(deliveries);
+    if (stopOrderRepairUpdates.length > 0) {
+      await Promise.all(
+        stopOrderRepairUpdates.map((update) =>
+          base44.asServiceRole.entities.Delivery.update(update.id, { stop_order: update.stop_order })
+        )
+      );
+
+      deliveries.forEach((delivery) => {
+        const repaired = stopOrderRepairUpdates.find((update) => update.id === delivery.id);
+        if (repaired) {
+          delivery.stop_order = repaired.stop_order;
+        }
+      });
+    }
+
     const activeStops = (deliveries || [])
       .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
     if (activeStops.length === 0) {
-      return Response.json({ success: true, skipped: true, reason: 'no_active_route' });
+      return Response.json({ success: true, skipped: true, reason: 'no_active_route', repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
     const patientIds = [...new Set(activeStops.filter((d) => d?.patient_id).map((d) => d.patient_id))];
@@ -248,7 +264,7 @@ Deno.serve(async (req) => {
     const nextStopCoords = getLatLon(nextActiveStop);
 
     if (!nextStopCoords) {
-      return Response.json({ success: true, skipped: true, reason: 'missing_next_stop_coordinates' });
+      return Response.json({ success: true, skipped: true, reason: 'missing_next_stop_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
     const exactExistingType1 = (existingPolylines || []).find((row) =>
@@ -260,7 +276,7 @@ Deno.serve(async (req) => {
     ) || null;
 
     if (exactExistingType1) {
-      return Response.json({ success: true, skipped: true, reason: 'cached_exact_segment', driverId, deliveryDate, nextStopId: nextActiveStop.id });
+      return Response.json({ success: true, skipped: true, reason: 'cached_exact_segment', driverId, deliveryDate, nextStopId: nextActiveStop.id, repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
     const existingType1 = (existingPolylines || []).find((row) =>
@@ -278,11 +294,11 @@ Deno.serve(async (req) => {
       const ageMs = Date.now() - new Date(existingType1.last_generated_at || 0).getTime();
 
       if (movedMeters < minMoveMeters) {
-        return Response.json({ success: true, skipped: true, reason: 'within_threshold', movedMeters });
+        return Response.json({ success: true, skipped: true, reason: 'within_threshold', movedMeters, repairedStopOrders: stopOrderRepairUpdates.length });
       }
 
       if (Number.isFinite(ageMs) && ageMs < DEFAULT_MIN_INTERVAL_MS) {
-        return Response.json({ success: true, skipped: true, reason: 'throttled', movedMeters, ageMs });
+        return Response.json({ success: true, skipped: true, reason: 'throttled', movedMeters, ageMs, repairedStopOrders: stopOrderRepairUpdates.length });
       }
     }
 
@@ -313,7 +329,8 @@ Deno.serve(async (req) => {
       updated: true,
       driverId,
       deliveryDate,
-      nextStopId: nextActiveStop.id
+      nextStopId: nextActiveStop.id,
+      repairedStopOrders: stopOrderRepairUpdates.length
     });
   } catch (error) {
     console.error('[regenerateType1Polyline] Error:', error?.message || error);
