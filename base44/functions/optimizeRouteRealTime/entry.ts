@@ -95,6 +95,28 @@ const parseHereTimeToHHMM = (value) => {
   return `${match[1]}:${match[2]}`;
 };
 
+const formatMinutesToHHMM = (minutes) => {
+  const normalized = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  const hours = Math.floor(normalized / 60);
+  const mins = normalized % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+};
+
+const estimateCrowFliesTravelMinutes = (fromLat, fromLng, toLat, toLng) => {
+  const lat1 = Number(fromLat);
+  const lng1 = Number(fromLng);
+  const lat2 = Number(toLat);
+  const lng2 = Number(toLng);
+  if ([lat1, lng1, lat2, lng2].some((value) => Number.isNaN(value))) return 0;
+  const earthRadiusKm = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distanceKm = earthRadiusKm * c;
+  return Math.max(0, Math.ceil((distanceKm / 40) * 60));
+};
+
 const isValidEntityId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ''));
 
 const getStopCoordinates = (delivery, patientMap, storeMap) => {
@@ -405,37 +427,51 @@ Deno.serve(async (req) => {
     const availableActiveOrders = incompleteDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0 && !usedFinishedOrders.has(order)).sort((a, b) => a - b);
     let nextGeneratedOrder = Math.max(0, ...allDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0)) + 1;
     let assignedNextDeliveryStopOrder = null;
+    let rollingMinutes = parseTimeToMinutes(departureTime) ?? parseTimeToMinutes(getEdmontonCurrentTime()) ?? 0;
+    let previousPosition = currentPosition;
 
-    const deliveryUpdates = arrangedStops.map(({ stop, waypoint, leg, locked }, index) => {
+    const deliveryUpdates = [];
+
+    for (let index = 0; index < arrangedStops.length; index += 1) {
+      const { stop, waypoint, leg, locked } = arrangedStops[index];
       const stopOrder = availableActiveOrders[index] || nextGeneratedOrder++;
       if (stop.delivery.isNextDelivery && assignedNextDeliveryStopOrder === null) {
         assignedNextDeliveryStopOrder = stopOrder;
       }
 
-      const eta = waypoint
-        ? parseHereTimeToHHMM(waypoint.estimatedArrival || waypoint.estimatedDeparture) || stop.delivery.delivery_time_eta || null
-        : stop.delivery.delivery_time_eta || null;
       const resolvedLeg = waypoint ? interconnectionByToWaypoint.get(waypoint.id) : (leg || null);
-      const updateData = {
-        stop_order: stopOrder
-      };
+      const fallbackTravelMinutes = previousPosition
+        ? estimateCrowFliesTravelMinutes(previousPosition.lat, previousPosition.lng, stop.lat, stop.lng)
+        : 0;
+      const travelMinutes = Math.max(0, Math.ceil(Number(resolvedLeg?.time || 0) / 60) || fallbackTravelMinutes);
+      rollingMinutes += travelMinutes;
 
-      if (eta) {
-        updateData.delivery_time_eta = eta;
+      const windowStartMinutes = parseTimeToMinutes(stop.windowStart);
+      if (windowStartMinutes !== null && rollingMinutes < windowStartMinutes) {
+        rollingMinutes = windowStartMinutes;
       }
 
-      return {
+      const eta = formatMinutesToHHMM(rollingMinutes);
+      const updateData = {
+        stop_order: stopOrder,
+        display_stop_order: stopOrder,
+        delivery_time_eta: eta
+      };
+
+      await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData);
+
+      deliveryUpdates.push({
         stop,
         waypoint,
         leg: resolvedLeg,
         locked: !!locked,
         order: stopOrder,
-        eta,
-        updatePromise: base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData)
-      };
-    });
+        eta
+      });
 
-    await Promise.all(deliveryUpdates.map((item) => item.updatePromise));
+      previousPosition = { lat: stop.lat, lng: stop.lng };
+      rollingMinutes += Math.max(0, Number(stop.serviceMinutes || 0));
+    }
 
     try {
       await base44.asServiceRole.entities.GoogleAPILog.create({

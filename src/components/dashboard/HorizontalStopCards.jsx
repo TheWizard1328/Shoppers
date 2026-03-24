@@ -325,13 +325,13 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     }
 
     if (!isAFinished && !isBFinished) {
-      const etaA = a.delivery_time_eta || a.delivery_time_start || '';
-      const etaB = b.delivery_time_eta || b.delivery_time_start || '';
-      if (etaA !== etaB) return etaA.localeCompare(etaB);
-
       const stopOrderA = a.stop_order ?? Infinity;
       const stopOrderB = b.stop_order ?? Infinity;
       if (stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
+
+      const etaA = a.delivery_time_eta || a.delivery_time_start || '';
+      const etaB = b.delivery_time_eta || b.delivery_time_start || '';
+      if (etaA !== etaB) return etaA.localeCompare(etaB);
     }
 
     const driverA = (drivers || []).find((d) => d && d.id === a.driver_id);
