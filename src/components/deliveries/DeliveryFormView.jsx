@@ -26,6 +26,7 @@ import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
 import { runPostDeliveryUpdateSync } from '../utils/deliveryFormActionHelpers';
+import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { toast } from 'sonner';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 
@@ -750,6 +751,9 @@ export default function DeliveryFormView({
                     const shouldOptimizeInBackground = hasTimeWindowChanges;
 
                     await handleSubmit(e);
+                    if (driverId && deliveryDate) {
+                      await recalculateAndUpdateStopOrders(driverId, deliveryDate);
+                    }
                     setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
 
                     runPostDeliveryUpdateSync({
