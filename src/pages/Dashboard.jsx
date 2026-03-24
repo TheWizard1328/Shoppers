@@ -121,7 +121,7 @@ function Dashboard() {
     dataSource
   } = useAppData();
 
-  const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
+  const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') : false;
 
   const [selectedDate, setSelectedDate] = useState(() => {
     // CRITICAL: Check URL params first, then globalFilters
