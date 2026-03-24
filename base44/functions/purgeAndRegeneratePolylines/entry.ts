@@ -5,7 +5,11 @@ const ACTIVE_STATUSES = new Set(['in_transit', 'en_route']);
 const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
 
 function isNotFoundError(error) {
-  return error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').includes('not found');
+  return error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+}
+
+function isRateLimitError(error) {
+  return error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit exceeded');
 }
 
 function round5(value) {
@@ -143,12 +147,23 @@ function getEdmontonDateString(value = new Date()) {
 }
 
 async function getSegmentDirections(base44, from, to) {
-  const response = await base44.functions.invoke('getHereDirections', {
-    origin: { lat: from.lat, lng: from.lon },
-    destination: { lat: to.lat, lng: to.lon }
-  });
+  let data = {};
 
-  const data = response?.data || response || {};
+  try {
+    const response = await base44.functions.invoke('getHereDirections', {
+      origin: { lat: from.lat, lng: from.lon },
+      destination: { lat: to.lat, lng: to.lon }
+    });
+
+    data = response?.data || response || {};
+  } catch (error) {
+    console.warn('[purgeAndRegeneratePolylines] Directions unavailable, using fallback segment:', error?.message || error);
+    return {
+      encoded_polyline: encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]),
+      estimated_distance_km: null,
+      estimated_duration_minutes: null
+    };
+  }
 
   let polyline = null;
 
