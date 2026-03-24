@@ -7,6 +7,7 @@ import { isAppOwner } from '@/components/utils/userRoles';
 import { pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
 import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
+import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { invalidateDeliveriesForDate } from "@/components/utils/dataManager";
 
 export default function FABControls({
@@ -27,14 +28,15 @@ export default function FABControls({
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   const activeStopCount = deliveriesWithStopOrder.filter((delivery) => delivery && !finishedStatuses.includes(delivery.status)).length;
   const isMapCycleEnabled = activeStopCount > 1;
+  const fabPosition = isMobileDevice() ? 'absolute' : 'fixed';
 
   return (
     <>
       <MapViewCycleFAB onClick={handleMapViewCycle} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} />
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
-        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="fixed z-[100]"
-          style={{ bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15}px`, right: '64px' }}>
+        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
+          style={{ position: fabPosition, bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 5}px`, right: '64px' }}>
           <Button
             onClick={async () => {
               if (isReoptimizing) return;
