@@ -25,35 +25,39 @@ export default function StopCardPOD({
   forceRefreshDriverDeliveries,
   showButtons = true,
 }) {
-  const handleSignatureSave = async (signatureBlob) => {
-    let failureStage = 'upload_file';
-    try {
-      const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
-      const uploadResult = await UploadFile(
-        { file: signatureFile },
-        { feature: 'proof_of_delivery_signature' }
-      );
-      const fileUrl = uploadResult?.file_url || uploadResult?.data?.file_url;
-      failureStage = 'persist_delivery_proof';
-      await persistDeliveryProof(delivery.id, { signature_image_url: fileUrl });
-      setShowSignatureCapture(false);
-      toast.success('Signature saved!');
-      invalidate('Delivery');
-      Promise.resolve(forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date)).catch((refreshError) => {
-        console.warn('⚠️ [Signature] Background refresh failed:', refreshError?.message || refreshError);
-      });
-    } catch (error) {
-      base44.analytics.track({
-        eventName: 'proof_of_delivery_upload_error',
-        properties: {
-          proof_type: 'signature',
-          stage: failureStage
-        }
-      });
-      console.error('❌ [Signature] Save failed:', error);
-      toast.error(`Failed to save signature: ${error.message}`);
-      setShowSignatureCapture(false);
-    }
+  const handleSignatureSave = (signatureBlob) => {
+    // Close panel immediately for better UX
+    setShowSignatureCapture(false);
+    
+    // Process upload in background
+    Promise.resolve().then(async () => {
+      let failureStage = 'upload_file';
+      try {
+        const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
+        const uploadResult = await UploadFile(
+          { file: signatureFile },
+          { feature: 'proof_of_delivery_signature' }
+        );
+        const fileUrl = uploadResult?.file_url || uploadResult?.data?.file_url;
+        failureStage = 'persist_delivery_proof';
+        await persistDeliveryProof(delivery.id, { signature_image_url: fileUrl });
+        toast.success('Signature saved!');
+        invalidate('Delivery');
+        Promise.resolve(forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date)).catch((refreshError) => {
+          console.warn('⚠️ [Signature] Background refresh failed:', refreshError?.message || refreshError);
+        });
+      } catch (error) {
+        base44.analytics.track({
+          eventName: 'proof_of_delivery_upload_error',
+          properties: {
+            proof_type: 'signature',
+            stage: failureStage
+          }
+        });
+        console.error('❌ [Signature] Save failed:', error);
+        toast.error(`Failed to save signature: ${error.message}`);
+      }
+    });
   };
 
   const handlePhotoSave = async (photoBlobs) => {
