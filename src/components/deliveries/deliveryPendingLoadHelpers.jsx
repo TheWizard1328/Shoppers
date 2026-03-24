@@ -8,6 +8,11 @@ export const filterPendingDeliveriesForUser = ({ allDeliveries, suggestedDate, c
     delivery.patient_id
   );
 
+  const isAdminLike = userHasRole(currentUser, 'admin') || currentUser?.role === 'App Owner';
+  if (isAdminLike) {
+    return pendingDeliveries;
+  }
+
   if (userHasRole(currentUser, 'dispatcher')) {
     const dispatcherStoreIds = currentUser.store_ids || [];
     pendingDeliveries = pendingDeliveries.filter((delivery) => dispatcherStoreIds.includes(delivery.store_id));
