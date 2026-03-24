@@ -157,64 +157,77 @@ Deno.serve(async (req) => {
     // If route in progress: first stop to now, minus breaks
     let totalTimeOnDuty = '00:00';
 
+    // CRITICAL: Parse timestamps - strip timezone offsets like -0700 or Z
+    // Timestamps should be stored without timezone info (local time only)
+    const parseLocalTime = (isoString) => {
+      const withoutTz = isoString.replace(/[Z]$/, '').replace(/[+-]\d{4}$/, '');
+      return new Date(withoutTz);
+    };
+
     // CRITICAL: Include ALL completed stops (patient deliveries AND pickups) for time calculation
     const completedWithTime = deliveries
       .filter(d => d.status === 'completed' && d.actual_delivery_time)
-      .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
+      .sort((a, b) => parseLocalTime(a.actual_delivery_time) - parseLocalTime(b.actual_delivery_time));
 
     if (completedWithTime.length > 0) {
-      // CRITICAL: Parse timestamps - strip timezone offsets like -0700 or Z
-      // Timestamps should be stored without timezone info (local time only)
-      const parseLocalTime = (isoString) => {
-        // Remove timezone suffix (Z or ±HHMM like -0700, +0530, etc.)
-        const withoutTz = isoString.replace(/[Z]$/, '').replace(/[+-]\d{4}$/, '');
-        return new Date(withoutTz);
-      };
-      
       const firstStopTime = parseLocalTime(completedWithTime[0].actual_delivery_time);
-      
+
       // Check if route is still in progress
-      const hasActiveDeliveries = deliveries.some(d => 
+      const hasActiveDeliveries = deliveries.some(d =>
         ['pending', 'in_transit', 'en_route'].includes(d.status)
       );
-      
+
       // Use current local time if route in progress, otherwise last completed stop
-      const endTime = hasActiveDeliveries 
-        ? new Date() 
+      const endTime = hasActiveDeliveries
+        ? new Date()
         : parseLocalTime(completedWithTime[completedWithTime.length - 1].actual_delivery_time);
-      
+
       // Calculate duration in minutes
       const durationMinutes = Math.floor((endTime - firstStopTime) / (1000 * 60));
-      
-      // Get break time from DriverDailyActivity
+
+      // Auto-break: any gap greater than 60 minutes between completed stops is treated as break time
+      let autoBreakGapMinutes = 0;
+      for (let i = 0; i < completedWithTime.length - 1; i++) {
+        const currentStopTime = parseLocalTime(completedWithTime[i].actual_delivery_time);
+        const nextStopTime = parseLocalTime(completedWithTime[i + 1].actual_delivery_time);
+        const gapMinutes = Math.floor((nextStopTime - currentStopTime) / (1000 * 60));
+        if (gapMinutes > 60) {
+          autoBreakGapMinutes += gapMinutes;
+        }
+      }
+
+      // Get manual break time from DriverDailyActivity
       let breakTimeMinutes = 0;
       try {
         const activityRecords = await base44.entities.DriverDailyActivity.filter({
           driver_id: driverId,
           activity_date: deliveryDate
         });
-        
+
         if (activityRecords && activityRecords.length > 0) {
           breakTimeMinutes = activityRecords[0].total_break_time_minutes || 0;
         }
       } catch (error) {
         console.warn('Failed to fetch break time:', error);
       }
-      
-      // Subtract break time
-      const workMinutes = Math.max(0, durationMinutes - breakTimeMinutes);
-      
+
+      // Subtract both manual break time and long stop-to-stop gaps
+      const totalBreakMinutes = breakTimeMinutes + autoBreakGapMinutes;
+      const workMinutes = Math.max(0, durationMinutes - totalBreakMinutes);
+
       // Format as HH:MM
       const hours = Math.floor(workMinutes / 60);
       const minutes = workMinutes % 60;
       totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-      
+
       console.log('⏰ Time on duty calculation:', {
         firstStop: firstStopTime.toISOString(),
         endTime: endTime.toISOString(),
         hasActiveDeliveries,
         durationMinutes,
         breakTimeMinutes,
+        autoBreakGapMinutes,
+        totalBreakMinutes,
         workMinutes,
         totalTimeOnDuty,
         completedCount: completedWithTime.length
