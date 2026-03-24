@@ -852,13 +852,13 @@ function Dashboard() {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
         if (!a || !b) return 0;
-        const aPending = a.status === 'pending', bPending = b.status === 'pending';
+        const aPending = a.status === 'pending',bPending = b.status === 'pending';
         if (aPending && !bPending) return 1;
         if (!aPending && bPending) return -1;
-        const aOrder = Number(a.stop_order), bOrder = Number(b.stop_order);
-        const hasAOrder = Number.isFinite(aOrder) && aOrder > 0, hasBOrder = Number.isFinite(bOrder) && bOrder > 0;
+        const aOrder = Number(a.stop_order),bOrder = Number(b.stop_order);
+        const hasAOrder = Number.isFinite(aOrder) && aOrder > 0,hasBOrder = Number.isFinite(bOrder) && bOrder > 0;
         if (hasAOrder && hasBOrder && aOrder !== bOrder) return aOrder - bOrder;
-        const aFinished = finishedStatuses.includes(a.status), bFinished = finishedStatuses.includes(b.status);
+        const aFinished = finishedStatuses.includes(a.status),bFinished = finishedStatuses.includes(b.status);
         if (aFinished && bFinished) {
           const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
           const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
@@ -1392,12 +1392,12 @@ function Dashboard() {
 
 
 
+
+
+
         // This subscription handles changes from other components
       }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else
-          if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else
-          if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);else
-          if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else
+  useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else
           if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else
           if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 500;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 500);}, 50);}
         });
@@ -1711,13 +1711,13 @@ function Dashboard() {
 
 
 
+
+
+
       // Callback provided for future use
     }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
         // On all other devices/scenarios, show the shared marker
-        const isTrackingOnThisDevice = locationTracker.isTracking === true;const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;const filteredLocations = shouldFilterSelf ? locations.filter((loc) => {if (loc._isSelf === true) {
-              return false;
-            }
-            return true;
+        const isTrackingOnThisDevice = locationTracker.isTracking === true;const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;const filteredLocations = shouldFilterSelf ? locations.filter((loc) => {if (loc._isSelf === true) {return false;}return true;
           }) :
         locations;
 
@@ -1959,7 +1959,7 @@ function Dashboard() {
 
     // CRITICAL: Only skip phase 2 (driver+next-stop) if not a driver or no location.
     // Phase 3 CAN run for dispatchers (shows incomplete stops for their stores).
-    if (mapViewPhase === 2 && (!(isDispatcher && !isAdmin || isAdmin && selectedDriverId === 'all') && !getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice }))) {
+    if (mapViewPhase === 2 && !(isDispatcher && !isAdmin || isAdmin && selectedDriverId === 'all') && !getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice })) {
       return;
     }
 
@@ -2970,11 +2970,11 @@ function Dashboard() {
 
 
 
-      // No map repositioning on smart refresh restart - user controls map manually
-    };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);return () => {window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);};
-  }, [mapViewPhase, deliveriesWithStopOrder, selectedCardId]);
 
-  // Auto-center on next stop on initial load
+
+
+      // No map repositioning on smart refresh restart - user controls map manually
+    };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);return () => {window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);};}, [mapViewPhase, deliveriesWithStopOrder, selectedCardId]); // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
 
   const hasScrolledToNextCardRef = useRef(false);
@@ -3451,8 +3451,8 @@ function Dashboard() {
       setSelectedCardId(null);
       setHighlightedCardId(null);
       if (previousMapState?.center && Number.isFinite(previousMapState?.zoom)) {
-        setShouldFitBounds(null); setMapCenter(previousMapState.center); setMapZoom(previousMapState.zoom);
-        lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
+        setShouldFitBounds(null);setMapCenter(previousMapState.center);setMapZoom(previousMapState.zoom);
+        lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();
       }
       setPreviousMapState(null);
     } else {
@@ -4074,7 +4074,7 @@ function Dashboard() {
             }
           }
 
-          const createdDeliveries=deliveriesToCreate.length>0?await batchCreateDeliveriesLocal(deliveriesToCreate):[];
+          const createdDeliveries = deliveriesToCreate.length > 0 ? await batchCreateDeliveriesLocal(deliveriesToCreate) : [];
 
           if (deliveriesToUpdate.length > 0) {
             for (const { id, updates } of deliveriesToUpdate) {
@@ -4091,12 +4091,12 @@ function Dashboard() {
 
         const batchDeliveryDate = stagedDeliveries[0]?.delivery_date || format(selectedDate, 'yyyy-MM-dd');
         const batchDriverId = stagedDeliveries[0]?.driver_id;
-        const freshBatchDeliveries=batchDriverId?await base44.entities.Delivery.filter({driver_id:batchDriverId,delivery_date:batchDeliveryDate}):await base44.entities.Delivery.filter({delivery_date:batchDeliveryDate});
-        const preservedDeliveries=deliveries.filter((d)=>!(d?.delivery_date===batchDeliveryDate&&(!batchDriverId||d?.driver_id===batchDriverId)));
-        updateDeliveriesLocally&&updateDeliveriesLocally([...preservedDeliveries,...freshBatchDeliveries],true);
+        const freshBatchDeliveries = batchDriverId ? await base44.entities.Delivery.filter({ driver_id: batchDriverId, delivery_date: batchDeliveryDate }) : await base44.entities.Delivery.filter({ delivery_date: batchDeliveryDate });
+        const preservedDeliveries = deliveries.filter((d) => !(d?.delivery_date === batchDeliveryDate && (!batchDriverId || d?.driver_id === batchDriverId)));
+        updateDeliveriesLocally && updateDeliveriesLocally([...preservedDeliveries, ...freshBatchDeliveries], true);
 
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { immediate:true, freshDeliveries:freshBatchDeliveries, deliveryDate: batchDeliveryDate, driverId: batchDriverId, triggeredBy: 'batchSaveImmediate' }
+          detail: { immediate: true, freshDeliveries: freshBatchDeliveries, deliveryDate: batchDeliveryDate, driverId: batchDriverId, triggeredBy: 'batchSaveImmediate' }
         }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         setShowDeliveryForm(false);
@@ -6484,7 +6484,7 @@ function Dashboard() {
 
 
       <div className={statsCardPositioning} style={{ zIndex: 600 }}>
-        <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
+        <div className="flex flex-col items-center gap-0.5 min-w-[345px] max-w-[345px] relative"
 
         style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
         onMouseEnter={() => handleStatsPanelInteraction(true)}
@@ -6944,15 +6944,15 @@ function Dashboard() {
           {/* Driver Legend - positioned directly below stats card */}
           {(() => {
             const dateKey = format(selectedDate, 'yyyy-MM-dd');
-            const legendData = isAdmin
-              ? driversList
-                  .filter((driver) => deliveries.some((d) => d && d.delivery_date === dateKey && d.driver_id === driver.id))
-                  .map((driver) => ({ driverId: driver.id, driverName: driver.user_name || driver.full_name || 'Unknown', color: getDriverColor(driver), totalStops: deliveries.filter((d) => d && d.delivery_date === dateKey && d.driver_id === driver.id).length }))
-              : isAllDriversMode
-                ? [...driverRoutes].sort((a, b) => (a.driverName || '').localeCompare(b.driverName || ''))
-                : [];
+            const legendData = isAdmin ?
+            driversList.
+            filter((driver) => deliveries.some((d) => d && d.delivery_date === dateKey && d.driver_id === driver.id)).
+            map((driver) => ({ driverId: driver.id, driverName: driver.user_name || driver.full_name || 'Unknown', color: getDriverColor(driver), totalStops: deliveries.filter((d) => d && d.delivery_date === dateKey && d.driver_id === driver.id).length })) :
+            isAllDriversMode ?
+            [...driverRoutes].sort((a, b) => (a.driverName || '').localeCompare(b.driverName || '')) :
+            [];
             if (!legendData.length) return null;
-            return <div className="backdrop-blur-sm rounded-lg shadow-lg border px-1 py-1" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }} onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}><div className="flex flex-wrap gap-x-1 gap-y-1 items-center justify-center">{legendData.map((route) => <div key={route.driverId} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0" style={{ backgroundColor: route.color }} /><span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span><span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span></div>)}</div></div>;
+            return <div className="rounded-lg backdrop-blur-sm shadow-lg border" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }} onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}><div className="flex flex-wrap gap-x-0.5 gap-y-0.5 items-center justify-center">{legendData.map((route) => <div key={route.driverId} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0" style={{ backgroundColor: route.color }} /><span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span><span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span></div>)}</div></div>;
           })()}
         </div>
       </div>
