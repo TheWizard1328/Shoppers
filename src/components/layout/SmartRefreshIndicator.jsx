@@ -189,7 +189,8 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     return null;
   }
 
-  const isActive = smartRefreshActivity?.active || isManualRefreshing || activeManager !== null;
+  const isPollingOnly = activeManager === 'polling' && !smartRefreshActivity?.active && !isManualRefreshing && !isOfflineSyncActive && !isSmartRefreshActive;
+  const isActive = smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive;
   const isPaused = isEntityUpdating;
   const hasUpdates = recentUpdates.length > 0;
   
@@ -198,6 +199,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     if (hasError) return 'bg-red-500';
     if (isPaused) return 'bg-yellow-100';
     if (!isOnline) return 'bg-red-500';
+    if (isPollingOnly) return 'bg-slate-200 hover:bg-slate-300';
     
     switch (activeManager) {
       case 'smart': return 'bg-emerald-500'; // Green for smart refresh
@@ -267,7 +269,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 
                  activeManager === 'smart' ? 'Smart Refresh active' : 
                  activeManager === 'offline' ? 'Offline Sync active' : 
-                 activeManager === 'polling' ? 'Location Polling active' : 
+                 activeManager === 'polling' ? 'Background location polling' : 
                  'Click to refresh'}>
           
           {isActive && !isPaused ? (
@@ -281,6 +283,8 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
           ) : hasError ? (
             <RefreshCw className="w-3 h-3 text-white" />
+          ) : isPollingOnly ? (
+            <RefreshCw className="w-3 h-3 text-blue-500" />
           ) : (
             <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500'}`} />
           )}
@@ -317,7 +321,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 
                activeManager === 'smart' ? 'Smart Refresh active' : 
                activeManager === 'offline' ? 'Offline Sync active' : 
-               activeManager === 'polling' ? 'Location Polling active' : 
+               activeManager === 'polling' ? 'Background location polling' : 
                'Click to refresh'}>
 
         {hasError ? (
@@ -338,6 +342,8 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           </motion.div>
         ) : isPaused ? (
           <div className="w-2 h-2 rounded-full bg-yellow-500" />
+        ) : isPollingOnly ? (
+          <RefreshCw className="w-3.5 h-3.5 text-blue-500" />
         ) : (
           <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
         )}
