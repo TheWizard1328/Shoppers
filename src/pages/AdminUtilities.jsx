@@ -669,9 +669,9 @@ const DeliveryDataTable = ({
 
 
 
+
           // Fallback
-        }}} else if (delivery.delivery_time_eta && typeof delivery.delivery_time_eta === 'string') {time = `ETA: ${delivery.delivery_time_eta}`;}return { date, time };};const getStatusBadge = (delivery) => {
-    const status = delivery.status;
+        }}} else if (delivery.delivery_time_eta && typeof delivery.delivery_time_eta === 'string') {time = `ETA: ${delivery.delivery_time_eta}`;}return { date, time };};const getStatusBadge = (delivery) => {const status = delivery.status;
     const isEditing = editingStatusId === delivery.id;
 
     if (isEditing) {
@@ -3128,9 +3128,9 @@ export default function AdminUtilities() {
 
 
 
+
               // Fallback
             }}if (delivery.delivery_time_eta) {const timeParts = delivery.delivery_time_eta.match(/(\d{2}):(\d{2})/);if (timeParts) {const hours = parseInt(timeParts[1]);const minutes = parseInt(timeParts[2]);return hours * 60 + minutes;}}return 9999;};
-
         if (deliverySortColumn === 'stop_order') {
           const aOrder = a.stop_order ?? 99999;
           const bOrder = b.stop_order ?? 99999;
@@ -4169,7 +4169,7 @@ export default function AdminUtilities() {
                     <div className="space-y-4">
                       <div className="flex flex-col md:flex-row gap-2 flex-wrap items-stretch md:items-center justify-between">
                         {!manualLoadTriggered ?
-                      <Alert className="relative w-full rounded-lg border px-3 py-2 text-sm [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7 bg-background text-foreground flex-1">
+                      <Alert className="bg-background text-foreground pt-2 pr-3 pb-1 pl-3 text-sm rounded-lg relative w-full border [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7 flex-1">
                             <AlertCircle className="h-4 w-4" />
                             <AlertDescription className="flex items-center justify-between">
                               <span>Select filters above, then click "Load Data" to fetch deliveries.</span>
