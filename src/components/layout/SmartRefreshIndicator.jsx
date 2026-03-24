@@ -44,6 +44,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [currentDisplayIndex, setCurrentDisplayIndex] = useState(0);
   const [hasError, setHasError] = useState(false);
+  const [isRefreshStuck, setIsRefreshStuck] = useState(false);
   
   // Track which manager is active
   const [activeManager, setActiveManager] = useState(null); // 'smart', 'offline', 'polling'
