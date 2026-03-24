@@ -987,7 +987,7 @@ function Dashboard() {
     let inTransitDrivers = 0;
     let completedDrivers = 0;
 
-    if (isDispatcher) {
+    if (isDispatcher || isAdmin) {
       // CRITICAL: Count drivers from ALL deliveries (patient deliveries + pickups)
       const allDriverIds = new Set(relevantDeliveries.map((d) => d?.driver_id).filter(Boolean));
       totalDrivers = allDriverIds.size;
