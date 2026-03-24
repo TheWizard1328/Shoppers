@@ -313,9 +313,7 @@ export default function DeliveryMap({
           patient,
           driver,
           store,
-          pinColor: isStopInDispatcherStore
-            ? (store ? getStoreColor(store) : "#6B7280")
-            : isAllDriversMode
+          pinColor: isAllDriversMode
               ? getDriverColor(driver || { id: delivery.driver_id || delivery.id })
               : (store ? getStoreColor(store) : "#6B7280"),
           number: delivery.display_stop_order || delivery.stop_order || 0,
