@@ -71,7 +71,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   return (
     <>
-      <div className="absolute left-4 z-[140]" style={{ bottom: `${(stopCardsHeight || 0) + 15}px` }}>
+      <div className="absolute left-4 z-[140]" style={{ bottom: `${(stopCardsHeight || 0) + 5}px` }}>
         <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: "transparent", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
           🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
         </div>

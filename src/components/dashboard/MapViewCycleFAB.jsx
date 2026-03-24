@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
-import { isMobileDevice } from '@/components/utils/deviceUtils';
 
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75 }) {
   const [isFlashing, setIsFlashing] = useState(false);
@@ -20,8 +19,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   }, [currentPhase]);
 
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
-  const mobileFabOffset = isMobileDevice() ? 32 : 15;
-  const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + mobileFabOffset;
+  const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 5;
 
   // Get icon based on current phase (always white icon)
   const getIcon = () => {
