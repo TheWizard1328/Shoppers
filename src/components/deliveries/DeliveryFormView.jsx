@@ -748,12 +748,25 @@ export default function DeliveryFormView({
                   await runLockedAction('update_delivery', async () => {
                     const driverId = formData?.driver_id;
                     const deliveryDate = formData?.delivery_date;
+                    const previousDriverId = delivery?.driver_id;
+                    const previousDeliveryDate = delivery?.delivery_date;
                     const shouldOptimizeInBackground = hasTimeWindowChanges;
 
                     await handleSubmit(e);
-                    if (driverId && deliveryDate) {
-                      await recalculateAndUpdateStopOrders(driverId, deliveryDate);
-                    }
+
+                    const affectedRoutes = [
+                      [driverId, deliveryDate],
+                      [previousDriverId, previousDeliveryDate]
+                    ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
+
+                    await Promise.all(
+                      Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
+                        .map((key) => {
+                          const [routeDriverId, routeDeliveryDate] = key.split('__');
+                          return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+                        })
+                    );
+
                     setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
 
                     runPostDeliveryUpdateSync({
