@@ -206,7 +206,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   }
 
   const isPollingOnly = activeManager === 'polling' && !smartRefreshActivity?.active && !isManualRefreshing && !isOfflineSyncActive && !isSmartRefreshActive;
-  const isActive = smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive;
+  const isActive = !isRefreshStuck && (smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive);
   const isPaused = isEntityUpdating;
   const hasUpdates = recentUpdates.length > 0;
   
