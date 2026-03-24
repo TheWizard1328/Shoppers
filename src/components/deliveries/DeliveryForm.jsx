@@ -2058,45 +2058,20 @@ export default function DeliveryForm({
 
   // Auto-load pending deliveries on form mount - ONLY ONCE
   useEffect(() => {
-    // Skip if editing existing delivery
-    if (delivery) {
-      return;
-    }
-
-    // Skip if already loaded
-    if (hasLoadedPending.current) {
-      return;
-    }
-
-    // Wait for all required data (driver_id NOT required)
-    if (!allDeliveries || !suggestedDate || !currentUser || !patients || !stores) {
-      return;
-    }
-
-    const pendingDeliveries = filterPendingDeliveriesForUser({
-      allDeliveries,
-      suggestedDate,
-      currentUser,
-      userHasRole
-    });
-
+    if (delivery || hasLoadedPending.current) return;
+    if (!allDeliveries || !suggestedDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
+    const pendingDeliveries = filterPendingDeliveriesForUser({ allDeliveries, suggestedDate, currentUser, userHasRole });
     if (pendingDeliveries.length === 0) {
       hasLoadedPending.current = true;
       return;
     }
-
-    const newStagedItems = mapPendingDeliveriesToStaged({
-      pendingDeliveries,
-      patients,
-      stores,
-      allDeliveries,
-      calculateDistance
-    });
-
+    const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries, calculateDistance });
+    const mappedPendingIds = new Set(newStagedItems.map((item) => item?.id).filter(Boolean));
+    const unresolvedPendingCount = pendingDeliveries.filter((item) => item?.id && !mappedPendingIds.has(item.id)).length;
     setTimeout(() => {
       setStagedDeliveries(newStagedItems);
       setHasChanges(false);
-      hasLoadedPending.current = true;
+      if (unresolvedPendingCount === 0) hasLoadedPending.current = true;
     }, 100);
   }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate]);
 
