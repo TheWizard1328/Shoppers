@@ -2088,29 +2088,17 @@ export default function Layout({ children, currentPageName }) {
       data = data.filter((delivery) => delivery && delivery.store_id === selectedStoreId);
     }
 
-    if (userHasRole(currentUser, 'dispatcher')) {
-      const dispatcherStoreIds = currentUser.store_ids || [];
-      if (selectedStoreId && selectedStoreId !== 'all' && !dispatcherStoreIds.includes(selectedStoreId)) {
-        return [];
-      }
-
-      const relevantStoreIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : dispatcherStoreIds;
-
-      const dispatcherPatientIds = new Set(
-        patients.filter((p) => p && relevantStoreIds.includes(p.store_id)).map((p) => p.id)
-      );
-      data = data.filter((delivery) => {
-        if (!delivery) return false;
-        if (delivery.patient_id) {
-          return dispatcherPatientIds.has(delivery.patient_id);
-        }
-        return delivery.store_id && relevantStoreIds.includes(delivery.store_id);
-      });
+    if (userHasRole(currentUser, 'admin')) {
+      // Admins see all
+    } else if (userHasRole(currentUser, 'dispatcher')) {
+      const sIds = currentUser.store_ids || [];
+      if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
+      const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
+      const pIds = new Set(patients.filter(p => p && relIds.includes(p.store_id)).map(p => p.id));
+      data = data.filter(d => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));
     } else if (userHasRole(currentUser, 'driver')) {
-      data = data.filter((delivery) => delivery && delivery.driver_id === currentUser.id);
-      if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) {
-        return [];
-      }
+      data = data.filter(d => d && d.driver_id === currentUser.id);
+      if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];
     }
 
     return data;
