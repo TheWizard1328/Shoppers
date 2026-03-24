@@ -815,7 +815,7 @@ function Dashboard() {
     });
 
     // DISPATCHER: When viewing "All Drivers", only show deliveries for drivers who have stops in dispatcher's stores
-    if (isDispatcher && selectedDriverId === 'all') {
+    if (isDispatcher && !isAdmin && selectedDriverId === 'all') {
       const dispatcherStoreIds = currentUser?.store_ids || [];
 
       // Get drivers who have deliveries in dispatcher's stores
