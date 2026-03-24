@@ -7,6 +7,7 @@ import { base44 } from "@/api/base44Client";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
+import { isMobileDevice } from "@/components/utils/deviceUtils";
 
 export default function RouteActionButtons({
   currentUser,
@@ -29,6 +30,8 @@ export default function RouteActionButtons({
     return null;
   }
 
+  const mobileFabOffset = isMobileDevice() ? 32 : 15;
+
   return (
     <motion.div
       initial={{ scale: 0, opacity: 0 }}
@@ -37,7 +40,7 @@ export default function RouteActionButtons({
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
       className="fixed z-[100] flex items-center gap-2"
       style={{
-        bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15}px`,
+        bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + mobileFabOffset}px`,
         right: "64px"
       }}
     >
