@@ -40,7 +40,7 @@ const AddDeliveryButton = forwardRef(function AddDeliveryButton(
               <Plus className="w-4 h-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" align="center" className="relative">
+          <TooltipContent side="bottom" align="center" className="relative z-[1000]">
             <div className="text-xs">Start here to add new stop locations to your driver(s).</div>
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-white border-l border-t border-slate-200" />
           </TooltipContent>
