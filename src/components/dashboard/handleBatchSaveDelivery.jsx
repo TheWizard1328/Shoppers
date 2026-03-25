@@ -131,6 +131,7 @@ export const handleBatchSaveDelivery = async ({
     // CRITICAL: Always create pickups for ALL assigned stores EXCEPT special stores
     const assignedStores = (stores || []).filter((store) => {
       if (!store) return false;
+      if (!driver) return false; // Skip assigned stores for unassigned
       // Skip special stores - they get pickups created dynamically below
       if (specialStoreNames.includes(store.name)) return false;
 
