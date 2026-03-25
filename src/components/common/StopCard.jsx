@@ -280,15 +280,17 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     try {
       await onCreateReturn({ originalDelivery: delivery, returnPatient: returnPatient, store: store });
       await collapseAndCenterNextDelivery({ driverDeliveries: getDriverRouteDeliveries(allDeliveries, delivery), targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-      try {invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);} catch (_) {}
-      const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
-      const nextReturnDelivery = getNextActiveDelivery(refreshedDriverDeliveries, null, FINISHED_STATUSES);
-      await collapseAndCenterNextDelivery({ driverDeliveries: refreshedDriverDeliveries, targetDeliveryId: nextReturnDelivery?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-      if (userHasRole(currentUser, 'driver')) await notifyDriverReturn({ driver: currentUser, patientName: patient?.full_name, delivery, store, appUsers });
-      setShowReturnConfirm(false);setReturnPatient(null);
+      if (userHasRole(currentUser, 'driver')) notifyDriverReturn({ driver: currentUser, patientName: patient?.full_name, delivery, store, appUsers }).catch(() => {});
+      // Background: refresh route data after dialog is already closed
+      Promise.resolve().then(async () => {
+        try {
+          invalidate('Delivery');
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+        } catch (_) {}
+      });
     } catch (error) {console.error('Failed to create return:', error);alert('Failed to create return delivery');} finally
-    {setIsCreatingReturn(false);}
+    {setIsCreatingReturn(false);setShowReturnConfirm(false);setReturnPatient(null);}
   };
   const handleCancelReturn = () => {setShowReturnConfirm(false);setReturnPatient(null);};
   const handleRetryDelivery = async () => {
