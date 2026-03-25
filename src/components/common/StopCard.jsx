@@ -223,7 +223,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');const now = new Date();const currentMinutes = now.getHours() * 60 + now.getMinutes();const startMinutes = currentMinutes + 5;const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const sortedPending = [...allPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
-      // OFFLINE-FIRST: Update deliveries locally immediately (no await)
+      // OFFLINE-FIRST: Update all deliveries locally in parallel (fire and forget)
       const localUpdates = sortedPending.map((pendingDelivery, i) => ({
         id: pendingDelivery.id,
         status: 'in_transit',
@@ -231,9 +231,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1)
       }));
 
-      for (const update of localUpdates) {
-        await updateDeliveryLocal(update.id, update, { skipSmartRefresh: true });
-      }
+      Promise.all(localUpdates.map(update => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true }))).catch(err => console.warn('Local update failed:', err));
 
       // Dispatch events immediately for UI responsiveness
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -251,13 +249,17 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         } catch (syncErr) {console.warn('⚠️ [Accept All] Background sync failed:', syncErr?.message || syncErr);}
       });
 
-      // Background: Route optimization
+      // Background: Route optimization (no refresh during optimization to prevent flicker)
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
           await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: currentLocalTime, generatePolyline: false });
-          invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
+          // Only refresh AFTER optimization completes to avoid UI flicker
+          setTimeout(async () => {
+            invalidate('Delivery');
+            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
+          }, 500);
         } catch (optErr) {console.warn('⚠️ [Accept All] background optimization failed:', optErr?.message || optErr);} finally
         {window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));}
       });
