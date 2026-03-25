@@ -260,16 +260,36 @@ Deno.serve(async (req) => {
       return null;
     };
 
-    const nextActiveStop = activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0];
-    const nextStopCoords = getLatLon(nextActiveStop);
+    const nextActiveStop = activeStops.find((stop) => stop.isNextDelivery === true);
+    if (!nextActiveStop) {
+      return Response.json({ success: true, skipped: true, reason: 'no_next_delivery_marked', repairedStopOrders: stopOrderRepairUpdates.length });
+    }
 
+    const nextStopCoords = getLatLon(nextActiveStop);
     if (!nextStopCoords) {
       return Response.json({ success: true, skipped: true, reason: 'missing_next_stop_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
+    // CRITICAL: Origin should be the last completed stop, NOT the current location or first stop
+    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const completedStops = (deliveries || [])
+      .filter((d) => finishedStatuses.has(d.status))
+      .sort((a, b) => {
+        const timeA = new Date(a?.actual_delivery_time || a?.arrival_time || a?.updated_date || 0).getTime();
+        const timeB = new Date(b?.actual_delivery_time || b?.arrival_time || b?.updated_date || 0).getTime();
+        return timeB - timeA; // Most recent first
+      });
+    
+    const lastCompletedStop = completedStops[0];
+    const originCoords = lastCompletedStop ? getLatLon(lastCompletedStop) : { lat: Number(rawLocation?.lat), lon: Number(rawLocation?.lon) };
+    
+    if (!originCoords) {
+      return Response.json({ success: true, skipped: true, reason: 'missing_origin_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
+    }
+
     const exactExistingType1 = (existingPolylines || []).find((row) =>
-      round5(row?.segment_origin_lat) === round5(currentLat) &&
-      round5(row?.segment_origin_lon) === round5(currentLon) &&
+      round5(row?.segment_origin_lat) === round5(originCoords.lat) &&
+      round5(row?.segment_origin_lon) === round5(originCoords.lon) &&
       round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
       round5(row?.segment_dest_lon) === round5(nextStopCoords.lon) &&
       typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0
@@ -288,8 +308,8 @@ Deno.serve(async (req) => {
       const movedMeters = distanceMeters(
         Number(existingType1.segment_origin_lat),
         Number(existingType1.segment_origin_lon),
-        currentLat,
-        currentLon
+        originCoords.lat,
+        originCoords.lon
       );
       const ageMs = Date.now() - new Date(existingType1.last_generated_at || 0).getTime();
 
@@ -302,14 +322,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    const directions = await getSegmentDirections(base44, { lat: currentLat, lon: currentLon }, nextStopCoords);
+    const directions = await getSegmentDirections(base44, originCoords, nextStopCoords);
 
     const payload = {
       driver_id: driverId,
       delivery_date: deliveryDate,
       encoded_polyline: directions.encoded_polyline,
-      segment_origin_lat: round5(currentLat),
-      segment_origin_lon: round5(currentLon),
+      segment_origin_lat: round5(originCoords.lat),
+      segment_origin_lon: round5(originCoords.lon),
       segment_dest_lat: round5(nextStopCoords.lat),
       segment_dest_lon: round5(nextStopCoords.lon),
       estimated_distance_km: directions.estimated_distance_km,
