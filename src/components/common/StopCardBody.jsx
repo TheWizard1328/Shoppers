@@ -124,8 +124,8 @@ export default function StopCardBody({
                 </div>
             }
 
-              {/* COD Collected - Show for active deliveries OR for finished deliveries with COD */}
-              {hasCODRequired && !isPickup && codPayments.length > 0 &&
+              {/* COD Collected - Show for active deliveries OR for finished deliveries with COD, but not past dates */}
+              {hasCODRequired && !isPickup && codPayments.length > 0 && !isPastDeliveryDate &&
             <div
               className="flex items-center justify-between rounded-md px-2 py-1"
               style={{ background: '#10b981', borderWidth: '1px', borderColor: '#059669' }}>
