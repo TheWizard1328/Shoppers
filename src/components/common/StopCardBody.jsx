@@ -176,7 +176,7 @@ export default function StopCardBody({
               isCompleting={isCompleting}
               setIsCompleting={setIsCompleting}
               onSelectionChange={onSelectionChange}
-              onClick={onClick} />
+              onClick={onClick} />}
             
 
               {/* Patient Notes - Show for all finished deliveries when expanded */}
