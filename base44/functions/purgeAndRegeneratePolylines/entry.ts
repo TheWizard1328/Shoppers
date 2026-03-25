@@ -195,7 +195,13 @@ function buildStopOrderRepairUpdates(deliveries) {
 async function markDeliveriesPolylineUpdated(base44, deliveries, value) {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return;
   await processInChunks(deliveries, 5, (delivery) =>
-    base44.asServiceRole.entities.Delivery.update(delivery.id, { PolylineUpdated: value })
+    base44.asServiceRole.entities.Delivery.update(delivery.id, { PolylineUpdated: value }).catch((error) => {
+      if (isRateLimitError(error)) {
+        console.warn('[markDeliveriesPolylineUpdated] Rate limit, skipping flag update');
+        return null;
+      }
+      throw error;
+    })
   );
 }
 
