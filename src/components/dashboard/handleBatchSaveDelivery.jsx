@@ -54,17 +54,16 @@ export const handleBatchSaveDelivery = async ({
   });
 
   for (const [driverId, driverDeliveries] of Object.entries(deliveriesByDriver)) {
-    if (driverId === 'unassigned') {
-      continue;
-    }
+    // Allow 'unassigned' driverId to proceed
 
     const driver = drivers.find((d) => d && d.id === driverId);
-    if (!driver) {
+    if (!driver && driverId !== 'unassigned') {
       console.warn(`[AddToRoute] ⚠️ Driver not found: ${driverId}`);
       continue;
     }
 
     const isDriverAssignedToSlot = (store, slotPrefix) => {
+      if (!driver) return false; // Skip slot checks for unassigned
       const enabledField = `${slotPrefix}_enabled`;
       if (!store[enabledField]) return false;
 
@@ -85,6 +84,7 @@ export const handleBatchSaveDelivery = async ({
     });
     const driverDeliveriesForDate = allDeliveriesForDate.filter((delivery) => {
       if (!delivery) return false;
+      if (driverId === 'unassigned') return !delivery.driver_id; // Match unassigned
       return delivery.driver_id === driverId;
     });
 
