@@ -86,9 +86,33 @@ function unique(values) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+export function fuzzyMatch(str1, str2) {
+  if (!str1 || !str2) return false;
+  const s1 = String(str1).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const s2 = String(str2).toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (s1 === s2) return true;
+  if (s1.length > 3 && s2.length > 3 && (s1.includes(s2) || s2.includes(s1))) return true;
+  
+  const tokens1 = String(str1).toLowerCase().match(/[a-z0-9]+/g) || [];
+  const tokens2 = String(str2).toLowerCase().match(/[a-z0-9]+/g) || [];
+  if (!tokens1.length || !tokens2.length) return false;
+  
+  const overlap = tokens1.filter(t => tokens2.includes(t)).length;
+  return overlap > 0 && overlap >= Math.min(tokens1.length, tokens2.length) / 2;
+}
+
+export function isDateProximate(date1, date2, maxDays = 2) {
+  if (!date1 || !date2) return false;
+  const d1 = new Date(date1).getTime();
+  const d2 = new Date(date2).getTime();
+  const diffDays = Math.abs(d1 - d2) / (1000 * 60 * 60 * 24);
+  return diffDays <= maxDays;
+}
+
 function compareAgainst(row, otherRows, otherLabel) {
   if (!otherRows.length) return [`Missing in ${otherLabel}`];
 
+  // 1. Exact Match
   const exact = otherRows.some(
     (other) =>
       other.date === row.date &&
@@ -96,6 +120,15 @@ function compareAgainst(row, otherRows, otherLabel) {
       other.amountCents === row.amountCents,
   );
   if (exact) return [];
+
+  // 2. Fuzzy Match (Amount + Proximate Date + Fuzzy Name)
+  const fuzzy = otherRows.some(
+    (other) => 
+      other.amountCents === row.amountCents &&
+      isDateProximate(other.date, row.date, 3) &&
+      fuzzyMatch(other.itemName, row.itemName)
+  );
+  if (fuzzy) return [];
 
   const issues = [];
 
