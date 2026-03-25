@@ -135,7 +135,6 @@ export default function ResetPolylinesButton({
         }));
       });
     } finally {
-      resumeOfflineMutations();
       smartRefreshManager.restart();
       setIsResetting(false);
     }
