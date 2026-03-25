@@ -95,7 +95,7 @@ import ReconcileToast from '../components/dashboard/ReconcileToast';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";import { shouldRefreshUserFromAppUser } from "@/components/utils/appUserRefreshUtils";
 import { saveDriverChangedDelivery } from "@/components/utils/saveDriverChangedDelivery";
-import { getFabTargetDriverMapLocation, isDriverOffDuty } from "@/components/dashboard/mapViewPhaseHelpers";
+import { getFabTargetDriverMapLocation, isDriverOffDuty, getSelfDriverLocationForBounds } from "@/components/dashboard/mapViewPhaseHelpers";
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
