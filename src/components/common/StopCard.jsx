@@ -415,10 +415,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           // CRITICAL: Also clear isNextDelivery on all other route deliveries immediately in offline DB
                           const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
                           const clearNextFlags = sameRouteDeliveries.filter(d => d && d.id !== delivery.id && d.isNextDelivery).map(d => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
-                          await Promise.allSettled([
+                          const saveResults = await Promise.allSettled([
                             updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true }),
                             ...clearNextFlags
                           ]);
+                          // CRITICAL: Check if save actually succeeded before proceeding
+                          const criticalSaveFailed = saveResults.some(r => r.status === 'rejected');
+                          if (criticalSaveFailed) throw new Error('Failed to save delivery completion to database');
                           if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
                           runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: 'completed', overrides: completionUpdate });
                           // Now update UI after critical data is saved
