@@ -15,6 +15,7 @@ export default function StopCardBody({
   isStrippedForDispatcher,
   finalDisplayPhone,
   isFinishedDelivery,
+  isPastDeliveryDate,
   isPickup,
   hasCODRequired,
   codTotalRequired,
