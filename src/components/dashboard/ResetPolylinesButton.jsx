@@ -33,17 +33,17 @@ export default function ResetPolylinesButton({
 
   const syncDriverDateDeliveriesFromBackend = async (successfulDriverIds) => {
     const deliveryGroups = [];
-    const chunkSize = 3;
-    for (let i = 0; i < successfulDriverIds.length; i += chunkSize) {
-      const chunk = successfulDriverIds.slice(i, i + chunkSize);
-      const chunkResults = await Promise.all(
-        chunk.map((driverId) =>
-          base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: selectedDate }, undefined, 50000)
-        )
-      );
-      deliveryGroups.push(...chunkResults);
-      if (i + chunkSize < successfulDriverIds.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+    for (const driverId of successfulDriverIds) {
+      try {
+        const results = await base44.entities.Delivery.filter(
+          { driver_id: driverId, delivery_date: selectedDate },
+          undefined,
+          5000
+        );
+        deliveryGroups.push(results);
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (err) {
+        console.warn(`Failed to sync deliveries for driver ${driverId}:`, err);
       }
     }
 
