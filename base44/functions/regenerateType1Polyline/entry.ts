@@ -270,18 +270,16 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'missing_next_stop_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
-    // CRITICAL: Origin should be the last completed stop, NOT the current location or first stop
+    // CRITICAL: Origin is the stop immediately BEFORE the next delivery by stop_order, NOT by completion time
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
-    const completedStops = (deliveries || [])
-      .filter((d) => finishedStatuses.has(d.status))
-      .sort((a, b) => {
-        const timeA = new Date(a?.actual_delivery_time || a?.arrival_time || a?.updated_date || 0).getTime();
-        const timeB = new Date(b?.actual_delivery_time || b?.arrival_time || b?.updated_date || 0).getTime();
-        return timeB - timeA; // Most recent first
-      });
+    const nextStopOrder = Number(nextActiveStop?.stop_order || 0);
     
-    const lastCompletedStop = completedStops[0];
-    const originCoords = lastCompletedStop ? getLatLon(lastCompletedStop) : { lat: Number(rawLocation?.lat), lon: Number(rawLocation?.lon) };
+    // Find the stop with the highest stop_order that is less than nextStopOrder and is finished
+    const originStop = (deliveries || [])
+      .filter((d) => finishedStatuses.has(d.status) && Number(d?.stop_order || 0) < nextStopOrder)
+      .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
+    
+    const originCoords = originStop ? getLatLon(originStop) : { lat: Number(rawLocation?.lat), lon: Number(rawLocation?.lon) };
     
     if (!originCoords) {
       return Response.json({ success: true, skipped: true, reason: 'missing_origin_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
@@ -338,6 +336,29 @@ Deno.serve(async (req) => {
       last_generated_at: new Date().toISOString()
     };
 
+    // CRITICAL: Validate origin and destination match actual stop coordinates before saving
+    const originStopValidation = originStop ? getLatLon(originStop) : null;
+    const nextStopValidation = getLatLon(nextActiveStop);
+    
+    const originMatches = originStopValidation && 
+      round5(originStopValidation.lat) === round5(originCoords.lat) &&
+      round5(originStopValidation.lon) === round5(originCoords.lon);
+    
+    const nextMatches = nextStopValidation &&
+      round5(nextStopValidation.lat) === round5(nextStopCoords.lat) &&
+      round5(nextStopValidation.lon) === round5(nextStopCoords.lon);
+    
+    if (!originMatches || !nextMatches) {
+      return Response.json({ 
+        success: false, 
+        reason: 'polyline_validation_failed',
+        originMatches,
+        nextMatches,
+        driverId,
+        deliveryDate
+      }, { status: 400 });
+    }
+
     if (existingType1?.id) {
       await base44.asServiceRole.entities.DriverRoutePolyline.update(existingType1.id, payload);
     } else {
@@ -350,6 +371,7 @@ Deno.serve(async (req) => {
       driverId,
       deliveryDate,
       nextStopId: nextActiveStop.id,
+      originStopId: originStop?.id || null,
       repairedStopOrders: stopOrderRepairUpdates.length
     });
   } catch (error) {
