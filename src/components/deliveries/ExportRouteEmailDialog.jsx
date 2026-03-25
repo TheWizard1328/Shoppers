@@ -10,7 +10,9 @@ import {
   DialogHeader,
   DialogTitle } from
 "@/components/ui/dialog";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, FileText } from "lucide-react";
+import { useUser } from "@/components/utils/UserContext";
+import { isAppOwner } from "@/components/utils/userRoles";
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const normalizeEmail = (value) => value.trim().toLowerCase();
@@ -20,8 +22,10 @@ export default function ExportRouteEmailDialog({
   onOpenChange,
   storeIds = [],
   isExporting = false,
-  onExportRoute
+  onExportRoute,
+  onPreviewPdf
 }) {
+  const { user: currentUser } = useUser();
   const [stores, setStores] = useState([]);
   const [emailDrafts, setEmailDrafts] = useState({});
   const [pendingEmails, setPendingEmails] = useState({});
@@ -162,21 +166,41 @@ export default function ExportRouteEmailDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1 mt-2 mb-4">
-          <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-            Testing Email (App Owner)
-          </label>
-          <Input
-            type="email"
-            value={testingEmail}
-            onChange={(e) => setTestingEmail(e.target.value)}
-            placeholder="your.email@example.com"
-            className="w-full" />
-          
-          {testingEmail && !isValidEmail(testingEmail) &&
-          <p className="text-xs text-red-500">Please enter a valid email address.</p>
-          }
-        </div>
+        {isAppOwner(currentUser) && (
+          <div className="space-y-1 mt-2 mb-4">
+            <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+              Testing Email (App Owner)
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="email"
+                value={testingEmail}
+                onChange={(e) => setTestingEmail(e.target.value)}
+                placeholder="your.email@example.com"
+                className="flex-1" />
+              
+              {onPreviewPdf && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    await saveEmails();
+                    onPreviewPdf();
+                  }}
+                  disabled={isLoading || isSaving || isExporting}
+                  className="shrink-0"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Preview PDF
+                </Button>
+              )}
+            </div>
+            
+            {testingEmail && !isValidEmail(testingEmail) &&
+            <p className="text-xs text-red-500">Please enter a valid email address.</p>
+            }
+          </div>
+        )}
 
         {isLoading ?
         <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
