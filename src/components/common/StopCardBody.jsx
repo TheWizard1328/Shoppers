@@ -402,9 +402,10 @@ export default function StopCardBody({
                   borderColor: 'var(--border-slate-200)',
                   color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)',
                   fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
-                }} />
-              </div>
-            </motion.div>
+                  }} />
+                  </div>
+                  </div>
+                  </motion.div>
       </AnimatePresence>
     </>);
 
