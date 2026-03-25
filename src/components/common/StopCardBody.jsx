@@ -157,7 +157,7 @@ export default function StopCardBody({
                 </div>
             }
 
-              <StopCardCODCollection
+              {!isPastDeliveryDate && <StopCardCODCollection
               delivery={delivery}
               codPayments={codPayments}
               setCodPayments={setCodPayments}
