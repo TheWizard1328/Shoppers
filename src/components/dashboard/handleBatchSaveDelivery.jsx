@@ -42,18 +42,23 @@ export const handleBatchSaveDelivery = async ({
     return;
   }
 
-  const deliveriesByDriver = {};
+  const deliveriesByGroup = {};
   stagedDeliveries.forEach((delivery) => {
     if (!delivery) return;
 
     const driverId = delivery.driver_id && delivery.driver_id.trim() !== '' ? delivery.driver_id : 'unassigned';
-    if (!deliveriesByDriver[driverId]) {
-      deliveriesByDriver[driverId] = [];
+    const date = delivery.delivery_date || format(selectedDate, 'yyyy-MM-dd');
+    const key = `${driverId}_${date}`;
+    if (!deliveriesByGroup[key]) {
+      deliveriesByGroup[key] = [];
     }
-    deliveriesByDriver[driverId].push(delivery);
+    deliveriesByGroup[key].push(delivery);
   });
 
-  for (const [driverId, driverDeliveries] of Object.entries(deliveriesByDriver)) {
+  for (const [groupKey, driverDeliveries] of Object.entries(deliveriesByGroup)) {
+    const driverId = groupKey.split('_')[0];
+    const deliveryDate = driverDeliveries[0].delivery_date || format(selectedDate, 'yyyy-MM-dd');
+
     // Allow 'unassigned' driverId to proceed
 
     const driver = drivers.find((d) => d && d.id === driverId);
