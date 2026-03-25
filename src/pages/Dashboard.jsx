@@ -3667,15 +3667,10 @@ function Dashboard() {
 
       const isFirstStop = driverDeliveriesForDate.length === 0;
       const deliveryStore = stores.find((s) => s.id === deliveryData.store_id);
-
-      // CRITICAL: Special stores - only create pickup when first delivery is added to that specific store
+      const isInterStore = deliveryData.patient_name?.toLowerCase().includes('interstore') || deliveryData.delivery_notes?.toLowerCase().includes('interstore');
       const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark'];
       const isSpecialStore = deliveryStore && specialStoreNames.includes(deliveryStore.name);
-
-      // For special stores: only check the specific delivery's store (not all assigned stores)
-      // For regular stores: check all assigned stores on first stop, or just delivery's store otherwise
-      const storesToCheck = isSpecialStore ? deliveryStore ? [deliveryStore] : [] :
-      isFirstStop ? assignedStores : deliveryStore ? [deliveryStore] : [];
+      const storesToCheck = isInterStore ? [] : isSpecialStore ? deliveryStore ? [deliveryStore] : [] : isFirstStop ? assignedStores : deliveryStore ? [deliveryStore] : [];
 
       for (const store of storesToCheck) {
         const isAssignedToAM = isSaturday ? isDriverAssignedToSlot(store, 'saturday_am') :
