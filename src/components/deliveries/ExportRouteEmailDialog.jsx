@@ -27,6 +27,8 @@ export default function ExportRouteEmailDialog({
   const [pendingEmails, setPendingEmails] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [testingEmail, setTestingEmail] = useState("");
+  const [appSettingsId, setAppSettingsId] = useState(null);
 
   const storeIdsKey = useMemo(() => storeIds.join(","), [storeIds]);
 
@@ -36,7 +38,10 @@ export default function ExportRouteEmailDialog({
     let isActive = true;
     setIsLoading(true);
 
-    base44.entities.Store.list().then((allStores) => {
+    Promise.all([
+      base44.entities.Store.list(),
+      base44.entities.AppSettings.filter({ setting_key: 'route_export_testing_email' })
+    ]).then(([allStores, settings]) => {
       if (!isActive) return;
 
       const selectedStores = (allStores || []).filter((store) => storeIds.includes(store.id));
@@ -48,6 +53,15 @@ export default function ExportRouteEmailDialog({
       setStores(selectedStores);
       setEmailDrafts(drafts);
       setPendingEmails({});
+      
+      if (settings && settings.length > 0) {
+        setTestingEmail(settings[0].setting_value || "");
+        setAppSettingsId(settings[0].id);
+      } else {
+        setTestingEmail("");
+        setAppSettingsId(null);
+      }
+
       setIsLoading(false);
     });
 
@@ -85,23 +99,51 @@ export default function ExportRouteEmailDialog({
 
   const saveEmails = async () => {
     setIsSaving(true);
-    await Promise.all(
-      stores.map((store) =>
+    const promises = stores.map((store) =>
       base44.entities.Store.update(store.id, {
         route_export_emails: emailDrafts[store.id] || []
       })
-      )
     );
+
+    if (testingEmail) {
+      if (appSettingsId) {
+        promises.push(base44.entities.AppSettings.update(appSettingsId, { setting_value: testingEmail }));
+      } else {
+        promises.push(
+          base44.entities.AppSettings.create({
+            setting_key: 'route_export_testing_email',
+            setting_value: testingEmail,
+            description: 'App Owner testing email for route exports'
+          }).then(res => setAppSettingsId(res.id))
+        );
+      }
+    } else if (appSettingsId) {
+      promises.push(
+        base44.entities.AppSettings.delete(appSettingsId).then(() => setAppSettingsId(null))
+      );
+    }
+
+    await Promise.all(promises);
     setIsSaving(false);
   };
 
   const handleExportRoute = async () => {
     await saveEmails();
     const perStoreEmails = stores.reduce((acc, store) => {
-      acc[store.id] = emailDrafts[store.id] || [];
+      const emails = [...(emailDrafts[store.id] || [])];
+      if (testingEmail && isValidEmail(testingEmail)) {
+        emails.push(testingEmail);
+      }
+      acc[store.id] = emails;
       return acc;
     }, {});
-    const recipientEmails = [...new Set(stores.flatMap((store) => emailDrafts[store.id] || []))];
+    
+    let allRecipientEmails = stores.flatMap((store) => emailDrafts[store.id] || []);
+    if (testingEmail && isValidEmail(testingEmail)) {
+      allRecipientEmails.push(testingEmail);
+    }
+    const recipientEmails = [...new Set(allRecipientEmails)];
+    
     onOpenChange(false);
     await onExportRoute({ recipientEmails, perStoreEmails });
   };
@@ -118,6 +160,22 @@ export default function ExportRouteEmailDialog({
             Review, add, or remove store email addresses before exporting the route log by email.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-1 mt-2 mb-4">
+          <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+            Testing Email (App Owner)
+          </label>
+          <Input
+            type="email"
+            value={testingEmail}
+            onChange={(e) => setTestingEmail(e.target.value)}
+            placeholder="your.email@example.com"
+            className="w-full"
+          />
+          {testingEmail && !isValidEmail(testingEmail) && (
+            <p className="text-xs text-red-500">Please enter a valid email address.</p>
+          )}
+        </div>
 
         {isLoading ?
         <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
@@ -205,7 +263,8 @@ export default function ExportRouteEmailDialog({
             isSaving ||
             isExporting ||
             stores.length === 0 ||
-            !stores.some((store) => (emailDrafts[store.id] || []).length > 0)
+            (!stores.some((store) => (emailDrafts[store.id] || []).length > 0) && !isValidEmail(testingEmail)) ||
+            (testingEmail && !isValidEmail(testingEmail))
             }>
 
             {isSaving || isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
