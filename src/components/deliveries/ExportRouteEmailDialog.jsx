@@ -56,7 +56,7 @@ export default function ExportRouteEmailDialog({
       setPendingEmails({});
 
       if (settings && settings.length > 0) {
-        setTestingEmail(settings[0].setting_value || "");
+        setTestingEmail(settings[0].setting_value?.email || "");
         setAppSettingsId(settings[0].id);
       } else {
         setTestingEmail("");
@@ -108,12 +108,12 @@ export default function ExportRouteEmailDialog({
 
     if (testingEmail) {
       if (appSettingsId) {
-        promises.push(base44.entities.AppSettings.update(appSettingsId, { setting_value: testingEmail }));
+        promises.push(base44.entities.AppSettings.update(appSettingsId, { setting_value: { email: testingEmail } }));
       } else {
         promises.push(
           base44.entities.AppSettings.create({
             setting_key: 'route_export_testing_email',
-            setting_value: testingEmail,
+            setting_value: { email: testingEmail },
             description: 'App Owner testing email for route exports'
           }).then((res) => setAppSettingsId(res.id))
         );
