@@ -182,8 +182,8 @@ export default function StopCardBody({
               {!isStrippedForDriver &&
             isFinishedDelivery &&
             !isPickup &&
-            patient?.notes &&
-            <div className="flex items-start gap-2">
+            patient?.notes && (
+                <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-base font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>
@@ -196,10 +196,11 @@ export default function StopCardBody({
                         <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
                       </div>
                     </div>
-                  </div>
-            
+                    </div>
+                    </div>
+                    )}
 
-              {/* Full Patient Info - only for active deliveries */}
+                    {/* Full Patient Info - only for active deliveries */}
               {!isStrippedForDriver && !isFinishedDelivery && !isPickup && patient && (
             patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
             <div className="flex items-start gap-2">
