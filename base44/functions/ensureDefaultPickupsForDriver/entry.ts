@@ -185,8 +185,28 @@ Deno.serve(async (req) => {
       return Response.json({ skipped: true, reason: 'Pickup record already' });
     }
 
+    // CRITICAL: Skip pickup creation for retry and return deliveries
+    // These are created via the Retry/Return buttons and already have a puid linking to an existing pickup
+    if (delivery._skipPickupCreation === true) {
+      return Response.json({ skipped: true, reason: 'Retry/return delivery — pickup creation explicitly skipped' });
+    }
+
     if (!ACTIVE_DELIVERY_STATUSES.has(delivery.status)) {
       return Response.json({ skipped: true, reason: `Status ${delivery.status} does not need pickup ensure` });
+    }
+
+    // CRITICAL: If this delivery already has a puid pointing to an existing pickup on this driver/date,
+    // skip all pickup creation (handles retry/return deliveries where puid is inherited)
+    if (delivery.puid) {
+      const existingPickupForPuid = await base44.asServiceRole.entities.Delivery.filter({
+        stop_id: delivery.puid,
+        delivery_date: delivery.delivery_date,
+        driver_id: delivery.driver_id,
+      }, '-created_date', 5);
+      const hasMatchingPickup = (existingPickupForPuid || []).some((item) => !item?.patient_id);
+      if (hasMatchingPickup) {
+        return Response.json({ skipped: true, reason: 'Delivery already has a valid puid pointing to an existing pickup' });
+      }
     }
 
     const primarySlot = getPrimarySlot(delivery);

@@ -279,7 +279,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const handleConfirmReturn = async () => {
     if (!onCreateReturn || !returnPatient) return;setIsCreatingReturn(true);
     try {
-      await onCreateReturn({ originalDelivery: delivery, returnPatient: returnPatient, store: store });
+      await onCreateReturn({ originalDelivery: delivery, returnPatient: returnPatient, store: store, _skipPickupCreation: true });
       await collapseAndCenterNextDelivery({ driverDeliveries: getDriverRouteDeliveries(allDeliveries, delivery), targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       if (userHasRole(currentUser, 'driver')) notifyDriverReturn({ driver: currentUser, patientName: patient?.full_name, delivery, store, appUsers }).catch(() => {});
@@ -308,7 +308,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           stop_id: generateUniqueSID(retryDateDeliveries),
           puid: delivery.puid || delivery.stop_id || null,
           ampm_deliveries: delivery.ampm_deliveries,
-          tracking_number: String(retryTrackingNumber)
+          tracking_number: String(retryTrackingNumber),
+          _skipPickupCreation: true
         });
         await ensureDriverOnline();
         await collapseAndCenterNextDelivery({ driverDeliveries: getDriverRouteDeliveries(allDeliveries, delivery), targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
