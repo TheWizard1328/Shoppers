@@ -139,9 +139,17 @@ function findExactCachedSegment(rows, from, to) {
 function buildStopOrderRepairUpdates(deliveries) {
   const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
   const getCompletionTime = (delivery) => {
-    const value = delivery?.actual_delivery_time || delivery?.arrival_time || delivery?.updated_date || delivery?.created_date || 0;
-    const timestamp = new Date(value).getTime();
-    return Number.isFinite(timestamp) ? timestamp : Number.MAX_SAFE_INTEGER;
+    if (!delivery) return Number.MAX_SAFE_INTEGER;
+    if (delivery.actual_delivery_time) {
+      const time = new Date(delivery.actual_delivery_time).getTime();
+      if (Number.isFinite(time)) return time;
+    }
+    const fallback = delivery.arrival_time || delivery.updated_date || delivery.created_date;
+    if (fallback) {
+      const time = new Date(fallback).getTime();
+      if (Number.isFinite(time)) return time;
+    }
+    return Number.MAX_SAFE_INTEGER;
   };
   const getStopOrder = (delivery) => {
     const value = Number(delivery?.stop_order);
