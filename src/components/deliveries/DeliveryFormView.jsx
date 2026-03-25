@@ -213,7 +213,7 @@ export default function DeliveryFormView({
             }
           });
         }
-      } else if (!buttonState) {
+      } else if (buttonState === 'update' || !buttonState) {
         const isDisabled = isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll;
         if (!isDisabled) {
           runLockedAction('update_delivery', async () => {
