@@ -49,12 +49,13 @@ class LightweightRefreshManager {
       });
     }
 
-    // Rate limiting - relaxed for better perf
+    // Rate limiting - increased to prevent 429 errors
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 2000;  // 2 seconds between API calls
+    this.minTimeBetweenCalls = 3000;  // 3 seconds between API calls
     this.consecutiveErrors = 0;
-    this.maxConsecutiveErrors = 2;
+    this.maxConsecutiveErrors = 1;
     this.errorCooldownUntil = 0;
+    this.rateLimitDetected = false;
 
     // Pending mutations tracking
     this.pendingLocalUpdates = new Map();
@@ -271,12 +272,20 @@ class LightweightRefreshManager {
   /**
    * Record error for backoff
    */
-  recordError() {
-    this.consecutiveErrors++;
-    if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
-      this.errorCooldownUntil = Date.now() + 60000;
-      console.warn(`🛑 [LightweightRefresh] ${this.consecutiveErrors} errors - cooldown 60s`);
+  recordError(error) {
+    // Check for rate limit
+    if (error?.message?.includes('429') || error?.status === 429) {
+      this.rateLimitDetected = true;
+      this.errorCooldownUntil = Date.now() + 120000; // 2 minute pause on 429
+      console.warn(`🛑 [LightweightRefresh] Rate limit detected - pausing all refreshes for 2 minutes`);
       this.consecutiveErrors = 0;
+    } else {
+      this.consecutiveErrors++;
+      if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
+        this.errorCooldownUntil = Date.now() + 60000;
+        console.warn(`🛑 [LightweightRefresh] ${this.consecutiveErrors} errors - cooldown 60s`);
+        this.consecutiveErrors = 0;
+      }
     }
   }
 
@@ -414,7 +423,7 @@ class LightweightRefreshManager {
           }
           this.markRefreshed('cities');
         } catch (e) {
-          this.recordError();
+          this.recordError(e);
           console.warn('⚠️ [LightweightRefresh] Cities refresh failed:', e.message);
         }
       }
@@ -440,7 +449,7 @@ class LightweightRefreshManager {
           }
           this.markRefreshed('stores');
         } catch (e) {
-          this.recordError();
+          this.recordError(e);
           console.warn('⚠️ [LightweightRefresh] Stores refresh failed:', e.message);
         }
       }
@@ -567,21 +576,21 @@ class LightweightRefreshManager {
       
       return { hasChanges: false, appUsers: currentAppUsers };
     } catch (error) {
-      base44.analytics.track({
-        eventName: "driver_location_refresh_run",
-        properties: {
-          success: false,
-          force_notify: Boolean(forceNotify),
-          immediate: Boolean(immediate)
-        }
-      });
-      this.recordError();
-      // Exponential backoff: 1m → 2m → 5m, reset on success
-      const next = this.driverRefreshBackoffMs === 0 ? 60000 : (this.driverRefreshBackoffMs === 60000 ? 120000 : 300000);
-      this.driverRefreshBackoffMs = next;
-      this.driverNextAllowedAt = Date.now() + next;
-      console.warn(`⚠️ [SmartRefresh] Location refresh failed (${error.message}). Backing off ${Math.round(next/1000)}s`);
-      return { hasChanges: false, appUsers: currentAppUsers };
+     base44.analytics.track({
+       eventName: "driver_location_refresh_run",
+       properties: {
+         success: false,
+         force_notify: Boolean(forceNotify),
+         immediate: Boolean(immediate)
+       }
+     });
+     this.recordError(error);
+     // Exponential backoff: 1m → 2m → 5m, reset on success
+     const next = this.driverRefreshBackoffMs === 0 ? 60000 : (this.driverRefreshBackoffMs === 60000 ? 120000 : 300000);
+     this.driverRefreshBackoffMs = next;
+     this.driverNextAllowedAt = Date.now() + next;
+     console.warn(`⚠️ [SmartRefresh] Location refresh failed (${error.message}). Backing off ${Math.round(next/1000)}s`);
+     return { hasChanges: false, appUsers: currentAppUsers };
     }
   }
 
@@ -669,7 +678,7 @@ class LightweightRefreshManager {
           this.recordSuccess();
         } catch (e) {
           console.warn('⚠️ [SmartRefresh] Reconcile failed:', e.message);
-          this.recordError();
+          this.recordError(e);
         }
       }
       
@@ -749,10 +758,10 @@ class LightweightRefreshManager {
       
       return { onDutyDrivers, freshAppUsers };
     } catch (error) {
-      this.recordError();
-      console.warn('⚠️ [SmartRefresh] Polyline update failed:', error.message);
-      return null;
-    }
+       this.recordError(error);
+       console.warn('⚠️ [SmartRefresh] Polyline update failed:', error.message);
+       return null;
+     }
   }
 
   /**

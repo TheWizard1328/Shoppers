@@ -49,12 +49,22 @@ const entities = {
 // Track offline DB load completion
 let offlineDBLoadComplete = false;
 
-// Rate limit protection - track last API call time
+// Rate limit protection - track last API call time and global rate limit pause
 let lastApiCallTime = 0;
-const MIN_API_INTERVAL = 1000; // 1 second between API calls to prevent rate limiting
+const MIN_API_INTERVAL = 3000; // 3 seconds between API calls to prevent rate limiting
+let globalRateLimitUntil = 0;
 
 const waitForRateLimit = async () => {
   const now = Date.now();
+  
+  // Check if we're in a global rate limit pause (triggered by 429 error)
+  if (now < globalRateLimitUntil) {
+    const waitTime = globalRateLimitUntil - now;
+    console.warn(`⏸️ [DataManager] Global rate limit active - waiting ${Math.ceil(waitTime/1000)}s`);
+    await new Promise(resolve => setTimeout(resolve, Math.min(waitTime, 1000)));
+    return;
+  }
+  
   const timeSinceLastCall = now - lastApiCallTime;
   if (timeSinceLastCall < MIN_API_INTERVAL) {
     const waitTime = MIN_API_INTERVAL - timeSinceLastCall;
@@ -194,13 +204,16 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         }
 
         if (error.response?.status === 429 || error.message?.includes('429')) {
-          connectionMonitor.recordError('rate_limit');
-          const backoffDelay = Math.min(2000 * Math.pow(2, attempt), 10000);
-          await new Promise(resolve => setTimeout(resolve, backoffDelay));
-          if (attempt < retries - 1) continue;
-        } else {
-          connectionMonitor.recordError('network');
-        }
+           connectionMonitor.recordError('rate_limit');
+           // Set global rate limit pause to 2 minutes
+           globalRateLimitUntil = Date.now() + 120000;
+           console.warn('🛑 [DataManager] 429 Rate Limit - pausing all API calls for 2 minutes');
+           const backoffDelay = Math.min(2000 * Math.pow(2, attempt), 10000);
+           await new Promise(resolve => setTimeout(resolve, backoffDelay));
+           if (attempt < retries - 1) continue;
+         } else {
+           connectionMonitor.recordError('network');
+         }
 
         break;
       }
