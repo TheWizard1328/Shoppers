@@ -51,7 +51,8 @@ export default function StopCardBody({
   isCompleted,
   userHasRole,
   Textarea,
-  isAppOwnerFn
+  isAppOwnerFn,
+  isPastDate
 }) {
   const handleNotesBlur = () => {
     if (!notesInput.trim() || notesInput.trim() === 'No driver notes') {
@@ -89,8 +90,8 @@ export default function StopCardBody({
           className="overflow-hidden">
           
             <div className="pt-1 space-y-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
-              {finalDisplayPhone && !(isFinishedDelivery && !isPickup) &&
+              {/* Phone number - HIDE for finished deliveries and past date */}
+              {finalDisplayPhone && !(isFinishedDelivery && !isPickup) && !isPastDate &&
             <div className="flex items-center text-lg" style={{ color: 'var(--text-slate-600)' }}>
                   <Phone className="w-4 h-4 mr-2 text-slate-500" />
                   <span className="text-xl font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
@@ -98,7 +99,7 @@ export default function StopCardBody({
             }
 
               {/* COD Information - For active deliveries with COD required (always show, but disable editing for driver-stripped) */}
-              {hasCODRequired && !isPickup && !isFinishedDelivery &&
+              {hasCODRequired && !isPickup && !isFinishedDelivery && !isPastDate &&
             <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: '#e5e7eb', borderWidth: '1px', borderColor: '#d1d5db' }}>
                   <span className="text-lg font-semibold" style={{ color: '#374151' }}>
                     COD Required: ${codTotalRequired.toFixed(2)}
@@ -178,10 +179,11 @@ export default function StopCardBody({
               onClick={onClick} />
             
 
-              {/* Patient Notes - Show for all finished deliveries when expanded */}
+              {/* Patient Notes - Show for finished deliveries when expanded, but NOT on past dates */}
               {!isStrippedForDriver &&
             isFinishedDelivery &&
             !isPickup &&
+            !isPastDate &&
             patient?.notes && (
                 <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
@@ -199,8 +201,8 @@ export default function StopCardBody({
                 </div>
             )}
 
-              {/* Full Patient Info - only for active deliveries */}
-              {!isStrippedForDriver && !isFinishedDelivery && !isPickup && patient && (
+              {/* Full Patient Info - only for active deliveries on today/future dates */}
+              {!isStrippedForDriver && !isFinishedDelivery && !isPickup && !isPastDate && patient && (
             (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring)) && (
             <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
@@ -275,12 +277,11 @@ export default function StopCardBody({
                         {patient.notes && <p className="whitespace-pre-wrap break-words">{patient.notes}</p>}
                       </div>
                     </div>
-                    </div>
-                    )}
-                    </div>
+                  </div>
+            )}
 
-              {/* Show pending pickup list when pickup is en_route (active) */}
-              {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
+              {/* Show pending pickup list when pickup is en_route (active) - not on past dates */}
+              {!isFinishedDelivery && !isPastDate && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
             <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
@@ -404,9 +405,10 @@ export default function StopCardBody({
                   fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
                 }} />
                 </div>
-              </motion.div>
-        }
-      </AnimatePresence>
+                </div>
+                </motion.div>
+                }
+                </AnimatePresence>
     </>);
 
 }
