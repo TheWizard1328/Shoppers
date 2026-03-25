@@ -151,7 +151,7 @@ export default function ExportRouteEmailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-background px-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-w-[750px] max-h-[85vh] overflow-y-auto"
+      <DialogContent className="bg-background px-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] flex flex-col w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-w-[750px] max-h-[85vh] overflow-hidden"
 
       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
 
@@ -188,7 +188,8 @@ export default function ExportRouteEmailDialog({
             No stores are assigned to this dispatcher.
           </div> :
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar pb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {stores.map((store) =>
           <div
             key={store.id} className="px-3 py-3 rounded-xl border space-y-3 flex flex-col"
@@ -250,11 +251,24 @@ export default function ExportRouteEmailDialog({
               </div>
           )}
           </div>
+        </div>
         }
 
-        <DialogFooter className="py-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2">
+        <DialogFooter className="py-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2 mt-auto pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Close
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={async () => {
+              await saveEmails();
+              onOpenChange(false);
+            }}
+            disabled={isLoading || isSaving || isExporting || (testingEmail && !isValidEmail(testingEmail))}
+          >
+            {isSaving && !isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            Save
           </Button>
           <Button
             type="button"
