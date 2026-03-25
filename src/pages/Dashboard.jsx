@@ -1988,20 +1988,14 @@ function Dashboard() {
         // CRITICAL: Treat "Show All" mode same as "All Drivers" mode for map bounds
         const shouldShowAllMarkersForBounds = selectedDriverId === 'all' || showAllDriverMarkers;
 
-        // 1. BLUE DOT: Include driver's live location when visible on mobile
-        // CRITICAL: For admins viewing any driver OR drivers viewing themselves
-        const shouldIncludeBlueDot =
-        isMobile &&
-        isDriver && !isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) &&
-        isViewingToday &&
-        driverLocation?.latitude &&
-        driverLocation?.longitude && (
-        selectedDriverId === currentUser?.id || selectedDriverId === 'all');
-
-        if (shouldIncludeBlueDot) {
-          allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
-          hasDriverMarkers = true;
+        // 1. DRIVER LOCATION: Include driver's location (GPS blue dot or shared AppUser location)
+        // Covers: mobile GPS, desktop shared location, and cases where GPS hasn't loaded yet
+        if (isViewingToday) {
+          const { getSelfDriverLocationForBounds } = await import('@/components/dashboard/mapViewPhaseHelpers');
+          const selfLoc = getSelfDriverLocationForBounds({ currentUser, appUsers, driverLocation, isMobile, selectedDriverId, isDriver, isDriverOffDuty });
+          if (selfLoc?.latitude && selfLoc?.longitude) { allCoordinates.push([selfLoc.latitude, selfLoc.longitude]); hasDriverMarkers = true; }
         }
+        const shouldIncludeBlueDot = isMobile && isDriver && !isDriverOffDuty(appUsers, currentUser?.id, currentUser?.driver_status) && isViewingToday && driverLocation?.latitude && driverLocation?.longitude && (selectedDriverId === currentUser?.id || selectedDriverId === 'all');
 
         // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked OR when desktop OR dispatcher
         // CRITICAL: Always include shared locations for desktop OR "show all" mode OR dispatchers OR admins
