@@ -4097,7 +4097,7 @@ function Dashboard() {
         setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
 
         // Refresh data to show new order
-        invalidateDeliveriesForDate(deliveryDate);
+        invalidate('Delivery');
         await refreshData();
 
         // CRITICAL: Force map to re-render route lines
