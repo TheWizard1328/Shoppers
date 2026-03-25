@@ -141,7 +141,7 @@ export default function SquareSyncAudit() {
 
         return {
           id: `delivery-${delivery.id}`,
-          itemName: delivery.patient_id || delivery.delivery_id || delivery.id,
+          itemName: exportReference,
           date: normalizeDate(delivery.delivery_date),
           locationId,
           storeId: delivery.store_id || "",
