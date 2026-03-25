@@ -1,0 +1,131 @@
+/**
+ * Handles targeted polyline updates when a delivery is completed
+ * Only updates:
+ * 1. The finished leg polyline for the completed delivery
+ * 2. The Type 1 polyline for the new next delivery (if exists)
+ * 
+ * This avoids unnecessary regeneration of all polylines when stop orders haven't changed
+ */
+
+import { base44 } from "@/api/base44Client";
+
+export async function updateCompletionPolylines({
+  completedDelivery,
+  nextDelivery,
+  driverId,
+  deliveryDate,
+  allDeliveries,
+  patients,
+  stores,
+  breadcrumbPayload
+}) {
+  try {
+    const updates = [];
+
+    // 1. Generate and update finished leg polyline for completed delivery
+    if (completedDelivery) {
+      try {
+        const { getFinishedLegEncodedPolyline } = await import('../common/stopCardActionHelpers');
+        const finishedPolyline = await getFinishedLegEncodedPolyline({
+          delivery: completedDelivery,
+          allDeliveries,
+          driver: null,
+          patient: patients?.find(p => p?.id === completedDelivery.patient_id),
+          store: stores?.find(s => s?.id === completedDelivery.store_id),
+          patients,
+          stores,
+          finishedStatuses: ['completed', 'failed', 'cancelled'],
+          breadcrumbPayload
+        });
+
+        if (finishedPolyline) {
+          updates.push(
+            base44.entities.Delivery.update(completedDelivery.id, {
+              finished_leg_encoded_polyline: finishedPolyline
+            })
+          );
+        }
+      } catch (err) {
+        console.warn('⚠️ [updateCompletionPolylines] Failed to generate finished leg polyline:', err.message);
+      }
+    }
+
+    // 2. Generate and update Type 1 polyline for new next delivery
+    if (nextDelivery) {
+      try {
+        const originLat = completedDelivery?.latitude || 
+                         (completedDelivery?.patient_id ? 
+                          patients?.find(p => p?.id === completedDelivery.patient_id)?.latitude : 
+                          stores?.find(s => s?.id === completedDelivery.store_id)?.latitude);
+        
+        const originLon = completedDelivery?.longitude || 
+                         (completedDelivery?.patient_id ? 
+                          patients?.find(p => p?.id === completedDelivery.patient_id)?.longitude : 
+                          stores?.find(s => s?.id === completedDelivery.store_id)?.longitude);
+
+        const destLat = nextDelivery?.patient_id ? 
+                       patients?.find(p => p?.id === nextDelivery.patient_id)?.latitude :
+                       stores?.find(s => s?.id === nextDelivery.store_id)?.latitude;
+        
+        const destLon = nextDelivery?.patient_id ? 
+                       patients?.find(p => p?.id === nextDelivery.patient_id)?.longitude :
+                       stores?.find(s => s?.id === nextDelivery.store_id)?.longitude;
+
+        if (originLat && originLon && destLat && destLon) {
+          // Call HERE Directions API for just this segment
+          const response = await base44.functions.invoke('getHereDirections', {
+            origin: { lat: originLat, lon: originLon },
+            destination: { lat: destLat, lon: destLon }
+          });
+
+          if (response?.data?.polyline) {
+            updates.push(
+              base44.entities.DriverRoutePolyline.filter({
+                driver_id: driverId,
+                delivery_date: deliveryDate
+              }).then(existing => {
+                if (existing && existing.length > 0) {
+                  return base44.entities.DriverRoutePolyline.update(existing[0].id, {
+                    encoded_polyline: response.data.polyline,
+                    segment_origin_lat: originLat,
+                    segment_origin_lon: originLon,
+                    segment_dest_lat: destLat,
+                    segment_dest_lon: destLon,
+                    estimated_distance_km: response.data.distance_km,
+                    estimated_duration_minutes: response.data.duration_minutes,
+                    last_generated_at: new Date().toISOString()
+                  });
+                } else {
+                  return base44.entities.DriverRoutePolyline.create({
+                    driver_id: driverId,
+                    delivery_date: deliveryDate,
+                    encoded_polyline: response.data.polyline,
+                    segment_origin_lat: originLat,
+                    segment_origin_lon: originLon,
+                    segment_dest_lat: destLat,
+                    segment_dest_lon: destLon,
+                    estimated_distance_km: response.data.distance_km,
+                    estimated_duration_minutes: response.data.duration_minutes,
+                    last_generated_at: new Date().toISOString()
+                  });
+                }
+              })
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ [updateCompletionPolylines] Failed to generate Type 1 polyline:', err.message);
+        // Don't throw - let completion continue even if polyline generation fails
+      }
+    }
+
+    // Execute all updates in parallel
+    if (updates.length > 0) {
+      await Promise.allSettled(updates);
+      console.log(`✅ [updateCompletionPolylines] Updated ${updates.length} polyline(s) for driver ${driverId}`);
+    }
+  } catch (err) {
+    console.error('❌ [updateCompletionPolylines] Error:', err);
+    // Don't throw - completion should succeed even if polyline update fails
+  }
+}
