@@ -4341,7 +4341,7 @@ function Dashboard() {
       }
 
       // Refresh data and update map
-      invalidateDeliveriesForDate(deliveryDate);
+      invalidate('Delivery');
       await refreshData();
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
