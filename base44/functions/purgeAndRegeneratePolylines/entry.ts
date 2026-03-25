@@ -421,17 +421,6 @@ Deno.serve(async (req) => {
         ? (existingPolylines || []).find((row) => samePoint({ lat: row?.segment_dest_lat, lon: row?.segment_dest_lon }, firstActive)) || null
         : null;
 
-      const rowsToDelete = (existingPolylines || []).filter((row) => row?.id !== preservedType1Row?.id);
-      if (rowsToDelete.length > 0) {
-        await processInChunks(rowsToDelete, 5, (row) =>
-          base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
-            if (isNotFoundError(error)) return null;
-            throw error;
-          })
-        );
-      }
-      deletedPolylineCount = rowsToDelete.length;
-
       if (activeStops.length > 0) {
         const segmentSpecs = [];
         const seen = new Set();
@@ -467,34 +456,60 @@ Deno.serve(async (req) => {
           pushSegment(lastActive, { lat: homeLat, lon: homeLon });
         }
 
+        const segmentsToKeep = new Set();
+        if (preservedType1Row) {
+          segmentsToKeep.add(preservedType1Row.id);
+        }
+
         for (const spec of segmentSpecs) {
           const cachedSegment = findExactCachedSegment(existingPolylines, spec.from, spec.to);
-          const directions = cachedSegment ? {
-            encoded_polyline: cachedSegment.encoded_polyline,
-            estimated_distance_km: cachedSegment.estimated_distance_km ?? null,
-            estimated_duration_minutes: cachedSegment.estimated_duration_minutes ?? null
-          } : await getSegmentDirections(base44, spec.from, spec.to);
-          if (!cachedSegment) {
+          if (cachedSegment) {
+            segmentsToKeep.add(cachedSegment.id);
+            // We already have this segment, no need to recreate
+          } else {
+            const directions = await getSegmentDirections(base44, spec.from, spec.to);
             apiCallsMade += 1;
+            createdSegments.push({
+              driver_id: driverId,
+              delivery_date: deliveryDate,
+              encoded_polyline: directions.encoded_polyline,
+              segment_origin_lat: round5(spec.from.lat),
+              segment_origin_lon: round5(spec.from.lon),
+              segment_dest_lat: round5(spec.to.lat),
+              segment_dest_lon: round5(spec.to.lon),
+              estimated_distance_km: directions.estimated_distance_km,
+              estimated_duration_minutes: directions.estimated_duration_minutes,
+              daily_generation_count: previousGenerationCount + apiCallsMade,
+              last_generated_at: new Date().toISOString()
+            });
           }
-          createdSegments.push({
-            driver_id: driverId,
-            delivery_date: deliveryDate,
-            encoded_polyline: directions.encoded_polyline,
-            segment_origin_lat: round5(spec.from.lat),
-            segment_origin_lon: round5(spec.from.lon),
-            segment_dest_lat: round5(spec.to.lat),
-            segment_dest_lon: round5(spec.to.lon),
-            estimated_distance_km: directions.estimated_distance_km,
-            estimated_duration_minutes: directions.estimated_duration_minutes,
-            daily_generation_count: previousGenerationCount + apiCallsMade,
-            last_generated_at: new Date().toISOString()
-          });
         }
+
+        const rowsToDelete = (existingPolylines || []).filter((row) => !segmentsToKeep.has(row.id));
+        if (rowsToDelete.length > 0) {
+          await processInChunks(rowsToDelete, 5, (row) =>
+            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            })
+          );
+        }
+        deletedPolylineCount = rowsToDelete.length;
 
         if (createdSegments.length > 0) {
           await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);
         }
+      } else {
+        const rowsToDelete = (existingPolylines || []).filter((row) => row?.id !== preservedType1Row?.id);
+        if (rowsToDelete.length > 0) {
+          await processInChunks(rowsToDelete, 5, (row) =>
+            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            })
+          );
+        }
+        deletedPolylineCount = rowsToDelete.length;
       }
     }
 
