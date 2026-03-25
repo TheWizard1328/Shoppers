@@ -67,13 +67,15 @@ export default function FABControls({
                 if (data?.success) {
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
                   invalidateDeliveriesForDate(deliveryDate);
-                  await refreshData();
+                  // CRITICAL: Use Promise.race to prevent UI freeze if refreshData hangs
+                  const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));
+                  await Promise.race([refreshData(), refreshTimeout]).catch(() => {});
                   window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: currentUser.id, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true } }));
                   setIsMapViewLocked(true); setMapViewTrigger(p => p + 1);
                   setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
                 } else { setOptimizationMessage(data?.error || 'Optimization failed'); setTimeout(() => setOptimizationMessage(null), 5000); }
               } catch (e) { setOptimizationMessage(`Error: ${e.message}`); setTimeout(() => setOptimizationMessage(null), 5000); }
-              finally { window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'optimize_route_fab', driverId: currentUser.id, deliveryDate: format(selectedDate, 'yyyy-MM-dd') } })); resumeOfflineMutations(); resumeOfflineSync(); setIsEntityUpdating(false); await new Promise(r => setTimeout(r, 100)); setIsReoptimizing(false); }
+              finally { window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'optimize_route_fab', driverId: currentUser.id, deliveryDate: format(selectedDate, 'yyyy-MM-dd') } })); resumeOfflineMutations(); resumeOfflineSync(); setIsEntityUpdating(false); setIsReoptimizing(false); }
             }}
             disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some(d => d && d.status === 'in_transit')}
             title="Re-optimize entire route using Google Maps"
