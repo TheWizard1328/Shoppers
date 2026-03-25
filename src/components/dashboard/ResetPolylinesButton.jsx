@@ -51,11 +51,20 @@ export default function ResetPolylinesButton({
   };
 
   const syncDriverDateDeliveriesFromBackend = async (successfulDriverIds) => {
-    const deliveryGroups = await Promise.all(
-      successfulDriverIds.map((driverId) =>
-        base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: selectedDate }, undefined, 50000)
-      )
-    );
+    const deliveryGroups = [];
+    const chunkSize = 3;
+    for (let i = 0; i < successfulDriverIds.length; i += chunkSize) {
+      const chunk = successfulDriverIds.slice(i, i + chunkSize);
+      const chunkResults = await Promise.all(
+        chunk.map((driverId) =>
+          base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: selectedDate }, undefined, 50000)
+        )
+      );
+      deliveryGroups.push(...chunkResults);
+      if (i + chunkSize < successfulDriverIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
 
     const refreshedDeliveries = deliveryGroups.flat().filter(Boolean);
     if (refreshedDeliveries.length > 0) {
