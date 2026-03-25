@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { clearHereCacheForDriverDate } from "@/components/utils/hereRouting";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { updateDeliveryLocal } from "@/components/utils/offlineMutations";
+import { recalculateAndUpdateStopOrders } from "@/components/utils/stopOrderManager";
 import { Loader2, RotateCcw } from "lucide-react";
 
 export default function ResetPolylinesButton({
