@@ -686,26 +686,21 @@ export default function DeliveriesPage() {
     };
   }, [isDriverOverviewMode]);
 
-  // CRITICAL: Subscribe to delivery mutations to update data in real-time
+  // Subscribe to delivery + patient websockets for real-time updates
   useEffect(() => {
-    const unsubscribe = base44.entities.Delivery.subscribe((event) => {
+    const unsubD = base44.entities.Delivery.subscribe((event) => {
       if (!isMounted.current) return;
-
-      console.log(`📡 [Deliveries] Delivery ${event.type}:`, event.id);
-
-      if (event.type === 'create') {
-        setAllDeliveries((prev) => {
-          const exists = prev.some((d) => d?.id === event.id);
-          return exists ? prev : [...prev, event.data];
-        });
-      } else if (event.type === 'update') {
-        setAllDeliveries((prev) => prev.map((d) => d?.id === event.id ? { ...d, ...event.data } : d));
-      } else if (event.type === 'delete') {
-        setAllDeliveries((prev) => prev.filter((d) => d?.id !== event.id));
-      }
+      if (event.type === 'create') setAllDeliveries((prev) => prev.some((d) => d?.id === event.id) ? prev : [...prev, event.data]);
+      else if (event.type === 'update') setAllDeliveries((prev) => prev.map((d) => d?.id === event.id ? { ...d, ...event.data } : d));
+      else if (event.type === 'delete') setAllDeliveries((prev) => prev.filter((d) => d?.id !== event.id));
     });
-
-    return () => unsubscribe();
+    const unsubP = base44.entities.Patient.subscribe((event) => {
+      if (!isMounted.current) return;
+      if (event.type === 'create') setAllPatients((prev) => prev.some((p) => p?.id === event.id) ? prev : [...prev, event.data]);
+      else if (event.type === 'update') setAllPatients((prev) => prev.map((p) => p?.id === event.id ? { ...p, ...event.data } : p));
+      else if (event.type === 'delete') setAllPatients((prev) => prev.filter((p) => p?.id !== event.id));
+    });
+    return () => { unsubD(); unsubP(); };
   }, []);
 
   // Fetch fresh AppUser data periodically for accurate driver_status
