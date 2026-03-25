@@ -122,6 +122,12 @@ export const handleBatchSaveDelivery = async ({
     // CRITICAL: Special stores that only get pickups created on-demand (when first delivery is added)
     const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark'];
 
+    // CRITICAL: Skip pickup creation for InterStore deliveries
+    const hasOnlyInterStore = driverDeliveries.every(d => 
+      d?.patient_name?.toLowerCase().includes('interstore') || 
+      d?.delivery_notes?.toLowerCase().includes('interstore')
+    );
+
     // CRITICAL: Always create pickups for ALL assigned stores EXCEPT special stores
     const assignedStores = (stores || []).filter((store) => {
       if (!store) return false;
@@ -137,7 +143,7 @@ export const handleBatchSaveDelivery = async ({
       }
     });
 
-    const storesToCheck = assignedStores;
+    const storesToCheck = hasOnlyInterStore ? [] : assignedStores;
 
     for (const store of storesToCheck) {
       if (isSaturday ? isDriverAssignedToSlot(store, 'saturday_am') :
