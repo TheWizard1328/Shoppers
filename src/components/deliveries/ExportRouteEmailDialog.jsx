@@ -151,7 +151,7 @@ export default function ExportRouteEmailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-background px-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] flex flex-col w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-w-[750px] max-h-[85vh] overflow-hidden"
+      <DialogContent className="bg-background px-4 py-3 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] flex flex-col w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-w-[750px] max-h-[85vh] overflow-hidden"
 
       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
 
@@ -189,12 +189,12 @@ export default function ExportRouteEmailDialog({
           </div> :
 
         <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar pb-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {stores.map((store) =>
-          <div
-            key={store.id} className="px-3 py-3 rounded-xl border space-y-3 flex flex-col"
+            <div
+              key={store.id} className="px-3 py-3 rounded-xl border space-y-3 flex flex-col"
 
-            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
 
                 <div>
                   <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{store.name}</h3>
@@ -203,45 +203,45 @@ export default function ExportRouteEmailDialog({
 
                 <div className="space-y-2">
                   {(emailDrafts[store.id] || []).length === 0 ?
-              <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>No email addresses added yet.</p> :
+                <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>No email addresses added yet.</p> :
 
-              (emailDrafts[store.id] || []).map((email) =>
-              <div
-                key={email} className="px-3 rounded-lg flex items-center justify-between gap-3 border"
+                (emailDrafts[store.id] || []).map((email) =>
+                <div
+                  key={email} className="px-3 rounded-lg flex items-center justify-between gap-3 border"
 
-                style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
 
                         <span className="text-sm break-all" style={{ color: 'var(--text-slate-700)' }}>{email}</span>
                         <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeEmail(store.id, email)}>
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeEmail(store.id, email)}>
 
                           <Trash2 className="w-4 h-4 text-slate-500" />
                         </Button>
                       </div>
-              )
-              }
+                )
+                }
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 mt-auto">
                   <Input
-                type="email"
-                value={pendingEmails[store.id] || ""}
-                placeholder="Add email address"
-                onChange={(event) =>
-                setPendingEmails((current) => ({
-                  ...current,
-                  [store.id]: event.target.value
-                }))
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addEmail(store.id);
+                  type="email"
+                  value={pendingEmails[store.id] || ""}
+                  placeholder="Add email address"
+                  onChange={(event) =>
+                  setPendingEmails((current) => ({
+                    ...current,
+                    [store.id]: event.target.value
+                  }))
                   }
-                }} />
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addEmail(store.id);
+                    }
+                  }} />
 
                   <Button type="button" variant="outline" onClick={() => addEmail(store.id)}>
                     <Plus className="w-4 h-4 mr-2" />
@@ -249,7 +249,7 @@ export default function ExportRouteEmailDialog({
                   </Button>
                 </div>
               </div>
-          )}
+            )}
           </div>
         </div>
         }
@@ -265,8 +265,8 @@ export default function ExportRouteEmailDialog({
               await saveEmails();
               onOpenChange(false);
             }}
-            disabled={isLoading || isSaving || isExporting || (testingEmail && !isValidEmail(testingEmail))}
-          >
+            disabled={isLoading || isSaving || isExporting || testingEmail && !isValidEmail(testingEmail)}>
+            
             {isSaving && !isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
             Save
           </Button>
