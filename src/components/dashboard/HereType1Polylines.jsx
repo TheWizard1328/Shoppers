@@ -286,7 +286,7 @@ export default function HereType1Polylines({
       const completedSorted = [...stops.complete].sort((a, b) => {
         const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
         const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-        return bt - at;
+        return at - bt;
       });
       const lastCompleted = completedSorted[0];
       // Fallback to first incomplete stop if isNextDelivery is not set
@@ -405,11 +405,11 @@ export default function HereType1Polylines({
         if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
 
         const completedSorted = [...stops.complete].sort((a, b) => {
-          const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
-          const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-          return bt - at;
-        });
-        const lastCompleted = completedSorted[0];
+            const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
+            const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
+            return at - bt;
+          });
+          const lastCompleted = completedSorted[completedSorted.length - 1];
         const nextStop = stops.incomplete.find((stop) => stop.isNextDelivery === true) || stops.incomplete[0];
         const liveMarker = getLiveDriverMarker(driverId, currentDriverMarker, driverLocations);
         if (!lastCompleted || !nextStop || !liveMarker) return;
@@ -567,7 +567,7 @@ export default function HereType1Polylines({
     const completedSorted = [...stops.complete].sort((a, b) => {
       const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
       const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-      return bt - at;
+      return at - bt;
     });
     const lastCompleted = completedSorted[0];
     const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
@@ -627,7 +627,7 @@ export default function HereType1Polylines({
     const all = driverStops.get(driverId) || { complete: [] };
     const lastCompleted = [...(all.complete || [])]
       .filter((s) => s.actual_delivery_time)
-      .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time))[0];
+      .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time))[all.complete.length - 1];
     const home = driverHomeMarkers.find((h) => h.driverId === driverId);
     if (!lastCompleted || !home) return;
     const key = `here_${Number(lastCompleted.latitude).toFixed(5)}_${Number(lastCompleted.longitude).toFixed(5)}_${Number(home.latitude).toFixed(5)}_${Number(home.longitude).toFixed(5)}`;
