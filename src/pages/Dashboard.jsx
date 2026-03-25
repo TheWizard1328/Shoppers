@@ -2455,13 +2455,8 @@ function Dashboard() {
             }
           });
 
-          // CRITICAL: Add driver marker ONLY if they have incomplete OR pending stops (only if viewing today)
-          if (isViewingTodayPhase3 && incompleteAndPendingActiveDriver.length > 0) {
-            const driverAppUser = appUsers?.find((au) => au?.user_id === targetDriverId);
-            if (driverAppUser?.driver_status === 'on_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-              allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
-            }
-          }
+          // Add driver marker when on duty (today only) - include GPS fallback if AppUser lacks coords
+          if (isViewingTodayPhase3) { const driverAppUser3 = appUsers?.find((au) => au?.user_id === targetDriverId); if (driverAppUser3?.driver_status === 'on_duty') { if (driverAppUser3?.current_latitude && driverAppUser3?.current_longitude) { allCoordinatesPhase3.push([driverAppUser3.current_latitude, driverAppUser3.current_longitude]); } else if (targetDriverId === currentUser?.id && driverLocation?.latitude && driverLocation?.longitude) { allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]); } } }
         }
 
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
