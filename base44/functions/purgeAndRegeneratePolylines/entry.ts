@@ -8,6 +8,19 @@ function isNotFoundError(error) {
   return error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 }
 
+async function processInChunks(items, chunkSize, processor) {
+  const results = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const chunkResults = await Promise.all(chunk.map(processor));
+    results.push(...chunkResults);
+    if (i + chunkSize < items.length) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
+  return results;
+}
+
 function isRateLimitError(error) {
   return error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit exceeded');
 }
