@@ -72,8 +72,10 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
       await updateDeliveryLocal(
         delivery.id,
         { stop_order: newStopOrder },
-        { skipSmartRefresh: true, isBatchOperation: true }
+        { skipSmartRefresh: true, isBatchOperation: false }
       );
+      // Small delay to prevent rate limits when updating many stops sequentially
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
 
