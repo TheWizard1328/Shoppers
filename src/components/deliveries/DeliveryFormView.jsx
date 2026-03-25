@@ -185,7 +185,11 @@ export default function DeliveryFormView({
 
   const handleGlobalKeyDown = (e) => {
     if (e.key === 'Enter') {
+      // Skip if focused on textarea, button, or the patient search input (handled by handleSearchKeyDown)
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
+        return;
+      }
+      if (e.target === patientSearchInputRef?.current) {
         return;
       }
       
