@@ -79,45 +79,25 @@ export default function ResetPolylinesButton({
         detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
       }));
 
-      // 3. Update the polylines (per driver) in batches
-      const chunkSize = 2; // smaller chunks for polyline generation
-      const successfulDriverIds = [];
-      
-      for (let i = 0; i < driverIds.length; i += chunkSize) {
-        const chunk = driverIds.slice(i, i + chunkSize);
-        const chunkResults = await Promise.allSettled(
-          chunk.map((driverId) =>
-            base44.functions.invoke("purgeAndRegeneratePolylines", {
-              driverId,
-              deliveryDate: selectedDate,
-              scope: "all",
-            })
-          )
-        );
-        
-        const currentSuccessfulIds = [];
-        chunk.forEach((driverId, index) => {
-          if (chunkResults[index]?.status === "fulfilled") {
-            currentSuccessfulIds.push(driverId);
-            successfulDriverIds.push(driverId);
-          }
-        });
-
-        // Sync and update UI for this chunk during the pause
-        if (currentSuccessfulIds.length > 0) {
-          await syncDriverDateDeliveriesFromBackend(currentSuccessfulIds);
+      // 3. Update the polylines (per driver) sequentially
+      for (const driverId of driverIds) {
+        try {
+          await base44.functions.invoke("purgeAndRegeneratePolylines", {
+            driverId,
+            deliveryDate: selectedDate,
+            scope: "all",
+          });
           
-          // Dispatch UI update for this chunk sequentially
-          for (const driverId of currentSuccessfulIds) {
-            window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
-              detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines_chunk" }
-            }));
-            await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for UI to paint
-          }
-        }
-
-        if (i + chunkSize < driverIds.length) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          // Sync and update UI for this driver
+          await syncDriverDateDeliveriesFromBackend([driverId]);
+          
+          window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
+            detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines_chunk" }
+          }));
+          
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err) {
+          console.warn(`Failed to regenerate polylines for driver ${driverId}:`, err);
         }
       }
     } finally {
