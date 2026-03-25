@@ -404,9 +404,8 @@ export default function StopCardBody({
                   color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)',
                   fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
                 }} />
-                </div>
-              </motion.div>
-        }
+              </div>
+            </motion.div>
       </AnimatePresence>
     </>);
 
