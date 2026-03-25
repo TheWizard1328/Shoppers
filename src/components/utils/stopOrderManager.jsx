@@ -37,13 +37,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
   const getSortableCompletionTime = (delivery) => {
     if (!delivery) return Number.MAX_SAFE_INTEGER;
     if (delivery.actual_delivery_time) return new Date(delivery.actual_delivery_time).getTime();
-    if (delivery.arrival_time) return new Date(delivery.arrival_time).getTime();
     return Number.MAX_SAFE_INTEGER;
-  };
-
-  const getSortableStopOrder = (delivery) => {
-    const stopOrder = Number(delivery?.stop_order);
-    return Number.isFinite(stopOrder) && stopOrder > 0 ? stopOrder : Number.MAX_SAFE_INTEGER;
   };
 
   const getSortableEta = (delivery) => delivery?.delivery_time_eta || delivery?.delivery_time_start || '99:99';
@@ -56,18 +50,13 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     if (!isAFinished && isBFinished) return 1;
 
     if (isAFinished && isBFinished) {
-      const timeDiff = getSortableCompletionTime(a) - getSortableCompletionTime(b);
-      if (timeDiff !== 0) return timeDiff;
-      return getSortableStopOrder(a) - getSortableStopOrder(b);
+      return getSortableCompletionTime(a) - getSortableCompletionTime(b);
     }
 
     const isAPending = a?.status === 'pending';
     const isBPending = b?.status === 'pending';
     if (isAPending && !isBPending) return 1;
     if (!isAPending && isBPending) return -1;
-
-    const stopOrderDiff = getSortableStopOrder(a) - getSortableStopOrder(b);
-    if (stopOrderDiff !== 0) return stopOrderDiff;
 
     return getSortableEta(a).localeCompare(getSortableEta(b));
   });
