@@ -151,7 +151,7 @@ export default function ExportRouteEmailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-background px-3 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] grid w-full translate-x-[-50%] translate-y-[-50%] gap-1 border shadow-lg duration-200 sm:rounded-lg max-w-[350px] max-h-[85vh] overflow-y-auto"
+      <DialogContent className="bg-background px-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-w-[750px] max-h-[85vh] overflow-y-auto"
 
       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
 
@@ -188,10 +188,10 @@ export default function ExportRouteEmailDialog({
             No stores are assigned to this dispatcher.
           </div> :
 
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {stores.map((store) =>
           <div
-            key={store.id} className="px-2 py-2 rounded-xl border space-y-1"
+            key={store.id} className="px-3 py-3 rounded-xl border space-y-3 flex flex-col"
 
             style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
 
@@ -224,7 +224,7 @@ export default function ExportRouteEmailDialog({
               }
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 mt-auto">
                   <Input
                 type="email"
                 value={pendingEmails[store.id] || ""}
@@ -252,7 +252,7 @@ export default function ExportRouteEmailDialog({
           </div>
         }
 
-        <DialogFooter className="py-2 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2">
+        <DialogFooter className="py-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
