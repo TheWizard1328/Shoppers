@@ -315,10 +315,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     if (!isAFinished && isBFinished) return 1;
 
     if (isAFinished && isBFinished) {
-      const actualA = Date.parse(a.actual_delivery_time || '') || Infinity;
-      const actualB = Date.parse(b.actual_delivery_time || '') || Infinity;
-      if (actualA !== actualB) return actualA - actualB;
-
+      // For finished stops, always sort by stop_order (original route sequence)
+      // This ensures completed/failed/cancelled stops appear in their logical route order
       const stopOrderA = a.stop_order ?? Infinity;
       const stopOrderB = b.stop_order ?? Infinity;
       if (stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
