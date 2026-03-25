@@ -356,12 +356,28 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               const existingNotes = delivery.delivery_notes || '';const updatedNotes = existingNotes ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}` : `[${status.toUpperCase()}] ${reason}`;
               const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
               const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
-              const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({ delivery, allDeliveries, driver: safeDriver, patient, store, patients, stores, finishedStatuses: FINISHED_STATUSES, breadcrumbPayload: pendingBreadcrumbsString });
+              // CRITICAL: Save status + actual_delivery_time + isNextDelivery=false to BOTH offline and online DBs FIRST
+              // Polyline generation happens in background AFTER critical fields are saved
+              const criticalUpdate = { status: status, delivery_notes: updatedNotes, actual_delivery_time: localTimeString, isNextDelivery: false, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}) };
+              // CRITICAL: Also clear isNextDelivery on all other route deliveries immediately in offline DB
+              const { offlineDB: _failOfflineDB } = await import('../utils/offlineDatabase');
+              const failRouteDeliveries = allDeliveries.filter(d => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
+              const clearFailNextFlags = failRouteDeliveries.filter(d => d && d.id !== delivery.id && d.isNextDelivery).map(d => _failOfflineDB.bulkSave(_failOfflineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
               try {
-                await updateDeliveryLocal(delivery.id, { status: status, delivery_notes: updatedNotes, actual_delivery_time: localTimeString, finished_leg_encoded_polyline: finishedLegEncodedPolyline, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}) }, { skipSmartRefresh: true });
-                if (onStatusUpdate) await onStatusUpdate(delivery.id, status, { delivery_notes: updatedNotes, actual_delivery_time: localTimeString, finished_leg_encoded_polyline: finishedLegEncodedPolyline, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}) }, false);
+                await Promise.allSettled([
+                  updateDeliveryLocal(delivery.id, criticalUpdate, { skipSmartRefresh: true }),
+                  ...clearFailNextFlags
+                ]);
+                if (onStatusUpdate) await onStatusUpdate(delivery.id, status, criticalUpdate, false);
                 if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
-                runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: status, overrides: { delivery_notes: updatedNotes, actual_delivery_time: localTimeString, finished_leg_encoded_polyline: finishedLegEncodedPolyline, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}) } });
+                runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: status, overrides: criticalUpdate });
+                // Background: generate polyline and patch it in after critical save
+                Promise.resolve().then(async () => {
+                  try {
+                    const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({ delivery, allDeliveries, driver: safeDriver, patient, store, patients, stores, finishedStatuses: FINISHED_STATUSES, breadcrumbPayload: pendingBreadcrumbsString });
+                    if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline }, { skipSmartRefresh: true });
+                  } catch (_) {}
+                });
               } catch (statusError) {console.error('❌ [FAILURE] Update failed:', statusError);toast.error(`Failed to update status: ${statusError.message}`);fabControlEvents.reactivateFAB(true);return;}
               const allDriverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
               const incompleteAfterThis = allDriverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending');
@@ -370,7 +386,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 if (currentUser?.id) {const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });if (appUsers && appUsers.length > 0) {const appUser = appUsers[0];await base44.entities.AppUser.update(appUser.id, { driver_status: 'off_duty', location_tracking_enabled: false });locationTracker.stopTracking();if (onDriverStatusChange) onDriverStatusChange('off_duty');}}
               }
               try {invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);} catch (_) {}
-              const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, status, isNextDelivery: false } : { ...item, isNextDelivery: false });
+              const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : { ...item, isNextDelivery: false });
               const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
               await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
               onClick?.(null);
@@ -392,11 +408,20 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
                           if (isPickup && pendingPickups && pendingPickups.length > 0) {const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');if (hasPendingDeliveries) await handleAcceptAllStops();}
                           const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-                          await collapseAndCenterNextDelivery({ driverDeliveries: sameRouteDeliveries, targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
+                          // CRITICAL: Save status + actual_delivery_time + isNextDelivery=false to BOTH offline and online DBs FIRST
+                          // This must happen before any UI updates, polyline generation, or background tasks
                           const completionUpdate = { status: 'completed', actual_delivery_time: localTimeString, isNextDelivery: false, finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}) };
-                          await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
+                          // CRITICAL: Also clear isNextDelivery on all other route deliveries immediately in offline DB
+                          const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
+                          const clearNextFlags = sameRouteDeliveries.filter(d => d && d.id !== delivery.id && d.isNextDelivery).map(d => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
+                          await Promise.allSettled([
+                            updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true }),
+                            ...clearNextFlags
+                          ]);
                           if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
                           runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: 'completed', overrides: completionUpdate });
+                          // Now update UI after critical data is saved
+                          await collapseAndCenterNextDelivery({ driverDeliveries: sameRouteDeliveries, targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
                           const pendingPickupIds = isPickup ? new Set((pendingPickups || []).filter((p) => p?.status === 'pending').map((p) => p.id)) : null;
                           const optimisticDeliveries = allDeliveries.map((d) => {if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;if (d.id === delivery.id) return { ...d, ...completionUpdate, isNextDelivery: false };if (pendingPickupIds?.has(d.id)) return { ...d, status: 'in_transit', isNextDelivery: false };return { ...d, isNextDelivery: false };});
                           const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));const nextStop = incompleteDeliveries[0] || null;
