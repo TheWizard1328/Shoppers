@@ -31,25 +31,6 @@ export default function ResetPolylinesButton({
     } catch (_) {}
   };
 
-  const clearFinishedLegPolylinesLocal = async () => {
-    const deliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, "delivery_date", selectedDate);
-    const matches = (deliveries || []).filter((delivery) =>
-      driverIds.includes(delivery?.driver_id) &&
-      typeof delivery?.finished_leg_encoded_polyline === "string" &&
-      delivery.finished_leg_encoded_polyline.trim().length > 0
-    );
-
-    // Process sequentially to avoid rate limits and ensure backend is updated
-    for (const delivery of matches) {
-      await updateDeliveryLocal(
-        delivery.id,
-        { finished_leg_encoded_polyline: "" },
-        { skipSmartRefresh: true, isBatchOperation: false }
-      );
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-  };
-
   const syncDriverDateDeliveriesFromBackend = async (successfulDriverIds) => {
     const deliveryGroups = [];
     const chunkSize = 3;
