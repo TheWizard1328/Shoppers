@@ -557,22 +557,31 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     console.log('🔔 [OfflineMutations] UI notified immediately after local save');
 
     // CRITICAL: Sync to backend in background (don't block UI update)
-    // For batch operations, backend updates still happen but don't trigger restarts
-    try {
-      const { base44 } = await import('@/api/base44Client');
-      await base44.entities.Delivery.update(deliveryId, updates);
-      console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
-      
-      // Broadcast removed
-    } catch (error) {
-      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
-      // Queue for backend sync if immediate sync fails
+    // For batch operations, queue mutation to avoid rate limits
+    if (isBatchOperation) {
       await offlineDB.addPendingMutation({
         operation: 'update',
         entity: 'Delivery',
         recordId: deliveryId,
         payload: updates
       });
+    } else {
+      try {
+        const { base44 } = await import('@/api/base44Client');
+        await base44.entities.Delivery.update(deliveryId, updates);
+        console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
+        
+        // Broadcast removed
+      } catch (error) {
+        console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
+        // Queue for backend sync if immediate sync fails
+        await offlineDB.addPendingMutation({
+          operation: 'update',
+          entity: 'Delivery',
+          recordId: deliveryId,
+          payload: updates
+        });
+      }
     }
 
     // CRITICAL: NO restart during batch operations - caller handles it once at the end
