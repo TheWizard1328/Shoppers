@@ -79,7 +79,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     }
   }
 
-  if (updates.length > 0) {
+  if (updates.length > 0 && !skipPolylineRegeneration) {
     try {
       await base44.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
