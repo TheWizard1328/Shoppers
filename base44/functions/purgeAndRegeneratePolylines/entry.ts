@@ -186,10 +186,8 @@ function buildStopOrderRepairUpdates(deliveries) {
 
 async function markDeliveriesPolylineUpdated(base44, deliveries, value) {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return;
-  await Promise.all(
-    deliveries.map((delivery) =>
-      base44.asServiceRole.entities.Delivery.update(delivery.id, { PolylineUpdated: value })
-    )
+  await processInChunks(deliveries, 5, (delivery) =>
+    base44.asServiceRole.entities.Delivery.update(delivery.id, { PolylineUpdated: value })
   );
 }
 
