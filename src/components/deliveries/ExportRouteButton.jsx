@@ -234,6 +234,52 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
+  const handlePreviewPdf = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const exportAllDispatcherDrivers = isDispatcherOnly;
+      const driverId = exportAllDispatcherDrivers ? undefined : driverFilter;
+      if (!driverId && !exportAllDispatcherDrivers) {alert('Select a driver first');return;}
+      const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+
+      let type = 'post-route';
+      let ampm = undefined;
+      if (isDispatcherOnly) {
+        if (!isDispatcherRouteComplete && qualifiedCount > 0) {
+          type = 'pre-route';
+          ampm = amQualified ? 'AM' : 'PM';
+        }
+      } else {
+        if (!isRouteComplete) {
+          type = 'pre-route';
+        }
+      }
+
+      const payload = {
+        driverId,
+        deliveryDate: dateStr,
+        manifestType: type,
+        ampm: type === 'pre-route' ? ampm : undefined,
+        storeIds: isDispatcherOnly ? dispatcherStoreIds : undefined,
+        selectedCityId: isDispatcherOnly ? selectedCityId : undefined
+      };
+
+      const res = await base44.functions.invoke('generateRouteManifest', payload);
+      const data = res?.data || res;
+
+      if (data && typeof data === 'object' && !(data instanceof ArrayBuffer) && !('byteLength' in (data || {}))) {
+        if (data?.error) {alert(data.error);return;}
+      }
+
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // === DRIVERS & ADMINS: Email store-specific route PDFs only ===
   if (isDriver || isAdmin) {
     const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0 || driverStoreIds.length === 0;
@@ -254,7 +300,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
           onOpenChange={setIsEmailDialogOpen}
           storeIds={driverStoreIds}
           isExporting={isExporting}
-          onExportRoute={handleDriverEmailExport} />
+          onExportRoute={handleDriverEmailExport}
+          onPreviewPdf={handlePreviewPdf} />
       </>
     );
   }
@@ -287,7 +334,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
           onOpenChange={setIsEmailDialogOpen}
           storeIds={dispatcherStoreIds}
           isExporting={isExporting}
-          onExportRoute={handleDispatcherEmailExport} />
+          onExportRoute={handleDispatcherEmailExport}
+          onPreviewPdf={handlePreviewPdf} />
 
       </>);
 
