@@ -81,20 +81,34 @@ export default function ResetPolylinesButton({
 
     try {
       // 1. Resort the stops (per driver) via completed times and update stop orders
-      await Promise.allSettled(
-        driverIds.map((driverId) => recalculateAndUpdateStopOrders(driverId, selectedDate))
-      );
+      // Process in chunks to avoid rate limits
+      const chunkSize = 3;
+      for (let i = 0; i < driverIds.length; i += chunkSize) {
+        const chunk = driverIds.slice(i, i + chunkSize);
+        await Promise.allSettled(
+          chunk.map((driverId) => recalculateAndUpdateStopOrders(driverId, selectedDate))
+        );
+      }
 
       // 2. Update the polylines (per driver)
-      const results = await Promise.allSettled(
-        driverIds.map((driverId) =>
-          base44.functions.invoke("purgeAndRegeneratePolylines", {
-            driverId,
-            deliveryDate: selectedDate,
-            scope: "all",
-          })
-        )
-      );
+      const results = [];
+      for (let i = 0; i < driverIds.length; i += chunkSize) {
+        const chunk = driverIds.slice(i, i + chunkSize);
+        const chunkResults = await Promise.allSettled(
+          chunk.map((driverId) =>
+            base44.functions.invoke("purgeAndRegeneratePolylines", {
+              driverId,
+              deliveryDate: selectedDate,
+              scope: "all",
+            })
+          )
+        );
+        results.push(...chunkResults);
+        // Add a small delay between chunks to prevent rate limits
+        if (i + chunkSize < driverIds.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
 
       const successfulDriverIds = driverIds.filter((_, index) => results[index]?.status === "fulfilled");
       const hasSuccessfulUpdate = successfulDriverIds.length > 0;
