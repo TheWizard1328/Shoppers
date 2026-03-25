@@ -156,7 +156,7 @@ export default function DeliveryMarkers({
             </Popup>
           ) : (
             <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-              <DeliveryPopup delivery={delivery} isPickup={false} stores={safeStores} patients={safePatients} users={safeUsers} />
+              <DeliveryPopup delivery={delivery} isPickup={false} stores={safeStores} patients={safePatients} users={safeUsers} driver={delivery.driver} />
             </Popup>
           )
         )}
