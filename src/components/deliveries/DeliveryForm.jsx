@@ -1771,21 +1771,8 @@ export default function DeliveryForm({
     }
   }, [stagedDeliveries, onCancel, delivery]);
 
-  useEffect(() => {
-    const handleEnterKey = (event) => {
-      if (event.key !== 'Enter' || isPatientFormOpen) return;
-      if (event.target.tagName === 'TEXTAREA' || event.target.getAttribute('role') === 'combobox' || event.target.tagName === 'BUTTON' || event.target === patientSearchInputRef.current && (event.target.value || '').trim()) return;
-      event.preventDefault();if (event.target === patientSearchInputRef.current) return buttonState === 'done' ? handleBatchSave() : buttonState === 'add' && isFormValid ? handleAddToStaging() : undefined;
-      if (event.target?.closest?.('[data-hotkey-add="true"]')) {
-        if (buttonState === 'add' && isFormValid) handleAddToStaging();
-        return;
-      }
-      if (delivery && isFormValid && !isSaving) return handleSubmit(event);
-      if (buttonState === 'done') handleBatchSave();else if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else if (buttonState === 'add' && isFormValid) handleAddToStaging();
-    };
-    document.addEventListener('keydown', handleEnterKey);
-    return () => document.removeEventListener('keydown', handleEnterKey);
-  }, [buttonState, isFormValid, handleAddToStaging, handleUpdateStaged, handleBatchSave, delivery, isSaving, handleSubmit, isPatientFormOpen]);
+  // NOTE: Enter key handling is done in DeliveryFormView's handleGlobalKeyDown (on the Card element).
+  // Do NOT add a duplicate document-level Enter key listener here - it causes double-adds.
 
   useEffect(() => {
     const handleEscapeKey = (event) => {
