@@ -36,7 +36,15 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
 
   const getSortableCompletionTime = (delivery) => {
     if (!delivery) return Number.MAX_SAFE_INTEGER;
-    if (delivery.actual_delivery_time) return new Date(delivery.actual_delivery_time).getTime();
+    if (delivery.actual_delivery_time) {
+      const time = new Date(delivery.actual_delivery_time).getTime();
+      if (Number.isFinite(time)) return time;
+    }
+    const fallback = delivery.arrival_time || delivery.updated_date || delivery.created_date;
+    if (fallback) {
+      const time = new Date(fallback).getTime();
+      if (Number.isFinite(time)) return time;
+    }
     return Number.MAX_SAFE_INTEGER;
   };
 
