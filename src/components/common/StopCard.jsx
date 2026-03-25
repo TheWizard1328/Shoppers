@@ -21,6 +21,7 @@ import { calculateDeliveryPay, formatPay } from '../utils/payCalculator';
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
+import { calculateHaversineDistance } from "../utils/distanceCalculator";
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
 import { notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
