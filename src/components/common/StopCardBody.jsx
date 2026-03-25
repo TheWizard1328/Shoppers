@@ -385,21 +385,6 @@ export default function StopCardBody({
                       Driver Notes
                     </Label>
                   </div>
-                  {(isFinishedDelivery && !isPickup && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) ? (
-                  delivery.delivery_notes ?
-              <div
-                className="text-base rounded px-2 py-1.5 min-h-[60px]"
-                style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
-                onClick={(e) => e.stopPropagation()}>
-                      <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
-                    </div> :
-              <div
-                className="text-base rounded px-2 py-1.5 italic min-h-[60px]"
-                style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
-                onClick={(e) => e.stopPropagation()}>
-                      No driver notes
-                    </div>
-              ) : (
                   <Textarea
                 value={notesInput}
                 onChange={(e) => setNotesInput(e.target.value)}
@@ -418,7 +403,6 @@ export default function StopCardBody({
                   color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)',
                   fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
                 }} />
-              )}
                 </div>
               </motion.div>
         }
