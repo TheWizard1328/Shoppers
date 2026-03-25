@@ -202,8 +202,8 @@ export default function StopCardBody({
             )}
 
               {/* Full Patient Info - only for active deliveries, not past dates */}
-              {!isStrippedForDriver && !isFinishedDelivery && !isPastDeliveryDate && !isPickup && patient && (
-            (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring)) && (
+              {!isStrippedForDriver && !isFinishedDelivery && !isPastDeliveryDate && !isPickup && patient &&
+            (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) && (
             <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
