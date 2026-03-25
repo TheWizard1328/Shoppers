@@ -99,7 +99,7 @@ export default function StopCardBody({
             }
 
               {/* COD Information - For active deliveries with COD required (always show, but disable editing for driver-stripped) */}
-              {hasCODRequired && !isPickup && !isFinishedDelivery &&
+              {hasCODRequired && !isPickup && !isFinishedDelivery && !(isFinishedDelivery && isPastDeliveryDate) &&
             <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: '#e5e7eb', borderWidth: '1px', borderColor: '#d1d5db' }}>
                   <span className="text-lg font-semibold" style={{ color: '#374151' }}>
                     COD Required: ${codTotalRequired.toFixed(2)}
