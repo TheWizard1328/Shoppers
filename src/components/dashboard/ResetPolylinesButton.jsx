@@ -77,6 +77,12 @@ export default function ResetPolylinesButton({
     }));
 
     try {
+      // 1. Resort the stops (per driver) via completed times and update stop orders
+      await Promise.allSettled(
+        driverIds.map((driverId) => recalculateAndUpdateStopOrders(driverId, selectedDate))
+      );
+
+      // 2. Update the polylines (per driver)
       const results = await Promise.allSettled(
         driverIds.map((driverId) =>
           base44.functions.invoke("purgeAndRegeneratePolylines", {
