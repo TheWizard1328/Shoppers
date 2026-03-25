@@ -380,7 +380,7 @@ export default function DeliveryFormView({
 
               {/* Delivery mode: Patient Search / Date / Driver row */}
               {!(isPickupMode && !delivery) &&
-              <div className={`${useMobileLayout ? 'flex flex-col gap-3' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(11rem,0.65fr)_minmax(11rem,0.65fr)] gap-3'} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
+              <div className={`${useMobileLayout ? 'flex flex-col gap-3' : (!delivery && !isPickupMode ? 'grid grid-cols-[minmax(0,1.7fr)_minmax(11rem,0.65fr)_minmax(11rem,0.65fr)] gap-3' : 'flex gap-3 w-full')} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
                 {!delivery && !isPickupMode &&
                 <div className={`relative min-w-0 ${useMobileLayout ? 'w-full' : ''}`}>
                     <DeliveryPatientSearch
@@ -400,13 +400,13 @@ export default function DeliveryFormView({
                   </div>
                 }
 
-                <div className={`${useMobileLayout ? 'flex gap-3 flex-row' : 'contents'}`}>
-                  <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'min-w-0'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                <div className={`${useMobileLayout ? 'flex gap-3 flex-row' : (!delivery && !isPickupMode ? 'contents' : 'flex gap-3 flex-row w-full')}`}>
+                  <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : (!delivery && !isPickupMode ? 'min-w-0' : 'min-w-0 flex-1')} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                     <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                   </div>
 
-                  <div className={`${useMobileLayout ? 'flex-1' : 'min-w-0'} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className={`${useMobileLayout ? 'flex-1' : (!delivery && !isPickupMode ? 'min-w-0' : 'min-w-0 flex-1')} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                     <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                       const newDriverId = driverId === 'all' ? '' : driverId;
