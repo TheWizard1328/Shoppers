@@ -277,7 +277,6 @@ export default function StopCardBody({
                         {patient.notes && <p className="whitespace-pre-wrap break-words">{patient.notes}</p>}
                       </div>
                     </div>
-                    </div>
                     )}
 
               {/* Show pending pickup list when pickup is en_route (active), not past dates */}
