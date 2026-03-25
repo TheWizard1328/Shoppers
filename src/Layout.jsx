@@ -1859,17 +1859,17 @@ export default function Layout({ children, currentPageName }) {
 
   triggerFullDataLoadRef.current = triggerFullDataLoad;
 
+  const initialDataLoadFiredRef = useRef(false);
   useEffect(() => {
     if (!initialGlobalFiltersSet || !currentUser) return;
-    const isReady = globalFilters.isReadyForDataFetch();
-    if (!isReady) return;
-
+    if (!globalFilters.isReadyForDataFetch()) return;
+    // CRITICAL: Only fire ONCE. WebSocket currentUser updates must NOT retrigger full reload.
+    if (initialDataLoadFiredRef.current && !needsDataReload.current) return;
+    initialDataLoadFiredRef.current = true;
     const forceRefresh = needsDataReload.current;
     if (forceRefresh) needsDataReload.current = false;
     triggerFullDataLoadRef.current(forceRefresh);
-
   }, [initialGlobalFiltersSet, currentUser]);
-
   useEffect(() => {
     if (!dataLoaded) return;
     const unsubscribe = globalFilters.subscribe(() => {});
