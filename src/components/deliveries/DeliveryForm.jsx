@@ -282,10 +282,7 @@ export default function DeliveryForm({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    if (delivery || stagedDeliveries.length === 0) return;
-    setStagedDeliveries((prev) => prev.map((s) => s.id ? s : { ...s, delivery_date: formData.delivery_date, driver_id: formData.driver_id, driver_name: formData.driver_name }));
-  }, [formData.delivery_date, formData.driver_id, formData.driver_name]);
+  // Removed useEffect that was overwriting staged deliveries' driver/date when form changed
 
   // Set default driver when form loads for new deliveries
   useEffect(() => {
