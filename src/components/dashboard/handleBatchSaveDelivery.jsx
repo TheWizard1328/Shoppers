@@ -82,7 +82,6 @@ export const handleBatchSaveDelivery = async ({
       return false;
     };
 
-    const deliveryDate = driverDeliveries[0].delivery_date;
     const allDeliveriesForDate = (deliveries || []).filter((delivery) => {
       if (!delivery) return false;
       return delivery.delivery_date === deliveryDate;
