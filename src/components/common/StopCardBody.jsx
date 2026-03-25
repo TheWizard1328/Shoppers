@@ -178,12 +178,11 @@ export default function StopCardBody({
               onClick={onClick} />
             
 
-              {/* Patient Notes - Hide for driver-stripped AND non-AppOwner on completed/past routes */}
+              {/* Patient Notes - Show for all finished deliveries when expanded */}
               {!isStrippedForDriver &&
             isFinishedDelivery &&
             !isPickup &&
-            patient?.notes && (
-            (isAppOwnerFn ? isAppOwnerFn(currentUser) : false) || delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) &&
+            patient?.notes &&
             <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
@@ -198,7 +197,7 @@ export default function StopCardBody({
                       </div>
                     </div>
                   </div>
-            }
+            
 
               {/* Full Patient Info - only for active deliveries */}
               {!isStrippedForDriver && !isFinishedDelivery && !isPickup && patient && (
@@ -378,39 +377,28 @@ export default function StopCardBody({
                 </div>
             }
 
-              {/* Driver Notes */}
-              {isFinishedDelivery && !isPickup ?
-            <div className="space-y-1 mt-2">
+              {/* Driver Notes - editable for admins/dispatchers even on completed stops; read-only for drivers */}
+              <div className="space-y-1 mt-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-base font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>
                       Driver Notes
                     </Label>
                   </div>
-                  {delivery.delivery_notes ?
+                  {(isFinishedDelivery && !isPickup && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) ? (
+                  delivery.delivery_notes ?
               <div
                 className="text-base rounded px-2 py-1.5 min-h-[60px]"
                 style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
                 onClick={(e) => e.stopPropagation()}>
-                
                       <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
                     </div> :
-
               <div
                 className="text-base rounded px-2 py-1.5 italic min-h-[60px]"
                 style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
                 onClick={(e) => e.stopPropagation()}>
-                
                       No driver notes
                     </div>
-              }
-                </div> :
-
-            <div className="space-y-1 mt-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-base font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>
-                      Driver Notes
-                    </Label>
-                  </div>
+              ) : (
                   <Textarea
                 value={notesInput}
                 onChange={(e) => setNotesInput(e.target.value)}
@@ -428,11 +416,9 @@ export default function StopCardBody({
                   borderColor: 'var(--border-slate-200)',
                   color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)',
                   fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
-                }}
-                disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
-              
+                }} />
+              )}
                 </div>
-            }
             </div>
           </motion.div>
         }
