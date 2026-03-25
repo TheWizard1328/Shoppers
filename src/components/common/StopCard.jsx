@@ -222,12 +222,36 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       driverLocationPoller.pause();smartRefreshManager.pause();setIsEntityUpdating(true);
       const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');const now = new Date();const currentMinutes = now.getHours() * 60 + now.getMinutes();const startMinutes = currentMinutes + 5;const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const sortedPending = [...allPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
-      sortedPending.forEach((pendingDelivery, i) => {queueDeliveryUpdate(pendingDelivery.id, { status: 'in_transit', delivery_time_start: deliveryTimeStart, tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1) });});
-      await flushQueuedDeliveryUpdates();
-      const codBatch = allPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);return { deliveryId: pendingDelivery.id, patientName: pendingDelivery.patient_name, storeAbbreviation: storeForCod?.abbreviation || '', codAmount: pendingDelivery.cod_total_amount_required, deliveryDate: pendingDelivery.delivery_date, storeId: pendingDelivery.store_id };});
-      invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+      // OFFLINE-FIRST: Update deliveries locally immediately (no await)
+      const localUpdates = sortedPending.map((pendingDelivery, i) => ({
+        id: pendingDelivery.id,
+        status: 'in_transit',
+        delivery_time_start: deliveryTimeStart,
+        tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1)
+      }));
+
+      for (const update of localUpdates) {
+        await updateDeliveryLocal(update.id, update, { skipSmartRefresh: true });
+      }
+
+      // Dispatch events immediately for UI responsiveness
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+
+      const codBatch = allPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);return { deliveryId: pendingDelivery.id, patientName: pendingDelivery.patient_name, storeAbbreviation: storeForCod?.abbreviation || '', codAmount: pendingDelivery.cod_total_amount_required, deliveryDate: pendingDelivery.delivery_date, storeId: pendingDelivery.store_id };});
+
+      // Background: Sync updates to server (no await in main thread)
+      Promise.resolve().then(async () => {
+        try {
+          sortedPending.forEach((pendingDelivery, i) => {queueDeliveryUpdate(pendingDelivery.id, { status: 'in_transit', delivery_time_start: deliveryTimeStart, tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1) });});
+          await flushQueuedDeliveryUpdates();
+          invalidate('Delivery');
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+        } catch (syncErr) {console.warn('⚠️ [Accept All] Background sync failed:', syncErr?.message || syncErr);}
+      });
+
+      // Background: Route optimization
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
@@ -237,7 +261,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         } catch (optErr) {console.warn('⚠️ [Accept All] background optimization failed:', optErr?.message || optErr);} finally
         {window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));}
       });
+
+      // Background: Square COD sync
       if (typeof codBatch !== 'undefined' && codBatch.length > 0) {console.log(`📦 [Square] Queuing ${codBatch.length} COD items to backend...`, codBatch);base44.functions.invoke('syncSquareCods', { items: codBatch }).then(() => {try {toast?.success?.(`Queued ${codBatch.length} CODs to Square`);} catch (_) {}}).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));}
+
+      // Background: Notifications
       const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
       if (isDriverAction) notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch((err) => console.warn('Notification failed:', err));else
       {const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: allPendingDeliveries, patients }).catch((err) => console.warn('Notification failed:', err));}
