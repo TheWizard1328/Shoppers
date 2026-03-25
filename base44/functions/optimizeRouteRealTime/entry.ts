@@ -315,9 +315,28 @@ Deno.serve(async (req) => {
 
       const hereUrl = `https://wps.hereapi.com/v8/findsequence2?${params.toString()}`;
       console.log(`🌐 [optimizeRouteRealTime] Calling HERE Waypoints Sequence API for ${stopsToSequence.length} stops${includeTimeWindows ? ' with time windows' : ' without time windows'}`);
-      const response = await fetch(hereUrl, { signal: AbortSignal.timeout(20000) });
-      const data = await response.json().catch(() => null);
-      return { response, data, includeTimeWindows };
+      
+      // Retry with exponential backoff for rate limits
+      let lastError = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const response = await fetch(hereUrl, { signal: AbortSignal.timeout(20000) });
+          if (response.status === 429) {
+            const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+            console.warn(`⏳ [optimizeRouteRealTime] Rate limited, retrying in ${waitMs}ms (attempt ${attempt + 1}/3)`);
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
+            continue;
+          }
+          const data = await response.json().catch(() => null);
+          return { response, data, includeTimeWindows };
+        } catch (err) {
+          lastError = err;
+          if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw err;
+        }
+      }
+      
+      // All retries exhausted
+      throw lastError || new Error('HERE API rate limit exceeded after retries');
     };
 
     let hereResponse = { ok: true, status: 200 };
