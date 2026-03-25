@@ -3598,7 +3598,7 @@ function Dashboard() {
 
 
         // OPTIMIZED: Only invalidate cache for the specific date instead of all deliveries
-        invalidateDeliveriesForDate(deliveryDate);
+        invalidate('Delivery');
         await refreshData();
 
         setShowDeliveryForm(false);
