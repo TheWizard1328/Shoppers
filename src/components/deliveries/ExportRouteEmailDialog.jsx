@@ -45,6 +45,7 @@ export default function ExportRouteEmailDialog({
       if (!isActive) return;
 
       const selectedStores = (allStores || []).filter((store) => storeIds.includes(store.id));
+      selectedStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const drafts = {};
       selectedStores.forEach((store) => {
         drafts[store.id] = Array.isArray(store.route_export_emails) ? store.route_export_emails : [];
