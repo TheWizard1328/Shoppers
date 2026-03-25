@@ -273,10 +273,8 @@ Deno.serve(async (req) => {
 
     const stopOrderRepairUpdates = buildStopOrderRepairUpdates(deliveries);
     if (stopOrderRepairUpdates.length > 0) {
-      await Promise.all(
-        stopOrderRepairUpdates.map((update) =>
-          base44.asServiceRole.entities.Delivery.update(update.id, { stop_order: update.stop_order })
-        )
+      await processInChunks(stopOrderRepairUpdates, 5, (update) =>
+        base44.asServiceRole.entities.Delivery.update(update.id, { stop_order: update.stop_order })
       );
 
       deliveries.forEach((delivery) => {
