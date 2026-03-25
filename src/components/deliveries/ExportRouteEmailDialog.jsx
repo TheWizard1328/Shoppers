@@ -12,7 +12,7 @@ import {
 "@/components/ui/dialog";
 import { Loader2, Plus, Trash2, FileText } from "lucide-react";
 import { useUser } from "@/components/utils/UserContext";
-import { isAppOwner } from "@/components/utils/userRoles";
+import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const normalizeEmail = (value) => value.trim().toLowerCase();
@@ -166,7 +166,7 @@ export default function ExportRouteEmailDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {isAppOwner(currentUser) && (
+        {(isAppOwner(currentUser) || userHasRole(currentUser, 'admin')) && (
           <div className="space-y-1 mt-2 mb-4">
             <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
               Testing Email (App Owner)

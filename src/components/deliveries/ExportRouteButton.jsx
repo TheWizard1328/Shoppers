@@ -224,7 +224,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${type}${ampm ? `-${ampm}` : ''}-${dateStr}.pdf`;
+      a.download = `RxDeliver Route Manifest ${dateStr}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
