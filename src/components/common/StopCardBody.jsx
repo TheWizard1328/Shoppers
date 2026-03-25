@@ -398,14 +398,14 @@ export default function StopCardBody({
                 placeholder=""
                 className="text-base resize-none h-24"
                 style={{
-                  background: 'var(--bg-white)',
-                  borderColor: 'var(--border-slate-200)',
-                  color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)',
-                  fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
-                  }} />
-                  </div>
-                  </div>
-                  </motion.div>
+                   background: 'var(--bg-white)',
+                   borderColor: 'var(--border-slate-200)',
+                   color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)',
+                   fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
+                 }} />
+                </div>
+                </div>
+                </motion.div>
       </AnimatePresence>
     </>);
 
