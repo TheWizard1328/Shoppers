@@ -374,12 +374,10 @@ Deno.serve(async (req) => {
         : !!delivery?.finished_leg_encoded_polyline);
 
       if (finishedLegsToClear.length > 0) {
-        await Promise.all(
-          finishedLegsToClear.map((delivery) =>
-            base44.asServiceRole.entities.Delivery.update(delivery.id, {
-              finished_leg_encoded_polyline: ''
-            })
-          )
+        await processInChunks(finishedLegsToClear, 5, (delivery) =>
+          base44.asServiceRole.entities.Delivery.update(delivery.id, {
+            finished_leg_encoded_polyline: ''
+          })
         );
       }
       clearedFinishedLegs = finishedLegsToClear.length;
