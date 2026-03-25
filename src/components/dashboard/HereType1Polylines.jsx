@@ -235,7 +235,6 @@ export default function HereType1Polylines({
   useEffect(() => {
     const invalidate = () => { setRefreshToken((t) => t + 1); };
     const onReorder = invalidate;
-    const onDeliveriesUpdated = invalidate;
     const onOptimizationStarted = () => { setOptimizing(true); };
     const onOptimizationComplete = () => { setOptimizing(false); invalidate(); };
     const onPolyline = (e) => {
@@ -254,13 +253,8 @@ export default function HereType1Polylines({
       // Fallback: light refresh without nuking everything
       setRefreshToken((t) => t + 1);
     };
-    const onDriverStatusChanged = (e) => {
-      try { if (e?.detail?.newStatus === 'on_duty') invalidate(); } catch (_) { invalidate(); }
-    };
-    const onDeliveryStarted = invalidate;
     const onDeliveryCompleted = invalidate;
     const onDeliveryFailed = invalidate;
-    const onDeliveryAction = invalidate;
     const onPolylineCacheCleared = () => {
       setCache({});
       setLastNonEmptyLines([]);
@@ -268,28 +262,19 @@ export default function HereType1Polylines({
     };
     window.addEventListener('routeReordered', onReorder);
     window.addEventListener('polylineUpdated', onPolyline);
-    window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
     window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
     window.addEventListener('polylineCacheCleared', onPolylineCacheCleared);
-    // New triggers for HERE refresh
-    window.addEventListener('driverStatusChanged', onDriverStatusChanged);
-    window.addEventListener('deliveryStarted', onDeliveryStarted);
     window.addEventListener('deliveryCompleted', onDeliveryCompleted);
     window.addEventListener('deliveryFailed', onDeliveryFailed);
-    window.addEventListener('deliveryAction', onDeliveryAction);
     return () => {
       window.removeEventListener('routeReordered', onReorder);
       window.removeEventListener('polylineUpdated', onPolyline);
-      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
       window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
       window.removeEventListener('polylineCacheCleared', onPolylineCacheCleared);
-      window.removeEventListener('driverStatusChanged', onDriverStatusChanged);
-      window.removeEventListener('deliveryStarted', onDeliveryStarted);
       window.removeEventListener('deliveryCompleted', onDeliveryCompleted);
       window.removeEventListener('deliveryFailed', onDeliveryFailed);
-      window.removeEventListener('deliveryAction', onDeliveryAction);
     };
   }, []);
 
