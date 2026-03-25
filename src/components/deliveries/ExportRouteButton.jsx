@@ -131,7 +131,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         storeIds: dispatcherStoreIds,
         selectedCityId,
         recipientEmails: validRecipientEmails,
-        emailSubject: `Route logs for: ${driverNames} ${exportDate}`
+        emailSubject: `RxDeliver Route logs for: ${exportDate}`
       });
       const data = res?.data || res;
 
@@ -169,7 +169,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
             manifestType: 'post-route',
             storeIds: [storeId],
             recipientEmails: storeRecipientEmails,
-            emailSubject: `Route logs for: ${driverNames} ${exportDate} (${storeName})`
+            emailSubject: `RxDeliver Route logs for: ${exportDate} (${storeName})`
           })
         );
       });
