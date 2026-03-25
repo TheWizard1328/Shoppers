@@ -179,9 +179,10 @@ export default function StopCardBody({
               onClick={onClick} />}
             
 
-              {/* Patient Notes - Show for all finished deliveries when expanded */}
+              {/* Patient Notes - Show for finished deliveries when expanded, but not past dates */}
               {!isStrippedForDriver &&
             isFinishedDelivery &&
+            !isPastDeliveryDate &&
             !isPickup &&
             patient?.notes && (
                 <div className="flex items-start gap-2">
