@@ -304,11 +304,24 @@ Deno.serve(async (req) => {
       const driverLines = doc.splitTextToSize(driverName, driverWrapWidth);
       const createdByLines = doc.splitTextToSize(createdBy, createdByWrapWidth);
       const notesLines = doc.splitTextToSize(notes, notesWrapWidth);
+
+      // Rx Barcode Line Calculation
+      const rxValues = Array.isArray(d?.barcode_values) ? d.barcode_values : [];
+      const rxDisplayString = rxValues.map(v => v.substring(0, 8)).join(' - ');
+      let rxLines = [];
+      let rxLineHeight = 0;
+      if (rxDisplayString) {
+        const rxWrapWidth = colPhotos - colName - 2; // Span from Name column to Photos column
+        rxLines = doc.splitTextToSize(`Rx: ${rxDisplayString}`, rxWrapWidth);
+        const rxDims = doc.getTextDimensions(rxLines);
+        rxLineHeight = rxDims.h + 1; // Add spacing
+      }
+
       const nameDims = doc.getTextDimensions(nameLines);
       const driverDims = doc.getTextDimensions(driverLines);
       const createdByDims = doc.getTextDimensions(createdByLines);
       const notesDims = doc.getTextDimensions(notesLines);
-      const textHeight = Math.max(nameDims.h, driverDims.h, createdByDims.h, notesDims.h) + cellPadding;
+      const textHeight = Math.max(nameDims.h, driverDims.h, createdByDims.h, notesDims.h) + rxLineHeight + cellPadding;
 
       const receiptsCount = Array.isArray(d?.receipt_barcode_values) ? d.receipt_barcode_values.length : 0;
       const rxCount = Array.isArray(d?.barcode_values) ? d.barcode_values.length : 0;
@@ -349,6 +362,14 @@ Deno.serve(async (req) => {
       doc.text(driverLines, colDriver, textY, { baseline: 'top' });
       doc.text(createdByLines, colCreatedBy, textY, { baseline: 'top' });
       doc.text(notesLines, colNotes, textY, { baseline: 'top' });
+
+      if (rxDisplayString) {
+        const mainContentHeight = Math.max(nameDims.h, driverDims.h, createdByDims.h, notesDims.h);
+        const rxY = textY + mainContentHeight + 0.5;
+        doc.setFontSize(8);
+        doc.text(rxLines, colName, rxY, { baseline: 'top' });
+        doc.setFontSize(9); // Restore font size
+      }
 
       // Barcode counts
       drawCountCell(colReceipts, textY, receiptsCount);
