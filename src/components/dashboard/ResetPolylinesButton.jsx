@@ -78,7 +78,6 @@ export default function ResetPolylinesButton({
     if (isResetting || disabled || driverIds.length === 0 || !selectedDate) return;
 
     setIsResetting(true);
-    pauseOfflineMutations();
     smartRefreshManager.pause();
 
     await Promise.all(driverIds.map((driverId) => clearHereCacheForDriverDate(driverId, selectedDate)));
