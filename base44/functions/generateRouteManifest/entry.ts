@@ -176,6 +176,18 @@ Deno.serve(async (req) => {
         if (!response.ok) return null;
         const arrayBuffer = await response.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
+        
+        // Detect format from magic bytes to avoid relying on potentially incorrect content-type headers
+        let format = 'JPEG';
+        if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+          format = 'PNG';
+        } else if (bytes.length >= 3 && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+          format = 'JPEG';
+        } else {
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('png')) format = 'PNG';
+        }
+
         let binary = '';
         // Use chunked processing for better performance on large images
         const chunkSize = 0x8000;
@@ -183,11 +195,11 @@ Deno.serve(async (req) => {
           binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
         }
         const base64 = btoa(binary);
-        const contentType = response.headers.get('content-type') || 'image/jpeg';
-        const format = contentType.includes('png') ? 'PNG' : 'JPEG';
+        const mimeType = format === 'PNG' ? 'image/png' : 'image/jpeg';
         const dimensions = getImageDimensions(bytes, format);
+        
         return { 
-          base64Data: `data:${contentType};base64,${base64}`, 
+          base64Data: `data:${mimeType};base64,${base64}`, 
           format,
           width: dimensions?.width,
           height: dimensions?.height
