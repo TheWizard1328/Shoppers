@@ -80,26 +80,30 @@ export default function ResetPolylinesButton({
     setIsResetting(true);
     smartRefreshManager.pause();
 
-    await Promise.all(driverIds.map((driverId) => clearHereCacheForDriverDate(driverId, selectedDate)));
-    await clearFinishedLegPolylinesLocal();
-    clearPolylineCache();
-    window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
-      detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
-    }));
-
     try {
       // 1. Resort the stops (per driver) via completed times and update stop orders
-      // Process in chunks to avoid rate limits
-      const chunkSize = 3;
-      for (let i = 0; i < driverIds.length; i += chunkSize) {
-        const chunk = driverIds.slice(i, i + chunkSize);
-        await Promise.allSettled(
-          chunk.map((driverId) => recalculateAndUpdateStopOrders(driverId, selectedDate))
-        );
+      // Process sequentially to avoid rate limits and ensure DBs are updated before polylines
+      for (const driverId of driverIds) {
+        await recalculateAndUpdateStopOrders(driverId, selectedDate, true);
+        // Update UI after stop orders have been updated
+        window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
+          detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines_stopOrders" }
+        }));
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // 2. Update the polylines (per driver)
-      const results = [];
+      // 2. Clear all polylines now that order is corrected
+      await Promise.all(driverIds.map((driverId) => clearHereCacheForDriverDate(driverId, selectedDate)));
+      await clearFinishedLegPolylinesLocal();
+      clearPolylineCache();
+      window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
+        detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
+      }));
+
+      // 3. Update the polylines (per driver) in batches
+      const chunkSize = 2; // smaller chunks for polyline generation
+      const successfulDriverIds = [];
+      
       for (let i = 0; i < driverIds.length; i += chunkSize) {
         const chunk = driverIds.slice(i, i + chunkSize);
         const chunkResults = await Promise.allSettled(
@@ -111,29 +115,32 @@ export default function ResetPolylinesButton({
             })
           )
         );
-        results.push(...chunkResults);
-        // Add a small delay between chunks to prevent rate limits
+        
+        const currentSuccessfulIds = [];
+        chunk.forEach((driverId, index) => {
+          if (chunkResults[index]?.status === "fulfilled") {
+            currentSuccessfulIds.push(driverId);
+            successfulDriverIds.push(driverId);
+          }
+        });
+
+        // Sync and update UI for this chunk during the pause
+        if (currentSuccessfulIds.length > 0) {
+          await syncDriverDateDeliveriesFromBackend(currentSuccessfulIds);
+          
+          // Dispatch UI update for this chunk sequentially
+          for (const driverId of currentSuccessfulIds) {
+            window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
+              detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines_chunk" }
+            }));
+            await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for UI to paint
+          }
+        }
+
         if (i + chunkSize < driverIds.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 1500));
         }
       }
-
-      const successfulDriverIds = driverIds.filter((_, index) => results[index]?.status === "fulfilled");
-      const hasSuccessfulUpdate = successfulDriverIds.length > 0;
-
-      if (hasSuccessfulUpdate) {
-        await syncDriverDateDeliveriesFromBackend(successfulDriverIds);
-        clearPolylineCache();
-        window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
-          detail: { driverIds: successfulDriverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
-        }));
-      }
-
-      successfulDriverIds.forEach((driverId) => {
-        window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
-          detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
-        }));
-      });
     } finally {
       smartRefreshManager.restart();
       setIsResetting(false);
