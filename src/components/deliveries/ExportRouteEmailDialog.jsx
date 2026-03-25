@@ -39,9 +39,9 @@ export default function ExportRouteEmailDialog({
     setIsLoading(true);
 
     Promise.all([
-      base44.entities.Store.list(),
-      base44.entities.AppSettings.filter({ setting_key: 'route_export_testing_email' })
-    ]).then(([allStores, settings]) => {
+    base44.entities.Store.list(),
+    base44.entities.AppSettings.filter({ setting_key: 'route_export_testing_email' })]
+    ).then(([allStores, settings]) => {
       if (!isActive) return;
 
       const selectedStores = (allStores || []).filter((store) => storeIds.includes(store.id));
@@ -53,7 +53,7 @@ export default function ExportRouteEmailDialog({
       setStores(selectedStores);
       setEmailDrafts(drafts);
       setPendingEmails({});
-      
+
       if (settings && settings.length > 0) {
         setTestingEmail(settings[0].setting_value || "");
         setAppSettingsId(settings[0].id);
@@ -100,9 +100,9 @@ export default function ExportRouteEmailDialog({
   const saveEmails = async () => {
     setIsSaving(true);
     const promises = stores.map((store) =>
-      base44.entities.Store.update(store.id, {
-        route_export_emails: emailDrafts[store.id] || []
-      })
+    base44.entities.Store.update(store.id, {
+      route_export_emails: emailDrafts[store.id] || []
+    })
     );
 
     if (testingEmail) {
@@ -114,7 +114,7 @@ export default function ExportRouteEmailDialog({
             setting_key: 'route_export_testing_email',
             setting_value: testingEmail,
             description: 'App Owner testing email for route exports'
-          }).then(res => setAppSettingsId(res.id))
+          }).then((res) => setAppSettingsId(res.id))
         );
       }
     } else if (appSettingsId) {
@@ -137,13 +137,13 @@ export default function ExportRouteEmailDialog({
       acc[store.id] = emails;
       return acc;
     }, {});
-    
+
     let allRecipientEmails = stores.flatMap((store) => emailDrafts[store.id] || []);
     if (testingEmail && isValidEmail(testingEmail)) {
       allRecipientEmails.push(testingEmail);
     }
     const recipientEmails = [...new Set(allRecipientEmails)];
-    
+
     onOpenChange(false);
     await onExportRoute({ recipientEmails, perStoreEmails });
   };
@@ -170,11 +170,11 @@ export default function ExportRouteEmailDialog({
             value={testingEmail}
             onChange={(e) => setTestingEmail(e.target.value)}
             placeholder="your.email@example.com"
-            className="w-full"
-          />
-          {testingEmail && !isValidEmail(testingEmail) && (
-            <p className="text-xs text-red-500">Please enter a valid email address.</p>
-          )}
+            className="w-full" />
+          
+          {testingEmail && !isValidEmail(testingEmail) &&
+          <p className="text-xs text-red-500">Please enter a valid email address.</p>
+          }
         </div>
 
         {isLoading ?
@@ -205,8 +205,8 @@ export default function ExportRouteEmailDialog({
 
               (emailDrafts[store.id] || []).map((email) =>
               <div
-                key={email}
-                className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                key={email} className="px-3 rounded-lg flex items-center justify-between gap-3 border"
+
                 style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
 
                         <span className="text-sm break-all" style={{ color: 'var(--text-slate-700)' }}>{email}</span>
@@ -263,8 +263,8 @@ export default function ExportRouteEmailDialog({
             isSaving ||
             isExporting ||
             stores.length === 0 ||
-            (!stores.some((store) => (emailDrafts[store.id] || []).length > 0) && !isValidEmail(testingEmail)) ||
-            (testingEmail && !isValidEmail(testingEmail))
+            !stores.some((store) => (emailDrafts[store.id] || []).length > 0) && !isValidEmail(testingEmail) ||
+            testingEmail && !isValidEmail(testingEmail)
             }>
 
             {isSaving || isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
