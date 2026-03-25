@@ -5304,7 +5304,7 @@ function Dashboard() {
       }
 
       // STEP 5: Update UI immediately after optimization
-      invalidateDeliveriesForDate(deliveryDate);
+      invalidate('Delivery');
       const refreshedDeliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
