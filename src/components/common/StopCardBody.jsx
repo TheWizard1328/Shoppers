@@ -279,7 +279,6 @@ export default function StopCardBody({
                     </div>
                     </div>
                     )}
-                    </div>
 
               {/* Show pending pickup list when pickup is en_route (active), not past dates */}
               {!isFinishedDelivery && !isPastDeliveryDate && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
