@@ -405,7 +405,6 @@ export default function StopCardBody({
                  }} />
                  </div>
                  </div>
-                 </div>
                  </motion.div>
       </AnimatePresence>
     </>);
