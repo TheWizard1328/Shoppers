@@ -296,12 +296,12 @@ Deno.serve(async (req) => {
 
     if (!Array.isArray(deliveries) || deliveries.length === 0) {
       if (Array.isArray(existingPolylines) && existingPolylines.length > 0 && scope !== 'completed_only') {
-        await Promise.all(existingPolylines.map((row) =>
+        await processInChunks(existingPolylines, 5, (row) =>
           base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
             if (isNotFoundError(error)) return null;
             throw error;
           })
-        ));
+        );
       }
 
       return Response.json({
