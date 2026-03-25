@@ -18,7 +18,19 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
   }
 
   if (isCompletionStatus && completionTime) {
-    dataToSave.actual_delivery_time = `${formData.delivery_date}T${completionTime}:00`;
+    // Only update actual_delivery_time if:
+    // 1. The delivery doesn't already have one (setting it for the first time), OR
+    // 2. The user explicitly changed completionTime from what was on the original delivery
+    const originalTime = delivery?.actual_delivery_time
+      ? delivery.actual_delivery_time.substring(11, 16) // extract HH:mm from "YYYY-MM-DDTHH:mm:ss"
+      : null;
+    const timeChanged = !originalTime || completionTime !== originalTime;
+    if (timeChanged) {
+      dataToSave.actual_delivery_time = `${formData.delivery_date}T${completionTime}:00`;
+    } else {
+      // Preserve the original actual_delivery_time exactly as stored
+      dataToSave.actual_delivery_time = delivery.actual_delivery_time;
+    }
   }
 
   return dataToSave;
