@@ -415,12 +415,12 @@ Deno.serve(async (req) => {
 
       const rowsToDelete = (existingPolylines || []).filter((row) => row?.id !== preservedType1Row?.id);
       if (rowsToDelete.length > 0) {
-        await Promise.all(rowsToDelete.map((row) =>
+        await processInChunks(rowsToDelete, 5, (row) =>
           base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
             if (isNotFoundError(error)) return null;
             throw error;
           })
-        ));
+        );
       }
       deletedPolylineCount = rowsToDelete.length;
 
