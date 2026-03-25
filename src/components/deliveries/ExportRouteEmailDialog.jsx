@@ -25,7 +25,7 @@ export default function ExportRouteEmailDialog({
   onExportRoute,
   onPreviewPdf
 }) {
-  const { user: currentUser } = useUser();
+  const { currentUser } = useUser();
   const [stores, setStores] = useState([]);
   const [emailDrafts, setEmailDrafts] = useState({});
   const [pendingEmails, setPendingEmails] = useState({});
