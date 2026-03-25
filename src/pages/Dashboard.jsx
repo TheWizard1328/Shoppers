@@ -1991,7 +1991,6 @@ function Dashboard() {
         // 1. DRIVER LOCATION: Include driver's location (GPS blue dot or shared AppUser location)
         // Covers: mobile GPS, desktop shared location, and cases where GPS hasn't loaded yet
         if (isViewingToday) {
-          const { getSelfDriverLocationForBounds } = await import('@/components/dashboard/mapViewPhaseHelpers');
           const selfLoc = getSelfDriverLocationForBounds({ currentUser, appUsers, driverLocation, isMobile, selectedDriverId, isDriver, isDriverOffDuty });
           if (selfLoc?.latitude && selfLoc?.longitude) { allCoordinates.push([selfLoc.latitude, selfLoc.longitude]); hasDriverMarkers = true; }
         }
