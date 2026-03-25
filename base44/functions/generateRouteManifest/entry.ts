@@ -137,6 +137,37 @@ Deno.serve(async (req) => {
       return timeStr;
     }
 
+    function getImageDimensions(bytes, type) {
+      try {
+        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        if (type === 'PNG') {
+          // IHDR chunk starts at byte 8. Width at 16, Height at 20.
+          if (bytes.length < 24) return null;
+          const width = view.getUint32(16);
+          const height = view.getUint32(20);
+          return { width, height };
+        } else if (type === 'JPEG') {
+          let offset = 2;
+          while (offset < bytes.length - 10) {
+            if (bytes[offset] !== 0xFF) break;
+            const marker = bytes[offset + 1];
+            // SOF0 (0xC0) to SOF15 (0xCF), excluding DHT (0xC4), JPG (0xC8), DAC (0xCC)
+            if (marker >= 0xC0 && marker <= 0xCF && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC) {
+               const height = view.getUint16(offset + 5);
+               const width = view.getUint16(offset + 7);
+               return { width, height };
+            }
+            offset += 2;
+            const length = view.getUint16(offset);
+            offset += length;
+          }
+        }
+      } catch (e) {
+        return null;
+      }
+      return null;
+    }
+
     // Helper: fetch image as base64 for embedding in PDF
     async function fetchImageAsBase64(url) {
       try {
@@ -146,13 +177,21 @@ Deno.serve(async (req) => {
         const arrayBuffer = await response.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
         let binary = '';
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i]);
+        // Use chunked processing for better performance on large images
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
         }
         const base64 = btoa(binary);
         const contentType = response.headers.get('content-type') || 'image/jpeg';
         const format = contentType.includes('png') ? 'PNG' : 'JPEG';
-        return { base64Data: `data:${contentType};base64,${base64}`, format };
+        const dimensions = getImageDimensions(bytes, format);
+        return { 
+          base64Data: `data:${contentType};base64,${base64}`, 
+          format,
+          width: dimensions?.width,
+          height: dimensions?.height
+        };
       } catch {
         return null;
       }
@@ -378,7 +417,24 @@ Deno.serve(async (req) => {
       // Signature thumbnail
       if (images.signature) {
         try {
-          doc.addImage(images.signature.base64Data, images.signature.format, colSig, textY, thumbSize, thumbSize);
+          let w = thumbSize;
+          let h = thumbSize;
+          let x = colSig;
+          let y = textY;
+
+          // Maintain aspect ratio if dimensions known
+          if (images.signature.width && images.signature.height) {
+            const ratio = images.signature.width / images.signature.height;
+            if (ratio > 1) { // Wider than tall
+              h = w / ratio;
+              y += (thumbSize - h) / 2; // Center vertically
+            } else { // Taller than wide
+              w = h * ratio;
+              x += (thumbSize - w) / 2; // Center horizontally
+            }
+          }
+          
+          doc.addImage(images.signature.base64Data, images.signature.format, x, y, w, h);
         } catch {
           // Fallback: draw a box with a check mark
           doc.setDrawColor(200);
@@ -394,7 +450,23 @@ Deno.serve(async (req) => {
         for (let p = 0; p < images.photos.length; p++) {
           const photo = images.photos[p];
           try {
-            doc.addImage(photo.base64Data, photo.format, photoX, textY, thumbSize, thumbSize);
+            let w = thumbSize;
+            let h = thumbSize;
+            let x = photoX;
+            let y = textY;
+
+            if (photo.width && photo.height) {
+              const ratio = photo.width / photo.height;
+              if (ratio > 1) { // Wider than tall
+                h = w / ratio;
+                y += (thumbSize - h) / 2;
+              } else { // Taller than wide
+                w = h * ratio;
+                x += (thumbSize - w) / 2;
+              }
+            }
+
+            doc.addImage(photo.base64Data, photo.format, x, y, w, h);
             photoX -= (thumbSize + rightGap);
           } catch {
             // Fallback: draw empty box
