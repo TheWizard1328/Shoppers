@@ -91,7 +91,7 @@ export default function StopCardBody({
           
             <div className="pt-1 space-y-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
-              {finalDisplayPhone && !(isFinishedDelivery && !isPickup) &&
+              {finalDisplayPhone && !(isFinishedDelivery && !isPickup) && !(isFinishedDelivery && isPastDeliveryDate) &&
             <div className="flex items-center text-lg" style={{ color: 'var(--text-slate-600)' }}>
                   <Phone className="w-4 h-4 mr-2 text-slate-500" />
                   <span className="text-xl font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
