@@ -11,7 +11,7 @@ import { updateDeliveryLocal } from './entityMutations';
  * Ensures completed stops are first (sorted by completion time), then incomplete (sorted by stop_order), pending always last
  * Updates all stop orders sequentially from 1 to N
  */
-export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => {
+export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, skipPolylineRegeneration = false) => {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   
   // Fetch fresh data from backend to ensure accuracy; fallback to offline DB on network error
