@@ -1327,100 +1327,118 @@ export default function DeliveryForm({
     setBatchFormSaving(true);
     // CRITICAL: Pause SmartRefresh ONCE for the entire batch operation
     try {
-      const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-      smartRefreshManager.pause();
+    const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+    smartRefreshManager.pause();
     } catch (error) {
-      console.warn('⚠️ [AddToRoute] Failed to pause SmartRefresh:', error);
+    console.warn('⚠️ [AddToRoute] Failed to pause SmartRefresh:', error);
     }
 
     try {
-      if (deliveriesToUpdate.length > 0) {
-        const updatePromises = deliveriesToUpdate.map((updated) => {
-          const updateData = buildExistingDeliveryBatchUpdate(updated);
-          return updateDeliveryLocal(updated.id, updateData, { isBatchOperation: true, skipSmartRefresh: true }).catch((error) => {
-            if (error.message?.includes('not found') || error.response?.status === 404) return null;
-            throw new Error(error.message?.replace(updated.id, updated.patient_name || 'Unknown Patient') || error.message);
-          });
+    if (deliveriesToUpdate.length > 0) {
+      const updatePromises = deliveriesToUpdate.map((updated) => {
+        const updateData = buildExistingDeliveryBatchUpdate(updated);
+        return updateDeliveryLocal(updated.id, updateData, { isBatchOperation: true, skipSmartRefresh: true }).catch((error) => {
+          if (error.message?.includes('not found') || error.response?.status === 404) return null;
+          throw new Error(error.message?.replace(updated.id, updated.patient_name || 'Unknown Patient') || error.message);
         });
-        await Promise.allSettled(updatePromises);
-        (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(deliveriesToUpdate.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});}catch(_){}})();
-      }
+      });
+      await Promise.allSettled(updatePromises);
+      (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(deliveriesToUpdate.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});}catch(_){}})();
+    }
 
-      // CRITICAL: Create ALL default pickups for brand-new routes BEFORE the UI refresh runs
-      if (newDeliveries.length > 0 && isNewRouteWithZeroStops) {
-        const driverGroups = {};
-        newDeliveries.forEach((del) => {
-          if (!del.patient_id || !del.driver_id) return;
+    // CRITICAL: Create ALL default pickups for brand-new routes BEFORE the UI refresh runs
+    if (newDeliveries.length > 0 && isNewRouteWithZeroStops) {
+      const driverGroups = {};
+      newDeliveries.forEach((del) => {
+        if (!del.patient_id || !del.driver_id) return;
 
-          if (!driverGroups[del.driver_id]) {
-            driverGroups[del.driver_id] = {
-              driverId: del.driver_id,
-              deliveryDate: del.delivery_date,
-              deliveries: []
-            };
+        if (!driverGroups[del.driver_id]) {
+          driverGroups[del.driver_id] = {
+            driverId: del.driver_id,
+            deliveryDate: del.delivery_date,
+            deliveries: []
+          };
+        }
+        driverGroups[del.driver_id].deliveries.push(del);
+      });
+
+      const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
+
+      await Promise.allSettled(Object.keys(driverGroups).map(async (driverId) => {
+        const group = driverGroups[driverId];
+        const selectedDate = new Date(group.deliveryDate + 'T00:00:00');
+        const dayOfWeek = selectedDate.getDay();
+
+        const driverAssignedStores = stores.filter((s) => {
+          if (!s) return false;
+
+          let driverIds = [];
+          if (dayOfWeek === 6) {
+            driverIds = [s.saturday_am_driver_id, s.saturday_pm_driver_id];
+          } else if (dayOfWeek === 0) {
+            driverIds = [s.sunday_am_driver_id, s.sunday_pm_driver_id];
+          } else {
+            driverIds = [s.weekday_am_driver_id, s.weekday_pm_driver_id];
           }
-          driverGroups[del.driver_id].deliveries.push(del);
+
+          return driverIds.includes(driverId);
         });
 
-        const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
+        const ensureTasks = driverAssignedStores.flatMap((assignedStore) => {
+          const isSpecialStore = specialStores.some((name) => assignedStore.name?.includes(name));
+          if (isSpecialStore) return [];
 
-        await Promise.allSettled(Object.keys(driverGroups).map(async (driverId) => {
-          const group = driverGroups[driverId];
-          const selectedDate = new Date(group.deliveryDate + 'T00:00:00');
-          const dayOfWeek = selectedDate.getDay();
+          const timeSlots = [];
+          if (dayOfWeek === 6) {
+            if (assignedStore.saturday_am_driver_id === driverId) timeSlots.push('AM');
+            if (assignedStore.saturday_pm_driver_id === driverId) timeSlots.push('PM');
+          } else if (dayOfWeek === 0) {
+            if (assignedStore.sunday_am_driver_id === driverId) timeSlots.push('AM');
+            if (assignedStore.sunday_pm_driver_id === driverId) timeSlots.push('PM');
+          } else {
+            if (assignedStore.weekday_am_driver_id === driverId) timeSlots.push('AM');
+            if (assignedStore.weekday_pm_driver_id === driverId) timeSlots.push('PM');
+          }
 
-          const driverAssignedStores = stores.filter((s) => {
-            if (!s) return false;
+          return timeSlots.map((timeSlot) =>
+            base44.functions.invoke('ensurePickupForDelivery', {
+              storeId: assignedStore.id,
+              deliveryDate: group.deliveryDate,
+              driverId,
+              ampmDeliveries: timeSlot
+            }).catch((error) => {
+              console.warn(`⚠️ [DoneButton] Failed to ensure pickup for ${assignedStore.name} [${timeSlot}]:`, error.message);
+              return null;
+            })
+          );
+        });
 
-            let driverIds = [];
-            if (dayOfWeek === 6) {
-              driverIds = [s.saturday_am_driver_id, s.saturday_pm_driver_id];
-            } else if (dayOfWeek === 0) {
-              driverIds = [s.sunday_am_driver_id, s.sunday_pm_driver_id];
-            } else {
-              driverIds = [s.weekday_am_driver_id, s.weekday_pm_driver_id];
-            }
+        await Promise.allSettled(ensureTasks);
+      }));
+    }
 
-            return driverIds.includes(driverId);
-          });
+    // Then save new deliveries
+    const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
+    if (deliveriesReadyForDB.length > 0) {
+      await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
+    }
 
-          const ensureTasks = driverAssignedStores.flatMap((assignedStore) => {
-            const isSpecialStore = specialStores.some((name) => assignedStore.name?.includes(name));
-            if (isSpecialStore) return [];
+    // CRITICAL: Close form IMMEDIATELY (steps 3-5 will run in background)
+    resetBatchSaveDraftState({
+      setStagedDeliveries,
+      setProjectedDeliveries,
+      setHasPendingDeletes,
+      setHasChanges,
+      hasLoadedPendingRef: hasLoadedPending,
+      unblockPredictions,
+      setIsLoadingPredictions
+    });
+    await closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
 
-            const timeSlots = [];
-            if (dayOfWeek === 6) {
-              if (assignedStore.saturday_am_driver_id === driverId) timeSlots.push('AM');
-              if (assignedStore.saturday_pm_driver_id === driverId) timeSlots.push('PM');
-            } else if (dayOfWeek === 0) {
-              if (assignedStore.sunday_am_driver_id === driverId) timeSlots.push('AM');
-              if (assignedStore.sunday_pm_driver_id === driverId) timeSlots.push('PM');
-            } else {
-              if (assignedStore.weekday_am_driver_id === driverId) timeSlots.push('AM');
-              if (assignedStore.weekday_pm_driver_id === driverId) timeSlots.push('PM');
-            }
-
-            return timeSlots.map((timeSlot) =>
-              base44.functions.invoke('ensurePickupForDelivery', {
-                storeId: assignedStore.id,
-                deliveryDate: group.deliveryDate,
-                driverId,
-                ampmDeliveries: timeSlot
-              }).catch((error) => {
-                console.warn(`⚠️ [DoneButton] Failed to ensure pickup for ${assignedStore.name} [${timeSlot}]:`, error.message);
-                return null;
-              })
-            );
-          });
-
-          await Promise.allSettled(ensureTasks);
-        }));
-      }
-      
-      // Then save new deliveries OR trigger data refresh
-      const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
-      if (deliveriesReadyForDB.length > 0) {
-        await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
+    // CRITICAL: Background operations (steps 3-5) run AFTER form closes
+    Promise.resolve().then(async () => {
+      try {
+        // Step 3: Backend sync
         const squarePromises = deliveriesReadyForDB.filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit').map(delivery => {
           const store = stores?.find(s => s && s.id === delivery.store_id);
           return base44.functions.invoke('squareCreateCodItem', { deliveryId: delivery.id || delivery._tempId, patientName: delivery.patient_name, storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: delivery.delivery_date, storeId: delivery.store_id }).then(() => null).catch(squareError => {
@@ -1428,64 +1446,42 @@ export default function DeliveryForm({
             return null;
           });
         });
-        if (squarePromises.length > 0) Promise.allSettled(squarePromises).then(()=>console.log('✅ [Square] COD background tasks done')).catch(()=>{});
-      }
-      await Promise.all(Array.from(new Set([...deliveriesToUpdate.flatMap((delivery) => { const originalDelivery = allDeliveries?.find((item) => item?.id === delivery?.id); return [[delivery?.driver_id, delivery?.delivery_date], [originalDelivery?.driver_id, originalDelivery?.delivery_date]]; }), ...deliveriesReadyForDB.map((delivery) => [delivery?.driver_id, delivery?.delivery_date])].filter(([driverId, deliveryDate]) => driverId && deliveryDate).map(([driverId, deliveryDate]) => `${driverId}__${deliveryDate}`))).map(async (key) => { const [driverId, deliveryDate] = key.split('__'); const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager'); return recalculateAndUpdateStopOrders(driverId, deliveryDate); }));
-      await restartBatchSmartRefresh(() => setBatchFormSaving(false));
+        if (squarePromises.length > 0) await Promise.allSettled(squarePromises);
 
-      if (deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
-        resetBatchSaveDraftState({
-          setStagedDeliveries,
-          setProjectedDeliveries,
-          setHasPendingDeletes,
-          setHasChanges,
-          hasLoadedPendingRef: hasLoadedPending,
-          unblockPredictions,
-          setIsLoadingPredictions
-        });
+        // Step 4: UI refresh
+        await Promise.all(Array.from(new Set([...deliveriesToUpdate.flatMap((delivery) => { const originalDelivery = allDeliveries?.find((item) => item?.id === delivery?.id); return [[delivery?.driver_id, delivery?.delivery_date], [originalDelivery?.driver_id, originalDelivery?.delivery_date]]; }), ...deliveriesReadyForDB.map((delivery) => [delivery?.driver_id, delivery?.delivery_date])].filter(([driverId, deliveryDate]) => driverId && deliveryDate).map(([driverId, deliveryDate]) => `${driverId}__${deliveryDate}`))).map(async (key) => { const [driverId, deliveryDate] = key.split('__'); const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager'); return recalculateAndUpdateStopOrders(driverId, deliveryDate); }));
+        await restartBatchSmartRefresh(() => setBatchFormSaving(false));
 
-        await resumeManagersAndCloseBatchForm({ handleClearForm, onCancel });
-
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: {
-            deliveryDate: formData.delivery_date,
-            driverId: formData.driver_id,
-            triggeredBy: 'doneButtonUpdates',
-            immediate: true
-          }
-        }));
+        // Step 5: Notifications
+        if (deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              deliveryDate: formData.delivery_date,
+              driverId: formData.driver_id,
+              triggeredBy: 'doneButtonUpdates',
+              immediate: true
+            }
+          }));
+        } else {
+          const refreshDriverId = deliveriesReadyForDB[0]?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
+          const refreshDeliveryDate = deliveriesReadyForDB[0]?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
+          runCreateBatchRefresh({ refreshDriverId, refreshDeliveryDate });
+        }
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        runUpdateOnlyBatchRefresh({ deliveryDate: formData.delivery_date, driverId: formData.driver_id });
-
-        return;
+      } catch (bgError) {
+        console.error('⚠️ [AddToRoute] Background operations failed:', bgError);
       }
+    });
 
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
-      resetBatchSaveDraftState({
-        setStagedDeliveries,
-        setProjectedDeliveries,
-        setHasPendingDeletes,
-        setHasChanges,
-        hasLoadedPendingRef: hasLoadedPending,
-        unblockPredictions,
-        setIsLoadingPredictions
-      });
-
-      await closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
-
-      const refreshDriverId = deliveriesReadyForDB[0]?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
-      const refreshDeliveryDate = deliveriesReadyForDB[0]?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
-      runCreateBatchRefresh({ refreshDriverId, refreshDeliveryDate });
     } catch (err) {
-      console.error('[AddToRoute] ❌ Batch save error:', err);
-      setError(`Failed to save: ${err.message || 'Unknown error'}`);
-      unblockPredictions(); // Reset on error (form stays open, allow predictions)
-      setIsLoadingPredictions(false); // Re-enable predictions on error
-      
-      await restartBatchSmartRefresh(() => setBatchFormSaving(false));
+    console.error('[AddToRoute] ❌ Batch save error:', err);
+    setError(`Failed to save: ${err.message || 'Unknown error'}`);
+    unblockPredictions(); // Reset on error (form stays open, allow predictions)
+    setIsLoadingPredictions(false); // Re-enable predictions on error
+
+    await restartBatchSmartRefresh(() => setBatchFormSaving(false));
     } finally {
-      batchSaveLockRef.current = false; setIsSaving(false);
+    batchSaveLockRef.current = false; setIsSaving(false);
     }
   }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId, isNewRouteWithZeroStops, stores, isSaving]);
 
