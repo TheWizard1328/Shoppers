@@ -262,7 +262,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[780px] max-h-[90vh]' : 'max-w-[87.5rem] max-h-[95vh]' : 'max-w-[50rem] max-h-[95vh]'} flex`}>
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[780px] max-h-[95vh]' : 'max-w-[87.5rem] max-h-[95vh]' : 'max-w-[50rem] max-h-[95vh]'} flex`}>
         
         <Card
           onKeyDown={handleGlobalKeyDown}
