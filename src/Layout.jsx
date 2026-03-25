@@ -1054,30 +1054,25 @@ export default function Layout({ children, currentPageName }) {
 
     // Listen for delivery updates from DeliveryForm and trigger refresh
     const handleDeliveriesUpdated = async (event) => {
-      const { deliveryId, driverId, deliveryDate, triggeredBy } = event.detail || {};
-      console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy})`);
-
-      if (deliveryDate && driverId) {
-        // Invalidate and refresh data for this date/driver
-        invalidate('Delivery');
-        if (triggerFullDataLoadRef.current) {
-          triggerFullDataLoadRef.current(true);
+      const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries } = event.detail || {};
+      // Skip full reload for events that already contain fresh data - prevents double-load on refresh
+      const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate'];
+      if (skipReloadTriggers.includes(triggeredBy)) {
+        if (freshDeliveries?.length > 0) {
+          setDeliveries((prev) => { const map = new Map(prev.map((d) => [d?.id, d]).filter(([id]) => !!id)); freshDeliveries.forEach((d) => { if (d?.id) map.set(d.id, d); }); return Array.from(map.values()); });
         }
-      } else if (deliveryId) {
-        // Single delivery update - fetch fresh data
-        invalidate('Delivery');
-        if (triggerFullDataLoadRef.current) {
-          triggerFullDataLoadRef.current(true);
-        }
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers } }));
+        return;
       }
-
-      // CRITICAL: Immediately dispatch driverLocationsUpdated with current appUsers
-      // This ensures map markers update without waiting for next smart refresh cycle
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: { appUsers }
-      }));
-
-      // COD data will refresh via real-time sync events only
+      console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy})`);
+      if (deliveryDate && driverId) {
+        invalidate('Delivery');
+        if (triggerFullDataLoadRef.current) triggerFullDataLoadRef.current(true);
+      } else if (deliveryId) {
+        invalidate('Delivery');
+        if (triggerFullDataLoadRef.current) triggerFullDataLoadRef.current(true);
+      }
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers } }));
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
