@@ -75,6 +75,34 @@ export async function syncDriverRoutePolylinesForDate(driverId, deliveryDate, fo
   return promise;
 }
 
+const pendingPolylinePayloads = [];
+let polylinePersistTimer = null;
+
+async function flushPolylinePersists() {
+  if (pendingPolylinePayloads.length === 0) return;
+  const payloads = [...pendingPolylinePayloads];
+  pendingPolylinePayloads.length = 0;
+  
+  try {
+    // Deduplicate payloads by segment
+    const uniquePayloadsMap = new Map();
+    for (const p of payloads) {
+      const key = `${p.driver_id}_${p.delivery_date}_${p.segment_origin_lat}_${p.segment_origin_lon}_${p.segment_dest_lat}_${p.segment_dest_lon}`;
+      uniquePayloadsMap.set(key, p);
+    }
+    const uniquePayloads = Array.from(uniquePayloadsMap.values());
+    
+    if (uniquePayloads.length > 0) {
+      const created = await base44.entities.DriverRoutePolyline.bulkCreate(uniquePayloads);
+      if (Array.isArray(created) && created.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, created);
+      }
+    }
+  } catch (err) {
+    console.warn('[HERE][client] Bulk persist failed', err);
+  }
+}
+
 async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, metadata = {}) {
   if (!driverId || !deliveryDate || !Array.isArray(coords) || coords.length < 2) return null;
 
@@ -91,20 +119,15 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
     last_generated_at: new Date().toISOString()
   };
 
-  const existing = await base44.entities.DriverRoutePolyline.filter({
-    driver_id: driverId,
-    delivery_date: deliveryDate,
-    segment_origin_lat: payload.segment_origin_lat,
-    segment_origin_lon: payload.segment_origin_lon,
-    segment_dest_lat: payload.segment_dest_lat,
-    segment_dest_lon: payload.segment_dest_lon
-  }, '-updated_date', 1);
-
-  const savedRecord = Array.isArray(existing) && existing[0]
-    ? await base44.entities.DriverRoutePolyline.update(existing[0].id, payload)
-    : await base44.entities.DriverRoutePolyline.create(payload);
-
-  await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [savedRecord]);
+  // Save to offline DB immediately for local use
+  const tempRecord = {
+    ...payload,
+    id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    created_date: new Date().toISOString(),
+    updated_date: new Date().toISOString()
+  };
+  
+  await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [tempRecord]);
   await offlineDB.deduplicateDriverRoutePolylines(deliveryDate);
   polylineDateSyncCache.set(buildDriverDateKey(driverId, deliveryDate), Date.now());
 
@@ -118,7 +141,31 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
     }));
   } catch (_) {}
 
-  return savedRecord;
+  // Check if we already have a real backend record for this segment in offlineDB
+  try {
+    const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
+    const existing = (rows || []).filter(r => 
+      r.driver_id === driverId &&
+      r.segment_origin_lat === payload.segment_origin_lat &&
+      r.segment_origin_lon === payload.segment_origin_lon &&
+      r.segment_dest_lat === payload.segment_dest_lat &&
+      r.segment_dest_lon === payload.segment_dest_lon &&
+      r.id && !r.id.startsWith('temp_')
+    );
+
+    if (existing.length === 0) {
+      pendingPolylinePayloads.push(payload);
+      if (polylinePersistTimer) clearTimeout(polylinePersistTimer);
+      polylinePersistTimer = setTimeout(flushPolylinePersists, 2000);
+    }
+  } catch (err) {
+    // Fallback to queueing if offlineDB read fails
+    pendingPolylinePayloads.push(payload);
+    if (polylinePersistTimer) clearTimeout(polylinePersistTimer);
+    polylinePersistTimer = setTimeout(flushPolylinePersists, 2000);
+  }
+
+  return tempRecord;
 }
 
 function findLatestExactOfflineSegment(rows, fromStop, toStop) {
