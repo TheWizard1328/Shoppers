@@ -73,9 +73,7 @@ export default function ResetPolylinesButton({
         await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // 2. Clear all polylines now that order is corrected
-      await Promise.all(driverIds.map((driverId) => clearHereCacheForDriverDate(driverId, selectedDate)));
-      await clearFinishedLegPolylinesLocal();
+      // 2. Clear polylines from UI only (do not delete from DB)
       clearPolylineCache();
       window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
         detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
