@@ -52,13 +52,9 @@ import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } 
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
 import { createPatientFromDraft, resolvePickupPuid } from './deliveryAddHelpers';
+import { useConfirmDelete } from './useConfirmDelete';
 
-const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
-  <div className="flex items-center space-x-2">
-    <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
-    <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label>
-  </div>
-);
+const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label></div>);
 
 const statusColorMap = { 'Staged': 'text-purple-700 bg-purple-100 border-purple-200', 'pending': 'text-slate-500 bg-slate-100 border-slate-200', 'Ready For Pickup': 'text-amber-700 bg-amber-100 border-amber-200', 'in_transit': 'text-blue-700 bg-blue-100 border-blue-100', 'completed': 'text-emerald-700 bg-emerald-100 border-emerald-200', 'failed': 'text-red-700 bg-red-100 border-red-200', 'cancelled': 'text-red-700 bg-red-100 border-red-200', 'en_route': 'text-blue-700 bg-blue-100 border-blue-100', 'returned': 'text-red-700 bg-red-100 border-red-200' };
 const getStatusColorClass = (status) => statusColorMap[status] || 'text-slate-700 bg-slate-100 border-slate-200';
@@ -2222,38 +2218,7 @@ export default function DeliveryForm({
   }, [projectedDeliveries, allDeliveries, stores, formData.driver_id, formData.delivery_date]);
 
 
-  const handleConfirmDelete = useCallback(async () => {
-    const staged = deleteConfirmation.staged;
-    if (!staged?.id) return;
-    setIsDeletingPending(true);
-    try {
-      if (!staged.patient_id && deleteConfirmation.transferPickupId) {
-        const linkedStops = sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === staged.stop_id);
-        if (linkedStops.length) {
-          const targetPickup = sortedStagedDeliveries.find((s) => s.id === deleteConfirmation.transferPickupId);
-          if (!targetPickup) throw new Error('Target pickup not found');
-          const targetPickupTR = parseInt(targetPickup.tracking_number, 10) || 0;
-          const existingTargetStops = sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === targetPickup.stop_id).length;
-          for (let i = 0; i < linkedStops.length; i += 1) await updateDeliveryLocal(linkedStops[i].id, { puid: targetPickup.stop_id, tracking_number: String(targetPickupTR + existingTargetStops + i + 1), store_id: targetPickup.store_id, ampm_deliveries: targetPickup.ampm_deliveries });
-        }
-      }
-      await deleteDeliveryLocal(staged.id);
-      if (staged.driver_id && staged.delivery_date) { const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager'); await recalculateAndUpdateStopOrders(staged.driver_id, staged.delivery_date); } if (staged.driver_id && staged.delivery_date && !['completed', 'failed', 'cancelled', 'returned'].includes(staged.status)) await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: staged.driver_id, deliveryDate: staged.delivery_date, scope: 'active_only' });
-      const { invalidate } = await import('../utils/dataManager');
-      invalidate('Delivery');
-      setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
-      const remainingStagedIds = new Set(stagedDeliveries.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId).map((d) => d.patient_id).filter(Boolean));
-      setProjectedDeliveries(fullPredictionListRef.current.filter((pred) => !remainingStagedIds.has(pred.patient_id) && !(allDeliveries || []).some((d) => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id)));
-      setHasChanges(true);
-      setHasPendingDeletes(true);
-      if (editingStagedId === staged._tempId) { setEditingStagedId(null); handleClearForm(); }
-      setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
-    } catch (err) {
-      setError(`Failed: ${err.message}`);
-    } finally {
-      setIsDeletingPending(false);
-    }
-  }, [deleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm]);
+  const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending });
 
   return (
     <DeliveryFormView
