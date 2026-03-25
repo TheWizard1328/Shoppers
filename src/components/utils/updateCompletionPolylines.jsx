@@ -53,15 +53,14 @@ export async function updateCompletionPolylines({
     // 2. Generate and update Type 1 polyline for new next delivery
     if (nextDelivery) {
       try {
-        const originLat = completedDelivery?.latitude || 
-                         (completedDelivery?.patient_id ? 
-                          patients?.find(p => p?.id === completedDelivery.patient_id)?.latitude : 
-                          stores?.find(s => s?.id === completedDelivery.store_id)?.latitude);
+        // Get origin from completed delivery's patient or store address
+        const originPatient = completedDelivery?.patient_id ? 
+                              patients?.find(p => p?.id === completedDelivery.patient_id) : null;
+        const originStore = !originPatient ? 
+                           stores?.find(s => s?.id === completedDelivery.store_id) : null;
         
-        const originLon = completedDelivery?.longitude || 
-                         (completedDelivery?.patient_id ? 
-                          patients?.find(p => p?.id === completedDelivery.patient_id)?.longitude : 
-                          stores?.find(s => s?.id === completedDelivery.store_id)?.longitude);
+        const originLat = originPatient?.latitude || originStore?.latitude;
+        const originLon = originPatient?.longitude || originStore?.longitude;
 
         const destLat = nextDelivery?.patient_id ? 
                        patients?.find(p => p?.id === nextDelivery.patient_id)?.latitude :
