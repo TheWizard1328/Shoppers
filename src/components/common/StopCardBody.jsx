@@ -281,8 +281,8 @@ export default function StopCardBody({
                     )}
                     </div>
 
-              {/* Show pending pickup list when pickup is en_route (active) */}
-              {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
+              {/* Show pending pickup list when pickup is en_route (active), not past dates */}
+              {!isFinishedDelivery && !isPastDeliveryDate && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
             <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
