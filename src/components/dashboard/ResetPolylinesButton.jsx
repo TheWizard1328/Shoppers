@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { clearHereCacheForDriverDate } from "@/components/utils/hereRouting";
 import { offlineDB } from "@/components/utils/offlineDatabase";
-import { updateDeliveryLocal, pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
+import { updateDeliveryLocal } from "@/components/utils/offlineMutations";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { recalculateAndUpdateStopOrders } from "@/components/utils/stopOrderManager";
 import { Loader2, RotateCcw } from "lucide-react";
