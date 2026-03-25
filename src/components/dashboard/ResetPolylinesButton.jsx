@@ -39,15 +39,15 @@ export default function ResetPolylinesButton({
       delivery.finished_leg_encoded_polyline.trim().length > 0
     );
 
-    await Promise.all(
-      matches.map((delivery) =>
-        updateDeliveryLocal(
-          delivery.id,
-          { finished_leg_encoded_polyline: "" },
-          { skipSmartRefresh: true, isBatchOperation: true }
-        )
-      )
-    );
+    // Process sequentially to avoid rate limits and ensure backend is updated
+    for (const delivery of matches) {
+      await updateDeliveryLocal(
+        delivery.id,
+        { finished_leg_encoded_polyline: "" },
+        { skipSmartRefresh: true, isBatchOperation: false }
+      );
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
   };
 
   const syncDriverDateDeliveriesFromBackend = async (successfulDriverIds) => {
