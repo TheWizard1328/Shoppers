@@ -149,78 +149,27 @@ export default function DeliveryMarkers({
                     driverGroups.find(g => g.driverId === driverId).stops.push(m);
                   });
 
-                  return driverGroups.map((group, groupIndex) => {
-                    // Group stops by store within this driver
-                    const storeGroups = [];
-                    const seenStoreIds = [];
-                    group.stops.forEach((m) => {
-                      const storeId = m.store?.id || m.store_id || 'unknown';
-                      if (!seenStoreIds.includes(storeId)) {
-                        seenStoreIds.push(storeId);
-                        storeGroups.push({ storeId, store: m.store, stops: [] });
-                      }
-                      storeGroups.find(g => g.storeId === storeId).stops.push(m);
-                    });
-
-                    return (
-                      <div key={`driver-group-${group.driverId}`}>
-                        {groupIndex > 0 && <div className="border-t my-2" style={{ borderColor: 'var(--border-slate-200)' }} />}
-                        {/* Driver name — once per driver */}
-                        <div className="flex items-center gap-1.5 text-xs font-semibold mb-1.5" style={{ color: 'var(--text-slate-900)' }}>
-                          <Truck className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{group.driver?.user_name || group.driver?.full_name || 'Unknown Driver'}</span>
+                  return driverGroups.map((group, groupIndex) => (
+                    <div key={`driver-group-${group.driverId}`}>
+                      {groupIndex > 0 && <div className="border-t my-2" style={{ borderColor: 'var(--border-slate-200)' }} />}
+                      {group.stops.map((m) => (
+                        <div key={`ci-${m.id}`} className="py-1.5 border-b last:border-0" style={{ borderColor: 'var(--border-slate-200)' }}>
+                          <MarkerInfoBalloon
+                            delivery={m}
+                            store={m.store}
+                            patient={m.patient}
+                            driver={m.driver}
+                            isPickup={m.markerType === 'pickup'}
+                            compact
+                            onClick={() => {
+                              document.querySelectorAll('.leaflet-popup').forEach((p) => p.remove());
+                              document.getElementById(`stop-card-${m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                            }}
+                          />
                         </div>
-                        {storeGroups.map((sg) => {
-                          const FINISHED = ['completed', 'failed', 'cancelled', 'returned'];
-                          return (
-                            <div key={`store-group-${sg.storeId}`} className="mb-1.5">
-                              {/* Store name */}
-                              <div className="flex items-center gap-1.5 text-[11px] mb-1" style={{ color: 'var(--text-slate-600)' }}>
-                                <Home className="w-3.5 h-3.5 flex-shrink-0" />
-                                <span>{sg.store?.name || 'Store'}</span>
-                              </div>
-                              {/* Stops for this store */}
-                              {sg.stops.map((m) => {
-                                const isFinished = FINISHED.includes(m.status);
-                                const patientLabel = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
-                                const stopNum = m.number || m.stop_order || '?';
-                                const timeLabel = isFinished
-                                  ? m.actual_delivery_time ? new Date(m.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : null
-                                  : m.delivery_time_eta || null;
-                                const timeColor = isFinished
-                                  ? m.status === 'completed' ? 'text-emerald-600' : 'text-red-600'
-                                  : '';
-
-                                return (
-                                  <div
-                                    key={`ci-${m.id}`}
-                                    className="flex items-center justify-between gap-2 text-[11px] py-0.5 cursor-pointer hover:bg-slate-50 rounded px-1 -mx-1"
-                                    style={{ color: 'var(--text-slate-900)' }}
-                                    onClick={() => {
-                                      document.querySelectorAll('.leaflet-popup').forEach((p) => p.remove());
-                                      document.getElementById(`stop-card-${m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                    }}
-                                  >
-                                    <div className="flex min-w-0 items-center gap-1.5">
-                                      <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }} />
-                                      <span className="truncate">{patientLabel}</span>
-                                      <span className="shrink-0 font-medium" style={{ color: 'var(--text-slate-500)' }}>#{stopNum}</span>
-                                    </div>
-                                    {timeLabel && (
-                                      <div className={`shrink-0 flex items-center gap-1 ${timeColor}`}>
-                                        <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                                        <span>{timeLabel}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  });
+                      ))}
+                    </div>
+                  ));
                 })()}
               </div>
             </Popup>
