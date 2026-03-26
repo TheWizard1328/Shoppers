@@ -10,9 +10,10 @@ import {
   DialogHeader,
   DialogTitle } from
 "@/components/ui/dialog";
-import { Loader2, Plus, Trash2, FileText } from "lucide-react";
+import { Loader2, Plus, Trash2, FileText, Calendar } from "lucide-react";
 import { useUser } from "@/components/utils/UserContext";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
+import { format, subDays } from "date-fns";
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const normalizeEmail = (value) => value.trim().toLowerCase();
@@ -33,6 +34,10 @@ export default function ExportRouteEmailDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [testingEmail, setTestingEmail] = useState("");
   const [appSettingsId, setAppSettingsId] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [allDeliveries, setAllDeliveries] = useState([]);
+  const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
+  const [isExportEnabled, setIsExportEnabled] = useState(false);
 
   const storeIdsKey = useMemo(() => storeIds.join(","), [storeIds]);
 
@@ -41,11 +46,13 @@ export default function ExportRouteEmailDialog({
 
     let isActive = true;
     setIsLoading(true);
+    setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
 
     Promise.all([
     base44.entities.Store.list(),
-    base44.entities.AppSettings.filter({ setting_key: 'route_export_testing_email' })]
-    ).then(([allStores, settings]) => {
+    base44.entities.AppSettings.filter({ setting_key: 'route_export_testing_email' }),
+    base44.entities.Delivery.list()]
+    ).then(([allStores, settings, deliveries]) => {
       if (!isActive) return;
 
       const selectedStores = (allStores || []).filter((store) => storeIds.includes(store.id));
@@ -58,6 +65,7 @@ export default function ExportRouteEmailDialog({
       setStores(selectedStores);
       setEmailDrafts(drafts);
       setPendingEmails({});
+      setAllDeliveries(deliveries || []);
 
       if (settings && settings.length > 0) {
         setTestingEmail(settings[0].setting_value?.email || "");
@@ -74,6 +82,61 @@ export default function ExportRouteEmailDialog({
       isActive = false;
     };
   }, [open, storeIdsKey]);
+
+  // Check completion status and find default date
+  useEffect(() => {
+    if (!open || isLoading || allDeliveries.length === 0) return;
+
+    setIsCheckingCompletion(true);
+    const isOwner = isAppOwner(currentUser);
+    let today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Try today first, then search backwards for first date with all stops finished
+    for (let i = 0; i < 365; i++) {
+      const checkDate = subDays(today, i);
+      const checkDateStr = format(checkDate, 'yyyy-MM-dd');
+      
+      const relevantDeliveries = isOwner
+        ? allDeliveries.filter((d) => d && d.delivery_date === checkDateStr)
+        : allDeliveries.filter((d) => 
+            d && d.delivery_date === checkDateStr && 
+            currentUser?.store_ids?.includes(d.store_id)
+          );
+
+      if (relevantDeliveries.length > 0) {
+        const allFinished = relevantDeliveries.every((d) => 
+          ['completed', 'failed', 'cancelled'].includes(d?.status)
+        );
+
+        if (allFinished) {
+          setSelectedDate(checkDateStr);
+          setIsExportEnabled(true);
+          setIsCheckingCompletion(false);
+          return;
+        }
+      }
+    }
+
+    setIsCheckingCompletion(false);
+    setIsExportEnabled(false);
+  }, [open, isLoading, allDeliveries, currentUser]);
+
+  // Check if selected date is valid for export
+  const checkDateCompletion = (dateStr) => {
+    const isOwner = isAppOwner(currentUser);
+    const relevantDeliveries = isOwner
+      ? allDeliveries.filter((d) => d && d.delivery_date === dateStr)
+      : allDeliveries.filter((d) => 
+          d && d.delivery_date === dateStr && 
+          currentUser?.store_ids?.includes(d.store_id)
+        );
+
+    if (relevantDeliveries.length === 0) return false;
+    return relevantDeliveries.every((d) => 
+      ['completed', 'failed', 'cancelled'].includes(d?.status)
+    );
+  };
 
   const addEmail = (storeId) => {
     const nextEmail = normalizeEmail(pendingEmails[storeId] || "");
@@ -150,7 +213,7 @@ export default function ExportRouteEmailDialog({
     const recipientEmails = [...new Set(allRecipientEmails)];
 
     onOpenChange(false);
-    await onExportRoute({ recipientEmails, perStoreEmails });
+    await onExportRoute({ recipientEmails, perStoreEmails, exportDate: selectedDate });
   };
 
   return (
@@ -160,11 +223,31 @@ export default function ExportRouteEmailDialog({
       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
 
         <DialogHeader>
-          <DialogTitle>Route export emails</DialogTitle>
+          <DialogTitle>Route export</DialogTitle>
           <DialogDescription>
-            Review, add, or remove store email addresses before exporting the route log by email.
+            Select a date and review email addresses for the route export.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-1 mt-2">
+          <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+            Export Date
+          </label>
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-slate-500" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              disabled={isLoading || isCheckingCompletion}
+              className="flex-1 px-3 py-2 rounded-md border text-sm"
+              style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
+            />
+          </div>
+          {!checkDateCompletion(selectedDate) && (
+            <p className="text-xs" style={{ color: '#dc2626' }}>Not all stops for the selected date are finished.</p>
+          )}
+        </div>
 
         {(isAppOwner(currentUser) || userHasRole(currentUser, 'admin')) && (
           <div className="space-y-1 mt-2 mb-4">
@@ -301,7 +384,9 @@ export default function ExportRouteEmailDialog({
             isLoading ||
             isSaving ||
             isExporting ||
+            isCheckingCompletion ||
             stores.length === 0 ||
+            !checkDateCompletion(selectedDate) ||
             !stores.some((store) => (emailDrafts[store.id] || []).length > 0) && !isValidEmail(testingEmail) ||
             testingEmail && !isValidEmail(testingEmail)
             }>
