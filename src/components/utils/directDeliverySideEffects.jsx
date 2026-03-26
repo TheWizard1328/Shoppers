@@ -62,6 +62,24 @@ export const triggerPickupCompletionSync = ({ delivery, previousStatus }) => {
 
 export const runTerminalDeliverySideEffects = ({ delivery, previousStatus, nextStatus, overrides = {} }) => {
   const nextDelivery = { ...delivery, ...overrides, status: nextStatus };
+
+  // If no arrival_time recorded, synthesize one as 1 minute before actual_delivery_time
+  if (!nextDelivery.arrival_time && nextDelivery.actual_delivery_time) {
+    try {
+      const actualTime = new Date(nextDelivery.actual_delivery_time);
+      if (!isNaN(actualTime.getTime())) {
+        const syntheticArrival = new Date(actualTime.getTime() - 60000);
+        const pad = (n) => String(n).padStart(2, '0');
+        // Store as local time string matching the same format as actual_delivery_time (YYYY-MM-DDTHH:MM:SS)
+        nextDelivery.arrival_time = `${syntheticArrival.getFullYear()}-${pad(syntheticArrival.getMonth() + 1)}-${pad(syntheticArrival.getDate())}T${pad(syntheticArrival.getHours())}:${pad(syntheticArrival.getMinutes())}:${pad(syntheticArrival.getSeconds())}`;
+        setTimeout(() => {
+          base44.entities.Delivery.update(nextDelivery.id, { arrival_time: nextDelivery.arrival_time })
+            .catch((err) => console.warn('⚠️ [SideEffects] Failed to save synthetic arrival_time:', err?.message || err));
+        }, 0);
+      }
+    } catch (_) {}
+  }
+
   triggerPatientLastDeliverySync({ delivery: nextDelivery, previousStatus });
   triggerPickupCompletionSync({ delivery: nextDelivery, previousStatus });
   triggerSquareCodDelete({ deliveryId: nextDelivery.id, nextStatus, delivery: nextDelivery });
