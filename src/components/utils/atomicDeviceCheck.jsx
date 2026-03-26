@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { getBootstrapManifest } from '@/functions/getBootstrapManifest';
+import { base44 } from '@/api/base44Client';
 import { requestThrottler } from './requestThrottler';
 
 /**
@@ -16,11 +16,11 @@ export const performAtomicDeviceCheck = async (deviceIdentifier) => {
     if (cachedRegistration === 'true') {
       try {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const manifestResponse = await requestThrottler.queue(
-          () => getBootstrapManifest({ deviceIdentifier, todayStr }),
-          'critical',
-          'verifyDeviceRegistration'
-        );
+         const manifestResponse = await requestThrottler.queue(
+           () => base44.functions.invoke('getBootstrapManifest', { deviceIdentifier, todayStr }),
+           'critical',
+           'verifyDeviceRegistration'
+         );
         
         const manifest = manifestResponse?.data || manifestResponse || {};
         
@@ -40,12 +40,12 @@ export const performAtomicDeviceCheck = async (deviceIdentifier) => {
     }
     
     // Not cached - need to get fresh status from backend
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const manifestResponse = await requestThrottler.queue(
-      () => getBootstrapManifest({ deviceIdentifier, todayStr }),
-      'critical',
-      'getBootstrapManifest'
-    );
+     const todayStr = format(new Date(), 'yyyy-MM-dd');
+     const manifestResponse = await requestThrottler.queue(
+       () => base44.functions.invoke('getBootstrapManifest', { deviceIdentifier, todayStr }),
+       'critical',
+       'getBootstrapManifest'
+     );
     
     const manifest = manifestResponse?.data || manifestResponse || {};
     

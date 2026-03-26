@@ -110,7 +110,7 @@ import WebSocketDiagnosticsCard from './components/layout/WebSocketDiagnosticsCa
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import MobileOverlayBackHandler from './components/layout/MobileOverlayBackHandler';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
-import { getBootstrapManifest } from '@/functions/getBootstrapManifest';
+
 
 
 // App version will be loaded from AppSettings
@@ -540,7 +540,7 @@ export default function Layout({ children, currentPageName }) {
         const cachedReg = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
         let manifest = {}, isDeviceRegistered = false;
         try {
-          const mr = await requestThrottler.queue(()=>getBootstrapManifest({deviceIdentifier,todayStr}),'critical','getBootstrapManifest');
+          const mr = await requestThrottler.queue(()=>base44.functions.invoke('getBootstrapManifest',{deviceIdentifier,todayStr}),'critical','getBootstrapManifest');
           manifest = mr?.data||mr||{};
           isDeviceRegistered = manifest.deviceRegistered===true;
         } catch(e) { if(cachedReg==='true'){isDeviceRegistered=true;}else throw e; }
