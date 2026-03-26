@@ -346,25 +346,25 @@ export default function ExportRouteEmailDialog({
 
               style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
 
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
                     <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{store.name}</h3>
-                    {driverNamesByStore[store.id] && driverNamesByStore[store.id].length > 0 && (
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {driverNamesByStore[store.id].map((driverName, idx) => (
-                          <React.Fragment key={driverName}>
-                            {idx > 0 && <span className="text-slate-400 text-xs">•</span>}
-                            <span
-                              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                              style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-                              {driverName}
-                            </span>
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    )}
+                    <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>{store.address}</p>
                   </div>
-                  <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>{store.address}</p>
+                  {driverNamesByStore[store.id] && driverNamesByStore[store.id].length > 0 && (
+                    <div className="flex items-center gap-1 flex-wrap shrink-0">
+                      {driverNamesByStore[store.id].map((driverName, idx) => (
+                        <React.Fragment key={driverName}>
+                          {idx > 0 && <span className="text-slate-400 text-xs">•</span>}
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                            style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                            {driverName}
+                          </span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
