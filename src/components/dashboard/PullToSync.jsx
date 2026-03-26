@@ -87,6 +87,7 @@ export default function PullToSync({
         : {};
 
       // ─── STEP 1: Fetch deliveries for selected driver + date ───────────────
+      window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
       const freshDeliveries = await base44.entities.Delivery.filter({ 
         delivery_date: selectedDateStr,
         ...driverFilter
@@ -146,7 +147,7 @@ export default function PullToSync({
         offlineDB.getAll(offlineDB.STORES.STORES)
       ]);
 
-      // Dispatch UI update with fresh data — releases UI to user
+      // Dispatch one final UI update with the full synced dataset
       window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
         detail: { 
           deliveryDate: selectedDateStr,
@@ -155,7 +156,8 @@ export default function PullToSync({
           cities: freshCities,
           stores: freshStores,
           patients: freshPatients,
-          triggeredBy: 'pullToSync'
+          triggeredBy: 'pullToSync',
+          batchedUiUpdate: true
         }
       }));
 
@@ -165,7 +167,7 @@ export default function PullToSync({
 
       // Mark UI sync complete + release overlay
       try { window.__dashboardSyncing = false; } catch (e) {}
-      window.dispatchEvent(new CustomEvent('pullToSyncComplete'));
+      window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { batchedUiUpdate: true } }));
 
       if (!silent) {
         toast.success('Data synced', {
