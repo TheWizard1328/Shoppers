@@ -830,7 +830,7 @@ export default function DeliveryMap({
           onMarkerClick?.(targetStop, markerType);
         }
         panToMarkerOffset(marker.latitude, marker.longitude);
-        setFannedLocationKey(locationKey);
+        setTimeout(() => setFannedLocationKey(locationKey), 550);
         return;
       }
 
