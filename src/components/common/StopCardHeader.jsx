@@ -79,6 +79,7 @@ export default function StopCardHeader({
   }, [delivery]);
 
   const isFinished = FINISHED_STATUSES.includes(delivery?.status);
+  const showReturnStyling = isReturnDelivery && isFinished;
   const etaTrend = !isFinished ? getEtaTrendForDelivery(delivery?.id) : null;
   const timeColor = etaTrend?.trend === 'improved' ?
   '#16a34a' :
@@ -106,8 +107,8 @@ export default function StopCardHeader({
     return <span className="text-sm font-bold">ETA: {formatTime12Hour(eta)}</span>;
   })();
 
-  const statusLabel = isReturnDelivery ? "Return" : statusConfig[delivery?.status]?.label || delivery?.status;
-  const statusBgClass = isReturnDelivery ?
+  const statusLabel = showReturnStyling ? "Return" : statusConfig[delivery?.status]?.label || delivery?.status;
+  const statusBgClass = showReturnStyling ?
   "bg-orange-500" :
   delivery?.status === "failed" || delivery?.status === "cancelled" ? "bg-red-500" : "bg-emerald-500";
 
@@ -210,7 +211,7 @@ export default function StopCardHeader({
         <div className="flex items-center gap-1">
           <Badge
             variant="secondary"
-            data-stop-status={isReturnDelivery ? "returned" : delivery?.status || "unknown"}
+            data-stop-status={showReturnStyling ? "returned" : delivery?.status || "unknown"}
             data-stop-kind={isPickup ? "pickup" : "delivery"}
             className={`text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full ${statusBgClass}`}
             style={{ color: isPickup && delivery?.after_hours_pickup && isFinished ? "#3b82f6" : "white" }}>
