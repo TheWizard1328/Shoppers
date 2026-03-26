@@ -23,7 +23,7 @@ export function useDeliveryDisplayInfo({
       return delivery.patient_name || patient?.full_name || `${store?.name || 'Unknown Store'} Pickup`;
     }
     if (isPickup) return `${store?.name || 'Unknown Store'} Pickup`;
-    return patient?.full_name || 'Unknown';
+    return delivery.patient_name || patient?.full_name || 'Unknown';
   }, [delivery, isPickup, isInterStorePickup, store, patient]);
 
   const displayAddress = useMemo(() => {
@@ -54,30 +54,30 @@ export function useDeliveryDisplayInfo({
 
   const finalDisplayName = useMemo(() => {
     if (isInterStore || isInterStorePickup) return displayName;
-    if (isStrippedDelivery && !shouldRedact) {
+    if (isStrippedForDispatcher && !shouldRedact) {
       if (store?.name) return `${store.name} ${isPickup ? 'Pickup' : 'Delivery'}`;
       return isPickup ? 'Other Store Pickup' : 'Other Store Delivery';
     }
     if (!shouldRedact) return displayName;
     const firstName = patient?.full_name?.split(' ')[0] || '';
     return firstName + ' *****';
-  }, [isStrippedDelivery, shouldRedact, displayName, patient, isPickup, store, isInterStore, isInterStorePickup]);
+  }, [isStrippedForDispatcher, shouldRedact, displayName, patient, isPickup, store, isInterStore, isInterStorePickup]);
 
   const finalDisplayAddress = useMemo(() => {
     if (isInterStore || isInterStorePickup) return displayAddress;
-    if (isStrippedDelivery) return '';
+    if (isStrippedForDispatcher) return '';
     if (!shouldRedact) return displayAddress;
     const firstPart = displayAddress?.split(' ')[0] || '';
     return firstPart + ' *****';
-  }, [isStrippedDelivery, shouldRedact, displayAddress, isInterStore, isInterStorePickup]);
+  }, [isStrippedForDispatcher, shouldRedact, displayAddress, isInterStore, isInterStorePickup]);
 
   const finalDisplayPhone = useMemo(() => {
     if (isInterStore || isInterStorePickup) return displayPhone;
-    if (isStrippedDelivery) return null;
+    if (isStrippedForDispatcher) return null;
     if (!shouldRedact) return displayPhone;
     if (!displayPhone) return null;
     return `(***) ***-${displayPhone.replace(/\D/g, '').slice(-4)}`;
-  }, [isStrippedDelivery, shouldRedact, displayPhone, isInterStore, isInterStorePickup]);
+  }, [isStrippedForDispatcher, shouldRedact, displayPhone, isInterStore, isInterStorePickup]);
 
   return {
     displayName,
