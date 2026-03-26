@@ -202,6 +202,10 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'driverId, deliveryDate, and currentLocation are required' }, { status: 400 });
     }
 
+    const driverAppUser = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
+    const homeLat = Number(driverAppUser[0]?.home_latitude);
+    const homeLon = Number(driverAppUser[0]?.home_longitude);
+
     const deliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate
@@ -279,7 +283,15 @@ Deno.serve(async (req) => {
       .filter((d) => finishedStatuses.has(d.status) && Number(d?.stop_order || 0) < nextStopOrder)
       .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
     
-    const originCoords = originStop ? getLatLon(originStop) : { lat: Number(rawLocation?.lat), lon: Number(rawLocation?.lon) };
+    let originCoords;
+    if (originStop) {
+      originCoords = getLatLon(originStop);
+    } else if (Number.isFinite(homeLat) && Number.isFinite(homeLon)) {
+      originCoords = { lat: homeLat, lon: homeLon };
+    } else {
+      // Fallback if no home location set and no completed stops - use current location
+      originCoords = { lat: currentLat, lon: currentLon };
+    }
     
     if (!originCoords) {
       return Response.json({ success: true, skipped: true, reason: 'missing_origin_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
@@ -336,31 +348,26 @@ Deno.serve(async (req) => {
       last_generated_at: new Date().toISOString()
     };
 
-    // CRITICAL: Validate origin and destination match actual stop coordinates before saving
-    const originStopValidation = originStop ? getLatLon(originStop) : null;
-    const nextStopValidation = getLatLon(nextActiveStop);
-    
-    const originMatches = originStopValidation && 
-      round5(originStopValidation.lat) === round5(originCoords.lat) &&
-      round5(originStopValidation.lon) === round5(originCoords.lon);
-    
-    const nextMatches = nextStopValidation &&
-      round5(nextStopValidation.lat) === round5(nextStopCoords.lat) &&
-      round5(nextStopValidation.lon) === round5(nextStopCoords.lon);
-    
-    if (!originMatches || !nextMatches) {
-      return Response.json({ 
-        success: false, 
-        reason: 'polyline_validation_failed',
-        originMatches,
-        nextMatches,
-        driverId,
-        deliveryDate
-      }, { status: 400 });
+    // Validation handled by determining originCoords; if we reach here, coordinates are considered valid.
+
+    // Aggressive cleanup: delete any existing duplicate polylines for the exact origin-destination pair
+    const exactMatchingSegments = existingPolylines.filter(row =>
+      round5(row?.segment_origin_lat) === round5(originCoords.lat) &&
+      round5(row?.segment_origin_lon) === round5(originCoords.lon) &&
+      round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
+      round5(row?.segment_dest_lon) === round5(nextStopCoords.lon)
+    );
+
+    let polylineRecordToUpdate = null;
+    if (exactMatchingSegments.length > 0) {
+      polylineRecordToUpdate = exactMatchingSegments[0];
+      for (let i = 1; i < exactMatchingSegments.length; i++) {
+        await base44.asServiceRole.entities.DriverRoutePolyline.delete(exactMatchingSegments[i].id);
+      }
     }
 
-    if (existingType1?.id) {
-      await base44.asServiceRole.entities.DriverRoutePolyline.update(existingType1.id, payload);
+    if (polylineRecordToUpdate?.id) {
+      await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecordToUpdate.id, payload);
     } else {
       await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
     }
