@@ -282,14 +282,13 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
   // === DRIVERS & ADMINS: Email store-specific route PDFs only ===
   if (isDriver || isAdmin) {
-    const btnDisabled = !dateStr || !isRouteComplete || driverFilter === 'all' || dayDeliveries.length === 0 || driverStoreIds.length === 0;
     return (
       <>
         <div className="my-2 w-full flex justify-center">
           <Button
             onClick={() => setIsEmailDialogOpen(true)}
             className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-            disabled={btnDisabled || isExporting}>
+            disabled={isExporting}>
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {isExporting ? 'Exporting...' : 'Export Route'}
           </Button>
@@ -308,21 +307,14 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
   // === DISPATCHERS ===
   if (isDispatcherOnly) {
-    const noDriver = false;
-    const noStoreDeliveries = dispatcherDayDeliveries.length === 0;
-    const qualifiedPeriod = amQualified ? 'AM' : 'PM';
-    const canPostRouteExport = isDispatcherRouteComplete && !noDriver && !noStoreDeliveries;
-    const canPreRouteExport = qualifiedCount > 0 && !noDriver;
-
-
     return (
       <>
         <div className="w-full flex justify-center">
           <Button
             onClick={() => setIsEmailDialogOpen(true)}
-            variant={isDispatcherRouteComplete ? 'default' : 'outline'}
-            className={isDispatcherRouteComplete ? 'bg-emerald-600 hover:bg-emerald-700 text-white gap-2' : 'gap-2 text-white bg-slate-900 hover:bg-slate-800'}
-            disabled={!canPostRouteExport && !canPreRouteExport || isExporting}>
+            variant="default"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            disabled={isExporting}>
 
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {isExporting ? 'Exporting...' : 'Export Route'}

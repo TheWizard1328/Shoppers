@@ -296,7 +296,7 @@ export default function ExportRouteEmailDialog({
           </div> :
 
         <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar pb-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className={`grid ${stores.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'} gap-2`}>
             {stores.map((store) =>
             <div
               key={store.id} className="px-3 py-3 rounded-xl border space-y-3 flex flex-col"
@@ -380,16 +380,7 @@ export default function ExportRouteEmailDialog({
           <Button
             type="button"
             onClick={handleExportRoute}
-            disabled={
-            isLoading ||
-            isSaving ||
-            isExporting ||
-            isCheckingCompletion ||
-            stores.length === 0 ||
-            !checkDateCompletion(selectedDate) ||
-            !stores.some((store) => (emailDrafts[store.id] || []).length > 0) && !isValidEmail(testingEmail) ||
-            testingEmail && !isValidEmail(testingEmail)
-            }>
+            disabled={isLoading || isSaving || isExporting}>
 
             {isSaving || isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
             Export Route
