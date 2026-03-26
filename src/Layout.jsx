@@ -527,235 +527,83 @@ export default function Layout({ children, currentPageName }) {
     return () => clearInterval(interval);
   }, [currentUser, adminImportEnabled]);
 
+  // ATOMIC INIT: Unified loading state - keeps spinner until device+auth+data confirmed
   useEffect(() => {
     const init = async () => {
       setIsLoadingLayout(true);
-
       try {
-        // CRITICAL: Step 1 - Detect device type FIRST
-        const detectedDeviceType = getDeviceType();
-        setDeviceTypeDetected(detectedDeviceType);
-
-        const fetchedUser = await requestThrottler.queue(
-          () => getEffectiveUser(),
-          'critical',
-          'getEffectiveUser'
-        );
-
-        if (!fetchedUser) {
-          setHasAccess(false);
-          setCurrentUser(null);
-          setIsLoadingLayout(false);
-          setDataLoaded(true);
-          return;
-        }
-
+        setDeviceTypeDetected(getDeviceType());
+        const fetchedUser = await requestThrottler.queue(()=>getEffectiveUser(),'critical','getEffectiveUser');
+        if (!fetchedUser) { setHasAccess(false);setCurrentUser(null);setIsLoadingLayout(false);setDataLoaded(true);return; }
         const deviceIdentifier = getDeviceIdentifier();
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const manifestResponse = await requestThrottler.queue(
-          () => getBootstrapManifest({ deviceIdentifier, todayStr }),
-          'critical',
-          'getBootstrapManifest'
-        );
-        const manifest = manifestResponse?.data || manifestResponse || {};
-
-        // CRITICAL: Step 2 - Check if device is registered (ALL USERS)
-        // Cache in localStorage (persists across refreshes) to avoid repeated checks
-        const cachedDeviceCheck = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
-        if (!cachedDeviceCheck && manifest.deviceRegistered !== true) {
-          console.log('📱 [Layout] Device not registered, showing registration options');
-          setCurrentUser(fetchedUser);setIsLoadingLayout(false);setDataLoaded(true);return;
-        }
-
-        localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
+        const todayStr = format(new Date(),'yyyy-MM-dd');
+        const cachedReg = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
+        let manifest = {}, isDeviceRegistered = false;
+        try {
+          const mr = await requestThrottler.queue(()=>getBootstrapManifest({deviceIdentifier,todayStr}),'critical','getBootstrapManifest');
+          manifest = mr?.data||mr||{};
+          isDeviceRegistered = manifest.deviceRegistered===true;
+        } catch(e) { if(cachedReg==='true'){isDeviceRegistered=true;}else throw e; }
+        // KEEP LOADING SPINNER while waiting for device registration
+        if (!isDeviceRegistered && cachedReg!=='true') { setCurrentUser(fetchedUser); return; }
+        localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`,'true');
         setDeviceRegistered(true);
-
-        // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
-        // Step 3 - Load user settings from local cache (no API call)
         try {
-          const settings = await requestThrottler.queue(
-            () => loadUserSettings(fetchedUser.id),
-            'critical',
-            'loadUserSettings'
-          );
-
-          // Apply sidebar width (device-specific, safe to use from settings)
-          if (settings.sidebar_width) {
-            setSidebarWidth(settings.sidebar_width);
-          }
-
-          // Apply theme preference (mobile phones only - desktops and tablets always light)
-          // CRITICAL: Check user agent for theme - only phones get theme options
-          const isMobilePhone = isMobileDeviceForTheme();
-          if (settings.theme_preference && isMobilePhone) {
-            setThemePreference(settings.theme_preference);
-          } else {
-            setThemePreference('light');
-          }
-
-          // Apply data source preference
-          if (settings.data_source) {
-            setDataSource(settings.data_source);
-          }
-
+          const s = await requestThrottler.queue(()=>loadUserSettings(fetchedUser.id),'critical','loadUserSettings');
+          if(s.sidebar_width) setSidebarWidth(s.sidebar_width);
+          if(s.theme_preference&&isMobileDeviceForTheme()) setThemePreference(s.theme_preference); else setThemePreference('light');
+          if(s.data_source) setDataSource(s.data_source);
           setUserSettingsLoaded(true);
-        } catch (settingsError) {
-          setUserSettingsLoaded(true);
-        }
-
-        // Initialize smart refresh and app settings from manifest
-        const manifestSettings = manifest.appSettings || {};
-        smartRefreshManager._enabled = manifestSettings.smartRefreshEnabled !== false;
+        } catch { setUserSettingsLoaded(true); }
+        const ms = manifest.appSettings||{};
+        smartRefreshManager._enabled = ms.smartRefreshEnabled!==false;
         smartRefreshManager._initialized = true;
-        if (manifestSettings.appVersion) {
-          const version = manifestSettings.appVersion;
-          setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
-        }
-        setAdminImportEnabled(manifestSettings.adminImportEnabled === true);
-        const isDispatcher = userHasRole(fetchedUser, 'dispatcher');const isInactive = fetchedUser.status === 'inactive';
-        if (isDispatcher && isInactive) {
-
-          sessionStorage.clear();
-          clearUserCache();
-          clearSettingsCache();
-
+        if(ms.appVersion){const v=ms.appVersion;setAppVersion(`v${v.major}.${v.minor}.${v.build}`);}
+        setAdminImportEnabled(ms.adminImportEnabled===true);
+        if(userHasRole(fetchedUser,'dispatcher')&&fetchedUser.status==='inactive'){
+          sessionStorage.clear();clearUserCache();clearSettingsCache();
           alert('Access Denied: Your account is currently inactive. Please contact an administrator.');
-
-          try {
-            await User.logout();
-          } catch (logoutError) {
-            console.error('Logout error:', logoutError);
-          }
-
-          window.location.href = '/';
-          return;
+          try{await User.logout();}catch(e){}
+          window.location.href='/';return;
         }
-
-        setCurrentUser(fetchedUser);
-        setHasAccess(true);
-
-        // Load company branding if user has company_id
-        if (fetchedUser?.company_id) {
-          try {
-            const companyBranding = await getCompanyBranding(fetchedUser.company_id);
-            setBranding(companyBranding);
-            applyBrandingStyles(companyBranding);
-          } catch (brandingError) {
-            console.warn('⚠️ [Layout] Branding fetch failed, using defaults:', brandingError);
-            // Continue with default branding - don't break initialization
-          }
-        }
-
-        const citiesData = Array.isArray(manifest.cities) ? [...manifest.cities] : [];
-        citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-        setCities(citiesData || []);
-
-        const storesData = Array.isArray(manifest.stores) ? [...manifest.stores] : [];
-        const allAppUsers = Array.isArray(manifest.appUsers) ? manifest.appUsers : [];
-        let initialCityId = null;
-
-        if (fetchedUser.city_id) {
-          const userCity = citiesData.find((c) => c && c.id === fetchedUser.city_id);
-
-          if (userCity) {
-            initialCityId = fetchedUser.city_id;
-          } else {
-            initialCityId = null;
-          }
-        }
-
-        if (userHasRole(fetchedUser, 'admin')) {
-          if (!initialCityId && citiesData.length > 0) {
-            initialCityId = citiesData[0].id;
-          }
-        }
-
-
-        if (!initialCityId) {
-          setShowCitySelectionPopup(true);
-          globalFilters.setSelectedCityId('waiting-for-selection');
-          setIsLoadingLayout(false);
-          return;
-        }
-
+        setCurrentUser(fetchedUser);setHasAccess(true);
+        if(fetchedUser?.company_id){try{const b=await getCompanyBranding(fetchedUser.company_id);setBranding(b);applyBrandingStyles(b);}catch{}}
+        const citiesData=(Array.isArray(manifest.cities)?[...manifest.cities]:[]).sort((a,b)=>(a.sort_order??Infinity)-(b.sort_order??Infinity));
+        setCities(citiesData);
+        let initialCityId=citiesData.find(c=>c&&c.id===fetchedUser.city_id)?.id||null;
+        if(!initialCityId&&userHasRole(fetchedUser,'admin')&&citiesData.length>0) initialCityId=citiesData[0].id;
+        if(!initialCityId){setShowCitySelectionPopup(true);globalFilters.setSelectedCityId('waiting-for-selection');setIsLoadingLayout(false);return;}
         globalFilters.setSelectedCityId(initialCityId);
-
-        const today = new Date();
-
-        // CRITICAL: Load initial COD data from offline DB first to prevent rate limits
-        const { offlineDB: offlineDBInstance } = await import('./components/utils/offlineDatabase');
-        const offlineSquareConfigs = await offlineDBInstance.getAll(offlineDBInstance.STORES.SQUARE_LOCATION_CONFIGS);
-        const offlineSquareTx = await offlineDBInstance.getAll(offlineDBInstance.STORES.SQUARE_TRANSACTIONS);
-        const offlineCatalogItems = await offlineDBInstance.getAll(offlineDBInstance.STORES.SQUARE_CATALOG_ITEMS);
-
-        // Use offline data if available, otherwise empty arrays (load in background later)
-        setSquareLocationConfigs(offlineSquareConfigs || []);
-        setCatalogItems(offlineCatalogItems || []); // Load from offline DB
-        setSquareTransactions(offlineSquareTx || []);
-
-        // Square catalog items will sync via real-time events and delivery updates only
-
-        const _tStr = format(today, 'yyyy-MM-dd'),_isDisp = userHasRole(fetchedUser, 'dispatcher'),_isDrv = userHasRole(fetchedUser, 'driver');
-        // CRITICAL: For dispatchers/drivers, force today BEFORE reading savedDate
-        if (_isDisp) {globalFilters.setSelectedDate(today);} else if (_isDrv && today.getHours() >= 7) {const _k = `rxd_drst_${fetchedUser.id}`;if (localStorage.getItem(_k) !== _tStr) {globalFilters.setSelectedDate(today);localStorage.setItem(_k, _tStr);}}
-        const savedDate = globalFilters.getSelectedDate();
-        if (!savedDate) {globalFilters.setSelectedDate(today);}
-        const effectiveDateForDriverAssignment = globalFilters.getSelectedDate() ? new Date(globalFilters.getSelectedDate() + 'T00:00:00') : today;
-
-        const currentDriverFilter = globalFilters.getSelectedDriverId();
-        if (!currentDriverFilter) {
-          globalFilters.setSelectedDriverId('all');
-        }
-
-        // CRITICAL: Prime offline DB with manifest data before marking load complete
-        const primeStartTime = Date.now();
+        const {offlineDB:odb}=await import('./components/utils/offlineDatabase');
+        setSquareLocationConfigs(await odb.getAll(odb.STORES.SQUARE_LOCATION_CONFIGS)||[]);
+        setCatalogItems(await odb.getAll(odb.STORES.SQUARE_CATALOG_ITEMS)||[]);
+        setSquareTransactions(await odb.getAll(odb.STORES.SQUARE_TRANSACTIONS)||[]);
+        const today=new Date(),_tStr=format(today,'yyyy-MM-dd');
+        if(userHasRole(fetchedUser,'dispatcher')){globalFilters.setSelectedDate(today);}
+        else if(userHasRole(fetchedUser,'driver')&&today.getHours()>=7){const _k=`rxd_drst_${fetchedUser.id}`;if(localStorage.getItem(_k)!==_tStr){globalFilters.setSelectedDate(today);localStorage.setItem(_k,_tStr);}}
+        if(!globalFilters.getSelectedDate())globalFilters.setSelectedDate(today);
+        if(!globalFilters.getSelectedDriverId())globalFilters.setSelectedDriverId('all');
         try {
-          console.log('🔄 [Layout Init] Priming offline DB with manifest data...');
-
-          const deliveryData = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, todayStr).catch(() => []);
-          const patientData = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
-          const appUserData = Array.isArray(manifest.appUsers) ? manifest.appUsers : [];
-          const storeData = Array.isArray(manifest.stores) ? [...manifest.stores] : [];
-
-          if (deliveryData?.length) {await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);setDeliveries(deliveryData);}
-          if (patientData?.length) {await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientData);setPatients(patientData);}
-          if (appUserData?.length) {await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserData);setAppUsers(appUserData);}
-          if (storeData?.length) {await offlineDB.bulkSave(offlineDB.STORES.STORES, storeData);storeData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));setStores(storeData);}
-          console.log(`✅ [Layout Init] Offline DB primed + React state populated in ${Date.now() - primeStartTime}ms`);
-          if (!deliveryData?.length || !patientData?.length || !appUserData?.length) {window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
-        } catch (error) {
-          console.warn('⚠️ [Layout Init] Offline DB prime failed (non-critical):', error.message);
-          window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
-        }
-
-        // CRITICAL: Mark offline DB load as complete to allow smart refresh to start
-        const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
+          const dd=await offlineDB.getByDate(offlineDB.STORES.DELIVERIES,todayStr).catch(()=>[]);
+          const pd=await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(()=>[]);
+          const aud=Array.isArray(manifest.appUsers)?manifest.appUsers:[];
+          const sd=Array.isArray(manifest.stores)?[...manifest.stores]:[];
+          if(dd?.length){await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES,dd);setDeliveries(dd);}
+          if(pd?.length){await offlineDB.bulkSave(offlineDB.STORES.PATIENTS,pd);setPatients(pd);}
+          if(aud?.length){await offlineDB.bulkSave(offlineDB.STORES.APP_USERS,aud);setAppUsers(aud);}
+          if(sd?.length){sd.sort((a,b)=>(a.sort_order??Infinity)-(b.sort_order??Infinity));await offlineDB.bulkSave(offlineDB.STORES.STORES,sd);setStores(sd);}
+          if(!dd?.length||!pd?.length||!aud?.length)window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
+        } catch(e){console.warn('⚠️ Offline DB prime failed:',e.message);window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
+        const {markOfflineDBLoadComplete}=await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
-
-        setInitialGlobalFiltersSet(true);
-        setDataLoaded(true); // CRITICAL: Set data loaded to prevent bg sync re-triggering
-        setIsLoadingLayout(false);
-
-      } catch (error) {
-        // CRITICAL: Only treat auth errors (401/403) as access issues
-        // Rate limit errors (429) should not block access
-        const isAuthError = error.response?.status === 401 || error.response?.status === 403 ||
-        error.message?.includes('Unauthorized') || error.message?.includes('Forbidden');
-
-        if (isAuthError) {
-          setHasAccess(false);
-          setIsLoadingLayout(false);
-          setDataLoaded(true);
-        } else {
-          // Rate limit or other error - keep access, set data loaded
-          console.warn('⚠️ [Layout Init] Non-auth error during init:', error.message);
-          setHasAccess(true);
-          setIsLoadingLayout(false);
-          setDataLoaded(true);
-        }
+        setInitialGlobalFiltersSet(true);setDataLoaded(true);
+        setIsLoadingLayout(false); // Release loading gate ONLY after all prerequisites confirmed
+      } catch(error){
+        const isAuth=error.response?.status===401||error.response?.status===403||error.message?.includes('Unauthorized')||error.message?.includes('Forbidden');
+        if(isAuth){setHasAccess(false);}else{console.warn('⚠️ Init error:',error.message);setHasAccess(true);}
+        setIsLoadingLayout(false);setDataLoaded(true);
       }
     };
-
     init();
   }, []);
 
