@@ -127,7 +127,10 @@ export default function PolylineViewer({ users = [] }) {
             const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
             const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
             const todays = (rows || []).filter(r => r?.delivery_date === today);
-            const sorted = (todays || []).sort((a,b) => String(b.delivery_date||'').localeCompare(String(a.delivery_date||''))).slice(0,500);
+            // CRITICAL: Filter out records that exist in online DB - only show truly offline-only records
+            const onlineIds = new Set((polylines || []).map(p => p.id));
+            const offlineOnly = (todays || []).filter(r => !onlineIds.has(r.id));
+            const sorted = (offlineOnly || []).sort((a,b) => String(b.delivery_date||'').localeCompare(String(a.delivery_date||''))).slice(0,500);
             setPolylines(sorted);
           }
         } else {
@@ -141,7 +144,10 @@ export default function PolylineViewer({ users = [] }) {
             } else {
               const { offlineDB } = await import('../utils/offlineDatabase');
               const pending = await offlineDB.getAll(offlineDB.STORES.PENDING_BREADCRUMBS);
-              const normalized = (pending || []).map((record) => ({
+              // CRITICAL: Filter out records that exist in online DB - only show truly offline-only records
+              const onlineIds = new Set((breadcrumbs || []).map(b => b.id));
+              const offlineOnly = (pending || []).filter(r => !onlineIds.has(`pending-${r.driver_id}`));
+              const normalized = offlineOnly.map((record) => ({
                 id: `pending-${record.driver_id}`,
                 storage_key: record.driver_id,
                 driver_id: record.driver_id,
