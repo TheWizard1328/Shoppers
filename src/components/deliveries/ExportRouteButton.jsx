@@ -100,7 +100,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     return names.length > 0 ? names.join(', ') : 'Unassigned';
   };
 
-  const handleDispatcherEmailExport = async ({ recipientEmails }) => {
+  const handleDispatcherEmailExport = async ({ recipientEmails, exportDate: dialogExportDate }) => {
     if (isExporting || !recipientEmails?.length) return;
     setIsExporting(true);
     try {
@@ -112,7 +112,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
       if (!exportConfig) return;
 
-      const exportDate = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+      const exportDate = dialogExportDate || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
       const relevantDeliveries = exportConfig.manifestType === 'post-route' ?
       dispatcherDayDeliveries :
       dispatcherDayDeliveries.filter((d) => d && d.ampm_deliveries === exportConfig.ampm && !finishedStatuses.includes(d.status));
@@ -148,11 +148,11 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
-  const handleDriverEmailExport = async ({ perStoreEmails }) => {
+  const handleDriverEmailExport = async ({ perStoreEmails, exportDate: dialogExportDate }) => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-      const exportDate = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+      const exportDate = dialogExportDate || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
       const driverNames = getDriverNamesForSubject(dayDeliveries);
       const emailJobs = [];
 
@@ -215,12 +215,12 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
       const res = await base44.functions.invoke('generateRouteManifest', payload);
       const data = res?.data || res;
+      if (data?.error) { alert(data.error); return; }
 
-      if (data && typeof data === 'object' && !(data instanceof ArrayBuffer) && !('byteLength' in (data || {}))) {
-        if (data?.error) {alert(data.error);return;}
-      }
-
-      const blob = new Blob([data], { type: 'application/pdf' });
+      const binaryStr = atob(data.pdfBase64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -267,12 +267,12 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
       const res = await base44.functions.invoke('generateRouteManifest', payload);
       const data = res?.data || res;
+      if (data?.error) { alert(data.error); return; }
 
-      if (data && typeof data === 'object' && !(data instanceof ArrayBuffer) && !('byteLength' in (data || {}))) {
-        if (data?.error) {alert(data.error);return;}
-      }
-
-      const blob = new Blob([data], { type: 'application/pdf' });
+      const binaryStr = atob(data.pdfBase64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
     } finally {

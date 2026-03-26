@@ -569,13 +569,9 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, sent_to: uniqueRecipientEmails });
     }
 
-    return new Response(pdfBytes, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename=${manifestType}-${deliveryDate}.pdf`
-      }
-    });
+    // Return as base64 JSON to avoid binary corruption through SDK transport
+    const pdfBase64 = uint8ToBase64(new Uint8Array(pdfBytes));
+    return Response.json({ pdfBase64, fileName: `${manifestType}-${deliveryDate}.pdf` });
   } catch (error) {
     return Response.json({ error: error?.message || 'Server error' }, { status: 500 });
   }
