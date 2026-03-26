@@ -280,7 +280,7 @@ export default function CompletedBreadcrumbPolylines({
           from,
           to,
           distanceMeters,
-          useHere: distanceMeters > 100,
+          useHere: distanceMeters > 500,
         };
       }).filter(Boolean);
     });
