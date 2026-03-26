@@ -286,11 +286,14 @@ Deno.serve(async (req) => {
     let originCoords;
     if (originStop) {
       originCoords = getLatLon(originStop);
+      console.log(`[regenerateType1Polyline] Using completed stop ${originStop.id} (stop_order=${originStop.stop_order}) as origin`);
     } else if (Number.isFinite(homeLat) && Number.isFinite(homeLon)) {
       originCoords = { lat: homeLat, lon: homeLon };
+      console.log(`[regenerateType1Polyline] Using driver home location as origin (no completed stops yet)`);
     } else {
       // Fallback if no home location set and no completed stops - use current location
       originCoords = { lat: currentLat, lon: currentLon };
+      console.log(`[regenerateType1Polyline] WARNING: Using driver current location as origin (no home location set)`);
     }
     
     if (!originCoords) {
