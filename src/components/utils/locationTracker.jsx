@@ -921,6 +921,44 @@ class LocationTracker {
 
       const existingBreadcrumbs = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, pendingKey);
       const breadcrumbPoint = [latitude, longitude, timestamp];
+
+      let initialPoints = [];
+      if (!existingBreadcrumbs?.breadcrumbs?.length) {
+        // New leg starting — prepend the previous finished stop's GPS coords as the origin point
+        const finishedStatuses2 = ['completed', 'failed', 'cancelled', 'returned'];
+        const previousFinishedStop = driverDeliveries
+          .filter((d) => finishedStatuses2.includes(d?.status) && (d?.stop_order || 0) < stopOrder)
+          .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0];
+
+        if (previousFinishedStop) {
+          // Try to get coords from the patient/store associated with the previous stop
+          let prevLat = null;
+          let prevLon = null;
+
+          if (previousFinishedStop.patient_id) {
+            const patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+            const prevPatient = (patients || []).find((p) => p?.id === previousFinishedStop.patient_id);
+            prevLat = prevPatient?.latitude;
+            prevLon = prevPatient?.longitude;
+          } else if (previousFinishedStop.store_id) {
+            const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
+            const prevStore = (stores || []).find((s) => s?.id === previousFinishedStop.store_id);
+            prevLat = prevStore?.latitude;
+            prevLon = prevStore?.longitude;
+          }
+
+          if (prevLat && prevLon) {
+            // Point 1: last finished stop location (use its actual_delivery_time as timestamp, or slightly before now)
+            const originTimestamp = previousFinishedStop.actual_delivery_time
+              ? new Date(previousFinishedStop.actual_delivery_time).getTime()
+              : timestamp - 60000;
+            initialPoints.push([prevLat, prevLon, originTimestamp]);
+            // Point 2: driver's current location (this GPS ping) — becomes the second point
+            // (breadcrumbPoint below will be added as normal)
+          }
+        }
+      }
+
       const breadcrumbData = {
         driver_id: pendingKey,
         owner_driver_id: this.appUserId,
@@ -930,7 +968,9 @@ class LocationTracker {
         stop_order: stopOrder,
         stop_label: `Stop ${stopOrder || 0}`,
         timestamp,
-        breadcrumbs: existingBreadcrumbs?.breadcrumbs ? [...existingBreadcrumbs.breadcrumbs, breadcrumbPoint] : [breadcrumbPoint]
+        breadcrumbs: existingBreadcrumbs?.breadcrumbs?.length
+          ? [...existingBreadcrumbs.breadcrumbs, breadcrumbPoint]
+          : [...initialPoints, breadcrumbPoint]
       };
 
       await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, breadcrumbData);
