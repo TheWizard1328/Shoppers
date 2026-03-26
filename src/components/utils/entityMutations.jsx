@@ -696,6 +696,8 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, backendDeliveries);
       console.log(`💾 [EntityMutations] Updated IndexedDB with ${backendDeliveries.length} real deliveries`);
       
+      await refreshOfflineEntitySnapshots('Delivery', backendDeliveries[0]);
+
       // STEP 4: CRITICAL - Invalidate dataManager cache
       const { invalidate } = await import('./dataManager');
       invalidate('Delivery');

@@ -113,6 +113,9 @@ export const runUpdateOnlyBatchRefresh = ({ deliveryDate, driverId }) => {
 
 export const runCreateBatchRefresh = async ({ refreshDriverId, refreshDeliveryDate }) => {
   try {
+    const { processPendingMutations } = await import('../utils/offlineSync');
+    await processPendingMutations();
+
     const { base44 } = await import('@/api/base44Client');
     const freshDeliveries = await base44.entities.Delivery.filter({
       driver_id: refreshDriverId,
