@@ -21,6 +21,7 @@ const eventBuffers = {
   Patient: new Map(),
   AppUser: new Map(),
   Message: new Map(),
+  DriverRoutePolyline: new Map(),
 };
 const flushTimers = {};
 
@@ -208,22 +209,24 @@ const subscribeToEntity = (entityName) => {
         
         if (type === 'create' || type === 'update') {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
-                           entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
-                           entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
-                           entityName === 'City' ? offlineDB.STORES.CITIES :
-                           entityName === 'Store' ? offlineDB.STORES.STORES :
-                           entityName === 'Message' ? null : null;
-          
+                            entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+                            entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
+                            entityName === 'City' ? offlineDB.STORES.CITIES :
+                            entityName === 'Store' ? offlineDB.STORES.STORES :
+                            entityName === 'DriverRoutePolyline' ? offlineDB.STORES.DRIVER_ROUTE_POLYLINES :
+                            entityName === 'Message' ? null : null;
+
           if (storeName) {
             await offlineDB.save(storeName, data);
             console.log(`💾 [RealtimeSync] Saved ${entityName} to offline DB - changed: ${changedFields.join(', ')}`);
           }
         } else if (type === 'delete') {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
-                           entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
-                           entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
-                           null;
-          
+                            entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+                            entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
+                            entityName === 'DriverRoutePolyline' ? offlineDB.STORES.DRIVER_ROUTE_POLYLINES :
+                            null;
+
           if (storeName) {
             await offlineDB.deleteRecord(storeName, id);
             console.log(`💾 [RealtimeSync] Deleted ${entityName} from offline DB: ${id}`);
@@ -256,6 +259,7 @@ export const connect = () => {
     subscribeToEntity('Patient');
     subscribeToEntity('AppUser');
     subscribeToEntity('Message');
+    subscribeToEntity('DriverRoutePolyline');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
     window.addEventListener('realtimeUpdate_Patient', async (e) => {
