@@ -821,17 +821,7 @@ export default function DeliveryMap({
         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
         const markersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-        if (map) {
-          const bounds = L.latLngBounds([]);
-          markersAtLocation.forEach((item, index) => {
-            const [lat, lng] = calculateFannedPositionWrapperWrapper(marker.latitude, marker.longitude, index, markersAtLocation.length);
-            bounds.extend([lat, lng]);
-          });
-          if (bounds.isValid()) map.fitBounds(bounds, { paddingTopLeft: [80, 80], paddingBottomRight: [80, Math.max(140, stopCardsHeight + 40)], minZoom: map.getZoom(), maxZoom: map.getZoom(), animate: true, duration: 0.4 });
-          setTimeout(() => setFannedLocationKey(locationKey), 450);
-        } else {
-          setFannedLocationKey(locationKey);
-        }
+        setFannedLocationKey(locationKey);
         return;
       }
 
