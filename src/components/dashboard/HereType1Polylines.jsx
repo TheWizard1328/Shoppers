@@ -475,23 +475,14 @@ export default function HereType1Polylines({
   const lines = [];
   const seenKeys = new Set();
 
-  // Pre-route: prefer real HERE polyline (home -> first); only show dashed after a short grace period
+  // Pre-route: home -> first stop (only when NO completed stops yet)
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
     const hasCompleted = (stops?.complete?.length || 0) > 0;
     const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
     
-    // Determine if we should draw the pre-route line (home -> first stop)
-    // We draw it if there are NO completed stops AND we have incomplete stops
-    // AND the route hasn't "started" in a way that gives us a live GPS location to draw from instead.
-    // Wait, if ALL stops are in_transit, hasCompleted is false.
-    // We should draw the line from the driver's current live location to the next stop if they are on duty,
-    // but Type 1 handles "home -> first" or "last completed -> next".
-    // If they are in_transit but have NO completed stops, they are on their way to the first stop.
-    // Let's check if we have a current driver marker. If so, we should draw from there instead of home!
-    
+    // Only show home->first when there are NO completed stops yet
     if (!hasCompleted && hasIncomplete) {
-      // Pick next from active only
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
@@ -502,10 +493,7 @@ export default function HereType1Polylines({
       const originLat = origin && !Number.isNaN(Number(origin.latitude)) ? Number(origin.latitude) : undefined;
       const originLon = origin && !Number.isNaN(Number(origin.longitude)) ? Number(origin.longitude) : undefined;
 
-      if (
-        next && originLat !== undefined && originLon !== undefined &&
-        next.latitude !== undefined && next.longitude !== undefined
-      ) {
+      if (next && originLat !== undefined && originLon !== undefined) {
         const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(next.latitude).toFixed(5)}_${Number(next.longitude).toFixed(5)}`;
         let coords = cache[key];
         if (!coords) {
@@ -518,8 +506,6 @@ export default function HereType1Polylines({
           } catch (_) {}
         }
         
-        // If it's a live GPS location, we might not want to wait for HERE API and just draw a straight dashed line
-        // because the GPS updates frequently. But we'll try to use the cached HERE line if available.
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
           lines.push(
@@ -539,14 +525,17 @@ export default function HereType1Polylines({
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
     if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
-    const completedSorted = [...stops.complete].sort((a, b) => {
-      const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
-      const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-      return bt - at;
-    });
-    const lastCompleted = completedSorted[0];
+    
+    // CRITICAL: Match backend logic - find next stop first, then find last completed by stop_order
     const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
-    if (!lastCompleted || !nextStop) return;
+    if (!nextStop) return;
+    
+    const nextStopOrder = Number(nextStop.stop_order || 0);
+    // Find completed stops with stop_order < nextStopOrder, then take the highest one
+    const completedBeforeNext = stops.complete.filter((s) => Number(s?.stop_order || 0) < nextStopOrder);
+    const lastCompleted = completedBeforeNext.sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0];
+    
+    if (!lastCompleted) return;
 
     const origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
     const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
