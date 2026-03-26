@@ -25,39 +25,35 @@ export default function StopCardPOD({
   forceRefreshDriverDeliveries,
   showButtons = true,
 }) {
-  const handleSignatureSave = (signatureBlob) => {
-    // Close panel immediately for better UX
+  const handleSignatureSave = async (signatureBlob) => {
     setShowSignatureCapture(false);
-    
-    // Process upload in background
-    Promise.resolve().then(async () => {
-      let failureStage = 'upload_file';
-      try {
-        const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
-        const uploadResult = await UploadFile(
-          { file: signatureFile },
-          { feature: 'proof_of_delivery_signature' }
-        );
-        const fileUrl = uploadResult?.file_url || uploadResult?.data?.file_url;
-        failureStage = 'persist_delivery_proof';
-        await persistDeliveryProof(delivery.id, { signature_image_url: fileUrl });
-        toast.success('Signature saved!');
-        invalidate('Delivery');
-        Promise.resolve(forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date)).catch((refreshError) => {
-          console.warn('⚠️ [Signature] Background refresh failed:', refreshError?.message || refreshError);
-        });
-      } catch (error) {
-        base44.analytics.track({
-          eventName: 'proof_of_delivery_upload_error',
-          properties: {
-            proof_type: 'signature',
-            stage: failureStage
-          }
-        });
-        console.error('❌ [Signature] Save failed:', error);
-        toast.error(`Failed to save signature: ${error.message}`);
-      }
-    });
+    let failureStage = 'upload_file';
+    try {
+      const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
+      const uploadResult = await UploadFile(
+        { file: signatureFile },
+        { feature: 'proof_of_delivery_signature' }
+      );
+      const fileUrl = uploadResult?.file_url || uploadResult?.data?.file_url;
+      failureStage = 'persist_delivery_proof';
+      await persistDeliveryProof(delivery.id, { signature_image_url: fileUrl });
+      toast.success('Signature saved!');
+      invalidate('Delivery');
+      Promise.resolve(forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date)).catch((refreshError) => {
+        console.warn('⚠️ [Signature] Background refresh failed:', refreshError?.message || refreshError);
+      });
+    } catch (error) {
+      base44.analytics.track({
+        eventName: 'proof_of_delivery_upload_error',
+        properties: {
+          proof_type: 'signature',
+          stage: failureStage
+        }
+      });
+      console.error('❌ [Signature] Save failed:', error);
+      toast.error(`Failed to save signature: ${error.message}`);
+      throw error;
+    }
   };
 
   const handlePhotoSave = (photoBlobs) => {
@@ -65,46 +61,48 @@ export default function StopCardPOD({
     setShowPhotoCapture(false);
     toast.info(`Saving ${photoBlobs.length} photo(s)...`);
     
-    // Process upload in background
-    Promise.resolve().then(async () => {
-      let failureStage = 'upload_file';
-      try {
-        const uploadPromises = photoBlobs.map((blob, i) => {
-          const file = new File([blob], `photo_${i + 1}.jpg`, { type: 'image/jpeg' });
-          return UploadFile(
-            { file },
-            {
-              feature: 'proof_of_delivery_photo',
-              metadata: {
-                file_index: i + 1,
-                total_files: photoBlobs.length
+    // Process upload in background - wrapped in setTimeout to prevent event bubbling to card
+    setTimeout(() => {
+      Promise.resolve().then(async () => {
+        let failureStage = 'upload_file';
+        try {
+          const uploadPromises = photoBlobs.map((blob, i) => {
+            const file = new File([blob], `photo_${i + 1}.jpg`, { type: 'image/jpeg' });
+            return UploadFile(
+              { file },
+              {
+                feature: 'proof_of_delivery_photo',
+                metadata: {
+                  file_index: i + 1,
+                  total_files: photoBlobs.length
+                }
               }
+            );
+          });
+          const results = await Promise.all(uploadPromises);
+          const newPhotoUrls = results.map((r) => r?.file_url || r?.data?.file_url).filter(Boolean);
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const latestDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id);
+          const existingPhotos = latestDelivery?.proof_photo_urls || delivery.proof_photo_urls || [];
+          failureStage = 'persist_delivery_proof';
+          await persistDeliveryProof(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
+          invalidate('Delivery');
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+          toast.success(`${photoBlobs.length} photo(s) saved!`);
+        } catch (error) {
+          base44.analytics.track({
+            eventName: 'proof_of_delivery_upload_error',
+            properties: {
+              proof_type: 'photo',
+              stage: failureStage,
+              photo_count: photoBlobs.length
             }
-          );
-        });
-        const results = await Promise.all(uploadPromises);
-        const newPhotoUrls = results.map((r) => r?.file_url || r?.data?.file_url).filter(Boolean);
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        const latestDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id);
-        const existingPhotos = latestDelivery?.proof_photo_urls || delivery.proof_photo_urls || [];
-        failureStage = 'persist_delivery_proof';
-        await persistDeliveryProof(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
-        invalidate('Delivery');
-        await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-        toast.success(`${photoBlobs.length} photo(s) saved!`);
-      } catch (error) {
-        base44.analytics.track({
-          eventName: 'proof_of_delivery_upload_error',
-          properties: {
-            proof_type: 'photo',
-            stage: failureStage,
-            photo_count: photoBlobs.length
-          }
-        });
-        console.error('❌ [Photos] Save failed:', error);
-        toast.error(`Failed to save photos: ${error.message}`);
-      }
-    });
+          });
+          console.error('❌ [Photos] Save failed:', error);
+          toast.error(`Failed to save photos: ${error.message}`);
+        }
+      });
+    }, 10);
   };
 
   return (

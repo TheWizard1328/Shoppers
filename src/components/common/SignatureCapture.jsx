@@ -125,6 +125,9 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     <div
       className="fixed z-[50000] flex items-center justify-center left-0 right-0 top-[calc(env(safe-area-inset-top,0px)+57px)] md:top-0 bottom-[var(--bottom-nav-height,0px)] md:bottom-0"
       style={{ background: 'rgba(0,0,0,0.85)' }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="w-full h-full md:max-h-[80vh] md:max-w-2xl md:rounded-xl flex flex-col overflow-hidden shadow-2xl" style={{ background: 'var(--bg-white)' }}>

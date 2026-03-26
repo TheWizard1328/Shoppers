@@ -117,7 +117,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[50060]">
                 <SelectItem value="unchanged">Keep current</SelectItem>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
                 {drivers.map((driver) => (
@@ -149,7 +149,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[50060]">
                 <SelectItem value="unchanged">Keep current</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="in_transit_or_en_route">In Transit / En Route</SelectItem>
@@ -169,7 +169,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
               <SelectTrigger>
                 <SelectValue placeholder={pickupOptions.length === 0 ? "No store slots available" : "Select store [AM/PM]"} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[50060]">
                 {pickupOptions.length > 1 && <SelectItem value="unchanged">Keep current</SelectItem>}
                 {pickupOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
