@@ -815,8 +815,8 @@ export default function DeliveryMap({
     // --- CLUSTERED ---
     if (marker.duplicateCount > 1) {
       onMapInteraction?.();
-      if (isSecondTap || (!isMobile && !marker.isOtherDriver)) {
-        // Second tap (mobile) or click (desktop non-other): fan out clusters
+      if (isSecondTap) {
+        // Second tap (mobile) or second click (desktop): fan out clusters
         if (fannedLocationKey === locationKey) return setFannedLocationKey(null);
         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
@@ -835,7 +835,7 @@ export default function DeliveryMap({
         return;
       }
 
-      // First tap (mobile) — center the lowest-order incomplete stop card + pan map
+      // First tap/click — center the lowest-order incomplete stop card + pan map
       const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
       const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
       const allAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
