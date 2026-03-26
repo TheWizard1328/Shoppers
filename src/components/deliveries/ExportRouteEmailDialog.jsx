@@ -354,14 +354,14 @@ export default function ExportRouteEmailDialog({
                   {driverNamesByStore[store.id] && driverNamesByStore[store.id].length > 0 && (
                     <div className="flex items-center gap-1 flex-wrap shrink-0">
                       {driverNamesByStore[store.id].map((driverName, idx) => (
-                        <React.Fragment key={driverName}>
+                        <div key={driverName} className="flex items-center gap-1">
                           {idx > 0 && <span className="text-slate-400 text-xs">•</span>}
                           <span
                             className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
                             style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                             {driverName}
                           </span>
-                        </React.Fragment>
+                        </div>
                       ))}
                     </div>
                   )}
