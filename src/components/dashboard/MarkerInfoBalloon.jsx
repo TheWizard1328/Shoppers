@@ -65,6 +65,7 @@ export default function MarkerInfoBalloon({
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <div className="flex min-w-0 items-center gap-1.5" style={{ color: 'var(--text-slate-900)' }}>
           <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="shrink-0 font-medium" style={{ color: 'var(--text-slate-500)' }}>#{stopNumber}</span>
           {onPatientClick && !isPickup ? (
             <button
               onClick={(event) => { event.stopPropagation(); onPatientClick(); }}
@@ -76,7 +77,6 @@ export default function MarkerInfoBalloon({
           ) : (
             <span className="truncate">{patientLabel}</span>
           )}
-          <span className="shrink-0 font-medium" style={{ color: 'var(--text-slate-500)' }}>#{stopNumber}</span>
         </div>
         <div className={`shrink-0 text-right ${timeLabel ? 'flex items-center gap-1' : ''} ${getTimeColor(delivery?.status)}`}>
           {timeLabel ? <Clock className="w-3.5 h-3.5 flex-shrink-0" /> : null}
