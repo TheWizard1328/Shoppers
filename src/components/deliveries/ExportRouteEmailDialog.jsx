@@ -39,6 +39,7 @@ export default function ExportRouteEmailDialog({
   const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
   const [isExportEnabled, setIsExportEnabled] = useState(false);
   const [allStoresData, setAllStoresData] = useState([]);
+  const [driverNamesByStore, setDriverNamesByStore] = useState({});
 
   const storeIdsKey = useMemo(() => storeIds.join(","), [storeIds]);
 
@@ -103,9 +104,24 @@ export default function ExportRouteEmailDialog({
       drafts[store.id] = Array.isArray(store.route_export_emails) ? store.route_export_emails : [];
     });
 
+    // Get driver names for each store on selected date
+    const driverNames = {};
+    filteredStores.forEach((store) => {
+      const storeDeliveries = allDeliveries.filter(
+        (d) => d && d.delivery_date === selectedDate && d.store_id === store.id
+      );
+      const uniqueDrivers = [...new Set(
+        storeDeliveries
+          .map((d) => d.driver_name || d.driver_id)
+          .filter(Boolean)
+      )];
+      driverNames[store.id] = uniqueDrivers;
+    });
+
     setStores(filteredStores);
     setEmailDrafts(drafts);
     setPendingEmails({});
+    setDriverNamesByStore(driverNames);
   }, [open, selectedDate, allStoresData, allDeliveries, currentUser]);
 
   // Check completion status and find default date
@@ -331,7 +347,23 @@ export default function ExportRouteEmailDialog({
               style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
 
                 <div>
-                  <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{store.name}</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{store.name}</h3>
+                    {driverNamesByStore[store.id] && driverNamesByStore[store.id].length > 0 && (
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {driverNamesByStore[store.id].map((driverName, idx) => (
+                          <React.Fragment key={driverName}>
+                            {idx > 0 && <span className="text-slate-400 text-xs">•</span>}
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                              style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                              {driverName}
+                            </span>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>{store.address}</p>
                 </div>
 
