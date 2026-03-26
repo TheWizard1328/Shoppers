@@ -38,6 +38,7 @@ export default function ExportRouteEmailDialog({
   const [allDeliveries, setAllDeliveries] = useState([]);
   const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
   const [isExportEnabled, setIsExportEnabled] = useState(false);
+  const [allStoresData, setAllStoresData] = useState([]);
 
   const storeIdsKey = useMemo(() => storeIds.join(","), [storeIds]);
 
@@ -55,16 +56,7 @@ export default function ExportRouteEmailDialog({
     ).then(([allStores, settings, deliveries]) => {
       if (!isActive) return;
 
-      const selectedStores = (allStores || []).filter((store) => storeIds.includes(store.id));
-      selectedStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-      const drafts = {};
-      selectedStores.forEach((store) => {
-        drafts[store.id] = Array.isArray(store.route_export_emails) ? store.route_export_emails : [];
-      });
-
-      setStores(selectedStores);
-      setEmailDrafts(drafts);
-      setPendingEmails({});
+      setAllStoresData(allStores || []);
       setAllDeliveries(deliveries || []);
 
       if (settings && settings.length > 0) {
@@ -81,14 +73,48 @@ export default function ExportRouteEmailDialog({
     return () => {
       isActive = false;
     };
-  }, [open, storeIdsKey]);
+  }, [open]);
+
+  // Update stores based on selected date and user role
+  useEffect(() => {
+    if (!open || allStoresData.length === 0 || allDeliveries.length === 0) return;
+
+    const isOwner = isAppOwner(currentUser);
+    const isAdmin = userHasRole(currentUser, 'admin');
+    
+    // Get stores with deliveries on selected date
+    const storesWithDeliveries = new Set(
+      allDeliveries
+        .filter((d) => d && d.delivery_date === selectedDate)
+        .map((d) => d.store_id)
+    );
+
+    // Filter stores: admins see all stores with deliveries, others see only their assigned stores
+    let filteredStores = (allStoresData || []).filter((store) => {
+      if (!storesWithDeliveries.has(store.id)) return false;
+      if (isOwner || isAdmin) return true;
+      return currentUser?.store_ids?.includes(store.id);
+    });
+
+    filteredStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    
+    const drafts = {};
+    filteredStores.forEach((store) => {
+      drafts[store.id] = Array.isArray(store.route_export_emails) ? store.route_export_emails : [];
+    });
+
+    setStores(filteredStores);
+    setEmailDrafts(drafts);
+    setPendingEmails({});
+  }, [open, selectedDate, allStoresData, allDeliveries, currentUser]);
 
   // Check completion status and find default date
   useEffect(() => {
-    if (!open || isLoading || allDeliveries.length === 0) return;
+    if (!open || isLoading || allDeliveries.length === 0 || allStoresData.length === 0) return;
 
     setIsCheckingCompletion(true);
     const isOwner = isAppOwner(currentUser);
+    const isAdmin = userHasRole(currentUser, 'admin');
     let today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -97,12 +123,11 @@ export default function ExportRouteEmailDialog({
       const checkDate = subDays(today, i);
       const checkDateStr = format(checkDate, 'yyyy-MM-dd');
 
-      const relevantDeliveries = isOwner ?
-      allDeliveries.filter((d) => d && d.delivery_date === checkDateStr) :
-      allDeliveries.filter((d) =>
-      d && d.delivery_date === checkDateStr &&
-      currentUser?.store_ids?.includes(d.store_id)
-      );
+      const relevantDeliveries = allDeliveries.filter((d) => {
+        if (!d || d.delivery_date !== checkDateStr) return false;
+        if (isOwner || isAdmin) return true;
+        return currentUser?.store_ids?.includes(d.store_id);
+      });
 
       if (relevantDeliveries.length > 0) {
         const allFinished = relevantDeliveries.every((d) =>
@@ -120,17 +145,17 @@ export default function ExportRouteEmailDialog({
 
     setIsCheckingCompletion(false);
     setIsExportEnabled(false);
-  }, [open, isLoading, allDeliveries, currentUser]);
+  }, [open, isLoading, allDeliveries, allStoresData, currentUser]);
 
   // Check if selected date is valid for export
   const checkDateCompletion = (dateStr) => {
     const isOwner = isAppOwner(currentUser);
-    const relevantDeliveries = isOwner ?
-    allDeliveries.filter((d) => d && d.delivery_date === dateStr) :
-    allDeliveries.filter((d) =>
-    d && d.delivery_date === dateStr &&
-    currentUser?.store_ids?.includes(d.store_id)
-    );
+    const isAdmin = userHasRole(currentUser, 'admin');
+    const relevantDeliveries = allDeliveries.filter((d) => {
+      if (!d || d.delivery_date !== dateStr) return false;
+      if (isOwner || isAdmin) return true;
+      return currentUser?.store_ids?.includes(d.store_id);
+    });
 
     if (relevantDeliveries.length === 0) return false;
     return relevantDeliveries.every((d) =>
@@ -292,7 +317,9 @@ export default function ExportRouteEmailDialog({
           </div> :
         stores.length === 0 ?
         <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-            No stores are assigned to this dispatcher.
+            {isAppOwner(currentUser) || userHasRole(currentUser, 'admin') ?
+            'No stores have deliveries on the selected date.' :
+            'No stores are assigned to this dispatcher.'}
           </div> :
 
         <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar pb-2">
