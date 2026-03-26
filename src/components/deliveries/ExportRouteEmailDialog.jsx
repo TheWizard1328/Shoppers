@@ -245,7 +245,7 @@ export default function ExportRouteEmailDialog({
             
           </div>
           {!checkDateCompletion(selectedDate) &&
-          <p className="text-xs min-h-50" style={{ color: '#dc2626' }}>Not all stops for the selected date are finished.</p>
+          <p className="text-xs min-h-[20px]" style={{ color: '#dc2626' }}>Not all stops for the selected date are finished.</p>
           }
         </div>
 
