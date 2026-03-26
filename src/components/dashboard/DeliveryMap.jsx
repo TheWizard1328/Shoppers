@@ -816,14 +816,10 @@ export default function DeliveryMap({
     if (marker.duplicateCount > 1) {
       onMapInteraction?.();
 
-      // Desktop: second click fans out, first click centers/zooms like non-clustered
+      // Desktop: first click centers/zooms AND fans out; clicking again collapses
       if (!isMobile) {
-        if (isSecondTap) {
-          if (fannedLocationKey === locationKey) return setFannedLocationKey(null);
-          setFannedLocationKey(locationKey);
-          return;
-        }
-        // First click: scroll stop card + pan/zoom to marker
+        if (fannedLocationKey === locationKey) return setFannedLocationKey(null);
+        // Scroll stop card + pan/zoom to marker
         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
         const allAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
@@ -834,6 +830,7 @@ export default function DeliveryMap({
           onMarkerClick?.(targetStop, markerType);
         }
         panToMarkerOffset(marker.latitude, marker.longitude);
+        setFannedLocationKey(locationKey);
         return;
       }
 
