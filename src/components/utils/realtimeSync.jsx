@@ -218,7 +218,11 @@ const subscribeToEntity = (entityName) => {
 
           if (storeName) {
             await offlineDB.save(storeName, data);
-            console.log(`💾 [RealtimeSync] Saved ${entityName} to offline DB - changed: ${changedFields.join(', ')}`);
+            if (entityName === 'DriverRoutePolyline') {
+              console.log(`💾 [RealtimeSync] Saved DriverRoutePolyline to offline DB: ${data.driver_id} segment ${data.segment_origin_lat},${data.segment_origin_lon} -> ${data.segment_dest_lat},${data.segment_dest_lon}`);
+            } else {
+              console.log(`💾 [RealtimeSync] Saved ${entityName} to offline DB - changed: ${changedFields.join(', ')}`);
+            }
           }
         } else if (type === 'delete') {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
