@@ -284,7 +284,7 @@ export default function HereType1Polylines({
     };
   }, []);
 
-  // Prefetch last-completed -> next-stop
+  // Hydrate last-completed -> next-stop from offline DB ONLY (no backend calls)
   useEffect(() => {
     if (optimizing || (Date.now() - mountTimeRef.current < 1200)) return;
     driverStops.forEach((stops, driverId) => {
@@ -295,7 +295,6 @@ export default function HereType1Polylines({
         return bt - at;
       });
       const lastCompleted = completedSorted[0];
-      // Fallback to first incomplete stop if isNextDelivery is not set
       const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       if (!lastCompleted || !nextStop) return;
 
@@ -304,25 +303,12 @@ export default function HereType1Polylines({
 
       const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(nextStop.latitude).toFixed(5)}_${Number(nextStop.longitude).toFixed(5)}`;
       if (cache[key]) return;
-      (async () => {
-        const ok = await hydrateFromOffline(key, driverId, { latitude: Number(originLat), longitude: Number(originLon) }, { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) }, lastCompleted.delivery_date);
-        if (ok) return;
-        const d = Math.floor(Math.random() * 150);
-        setTimeout(() => {
-          getHerePolyline(
-            driverId,
-            { latitude: Number(originLat), longitude: Number(originLon) },
-            { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) },
-            lastCompleted.delivery_date
-          ).then((coords) => {
-            if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
-          });
-        }, d);
-      })();
-      });
+      // ONLY hydrate from offline DB - no backend calls
+      hydrateFromOffline(key, driverId, { latitude: Number(originLat), longitude: Number(originLon) }, { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) }, lastCompleted.delivery_date);
+    });
   }, [isViewingCurrentDate, driverStops, refreshToken]);
 
-  // Prefetch last-completed -> home (for completed routes)
+  // Hydrate last-completed -> home from offline DB ONLY (no backend calls)
   useEffect(() => {
      if ((Date.now() - mountTimeRef.current < 1200)) return;
      driversWithCompleteRoute.forEach((driverId) => {
@@ -337,27 +323,18 @@ export default function HereType1Polylines({
       if (!lastCompleted || !home) return;
       const key = `here_${Number(lastCompleted.latitude).toFixed(5)}_${Number(lastCompleted.longitude).toFixed(5)}_${Number(home.latitude).toFixed(5)}_${Number(home.longitude).toFixed(5)}`;
       if (cache[key]) return;
-      (async () => {
-        const ok = await hydrateFromOffline(key, driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date);
-        if (ok) return;
-        const d2 = Math.floor(Math.random() * 150);
-        setTimeout(() => {
-          getHerePolyline(driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date).then((coords) => {
-            if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
-          });
-        }, d2);
-      })();
-      });
+      // ONLY hydrate from offline DB - no backend calls
+      hydrateFromOffline(key, driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date);
+    });
   }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers, refreshToken]);
 
-  // Prefetch home -> first stop for not-yet-started routes (Type 1 pre-route)
+  // Hydrate home -> first stop from offline DB ONLY (no backend calls)
   useEffect(() => {
     if (optimizing || (Date.now() - mountTimeRef.current < 1200)) return;
     driverStops.forEach((stops, driverId) => {
       const hasCompleted = (stops?.complete?.length || 0) > 0;
       const hasIncomplete = ((stops?.incomplete?.length || 0) > 0);
       if (hasCompleted || !hasIncomplete) return;
-      // Pick next from active only
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
@@ -372,16 +349,8 @@ export default function HereType1Polylines({
       
       const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
       if (cache[key]) return;
-      (async () => {
-        const ok = await hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date);
-        if (ok) return;
-        const d = Math.floor(Math.random() * 150);
-        setTimeout(() => {
-          getHerePolyline(driverId, { latitude: originLat, longitude: originLon }, { latitude: next.latitude, longitude: next.longitude }, next.delivery_date).then((coords) => {
-            if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
-          });
-        }, d);
-      })();
+      // ONLY hydrate from offline DB - no backend calls
+      hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date);
     });
   }, [isViewingCurrentDate, driverStops, driverHomeMarkers, currentDriverMarker, optimizing, refreshToken]);
 
