@@ -174,7 +174,8 @@ class ArrivalTimeDetector {
         } else if (this.stationaryStartTime) {
           const stationaryDuration = Date.now() - this.stationaryStartTime;
           if (stationaryDuration >= this.minStationaryDuration && !this.arrivalTimesRecorded.has(target.id)) {
-            const arrivalTime = new Date().toISOString();
+            const now = new Date();
+            const arrivalTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
             console.log(`✅ [ARRIVAL] Picked target pickup ${target.id} (rule applied) after ${(stationaryDuration / 1000).toFixed(1)}s`);
             try {
               await base44.entities.Delivery.update(target.id, { arrival_time: arrivalTime });
@@ -218,10 +219,11 @@ class ArrivalTimeDetector {
           } else if (this.stationaryStartTime) {
             const stationaryDuration = Date.now() - this.stationaryStartTime;
             if (stationaryDuration >= this.minStationaryDuration && !this.arrivalTimesRecorded.has(delivery.id)) {
-              const now = new Date().toISOString();
+              const _now = new Date();
+              const _arrivalTime = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}T${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}:${String(_now.getSeconds()).padStart(2,'0')}`;
               console.log(`✅ [ARRIVAL] Detected at ${delivery.patient_id ? 'delivery' : 'pickup'} (${delivery.id}) after ${(stationaryDuration / 1000).toFixed(1)}s`);
               try {
-                await base44.entities.Delivery.update(delivery.id, { arrival_time: now });
+                await base44.entities.Delivery.update(delivery.id, { arrival_time: _arrivalTime });
                 this.arrivalTimesRecorded.add(delivery.id);
                 console.log(`💾 [ARRIVAL] Saved arrival_time for ${delivery.id}`);
               } catch (error) {
