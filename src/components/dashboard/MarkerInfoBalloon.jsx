@@ -36,54 +36,38 @@ export default function MarkerInfoBalloon({
 }) {
   const isFinished = FINISHED_STATUSES.includes(delivery?.status);
   const stopNumber = delivery?.number || delivery?.stop_order || '?';
-  const rightMeta = [
-    `St: #${stopNumber}`,
-    delivery?.tracking_number ? `TR#: ${delivery.tracking_number}` : null
-  ].filter(Boolean).join(' - ');
 
   const timeLabel = isFinished
     ? delivery?.actual_delivery_time ? new Date(delivery.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : null
-    : delivery?.delivery_time_eta ? `ETA: ${delivery.delivery_time_eta}` : null;
+    : delivery?.delivery_time_eta ? delivery.delivery_time_eta : null;
 
   const patientLabel = isPickup ? 'Store Pickup' : (patient?.full_name || 'Patient');
-  const wrapperClass = compact
-    ? 'space-y-1'
-    : 'space-y-1.5';
+  const wrapperClass = compact ? 'space-y-1' : 'space-y-1.5';
 
   return (
     <div
       className={`${wrapperClass}${onClick ? ' cursor-pointer hover:bg-slate-50 px-1 -mx-1 rounded' : ''}`}
       onClick={onClick}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--text-slate-900)' }}>
-          <Truck className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="truncate">{driver?.user_name || driver?.full_name || 'Unknown Driver'}</span>
-        </div>
-        <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusColor(delivery?.status)}`}>
-          {delivery?.status}
-        </span>
+      {/* Row 1: Driver name */}
+      <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--text-slate-900)' }}>
+        <Truck className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="truncate">{driver?.user_name || driver?.full_name || 'Unknown Driver'}</span>
       </div>
 
-      <div className="flex items-center justify-between gap-2 text-[11px]">
-        <div className="flex min-w-0 items-center gap-1.5" style={{ color: 'var(--text-slate-600)' }}>
-          <Home className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="truncate">{store?.name || 'Store'}</span>
-        </div>
-        <div className="w-[108px] shrink-0 text-right font-medium" style={{ color: 'var(--text-slate-600)' }}>
-          {rightMeta}
-        </div>
+      {/* Row 2: Store name */}
+      <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+        <Home className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="truncate">{store?.name || 'Store'}</span>
       </div>
 
+      {/* Row 3: Name, Stop#, Time */}
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <div className="flex min-w-0 items-center gap-1.5" style={{ color: 'var(--text-slate-900)' }}>
           <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
           {onPatientClick && !isPickup ? (
             <button
-              onClick={(event) => {
-                event.stopPropagation();
-                onPatientClick();
-              }}
+              onClick={(event) => { event.stopPropagation(); onPatientClick(); }}
               className="truncate text-left"
               style={{ color: 'var(--text-slate-900)' }}
             >
@@ -92,10 +76,11 @@ export default function MarkerInfoBalloon({
           ) : (
             <span className="truncate">{patientLabel}</span>
           )}
+          <span className="shrink-0 font-medium" style={{ color: 'var(--text-slate-500)' }}>#{stopNumber}</span>
         </div>
-        <div className={`w-[108px] shrink-0 text-right ${timeLabel ? 'flex items-center justify-end gap-1' : ''} ${getTimeColor(delivery?.status)}`} style={!timeLabel ? { color: 'transparent' } : undefined}>
+        <div className={`shrink-0 text-right ${timeLabel ? 'flex items-center gap-1' : ''} ${getTimeColor(delivery?.status)}`}>
           {timeLabel ? <Clock className="w-3.5 h-3.5 flex-shrink-0" /> : null}
-          <span>{timeLabel || '00:00'}</span>
+          <span>{timeLabel || ''}</span>
         </div>
       </div>
 
