@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, Marker, Pane, Popup, TileLayer } from "react-leaflet";
+import { MapContainer, Marker, Pane, Polyline, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { format } from "date-fns";
@@ -960,6 +960,26 @@ export default function DeliveryMap({
         )}
 
         <HomeMarkers driverHomeMarkers={driverHomeMarkers} map={map} isMobile={isMobile} onMarkerClick={onMarkerClick} />
+
+        {/* Fan lines: draw lines from cluster origin to each fanned marker */}
+        {fannedLocationKey && (() => {
+          const [originLat, originLng] = fannedLocationKey.split(',').map(Number);
+          if (!originLat || !originLng) return null;
+          const pickupsAtLocation = groupedPickupMarkers.get(fannedLocationKey) || [];
+          const deliveriesAtLocation = groupedDeliveryMarkers.get(fannedLocationKey) || [];
+          const allAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
+            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+          return allAtLocation.map((marker, index) => {
+            const [fanLat, fanLng] = calculateFannedPositionWrapperWrapper(originLat, originLng, index, allAtLocation.length);
+            return (
+              <Polyline
+                key={`fan-line-${marker.id}`}
+                positions={[[originLat, originLng], [fanLat, fanLng]]}
+                pathOptions={{ color: marker.pinColor || '#64748b', weight: 1.5, opacity: 0.5, dashArray: '4 4' }}
+              />
+            );
+          });
+        })()}
 
         <PickupMarkers pickupMarkers={pickupMarkers} groupedPickupMarkers={groupedPickupMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClick} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} />
 
