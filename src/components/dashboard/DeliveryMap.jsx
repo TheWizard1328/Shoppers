@@ -808,8 +808,8 @@ export default function DeliveryMap({
   const handleMarkerClickForFanning = useCallback((marker, markerType) => {
     const locationKey = getLocationKey(marker.latitude, marker.longitude, currentZoom);
     const now = Date.now();
-    const DOUBLE_TAP_MS = 600;
-    const isSecondTap = lastTappedRef.current.id === locationKey && (now - lastTappedRef.current.time) < DOUBLE_TAP_MS;
+    const SECOND_INTERACTION_MS = isMobile ? 600 : 2000;
+    const isSecondTap = lastTappedRef.current.id === locationKey && (now - lastTappedRef.current.time) < SECOND_INTERACTION_MS;
     lastTappedRef.current = { id: locationKey, time: now };
 
     // --- CLUSTERED ---
