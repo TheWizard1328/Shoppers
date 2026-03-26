@@ -816,10 +816,24 @@ export default function DeliveryMap({
     if (marker.duplicateCount > 1) {
       onMapInteraction?.();
 
-      // Desktop: fan out on first click immediately
+      // Desktop: second click fans out, first click centers/zooms like non-clustered
       if (!isMobile) {
-        if (fannedLocationKey === locationKey) return setFannedLocationKey(null);
-        setFannedLocationKey(locationKey);
+        if (isSecondTap) {
+          if (fannedLocationKey === locationKey) return setFannedLocationKey(null);
+          setFannedLocationKey(locationKey);
+          return;
+        }
+        // First click: scroll stop card + pan/zoom to marker
+        const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
+        const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
+        const allAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+        const incompleteAtLocation = allAtLocation.filter(m => !FINISHED_STATUSES.includes(m.status));
+        const targetStop = incompleteAtLocation[0] || allAtLocation[0];
+        if (targetStop?.id) {
+          window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: targetStop.id } }));
+          onMarkerClick?.(targetStop, markerType);
+        }
+        panToMarkerOffset(marker.latitude, marker.longitude);
         return;
       }
 
