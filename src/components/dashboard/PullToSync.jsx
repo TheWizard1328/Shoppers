@@ -5,7 +5,6 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { repairMissingPolylines } from '@/functions/repairMissingPolylines';
 
 export default function PullToSync({ 
   selectedDate, 
@@ -80,157 +79,60 @@ export default function PullToSync({
     setIsSyncing(true);
     setShowOverlay(!silent);
     try { window.__dashboardSyncing = true; window.dispatchEvent(new CustomEvent('pullToSyncStarted')); } catch (e) {}
-    console.log(`🔄 [Pull to Sync] Starting ${silent ? 'silent' : 'full'} targeted refresh...`);
 
     try {
-      // CRITICAL: Pause all background managers to prevent data overwrites
-      console.log('⏸️ [Pull to Sync] Pausing background managers...');
-
-      // Pause smart refresh manager
-      if (window.smartRefreshManager?.pause) {
-        window.smartRefreshManager.pause();
-      }
-
-      // Pause subscriptions by pausing the realtimeSync manager
-      if (window.realtimeSyncManager?.pause) {
-        window.realtimeSyncManager.pause();
-      }
-
-      // Pause background sync
-      if (window.backgroundSyncManager?.pause) {
-        window.backgroundSyncManager.pause();
-      }
-
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      const driverFilter = selectedDriverId && selectedDriverId !== 'all' 
+        ? { driver_id: selectedDriverId } 
+        : {};
 
-      // Pre-clean offline polylines (dedupe) before server-side repair
-      try {
-        const polyDedupRes = await offlineDB.deduplicateDriverRoutePolylines(selectedDateStr);
-        console.log(`🧹 [Pull to Sync] Offline polyline dedup removed ${polyDedupRes?.removed || 0}`);
-      } catch (e) {
-        console.warn('⚠️ [Pull to Sync] Offline polyline dedup failed:', e?.message);
-      }
-
-      // Only repair polylines in the background for a specific driver
-      const shouldRepairPolylines = selectedDriverId && selectedDriverId !== 'all';
-      if (shouldRepairPolylines) {
-        repairMissingPolylines({
-          driverId: selectedDriverId,
-          deliveryDate: selectedDateStr
-        }).catch((error) => {
-          console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', error?.message);
-        });
-      }
-      
-      console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL deliveries for ${selectedDateStr} from online database...`);
-
-      // STEP 1: Fetch ALL deliveries for selected date directly from online database (all drivers)
+      // ─── STEP 1: Fetch deliveries for selected driver + date ───────────────
       const freshDeliveries = await base44.entities.Delivery.filter({ 
-        delivery_date: selectedDateStr 
+        delivery_date: selectedDateStr,
+        ...driverFilter
       });
-      console.log(`✅ [Pull to Sync] Step 1: Fetched ${freshDeliveries?.length || 0} deliveries from online database`);
 
-      // STEP 2: Update offline database with fresh deliveries
-      console.log('💾 [Pull to Sync] Step 2: Updating offline database with fresh deliveries...');
-      const deleteResult = await offlineDB.deleteDeliveriesByDate(selectedDateStr);
-      console.log(`   - Deleted ${deleteResult?.deletedCount || 0} old deliveries`);
-
-      if (freshDeliveries && freshDeliveries.length > 0) {
+      // Save to offline DB
+      if (freshDeliveries?.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        console.log(`   ✅ Saved ${freshDeliveries.length} deliveries to offline DB`);
       }
-
-      const latestDeliveryTimestamp = freshDeliveries?.reduce((latest, delivery) => {
-        const timestamp = new Date(delivery?.updated_date || delivery?.updated || 0).getTime();
-        return timestamp > latest ? timestamp : latest;
-      }, 0);
       await offlineDB.updateSyncMetadata(
         'Delivery',
-        latestDeliveryTimestamp ? new Date(latestDeliveryTimestamp).toISOString() : new Date().toISOString(),
+        new Date().toISOString(),
         new Date().toISOString(),
         { synced_delivery_date: selectedDateStr }
       );
 
-      // STEP 3: Load fresh deliveries from offline DB and update UI
-      console.log('🔄 [Pull to Sync] Step 3: Loading deliveries from offline DB for UI update...');
-      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-      console.log(`   ✅ Loaded ${offlineDeliveries?.length || 0} deliveries from offline DB`);
-      
-      // STEP 4: Update UI with deliveries from offline database
-      console.log('🖥️ [Pull to Sync] Step 4: Updating UI with offline deliveries...');
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { 
-          deliveryDate: selectedDateStr, 
-          triggeredBy: 'pullToSync',
-          allDrivers: true 
-        }
-      }));
-      console.log('   ✅ UI update event dispatched')
-
-      // STEP 5: Fetch and save only the entities needed for the selected date
-      console.log('🔄 [Pull to Sync] Step 5: Fetching fresh Patients, AppUsers, Cities, Stores...');
-
+      // ─── STEP 2: Sync patients for those deliveries ────────────────────────
       const patientIds = Array.from(
-        new Set((freshDeliveries || []).filter((delivery) => delivery?.patient_id).map((delivery) => delivery.patient_id))
+        new Set((freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id))
       );
 
-      const patientPromise = (async () => {
-        if (patientIds.length === 0) {
-          console.log('✅ [Pull to Sync] No delivery-linked patients to refresh');
-          return [];
-        }
-
+      let freshPatients = [];
+      if (patientIds.length > 0) {
         const batchSize = 50;
-        const patientBatches = [];
+        const batches = [];
         for (let i = 0; i < patientIds.length; i += batchSize) {
-          patientBatches.push(patientIds.slice(i, i + batchSize));
+          batches.push(patientIds.slice(i, i + batchSize));
         }
-
-        const syncedPatients = (await Promise.all(
-          patientBatches.map((batchIds) => base44.entities.Patient.filter({ id: { $in: batchIds } }))
+        freshPatients = (await Promise.all(
+          batches.map(ids => base44.entities.Patient.filter({ id: { $in: ids } }))
         )).flat().filter(Boolean);
 
-        if (syncedPatients.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, syncedPatients);
+        if (freshPatients.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
         }
-
-        console.log(`✅ [Pull to Sync] Saved ${syncedPatients.length} delivery-linked patients to offline DB`);
-        return syncedPatients;
-      })().catch((error) => {
-        console.warn('⚠️ [Pull to Sync] Patients sync failed:', error.message);
-        return [];
-      });
-      
-      const syncPromises = [
-        patientPromise,
-        (async () => {
-          console.log(`👥 [Pull to Sync] Preserving AppUsers from offline DB (RLS-protected API)...`);
-          const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-          const validAppUsers = (existingAppUsers || []).filter(u => u?.user_id && u.user_id !== 'undefined');
-          console.log(`✅ [Pull to Sync] Using ${validAppUsers.length}/${existingAppUsers?.length || 0} valid AppUsers from offline DB`);
-          return validAppUsers;
-        })().catch((error) => {
-          console.warn('⚠️ [Pull to Sync] AppUsers sync failed:', error.message);
-          return [];
-        }),
-        offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => []),
-        offlineDB.getAll(offlineDB.STORES.STORES).catch(() => [])
-      ];
-
-      // CRITICAL: Wait for ALL fetches to complete and save to offline DB
-      const [freshPatients, freshAppUsers, freshCities, freshStores] = await Promise.all(syncPromises);
-
-      // Post-clean offline polylines after server repair (safety)
-      try {
-        const polyDedupAfter = await offlineDB.deduplicateDriverRoutePolylines(selectedDateStr);
-        console.log(`🧹 [Pull to Sync] Post-repair offline polyline dedup removed ${polyDedupAfter?.removed || 0}`);
-      } catch (e) {
-        console.warn('⚠️ [Pull to Sync] Post-repair offline polyline dedup failed:', e?.message);
       }
-      console.log('✅ [Pull to Sync] All entities fetched and saved to offline DB');
-      
-      // STEP 6: Dispatch complete UI update with fresh data
-      console.log('🖥️ [Pull to Sync] Dispatching complete UI update with all entities...');
+
+      // ─── STEP 3: Load from offline DB + update UI ─────────────────────────
+      const [offlineDeliveries, freshAppUsers, freshCities, freshStores] = await Promise.all([
+        offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr),
+        offlineDB.getAll(offlineDB.STORES.APP_USERS).then(r => (r || []).filter(u => u?.user_id && u.user_id !== 'undefined')),
+        offlineDB.getAll(offlineDB.STORES.CITIES),
+        offlineDB.getAll(offlineDB.STORES.STORES)
+      ]);
+
+      // Dispatch UI update with fresh data — releases UI to user
       window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
         detail: { 
           deliveryDate: selectedDateStr,
@@ -242,62 +144,71 @@ export default function PullToSync({
           triggeredBy: 'pullToSync'
         }
       }));
-      console.log('✅ [Pull to Sync] UI update event dispatched with fresh data');
-      
-      // STEP 7: Callback to parent component
+
       if (onSyncComplete) {
         await onSyncComplete(offlineDeliveries, freshPatients, freshAppUsers);
       }
-      
-      // CRITICAL: Dispatch completion event for SmartRefreshIndicator
+
+      // Mark UI sync complete + release overlay
       try { window.__dashboardSyncing = false; } catch (e) {}
       window.dispatchEvent(new CustomEvent('pullToSyncComplete'));
-      try { window.__dashboardSyncing = false; } catch (e) {}
 
-      // Update offline sync indicator with fresh sync metadata
-      const syncStats = await offlineDB.getStats();
-      window.dispatchEvent(new CustomEvent('offlineSyncUpdated', {
-        detail: { syncStats }
-      }));
+      if (!silent) {
+        toast.success('Data synced', {
+          description: `${freshDeliveries?.length || 0} deliveries updated`
+        });
+      }
 
-      console.log(`✅ [Pull to Sync] ${silent ? 'Silent sync' : 'Sync'} complete!`);
-      
-      // CRITICAL: Reactivate FAB
+      // Reactivate FAB
       const currentFABPhase = window.__currentFABPhase || 1;
       if (currentFABPhase !== 1) {
-        console.log(`📍 [Pull to Sync] Reactivating FAB (was on phase ${currentFABPhase})`);
         const { fabControlEvents } = await import('@/components/utils/fabControlEvents');
         fabControlEvents.notifyDataReady();
       }
-      
-      if (!silent) {
-        toast.success('Data synced', {
-          description: `${freshDeliveries.length} deliveries updated`
-        });
+
+      // ─── STEP 4 (background): Polylines + ETAs for incomplete stops ────────
+      // Runs entirely in background — does NOT block UI
+      const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null;
+      if (targetDriverId) {
+        Promise.resolve().then(async () => {
+          const incompleteDeliveries = (offlineDeliveries || []).filter(d => 
+            d && !['completed', 'failed', 'cancelled'].includes(d.status)
+          );
+
+          if (incompleteDeliveries.length === 0) return;
+
+          const now = new Date();
+          const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+          // Polyline repair for incomplete stops
+          const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
+          repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr })
+            .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message));
+
+          // ETA recalculation for incomplete stops
+          base44.functions.invoke('calculateRealTimeETA', {
+            driverId: targetDriverId,
+            deliveryDate: selectedDateStr,
+            currentLocalTime,
+            deviceTime: currentLocalTime
+          }).then(etaRes => {
+            const etaUpdates = etaRes?.data?.durationUpdates || etaRes?.data?.etas || etaRes?.etas || [];
+            if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
+              window.dispatchEvent(new CustomEvent('etaUpdated', {
+                detail: { updates: etaUpdates.map(u => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) }
+              }));
+            }
+          }).catch(e => console.warn('⚠️ [Pull to Sync] Background ETA update failed:', e?.message));
+        }).catch(e => console.warn('⚠️ [Pull to Sync] Background tasks failed:', e?.message));
       }
 
     } catch (error) {
       console.error('❌ [Pull to Sync] Sync failed:', error);
+      try { window.__dashboardSyncing = false; window.dispatchEvent(new CustomEvent('pullToSyncComplete')); } catch (e) {}
       if (!silent) {
-        toast.error('Sync failed', {
-          description: error.message
-        });
+        toast.error('Sync failed', { description: error.message });
       }
     } finally {
-      try { window.__dashboardSyncing = false; window.dispatchEvent(new CustomEvent('pullToSyncComplete')); } catch (e) {}
-      // Resume all background managers after sync
-      console.log('▶️ [Pull to Sync] Resuming managers...');
-      if (window.smartRefreshManager?.resume) {
-        window.smartRefreshManager.resume();
-      }
-      if (window.realtimeSyncManager?.resume) {
-        window.realtimeSyncManager.resume();
-      }
-      if (window.backgroundSyncManager?.resume) {
-        window.backgroundSyncManager.resume();
-      }
-
-      // Small delay before removing loading indicator
       setTimeout(() => {
         setIsSyncing(false);
         setShowOverlay(false);
