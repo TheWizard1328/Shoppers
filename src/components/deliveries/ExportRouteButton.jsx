@@ -107,7 +107,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
       const exportConfig = isDispatcherRouteComplete ?
       { manifestType: 'post-route' } :
       qualifiedCount > 0 ?
-      { manifestType: 'pre-route', ampm: qualifiedPeriod } :
+      { manifestType: 'pre-route', ampm: amQualified ? 'AM' : 'PM' } :
       null;
 
       if (!exportConfig) return;
