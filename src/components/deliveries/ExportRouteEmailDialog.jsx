@@ -96,17 +96,17 @@ export default function ExportRouteEmailDialog({
     for (let i = 0; i < 365; i++) {
       const checkDate = subDays(today, i);
       const checkDateStr = format(checkDate, 'yyyy-MM-dd');
-      
-      const relevantDeliveries = isOwner
-        ? allDeliveries.filter((d) => d && d.delivery_date === checkDateStr)
-        : allDeliveries.filter((d) => 
-            d && d.delivery_date === checkDateStr && 
-            currentUser?.store_ids?.includes(d.store_id)
-          );
+
+      const relevantDeliveries = isOwner ?
+      allDeliveries.filter((d) => d && d.delivery_date === checkDateStr) :
+      allDeliveries.filter((d) =>
+      d && d.delivery_date === checkDateStr &&
+      currentUser?.store_ids?.includes(d.store_id)
+      );
 
       if (relevantDeliveries.length > 0) {
-        const allFinished = relevantDeliveries.every((d) => 
-          ['completed', 'failed', 'cancelled'].includes(d?.status)
+        const allFinished = relevantDeliveries.every((d) =>
+        ['completed', 'failed', 'cancelled'].includes(d?.status)
         );
 
         if (allFinished) {
@@ -125,16 +125,16 @@ export default function ExportRouteEmailDialog({
   // Check if selected date is valid for export
   const checkDateCompletion = (dateStr) => {
     const isOwner = isAppOwner(currentUser);
-    const relevantDeliveries = isOwner
-      ? allDeliveries.filter((d) => d && d.delivery_date === dateStr)
-      : allDeliveries.filter((d) => 
-          d && d.delivery_date === dateStr && 
-          currentUser?.store_ids?.includes(d.store_id)
-        );
+    const relevantDeliveries = isOwner ?
+    allDeliveries.filter((d) => d && d.delivery_date === dateStr) :
+    allDeliveries.filter((d) =>
+    d && d.delivery_date === dateStr &&
+    currentUser?.store_ids?.includes(d.store_id)
+    );
 
     if (relevantDeliveries.length === 0) return false;
-    return relevantDeliveries.every((d) => 
-      ['completed', 'failed', 'cancelled'].includes(d?.status)
+    return relevantDeliveries.every((d) =>
+    ['completed', 'failed', 'cancelled'].includes(d?.status)
     );
   };
 
@@ -241,49 +241,49 @@ export default function ExportRouteEmailDialog({
               onChange={(e) => setSelectedDate(e.target.value)}
               disabled={isLoading || isCheckingCompletion}
               className="flex-1 px-3 py-2 rounded-md border text-sm"
-              style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
-            />
+              style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }} />
+            
           </div>
-          {!checkDateCompletion(selectedDate) && (
-            <p className="text-xs" style={{ color: '#dc2626' }}>Not all stops for the selected date are finished.</p>
-          )}
+          {!checkDateCompletion(selectedDate) &&
+          <p className="text-xs min-h-50" style={{ color: '#dc2626' }}>Not all stops for the selected date are finished.</p>
+          }
         </div>
 
-        {(isAppOwner(currentUser) || userHasRole(currentUser, 'admin')) && (
-          <div className="space-y-1 mt-2 mb-4">
+        {(isAppOwner(currentUser) || userHasRole(currentUser, 'admin')) &&
+        <div className="space-y-1 mt-2 mb-4">
             <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
               Testing Email (App Owner)
             </label>
             <div className="flex gap-2">
               <Input
-                type="email"
-                value={testingEmail}
-                onChange={(e) => setTestingEmail(e.target.value)}
-                placeholder="your.email@example.com"
-                className="flex-1" />
+              type="email"
+              value={testingEmail}
+              onChange={(e) => setTestingEmail(e.target.value)}
+              placeholder="your.email@example.com"
+              className="flex-1" />
               
-              {onPreviewPdf && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={async () => {
-                    await saveEmails();
-                    onPreviewPdf();
-                  }}
-                  disabled={isLoading || isSaving || isExporting}
-                  className="shrink-0"
-                >
+              {onPreviewPdf &&
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                await saveEmails();
+                onPreviewPdf();
+              }}
+              disabled={isLoading || isSaving || isExporting}
+              className="shrink-0">
+              
                   <FileText className="w-4 h-4 mr-2" />
                   Preview PDF
                 </Button>
-              )}
+            }
             </div>
             
             {testingEmail && !isValidEmail(testingEmail) &&
-            <p className="text-xs text-red-500">Please enter a valid email address.</p>
-            }
+          <p className="text-xs text-red-500">Please enter a valid email address.</p>
+          }
           </div>
-        )}
+        }
 
         {isLoading ?
         <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
