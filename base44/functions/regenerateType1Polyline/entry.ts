@@ -100,6 +100,8 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// Re-use the decodeHereFlexiblePolyline function already defined above
+
 function buildStopOrderRepairUpdates(deliveries) {
   const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
   const getCompletionTime = (delivery) => {
@@ -314,24 +316,53 @@ Deno.serve(async (req) => {
 
     const existingType1 = (existingPolylines || []).find((row) =>
       round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
-      round5(row?.segment_dest_lon) === round5(nextStopCoords.lon)
+      round5(row?.segment_dest_lon) === round5(nextStopCoords.lon) &&
+      row.encoded_polyline
     ) || null;
 
     if (existingType1) {
-      const movedMeters = distanceMeters(
-        Number(existingType1.segment_origin_lat),
-        Number(existingType1.segment_origin_lon),
-        originCoords.lat,
-        originCoords.lon
-      );
-      const ageMs = Date.now() - new Date(existingType1.last_generated_at || 0).getTime();
-
-      if (movedMeters < minMoveMeters) {
-        return Response.json({ success: true, skipped: true, reason: 'within_threshold', movedMeters, repairedStopOrders: stopOrderRepairUpdates.length });
+      // CRITICAL: Check if driver has deviated from the existing polyline route
+      // Decode the existing polyline to check deviation
+      let deviationMeters = Infinity;
+      try {
+        const decodedCoords = decodeHereFlexiblePolyline(existingType1.encoded_polyline);
+        if (decodedCoords && decodedCoords.length > 1) {
+          // Find closest point on polyline to current driver location
+          let minDistance = Infinity;
+          for (let i = 0; i < decodedCoords.length - 1; i++) {
+            const dist = distanceMeters(currentLat, currentLon, decodedCoords[i][0], decodedCoords[i][1]);
+            if (dist < minDistance) minDistance = dist;
+          }
+          deviationMeters = minDistance;
+        }
+      } catch (e) {
+        console.warn('[regenerateType1Polyline] Failed to decode polyline for deviation check:', e);
       }
 
-      if (Number.isFinite(ageMs) && ageMs < DEFAULT_MIN_INTERVAL_MS) {
-        return Response.json({ success: true, skipped: true, reason: 'throttled', movedMeters, ageMs, repairedStopOrders: stopOrderRepairUpdates.length });
+      // Only regenerate if driver has deviated significantly from the route (>200m)
+      const hasDeviated = deviationMeters > 200;
+      
+      if (!hasDeviated) {
+        // Check if origin point has changed (completed a new stop)
+        const originChanged = !(
+          round5(existingType1.segment_origin_lat) === round5(originCoords.lat) &&
+          round5(existingType1.segment_origin_lon) === round5(originCoords.lon)
+        );
+        
+        if (!originChanged) {
+          return Response.json({ 
+            success: true, 
+            skipped: true, 
+            reason: 'no_deviation_and_origin_unchanged', 
+            deviationMeters: Math.round(deviationMeters),
+            repairedStopOrders: stopOrderRepairUpdates.length 
+          });
+        }
+        
+        // Origin changed (driver completed a stop) - allow regeneration
+        console.log(`[regenerateType1Polyline] Origin changed - regenerating polyline`);
+      } else {
+        console.log(`[regenerateType1Polyline] Driver deviated ${Math.round(deviationMeters)}m from route - regenerating`);
       }
     }
 
