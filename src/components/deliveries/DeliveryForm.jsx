@@ -1461,7 +1461,7 @@ export default function DeliveryForm({
         } else {
           const refreshDriverId = deliveriesReadyForDB[0]?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
           const refreshDeliveryDate = deliveriesReadyForDB[0]?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
-          runCreateBatchRefresh({ refreshDriverId, refreshDeliveryDate });
+          await runCreateBatchRefresh({ refreshDriverId, refreshDeliveryDate });
         }
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       } catch (bgError) {

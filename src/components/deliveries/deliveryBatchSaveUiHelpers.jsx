@@ -111,37 +111,37 @@ export const runUpdateOnlyBatchRefresh = ({ deliveryDate, driverId }) => {
   }, 100);
 };
 
-export const runCreateBatchRefresh = ({ refreshDriverId, refreshDeliveryDate }) => {
-  Promise.resolve().then(async () => {
-    try {
-      const { base44 } = await import('@/api/base44Client');
-      const freshDeliveries = await base44.entities.Delivery.filter({
-        driver_id: refreshDriverId,
-        delivery_date: refreshDeliveryDate
-      });
+export const runCreateBatchRefresh = async ({ refreshDriverId, refreshDeliveryDate }) => {
+  try {
+    const { base44 } = await import('@/api/base44Client');
+    const freshDeliveries = await base44.entities.Delivery.filter({
+      driver_id: refreshDriverId,
+      delivery_date: refreshDeliveryDate
+    });
 
-      const { offlineDB } = await import('../utils/offlineDatabase');
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+    const { offlineDB } = await import('../utils/offlineDatabase');
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
 
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: {
-          deliveryDate: refreshDeliveryDate,
-          driverId: refreshDriverId,
-          triggeredBy: 'doneButtonCreates',
-          immediate: true,
-          freshDeliveries
-        }
-      }));
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: {
+        deliveryDate: refreshDeliveryDate,
+        driverId: refreshDriverId,
+        triggeredBy: 'doneButtonCreates',
+        immediate: true,
+        freshDeliveries
+      }
+    }));
 
-      const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
-      invalidate('Delivery');
-      invalidateDeliveriesForDate(refreshDeliveryDate);
+    const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+    invalidate('Delivery');
+    invalidateDeliveriesForDate(refreshDeliveryDate);
 
-      const { fabControlEvents } = await import('../utils/fabControlEvents');
-      fabControlEvents.notifyDataReady();
-      fabControlEvents.notifyDoneButtonClicked();
-    } catch (error) {
-      console.warn('⚠️ [AddToRoute] Background refresh failed:', error);
-    }
-  });
+    const { fabControlEvents } = await import('../utils/fabControlEvents');
+    fabControlEvents.notifyDataReady();
+    fabControlEvents.notifyDoneButtonClicked();
+    return freshDeliveries;
+  } catch (error) {
+    console.warn('⚠️ [AddToRoute] Background refresh failed:', error);
+    return null;
+  }
 };
