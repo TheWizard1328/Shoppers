@@ -827,8 +827,8 @@ export default function DeliveryMap({
             const [lat, lng] = calculateFannedPositionWrapperWrapper(marker.latitude, marker.longitude, index, markersAtLocation.length);
             bounds.extend([lat, lng]);
           });
-          if (bounds.isValid()) map.fitBounds(bounds, { paddingTopLeft: [80, 80], paddingBottomRight: [80, Math.max(140, stopCardsHeight + 40)], maxZoom: 14, animate: true, duration: 0.6 });
-          setTimeout(() => setFannedLocationKey(locationKey), 650);
+          if (bounds.isValid()) map.fitBounds(bounds, { paddingTopLeft: [80, 80], paddingBottomRight: [80, Math.max(140, stopCardsHeight + 40)], minZoom: map.getZoom(), maxZoom: map.getZoom(), animate: true, duration: 0.4 });
+          setTimeout(() => setFannedLocationKey(locationKey), 450);
         } else {
           setFannedLocationKey(locationKey);
         }
