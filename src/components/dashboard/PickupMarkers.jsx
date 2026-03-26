@@ -2,7 +2,7 @@ import React from 'react';
 import { Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { format } from 'date-fns';
-import { Truck, Home, User, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Truck, Home, User, CheckCircle2, XCircle, Clock, MapPin } from 'lucide-react';
 import DeliveryPopup from './DeliveryPopup';
 import { createSimpleCircleIcon, createStoreIcon } from './MapIcons';
 
@@ -77,16 +77,86 @@ export default function PickupMarkers({
       <Marker key={`pickup-${pickup.id}`} position={markerPosition} icon={icon} zIndexOffset={dynamicZIndex} draggable={!pickup.useSimpleCircle && !pickup.isOtherDriver && isFanned} eventHandlers={handlers} ref={(ref) => { if (ref) markerRefs.current[`pickup-${pickup.id}`] = ref; }}>
         {!pickup.useSimpleCircle && !pickup.isOtherDriver && (isClustered && !isFanned ? (
           <Popup autoPan={false} closeButton={false} offset={[0,-20]} className="custom-popup">
-            <div className="min-w-[200px] max-w-[300px] space-y-2">
-              <div className="font-semibold text-sm pb-1 border-b" style={{color:'var(--text-slate-900)',borderColor:'var(--border-slate-200)'}}>{pickup.duplicateCount} stops at this location</div>
-              {[...(groupedPickupMarkers.get(lk)||[]),...(groupedDeliveryMarkers.get(lk)||[])].sort((a,b)=>(a.stop_order||0)-(b.stop_order||0)).map(m => {
-                const fin=FINISHED_STATUSES.includes(m.status);const ft=m.actual_delivery_time?format(new Date(m.actual_delivery_time),'HH:mm'):null;const nm=m.markerType==='pickup'?'Store Pickup':(m.patient?.full_name||'Patient');
-                return (<div key={`ci-${m.id}`} className="text-xs py-1.5 border-b last:border-0 cursor-pointer hover:bg-slate-50 px-1 -mx-1 rounded space-y-0.5" style={{borderColor:'var(--border-slate-200)'}} onClick={()=>{document.querySelectorAll('.leaflet-popup').forEach(p=>p.remove());document.getElementById(`stop-card-${m.id}`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}}>
-                  <div className="flex items-center gap-1.5 font-medium" style={{color:'var(--text-slate-900)'}}><Truck className="w-3.5 h-3.5"/>{m.driver?.user_name||'Unknown'}</div>
-                  <div className="flex items-center gap-1.5 text-[11px]" style={{color:'var(--text-slate-600)'}}><Home className="w-3.5 h-3.5"/>{m.store?.name||'Store'}</div>
-                  {fin&&ft?<div className="flex items-center justify-between text-[11px]"><span style={{color:'var(--text-slate-900)'}}>{nm}</span><span className="text-emerald-600">{ft}</span></div>:m.delivery_time_eta?<div className="flex items-center justify-between text-[11px]"><span style={{color:'var(--text-slate-900)'}}>{nm}</span><span style={{color:'var(--text-slate-600)'}}>ETA: {m.delivery_time_eta}</span></div>:<div className="text-[11px]" style={{color:'var(--text-slate-900)'}}>{nm}</div>}
-                </div>);
-              })}
+            <div className="min-w-[240px] max-w-[320px]">
+              <div className="font-semibold text-sm pb-1 mb-2 border-b" style={{color:'var(--text-slate-900)',borderColor:'var(--border-slate-200)'}}>{pickup.duplicateCount} stops at this location</div>
+              {(() => {
+                const DONE = ['completed', 'failed', 'cancelled', 'returned'];
+                const all = [...(groupedPickupMarkers.get(lk)||[]),...(groupedDeliveryMarkers.get(lk)||[])].sort((a,b)=>(a.stop_order||0)-(b.stop_order||0));
+
+                // Build ordered driver groups → store groups
+                const driverOrder = [];
+                const driverMap = {};
+                all.forEach((m) => {
+                  const driverId = m.driver?.id || m.driver_id || 'unknown';
+                  if (!driverMap[driverId]) {
+                    driverOrder.push(driverId);
+                    driverMap[driverId] = { driver: m.driver, storeOrder: [], storeMap: {} };
+                  }
+                  const storeId = m.store?.id || m.store_id || 'unknown';
+                  if (!driverMap[driverId].storeMap[storeId]) {
+                    driverMap[driverId].storeOrder.push(storeId);
+                    driverMap[driverId].storeMap[storeId] = { store: m.store, stops: [] };
+                  }
+                  driverMap[driverId].storeMap[storeId].stops.push(m);
+                });
+
+                return driverOrder.map((driverId, dIdx) => {
+                  const dGroup = driverMap[driverId];
+                  return (
+                    <div key={`dg-${driverId}`}>
+                      {dIdx > 0 && <div className="border-t my-2" style={{borderColor:'var(--border-slate-200)'}} />}
+                      {/* Driver — shown once */}
+                      <div className="flex items-center gap-1.5 text-xs font-semibold mb-1.5" style={{color:'var(--text-slate-900)'}}>
+                        <Truck className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>{dGroup.driver?.user_name || dGroup.driver?.full_name || 'Unknown Driver'}</span>
+                      </div>
+                      {dGroup.storeOrder.map((storeId) => {
+                        const sg = dGroup.storeMap[storeId];
+                        return (
+                          <div key={`sg-${storeId}`} className="mb-1.5">
+                            {/* Store — shown once per store */}
+                            <div className="flex items-center gap-1.5 text-[11px] mb-1 pl-1" style={{color:'var(--text-slate-600)'}}>
+                              <Home className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate font-medium">{sg.store?.name || 'Store'}</span>
+                            </div>
+                            {/* Stops: Pin | Stop# | Name | Time */}
+                            {sg.stops.map((m) => {
+                              const isDone = DONE.includes(m.status);
+                              const stopNum = m.number || m.stop_order || '?';
+                              const name = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
+                              const timeLabel = isDone
+                                ? (m.actual_delivery_time ? new Date(m.actual_delivery_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false}) : null)
+                                : (m.delivery_time_eta || null);
+                              const timeColor = m.status === 'completed' ? 'text-emerald-600'
+                                : (m.status === 'failed' || m.status === 'cancelled') ? 'text-red-600'
+                                : m.status === 'returned' ? 'text-orange-600' : '';
+                              return (
+                                <div
+                                  key={`stop-${m.id}`}
+                                  className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1 cursor-pointer rounded hover:bg-slate-50"
+                                  onClick={() => { document.querySelectorAll('.leaflet-popup').forEach(p=>p.remove()); document.getElementById(`stop-card-${m.id}`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}); }}
+                                >
+                                  <div className="flex min-w-0 items-center gap-1" style={{color:'var(--text-slate-900)'}}>
+                                    <MapPin className="w-3 h-3 flex-shrink-0" style={{color:'var(--text-slate-500)'}} />
+                                    <span className="shrink-0 font-medium" style={{color:'var(--text-slate-500)'}}>#{stopNum}</span>
+                                    <span className="truncate">{name}</span>
+                                  </div>
+                                  {timeLabel && (
+                                    <div className={`shrink-0 flex items-center gap-1 ${timeColor}`}>
+                                      <Clock className="w-3 h-3 flex-shrink-0" />
+                                      <span>{timeLabel}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </Popup>
         ) : (<Popup autoPan={false} closeButton={false} offset={[0,-20]} className="custom-popup"><DeliveryPopup delivery={pickup} isPickup={true} stores={safeStores} patients={safePatients} users={safeUsers}/></Popup>))}
