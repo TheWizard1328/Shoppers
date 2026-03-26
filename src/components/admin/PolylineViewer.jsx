@@ -121,31 +121,12 @@ export default function PolylineViewer({ users = [] }) {
             );
             const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
             const todays = (polylinesData || []).filter(p => p?.delivery_date === today);
-            const stale = (polylinesData || []).filter(p => p?.delivery_date && p.delivery_date !== today);
-            if (stale.length) {
-              try {
-                const { offlineDB } = await import('../utils/offlineDatabase');
-                // Best-effort purge of non-today records from both online and offline + local caches
-                await Promise.all(stale.map(async (rec) => {
-                  try { clearLocalCachesForPolyline(rec); } catch (_) {}
-                  try { await base44.entities.DriverRoutePolyline.delete(rec.id); } catch (_) {}
-                  try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, rec.id); } catch (_) {}
-                }));
-              } catch (_) {}
-            }
             setPolylines(todays);
           } else {
             const { offlineDB } = await import('../utils/offlineDatabase');
             const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
-            // Keep ONLY today's records (America/Edmonton)
             const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
             const todays = (rows || []).filter(r => r?.delivery_date === today);
-            // Best-effort prune: remove older records from offline DB so it matches policy
-            const stale = (rows || []).filter(r => r?.delivery_date && r.delivery_date !== today);
-            if (stale.length) {
-              try { await Promise.all(stale.map(r => offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, r.id))); } catch (_) {}
-            }
-            // Sort newest first and cap to 500 for performance
             const sorted = (todays || []).sort((a,b) => String(b.delivery_date||'').localeCompare(String(a.delivery_date||''))).slice(0,500);
             setPolylines(sorted);
           }
@@ -169,6 +150,7 @@ export default function PolylineViewer({ users = [] }) {
                 created_date: record.timestamp ? new Date(record.timestamp).toISOString() : null,
                 delivery_date: getEdmontonDateFromTimestamp(record.timestamp),
                 is_temp_offline: true,
+                is_offline_only: true,
               }));
               setBreadcrumbs(normalized);
             }
