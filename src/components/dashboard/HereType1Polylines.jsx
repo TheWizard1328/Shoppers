@@ -286,7 +286,7 @@ export default function HereType1Polylines({
       const completedSorted = [...stops.complete].sort((a, b) => {
         const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
         const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-        return at - bt;
+        return bt - at;
       });
       const lastCompleted = completedSorted[0];
       // Fallback to first incomplete stop if isNextDelivery is not set
@@ -567,7 +567,7 @@ export default function HereType1Polylines({
     const completedSorted = [...stops.complete].sort((a, b) => {
       const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
       const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-      return at - bt;
+      return bt - at;
     });
     const lastCompleted = completedSorted[0];
     const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
