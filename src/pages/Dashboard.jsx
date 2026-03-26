@@ -1399,7 +1399,7 @@ function Dashboard() {
       }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else
           if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else
-          if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 500;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 500);}, 50);}
+          if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 900;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 900);}, 140);}
         });
       return unsubscribe;
     }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
@@ -2315,7 +2315,7 @@ function Dashboard() {
             const padding = getMapPadding();
             setShouldFitBounds({
               bounds: phase2DispatcherCoords,
-              options: { ...padding, maxZoom: 17.5, animate: true }
+              options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 }
             });
             setMapCenter(null);
             setMapZoom(null);
@@ -2340,7 +2340,7 @@ function Dashboard() {
 
           const padding = getMapPadding();
 
-          setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
+          setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
           setMapCenter(null);
           setMapZoom(null);
         } else if (fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
@@ -3427,7 +3427,7 @@ function Dashboard() {
             }
             if (appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
             if (bounds.length) {
-              setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
+              setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
               setMapCenter(null);setMapZoom(null);
             }
             if (delivery.isNextDelivery && window.__fabRelockPhase) {setMapViewPhase(window.__fabRelockPhase);setIsMapViewLocked(true);}
@@ -3443,7 +3443,7 @@ function Dashboard() {
           }
           if (appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
           if (bounds.length) {
-            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true } });
+            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
             setMapCenter(null);setMapZoom(null);
           }
           if (delivery.isNextDelivery && window.__fabRelockPhase) {setMapViewPhase(window.__fabRelockPhase);setIsMapViewLocked(true);}
