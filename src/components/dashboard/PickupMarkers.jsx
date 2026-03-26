@@ -56,9 +56,9 @@ export default function PickupMarkers({
       : createStoreIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, currentZoom, pickup.duplicateCount, isMobile, isHighlighted, pickup.isNextDelivery, hasIncompleteStops, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished, pickup.after_hours_pickup === true);
 
     const handlers = pickup.isOtherDriver ? {
-      click: (e) => { L.DomEvent.stopPropagation(e); if (isPickupFaded) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id])); },
-      mouseover: (e) => { e.target.openPopup(); if (isPickupFaded || isPickupInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id])); },
-      mouseout: (e) => { e.target.closePopup(); setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(pickup.id); return n; }); }
+      click: (e) => { L.DomEvent.stopPropagation(e); if (isPickupFaded) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id])); handleMarkerClickForFanning(pickup, 'pickup'); },
+      mouseover: (e) => { if (isPickupFaded || isPickupInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id])); },
+      mouseout: (e) => { setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(pickup.id); return n; }); }
     } : pickup.useSimpleCircle ? {
       click: (e) => { L.DomEvent.stopPropagation(e); if (isPickupInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id])); },
       mouseover: (e) => { e.target.openPopup(); if (isPickupInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id])); },

@@ -152,6 +152,7 @@ export default function DeliveryMap({
   const zoomOverlayTimeoutRef = useRef(null);
   const markerRefs = useRef({});
   const popupTimeoutsRef = useRef({});
+  const lastTappedRef = useRef({ id: null, time: 0 });
   const legendRef = useRef(null);
   const [legendLeft, setLegendLeft] = useState(null);
   const [fannedLocationKey, setFannedLocationKey] = useState(null);
@@ -789,44 +790,93 @@ export default function DeliveryMap({
 
   const handleMarkerDragEnd = useCallback(() => {}, []);
 
+  // Pan map so marker appears slightly below center (accounts for stop cards at bottom)
+  const panToMarkerOffset = useCallback((lat, lng) => {
+    if (!map) return;
+    window._lastProgrammaticMapMove = Date.now();
+    const targetZoom = Math.max(currentZoom, 15);
+    const size = map.getSize();
+    const topObscured = isMobile ? (effectiveTopOverlayHeight || 116) : 0;
+    const bottomObscured = areStopCardsVisible ? stopCardsHeight : 0;
+    // Place marker slightly below the vertical midpoint of the visible area
+    const verticalCenter = topObscured + (size.y - topObscured - bottomObscured) * 0.38;
+    const point = map.project([lat, lng], targetZoom);
+    const newCenter = map.unproject(L.point(point.x, point.y - (size.y / 2 - verticalCenter)), targetZoom);
+    map.setView(newCenter, targetZoom, { animate: true, duration: 0.5 });
+  }, [map, currentZoom, isMobile, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight]);
+
   const handleMarkerClickForFanning = useCallback((marker, markerType) => {
     const locationKey = getLocationKey(marker.latitude, marker.longitude, currentZoom);
+    const now = Date.now();
+    const DOUBLE_TAP_MS = 600;
+    const isSecondTap = lastTappedRef.current.id === locationKey && (now - lastTappedRef.current.time) < DOUBLE_TAP_MS;
+    lastTappedRef.current = { id: locationKey, time: now };
+
+    // --- CLUSTERED ---
     if (marker.duplicateCount > 1) {
       onMapInteraction?.();
-      if (fannedLocationKey === locationKey) return setFannedLocationKey(null);
+      if (isSecondTap || (!isMobile && !marker.isOtherDriver)) {
+        // Second tap (mobile) or click (desktop non-other): fan out clusters
+        if (fannedLocationKey === locationKey) return setFannedLocationKey(null);
+        const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
+        const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
+        const markersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+        if (map) {
+          const bounds = L.latLngBounds([]);
+          markersAtLocation.forEach((item, index) => {
+            const [lat, lng] = calculateFannedPositionWrapperWrapper(marker.latitude, marker.longitude, index, markersAtLocation.length);
+            bounds.extend([lat, lng]);
+          });
+          if (bounds.isValid()) map.fitBounds(bounds, { paddingTopLeft: [80, 80], paddingBottomRight: [80, Math.max(140, stopCardsHeight + 40)], maxZoom: 14, animate: true, duration: 0.6 });
+          setTimeout(() => setFannedLocationKey(locationKey), 650);
+        } else {
+          setFannedLocationKey(locationKey);
+        }
+        return;
+      }
+
+      // First tap (mobile) — center the lowest-order incomplete stop card + pan map
       const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
       const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
-      const markersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-      if (map) {
-        const bounds = L.latLngBounds([]);
-        markersAtLocation.forEach((item, index) => {
-          const [lat, lng] = calculateFannedPositionWrapperWrapper(marker.latitude, marker.longitude, index, markersAtLocation.length);
-          bounds.extend([lat, lng]);
-        });
-        if (bounds.isValid()) map.fitBounds(bounds, { paddingTopLeft: [80, 80], paddingBottomRight: [80, Math.max(140, stopCardsHeight + 40)], maxZoom: 14, animate: true, duration: 0.6 });
-        setTimeout(() => setFannedLocationKey(locationKey), 650);
-      } else {
-        setFannedLocationKey(locationKey);
+      const allAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      const incompleteAtLocation = allAtLocation.filter(m => !FINISHED_STATUSES.includes(m.status));
+      const targetStop = incompleteAtLocation[0] || allAtLocation[0];
+      if (targetStop?.id) {
+        window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: targetStop.id } }));
+        onMarkerClick?.(targetStop, markerType);
       }
+      panToMarkerOffset(marker.latitude, marker.longitude);
       return;
     }
 
+    // --- NON-CLUSTERED ---
     setFannedLocationKey(null);
+
+    if (isSecondTap) {
+      // Second tap: open popup
+      const refKey = markerType === 'pickup' ? `pickup-${marker.id}` : `delivery-${marker.id}`;
+      const markerRef = markerRefs.current[refKey];
+      if (markerRef) markerRef.openPopup();
+      return;
+    }
+
+    // First tap: center stop card + pan map, no popup
     if (marker.status === "pending" && marker.puid) {
       const assignedPickup = pickupMarkers.find((pickup) => pickup?.stop_id === marker.puid);
-      if (assignedPickup && onMarkerClick) {
-        if (assignedPickup?.id) {
-          window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: assignedPickup.id } }));
-        }
-        return onMarkerClick(assignedPickup);
+      if (assignedPickup) {
+        if (assignedPickup?.id) window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: assignedPickup.id } }));
+        onMarkerClick?.(assignedPickup);
+        panToMarkerOffset(marker.latitude, marker.longitude);
+        return;
       }
     }
     if (marker?.id) {
       window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: marker.id } }));
     }
     onMarkerClick?.(marker, markerType);
+    panToMarkerOffset(marker.latitude, marker.longitude);
     onMapInteraction?.();
-  }, [currentZoom, fannedLocationKey, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPositionWrapperWrapper, map, onMarkerClick, onMapInteraction, pickupMarkers]);
+  }, [currentZoom, fannedLocationKey, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPositionWrapperWrapper, map, onMarkerClick, onMapInteraction, pickupMarkers, isMobile, panToMarkerOffset, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight]);
 
   return (
     <div className="absolute inset-0">
