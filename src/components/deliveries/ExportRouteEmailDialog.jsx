@@ -229,7 +229,7 @@ export default function ExportRouteEmailDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1 mt-2">
+        <div className="mt-2 pb-1 space-y-1">
           <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
             Export Date
           </label>
@@ -245,7 +245,7 @@ export default function ExportRouteEmailDialog({
             
           </div>
           {!checkDateCompletion(selectedDate) &&
-          <p className="text-xs min-h-[20px]" style={{ color: '#dc2626' }}>Not all stops for the selected date are finished.</p>
+          <p className="text-xs" style={{ color: '#dc2626' }}>Not all stops for the selected date are finished.</p>
           }
         </div>
 
