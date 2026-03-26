@@ -92,7 +92,19 @@ export default function PullToSync({
         ...driverFilter
       });
 
-      // Save to offline DB
+      // FULL REPLACEMENT: Delete all existing offline deliveries for this driver+date
+      // then save fresh ones — ensures deletions and driver transfers are reflected
+      const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+      const existingForDriverDate = selectedDriverId && selectedDriverId !== 'all'
+        ? (existingForDate || []).filter(d => d?.driver_id === selectedDriverId)
+        : (existingForDate || []);
+      
+      // Delete stale records first
+      await Promise.all(
+        existingForDriverDate.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {}))
+      );
+
+      // Save fresh records from server
       if (freshDeliveries?.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
       }
