@@ -138,7 +138,7 @@ export default function PickupMarkers({
                                 >
                                   <div className="flex min-w-0 items-center gap-1" style={{color:'var(--text-slate-900)'}}>
                                     <MapPin className="w-3 h-3 flex-shrink-0" style={{color:'var(--text-slate-500)'}} />
-                                    <span className="shrink-0 font-medium" style={{color:'var(--text-slate-500)'}}>#{stopNum}</span>
+                                    <span className="shrink-0 font-medium" style={{color:'var(--text-slate-500)', fontFamily:'Courier New, monospace'}}>#{String(stopNum).padStart(2, '0')}</span>
                                     <span className="truncate">{name}</span>
                                   </div>
                                   {timeLabel && (
