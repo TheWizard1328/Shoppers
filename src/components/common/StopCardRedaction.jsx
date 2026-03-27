@@ -16,7 +16,6 @@ export function useDeliveryDisplayInfo({
   isInterStorePickup,
   isStrippedDelivery,
   isStrippedForDispatcher,
-  isReturnDelivery,
 }) {
   const displayName = useMemo(() => {
     if (!delivery) return '';
