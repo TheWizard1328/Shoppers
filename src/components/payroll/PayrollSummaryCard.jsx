@@ -1526,34 +1526,34 @@ export default function PayrollSummaryCard({
                 {/* Two Column Layout */}
                 <div className="pr-3 pl-3 grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
                   <div className="rounded-lg border px-4 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                    <div className="grid gap-2 text-sm">
-                      <div className="flex items-center justify-between">
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div className="flex flex-col gap-1">
                         <span style={{ color: 'var(--text-slate-600)' }}>Deliveries</span>
                         <span className="rounded-md px-2 py-1 text-xs font-semibold" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                           {driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-1">
                         <span style={{ color: 'var(--text-slate-600)' }}>Extra KM</span>
                         <span className="rounded-md px-2 py-1 text-xs font-semibold" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                           {driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-1">
                         <span style={{ color: 'var(--text-slate-600)' }}>Oversized</span>
                         <span className="rounded-md px-2 py-1 text-xs font-semibold" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                           {driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-1 col-start-1">
                         <span style={{ color: 'var(--text-slate-600)' }}>Failed</span>
-                        <span className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
+                        <span className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 w-fit">
                           {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-1">
                         <span style={{ color: 'var(--text-slate-600)' }}>Returns</span>
-                        <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">
+                        <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700 w-fit">
                           {driversWithDeliveries.reduce((sum, d) => sum + (d.returnsCount || 0), 0)}
                         </span>
                       </div>
