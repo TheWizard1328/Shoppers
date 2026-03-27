@@ -22,6 +22,7 @@ import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
 import { calculateHaversineDistance } from "../utils/distanceCalculator";
+import { deleteCODWithTimeout } from '../utils/squareCODHandler';
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
 import { notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
@@ -293,6 +294,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (!onCreateReturn || !returnPatient) return;setIsCreatingReturn(true);
     try {
       await onCreateReturn({ originalDelivery: delivery, returnPatient: returnPatient, store: store, _skipPickupCreation: true });
+      if ((delivery.cod_total_amount_required || 0) > 0) {
+        await deleteCODWithTimeout(delivery.id, 'Removed after creating return delivery');
+      }
       await collapseAndCenterNextDelivery({ driverDeliveries: getDriverRouteDeliveries(allDeliveries, delivery), targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       if (userHasRole(currentUser, 'driver')) notifyDriverReturn({ driver: currentUser, patientName: patient?.full_name, delivery, store, appUsers }).catch(() => {});
@@ -324,6 +328,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           tracking_number: String(retryTrackingNumber),
           _skipPickupCreation: true
         });
+        if ((delivery.cod_total_amount_required || 0) > 0) {
+          await deleteCODWithTimeout(delivery.id, 'Removed after creating retry delivery');
+        }
         await ensureDriverOnline();
         await collapseAndCenterNextDelivery({ driverDeliveries: getDriverRouteDeliveries(allDeliveries, delivery), targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         try {await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: retryDate, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false });} catch (optimizeError) {console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);}
