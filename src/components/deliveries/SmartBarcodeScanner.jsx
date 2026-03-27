@@ -91,7 +91,9 @@ export default function SmartBarcodeScanner({
   onSelectBarcode = () => {},
   manualInputOverride = '',
   focusTrigger = 0,
-  onManualInputOverrideApplied = () => {}
+  onManualInputOverrideApplied = () => {},
+  inputRefOverride = null,
+  onManagedTabKeyDown = null
 }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
@@ -103,7 +105,8 @@ export default function SmartBarcodeScanner({
   const [hasTorch, setHasTorch] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
-  const inputRef = useRef(null);
+  const internalInputRef = useRef(null);
+  const inputRef = inputRefOverride || internalInputRef;
   const videoRef = useRef(null);
   const hiddenInputRef = useRef(null);
   const codeReaderRef = useRef(null);
