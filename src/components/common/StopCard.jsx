@@ -120,8 +120,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const driverBadgeTextColor = useMemo(() => getContrastColor(driverBadgeColor), [driverBadgeColor]);
   const codTotalCollected = useMemo(() => codPayments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0), [codPayments]);
   const codTotalRequired = useMemo(() => delivery?.cod_total_amount_required || 0, [delivery?.cod_total_amount_required]);const hasCODRequired = useMemo(() => codTotalRequired > 0, [codTotalRequired]);const isCODComplete = useMemo(() => codTotalCollected >= codTotalRequired, [codTotalCollected, codTotalRequired]);const isCompleted = useMemo(() => delivery ? FINISHED_STATUSES.includes(delivery.status) : false, [delivery?.status]);
-  const isReturnDelivery = useMemo(() => {if (!delivery || isPickup) return false;const patientName = (patient?.full_name || '').toUpperCase();const deliveryNotes = (delivery.delivery_notes || '').toUpperCase();const patientNotes = (patient?.notes || '').toUpperCase();const patientAddress = (patient?.address || '').toUpperCase();return patientName.includes('RETURN') || patientNotes.includes('RETURN') || patientAddress.includes('(RTN)') || deliveryNotes.includes('(RTN)');}, [delivery, patient, isPickup]);
-  const shouldShowReturnStatus = useMemo(() => isReturnDelivery && FINISHED_STATUSES.includes(delivery?.status), [isReturnDelivery, delivery?.status]);
+  const isReturnDelivery = useMemo(() => {
+    if (!delivery || isPickup) return false;
+    const patientAddress = (patient?.address || '').toUpperCase();
+    return patientAddress.includes('(RTN)');
+  }, [delivery, patient, isPickup]);
+  const shouldShowReturnStatus = useMemo(() => isReturnDelivery, [isReturnDelivery]);
   const isFirstDelivery = useMemo(() => {if (!delivery || isPickup) return false;if (patient && !patient.last_delivery_date) return true;if (delivery.delivery_notes?.toLowerCase().includes('first delivery')) return true;if (delivery.first_delivery === true) return true;return false;}, [delivery, patient, isPickup]);
   const storeColor = useMemo(() => store ? getStoreColor(store) : "#71717A", [store]);
   const routeCompleted = React.useMemo(() => isRouteCompleted(delivery, allDeliveries, FINISHED_STATUSES, new Date(), "America/Edmonton"), [delivery, allDeliveries]);
@@ -133,31 +137,25 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const isInterStore = useMemo(() => {if (!delivery) return false;const patientName = (patient?.full_name || '').toLowerCase();if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) return true;const patientNotes = (patient?.notes || '').toLowerCase();if (patientNotes.includes('interstore') || patientNotes.includes('inter-store') || patientNotes.includes('inter store')) return true;return false;}, [delivery, patient]);
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
   const { displayName, displayAddress, displayPhone, shouldRedact, finalDisplayName, finalDisplayAddress, finalDisplayPhone } = useDeliveryDisplayInfo({ delivery, patient, store, currentUser, isPickup, isInterStore, isInterStorePickup, isStrippedDelivery, isStrippedForDispatcher, isReturnDelivery });
-  const shouldDisableRetryReturn = useMemo(() => {if (delivery.status !== 'failed' || isPickup || !patient) return false;const patientDeliveries = allDeliveries.filter((d) => d && d.patient_id === delivery.patient_id && d.delivery_date === delivery.delivery_date);const totalDeliveries = patientDeliveries.length;const failedDeliveries = patientDeliveries.filter((d) => d.status === 'failed');if (totalDeliveries >= 3) {const maxFailedStopOrder = Math.max(...failedDeliveries.map((d) => d.stop_order || 0));return delivery.stop_order !== maxFailedStopOrder;}if (failedDeliveries.length === 2) {const otherFailed = failedDeliveries.find((d) => d.id !== delivery.id);if (otherFailed) return delivery.stop_order < otherFailed.stop_order;}if (patientDeliveries.some((d) => d.id !== delivery.id && d.status !== 'failed' && d.status !== 'cancelled')) return true;return false;}, [delivery, allDeliveries, patient, isPickup]);
+  const shouldDisableRetryReturn = useMemo(() => false, []);
   const { hasFutureRetry, hasFutureReturn, hasCompletedDelivery } = useMemo(() => {
     if (delivery.status !== 'failed' || isPickup || !patient) return { hasFutureRetry: false, hasFutureReturn: false, hasCompletedDelivery: false };
-    const failedDate = startOfDay(new Date(delivery.delivery_date));const toDate = addDays(failedDate, 7);const failedPatientName = patient.full_name || '';const failedPatientNameNormalized = failedPatientName.trim().toLowerCase();
-    let futureRetryExists = false;let futureReturnExists = false;let completedDeliveryExists = false;
+    const failedDate = startOfDay(new Date(delivery.delivery_date));
+    const toDate = addDays(failedDate, 7);
+    let futureRetryExists = false;
+    let completedDeliveryExists = false;
     for (const d of allDeliveries) {
       if (!d || d.id === delivery.id) continue;
-      let dDate;try {dDate = startOfDay(new Date(d.delivery_date));} catch (e) {continue;}
+      let dDate;
+      try { dDate = startOfDay(new Date(d.delivery_date)); } catch (e) { continue; }
       if (dDate >= failedDate && dDate < toDate) {
         if (d.patient_id === delivery.patient_id && d.stop_id === delivery.stop_id && d.status !== 'failed') futureRetryExists = true;
-        const matchedPatient = patients.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));
-        const deliveryPatientNameNormalized = (d.patient_name || matchedPatient?.full_name || '').trim().toLowerCase();
-        const matchesSamePatient = d.patient_id === delivery.patient_id || !!failedPatientNameNormalized && deliveryPatientNameNormalized === failedPatientNameNormalized;
-        if (d.delivery_date === delivery.delivery_date && matchesSamePatient && d.status === 'completed') completedDeliveryExists = true;
-        const notesLower = (d.delivery_notes || '').toLowerCase();
-        const patientNotesLower = (() => {const returnPatient = patients.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));return (returnPatient?.notes || '').toLowerCase();})();
-        const hasPatientReturnMarker = notesLower.includes('patient return') || patientNotesLower.includes('patient return');
-        const hasFailedPatientName = d.patient_id === delivery.patient_id || !!failedPatientNameNormalized && ((d.patient_name || '').trim().toLowerCase() === failedPatientNameNormalized || notesLower.includes(failedPatientNameNormalized) || patientNotesLower.includes(failedPatientNameNormalized));
-        const sidMatch = d.stop_id === delivery.stop_id;const sameDate = d.delivery_date === delivery.delivery_date;
-        if (sameDate && (hasPatientReturnMarker && hasFailedPatientName || sidMatch && !d.patient_id)) futureReturnExists = true;
+        if (d.delivery_date === delivery.delivery_date && d.patient_id === delivery.patient_id && d.status === 'completed') completedDeliveryExists = true;
       }
-      if (futureRetryExists && futureReturnExists && completedDeliveryExists) break;
+      if (futureRetryExists && completedDeliveryExists) break;
     }
-    return { hasFutureRetry: futureRetryExists, hasFutureReturn: futureReturnExists, hasCompletedDelivery: completedDeliveryExists };
-  }, [delivery, allDeliveries, patient, isPickup, patients]);
+    return { hasFutureRetry: futureRetryExists, hasFutureReturn: false, hasCompletedDelivery: completedDeliveryExists };
+  }, [delivery, allDeliveries, patient, isPickup]);
   const canRetry = useMemo(() => {if (!delivery || delivery.status !== 'failed' || isPickup || !patient) return true;if (hasFutureReturn) return false;const hasLaterDelivery = allDeliveries.some((d) => {if (!d || d.id === delivery.id) return false;if (d.delivery_date !== delivery.delivery_date) return false;if (d.patient_id !== delivery.patient_id) return false;return (d.stop_order || 0) > (delivery.stop_order || 0);});return !hasLaterDelivery;}, [delivery, allDeliveries, patient, isPickup, hasFutureReturn]);
   const _isProjectedData = useMemo(() => delivery?.isProjected || false, [delivery?.isProjected]);
   const isAssignedDriverOrAppOwner = useMemo(() => {if (!currentUser || !delivery) return false;if (isAppOwner(currentUser)) return true;if (!userHasRole(currentUser, 'driver')) return false;return delivery.driver_id === currentUser.id;}, [currentUser, delivery]);

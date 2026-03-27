@@ -106,7 +106,9 @@ export default function StopCardHeader({
     return <span className="text-sm font-bold">ETA: {formatTime12Hour(eta)}</span>;
   })();
 
-  const statusLabel = isReturnDelivery ? "Return" : statusConfig[delivery?.status]?.label || delivery?.status;
+  const statusLabel = isReturnDelivery
+    ? (delivery?.status === 'completed' ? 'Returned' : delivery?.status === 'failed' ? 'Return Failed' : delivery?.status === 'cancelled' ? 'Return Cancelled' : delivery?.status === 'in_transit' ? 'Return In Transit' : delivery?.status === 'pending' ? 'Return Pending' : delivery?.status === 'en_route' ? 'Return En Route' : 'Return')
+    : statusConfig[delivery?.status]?.label || delivery?.status;
   const statusBgClass = isReturnDelivery ?
   "bg-orange-500" :
   delivery?.status === "failed" || delivery?.status === "cancelled" ? "bg-red-500" : "bg-emerald-500";
