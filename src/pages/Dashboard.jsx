@@ -928,9 +928,8 @@ function Dashboard() {
     const isReturn = (delivery) => {
       if (!delivery) return false;
       const patient = patientMap.get(delivery.patient_id);
-      const patientName = delivery.patient_name || '';
-      const patientFullName = patient?.full_name || '';
-      return patientName.toUpperCase().includes('(RTN)') || patientFullName.toUpperCase().includes('(RTN)');
+      const patientAddress = patient?.address || '';
+      return patientAddress.toUpperCase().includes('(RTN)');
     };
 
     // CRITICAL: Total includes patient deliveries AND after hours pickups (all statuses)
@@ -1048,9 +1047,8 @@ function Dashboard() {
     const isReturn = (d) => {
       if (!d || !d.patient_id) return false;
       const patient = patients.find((p) => p && p.id === d.patient_id);
-      const patientName = d.patient_name || '';
-      const patientFullName = patient?.full_name || '';
-      return patientName.toUpperCase().includes('(RTN)') || patientFullName.toUpperCase().includes('(RTN)');
+      const patientAddress = patient?.address || '';
+      return patientAddress.toUpperCase().includes('(RTN)');
     };
 
     return patientDeliveriesOnly.length > 0 &&

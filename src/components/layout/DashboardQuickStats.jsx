@@ -73,8 +73,8 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
         const todayReturns = todayPatientDeliveries.filter((d) => {
-          const patientName = d?.patient_name || '';
-          const isReturn = patientName.toUpperCase().includes('(RTN)');
+          const address = d?.address || '';
+          const isReturn = address.toUpperCase().includes('(RTN)');
           return isReturn && (d?.status === 'completed' || d?.status === 'returned');
         }).length;
 
@@ -83,8 +83,8 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const monthCompleted = monthPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const monthFailed = monthPatientDeliveries.filter((d) => d?.status === 'failed').length;
         const monthReturns = monthPatientDeliveries.filter((d) => {
-          const patientName = d?.patient_name || '';
-          const isReturn = patientName.toUpperCase().includes('(RTN)');
+          const address = d?.address || '';
+          const isReturn = address.toUpperCase().includes('(RTN)');
           return isReturn && (d?.status === 'completed' || d?.status === 'returned');
         }).length;
 
