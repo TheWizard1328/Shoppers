@@ -212,6 +212,7 @@ async function squareFetch(path, method, accessToken, body) {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           'Square-Version': SQUARE_VERSION,
+          'Accept-Encoding': 'identity',
         },
         body: body ? JSON.stringify(body) : undefined,
       });
@@ -253,6 +254,7 @@ async function safeDeleteSquareCatalogObject(catalogObjectId, accessToken) {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Square-Version': SQUARE_VERSION,
+          'Accept-Encoding': 'identity',
         },
       });
 
@@ -799,6 +801,7 @@ async function handleFetchPayments(base44, payload) {
                 Authorization: `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
                 'Square-Version': SQUARE_VERSION,
+                'Accept-Encoding': 'identity',
               },
             });
 
