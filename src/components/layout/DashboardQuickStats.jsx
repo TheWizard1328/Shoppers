@@ -73,9 +73,8 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
         const todayReturns = todayPatientDeliveries.filter((d) => {
-          const notes = d?.delivery_notes || '';
           const patientName = d?.patient_name || '';
-          const isReturn = d?.status === 'returned' || notes.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) || patientName.toLowerCase().includes('return');
+          const isReturn = patientName.toUpperCase().includes('(RTN)');
           return isReturn && (d?.status === 'completed' || d?.status === 'returned');
         }).length;
 
@@ -84,9 +83,8 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const monthCompleted = monthPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const monthFailed = monthPatientDeliveries.filter((d) => d?.status === 'failed').length;
         const monthReturns = monthPatientDeliveries.filter((d) => {
-          const notes = d?.delivery_notes || '';
           const patientName = d?.patient_name || '';
-          const isReturn = d?.status === 'returned' || notes.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) || patientName.toLowerCase().includes('return');
+          const isReturn = patientName.toUpperCase().includes('(RTN)');
           return isReturn && (d?.status === 'completed' || d?.status === 'returned');
         }).length;
 

@@ -122,8 +122,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const codTotalRequired = useMemo(() => delivery?.cod_total_amount_required || 0, [delivery?.cod_total_amount_required]);const hasCODRequired = useMemo(() => codTotalRequired > 0, [codTotalRequired]);const isCODComplete = useMemo(() => codTotalCollected >= codTotalRequired, [codTotalCollected, codTotalRequired]);const isCompleted = useMemo(() => delivery ? FINISHED_STATUSES.includes(delivery.status) : false, [delivery?.status]);
   const isReturnDelivery = useMemo(() => {
     if (!delivery || isPickup) return false;
-    const patientAddress = (patient?.address || '').toUpperCase();
-    return patientAddress.includes('(RTN)');
+    const patientName = (delivery?.patient_name || patient?.full_name || '').toUpperCase();
+    return patientName.includes('(RTN)');
   }, [delivery, patient, isPickup]);
   const shouldShowReturnStatus = useMemo(() => false, []);
   const isFirstDelivery = useMemo(() => {if (!delivery || isPickup) return false;if (patient && !patient.last_delivery_date) return true;if (delivery.delivery_notes?.toLowerCase().includes('first delivery')) return true;if (delivery.first_delivery === true) return true;return false;}, [delivery, patient, isPickup]);

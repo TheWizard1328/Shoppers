@@ -928,16 +928,9 @@ function Dashboard() {
     const isReturn = (delivery) => {
       if (!delivery) return false;
       const patient = patientMap.get(delivery.patient_id);
-      const notes = delivery.delivery_notes || '';
       const patientName = delivery.patient_name || '';
       const patientFullName = patient?.full_name || '';
-
-      if (notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') || patientFullName.toLowerCase().includes('(rtn)')) {
-        return true;
-      }
-
-      const returnRegex = /\breturn\b/i;
-      return returnRegex.test(notes) || returnRegex.test(patientName) || returnRegex.test(patientFullName);
+      return patientName.toUpperCase().includes('(RTN)') || patientFullName.toUpperCase().includes('(RTN)');
     };
 
     // CRITICAL: Total includes patient deliveries AND after hours pickups (all statuses)
@@ -1055,12 +1048,9 @@ function Dashboard() {
     const isReturn = (d) => {
       if (!d || !d.patient_id) return false;
       const patient = patients.find((p) => p && p.id === d.patient_id);
-      const notes = d.delivery_notes || '';
       const patientName = d.patient_name || '';
       const patientFullName = patient?.full_name || '';
-      return notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') ||
-      patientFullName.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) ||
-      /\breturn\b/i.test(patientName) || /\breturn\b/i.test(patientFullName);
+      return patientName.toUpperCase().includes('(RTN)') || patientFullName.toUpperCase().includes('(RTN)');
     };
 
     return patientDeliveriesOnly.length > 0 &&
