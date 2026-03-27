@@ -4879,7 +4879,7 @@ function Dashboard() {
           hasShownSummaryRef.current.add(summaryKey);
 
           // STEP 1: Collapse all expanded cards immediately
-          setSelectedCardId(null);
+          setSelectedCardId(null); setEndOfDayDriver(currentUser); setShowEndOfDayStats(true);
 
           // STEP 2: Set map to Phase 1 as an unlocked programmatic view
           setMapViewPhase(1);

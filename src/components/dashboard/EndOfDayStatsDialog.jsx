@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Package, Clock, TrendingUp, Home, MapPin } from 'lucide-react';
+import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera } from 'lucide-react';
 import { format } from 'date-fns';
 import confetti from 'canvas-confetti';
 
@@ -40,6 +40,13 @@ export default function EndOfDayStatsDialog({
     const cancelled = patientDeliveries.filter(d => d.status === 'cancelled').length;
     const returned = patientDeliveries.filter(isReturn).length;
     
+    const successfulDeliveries = patientDeliveries.filter(d => d.status === 'completed' && !isReturn(d));
+    const deliveriesWithPOD = successfulDeliveries.filter(d => {
+      const hasSignature = !!d.signature_image_url;
+      const hasPhoto = Array.isArray(d.proof_photo_urls) && d.proof_photo_urls.length > 0;
+      return hasSignature || hasPhoto;
+    }).length;
+
     // Calculate total distance (sum of all travel_dist)
     const totalDistance = patientDeliveries.reduce((sum, d) => {
       return sum + (d.travel_dist || 0);
@@ -68,6 +75,8 @@ export default function EndOfDayStatsDialog({
       failed,
       cancelled,
       returned,
+      deliveriesWithPOD,
+      successfulDeliveries: successfulDeliveries.length,
       totalDistance: totalDistance.toFixed(2),
       timeOnDuty
     });
@@ -139,6 +148,12 @@ export default function EndOfDayStatsDialog({
               <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600" />
               <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
+            </div>
+
+            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+              <Camera className="w-5 h-5 mx-auto mb-1 text-slate-600" />
+              <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveriesWithPOD} / {stats.successfulDeliveries}</div>
+              <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Proof of Delivery</div>
             </div>
           </div>
 
