@@ -109,15 +109,13 @@ export default function PayrollSummaryCard({
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
       const afterHoursCount = periodDeliveries.filter((d) => d.after_hours_pickup).length;
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
-      const returnsCount = periodDeliveries.filter((d) => d.status === 'cancelled' && !d.after_hours_pickup).length;
-      const storeReturnCount = deliveries.filter((d) => {
-        if (!d || d.driver_id !== driverId) return false;
-        const date = new Date(d.delivery_date + 'T00:00:00');
-        if (date < currentPeriod.start || date > currentPeriod.end) return false;
-        const combined = ((d.patient_name || '') + ' ' + (d.delivery_notes || '')).toLowerCase();
-        const sn = stores.find((s) => s?.id === d.store_id)?.name || '';
-        return sn && combined.includes(sn.toLowerCase()) && combined.includes('return');
+      const returnsCount = periodDeliveries.filter((d) => {
+        if (!d?.patient_id) return false;
+        const patient = patients?.find((p) => p && p.id === d.patient_id);
+        const patientAddress = patient?.address || '';
+        return patientAddress.toUpperCase().includes('(RTN)');
       }).length;
+      const storeReturnCount = returnsCount;
       const totalPay = basePay + extraKmPay + oversizedPay;
       const gstHstEnabled = appUser?.gst_hst_enabled || false;
       let taxAmount = 0,taxRate = 0,provinceCode = null;
