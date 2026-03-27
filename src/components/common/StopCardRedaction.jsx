@@ -55,6 +55,7 @@ export function useDeliveryDisplayInfo({
   const finalDisplayName = useMemo(() => {
     if (isInterStore || isInterStorePickup) return displayName;
     if (isStrippedDelivery && !shouldRedact) {
+      if (!isPickup && /\breturn\b/i.test(displayName || '')) return displayName;
       if (store?.name) return `${store.name} ${isPickup ? 'Pickup' : 'Delivery'}`;
       return isPickup ? 'Other Store Pickup' : 'Other Store Delivery';
     }
