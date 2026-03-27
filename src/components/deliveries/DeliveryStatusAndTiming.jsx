@@ -213,7 +213,7 @@ export default function DeliveryStatusAndTiming({
                   Arrival Time
                 </Label>
                 {renderTimeInput(
-                  delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : '',
+                  formData.arrival_time || (delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : ''),
                   (e) => setFormData(prev => ({ ...prev, arrival_time: e.target.value })),
                   () => setFormData(prev => ({ ...prev, arrival_time: '' }))
                 )}
