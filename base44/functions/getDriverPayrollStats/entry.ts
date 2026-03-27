@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     // CRITICAL: Patient deliveries count when completed OR failed
     // Pickups count ONLY when they have after_hours_pickup = true AND (completed OR cancelled)
     const completedPatientDeliveries = deliveries.filter(d => 
-      d.patient_id && !d.no_charge && (d.status === 'completed' || d.status === 'failed')
+      d.patient_id && !d.no_charge && ((d.status === 'completed' || d.status === 'failed') || (d.status === 'cancelled' && isPatientReturn(d)))
     );
 
     const completedAfterHoursPickups = deliveries.filter(d => 
@@ -75,9 +75,14 @@ Deno.serve(async (req) => {
     // Count oversized deliveries
     const oversizedCount = completedDeliveries.filter(d => d.oversized === true).length;
 
-    // CRITICAL: Fetch all patients to get distance_from_store
+    // CRITICAL: Fetch all patients to get distance_from_store and return addresses
     const allPatients = await base44.entities.Patient.list();
     const patientMap = new Map(allPatients.map(p => [p.id, p]));
+    const isPatientReturn = (delivery) => {
+      if (!delivery?.patient_id) return false;
+      const patient = patientMap.get(delivery.patient_id);
+      return String(patient?.address || '').toUpperCase().includes('(RTN)');
+    };
 
     // Sort completed deliveries by stop_order to process in sequence
     completedDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));

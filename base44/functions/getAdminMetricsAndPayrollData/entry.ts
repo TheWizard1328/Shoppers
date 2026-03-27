@@ -238,10 +238,14 @@ Deno.serve(async (req) => {
         };
       });
 
+      const patientMap = new Map((yearData.patients || []).map((patient) => [patient?.id, patient]));
+
       yearData.deliveries.forEach((delivery) => {
         if (!delivery || !delivery.delivery_date || !delivery.store_id) return;
 
-        const isValidDelivery = (delivery.status === 'completed' || delivery.status === 'failed') && delivery.patient_id;
+        const matchedPatient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+        const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
+        const isValidDelivery = ((delivery.status === 'completed' || delivery.status === 'failed') || (delivery.status === 'cancelled' && isPatientReturn)) && delivery.patient_id;
         const isAfterHoursPickup = delivery.after_hours_pickup && (delivery.status === 'completed' || delivery.status === 'cancelled');
 
         if (delivery.driver_id) {
