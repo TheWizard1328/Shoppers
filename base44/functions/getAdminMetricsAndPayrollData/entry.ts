@@ -98,7 +98,7 @@ const DRIVER_FIELDS = [
   'deductions'
 ];
 
-const PATIENT_FIELDS = ['id', 'full_name', 'distance_from_store'];
+const PATIENT_FIELDS = ['id', 'full_name', 'distance_from_store', 'address'];
 const CITY_FIELDS = ['id', 'name', 'sort_order', 'province_state'];
 
 Deno.serve(async (req) => {
@@ -376,13 +376,12 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   });
   metrics.driverData = Array.from(uniqueDriverMap.values());
 
+  const patientMap = new Map((patients || []).map((patient) => [patient?.id, patient]));
+
   const isReturn = (d) => {
-    if (!d) return false;
-    const notes = (d.delivery_notes || '');
-    const patientName = (d.patient_name || '');
-    if (notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)')) return true;
-    const returnRegex = /\breturn\b/i;
-    return returnRegex.test(notes) || returnRegex.test(patientName);
+    if (!d?.patient_id) return false;
+    const patient = patientMap.get(d.patient_id);
+    return String(patient?.address || '').toUpperCase().includes('(RTN)');
   };
 
   const isCompletedPatientDelivery = (d) => d && d.status === 'completed' && !isReturn(d) && d.patient_id;

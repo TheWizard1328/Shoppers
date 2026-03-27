@@ -93,8 +93,7 @@ export default function PayrollSummaryCard({
         if (!d.patient_id && !d.after_hours_pickup) return false;
         if (d.status === 'completed' || d.status === 'failed') {/* valid */} else
         if (d.status === 'cancelled') {
-          const isStoreReturn = /\[[\w\s]+\]/.test(d.patient_name || '') && (d.patient_name || '').toLowerCase().includes('return');
-          if (!d.after_hours_pickup && !isStoreReturn) {
+          if (!d.after_hours_pickup && !isPatientReturn) {
             if (isPatientReturn) {
               console.log('[Payroll Return Debug] Excluded by cancelled-status rule', {
                 deliveryId: d.id,
@@ -294,9 +293,13 @@ export default function PayrollSummaryCard({
     let count = 0;
     deliveries.forEach((d) => {
       if (!d || driverId && d.driver_id !== driverId) return;
+      const matchedPatient = d.patient_id
+        ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
+        : null;
+      const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
       if (deliveryDate < new Date(periodStartStr + 'T00:00:00') || deliveryDate > new Date(periodEndStr + 'T00:00:00')) return;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
       if (!validStatus) return;
       if (!d.patient_id && !d.after_hours_pickup) return;
       const store = stores.find((s) => s?.id === d.store_id);
@@ -310,7 +313,7 @@ export default function PayrollSummaryCard({
       if (paysAppFees) count++;
     });
     return count;
-  }, [deliveries, stores, periodStartStr, periodEndStr]);
+  }, [deliveries, stores, patients, periodStartStr, periodEndStr]);
 
   // Handle immediate save to Payroll entity and offline DB
   const savePayrollChanges = async (driverId, updates) => {
@@ -554,9 +557,13 @@ export default function PayrollSummaryCard({
     let total = 0;
     deliveries.forEach((d) => {
       if (!d || !d.store_id) return;
+      const matchedPatient = d.patient_id
+        ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
+        : null;
+      const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
       const dd = new Date(d.delivery_date + 'T00:00:00');
       if (dd < calMonth || dd > calMonthEnd) return;
-      const valid = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+      const valid = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
       if (!valid || !d.patient_id && !d.after_hours_pickup) return;
       const store = stores.find((s) => s?.id === d.store_id);
       if (!store) return;
@@ -569,7 +576,7 @@ export default function PayrollSummaryCard({
       if (pays) total++;
     });
     return total * appFeesPerDelivery * appFeePercent / 100;
-  }, [deliveries, stores, currentPeriod, appFeesPerDelivery]);
+  }, [deliveries, stores, patients, currentPeriod, appFeesPerDelivery]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
@@ -1302,9 +1309,13 @@ export default function PayrollSummaryCard({
                                     let totalBillableCount = 0;
                                     deliveries.forEach((d) => {
                                       if (!d || !d.store_id) return;
+                                      const matchedPatient = d.patient_id
+                                        ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
+                                        : null;
+                                      const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                                       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                                       if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
                                       if (!validStatus) return;
                                       if (!d.patient_id && !d.after_hours_pickup) return;
                                       const store = stores.find((s) => s?.id === d.store_id);
@@ -1346,9 +1357,13 @@ export default function PayrollSummaryCard({
                                     let ytdTotalBillable = 0;
                                     deliveries.forEach((d) => {
                                       if (!d || !d.store_id) return;
+                                      const matchedPatient = d.patient_id
+                                        ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
+                                        : null;
+                                      const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                                       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                                       if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
                                       if (!validStatus) return;
                                       if (!d.patient_id && !d.after_hours_pickup) return;
                                       const store = stores.find((s) => s?.id === d.store_id);
@@ -1419,9 +1434,13 @@ export default function PayrollSummaryCard({
                           let totalBillableCount = 0;
                           deliveries.forEach((d) => {
                             if (!d || !d.store_id) return;
+                            const matchedPatient = d.patient_id
+                              ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
+                              : null;
+                            const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                             if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
                             if (!validStatus) return;
                             if (!d.patient_id && !d.after_hours_pickup) return;
                             const store = stores.find((s) => s?.id === d.store_id);
@@ -1451,9 +1470,13 @@ export default function PayrollSummaryCard({
                           let ytdTotalBillable = 0;
                           deliveries.forEach((d) => {
                             if (!d || !d.store_id) return;
+                            const matchedPatient = d.patient_id
+                              ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
+                              : null;
+                            const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                             if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
                             if (!validStatus) return;
                             if (!d.patient_id && !d.after_hours_pickup) return;
                             const store = stores.find((s) => s?.id === d.store_id);
