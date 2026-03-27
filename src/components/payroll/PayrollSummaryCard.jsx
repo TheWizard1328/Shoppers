@@ -112,8 +112,10 @@ export default function PayrollSummaryCard({
       const returnsCount = periodDeliveries.filter((d) => {
         if (!d) return false;
         const patient = patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));
-        const patientAddress = patient?.address || d.address || '';
-        return patientAddress.toUpperCase().includes('(RTN)');
+        const patientAddress = patient?.address || '';
+        const deliveryAddress = d.address || '';
+        const combinedAddress = `${patientAddress} ${deliveryAddress}`.toUpperCase();
+        return combinedAddress.includes('(RTN)');
       }).length;
       const storeReturnCount = returnsCount;
       const totalPay = basePay + extraKmPay + oversizedPay;
