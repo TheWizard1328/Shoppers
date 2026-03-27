@@ -52,7 +52,7 @@ export default function LeftStatsAndNotes({
         </div>
         <div className="flex items-center">
           <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
-          <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.storeReturnCount || 0}</span>
+          <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount || 0}</span>
         </div>
       </div>
 

@@ -1486,7 +1486,7 @@ export default function PayrollSummaryCard({
                       <div className="flex items-center justify-between">
                         <span style={{ color: 'var(--text-slate-600)' }}>Returns</span>
                         <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">
-                          {driversWithDeliveries.reduce((sum, d) => sum + d.storeReturnCount, 0)}
+                          {driversWithDeliveries.reduce((sum, d) => sum + (d.returnsCount || 0), 0)}
                         </span>
                       </div>
                     </div>
