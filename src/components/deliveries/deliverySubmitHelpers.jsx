@@ -33,6 +33,14 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     }
   }
 
+  if (isCompletionStatus) {
+    if (formData.arrival_time) {
+      dataToSave.arrival_time = `${formData.delivery_date}T${formData.arrival_time}:00`;
+    } else if (delivery?.arrival_time) {
+      dataToSave.arrival_time = '';
+    }
+  }
+
   return dataToSave;
 };
 
