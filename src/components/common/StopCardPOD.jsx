@@ -7,11 +7,13 @@ import { UploadFile } from "@/api/integrations";
 import { toast } from "sonner";
 import { invalidate } from '../utils/dataManager';
 import { persistDeliveryProof } from '../utils/persistDeliveryProof';
+import { persistPatientSignature } from '../utils/persistPatientSignature';
 import SignatureCapture from './SignatureCapture';
 import PhotoCapture from './PhotoCapture';
 
 export default function StopCardPOD({
   delivery,
+  patient,
   displayName,
   isNextDelivery,
   isFinishedDelivery,
@@ -24,7 +26,11 @@ export default function StopCardPOD({
   setShowPhotoCapture,
   forceRefreshDriverDeliveries,
   showButtons = true,
+  currentUser,
 }) {
+  const patientHasSavedSignature = !!patient?.signature_image_url;
+  const driverOnlySavedSignatureHint = !!currentUser?.app_roles?.includes('driver') && patientHasSavedSignature;
+
   const handleSignatureSave = async (signatureBlob) => {
     setShowSignatureCapture(false);
     let failureStage = 'upload_file';
@@ -37,8 +43,13 @@ export default function StopCardPOD({
       const fileUrl = uploadResult?.file_url || uploadResult?.data?.file_url;
       failureStage = 'persist_delivery_proof';
       await persistDeliveryProof(delivery.id, { signature_image_url: fileUrl });
+      if (patient?.id) {
+        failureStage = 'persist_patient_signature';
+        await persistPatientSignature(patient.id, fileUrl);
+      }
       toast.success('Signature saved!');
       invalidate('Delivery');
+      invalidate('Patient');
       Promise.resolve(forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date)).catch((refreshError) => {
         console.warn('⚠️ [Signature] Background refresh failed:', refreshError?.message || refreshError);
       });
@@ -161,12 +172,12 @@ export default function StopCardPOD({
                 }}
                 size="sm"
                 variant="outline"
-                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.signature_image_url ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
+                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.signature_image_url ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : driverOnlySavedSignatureHint ? 'bg-yellow-100 border-yellow-400 hover:bg-yellow-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
               >
                 {delivery.status === 'completed' && delivery.signature_image_url ? (
                   <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
                 ) : (
-                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-600'}`} />
+                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${delivery.signature_image_url ? 'text-emerald-700' : driverOnlySavedSignatureHint ? 'text-yellow-700' : 'text-slate-600'}`} />
                 )}
               </Button>
               {delivery.signature_image_url && delivery.status !== 'completed' && (
