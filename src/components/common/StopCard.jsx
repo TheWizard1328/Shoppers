@@ -243,7 +243,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         id: pendingDelivery.id,
         status: 'in_transit',
         delivery_time_start: deliveryTimeStart,
-        tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1)
+        tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1),
+        isNextDelivery: false
       }));
 
       Promise.all(localUpdates.map(update => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true }))).catch(err => console.warn('Local update failed:', err));
@@ -272,6 +273,17 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: currentLocalTime, generatePolyline: false });
           invalidate('Delivery');
           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+          const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
+          const nextOptimizedStop = getNextActiveDelivery(refreshedRouteDeliveries, null, FINISHED_STATUSES);
+          await collapseAndCenterNextDelivery({
+            driverDeliveries: refreshedRouteDeliveries,
+            targetDeliveryId: nextOptimizedStop?.id || null,
+            updateDeliveryLocal,
+            updateDeliveriesLocally,
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date
+          });
         } catch (optErr) {console.warn('⚠️ [Accept All] background optimization failed:', optErr?.message || optErr);} finally
         {
           window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -504,7 +516,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: 'completed', overrides: completionUpdate });
                           const pendingPickupIds = isPickup ? new Set((pendingPickups || []).filter((p) => p?.status === 'pending').map((p) => p.id)) : null;
                           const optimisticDeliveries = allDeliveries.map((d) => {if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;if (d.id === delivery.id) return { ...d, ...completionUpdate, isNextDelivery: false };if (pendingPickupIds?.has(d.id)) return { ...d, status: 'in_transit', isNextDelivery: false };return { ...d, isNextDelivery: false };});
-                          const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));const nextStop = incompleteDeliveries[0] || null;
+                          const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));const shouldDelayNextDeliverySelection = isPickup && pendingPickupIds && pendingPickupIds.size > 0;const nextStop = shouldDelayNextDeliverySelection ? null : incompleteDeliveries[0] || null;
                           await collapseAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
                           if (!nextStop) {fabControlEvents.notifyDoneButtonClicked();window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));try {locationTracker.stopTracking();} catch (trackingError) {console.warn('Could not stop location tracking:', trackingError.message);}if (onDriverStatusChange) onDriverStatusChange('off_duty');}
                           invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('collapseAllStopCards'));fabControlEvents.notifyPhaseTwoCompleteRecenter();fabControlEvents.reactivateFAB(true);
