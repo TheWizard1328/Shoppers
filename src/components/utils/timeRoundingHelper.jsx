@@ -87,6 +87,24 @@ const getStopCoordinates = (delivery, patients = [], stores = []) => {
   return { lat, lng };
 };
 
+const getStoreFirstStopStartTime = (delivery, stores = []) => {
+  const store = stores.find((item) => item?.id === delivery?.store_id);
+  if (!store || !delivery?.delivery_date) return delivery?.delivery_time_start || '09:00';
+
+  const dayOfWeek = new Date(`${delivery.delivery_date}T12:00:00`).getDay();
+  const isPm = String(delivery?.ampm_deliveries || '').toUpperCase() === 'PM';
+
+  if (dayOfWeek === 6) {
+    return isPm ? (store.saturday_pm_start || delivery?.delivery_time_start || '09:00') : (store.saturday_am_start || delivery?.delivery_time_start || '09:00');
+  }
+
+  if (dayOfWeek === 0) {
+    return isPm ? (store.sunday_pm_start || delivery?.delivery_time_start || '09:00') : (store.sunday_am_start || delivery?.delivery_time_start || '09:00');
+  }
+
+  return isPm ? (store.weekday_pm_start || delivery?.delivery_time_start || '09:00') : (store.weekday_am_start || delivery?.delivery_time_start || '09:00');
+};
+
 export const calculateRetroactiveStopTiming = async ({
   delivery,
   allDeliveries = [],
@@ -111,7 +129,7 @@ export const calculateRetroactiveStopTiming = async ({
   let travelDistanceKm = Number(delivery?.travel_dist);
 
   if (isFirstStop) {
-    baseTime = parseDateTimeParts(delivery.delivery_date, delivery.delivery_time_start || '09:00');
+    baseTime = parseDateTimeParts(delivery.delivery_date, getStoreFirstStopStartTime(delivery, stores));
   } else {
     baseTime = parseLocalTimestamp(previousStop.actual_delivery_time)
       || parseLocalTimestamp(previousStop.arrival_time)
