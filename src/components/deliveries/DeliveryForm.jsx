@@ -1656,26 +1656,6 @@ export default function DeliveryForm({
         await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
 
-      const timeWindowChanged = delivery && (
-        delivery.time_window_start !== formData.time_window_start ||
-        delivery.time_window_end !== formData.time_window_end
-      );
-
-      if (timeWindowChanged && formData.driver_id && formData.delivery_date) {
-        try {
-          const incompleteStatuses = ['pending', 'in_transit', 'en_route'];
-          const incompleteDeliveries = allDeliveries.filter(d =>
-            d && 
-            d.driver_id === formData.driver_id &&
-            d.delivery_date === formData.delivery_date &&
-            incompleteStatuses.includes(d.status)
-          );
-          if (incompleteDeliveries.length > 0) {
-          }
-        } catch (error) {
-          console.error('❌ [DeliveryForm] ETA update setup failed:', error);
-        }
-      }
 
       await runDeliverySubmitSideEffects({
         delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
@@ -1719,7 +1699,7 @@ export default function DeliveryForm({
     if (hasNewStagedDeliveries && !delivery) {
       const confirmed = window.confirm('You have unsaved deliveries. Discard them?');
       if (confirmed) {
-        (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}}catch(e){}})();
+        (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
         hasLoadedPending.current = false; // Reset flag to allow reload
@@ -1730,7 +1710,6 @@ export default function DeliveryForm({
           .catch((error) => {
             console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
           });
-        (async()=>{try{const c=stagedDeliveries.filter(d=>!d.patient_id&&d._autoCreated);for(const p of c){const attached=stagedDeliveries.some(sd=>sd.patient_id&&sd.puid===p.stop_id);if(!attached&&p.id){await deleteDeliveryLocal(p.id);autoCreatedPickupsRef.current.delete(p.id);}}setStagedDeliveries(prev=>{const hasAttached=(sid)=>prev.some(sd=>sd.patient_id&&sd.puid===sid);return prev.filter(d=>!( !d.patient_id && d._autoCreated && !hasAttached(d.stop_id) ));});}catch(e){}})();
         
         import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
       }
