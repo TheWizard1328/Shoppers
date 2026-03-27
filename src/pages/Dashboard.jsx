@@ -926,7 +926,7 @@ function Dashboard() {
     const patientMap = new Map((patients || []).filter((p) => p && p.id).map((p) => [p.id, p]));
 
     const isReturn = (delivery) => {
-      if (!delivery) return false;
+      if (!delivery || delivery.status !== 'completed') return false;
       const patient = patientMap.get(delivery.patient_id);
       const patientAddress = patient?.address || '';
       return patientAddress.toUpperCase().includes('(RTN)');
