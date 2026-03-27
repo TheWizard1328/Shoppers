@@ -6461,7 +6461,7 @@ function Dashboard() {
                   };
 
                   const routeComplete = allDriverDeliveries.length > 0 &&
-                  allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
+                  allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || (d.status === 'completed' && checkIsReturn(d)));
 
                   if (routeComplete) {
                     // CRITICAL: Check if this is an InterStore delivery or Store Pickup
