@@ -30,6 +30,7 @@ import { getEffectiveUser } from "../components/utils/auth";
 import { getDriverDisplayName, getDriverNameForComparison } from '../components/utils/driverUtils';
 import { sortUsers } from '../components/utils/sorting';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
+import { getReturnCountFromPatientId } from '../components/utils/returnDeliveryUtils';
 
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
   if (!lat1 || !lng1 || !lat2 || !lng2) return 0;
@@ -459,11 +460,7 @@ export default function DeliveryMetrics() {
     
     // Total = Completed + Failed + After Hours Pickups
     const totalDeliveries = completedDeliveries + failedDeliveries + afterHoursPickups;
-    const returnedDeliveries = relevantDeliveries.filter((d) => {
-      const patient = patients.find((p) => p.id === d.patient_id);
-      const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
-      return addressReturn;
-    }).length;
+    const returnedDeliveries = relevantDeliveries.reduce((sum, d) => sum + getReturnCountFromPatientId(d, patients), 0);
 
     const completionRate = completedDeliveries + failedDeliveries > 0 ?
     (completedDeliveries / (completedDeliveries + failedDeliveries) * 100).toFixed(1) :
@@ -480,11 +477,7 @@ export default function DeliveryMetrics() {
     
     // Previous Total = Completed + Failed + After Hours Pickups
     const prevTotalDeliveries = prevCompletedDeliveries + prevFailedDeliveries + prevAfterHoursPickups;
-    const prevReturnedDeliveries = prevRelevantDeliveries.filter((d) => {
-      const patient = patients.find((p) => p.id === d.patient_id);
-      const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
-      return addressReturn;
-    }).length;
+    const prevReturnedDeliveries = prevRelevantDeliveries.reduce((sum, d) => sum + getReturnCountFromPatientId(d, patients), 0);
 
     const prevCompletionRate = prevCompletedDeliveries + prevFailedDeliveries > 0 ?
     (prevCompletedDeliveries / (prevCompletedDeliveries + prevFailedDeliveries) * 100).toFixed(1) :
@@ -708,9 +701,7 @@ export default function DeliveryMetrics() {
 
           if (isPrevious) {
             dayData.prevTotal++;
-            const patient = patients.find((p) => p.id === delivery.patient_id);
-            const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
-            const isReturned = addressReturn;
+            const isReturned = getReturnCountFromPatientId(delivery, patients) > 0;
             
             if (isReturned) {
               dayData.prevReturned++;
@@ -720,9 +711,7 @@ export default function DeliveryMetrics() {
             if (delivery.status === 'failed') dayData.prevFailed++;
           } else {
             dayData.total++;
-            const patient = patients.find((p) => p.id === delivery.patient_id);
-            const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
-            const isReturned = addressReturn;
+            const isReturned = getReturnCountFromPatientId(delivery, patients) > 0;
             
             if (isReturned) {
               dayData.returned++;
@@ -758,10 +747,7 @@ export default function DeliveryMetrics() {
         const date = delivery.delivery_date;
         if (dailyStats[date]) {
           dailyStats[date].total++;
-          const patient = patients.find((p) => p.id === delivery.patient_id);
-          const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-          const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-          const isReturned = notesReturn || addressReturn;
+          const isReturned = getReturnCountFromPatientId(delivery, patients) > 0;
           
           if (isReturned) {
             dailyStats[date].returned++;
@@ -787,9 +773,7 @@ export default function DeliveryMetrics() {
           const date = delivery.delivery_date;
           if (prevDailyStats[date]) {
             prevDailyStats[date].total++;
-            const patient = patients.find((p) => p.id === delivery.patient_id);
-            const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
-            const isReturned = addressReturn;
+            const isReturned = getReturnCountFromPatientId(delivery, patients) > 0;
             
             if (isReturned) {
               prevDailyStats[date].returned++;
@@ -828,9 +812,7 @@ export default function DeliveryMetrics() {
       if (delivery.status === 'completed') driverStats[driverFirstName].completed++;
       if (delivery.status === 'failed') driverStats[driverFirstName].failed++;
 
-      const patient = patients.find((p) => p.id === delivery.patient_id);
-      const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
-      if (addressReturn) driverStats[driverFirstName].returned++;
+      if (getReturnCountFromPatientId(delivery, patients) > 0) driverStats[driverFirstName].returned++;
     });
 
     const prevDriverStats = {};
@@ -844,9 +826,7 @@ export default function DeliveryMetrics() {
       if (delivery.status === 'completed') prevDriverStats[driverFirstName].completed++;
       if (delivery.status === 'failed') prevDriverStats[driverFirstName].failed++;
 
-      const patient = patients.find((p) => p.id === delivery.patient_id);
-      const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
-      if (addressReturn) prevDriverStats[driverFirstName].returned++;
+      if (getReturnCountFromPatientId(delivery, patients) > 0) prevDriverStats[driverFirstName].returned++;
     });
 
     const driverData = Object.values(driverStats).sort((a, b) => b.total - a.total);

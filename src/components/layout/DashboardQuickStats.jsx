@@ -5,6 +5,7 @@ import { Truck, Package, CheckCircle, AlertCircle } from "lucide-react";
 import { globalFilters } from '../utils/globalFilters';
 import { offlineDB } from '../utils/offlineDatabase';
 import { userHasRole } from '../utils/userRoles';
+import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 
 export default function DashboardQuickStats({ currentUser, storeIds = [], isMobile, screenWidth }) {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
@@ -57,6 +58,8 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
           return;
         }
 
+        const allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+
         // Determine store filter for dispatcher
         const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
         const dispatcherStoreIds = isDispatcher ? new Set(currentUser.store_ids || []) : null;
@@ -72,21 +75,13 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const todayActiveStops = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled', 'returned'].includes(d?.status)).length;
         const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
-        const todayReturns = todayPatientDeliveries.filter((d) => {
-          const address = d?.address || '';
-          const isReturn = address.toUpperCase().includes('(RTN)');
-          return isReturn && (d?.status === 'completed' || d?.status === 'returned');
-        }).length;
+        const todayReturns = todayPatientDeliveries.reduce((sum, d) => sum + getReturnCountFromPatientId(d, allPatients), 0);
 
         // Calculate month's stats
         const monthPatientDeliveries = monthDeliveries.filter((d) => d && d.patient_id);
         const monthCompleted = monthPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const monthFailed = monthPatientDeliveries.filter((d) => d?.status === 'failed').length;
-        const monthReturns = monthPatientDeliveries.filter((d) => {
-          const address = d?.address || '';
-          const isReturn = address.toUpperCase().includes('(RTN)');
-          return isReturn && (d?.status === 'completed' || d?.status === 'returned');
-        }).length;
+        const monthReturns = monthPatientDeliveries.reduce((sum, d) => sum + getReturnCountFromPatientId(d, allPatients), 0);
 
         setStats({
           today: {
