@@ -22,7 +22,7 @@ import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
 import { calculateHaversineDistance } from "../utils/distanceCalculator";
-import { deleteCODWithTimeout } from '../utils/squareCODHandler';
+import { createCODWithTimeout, deleteCODWithTimeout } from '../utils/squareCODHandler';
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
 import { notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
@@ -320,7 +320,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         const retryDraft = buildRetryDelivery(delivery, retryTrackingNumber);
         const retryDate = retryDraft.delivery_date;
         const retryDateDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === retryDate);
-        await createDeliveryLocal({
+        const newRetryDelivery = await createDeliveryLocal({
           ...retryDraft,
           stop_id: generateUniqueSID(retryDateDeliveries),
           puid: delivery.puid || delivery.stop_id || null,
@@ -330,6 +330,19 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         });
         if ((delivery.cod_total_amount_required || 0) > 0) {
           await deleteCODWithTimeout(delivery.id, 'Removed after creating retry delivery');
+          if (retryDate !== delivery.delivery_date && !isPickup) {
+            const retryDeliveryId = newRetryDelivery?.id || newRetryDelivery?.data?.id;
+            if (retryDeliveryId) {
+              await createCODWithTimeout(
+                retryDeliveryId,
+                patient?.full_name || delivery.patient_name || 'Patient',
+                store?.abbreviation || '',
+                delivery.cod_total_amount_required,
+                retryDate,
+                delivery.store_id
+              );
+            }
+          }
         }
         await ensureDriverOnline();
         await collapseAndCenterNextDelivery({ driverDeliveries: getDriverRouteDeliveries(allDeliveries, delivery), targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
