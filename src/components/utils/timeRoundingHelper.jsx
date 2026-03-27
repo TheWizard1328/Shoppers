@@ -1,3 +1,5 @@
+import { base44 } from "@/api/base44Client";
+
 /**
  * Determines if this is the first or last incomplete stop for the driver on this date
  * @param {Object} delivery - Current delivery being completed
@@ -45,8 +47,100 @@ export const generateCompletionTimestamp = (delivery, allDeliveries, FINISHED_ST
   const year = currentTime.getFullYear();
   const month = String(currentTime.getMonth() + 1).padStart(2, '0');
   const day = String(currentTime.getDate()).padStart(2, '0');
-  const seconds = '00'; // Always '00' for consistency with 5-minute rounding
+  const seconds = '00';
 
-  // Return LOCAL timestamp without any timezone offset suffix (e.g., 2026-02-26T16:36:00)
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-}
+};
+
+const pad = (value) => String(value).padStart(2, '0');
+
+const formatLocalTimestamp = (date) => {
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+};
+
+const parseLocalTimestamp = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const normalized = value.includes('T') ? value : `${value}T00:00:00`;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const parseDateTimeParts = (dateString, timeString = '09:00') => {
+  const [year, month, day] = String(dateString || '').split('-').map(Number);
+  const [hours, minutes] = String(timeString || '09:00').split(':').map(Number);
+  const date = new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getStopCoordinates = (delivery, patients = [], stores = []) => {
+  const patient = delivery?.patient_id ? patients.find((item) => item?.id === delivery.patient_id || item?.patient_id === delivery.patient_id) : null;
+  const store = stores.find((item) => item?.id === delivery?.store_id);
+  const lat = delivery?.patient_id ? Number(patient?.latitude) : Number(store?.latitude);
+  const lng = delivery?.patient_id ? Number(patient?.longitude) : Number(store?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+};
+
+export const calculateRetroactiveStopTiming = async ({
+  delivery,
+  allDeliveries = [],
+  patients = [],
+  stores = [],
+  isAppOwner = false,
+  todayDateString
+}) => {
+  if (!delivery || !isAppOwner || !delivery.delivery_date || !todayDateString) return null;
+  if (delivery.delivery_date >= todayDateString) return null;
+
+  const routeStops = allDeliveries
+    .filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date)
+    .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+  const currentIndex = routeStops.findIndex((item) => item?.id === delivery.id);
+  if (currentIndex === -1) return null;
+
+  const previousStop = currentIndex > 0 ? routeStops[currentIndex - 1] : null;
+  let baseTime = null;
+  let travelDistanceKm = Number(delivery?.travel_dist);
+
+  if (!previousStop) {
+    baseTime = parseDateTimeParts(delivery.delivery_date, delivery.delivery_time_start || '09:00');
+  } else {
+    baseTime = parseLocalTimestamp(previousStop.actual_delivery_time)
+      || parseLocalTimestamp(previousStop.arrival_time)
+      || parseDateTimeParts(previousStop.delivery_date, previousStop.delivery_time_start || '09:00');
+
+    const origin = getStopCoordinates(previousStop, patients, stores);
+    const destination = getStopCoordinates(delivery, patients, stores);
+
+    if (baseTime && origin && destination) {
+      const res = await base44.functions.invoke('getHereDirections', {
+        origin: { lat: origin.lat, lng: origin.lng },
+        destination: { lat: destination.lat, lng: destination.lng }
+      });
+      const data = res?.data || res || {};
+      const travelMinutes = Number(data.estimated_duration_minutes) || 0;
+      travelDistanceKm = Number(data.estimated_distance_km);
+      baseTime = new Date(baseTime.getTime() + travelMinutes * 60000);
+    }
+  }
+
+  if (!baseTime) return null;
+
+  const completionBuffer = Math.floor(Math.random() * 6);
+  const arrivalBuffer = Math.floor(Math.random() * 6);
+  const actualDeliveryTime = new Date(baseTime.getTime() + completionBuffer * 60000);
+  const arrivalTime = new Date(actualDeliveryTime.getTime() - arrivalBuffer * 60000);
+
+  return {
+    actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
+    arrival_time: formatLocalTimestamp(arrivalTime),
+    ...(Number.isFinite(travelDistanceKm) ? { travel_dist: travelDistanceKm } : {})
+  };
+};
