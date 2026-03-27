@@ -257,14 +257,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       const codBatch = allPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);return { deliveryId: pendingDelivery.id, patientName: pendingDelivery.patient_name, storeAbbreviation: storeForCod?.abbreviation || '', codAmount: pendingDelivery.cod_total_amount_required, deliveryDate: pendingDelivery.delivery_date, storeId: pendingDelivery.store_id };});
 
       // Background: Sync updates to server (no await in main thread)
-      Promise.resolve().then(async () => {
-        try {
-          sortedPending.forEach((pendingDelivery, i) => {queueDeliveryUpdate(pendingDelivery.id, { status: 'in_transit', delivery_time_start: deliveryTimeStart, tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1) });});
-          await flushQueuedDeliveryUpdates();
-          invalidate('Delivery');
-          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-        } catch (syncErr) {console.warn('⚠️ [Accept All] Background sync failed:', syncErr?.message || syncErr);}
-      });
+      sortedPending.forEach((pendingDelivery, i) => {queueDeliveryUpdate(pendingDelivery.id, { status: 'in_transit', delivery_time_start: deliveryTimeStart, tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1) });});
+      await flushQueuedDeliveryUpdates();
+      invalidate('Delivery');
+      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
       // Background: Route optimization (final UI update only after optimization completes)
       Promise.resolve().then(async () => {
