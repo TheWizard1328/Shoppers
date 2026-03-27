@@ -3,11 +3,12 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Smartphone, Tablet, Monitor, CheckCircle, Trash2, Edit2, Plus, AlertCircle } from 'lucide-react';
+import { Smartphone, Tablet, Monitor, CheckCircle, Trash2, Edit2, Plus, AlertCircle, MapPin, ShieldCheck } from 'lucide-react';
 import { useUser } from '../components/utils/UserContext';
 import DeviceForm from '../components/devices/DeviceForm';
 import AccountDeletionSection from '../components/settings/AccountDeletionSection';
 import { toast } from 'sonner';
+import { getLocationProvider } from '../components/utils/locationProviders';
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
@@ -22,6 +23,9 @@ export default function DeviceSettings() {
    const [deviceSettings, setDeviceSettings] = useState({}); // Temporary settings before apply
    const [showChangeSettings, setShowChangeSettings] = useState(false);
    const [selectedSourceDevice, setSelectedSourceDevice] = useState(null);
+   const [isRequestingLocationAccess, setIsRequestingLocationAccess] = useState(false);
+   const locationProvider = getLocationProvider();
+   const isNativeBackgroundTrackingAvailable = locationProvider?.backgroundCapable === true && locationProvider?.isAvailable();
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -255,6 +259,26 @@ export default function DeviceSettings() {
     }
   };
 
+  const handleRequestBackgroundLocationAccess = async () => {
+    if (!isNativeBackgroundTrackingAvailable || isRequestingLocationAccess) return;
+
+    setIsRequestingLocationAccess(true);
+    try {
+      await locationProvider.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+        requestPermissions: true
+      });
+      toast.success('Location access requested. If prompted, choose Allow all the time / Always Allow.');
+    } catch (error) {
+      console.error('Failed to request location access:', error);
+      toast.error(error?.message || 'Location permission request was not completed');
+    } finally {
+      setIsRequestingLocationAccess(false);
+    }
+  };
+
   const getDeviceIcon = (deviceType) => {
     switch (deviceType) {
       case 'Mobile': return <Smartphone className="w-5 h-5" />;
@@ -301,6 +325,38 @@ export default function DeviceSettings() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-4xl mx-auto">
+          {isNativeBackgroundTrackingAvailable && (
+            <Card className="mb-6" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <ShieldCheck className="w-5 h-5" />
+                  Background GPS Setup
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border p-4" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                  <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                    This device supports native background location tracking.
+                  </p>
+                  <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
+                    Tap below, then allow full background access when your phone asks.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button onClick={handleRequestBackgroundLocationAccess} disabled={isRequestingLocationAccess} className="gap-2">
+                    <MapPin className="w-4 h-4" />
+                    {isRequestingLocationAccess ? 'Requesting Access...' : 'Request Background GPS Access'}
+                  </Button>
+                </div>
+                <ul className="text-sm space-y-1 list-disc pl-5" style={{ color: 'var(--text-slate-500)' }}>
+                  <li>Android: choose “Allow all the time”.</li>
+                  <li>iPhone: choose “Always Allow” and keep Precise Location on.</li>
+                  <li>After that, this device can keep sharing GPS in the background when tracking is active.</li>
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
           {showForm && (
             <DeviceForm
           device={editingDevice}
