@@ -207,9 +207,23 @@ export default function DeliveryStatusAndTiming({
         {/* Row 2: Completion Time — only for completion statuses */}
         {isCompletion && (
           <div className="flex gap-3">
+            {isAppOwner(currentUser) && (
+              <div className="flex-1 space-y-1">
+                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                  Arrival Time
+                </Label>
+                <Input
+                  type="time"
+                  value={delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : ''}
+                  readOnly
+                  disabled
+                  className="h-9 w-full px-2 text-sm"
+                />
+              </div>
+            )}
             <div className="flex-1 space-y-1">
               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                Completion Time {delivery?.arrival_time && `[Arrived: ${format(new Date(delivery.arrival_time), 'HH:mm')}]`} *
+                Completion Time *
               </Label>
               {renderTimeInput(
                 completionTime,
