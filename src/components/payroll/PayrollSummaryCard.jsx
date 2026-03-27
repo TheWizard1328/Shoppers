@@ -84,14 +84,60 @@ export default function PayrollSummaryCard({
 
       const periodDeliveries = deliveries.filter((d) => {
         if (!d || !d.delivery_date || d.driver_id !== driverId) return false;
+
+        const matchedPatient = d.patient_id
+          ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
+          : null;
+        const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
+
         if (!d.patient_id && !d.after_hours_pickup) return false;
         if (d.status === 'completed' || d.status === 'failed') {/* valid */} else
         if (d.status === 'cancelled') {
           const isStoreReturn = /\[[\w\s]+\]/.test(d.patient_name || '') && (d.patient_name || '').toLowerCase().includes('return');
-          if (!d.after_hours_pickup && !isStoreReturn) return false;
-        } else return false;
+          if (!d.after_hours_pickup && !isStoreReturn) {
+            if (isPatientReturn) {
+              console.log('[Payroll Return Debug] Excluded by cancelled-status rule', {
+                deliveryId: d.id,
+                driverId: d.driver_id,
+                patientName: matchedPatient?.full_name || d.patient_name || 'Unknown',
+                patientId: matchedPatient?.patient_id || matchedPatient?.id || d.patient_id,
+                status: d.status,
+                address: matchedPatient?.address || 'No address found'
+              });
+            }
+            return false;
+          }
+        } else {
+          if (isPatientReturn) {
+            console.log('[Payroll Return Debug] Excluded by status rule', {
+              deliveryId: d.id,
+              driverId: d.driver_id,
+              patientName: matchedPatient?.full_name || d.patient_name || 'Unknown',
+              patientId: matchedPatient?.patient_id || matchedPatient?.id || d.patient_id,
+              status: d.status,
+              address: matchedPatient?.address || 'No address found'
+            });
+          }
+          return false;
+        }
+
         const date = new Date(d.delivery_date + 'T00:00:00');
-        return date >= currentPeriod.start && date <= currentPeriod.end;
+        const inPeriod = date >= currentPeriod.start && date <= currentPeriod.end;
+
+        if (isPatientReturn && !inPeriod) {
+          console.log('[Payroll Return Debug] Excluded by pay period date', {
+            deliveryId: d.id,
+            driverId: d.driver_id,
+            patientName: matchedPatient?.full_name || d.patient_name || 'Unknown',
+            patientId: matchedPatient?.patient_id || matchedPatient?.id || d.patient_id,
+            deliveryDate: d.delivery_date,
+            periodStart: currentPeriod.start?.toISOString?.().split('T')[0],
+            periodEnd: currentPeriod.end?.toISOString?.().split('T')[0],
+            address: matchedPatient?.address || 'No address found'
+          });
+        }
+
+        return inPeriod;
       });
 
       const deliveryCount = periodDeliveries.length;
