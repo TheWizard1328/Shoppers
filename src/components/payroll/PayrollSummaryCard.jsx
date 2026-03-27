@@ -21,6 +21,7 @@ import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
 import PayrollMobileCard from './PayrollMobileCard';import LeftStatsAndNotes from './LeftStatsAndNotes';
 import { AppFeeAllDriversDialog } from './AppFeeDialogs';
 import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
+import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 import { exportPayrollPdf } from './payrollPdfExport';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
@@ -109,14 +110,10 @@ export default function PayrollSummaryCard({
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
       const afterHoursCount = periodDeliveries.filter((d) => d.after_hours_pickup).length;
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
-      const returnsCount = periodDeliveries.filter((d) => {
-        if (!d) return false;
-        const patient = patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));
-        const patientAddress = patient?.address || '';
-        const deliveryAddress = d.address || '';
-        const combinedAddress = `${patientAddress} ${deliveryAddress}`.toUpperCase();
-        return combinedAddress.includes('(RTN)');
-      }).length;
+      const returnsCount = periodDeliveries.reduce(
+        (sum, d) => sum + getReturnCountFromPatientId(d, patients),
+        0
+      );
       const storeReturnCount = returnsCount;
       const totalPay = basePay + extraKmPay + oversizedPay;
       const gstHstEnabled = appUser?.gst_hst_enabled || false;
