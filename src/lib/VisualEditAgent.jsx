@@ -19,6 +19,12 @@ export default function VisualEditAgent() {
 	const currentHighlightedElementsRef = useRef([]); // Multiple elements for hover
 	const selectedElementIdRef = useRef(null); // Store the visual selector ID
 
+	const postToParent = (message) => {
+		if (window.parent && window.parent !== window) {
+			window.parent.postMessage(message, '*');
+		}
+	};
+
 	// Create overlay element
 	const createOverlay = (isSelected = false) => {
 		const overlay = document.createElement('div');
@@ -163,9 +169,9 @@ export default function VisualEditAgent() {
 			e.stopImmediatePropagation();
 
 			// Send message to parent to close all dropdowns
-			window.parent.postMessage({
+			postToParent({
 				type: 'close-dropdowns'
-			}, '*');
+			});
 			return;
 		}
 
@@ -239,7 +245,7 @@ export default function VisualEditAgent() {
 			filename: element.dataset.filename, // Keep for backward compatibility
 			position: elementPosition // Add position data for popover
 		};
-		window.parent.postMessage(elementData, '*');
+		postToParent(elementData);
 	};
 
 	// Unselect the current element
@@ -401,12 +407,12 @@ export default function VisualEditAgent() {
 						centerY: rect.top + rect.height / 2
 					};
 
-					window.parent.postMessage({
+					postToParent({
 						type: 'element-position-update',
 						position: elementPosition,
 						isInViewport: isInViewport,
 						visualSelectorId: selectedElementIdRef.current
-					}, '*');
+					});
 				}
 			}
 		};
@@ -485,12 +491,12 @@ export default function VisualEditAgent() {
 								centerY: rect.top + rect.height / 2
 							};
 
-							window.parent.postMessage({
+							postToParent({
 								type: 'element-position-update',
 								position: elementPosition,
 								isInViewport: isInViewport,
 								visualSelectorId: selectedElementIdRef.current
-							}, '*');
+							});
 						}
 					}
 					break;
@@ -531,7 +537,7 @@ export default function VisualEditAgent() {
 		document.addEventListener('scroll', handleScroll, true); // Also listen on document
 
 		// Send ready message to parent
-		window.parent.postMessage({ type: 'visual-edit-agent-ready' }, '*');
+		postToParent({ type: 'visual-edit-agent-ready' });
 
 		return () => {
 			window.removeEventListener('message', handleMessage);
