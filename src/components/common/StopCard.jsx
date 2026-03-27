@@ -270,7 +270,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
-          await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: currentLocalTime, generatePolyline: false });
+          const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: currentLocalTime, generatePolyline: false });
+          const optimizeData = optimizeResponse?.data || optimizeResponse;
+          if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
+            window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
+            window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'acceptAllAutoOptimize' } }));
+          }
           invalidate('Delivery');
           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 

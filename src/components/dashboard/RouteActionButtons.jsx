@@ -66,6 +66,9 @@ export default function RouteActionButtons({
             });
             const data = response?.data || response;
             if (data?.success) {
+              if (Array.isArray(data.optimizedRoute) && data.optimizedRoute.length > 0) {
+                window.dispatchEvent(new CustomEvent("etaUpdated", { detail: { driverId: selectedDriverId, updates: data.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
+              }
               base44.analytics.track({
                 eventName: "route_optimization_run",
                 properties: {
