@@ -107,11 +107,19 @@ export default function StopCardHeader({
   })();
 
   const statusLabel = isReturnDelivery
-    ? (delivery?.status === 'completed' ? 'Return' : 'In Transit')
+    ? 'Return'
     : statusConfig[delivery?.status]?.label || delivery?.status;
-  const statusBgClass = isReturnDelivery ?
-  "bg-orange-500" :
-  delivery?.status === "failed" || delivery?.status === "cancelled" ? "bg-red-500" : "bg-emerald-500";
+  const statusBgClass = isReturnDelivery
+    ? "bg-orange-500"
+    : delivery?.status === "failed" || delivery?.status === "cancelled"
+      ? "bg-red-500"
+      : delivery?.status === "in_transit"
+        ? "bg-blue-500"
+        : delivery?.status === "en_route"
+          ? "bg-cyan-500"
+          : delivery?.status === "pending"
+            ? "bg-slate-500"
+            : "bg-emerald-500";
 
   // Driver pay (for finished stops shown to drivers/admins)
   const showDriverPay = isFinished && (userHasRole(currentUser, "driver") || userHasRole(currentUser, "admin")) && (delivery?.patient_id || delivery?.after_hours_pickup);

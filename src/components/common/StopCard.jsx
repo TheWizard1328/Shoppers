@@ -124,7 +124,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (!delivery || isPickup) return false;
     return delivery.status === 'completed' && (patient?.address || '').toUpperCase().includes('(RTN)');
   }, [delivery, patient?.address, isPickup]);
-  const shouldShowReturnStatus = useMemo(() => false, []);
+  const shouldShowReturnStatus = useMemo(() => isReturnDelivery, [isReturnDelivery]);
   const isFirstDelivery = useMemo(() => {if (!delivery || isPickup) return false;if (patient && !patient.last_delivery_date) return true;if (delivery.delivery_notes?.toLowerCase().includes('first delivery')) return true;if (delivery.first_delivery === true) return true;return false;}, [delivery, patient, isPickup]);
   const storeColor = useMemo(() => store ? getStoreColor(store) : "#71717A", [store]);
   const routeCompleted = React.useMemo(() => isRouteCompleted(delivery, allDeliveries, FINISHED_STATUSES, new Date(), "America/Edmonton"), [delivery, allDeliveries]);
