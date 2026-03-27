@@ -365,7 +365,7 @@ export default function DeliveryForm({
         delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
         delivery_time_start: delivery.delivery_time_start || "",
         delivery_time_end: delivery.delivery_time_end || "",
-        delivery_time_eta: delivery.delivery_time_eta || "",
+        arrival_time: delivery.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : "",
         time_window_start: patient?.time_window_start || delivery.time_window_start || "",
         time_window_end: patient?.time_window_end || delivery.time_window_end || "",
         status: delivery.status || "Ready For Pickup",
