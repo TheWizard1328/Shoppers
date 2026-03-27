@@ -47,7 +47,6 @@ const userHasRole = (user, role) => {
 export default function DeliveryFormView({
   // Layout
   formRef, useMobileLayout, isMobileDevice, useFullscreen,
-  handleManagedTabKeyDown, patientNotesRef, driverNotesRef, barcodeEntryRef,
   // Core state
   delivery, formData, setFormData, isPickupMode, setIsPickupMode, isInterStoreMode, setIsInterStoreMode,
   isSaving, isDeliveryActionBusy = false, error, isPayrollLocked, payrollLockMessage, isFormLockedByPayroll,
@@ -400,8 +399,6 @@ export default function DeliveryFormView({
                 {!delivery && !isPickupMode &&
                 <div className={`relative min-w-0 ${useMobileLayout ? 'w-full' : ''}`}>
                     <DeliveryPatientSearch
-                      managedSearchInputRef={patientSearchInputRef}
-                      onManagedTabKeyDown={handleManagedTabKeyDown}
                     patientSearch={patientSearch} setPatientSearch={setPatientSearch}
                     selectedPatient={selectedPatient} filteredPatients={filteredPatients}
                     highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
@@ -527,11 +524,11 @@ export default function DeliveryFormView({
                         <div className="space-y-3 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <div className="space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
-                            <Textarea ref={patientNotesRef} onKeyDown={handleManagedTabKeyDown} value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                            <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
-                            <Textarea ref={driverNotesRef} onKeyDown={handleManagedTabKeyDown} value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                            <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
                           </div>
                         </div>
 
@@ -557,7 +554,7 @@ export default function DeliveryFormView({
                                 {formData.cod_total_amount_required >= 0 &&
                               <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                                    <Input ref={codAmountInputRef} onKeyDown={handleManagedTabKeyDown} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
+                                    <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
                                   </div>
                               }
                               </div>
@@ -612,8 +609,6 @@ export default function DeliveryFormView({
                     <div className="space-y-2 min-w-0">
                           <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <SmartBarcodeScanner
-                          inputRefOverride={barcodeEntryRef}
-                          onManagedTabKeyDown={handleManagedTabKeyDown}
                           receiptBarcodeValues={formData.receipt_barcode_values || []}
                           rxBarcodeValues={formData.barcode_values || []}
                           onReceiptChange={(vals) => setFormData((prev) => ({ ...prev, receipt_barcode_values: vals }))}
