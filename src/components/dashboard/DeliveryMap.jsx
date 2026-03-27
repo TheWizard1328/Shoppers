@@ -656,6 +656,7 @@ export default function DeliveryMap({
 
   const phase2FollowKeyRef = useRef("");
   const phase2OwnDriverAnchorRef = useRef(null);
+  const phase2PaddingRef = useRef("");
   useEffect(() => {
     if (!map || mapViewPhase !== 2 || !isMapViewLocked) {
       phase2FollowKeyRef.current = "";
@@ -713,6 +714,10 @@ export default function DeliveryMap({
       phase2OwnDriverAnchorRef.current = null;
     }
 
+    const paddingKey = [
+      isMobile ? effectiveTopOverlayHeight + 25 : 60,
+      areStopCardsVisible ? stopCardsHeight + 10 : 60
+    ].join(":");
     const nextKey = [
       Number(targetDriverMarker.latitude).toFixed(6),
       Number(targetDriverMarker.longitude).toFixed(6),
@@ -720,8 +725,12 @@ export default function DeliveryMap({
       Number(nextStop.longitude).toFixed(6)
     ].join(":");
 
-    if (phase2FollowKeyRef.current === nextKey) return;
+    if (phase2FollowKeyRef.current === nextKey) {
+      phase2PaddingRef.current = paddingKey;
+      return;
+    }
     phase2FollowKeyRef.current = nextKey;
+    phase2PaddingRef.current = paddingKey;
 
     window._lastProgrammaticMapMove = Date.now();
     map.fitBounds(
@@ -737,7 +746,7 @@ export default function DeliveryMap({
         duration: 0.6
       }
     );
-  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile, areStopCardsVisible, stopCardsHeight, effectiveTopOverlayHeight]);
+  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile]);
 
   useEffect(() => {
     if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
