@@ -76,7 +76,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
         const todayReturns = todayPatientDeliveries.reduce((sum, d) => {
-          const isFinishedReturn = (d?.status === 'completed' || d?.status === 'returned') && getReturnCountFromPatientId(d, allPatients) > 0;
+          const isFinishedReturn = d?.status === 'completed' && getReturnCountFromPatientId(d, allPatients) > 0;
           return sum + (isFinishedReturn ? 1 : 0);
         }, 0);
 
@@ -85,7 +85,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const monthCompleted = monthPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const monthFailed = monthPatientDeliveries.filter((d) => d?.status === 'failed').length;
         const monthReturns = monthPatientDeliveries.reduce((sum, d) => {
-          const isFinishedReturn = (d?.status === 'completed' || d?.status === 'returned') && getReturnCountFromPatientId(d, allPatients) > 0;
+          const isFinishedReturn = d?.status === 'completed' && getReturnCountFromPatientId(d, allPatients) > 0;
           return sum + (isFinishedReturn ? 1 : 0);
         }, 0);
 
