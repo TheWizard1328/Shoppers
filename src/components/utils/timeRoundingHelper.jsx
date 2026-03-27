@@ -113,7 +113,7 @@ export const calculateRetroactiveStopTiming = async ({
   isAppOwner = false,
   todayDateString
 }) => {
-  if (!delivery || !isAppOwner || !delivery.delivery_date || !todayDateString) return null;
+  if (!delivery || !delivery.delivery_date || !todayDateString) return null;
   if (delivery.delivery_date >= todayDateString) return null;
 
   const routeStops = allDeliveries
