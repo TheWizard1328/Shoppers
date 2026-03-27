@@ -303,6 +303,7 @@ export default function DeliveryMap({
       const isOtherDriver = !!(selectedDriverId && selectedDriverId !== "all" && delivery.driver_id !== selectedDriverId);
       const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, "dispatcher");
       const isStopInDispatcherStore = !!(isCurrentUserDispatcher && currentUser?.store_ids?.includes(delivery.store_id));
+      const useDispatcherPlaceholder = isCurrentUserDispatcher && !isStopInDispatcherStore;
 
       if (delivery.patient_id) {
         const patient = safePatients.find((item) => item?.id === delivery.patient_id) || null;
@@ -321,8 +322,8 @@ export default function DeliveryMap({
           isFirstTime: !!delivery.first_delivery,
           isNextInLine: !!delivery.isNextDelivery,
           markerType: "delivery",
-          useSimpleCircle: (showOtherDriverDeliveries && isOtherDriver),
-          isOtherDriver,
+          useSimpleCircle: (showOtherDriverDeliveries && isOtherDriver) || useDispatcherPlaceholder,
+          isOtherDriver: isOtherDriver || useDispatcherPlaceholder,
           isReturn: `${patient?.full_name || delivery.patient_name || ""}`.toLowerCase().includes("return")
         };
         deliveriesOut.push(marker);
