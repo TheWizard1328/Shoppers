@@ -94,47 +94,14 @@ export default function PayrollSummaryCard({
         if (d.status === 'completed' || d.status === 'failed') {/* valid */} else
         if (d.status === 'cancelled') {
           if (!d.after_hours_pickup && !isPatientReturn) {
-            if (isPatientReturn) {
-              console.log('[Payroll Return Debug] Excluded by cancelled-status rule', {
-                deliveryId: d.id,
-                driverId: d.driver_id,
-                patientName: matchedPatient?.full_name || d.patient_name || 'Unknown',
-                patientId: matchedPatient?.patient_id || matchedPatient?.id || d.patient_id,
-                status: d.status,
-                address: matchedPatient?.address || 'No address found'
-              });
-            }
             return false;
           }
         } else {
-          if (isPatientReturn) {
-            console.log('[Payroll Return Debug] Excluded by status rule', {
-              deliveryId: d.id,
-              driverId: d.driver_id,
-              patientName: matchedPatient?.full_name || d.patient_name || 'Unknown',
-              patientId: matchedPatient?.patient_id || matchedPatient?.id || d.patient_id,
-              status: d.status,
-              address: matchedPatient?.address || 'No address found'
-            });
-          }
           return false;
         }
 
         const date = new Date(d.delivery_date + 'T00:00:00');
         const inPeriod = date >= currentPeriod.start && date <= currentPeriod.end;
-
-        if (isPatientReturn && !inPeriod) {
-          console.log('[Payroll Return Debug] Excluded by pay period date', {
-            deliveryId: d.id,
-            driverId: d.driver_id,
-            patientName: matchedPatient?.full_name || d.patient_name || 'Unknown',
-            patientId: matchedPatient?.patient_id || matchedPatient?.id || d.patient_id,
-            deliveryDate: d.delivery_date,
-            periodStart: currentPeriod.start?.toISOString?.().split('T')[0],
-            periodEnd: currentPeriod.end?.toISOString?.().split('T')[0],
-            address: matchedPatient?.address || 'No address found'
-          });
-        }
 
         return inPeriod;
       });
