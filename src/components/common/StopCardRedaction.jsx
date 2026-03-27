@@ -16,6 +16,7 @@ export function useDeliveryDisplayInfo({
   isInterStorePickup,
   isStrippedDelivery,
   isStrippedForDispatcher,
+  isReturnDelivery,
 }) {
   const displayName = useMemo(() => {
     if (!delivery) return '';
@@ -54,6 +55,7 @@ export function useDeliveryDisplayInfo({
 
   const finalDisplayName = useMemo(() => {
     if (isInterStore || isInterStorePickup) return displayName;
+    if (isReturnDelivery) return displayName;
     if (isStrippedDelivery && !shouldRedact) {
       if (store?.name) return `${store.name} ${isPickup ? 'Pickup' : 'Delivery'}`;
       return isPickup ? 'Other Store Pickup' : 'Other Store Delivery';
@@ -61,23 +63,25 @@ export function useDeliveryDisplayInfo({
     if (!shouldRedact) return displayName;
     const firstName = patient?.full_name?.split(' ')[0] || '';
     return firstName + ' *****';
-  }, [isStrippedDelivery, shouldRedact, displayName, patient, isPickup, store, isInterStore, isInterStorePickup]);
+  }, [isStrippedDelivery, shouldRedact, displayName, patient, isPickup, store, isInterStore, isInterStorePickup, isReturnDelivery]);
 
   const finalDisplayAddress = useMemo(() => {
     if (isInterStore || isInterStorePickup) return displayAddress;
+    if (isReturnDelivery) return displayAddress;
     if (isStrippedDelivery) return '';
     if (!shouldRedact) return displayAddress;
     const firstPart = displayAddress?.split(' ')[0] || '';
     return firstPart + ' *****';
-  }, [isStrippedDelivery, shouldRedact, displayAddress, isInterStore, isInterStorePickup]);
+  }, [isStrippedDelivery, shouldRedact, displayAddress, isInterStore, isInterStorePickup, isReturnDelivery]);
 
   const finalDisplayPhone = useMemo(() => {
     if (isInterStore || isInterStorePickup) return displayPhone;
+    if (isReturnDelivery) return displayPhone;
     if (isStrippedDelivery) return null;
     if (!shouldRedact) return displayPhone;
     if (!displayPhone) return null;
     return `(***) ***-${displayPhone.replace(/\D/g, '').slice(-4)}`;
-  }, [isStrippedDelivery, shouldRedact, displayPhone, isInterStore, isInterStorePickup]);
+  }, [isStrippedDelivery, shouldRedact, displayPhone, isInterStore, isInterStorePickup, isReturnDelivery]);
 
   return {
     displayName,
