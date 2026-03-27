@@ -75,13 +75,19 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const todayActiveStops = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled', 'returned'].includes(d?.status)).length;
         const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
-        const todayReturns = todayPatientDeliveries.reduce((sum, d) => sum + getReturnCountFromPatientId(d, allPatients), 0);
+        const todayReturns = todayPatientDeliveries.reduce((sum, d) => {
+          const isFinishedReturn = (d?.status === 'completed' || d?.status === 'returned') && getReturnCountFromPatientId(d, allPatients) > 0;
+          return sum + (isFinishedReturn ? 1 : 0);
+        }, 0);
 
         // Calculate month's stats
         const monthPatientDeliveries = monthDeliveries.filter((d) => d && d.patient_id);
         const monthCompleted = monthPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const monthFailed = monthPatientDeliveries.filter((d) => d?.status === 'failed').length;
-        const monthReturns = monthPatientDeliveries.reduce((sum, d) => sum + getReturnCountFromPatientId(d, allPatients), 0);
+        const monthReturns = monthPatientDeliveries.reduce((sum, d) => {
+          const isFinishedReturn = (d?.status === 'completed' || d?.status === 'returned') && getReturnCountFromPatientId(d, allPatients) > 0;
+          return sum + (isFinishedReturn ? 1 : 0);
+        }, 0);
 
         setStats({
           today: {

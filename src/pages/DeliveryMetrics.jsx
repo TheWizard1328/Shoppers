@@ -460,7 +460,10 @@ export default function DeliveryMetrics() {
     
     // Total = Completed + Failed + After Hours Pickups
     const totalDeliveries = completedDeliveries + failedDeliveries + afterHoursPickups;
-    const returnedDeliveries = relevantDeliveries.reduce((sum, d) => sum + getReturnCountFromPatientId(d, patients), 0);
+    const returnedDeliveries = relevantDeliveries.reduce((sum, d) => {
+      const isFinishedReturn = (d?.status === 'completed' || d?.status === 'returned') && getReturnCountFromPatientId(d, patients) > 0;
+      return sum + (isFinishedReturn ? 1 : 0);
+    }, 0);
 
     const completionRate = completedDeliveries + failedDeliveries > 0 ?
     (completedDeliveries / (completedDeliveries + failedDeliveries) * 100).toFixed(1) :
@@ -477,7 +480,10 @@ export default function DeliveryMetrics() {
     
     // Previous Total = Completed + Failed + After Hours Pickups
     const prevTotalDeliveries = prevCompletedDeliveries + prevFailedDeliveries + prevAfterHoursPickups;
-    const prevReturnedDeliveries = prevRelevantDeliveries.reduce((sum, d) => sum + getReturnCountFromPatientId(d, patients), 0);
+    const prevReturnedDeliveries = prevRelevantDeliveries.reduce((sum, d) => {
+      const isFinishedReturn = (d?.status === 'completed' || d?.status === 'returned') && getReturnCountFromPatientId(d, patients) > 0;
+      return sum + (isFinishedReturn ? 1 : 0);
+    }, 0);
 
     const prevCompletionRate = prevCompletedDeliveries + prevFailedDeliveries > 0 ?
     (prevCompletedDeliveries / (prevCompletedDeliveries + prevFailedDeliveries) * 100).toFixed(1) :
