@@ -41,7 +41,8 @@ import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
 import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
 import useDeliveryProjectionManager from './useDeliveryProjectionManager';
 import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
-import { resetBatchSaveDraftState, resumeManagersAndCloseBatchForm, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runDeleteOnlyBatchRefresh, runUpdateOnlyBatchRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
+import { resetBatchSaveDraftState, resumeManagersAndCloseBatchForm, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runUpdateOnlyBatchRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
+import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
 import { runDeliverySubmitSideEffects } from './deliverySubmitSideEffects';
 import { resolvePatientDriverAssignment, buildSelectedPatientFormData, buildDuplicatePatientDraft, buildNewAddressPatientDraft } from './deliveryPatientSelectionHelpers';
 import { resetDraftEditorState, cleanupDetachedAutoCreatedPickups } from './deliveryDraftStateHelpers';
@@ -53,6 +54,8 @@ import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStaged
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
 import { createPatientFromDraft, resolvePickupPuid } from './deliveryAddHelpers';
 import { useConfirmDelete } from './useConfirmDelete';
+import useFreshStores from './useFreshStores';
+import { buildRecurringLabel } from './recurringLabels';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label></div>);
 
@@ -100,29 +103,7 @@ export default function DeliveryForm({
   onCreatePatient
 }) {
   const { setIsFormOverlayOpen } = useAppData();
-  
-  // CRITICAL: Load fresh stores from offline DB on mount to prevent "Store information missing" error
-  const [freshStores, setFreshStores] = useState(stores);
-  
-  useEffect(() => {
-    const loadFreshStores = async () => {
-      try {
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        const offlineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
-        
-        if (offlineStores && offlineStores.length > 0) {
-          setFreshStores(offlineStores);
-        } else {
-          setFreshStores(stores);
-        }
-      } catch (error) {
-        console.warn('⚠️ [DeliveryForm] Failed to load stores from offline DB:', error);
-        setFreshStores(stores);
-      }
-    };
-    
-    loadFreshStores();
-  }, []);
+  const freshStores = useFreshStores(stores);
 
   const allDrivers = useMemo(() => {
     // Layout already filters drivers correctly via getActiveDriversForCity
@@ -632,50 +613,9 @@ export default function DeliveryForm({
     return '';
   }, [formData, hasAnyDaySelected]);
 
-  const weeklyLabel = useMemo(() => {
-    if (currentFrequency === 'weekly' && hasAnyDaySelected) {
-      const days = [];
-      if (formData.recurring_weekly_mon) days.push('Mon');
-      if (formData.recurring_weekly_tue) days.push('Tue');
-      if (formData.recurring_weekly_wed) days.push('Wed');
-      if (formData.recurring_weekly_thu) days.push('Thu');
-      if (formData.recurring_weekly_fri) days.push('Fri');
-      if (formData.recurring_weekly_sat) days.push('Sat');
-      if (formData.recurring_weekly_sun) days.push('Sun');
-      return `Weekly (${days.join(', ')})`;
-    }
-    return 'Weekly';
-  }, [currentFrequency, hasAnyDaySelected, formData]);
-
-  const biWeeklyLabel = useMemo(() => {
-    if (currentFrequency === 'bi-weekly' && hasAnyDaySelected) {
-      const days = [];
-      if (formData.recurring_weekly_mon) days.push('Mon');
-      if (formData.recurring_weekly_tue) days.push('Tue');
-      if (formData.recurring_weekly_wed) days.push('Wed');
-      if (formData.recurring_weekly_thu) days.push('Thu');
-      if (formData.recurring_weekly_fri) days.push('Fri');
-      if (formData.recurring_weekly_sat) days.push('Sat');
-      if (formData.recurring_weekly_sun) days.push('Sun');
-      return `Bi-Weekly (${days.join(', ')})`;
-    }
-    return 'Bi-Weekly';
-  }, [currentFrequency, hasAnyDaySelected, formData]);
-
-  const weeklyX4Label = useMemo(() => {
-    if (currentFrequency === 'weekly-x4' && hasAnyDaySelected) {
-      const days = [];
-      if (formData.recurring_weekly_mon) days.push('Mon');
-      if (formData.recurring_weekly_tue) days.push('Tue');
-      if (formData.recurring_weekly_wed) days.push('Wed');
-      if (formData.recurring_weekly_thu) days.push('Thu');
-      if (formData.recurring_weekly_fri) days.push('Fri');
-      if (formData.recurring_weekly_sat) days.push('Sat');
-      if (formData.recurring_weekly_sun) days.push('Sun');
-      return `Weekly x4 (${days.join(', ')})`;
-    }
-    return 'Weekly x4';
-  }, [currentFrequency, hasAnyDaySelected, formData]);
+  const weeklyLabel = useMemo(() => currentFrequency === 'weekly' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Weekly') : 'Weekly', [currentFrequency, hasAnyDaySelected, formData]);
+  const biWeeklyLabel = useMemo(() => currentFrequency === 'bi-weekly' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Bi-Weekly') : 'Bi-Weekly', [currentFrequency, hasAnyDaySelected, formData]);
+  const weeklyX4Label = useMemo(() => currentFrequency === 'weekly-x4' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Weekly x4') : 'Weekly x4', [currentFrequency, hasAnyDaySelected, formData]);
 
 
   const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
@@ -1282,21 +1222,20 @@ export default function DeliveryForm({
       return;
     }
 
-    // CRITICAL: If only pending deletes (no staged items), close form FIRST then refresh
-    if (stagedDeliveries.length === 0 && hasPendingDeletes) {
-      resetBatchSaveDraftState({
-        setStagedDeliveries,
-        setProjectedDeliveries,
-        setHasPendingDeletes,
-        setHasChanges,
-        hasLoadedPendingRef: hasLoadedPending,
-        unblockPredictions,
-        setIsLoadingPredictions
-      });
-      await resumeManagersAndCloseBatchForm({ handleClearForm, onCancel });
-      runDeleteOnlyBatchRefresh({ deliveryDate: formData.delivery_date, driverId: formData.driver_id });
-      return;
-    }
+    if (await handlePendingDeleteOnlySave({
+      stagedDeliveries,
+      hasPendingDeletes,
+      setStagedDeliveries,
+      setProjectedDeliveries,
+      setHasPendingDeletes,
+      setHasChanges,
+      hasLoadedPending,
+      unblockPredictions,
+      setIsLoadingPredictions,
+      handleClearForm,
+      onCancel,
+      formData
+    })) return;
 
     const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
     const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
