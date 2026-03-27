@@ -110,7 +110,7 @@ export default function AdminMetrics() {
       setSelectedMonth(null); // Reset month selection when year changes
     } catch (err) {
       console.error('Failed to fetch metrics:', err);
-      setError(err.message || 'Failed to load metrics');
+      setError(err?.response?.data?.error || err.message || 'Failed to load metrics');
     } finally {
       setIsLoading(false);
       setIsFetching(false);

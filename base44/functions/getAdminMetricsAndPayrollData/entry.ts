@@ -1,7 +1,7 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 
-const CACHE_VERSION = Date.now().toString();
+const CACHE_VERSION = '1';
 const statsCache = new Map();
 const CACHE_DISABLED = true;
 const BATCH_LIMIT = 1000;
@@ -139,8 +139,9 @@ Deno.serve(async (req) => {
       }
 
       let cityStoreIds = null;
+      let cityStores = [];
       if (cityId && cityId !== 'all') {
-        const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId }, '', 50000);
+        cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId }, '', 5000);
         cityStoreIds = new Set((cityStores || []).map((store) => store.id));
       }
 
@@ -163,8 +164,10 @@ Deno.serve(async (req) => {
       const relevantDriverIds = Array.from(new Set(deliveries.map((delivery) => delivery.driver_id).filter(Boolean)));
 
       const [storesRaw, appUsersRaw, patientsRaw] = await Promise.all([
-        relevantStoreIds.length ? base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000) : [],
-        base44.asServiceRole.entities.AppUser.filter({ app_roles: { $in: ['driver'] } }, '', 5000),
+        relevantStoreIds.length
+          ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
+          : (cityStores.length ? cityStores : []),
+        base44.asServiceRole.entities.AppUser.list('', 5000),
         relevantPatientIds.length ? base44.asServiceRole.entities.Patient.filter({ id: { $in: relevantPatientIds } }, '', 5000) : []
       ]);
 
