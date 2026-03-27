@@ -107,7 +107,7 @@ export default function StopCardHeader({
   })();
 
   const statusLabel = isReturnDelivery
-    ? (delivery?.status === 'completed' ? 'Returned' : delivery?.status === 'failed' ? 'Return Failed' : delivery?.status === 'cancelled' ? 'Return Cancelled' : delivery?.status === 'in_transit' ? 'Return In Transit' : delivery?.status === 'pending' ? 'Return Pending' : delivery?.status === 'en_route' ? 'Return En Route' : 'Return')
+    ? (delivery?.status === 'completed' ? 'Return' : 'In Transit')
     : statusConfig[delivery?.status]?.label || delivery?.status;
   const statusBgClass = isReturnDelivery ?
   "bg-orange-500" :
