@@ -346,10 +346,21 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         const newStatus = isPickup ? 'en_route' : 'in_transit';
+        const restartedRouteDeliveries = reorderActiveRouteLocally(
+          driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: false, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null } : item),
+          delivery.id
+        );
         await updateDeliveryLocal(delivery.id, { status: newStatus, isNextDelivery: false, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null }, { skipSmartRefresh: true });
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, restartedRouteDeliveries.filter(Boolean));
+        if (updateDeliveriesLocally) {
+          const restartedMap = new Map(restartedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
+          const updatedDeliveries = allDeliveries.map((d) => d && restartedMap.has(d.id) ? restartedMap.get(d.id) : d);
+          updateDeliveriesLocally(updatedDeliveries, true);
+        }
+        await collapseAndCenterNextDelivery({ driverDeliveries: restartedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         if (shouldOptimize) {try {await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false });} catch (optimizeError) {console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);}}
         await refreshDriverRoute({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, forceRefreshDriverDeliveries, triggeredBy: 'restart' });
-        await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers });
       });
     } finally {resetActionLocks(true);}
