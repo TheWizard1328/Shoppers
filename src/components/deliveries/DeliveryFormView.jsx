@@ -214,6 +214,10 @@ export default function DeliveryFormView({
             runLockedAction('save_delivery_direct', async () => {
               const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
               await handleSubmit(submitEvent);
+              if (userHasRole(currentUser, 'admin')) {
+                setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
+              }
+              handleClearForm();
             });
           } else {
             runLockedAction('add_staged_delivery', async () => {
@@ -808,6 +812,10 @@ export default function DeliveryFormView({
                     runLockedAction('save_delivery_direct', async () => {
                       const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
                       await handleSubmit(submitEvent);
+                      if (userHasRole(currentUser, 'admin')) {
+                        setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
+                      }
+                      handleClearForm();
                     });
                     return;
                   }
