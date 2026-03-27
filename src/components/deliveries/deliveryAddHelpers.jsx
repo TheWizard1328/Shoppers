@@ -63,7 +63,8 @@ export const resolvePickupPuid = async ({
   driverId,
   timeSlot,
   ensureMissingPickup,
-  allowRecentlyCompleted = false
+  allowRecentlyCompleted = false,
+  reuseLatestCompleted = false
 }) => {
   const stagedPickup = (stagedDeliveries || []).find((delivery) =>
     !delivery.patient_id &&
@@ -97,6 +98,26 @@ export const resolvePickupPuid = async ({
 
     if (isReusable) {
       return existingPickup.stop_id;
+    }
+  }
+
+  if (reuseLatestCompleted) {
+    const latestCompletedPickup = [...(allDeliveries || [])]
+      .filter((delivery) =>
+        delivery &&
+        !delivery.patient_id &&
+        delivery.store_id === storeId &&
+        delivery.status === 'completed' &&
+        delivery.stop_id
+      )
+      .sort((a, b) => {
+        const aTime = new Date(a.actual_delivery_time || a.updated_date || a.created_date || 0).getTime();
+        const bTime = new Date(b.actual_delivery_time || b.updated_date || b.created_date || 0).getTime();
+        return bTime - aTime;
+      })[0];
+
+    if (latestCompletedPickup) {
+      return latestCompletedPickup.stop_id;
     }
   }
 
