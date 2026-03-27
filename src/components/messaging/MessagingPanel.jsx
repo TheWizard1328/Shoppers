@@ -75,8 +75,8 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   }, [currentUser?.id, isBroadcastingUpdate, users]);
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4">
-      <div className="rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)' }}>
+    <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
+      <div className="rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)' }}>
         {/* Header */}
         <div className="p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Messages</h2>

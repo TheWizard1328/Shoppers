@@ -283,8 +283,8 @@ export default function AdminMetrics() {
   }
 
   return (
-    <div className="h-full min-h-0 overflow-hidden p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-7xl mx-auto h-full min-h-0 flex flex-col gap-3 md:gap-4">
+    <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
+      <div className="max-w-7xl mx-auto min-h-full flex flex-col gap-3 md:gap-4">
         {/* Header */}
         <div className="shrink-0 space-y-3">
           <div>
@@ -292,7 +292,7 @@ export default function AdminMetrics() {
               Admin Metrics
             </h1>
           </div>
-          <div className="flex items-center gap-1.5 md:gap-2 flex-nowrap">
+          <div className="flex items-center gap-1.5 md:gap-2 flex-nowrap overflow-x-auto overflow-y-hidden pb-1">
             <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
               <SelectTrigger className="w-[5.5rem] sm:w-[7rem] md:w-[140px]">
                 <SelectValue placeholder="Select City" />

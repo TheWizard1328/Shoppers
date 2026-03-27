@@ -3201,7 +3201,7 @@ export default function DeliveriesPage() {
   const shouldShowNoDataMessage = !isLoading && (isOffline || effectiveDeliveries.length === 0);
 
   return (
-    <div className="h-full min-h-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="h-full min-h-0 min-w-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
 
       <div className={`${isMobile ? 'block' : 'hidden'} px-4 py-3 flex-shrink-0 z-20`} style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
         {isDriverOverviewMode ?
@@ -3593,7 +3593,7 @@ export default function DeliveriesPage() {
                       className="pl-10 w-full bg-slate-100 border-slate-300" />
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-wrap">
                       {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
                     <Select value={selectedCityId} onValueChange={(value) => {
                       setSelectedCityId(value);
@@ -3764,7 +3764,7 @@ export default function DeliveriesPage() {
 
           <>
               {activeDriver &&
-            <Card className="flex-shrink-0 shadow-sm relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card className="flex-shrink-0 shadow-sm relative min-w-0 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <button
                 onClick={() => setIsMobileMenuOpen((v) => !v)}
                 className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center lg:hidden"
