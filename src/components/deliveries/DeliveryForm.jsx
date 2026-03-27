@@ -56,6 +56,9 @@ import { createPatientFromDraft, resolvePickupPuid } from './deliveryAddHelpers'
 import { useConfirmDelete } from './useConfirmDelete';
 import useFreshStores from './useFreshStores';
 import { buildRecurringLabel } from './recurringLabels';
+import { sortFilteredPatients } from './patientSearchSorter';
+import { resumeDeliveryFormManagers } from './resumeDeliveryFormManagers';
+import { clearRecurringSelection } from './recurringHelpers';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label></div>);
 
@@ -548,44 +551,22 @@ export default function DeliveryForm({
       }
     }
 
-    // Search both active and inactive patients
     let results = availablePatients.filter((patient) => {
       if (!patient) return false;
-
-      // Filter out Deceased and (Old
       const name = patient.full_name?.toLowerCase() || '';
       if (name.includes('deceased') || name.includes('(old')) return false;
-
       return patient.full_name?.toLowerCase().includes(searchLower) ||
       patient.address?.toLowerCase().includes(searchLower) ||
       patient.phone?.toLowerCase().includes(searchLower) ||
       patient.notes?.toLowerCase().includes(searchLower);
     });
 
-    // Sort: Inactive to bottom, staged to bottom, (Temp to bottom, then admin nearest-store distance, then recent delivery
-    results.sort((a, b) => {
-      const aIsInactive = a.status === 'inactive', bIsInactive = b.status === 'inactive';
-      if (aIsInactive !== bIsInactive) return aIsInactive ? 1 : -1;
-
-      const aIsStaged = stagedPatientIds.has(a.id), bIsStaged = stagedPatientIds.has(b.id);
-      if (aIsStaged !== bIsStaged) return aIsStaged ? 1 : -1;
-
-      const aIsTemp = a.full_name?.toLowerCase().includes('(temp') || false;
-      const bIsTemp = b.full_name?.toLowerCase().includes('(temp') || false;
-      if (aIsTemp !== bIsTemp) return aIsTemp ? 1 : -1;
-
-      if (userHasRole(currentUser, 'admin')) {
-        const getNearestStoreDistance = (patient) => (stores || []).reduce((nearest, store) => {
-          const distance = store && store.status !== 'inactive' ? calculateDistance(patient?.latitude, patient?.longitude, store?.latitude, store?.longitude) : null;
-          return distance === null ? nearest : Math.min(nearest, distance);
-        }, Infinity);
-        const distanceDiff = getNearestStoreDistance(a) - getNearestStoreDistance(b);
-        if (distanceDiff !== 0) return distanceDiff;
-      }
-
-      const aDate = a.last_delivery_date ? new Date(a.last_delivery_date).getTime() : 0;
-      const bDate = b.last_delivery_date ? new Date(b.last_delivery_date).getTime() : 0;
-      return bDate - aDate;
+    results = sortFilteredPatients(results, {
+      currentUser,
+      userHasRole,
+      stores,
+      stagedPatientIds,
+      calculateDistance
     });
 
     // Mark patients that are already staged
@@ -602,16 +583,7 @@ export default function DeliveryForm({
     formData.recurring_weekly_sun;
   }, [formData]);
 
-  const currentFrequency = useMemo(() => {
-    if (!formData.recurring) return '';
-    if (formData.recurring_daily) return 'daily';
-    if (formData.recurring_biweekly && hasAnyDaySelected) return 'bi-weekly';
-    if (hasAnyDaySelected) return 'weekly';
-    if (formData.recurring_weekly_x4) return 'weekly-x4';
-    if (formData.recurring_monthly) return 'monthly';
-    if (formData.recurring_bimonthly) return 'bi-monthly';
-    return '';
-  }, [formData, hasAnyDaySelected]);
+  const currentFrequency = useMemo(() => !formData.recurring ? '' : formData.recurring_daily ? 'daily' : formData.recurring_biweekly && hasAnyDaySelected ? 'bi-weekly' : hasAnyDaySelected ? 'weekly' : formData.recurring_weekly_x4 ? 'weekly-x4' : formData.recurring_monthly ? 'monthly' : formData.recurring_bimonthly ? 'bi-monthly' : '', [formData, hasAnyDaySelected]);
 
   const weeklyLabel = useMemo(() => currentFrequency === 'weekly' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Weekly') : 'Weekly', [currentFrequency, hasAnyDaySelected, formData]);
   const biWeeklyLabel = useMemo(() => currentFrequency === 'bi-weekly' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Bi-Weekly') : 'Bi-Weekly', [currentFrequency, hasAnyDaySelected, formData]);
@@ -1525,19 +1497,10 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      const dataToSave = prepareDeliverySaveData({
-        formData,
-        delivery,
-        isCompletionStatus,
-        completionTime
-      });
-      if (delivery?.id && !delivery?.patient_id) {
-        const currentPickupSnapshot = buildPickupSnapshot(delivery);
-        const nextPickupSnapshot = buildPickupSnapshot(dataToSave);
-        if (currentPickupSnapshot === nextPickupSnapshot) {
-          import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); });
-          return;
-        }
+      const dataToSave = await buildInTransitDirectSaveData({ prepareDeliverySaveData, formData, delivery, isCompletionStatus, completionTime, selectedPatient, stores, allDeliveries, stagedDeliveries });
+      if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) {
+        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); });
+        return;
       }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
         try {
@@ -1660,22 +1623,9 @@ export default function DeliveryForm({
       }
       
       // CRITICAL: Resume background operations before closing
-      (async () => {
-        try {
-          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-          const { routePolylineManager } = await import('../utils/routePolylineManager');
-          const { fabControlEvents } = await import('../utils/fabControlEvents');
-          
-          smartRefreshManager.resume();
-          driverLocationPoller.resume();
-          routePolylineManager?.resume?.();
-          fabControlEvents.resumeFAB();
-          
-        } catch (error) {
-          console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
-        }
-      })();
+      resumeDeliveryFormManagers().catch((error) => {
+        console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
+      });
       
       import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
     }
@@ -1793,22 +1743,7 @@ export default function DeliveryForm({
 
   const handleRecurringChange = useCallback((checked) => {
     if (!checked) {
-      setFormData((prev) => ({
-        ...prev,
-        recurring: false,
-        recurring_daily: false,
-        recurring_biweekly: false,
-        recurring_weekly_x4: false,
-        recurring_monthly: false,
-        recurring_bimonthly: false,
-        recurring_weekly_mon: false,
-        recurring_weekly_tue: false,
-        recurring_weekly_wed: false,
-        recurring_weekly_thu: false,
-        recurring_weekly_fri: false,
-        recurring_weekly_sat: false,
-        recurring_weekly_sun: false
-      }));
+      setFormData((prev) => clearRecurringSelection(prev));
       setShowDayPopup(false);
     } else {
       setFormData((prev) => ({ ...prev, recurring: true }));
