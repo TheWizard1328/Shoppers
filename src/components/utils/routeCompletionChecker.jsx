@@ -4,6 +4,7 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 export function isRouteCompleted(delivery, allDeliveries) {
   if (!delivery || !allDeliveries || !Array.isArray(allDeliveries)) return false;
+  if (!FINISHED_STATUSES.includes(delivery.status)) return false;
 
   const driverDeliveriesForDate = allDeliveries.filter((d) => {
     if (!d) return false;
