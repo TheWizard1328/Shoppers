@@ -106,10 +106,11 @@ export const calculateRetroactiveStopTiming = async ({
   if (currentIndex === -1) return null;
 
   const previousStop = currentIndex > 0 ? routeStops[currentIndex - 1] : null;
+  const isFirstStop = !previousStop;
   let baseTime = null;
   let travelDistanceKm = Number(delivery?.travel_dist);
 
-  if (!previousStop) {
+  if (isFirstStop) {
     baseTime = parseDateTimeParts(delivery.delivery_date, delivery.delivery_time_start || '09:00');
   } else {
     baseTime = parseLocalTimestamp(previousStop.actual_delivery_time)
@@ -133,8 +134,8 @@ export const calculateRetroactiveStopTiming = async ({
 
   if (!baseTime) return null;
 
-  const completionBuffer = Math.floor(Math.random() * 6);
-  const arrivalBuffer = Math.floor(Math.random() * 6);
+  const completionBuffer = isFirstStop ? 0 : Math.floor(Math.random() * 6);
+  const arrivalBuffer = isFirstStop ? 0 : Math.floor(Math.random() * 6);
   const actualDeliveryTime = new Date(baseTime.getTime() + completionBuffer * 60000);
   const arrivalTime = new Date(actualDeliveryTime.getTime() - arrivalBuffer * 60000);
 
