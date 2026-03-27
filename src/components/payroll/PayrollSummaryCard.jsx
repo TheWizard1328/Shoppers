@@ -110,9 +110,9 @@ export default function PayrollSummaryCard({
       const afterHoursCount = periodDeliveries.filter((d) => d.after_hours_pickup).length;
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.filter((d) => {
-        if (!d?.patient_id) return false;
-        const patient = patients?.find((p) => p && p.id === d.patient_id);
-        const patientAddress = patient?.address || '';
+        if (!d) return false;
+        const patient = patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id));
+        const patientAddress = patient?.address || d.address || '';
         return patientAddress.toUpperCase().includes('(RTN)');
       }).length;
       const storeReturnCount = returnsCount;
