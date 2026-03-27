@@ -1545,17 +1545,19 @@ export default function PayrollSummaryCard({
                           {driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}
                         </span>
                       </div>
-                      <div className="flex flex-col gap-1 col-start-1">
-                        <span style={{ color: 'var(--text-slate-600)' }}>Failed</span>
-                        <span className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 w-fit">
-                          {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
-                        </span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span style={{ color: 'var(--text-slate-600)' }}>Returns</span>
-                        <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700 w-fit">
-                          {driversWithDeliveries.reduce((sum, d) => sum + (d.returnsCount || 0), 0)}
-                        </span>
+                      <div className="col-span-2 col-start-1 flex items-center gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span style={{ color: 'var(--text-slate-600)' }}>Failed:</span>
+                          <span className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
+                            {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span style={{ color: 'var(--text-slate-600)' }}>Returns:</span>
+                          <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">
+                            {driversWithDeliveries.reduce((sum, d) => sum + (d.returnsCount || 0), 0)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
