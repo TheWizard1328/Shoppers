@@ -736,6 +736,9 @@ export default function DeliveryMap({
     }
     phase2FollowKeyRef.current = nextKey;
     phase2PaddingRef.current = paddingKey;
+    if (isMobile) {
+      phase2OverlayStabilizeUntilRef.current = now + 350;
+    }
 
     window._lastProgrammaticMapMove = Date.now();
     map.fitBounds(
