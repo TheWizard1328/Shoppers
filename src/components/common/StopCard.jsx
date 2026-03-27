@@ -220,7 +220,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-          await recalculateAndUpdateStopOrders(delivery.driver_id, delivery.delivery_date);
           const [etaRes, optimizeRes] = await Promise.allSettled([base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: currentLocalTime }), base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, generatePolyline: false })]);
           const etaData = etaRes.status === 'fulfilled' ? etaRes.value?.data || etaRes.value : null;const optimizeData = optimizeRes.status === 'fulfilled' ? optimizeRes.value?.data || optimizeRes.value : null;const etaUpdates = etaData?.durationUpdates || etaData?.etas || optimizeData?.optimizedRoute || [];
           if (Array.isArray(etaUpdates) && etaUpdates.length > 0) window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: etaUpdates.map((u) => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) } }));
