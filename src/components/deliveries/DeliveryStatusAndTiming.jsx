@@ -212,13 +212,11 @@ export default function DeliveryStatusAndTiming({
                 <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                   Arrival Time
                 </Label>
-                <Input
-                  type="time"
-                  value={delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : ''}
-                  readOnly
-                  disabled
-                  className="h-9 w-full px-2 text-sm"
-                />
+                {renderTimeInput(
+                  delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : '',
+                  (e) => setFormData(prev => ({ ...prev, arrival_time: e.target.value })),
+                  () => setFormData(prev => ({ ...prev, arrival_time: '' }))
+                )}
               </div>
             )}
             <div className="flex-1 space-y-1">
