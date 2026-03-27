@@ -249,6 +249,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       Promise.all(localUpdates.map(update => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true }))).catch(err => console.warn('Local update failed:', err));
 
       // Dispatch events immediately for UI responsiveness
+      fabControlEvents.notifyAcceptAllClicked();
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 

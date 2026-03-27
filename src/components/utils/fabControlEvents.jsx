@@ -105,6 +105,17 @@ export const fabControlEvents = {
     });
   },
 
+  notifyAcceptAllClicked: () => {
+    console.log('📢 [FAB Events] Broadcasting accept all clicked - activating phase 1 for 500ms');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'ACCEPT_ALL_CLICKED' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
+  },
+
   /**
    * Pause FAB updates during form operations
    */
