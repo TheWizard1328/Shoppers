@@ -226,6 +226,32 @@ export function getNextActiveDelivery(driverDeliveries = [], currentDeliveryId =
     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0] || null;
 }
 
+export function reorderActiveRouteLocally(driverDeliveries = [], nextDeliveryId = null) {
+  const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const finished = scopedDeliveries
+    .filter((item) => finishedStatuses.includes(item.status))
+    .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+  const pending = scopedDeliveries
+    .filter((item) => item.status === 'pending')
+    .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+  const active = scopedDeliveries
+    .filter((item) => !finishedStatuses.includes(item.status) && item.status !== 'pending')
+    .sort((a, b) => {
+      if (nextDeliveryId) {
+        if (a.id === nextDeliveryId) return -1;
+        if (b.id === nextDeliveryId) return 1;
+      }
+      return (a.stop_order || 0) - (b.stop_order || 0);
+    });
+
+  return [...finished, ...active, ...pending].map((item, index) => ({
+    ...item,
+    stop_order: index + 1,
+    isNextDelivery: !!nextDeliveryId && item.id === nextDeliveryId
+  }));
+}
+
 export function centerDeliveryCard(deliveryId) {
   if (!deliveryId || typeof window === 'undefined') return;
 

@@ -42,7 +42,7 @@ import StopCardConfirmDialogs from './StopCardConfirmDialogs';
 import StopCardPOD from './StopCardPOD';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
 import { updatePatientGPS } from "../utils/patientGPSUpdater";
-import { buildRetryDelivery, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, refreshDriverRoute, setAndCenterNextDelivery, verifyDeliveryStillExists, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
+import { buildRetryDelivery, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, refreshDriverRoute, reorderActiveRouteLocally, setAndCenterNextDelivery, verifyDeliveryStillExists, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDriver, getPendingBreadcrumbsForDriver } from '../utils/pendingBreadcrumbsManager';
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
 const statusConfig = { 'pending': { label: 'Pending', color: 'bg-slate-100 text-slate-800' }, 'in_transit': { label: 'In Transit', color: 'bg-blue-100 text-blue-800' }, 'en_route': { label: 'En Route', color: 'bg-cyan-100 text-cyan-800' }, 'next': { label: 'Next', color: 'bg-lime-100 text-lime-800' }, 'completed': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' }, 'delivered': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' }, 'failed': { label: 'Failed', color: 'bg-red-100 text-red-800' }, 'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' }, 'returned': { label: 'Return', color: 'bg-orange-100 text-orange-800' } };
@@ -206,15 +206,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       const now = new Date();const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const isValidObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);if (!isValidObjectId(delivery.id) || !isValidObjectId(delivery.driver_id)) throw new Error('This stop is still syncing. Please try again in a moment.');
       const routeDeliveries = getDriverRouteDeliveries(allDeliveries, delivery);
-      const optimisticRouteDeliveries = routeDeliveries.map((d) => {if (!d) return d;const isCurrent = d.id === delivery.id;return { ...d, isNextDelivery: isCurrent, ...(isCurrent ? { status: isPickup ? 'en_route' : 'in_transit', delivery_time_start: currentLocalTime, delivery_time_eta: currentLocalTime } : {}) };});
+      const optimisticRouteDeliveries = routeDeliveries.map((d) => {if (!d) return d;const isCurrent = d.id === delivery.id;return { ...d, ...(isCurrent ? { status: isPickup ? 'en_route' : 'in_transit', delivery_time_start: currentLocalTime, delivery_time_eta: currentLocalTime } : {}) };});
+      const reorderedRouteDeliveries = reorderActiveRouteLocally(optimisticRouteDeliveries, delivery.id);
       const { offlineDB } = await import('../utils/offlineDatabase');
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, optimisticRouteDeliveries.filter(Boolean));
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, reorderedRouteDeliveries.filter(Boolean));
       if (updateDeliveriesLocally) {
-        const optimisticMap = new Map(optimisticRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
+        const optimisticMap = new Map(reorderedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
         const updatedDeliveries = allDeliveries.map((d) => d && optimisticMap.has(d.id) ? optimisticMap.get(d.id) : d);
         updateDeliveriesLocally(updatedDeliveries, true);
       }
-      await collapseAndCenterNextDelivery({ driverDeliveries: optimisticRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
+      await collapseAndCenterNextDelivery({ driverDeliveries: reorderedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       Promise.resolve().then(async () => {
