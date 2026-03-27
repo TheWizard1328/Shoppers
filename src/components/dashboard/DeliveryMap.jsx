@@ -658,6 +658,7 @@ export default function DeliveryMap({
   const phase2FollowKeyRef = useRef("");
   const phase2OwnDriverAnchorRef = useRef(null);
   const phase2PaddingRef = useRef("");
+  const phase2OverlayStabilizeUntilRef = useRef(0);
   useEffect(() => {
     if (!map || mapViewPhase !== 2 || !isMapViewLocked) {
       phase2FollowKeyRef.current = "";
@@ -726,8 +727,11 @@ export default function DeliveryMap({
       Number(nextStop.longitude).toFixed(6)
     ].join(":");
 
+    const now = Date.now();
     if (phase2FollowKeyRef.current === nextKey) {
-      phase2PaddingRef.current = paddingKey;
+      if (isMobile && phase2PaddingRef.current !== paddingKey && now < phase2OverlayStabilizeUntilRef.current) {
+        phase2PaddingRef.current = paddingKey;
+      }
       return;
     }
     phase2FollowKeyRef.current = nextKey;
