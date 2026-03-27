@@ -180,6 +180,20 @@ export default function StopCardPOD({
                   <Pen className={`w-5 h-5 md:w-4 md:h-4 ${delivery.signature_image_url ? 'text-emerald-700' : driverOnlySavedSignatureHint ? 'text-yellow-700' : 'text-slate-600'}`} />
                 )}
               </Button>
+              {!delivery.signature_image_url && driverOnlySavedSignatureHint && patient?.signature_image_url && (
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewingImageUrl(patient.signature_image_url);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="h-10 md:h-8 w-10 md:w-8 p-0 bg-yellow-100 border-yellow-400 hover:bg-yellow-200"
+                  title="View saved patient signature"
+                >
+                  <Eye className="w-5 h-5 md:w-4 md:h-4 text-yellow-700" />
+                </Button>
+              )}
               {delivery.signature_image_url && delivery.status !== 'completed' && (
                 <Button
                   onClick={async (e) => {
