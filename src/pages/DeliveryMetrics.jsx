@@ -461,9 +461,8 @@ export default function DeliveryMetrics() {
     const totalDeliveries = completedDeliveries + failedDeliveries + afterHoursPickups;
     const returnedDeliveries = relevantDeliveries.filter((d) => {
       const patient = patients.find((p) => p.id === d.patient_id);
-      const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
-      const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-      return notesReturn || addressReturn;
+      const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
+      return addressReturn;
     }).length;
 
     const completionRate = completedDeliveries + failedDeliveries > 0 ?
@@ -483,9 +482,8 @@ export default function DeliveryMetrics() {
     const prevTotalDeliveries = prevCompletedDeliveries + prevFailedDeliveries + prevAfterHoursPickups;
     const prevReturnedDeliveries = prevRelevantDeliveries.filter((d) => {
       const patient = patients.find((p) => p.id === d.patient_id);
-      const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
-      const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-      return notesReturn || addressReturn;
+      const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
+      return addressReturn;
     }).length;
 
     const prevCompletionRate = prevCompletedDeliveries + prevFailedDeliveries > 0 ?
@@ -711,9 +709,8 @@ export default function DeliveryMetrics() {
           if (isPrevious) {
             dayData.prevTotal++;
             const patient = patients.find((p) => p.id === delivery.patient_id);
-            const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-            const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-            const isReturned = notesReturn || addressReturn;
+            const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
+            const isReturned = addressReturn;
             
             if (isReturned) {
               dayData.prevReturned++;
@@ -724,9 +721,8 @@ export default function DeliveryMetrics() {
           } else {
             dayData.total++;
             const patient = patients.find((p) => p.id === delivery.patient_id);
-            const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-            const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-            const isReturned = notesReturn || addressReturn;
+            const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
+            const isReturned = addressReturn;
             
             if (isReturned) {
               dayData.returned++;
@@ -792,9 +788,8 @@ export default function DeliveryMetrics() {
           if (prevDailyStats[date]) {
             prevDailyStats[date].total++;
             const patient = patients.find((p) => p.id === delivery.patient_id);
-            const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-            const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-            const isReturned = notesReturn || addressReturn;
+            const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
+            const isReturned = addressReturn;
             
             if (isReturned) {
               prevDailyStats[date].returned++;
@@ -834,9 +829,8 @@ export default function DeliveryMetrics() {
       if (delivery.status === 'failed') driverStats[driverFirstName].failed++;
 
       const patient = patients.find((p) => p.id === delivery.patient_id);
-      const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-      const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-      if (notesReturn || addressReturn) driverStats[driverFirstName].returned++;
+      const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
+      if (addressReturn) driverStats[driverFirstName].returned++;
     });
 
     const prevDriverStats = {};
@@ -851,9 +845,8 @@ export default function DeliveryMetrics() {
       if (delivery.status === 'failed') prevDriverStats[driverFirstName].failed++;
 
       const patient = patients.find((p) => p.id === delivery.patient_id);
-      const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-      const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-      if (notesReturn || addressReturn) prevDriverStats[driverFirstName].returned++;
+      const addressReturn = patient && (patient.address || '').toUpperCase().includes('(RTN)');
+      if (addressReturn) prevDriverStats[driverFirstName].returned++;
     });
 
     const driverData = Object.values(driverStats).sort((a, b) => b.total - a.total);
