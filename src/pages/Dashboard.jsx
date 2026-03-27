@@ -5122,7 +5122,7 @@ function Dashboard() {
       const routeDate = currentDate;
       const routeDateDeliveries = deliveries.filter((d) => d && d.driver_id === originalDelivery.driver_id && d.delivery_date === routeDate);
       const nextTrackingNumber = getNextTrackingNumberInGroup(originalDelivery.tracking_number, deliveries, originalDelivery.driver_id, routeDate);
-      const driverNotes = `From: ${originalDelivery.delivery_date}\nFor: ${failedPatient?.full_name || originalDelivery.patient_name || 'Unknown'}`;
+      const driverNotes = `From: ${originalDelivery.delivery_date}\nFor: ${failedPatient?.full_name || originalDelivery.patient_name || 'Unknown'}\n(RTN)`;
 
       const returnDeliveryData = {
         patient_id: returnPatient.id,
