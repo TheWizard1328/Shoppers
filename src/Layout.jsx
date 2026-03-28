@@ -1911,7 +1911,7 @@ export default function Layout({ children, currentPageName }) {
 
   // Route counts - fetched from server-side stats function
   const [routeCounts, setRouteCounts] = useState({ monthly: '...', yearly: '...' });
-  const [entityCounts, setEntityCounts] = useState({ patients: '...', cities: '...', stores: '...', users: '...' });
+  const [entityCounts, setEntityCounts] = useState({ patients: '...', companies: '...', cities: '...', stores: '...', users: '...' });
 
   // REMOVED: Backend stats polling for sidebar - now using local data only
   useEffect(() => {
