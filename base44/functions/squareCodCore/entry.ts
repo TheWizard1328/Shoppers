@@ -1,6 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-
-console.log('[squareCodCore] module loaded');
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
@@ -1502,7 +1500,6 @@ Deno.serve(async (req) => {
       return Response.json(await handleFetchPayments(base44, payload));
     }
     if (action === 'getCodData') {
-      await requireUser(base44);
       return Response.json(await handleGetCodData(base44, payload));
     }
     if (action === 'recordPayment') {
