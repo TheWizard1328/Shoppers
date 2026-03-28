@@ -3151,7 +3151,7 @@ export default function Layout({ children, currentPageName }) {
                         Admin
                       </div>
                       <div className="space-y-1">
-                        {adminNavigationItems.map((item) =>
+                        {adminNavigationItems.filter((item) => item.pageName !== 'Companies').map((item) =>
                     <Link
                       key={item.title}
                       to={constructUrlWithParams(item.url)}
