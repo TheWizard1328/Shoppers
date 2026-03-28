@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 function generateShortStopId() {
   const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   let result = '';
@@ -19,7 +21,10 @@ const ensurePickupRecent = new Map();
 async function ensurePickupDriverName(base44, pickup, driverName) {
   if (!pickup || pickup.driver_name || !driverName) return pickup;
   try {
-    return await base44.asServiceRole.entities.Delivery.update(pickup.id, { driver_name: driverName });
+    return await base44.asServiceRole.entities.Delivery.update(pickup.id, { driver_name: driverName }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
   } catch (_) {
     return { ...pickup, driver_name: driverName };
   }
@@ -100,6 +105,9 @@ Deno.serve(async (req) => {
 
       if (incompletePickup) {
         const pickupWithDriverName = await ensurePickupDriverName(base44, incompletePickup, driverName);
+        if (!pickupWithDriverName) {
+          return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
+        }
         return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
       }
 
@@ -143,6 +151,9 @@ Deno.serve(async (req) => {
       }
       if (enRoutePickup) {
         const pickupWithDriverName = await ensurePickupDriverName(base44, enRoutePickup, driverName);
+        if (!pickupWithDriverName) {
+          return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
+        }
         return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
       }
 
@@ -164,6 +175,9 @@ Deno.serve(async (req) => {
 
       if (recentCompletedPickup) {
         const pickupWithDriverName = await ensurePickupDriverName(base44, recentCompletedPickup, driverName);
+        if (!pickupWithDriverName) {
+          return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
+        }
         return Response.json({
           puid: pickupWithDriverName.stop_id,
           pickupId: pickupWithDriverName.id,
@@ -180,6 +194,9 @@ Deno.serve(async (req) => {
       }
       if (targetPickup) {
         const pickupWithDriverName = await ensurePickupDriverName(base44, targetPickup, driverName);
+        if (!pickupWithDriverName) {
+          return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
+        }
         return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
       }
     }

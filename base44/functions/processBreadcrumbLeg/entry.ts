@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const normalizePoint = (point) => {
   if (Array.isArray(point) && point.length >= 2) {
     const latitude = Number(point[0]);
@@ -118,7 +120,7 @@ Deno.serve(async (req) => {
         delivery_route_breadcrumbs: JSON.stringify(simplifiedPoints),
       });
     } catch (error) {
-      if (error?.message?.includes('not found')) {
+      if (isNotFoundError(error)) {
         return Response.json({
           success: false,
           skipped: true,

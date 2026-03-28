@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const isValidObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
 
 Deno.serve(async (req) => {
@@ -46,6 +48,7 @@ Deno.serve(async (req) => {
         isNextDelivery: false,
         travel_dist: 0
       }).catch((error) => {
+        if (isNotFoundError(error)) return null;
         console.warn(`⚠️ [handleStartDelivery] Failed resetting old next delivery ${delivery.id}:`, error?.message || error);
         return null;
       })
@@ -55,6 +58,7 @@ Deno.serve(async (req) => {
       isNextDelivery: true,
       travel_dist: distanceToTransfer
     }).catch((error) => {
+      if (isNotFoundError(error)) return null;
       console.error(`❌ [handleStartDelivery] Failed updating selected delivery ${deliveryId}:`, error?.message || error);
       return null;
     });

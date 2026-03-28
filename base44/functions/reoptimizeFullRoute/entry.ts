@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 /**
  * Re-optimize Full Route
  * Uses Google Maps Directions API to completely reoptimize all incomplete stops
@@ -359,7 +361,7 @@ Deno.serve(async (req) => {
           display_stop_order: nextStopOrder,
           delivery_time_eta: nextETA
         }).catch((error) => {
-          if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+          if (isNotFoundError(error)) {
             return null;
           }
           throw error;
@@ -409,7 +411,7 @@ Deno.serve(async (req) => {
         display_stop_order: newStopOrder,
         delivery_time_eta: eta
       }).catch((error) => {
-        if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+        if (isNotFoundError(error)) {
           return null;
         }
         throw error;

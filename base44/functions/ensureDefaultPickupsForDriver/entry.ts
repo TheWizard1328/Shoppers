@@ -179,7 +179,10 @@ Deno.serve(async (req) => {
     }
 
     const delivery = payload?.payload_too_large
-      ? await base44.asServiceRole.entities.Delivery.get(payload.event.entity_id)
+      ? await base44.asServiceRole.entities.Delivery.get(payload.event.entity_id).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        })
       : payload?.data;
 
     if (!delivery?.driver_id || !delivery?.delivery_date || !delivery?.store_id) {
@@ -278,10 +281,13 @@ Deno.serve(async (req) => {
 
     const matchedPickup = ensuredPickups.find((item) => item.store_id === delivery.store_id && item.slot === primarySlot);
     if (matchedPickup?.puid && matchedPickup.puid !== delivery.puid) {
-      await base44.asServiceRole.entities.Delivery.update(delivery.id, { puid: matchedPickup.puid }).catch((error) => {
-        if (isNotFoundError(error)) return null;
-        throw error;
-      });
+    const updatedDelivery = await base44.asServiceRole.entities.Delivery.update(delivery.id, { puid: matchedPickup.puid }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
+    if (!updatedDelivery) {
+      return Response.json({ skipped: true, reason: 'delivery_not_found_during_puid_update' });
+    }
     }
 
     return Response.json({
