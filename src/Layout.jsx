@@ -110,6 +110,7 @@ import WebSocketDiagnosticsCard from './components/layout/WebSocketDiagnosticsCa
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import MobileOverlayBackHandler from './components/layout/MobileOverlayBackHandler';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
+import AdminNavigationSection from './components/layout/AdminNavigationSection';
 
 
 
@@ -1970,6 +1971,12 @@ export default function Layout({ children, currentPageName }) {
     const isAdmin = realUser && userHasRole(realUser, 'admin');
     const items = [
     {
+      title: 'Companies',
+      pageName: 'Companies',
+      url: createPageUrl("Companies"),
+      icon: Building2
+    },
+    {
       title: 'Cities',
       pageName: 'Cities',
       count: entityCounts.cities,
@@ -3145,35 +3152,12 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                   {userHasRole(currentUser, 'admin') &&
-                <div className="mt-2">
-                      <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
-                      <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
-                        Admin
-                      </div>
-                      <div className="space-y-1">
-                        {adminNavigationItems.filter((item) => item.pageName !== 'Companies').map((item) =>
-                    <Link
-                      key={item.title}
-                      to={constructUrlWithParams(item.url)}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                      currentPageName === item.pageName ?
-                      'shadow-sm' :
-                      'hover:opacity-80'}`
-                      }
-                      style={currentPageName === item.pageName ? {
-                        background: 'var(--bg-slate-100)',
-                        color: 'var(--text-slate-900)'
-                      } : {
-                        color: 'var(--text-slate-600)'
-                      }}>
-                            {item.icon && <item.icon className="w-5 h-5" />}
-                            <span className="font-semibold">{item.title}</span>
-                            {item.count !== undefined && <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{item.count}</Badge>}
-                            </Link>
-                    )}
-                            </div>
-                            </div>
+                <AdminNavigationSection
+                  adminNavigationItems={adminNavigationItems}
+                  currentPageName={currentPageName}
+                  constructUrlWithParams={constructUrlWithParams}
+                  setSidebarOpen={setSidebarOpen}
+                />
                 }
 
                   {currentPageName === 'Dashboard' &&
