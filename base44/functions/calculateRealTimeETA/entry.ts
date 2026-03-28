@@ -71,12 +71,9 @@ Deno.serve(async (req) => {
     let deliveriesToProcess = [];
 
     if (inTransitDeliveries.length > 0) {
-      // If there are in_transit deliveries, process all active deliveries (in_transit + en_route)
       deliveriesToProcess = activeDeliveries;
       console.log(`📦 Found ${inTransitDeliveries.length} in_transit deliveries - processing all ${activeDeliveries.length} active stops`);
     } else {
-      // If NO in_transit deliveries, only calculate ETA for the very first stop (Stop 1)
-      // This prevents unnecessary API calls for pickups when route hasn't started
       const firstStop = sortedAllDeliveries.find(d => 
         (d.status === 'en_route' || d.status === 'pending') && d.stop_order === 1
       );
@@ -85,6 +82,8 @@ Deno.serve(async (req) => {
         console.log(`🚫 No in_transit deliveries - only calculating ETA for Stop 1: ${firstStop.puid ? 'Pickup' : firstStop.patient_name}`);
       }
     }
+
+    const hasAnyActiveStop = activeDeliveries.length > 0;
 
     if (deliveriesToProcess.length === 0) {
       return Response.json({ 
@@ -260,16 +259,14 @@ Deno.serve(async (req) => {
             const [startHours, startMinutes] = delivery.delivery_time_start.split(':').map(Number);
             const startTimeMinutes = startHours * 60 + startMinutes;
             
-            // Check if there are any prior in_transit/en_route stops
             const priorActiveStops = sortedAllDeliveries.filter(d => 
               (d.status === 'in_transit' || d.status === 'en_route') &&
               (d.stop_order || Infinity) < (delivery.stop_order || Infinity)
             );
             
-            // If no prior active stops and ETA is before start time, use start time instead
-            if (priorActiveStops.length === 0 && cumulativeMinutes < startTimeMinutes) {
+            if ((!hasAnyActiveStop || priorActiveStops.length === 0) && cumulativeMinutes < startTimeMinutes) {
               cumulativeMinutes = startTimeMinutes;
-              console.log(`  ⏰ Pickup has no prior active stops - using delivery_time_start as minimum ETA`);
+              console.log(`  ⏰ Pickup has no active route progress - using delivery_time_start as minimum ETA`);
             }
           }
           

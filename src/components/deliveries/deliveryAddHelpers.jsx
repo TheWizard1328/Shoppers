@@ -1,4 +1,55 @@
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
+import { addMinutes, format } from 'date-fns';
+
+const toMinutes = (value) => {
+  if (!value || typeof value !== 'string' || !value.includes(':')) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const getStoreSlotWindow = (store, deliveryDate, timeSlot) => {
+  const dayOfWeek = new Date(`${deliveryDate}T00:00:00`).getDay();
+  const isSaturday = dayOfWeek === 6;
+  const isSunday = dayOfWeek === 0;
+
+  if (timeSlot === 'PM') {
+    if (isSaturday) return { start: store?.saturday_pm_start || '', end: store?.saturday_pm_end || '' };
+    if (isSunday) return { start: store?.sunday_pm_start || '', end: store?.sunday_pm_end || '' };
+    return { start: store?.weekday_pm_start || '', end: store?.weekday_pm_end || '' };
+  }
+
+  if (isSaturday) return { start: store?.saturday_am_start || '', end: store?.saturday_am_end || '' };
+  if (isSunday) return { start: store?.sunday_am_start || '', end: store?.sunday_am_end || '' };
+  return { start: store?.weekday_am_start || '', end: store?.weekday_am_end || '' };
+};
+
+export const resolvePickupTimeWindow = ({ store, deliveryDate, timeSlot, now = new Date() }) => {
+  const slotWindow = getStoreSlotWindow(store, deliveryDate, timeSlot);
+  const today = format(now, 'yyyy-MM-dd');
+
+  if (deliveryDate !== today) {
+    return {
+      delivery_time_start: slotWindow.start || '',
+      delivery_time_end: slotWindow.end || ''
+    };
+  }
+
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const slotStartMinutes = toMinutes(slotWindow.start);
+
+  if (slotStartMinutes !== null && currentMinutes < slotStartMinutes) {
+    return {
+      delivery_time_start: slotWindow.start || '',
+      delivery_time_end: slotWindow.end || ''
+    };
+  }
+
+  return {
+    delivery_time_start: format(addMinutes(now, 30), 'HH:mm'),
+    delivery_time_end: format(addMinutes(now, 60), 'HH:mm')
+  };
+};
 
 export const createPatientFromDraft = async ({
   formData,

@@ -52,7 +52,7 @@ import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './proj
 import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
-import { createPatientFromDraft, resolvePickupPuid } from './deliveryAddHelpers';
+import { createPatientFromDraft, resolvePickupPuid, resolvePickupTimeWindow } from './deliveryAddHelpers';
 import { useConfirmDelete } from './useConfirmDelete';
 import useFreshStores from './useFreshStores';
 import { buildRecurringLabel } from './recurringLabels';
