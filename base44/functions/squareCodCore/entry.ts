@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+console.log('[squareCodCore] module loaded');
+
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
 const CATALOG_LOOKBACK_DAYS = 30;
@@ -951,18 +953,21 @@ async function handleGetCodData(base44, payload = {}) {
 
   console.log('[squareCodCore] handleGetCodData:start', { daysBack, startDateStr, endDateStr });
 
-  const [locationConfigs, stores, catalogRecords, transactionRecords, deliveries] = await Promise.all([
-    base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
-    base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
-    base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 500).catch(() => []),
-    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 500).catch(() => []),
-    base44.asServiceRole.entities.Delivery.filter({
-      delivery_date: {
-        $gte: startDateStr,
-        $lte: endDateStr,
-      },
-    }, '-updated_date', 500).catch(() => []),
-  ]);
+  console.log('[squareCodCore] getCodData:fetch locationConfigs');
+  const locationConfigs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []);
+  console.log('[squareCodCore] getCodData:fetch stores');
+  const stores = await base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []);
+  console.log('[squareCodCore] getCodData:fetch catalogRecords');
+  const catalogRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 500).catch(() => []);
+  console.log('[squareCodCore] getCodData:fetch transactionRecords');
+  const transactionRecords = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 500).catch(() => []);
+  console.log('[squareCodCore] getCodData:fetch deliveries');
+  const allRecentDeliveries = await base44.asServiceRole.entities.Delivery.list('-updated_date', 1000).catch(() => []);
+
+  const deliveries = (allRecentDeliveries || []).filter((delivery) => {
+    const dateValue = String(delivery?.delivery_date || '').slice(0, 10);
+    return dateValue && dateValue >= startDateStr && dateValue <= endDateStr;
+  });
 
   console.log('[squareCodCore] handleGetCodData:fetched', {
     locationConfigs: (locationConfigs || []).length,

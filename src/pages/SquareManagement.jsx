@@ -377,8 +377,8 @@ export default function SquareManagement() {
     } catch (err) {
       console.error('Sync error:', err);
       setError(err.message);
-      setBgSyncProgress({ stage: 'error', error: err.message });
-      setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
+      await refreshUiFromOfflineOnly();
+      setBgSyncProgress({ stage: 'idle' });
 
       const isSandboxEditMode = window.location.search.includes('_preview_token') ||
         window.location.search.includes('hide_badge=true') ||
@@ -461,8 +461,8 @@ export default function SquareManagement() {
           setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
         } catch (bgError) {
           console.warn('⚠️ [SquareManagement] Background COD refresh failed:', bgError.message);
-          setBgSyncProgress({ stage: 'error', error: bgError.message });
-          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
+          await refreshUiFromOfflineOnly();
+          setBgSyncProgress({ stage: 'idle' });
         }
       } catch (err) {
         console.error('Failed to load COD data:', err);
