@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 /**
  * One-time cleanup function to sanitize actual_delivery_time across all Delivery records
  * Removes timezone offsets like -07:00, +05:00, Z from actual_delivery_time strings
@@ -76,6 +78,9 @@ Deno.serve(async (req) => {
         try {
           await base44.asServiceRole.entities.Delivery.update(id, {
             actual_delivery_time: sanitized
+          }).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
           });
           results.updated++;
 

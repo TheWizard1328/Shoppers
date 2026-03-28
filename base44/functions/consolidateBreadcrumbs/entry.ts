@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -50,10 +52,13 @@ Deno.serve(async (req) => {
     // Update delivery with breadcrumbs
     const updatedDelivery = await base44.entities.Delivery.update(delivery_id, {
       delivery_route_breadcrumbs: breadcrumbs
+    }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
     });
 
     if (!updatedDelivery) {
-      return Response.json({ error: 'Failed to update delivery with breadcrumbs' }, { status: 500 });
+      return Response.json({ success: true, skipped: true, reason: 'delivery_not_found_during_update', delivery_id }, { status: 200 });
     }
 
     console.log(`✅ [ConsolidateBreadcrumbs] Consolidated ${breadcrumbs.length} breadcrumbs for delivery ${delivery_id}`);

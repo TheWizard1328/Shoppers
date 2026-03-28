@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 function parseBreadcrumbPayload(payload) {
   if (!payload) return [];
   try {
@@ -68,6 +70,9 @@ Deno.serve(async (req) => {
         });
         break;
       } catch (error) {
+        if (isNotFoundError(error)) {
+          return Response.json({ status: 'skipped', reason: 'delivery_not_found', deliveryId, sourcePendingKey, stopOrder, breadcrumbDate, breadcrumbCount: breadcrumbs.length });
+        }
         lastError = error;
         if (attempt < 3) {
           await new Promise((resolve) => setTimeout(resolve, attempt * 250));

@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
 function parseTrackingNumber(value) {
@@ -92,7 +94,10 @@ Deno.serve(async (req) => {
     if (updates.length > 0) {
       await Promise.all(
         updates.map((update) =>
-          base44.asServiceRole.entities.Delivery.update(update.id, { tracking_number: update.tracking_number })
+          base44.asServiceRole.entities.Delivery.update(update.id, { tracking_number: update.tracking_number }).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          })
         )
       );
     }

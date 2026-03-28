@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const FINISHED = ['completed', 'failed', 'cancelled', 'returned'];
 
 const getEdmDate = () => {
@@ -38,6 +40,9 @@ Deno.serve(async (req) => {
             current_latitude: null,
             current_longitude: null,
             location_updated_at: null
+          }).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
           });
           updates.push({
             user_id: appUser.user_id,
@@ -70,7 +75,10 @@ Deno.serve(async (req) => {
 
       const nextFlaggedStops = todayDeliveries.filter((delivery) => delivery?.isNextDelivery === true);
       for (const delivery of nextFlaggedStops) {
-        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
       }
 
       await base44.asServiceRole.entities.AppUser.update(appUser.id, {
@@ -79,6 +87,9 @@ Deno.serve(async (req) => {
         current_latitude: null,
         current_longitude: null,
         location_updated_at: null
+      }).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
       });
 
       updated += 1;
