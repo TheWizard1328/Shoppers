@@ -932,16 +932,15 @@ export default function SquareManagement() {
         const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
         const store = stores.find((s) => s?.id === delivery.store_id);
         const config = locationConfigs.find((c) => c?.id === store?.square_location_config_id);
-        if (!config?.square_location_id) return null;
         const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
-        const hasMatch = hasMatchingSquareTransaction(delivery, config.square_location_id);
+        const hasMatch = config?.square_location_id ? hasMatchingSquareTransaction(delivery, config.square_location_id) : false;
         return {
           id: delivery.id,
           rawStoreId: delivery.store_id || null,
           itemName: patient?.full_name || delivery.delivery_id || delivery.stop_id || 'Unknown Delivery',
           amount: Number(delivery.cod_total_amount_required || 0),
           storeName: store?.name || 'Unknown',
-          locationId: config.square_location_id,
+          locationId: config?.square_location_id || '—',
           catalogId: linkedCatalog?.catalog_object_id || '—',
           deliveryDate: delivery.delivery_date,
           subtext: delivery.driver_name || null,
@@ -955,9 +954,8 @@ export default function SquareManagement() {
             </Badge>
           )
         };
-      })
-      .filter(Boolean);
-  }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
+      });
+  }, [deliveries, visibleStoreIds, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
 
   const filteredTransactionRows = React.useMemo(() => {
     return (allTransactions || [])
