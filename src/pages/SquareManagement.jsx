@@ -963,6 +963,7 @@ export default function SquareManagement() {
     return (allTransactions || [])
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
+        if (transaction.type !== 'collection' || !['completed', 'refunded'].includes(transaction.status)) return false;
         const derivedTransactionDate = parseSquareItemName(transaction.item_name)?.deliveryDate || transaction.created_date || transaction.updated_date;
         const transactionDate = derivedTransactionDate ? new Date(`${String(derivedTransactionDate).slice(0, 10)}T00:00:00`) : null;
         if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
@@ -971,9 +972,6 @@ export default function SquareManagement() {
         if (selectedDriverFilter && selectedDriverFilter !== 'all') {
           if (selectedDriverUserIds.size === 0) return false;
           return selectedDriverUserIds.has(transaction.driver_id);
-        }
-        if (driverScopedLocationIds && driverScopedLocationIds.size > 0) {
-          return driverScopedLocationIds.has(transaction.location_id) || selectedDriverUserIds.has(transaction.driver_id);
         }
         return true;
       })
