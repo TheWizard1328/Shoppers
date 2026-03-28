@@ -124,14 +124,13 @@ export default function CompaniesPage() {
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             {filteredCompanies.map((company) => (
-              <div key={company.id} className="relative">
-                <CompanyCard company={company} stores={stores} onEdit={(item) => { setEditingCompany(item); setShowForm(true); }} />
-                <div className="absolute top-4 right-16">
-                  <Button variant="ghost" size="sm" className="text-red-600" onClick={() => setDeletingCompany(company)}>
-                    Delete
-                  </Button>
-                </div>
-              </div>
+              <CompanyCard
+                key={company.id}
+                company={company}
+                stores={stores}
+                onEdit={(item) => { setEditingCompany(item); setShowForm(true); }}
+                onDelete={(item) => setDeletingCompany(item)}
+              />
             ))}
           </div>
         )}
