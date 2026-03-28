@@ -212,7 +212,6 @@ async function squareFetch(path, method, accessToken, body) {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           'Square-Version': SQUARE_VERSION,
-          'Accept-Encoding': 'identity',
         },
         body: body ? JSON.stringify(body) : undefined,
       });
@@ -254,7 +253,6 @@ async function safeDeleteSquareCatalogObject(catalogObjectId, accessToken) {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Square-Version': SQUARE_VERSION,
-          'Accept-Encoding': 'identity',
         },
       });
 
@@ -801,7 +799,6 @@ async function handleFetchPayments(base44, payload) {
                 Authorization: `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
                 'Square-Version': SQUARE_VERSION,
-                'Accept-Encoding': 'identity',
               },
             });
 
@@ -952,6 +949,8 @@ async function handleGetCodData(base44, payload = {}) {
   const endDateStr = endDate.toISOString().slice(0, 10);
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
+  console.log('[squareCodCore] handleGetCodData:start', { daysBack, startDateStr, endDateStr });
+
   const [locationConfigs, stores, catalogRecords, transactionRecords, deliveries] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
@@ -964,6 +963,14 @@ async function handleGetCodData(base44, payload = {}) {
       },
     }, '-updated_date', 500).catch(() => []),
   ]);
+
+  console.log('[squareCodCore] handleGetCodData:fetched', {
+    locationConfigs: (locationConfigs || []).length,
+    stores: (stores || []).length,
+    catalogRecords: (catalogRecords || []).length,
+    transactionRecords: (transactionRecords || []).length,
+    deliveries: (deliveries || []).length,
+  });
 
   const activeConfigById = new Map((locationConfigs || []).map((config) => [config.id, config]));
   const locationIds = Array.from(new Set(
@@ -978,6 +985,13 @@ async function handleGetCodData(base44, payload = {}) {
     return Number.isFinite(transactionTime) && transactionTime >= transactionRetentionStartMs;
   });
   const codDeliveries = (deliveries || []).filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0);
+
+  console.log('[squareCodCore] handleGetCodData:done', {
+    recentCatalogRecords: recentCatalogRecords.length,
+    recentTransactionRecords: recentTransactionRecords.length,
+    codDeliveries: codDeliveries.length,
+    locationIds: locationIds.length,
+  });
 
   return {
     success: true,
