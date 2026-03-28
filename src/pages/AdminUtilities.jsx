@@ -41,6 +41,7 @@ import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
 import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';import IntegrationCreditsTab from '../components/admin/IntegrationCreditsTab';import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';
 import DeliveryRouteDataCell from '../components/admin/DeliveryRouteDataCell';
 import { ResizableColumnHeader, ColumnVisibilityControl } from '../components/admin/AdminTableControls';
+import AdminDeliveriesTable from '../components/admin/AdminDeliveriesTable';
 
 // Wrapper to reload data when Routes tab is opened
 const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
@@ -515,473 +516,7 @@ const parseFlexibleDate = (dateString) => {
   return null;
 };
 
-const DeliveryDataTable = ({
-  deliveries, patients, stores, drivers, onEdit, onDelete, onDeleteAll, onDeleteSelected,
-  filterText, onFilterChange, sortColumn, sortDirection, onSortChange,
-  isLoadingData,
-  selectedYear, onYearChange, availableYears,
-  selectedMonth, onMonthChange,
-  selectedDriver, onDriverChange,
-  onFindDuplicates,
-  autoSelectIds = [],
-  duplicateFilterMode = false,
-  onAutoSelectProcessed,
-  onClearDuplicateFilter
-}) => {
-  const { visibleColumns, toggleColumn, config } = useColumnVisibility('deliveries');
-  const [columnWidths, setColumnWidths] = useState(() => {
-    const saved = localStorage.getItem('admin_delivery_column_widths');
-    return saved ? JSON.parse(saved) : {
-      checkbox: 50,
-      date: 150,
-      order: 80,
-      sid_pid: 120,
-      tracking: 100,
-      delivery_to: 250,
-      driver: 120,
-      distance: 90,
-      status: 120,
-      actions: 150
-    };
-  });
-
-  const [selectedDeliveries, setSelectedDeliveries] = useState(new Set());
-  const [editingDriverId, setEditingDriverId] = useState(null);
-  const [editingStatusId, setEditingStatusId] = useState(null);
-  const [showMostRecentOnly, setShowMostRecentOnly] = useState(false);
-
-  const updateColumnWidth = useCallback((columnId, width) => {
-    setColumnWidths((prev) => {
-      const newWidths = { ...prev, [columnId]: width };
-      localStorage.setItem('admin_delivery_column_widths', JSON.stringify(newWidths));
-      return newWidths;
-    });
-  }, []);
-
-  const handleStatusChange = async (delivery, newStatus) => {
-    try {
-      const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
-      await updateDeliveryLocal(delivery.id, { status: newStatus });
-      setEditingStatusId(null);
-      await onSortChange(); // Trigger refresh
-    } catch (error) {
-      console.error('Failed to update status:', error);
-      alert('Failed to update status: ' + error.message);
-    }
-  };
-
-  const driversForDropdown = drivers || [];
-
-  const handleDriverChange = async (delivery, newDriverId) => {
-    try {
-      const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
-      const driver = driversForDropdown.find((d) => d && d.id === newDriverId);
-      const driverName = driver ? getDriverDisplayName(driver) : '';
-
-      await updateDeliveryLocal(delivery.id, {
-        driver_id: newDriverId,
-        driver_name: driverName
-      });
-      setEditingDriverId(null);
-      await onSortChange(); // Trigger refresh
-    } catch (error) {
-      console.error('Failed to update driver:', error);
-      alert('Failed to update driver: ' + error.message);
-    }
-  };
-
-  const getSortIcon = (columnName) => {
-    if (sortColumn === columnName) {
-      return sortDirection === 'asc' ? <ArrowUpDown className="w-4 h-4 inline ml-1 transform rotate-180" /> : <ArrowUpDown className="w-4 h-4 inline ml-1" />;
-    }
-    return <ArrowUpDown className="w-4 h-4 inline ml-1 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
-  };
-
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-  const getDriverName = (delivery) => {
-    if (!delivery || !delivery.driver_name) return 'Unassigned';
-    if (!drivers || !Array.isArray(drivers)) return delivery.driver_name.split(' ')[0];
-    const driver = drivers.find((d) => d && (d.full_name === delivery.driver_name || d.user_name === delivery.driver_name));
-    if (driver) {
-      return getDriverDisplayName(driver);
-    }
-    return delivery.driver_name.split(' ')[0];
-  };
-
-  const getDeliveryInfo = (delivery) => {
-    if (!delivery || !delivery.patient_id) {
-      const store = (stores || []).find((s) => s && s.id === delivery?.store_id);
-      return {
-        name: 'Store Pickup',
-        address: store?.address || 'Unknown Store',
-        patientPID: null
-      };
-    }
-    const patient = (patients || []).find((p) => p && p.id === delivery.patient_id);
-    const address = patient?.address || 'Unknown Address';
-    const unitNumber = patient?.unit_number ? `, Unit: ${patient.unit_number}` : '';
-    return {
-      name: patient?.full_name || 'Unknown Patient',
-      address: `${address}${unitNumber}`,
-      patientPID: patient?.patient_id || null
-    };
-  };
-
-  const getDeliveryDateTime = (delivery) => {
-    let date = 'N/A';
-    let time = 'Not completed';
-
-    if (delivery.delivery_date && typeof delivery.delivery_date === 'string') {
-      const dateParts = delivery.delivery_date.split('-');
-      if (dateParts.length === 3) {
-        const [year, month, day] = dateParts;
-        const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-        date = format(localDate, 'MMM d, yyyy');
-      } else {
-        date = delivery.delivery_date;
-      }
-    }
-
-    if (delivery.actual_delivery_time && typeof delivery.actual_delivery_time === 'string') {
-      const timeParts = delivery.actual_delivery_time.match(/(\d{2}):(\d{2})/);
-      if (timeParts) {
-        const hours = parseInt(timeParts[1]);
-        const minutes = timeParts[2];
-        const isPM = hours >= 12;
-        const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-        time = `${displayHours}:${minutes} ${isPM ? 'PM' : 'AM'}`;
-      } else {
-        try {
-          const dateTime = new Date(delivery.actual_delivery_time);
-          if (!isNaN(dateTime.getTime())) {
-            time = dateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-          }
-        } catch (e) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          // Fallback
-        }}} else if (delivery.delivery_time_eta && typeof delivery.delivery_time_eta === 'string') {time = `ETA: ${delivery.delivery_time_eta}`;}return { date, time };};const getStatusBadge = (delivery) => {const status = delivery.status;const isEditing = editingStatusId === delivery.id;if (isEditing) {return (
-        <Select
-          value={status}
-          onValueChange={(newStatus) => handleStatusChange(delivery, newStatus)}
-          onOpenChange={(open) => {
-            if (!open) setEditingStatusId(null);
-          }}>
-          
-          <SelectTrigger className="h-7 w-full text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="z-[9999]">
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem>
-            <SelectItem value="in_transit">In Transit</SelectItem>
-            <SelectItem value="en_route">En Route</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-            <SelectItem value="returned">Returned</SelectItem>
-          </SelectContent>
-        </Select>);
-
-    }
-
-    return (
-      <Badge
-        variant={
-        status === 'completed' ? 'default' :
-        status === 'failed' ? 'destructive' :
-        'secondary'
-        }
-        className="cursor-pointer hover:opacity-80"
-        onClick={() => setEditingStatusId(delivery.id)}>
-        
-        {status}
-      </Badge>);
-
-  };
-
-  const handleSelectAll = (checked) => {
-    if (checked) {
-      setSelectedDeliveries(new Set((displayDeliveries || []).map((d) => d.id)));
-    } else {
-      setSelectedDeliveries(new Set());
-    }
-  };
-
-  const handleSelectDelivery = (deliveryId, checked) => {
-    setSelectedDeliveries((prev) => {
-      const newSet = new Set(prev);
-      if (checked) {
-        newSet.add(deliveryId);
-      } else {
-        newSet.delete(deliveryId);
-      }
-      return newSet;
-    });
-  };
-
-  // Auto-select duplicates when they're identified
-  useEffect(() => {
-    if (autoSelectIds && autoSelectIds.length > 0) {
-      const newSet = new Set(autoSelectIds);
-      setSelectedDeliveries(newSet);
-      if (onAutoSelectProcessed) {
-        onAutoSelectProcessed();
-      }
-    }
-  }, [autoSelectIds, onAutoSelectProcessed]);
-
-  // Filter and sort deliveries when in duplicate filter mode or most recent date filter
-  const displayDeliveries = useMemo(() => {
-    let result = deliveries;
-
-    // CRITICAL: Filter to most recent date if checkbox is checked
-    if (showMostRecentOnly && result && result.length > 0) {
-      const allDates = [...new Set(result.map((d) => d.delivery_date).filter(Boolean))];
-      if (allDates.length > 0) {
-        const mostRecentDate = allDates.sort((a, b) => b.localeCompare(a))[0];
-        result = result.filter((d) => d.delivery_date === mostRecentDate);
-      }
-    }
-
-    // Filter to only show duplicates when in duplicate filter mode
-    if (duplicateFilterMode && autoSelectIds.length > 0) {
-      // Get all delivery IDs that are part of duplicate groups (includes the ones we auto-selected AND the ones we kept)
-      const duplicateGroups = new Map();
-      deliveries.forEach((d) => {
-        if (!d || !d.stop_id || !d.delivery_date) return;
-        const key = `${d.stop_id}|${d.delivery_date}`;
-        if (!duplicateGroups.has(key)) {
-          duplicateGroups.set(key, []);
-        }
-        duplicateGroups.get(key).push(d);
-      });
-
-      // Get all IDs from groups that have duplicates (size > 1)
-      const allDuplicateIds = [];
-      duplicateGroups.forEach((group, key) => {
-        if (group.length > 1) {
-          group.forEach((d) => allDuplicateIds.push(d.id));
-        }
-      });
-
-      // Show ALL deliveries that are part of duplicate groups (not just the auto-selected ones)
-      result = result.filter((d) => allDuplicateIds.includes(d.id));
-
-      // Sort by delivery_date, then driver_id, then stop_id
-      result = result.sort((a, b) => {
-        // First sort by delivery_date
-        if (a.delivery_date !== b.delivery_date) {
-          return a.delivery_date.localeCompare(b.delivery_date);
-        }
-        // Then sort by driver_id
-        if ((a.driver_id || '') !== (b.driver_id || '')) {
-          return (a.driver_id || '').localeCompare(b.driver_id || '');
-        }
-        // Finally sort by stop_id
-        return (a.stop_id || '').localeCompare(b.stop_id || '');
-      });
-    }
-
-    return result;
-  }, [deliveries, duplicateFilterMode, autoSelectIds, showMostRecentOnly]);
-
-  const handleDeleteSelected = () => {
-    const selectedDeliveriesArray = (displayDeliveries || []).filter((d) => selectedDeliveries.has(d.id));
-    onDeleteSelected(selectedDeliveriesArray);
-    setSelectedDeliveries(new Set());
-  };
-
-  const isAllSelected = (displayDeliveries || []).length > 0 && selectedDeliveries.size === (displayDeliveries || []).length;
-  const isSomeSelected = selectedDeliveries.size > 0 && selectedDeliveries.size < (displayDeliveries || []).length;
-
-  return (
-    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-      <CardHeader className="px-6 py-2 flex flex-col space-y-1.5">
-        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
-          <span>Deliveries</span>
-          <div className="flex gap-2">
-            <ColumnVisibilityControl
-              config={config}
-              visibleColumns={visibleColumns}
-              onToggle={toggleColumn} />
-            
-            {selectedDeliveries.size > 0 &&
-            <>
-                 <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDeleteSelected}
-                disabled={isLoadingData}>
-                
-                  Delete Selected ({selectedDeliveries.size})
-                </Button>
-              </>
-            }
-            {(deliveries || []).length > 0 &&
-            <>
-                 <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onFindDuplicates(displayDeliveries)}
-                disabled={isLoadingData}
-                className="text-orange-600 border-orange-300 hover:bg-orange-50">
-                
-                   Find Duplicates
-                 </Button>
-                 <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  if (!window.confirm('Clean all delivery timestamps by removing timezone offsets like -0700? This will update ALL deliveries with actual_delivery_time set.')) return;
-                  try {
-                    const result = await base44.functions.invoke('cleanActualDeliveryTimes', { dryRun: false, batchSize: 100 });
-                    alert(`Cleanup completed!\n\nUpdated: ${result.data.updated}\nErrors: ${result.data.errors}\nAlready clean: ${result.data.alreadyClean}`);
-                  } catch (error) {
-                    alert('Failed to clean timestamps: ' + error.message);
-                  }
-                }}
-                disabled={isLoadingData}
-                className="text-blue-600 border-blue-300 hover:bg-blue-50">
-                
-                   Clean Timestamps
-                 </Button>
-                 {duplicateFilterMode &&
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onClearDuplicateFilter}
-                disabled={isLoadingData}
-                className="bg-blue-50 border-blue-300">
-                
-                     Clear Filter
-                   </Button>
-              }
-                {selectedDeliveries.size === 0 &&
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={onDeleteAll}
-                disabled={isLoadingData}>
-                
-                    Delete All Filtered ({(displayDeliveries || []).length})
-                  </Button>
-              }
-              </>
-            }
-          </div>
-        </CardTitle>
-        <CardDescription style={{ color: 'var(--text-slate-500)' }}>Filtered and sorted list of deliveries by year, month, and driver.</CardDescription>
-      </CardHeader>
-      <CardContent className="px-6 py-1">
-        <div className="flex flex-wrap gap-3 mb-4">
-          <Select value={selectedYear} onValueChange={onYearChange} disabled={isLoadingData}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Select year" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Years</SelectItem>
-              {(availableYears || []).map((year) =>
-              <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedMonth} onValueChange={onMonthChange} disabled={isLoadingData || selectedYear === 'all'}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="Select month" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Months</SelectItem>
-              {monthNames.map((month, index) =>
-              <SelectItem key={index + 1} value={(index + 1).toString()}>{month}</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedDriver} onValueChange={onDriverChange} disabled={isLoadingData}>
-             <SelectTrigger className="w-40">
-               <SelectValue placeholder="Select driver" />
-             </SelectTrigger>
-             <SelectContent>
-               <SelectItem value="all">All Drivers</SelectItem>
-               {drivers && drivers.length > 0 ?
-              drivers.map((driver) =>
-              <SelectItem key={driver.id} value={driver.user_name || driver.full_name || ''}>
-                     {getDriverDisplayName(driver)}
-                   </SelectItem>
-              ) :
-
-              <div className="p-2 text-xs text-slate-500">No drivers available</div>
-              }
-             </SelectContent>
-           </Select>
-
-          <Input
-            placeholder="Filter by name, address, SID, TR#, or status..."
-            value={filterText}
-            onChange={(e) => onFilterChange(e.target.value)}
-            className="flex-1 min-w-[200px]"
-            disabled={isLoadingData} />
-          
-          
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
-            <Checkbox
-              id="show-most-recent"
-              checked={showMostRecentOnly}
-              onCheckedChange={setShowMostRecentOnly} />
-            
-            <label htmlFor="show-most-recent" className="text-sm font-medium cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
-              Most Recent Date Only
-            </label>
-          </div>
-        </div>
-
-        <div className="mb-2 text-sm" style={{ color: 'var(--text-slate-600)' }}>
-          {(() => {
-            const pickups = (deliveries || []).filter((d) => !d.patient_id).length;
-            const patientDeliveries = (deliveries || []).filter((d) => d.patient_id).length;
-            const driverName = selectedDriver !== 'all' ?
-            (drivers || []).find((d) => d && d.user_name === selectedDriver) ?
-            getDriverDisplayName((drivers || []).find((d) => d && d.user_name === selectedDriver)) :
-            (selectedDriver || '').split(' ')[0] :
-            'All Drivers';
-            const yearLabel = selectedYear !== 'all' ? selectedYear : 'All Years';
-            const monthLabel = selectedMonth !== 'all' ? monthNames[parseInt(selectedMonth) - 1] : 'All Months';
-
-            return `Showing: Pickups: ${pickups} | Deliveries: ${patientDeliveries} for ${yearLabel} - ${monthLabel} - ${driverName}`;
-          })()}
-        </div>
-
-        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
-          {duplicateFilterMode &&
-          <div className="px-4 py-2 bg-blue-50 border-b" style={{ borderColor: 'var(--border-slate-200)' }}>
-              <p className="text-sm font-medium text-blue-900">
-                📍 Duplicate Filter Active: Showing {displayDeliveries.length} duplicates sorted by Date → Driver → Stop ID
-              </p>
-            </div>
-          }
-<div className="overflow-x-auto" style={{ maxHeight: '600px' }}><table className="w-full text-sm table-fixed"><thead className="border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}><tr><ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}><Checkbox checked={isAllSelected} onCheckedChange={handleSelectAll} className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''} /></ResizableColumnHeader>{visibleColumns.includes('date') && <ResizableColumnHeader width={columnWidths.date} onResize={(w) => updateColumnWidth('date', w)}><Button variant="ghost" onClick={() => onSortChange('delivery_date')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">Date / Time {getSortIcon('delivery_date')}</Button></ResizableColumnHeader>}{visibleColumns.includes('order') && <ResizableColumnHeader width={columnWidths.order} onResize={(w) => updateColumnWidth('order', w)}><Button variant="ghost" onClick={() => onSortChange('stop_order')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">Order {getSortIcon('stop_order')}</Button></ResizableColumnHeader>}{visibleColumns.includes('sid_pid') && <ResizableColumnHeader width={columnWidths.sid_pid} onResize={(w) => updateColumnWidth('sid_pid', w)}><Button variant="ghost" onClick={() => onSortChange('stop_id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">SID / PID {getSortIcon('stop_id')}</Button></ResizableColumnHeader>}{visibleColumns.includes('tracking') && <ResizableColumnHeader width={columnWidths.tracking} onResize={(w) => updateColumnWidth('tracking', w)}><Button variant="ghost" onClick={() => onSortChange('tracking_number')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">TR# {getSortIcon('tracking_number')}</Button></ResizableColumnHeader>}{visibleColumns.includes('delivery_to') && <ResizableColumnHeader width={columnWidths.delivery_to} onResize={(w) => updateColumnWidth('delivery_to', w)}><span className="font-semibold">Delivery To</span></ResizableColumnHeader>}{visibleColumns.includes('driver') && <ResizableColumnHeader width={columnWidths.driver} onResize={(w) => updateColumnWidth('driver', w)}><Button variant="ghost" onClick={() => onSortChange('driver_name')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">Driver {getSortIcon('driver_name')}</Button></ResizableColumnHeader>}{visibleColumns.includes('distance') && <ResizableColumnHeader width={columnWidths.distance} onResize={(w) => updateColumnWidth('distance', w)}><Button variant="ghost" onClick={() => onSortChange('travel_dist')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">Dist {getSortIcon('travel_dist')}</Button></ResizableColumnHeader>}{visibleColumns.includes('status') && <ResizableColumnHeader width={columnWidths.status} onResize={(w) => updateColumnWidth('status', w)}><Button variant="ghost" onClick={() => onSortChange('status')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">Status {getSortIcon('status')}</Button></ResizableColumnHeader>}<th className="p-2 text-left font-semibold" style={{ width: '170px', minWidth: '170px', maxWidth: '170px' }}>Breadcrumbs / Polylines</th>{visibleColumns.includes('actions') && <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}><span className="font-semibold">Actions</span></ResizableColumnHeader>}</tr></thead><tbody>{isLoadingData ? <tr><td colSpan={visibleColumns.length + 2} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading deliveries...</td></tr> : (displayDeliveries || []).length > 0 ? (displayDeliveries || []).map((delivery) => {const info = getDeliveryInfo(delivery);const dateTime = getDeliveryDateTime(delivery);const driverName = getDriverName(delivery);return <tr key={delivery.id} className="border-b" style={{ borderColor: 'var(--border-slate-200)', ':hover': { background: 'var(--bg-slate-50)' } }}><td className="p-2"><Checkbox checked={selectedDeliveries.has(delivery.id)} onCheckedChange={(checked) => handleSelectDelivery(delivery.id, checked)} /></td>{visibleColumns.includes('date') && <td className="p-2"><div className="flex flex-col"><span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{dateTime.date}</span><span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{dateTime.time}</span></div></td>}{visibleColumns.includes('order') && <td className="p-2 font-mono text-sm"><div className="flex flex-col"><span className="font-semibold">{delivery.stop_order !== null && delivery.stop_order !== undefined ? delivery.stop_order : '-'}</span>{delivery.ampm_deliveries && <span className="text-xs text-slate-600">{delivery.ampm_deliveries}</span>}</div></td>}{visibleColumns.includes('sid_pid') && <td className="p-2 font-mono text-xs"><div className="flex flex-col">{delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}{info.patientPID && <span className="text-slate-600">{info.patientPID}</span>}{!delivery.stop_id && !info.patientPID && <span>-</span>}</div></td>}{visibleColumns.includes('tracking') && <td className="p-2 font-mono text-xs"><div className="flex flex-col"><span>{delivery.tracking_number || '-'}</span>{delivery.puid && <span className="text-slate-600 text-[10px]">{delivery.puid}</span>}</div></td>}{visibleColumns.includes('delivery_to') && <td className="p-2"><div className="flex flex-col"><span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{info.name}</span><span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{info.address}</span></div></td>}{visibleColumns.includes('driver') && <td className="p-2">{editingDriverId === delivery.id ? <Select value={delivery.driver_id || ''} onValueChange={(newDriverId) => handleDriverChange(delivery, newDriverId)} onOpenChange={(open) => {if (!open) setEditingDriverId(null);}}><SelectTrigger className="h-7 w-full text-xs"><SelectValue /></SelectTrigger><SelectContent className="z-[9999]">{driversForDropdown.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}</SelectContent></Select> : <div className="flex flex-col gap-1"><span className="cursor-pointer hover:bg-slate-100 px-2 py-1 rounded transition-colors inline-block" onClick={() => setEditingDriverId(delivery.id)}>{driverName}</span>{delivery.isNextDelivery && <Badge className="bg-green-100 !text-green-800 border-green-300 w-fit">Next</Badge>}</div>}</td>}{visibleColumns.includes('distance') && <td className="p-2"><div className="flex flex-col text-sm font-mono" style={{ color: 'var(--text-slate-900)' }}><span>{delivery.travel_dist ? `${delivery.travel_dist.toFixed(2)}k` : '-'}</span>{(() => {const patient = (patients || []).find((p) => p.id === delivery.patient_id);const patientDist = patient?.distance_from_store;return patientDist ? <span className="text-xs text-slate-600">{patientDist.toFixed(2)}k</span> : null;})()}</div></td>}{visibleColumns.includes('status') && <td className="p-2">{getStatusBadge(delivery)}</td>}<td className="p-2"><DeliveryRouteDataCell delivery={delivery} /></td>{visibleColumns.includes('actions') && <td className="p-2 text-right"><div className="flex justify-end gap-2"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(delivery)}><Edit className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onDelete(delivery)}><Trash2 className="w-4 h-4" /></Button></div></td>}</tr>;}) : <tr><td colSpan={visibleColumns.length + 2} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No deliveries found.</td></tr>}</tbody></table></div>
-        </div>
-      </CardContent>
-    </Card>);
-
-};
+const DeliveryDataTable = (props) => <AdminDeliveriesTable {...props} />;
 
 const PatientDataTable = ({
   patients, stores, onEdit, onDelete,
@@ -2525,6 +2060,7 @@ export default function AdminUtilities() {
   const [selectedDeliveryYear, setSelectedDeliveryYear] = useState(() => new Date().getFullYear().toString());
   const [selectedDeliveryMonth, setSelectedDeliveryMonth] = useState(() => (new Date().getMonth() + 1).toString());
   const [selectedDriver, setSelectedDriver] = useState('all');
+  const [selectedCodFilter, setSelectedCodFilter] = useState('all');
   const [availableDeliveryYears, setAvailableDeliveryYears] = useState([]);
   const [filtersReady, setFiltersReady] = useState(false);
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
@@ -3081,6 +2617,14 @@ export default function AdminUtilities() {
       }
     }
 
+    if (selectedCodFilter !== 'all') {
+      filtered = filtered.filter((delivery) => {
+        const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
+        const paymentTypes = codPayments.map((p) => String(p?.type || '').toLowerCase());
+        const legacyType = String(delivery.cod_payment_type || '').toLowerCase();
+        return paymentTypes.includes(selectedCodFilter) || legacyType === selectedCodFilter;
+      });
+    }
 
     filtered = filtered.filter((delivery) => {
       const patient = (patients || []).find((p) => p.id === delivery.patient_id);
@@ -3182,7 +2726,7 @@ export default function AdminUtilities() {
       });
     }
     return filtered;
-  }, [allDeliveries, selectedDeliveryYear, selectedDeliveryMonth, selectedDriver, driversForDropdown, patients, stores, deliveryFilterText, deliverySortColumn, deliverySortDirection]);
+  }, [allDeliveries, selectedDeliveryYear, selectedDeliveryMonth, selectedDriver, selectedCodFilter, driversForDropdown, patients, stores, deliveryFilterText, deliverySortColumn, deliverySortDirection]);
 
 
   const filteredPatientsForDetectDuplicates = useMemo(() => {
@@ -4259,7 +3803,10 @@ export default function AdminUtilities() {
                           saveSetting(currentUser.id, 'admin_utilities_driver', driver);
                         }
                         setSelectedDriver(driver);
-                      }} />
+                      }}
+                      selectedCodFilter={selectedCodFilter}
+                      onCodFilterChange={setSelectedCodFilter}
+                      handleDriverChange={handleDriverChange} />
                     }
                     </div>
                   </TabsContent>
