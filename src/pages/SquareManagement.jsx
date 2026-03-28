@@ -270,7 +270,8 @@ export default function SquareManagement() {
 
     onStageChange?.({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
 
-    const snapshotResponse = await base44.functions.invoke('squareCodCore', { action: 'getCodData', daysBack: rangeDays });
+    const safeDaysBack = Math.min(Number(rangeDays || 30), 14);
+    const snapshotResponse = await base44.functions.invoke('squareCodCore', { action: 'getCodData', daysBack: safeDaysBack });
     const snapshotData = snapshotResponse?.data || snapshotResponse || {};
     const catalogRecords = snapshotData.catalogRecords || [];
     const transactions = snapshotData.transactionRecords || [];
