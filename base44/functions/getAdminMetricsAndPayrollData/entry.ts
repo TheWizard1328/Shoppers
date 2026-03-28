@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
 const CACHE_VERSION = '1';
 const statsCache = new Map();
@@ -113,7 +114,10 @@ Deno.serve(async (req) => {
     }
     if (!user) return Response.json({ error: 'Forbidden: Authentication required' }, { status: 403 });
 
-    const appUserList = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+    const appUserList = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }).catch((error) => {
+      if (isNotFoundError(error)) return [];
+      throw error;
+    });
     const appUser = appUserList[0];
     const appRoles = appUser?.app_roles || [];
     if (user.role !== 'admin' && !appRoles.includes('admin') && !appRoles.includes('driver')) {

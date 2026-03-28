@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 /***
  * AI-Driven Delivery Prioritization.
  * 
@@ -36,7 +38,10 @@ Deno.serve(async (req) => {
     console.log(`🧠 AI Prioritization analysis for driver ${driverId} on ${deliveryDate}`);
 
     // Get driver info
-    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
+    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }).catch((error) => {
+      if (isNotFoundError(error)) return [];
+      throw error;
+    });
     const driverAppUser = appUsers?.[0];
 
     if (!driverAppUser) {

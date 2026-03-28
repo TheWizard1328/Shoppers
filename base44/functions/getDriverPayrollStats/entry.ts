@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -16,7 +18,10 @@ Deno.serve(async (req) => {
     }
 
     // CRITICAL: Get AppUser record to fetch driver's pay rates
-    const appUserRecords = await base44.entities.AppUser.filter({ user_id: driverId });
+    const appUserRecords = await base44.entities.AppUser.filter({ user_id: driverId }).catch((error) => {
+      if (isNotFoundError(error)) return [];
+      throw error;
+    });
     const appUser = appUserRecords?.[0];
 
     console.log('👤 [Payroll Stats] Looking up driver:', appUser?.user_name || 'NOT FOUND', 'for date:', deliveryDate);
@@ -207,6 +212,9 @@ Deno.serve(async (req) => {
         const activityRecords = await base44.entities.DriverDailyActivity.filter({
           driver_id: driverId,
           activity_date: deliveryDate
+        }).catch((error) => {
+          if (isNotFoundError(error)) return [];
+          throw error;
         });
 
         if (activityRecords && activityRecords.length > 0) {

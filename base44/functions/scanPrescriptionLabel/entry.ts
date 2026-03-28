@@ -226,7 +226,7 @@ Use null for any field you cannot read. Return ONLY the JSON, nothing else.`,
       // Get all stores in the selected city (from request)
       if (selectedCityId) {
         console.log('🏙️ [scanPrescriptionLabel] Admin mode - filtering by city:', selectedCityId);
-        const stores = await base44.asServiceRole.entities.Store.filter({ city_id: selectedCityId });
+        const stores = await base44.asServiceRole.entities.Store.filter({ city_id: selectedCityId }).catch(() => []);
         const storeIds = stores.map(s => s.id);
         console.log('🏪 [scanPrescriptionLabel] Found stores in city:', storeIds.length);
         if (storeIds.length > 0) {
@@ -253,7 +253,7 @@ Use null for any field you cannot read. Return ONLY the JSON, nothing else.`,
         phoneMatches = await base44.entities.Patient.filter({
           ...patientFilter,
           phone: { $contains: last7 }
-        });
+        }).catch(() => []);
         console.log('✅ [scanPrescriptionLabel] Phone narrowing yielded', phoneMatches.length, 'candidates');
       } catch (e) {
         console.warn('⚠️ [scanPrescriptionLabel] $contains not supported on phone, will fallback to local filter after fetch');
@@ -264,7 +264,7 @@ Use null for any field you cannot read. Return ONLY the JSON, nothing else.`,
     let allPatients = [];
     if (phoneMatches.length === 0) {
       console.log('🔍 [scanPrescriptionLabel] Fetching patients with filter:', patientFilter);
-      allPatients = await base44.entities.Patient.filter(patientFilter);
+      allPatients = await base44.entities.Patient.filter(patientFilter).catch(() => []);
       console.log('✅ [scanPrescriptionLabel] Found', allPatients.length, 'patients to search');
 
       // Local phone narrowing fallback if server-side $contains was unavailable

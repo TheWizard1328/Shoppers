@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const DEFAULT_CONFIG = {
   enabled: true,
   threshold_credits: 10,
@@ -48,6 +50,9 @@ Deno.serve(async (req) => {
 
     const owners = await base44.asServiceRole.entities.AppUser.filter({
       user_name: config.recipient_name || DEFAULT_CONFIG.recipient_name
+    }).catch((error) => {
+      if (isNotFoundError(error)) return [];
+      throw error;
     });
     const owner = owners?.[0];
 
@@ -66,7 +71,10 @@ Deno.serve(async (req) => {
       },
       '-created_date',
       20
-    );
+    ).catch((error) => {
+      if (isNotFoundError(error)) return [];
+      throw error;
+    });
 
     const alreadySent = (recentMessages || []).some((message) =>
       typeof message.content === 'string' && message.content.includes(bucketToken)
@@ -98,6 +106,7 @@ Deno.serve(async (req) => {
     const content = `${bucketToken} Estimated integration usage reached ${totalCredits} credits within ${windowMinutes} minutes. Top tasks: ${topTasks || 'n/a'}.`;
 
     const message = await base44.asServiceRole.entities.Message.create({
+
       sender_id: 'system_updates',
       sender_name: 'System Updates',
       receiver_id: owner.user_id,
