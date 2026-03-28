@@ -941,40 +941,58 @@ async function handleFetchPayments(base44, payload) {
 }
 
 async function handleGetCodData(base44, payload = {}) {
-  const daysBack = Number(payload?.daysBack || CATALOG_LOOKBACK_DAYS);
+  const daysBack = Math.min(Number(payload?.daysBack || CATALOG_LOOKBACK_DAYS), 14);
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
-  const [locationConfigs, stores, catalogRecords, transactionRecords, recentDeliveries] = await Promise.all([
+  const [locationConfigs, stores, catalogRecords, transactionRecords] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
     base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 500).catch(() => []),
     base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 500).catch(() => []),
-    base44.asServiceRole.entities.Delivery.list('-updated_date', Math.min(Math.max(daysBack * 40, 200), 800)).catch(() => []),
   ]);
 
-  const activeConfigById = new Map((locationConfigs || []).map((config) => [config.id, config]));
-  const locationIds = Array.from(new Set(
-    (stores || [])
-      .map((store) => activeConfigById.get(store?.square_location_config_id)?.square_location_id)
-      .filter(Boolean)
-  ));
+  const safeTransactionRecords = Array.isArray(transactionRecords) ? transactionRecords : [];
+  const safeCatalogRecords = Array.isArray(catalogRecords) ? catalogRecords : [];
 
-  const recentCatalogRecords = (catalogRecords || []).filter((record) => isRecentDelivery(record?.delivery_date || record?.item_name));
-  const recentTransactionRecords = (transactionRecords || []).filter((transaction) => {
+  const recentTransactionRecords = safeTransactionRecords.filter((transaction) => {
     const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
     return Number.isFinite(transactionTime) && transactionTime >= transactionRetentionStartMs;
   });
-  const codDeliveries = (recentDeliveries || []).filter((delivery) => {
-    if (Number(delivery?.cod_total_amount_required || 0) <= 0) return false;
-    return isRecentDelivery(delivery?.delivery_date);
+
+  const deliveryIds = Array.from(new Set(
+    recentTransactionRecords
+      .map((transaction) => transaction?.delivery_id)
+      .filter(Boolean)
+  ));
+
+  const deliveriesResult = deliveryIds.length
+    ? await base44.asServiceRole.entities.Delivery.filter({ id: { $in: deliveryIds } }, '-updated_date', 500).catch(() => [])
+    : [];
+  const safeDeliveries = Array.isArray(deliveriesResult) ? deliveriesResult : [];
+
+  const codDeliveries = safeDeliveries.filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0);
+  const recentCatalogRecords = safeCatalogRecords.filter((record) => {
+    if (!record) return false;
+    if (record?.delivery_id && deliveryIds.includes(record.delivery_id)) return true;
+    return isRecentDelivery(record?.delivery_date || record?.item_name);
   });
+
+  const safeLocationConfigs = Array.isArray(locationConfigs) ? locationConfigs : [];
+  const safeStores = Array.isArray(stores) ? stores : [];
+
+  const activeConfigById = new Map(safeLocationConfigs.map((config) => [config.id, config]));
+  const locationIds = Array.from(new Set(
+    safeStores
+      .map((store) => activeConfigById.get(store?.square_location_config_id)?.square_location_id)
+      .filter(Boolean)
+  ));
 
   return {
     success: true,
     deliveries: codDeliveries,
     catalogRecords: recentCatalogRecords,
     transactionRecords: recentTransactionRecords,
-    locationConfigs,
+    locationConfigs: safeLocationConfigs,
     locationIds,
   };
 }
@@ -1473,14 +1491,7 @@ Deno.serve(async (req) => {
       return Response.json(await handleFetchPayments(base44, payload));
     }
     if (action === 'getCodData') {
-      return Response.json({
-        success: true,
-        deliveries: [],
-        catalogRecords: [],
-        transactionRecords: [],
-        locationConfigs: [],
-        locationIds: [],
-      });
+      return Response.json(await handleGetCodData(base44, payload));
     }
     if (action === 'recordPayment') {
       return Response.json(await handleRecordPayment(base44, payload));
