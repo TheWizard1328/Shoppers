@@ -920,6 +920,7 @@ export default function SquareManagement() {
         if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
         if (!visibleStoreIds.has(delivery.store_id)) return false;
         if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return false;
+        if (selectedDriverFilter === 'all') return true;
         if (selectedDriverUserIds.size === 0) return false;
         return selectedDriverUserIds.has(delivery.driver_id);
       })
@@ -957,7 +958,7 @@ export default function SquareManagement() {
         };
       })
       .filter(Boolean);
-  }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
+  }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
 
   const filteredTransactionRows = React.useMemo(() => {
     return (allTransactions || [])
@@ -1154,10 +1155,11 @@ export default function SquareManagement() {
     return deliveries.filter(delivery => {
       if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
       if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return false;
+      if (selectedDriverFilter === 'all') return true;
       if (selectedDriverUserIds.size === 0) return false;
       return selectedDriverUserIds.has(delivery.driver_id);
     }).length;
-  }, [deliveries, lookbackStart, selectedDriverUserIds]);
+  }, [deliveries, lookbackStart, selectedDriverFilter, selectedDriverUserIds]);
 
   const collectedCodTypeBreakdown = React.useMemo(() => {
     const counts = { Cash: 0, Debit: 0, Credit: 0, Check: 0 };
@@ -1165,7 +1167,7 @@ export default function SquareManagement() {
     deliveries.forEach((delivery) => {
       if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return;
       if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return;
-      if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(delivery.driver_id)) return;
+      if (selectedDriverFilter !== 'all' && (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(delivery.driver_id))) return;
 
       const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
       if (codPayments.length > 0) {
@@ -1187,7 +1189,7 @@ export default function SquareManagement() {
     });
 
     return counts;
-  }, [deliveries, lookbackStart, selectedDriverUserIds]);
+  }, [deliveries, lookbackStart, selectedDriverFilter, selectedDriverUserIds]);
 
   const filteredCardSpendCount = React.useMemo(() => {
     return allTransactions.filter(transaction => {
