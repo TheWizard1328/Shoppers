@@ -42,6 +42,7 @@ import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';im
 import DeliveryRouteDataCell from '../components/admin/DeliveryRouteDataCell';
 import { ResizableColumnHeader, ColumnVisibilityControl } from '../components/admin/AdminTableControls';
 import AdminDeliveriesTable from '../components/admin/AdminDeliveriesTable';
+import { matchesDeliveryCodFilter } from '../components/admin/deliveryCodFilter';
 
 // Wrapper to reload data when Routes tab is opened
 const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
@@ -2617,14 +2618,7 @@ export default function AdminUtilities() {
       }
     }
 
-    if (selectedCodFilter !== 'all') {
-      filtered = filtered.filter((delivery) => {
-        const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
-        const paymentTypes = codPayments.map((p) => String(p?.type || '').toLowerCase());
-        const legacyType = String(delivery.cod_payment_type || '').toLowerCase();
-        return paymentTypes.includes(selectedCodFilter) || legacyType === selectedCodFilter;
-      });
-    }
+    filtered = filtered.filter((delivery) => matchesDeliveryCodFilter(delivery, selectedCodFilter));
 
     filtered = filtered.filter((delivery) => {
       const patient = (patients || []).find((p) => p.id === delivery.patient_id);
