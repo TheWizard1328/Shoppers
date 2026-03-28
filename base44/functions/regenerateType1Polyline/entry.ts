@@ -1,5 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+function isNotFoundError(error) {
+  return error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+}
+
 const ACTIVE_STATUSES = new Set(['in_transit', 'en_route']);
 const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char, index) => {
@@ -396,12 +400,21 @@ Deno.serve(async (req) => {
     if (exactMatchingSegments.length > 0) {
       polylineRecordToUpdate = exactMatchingSegments[0];
       for (let i = 1; i < exactMatchingSegments.length; i++) {
-        await base44.asServiceRole.entities.DriverRoutePolyline.delete(exactMatchingSegments[i].id);
+        await base44.asServiceRole.entities.DriverRoutePolyline.delete(exactMatchingSegments[i].id).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
       }
     }
 
     if (polylineRecordToUpdate?.id) {
-      await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecordToUpdate.id, payload);
+      await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecordToUpdate.id, payload).catch(async (error) => {
+        if (isNotFoundError(error)) {
+          await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
+          return null;
+        }
+        throw error;
+      });
     } else {
       await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
     }
