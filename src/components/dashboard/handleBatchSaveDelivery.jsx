@@ -524,10 +524,13 @@ export const handleBatchSaveDelivery = async ({
 
       // CRITICAL: Generate delivery_id for new stops
       const deliveryId = stop.delivery_id || `DID-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const dispatcherId = stop.dispatcher_id || currentUser?.id || null;
+      const createdByAppUserId = stop.created_by_app_user_id || currentUser?.id || null;
 
       const payload = {
         delivery_id: deliveryId,
-        dispatcher_id: currentUser?.id || null,
+        dispatcher_id: dispatcherId,
+        created_by_app_user_id: createdByAppUserId,
         patient_id: stop.patient_id || null,
         store_id: stop.store_id,
         driver_id: driverId === 'unassigned' ? null : driverId,
