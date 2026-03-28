@@ -304,6 +304,9 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     }, '-updated_date', 50000);
 
+    console.log('existingPolylines:', existingPolylines);
+    console.log('Type of existingPolylines:', typeof existingPolylines, Array.isArray(existingPolylines));
+
     const previousGenerationCount = Array.isArray(existingPolylines) && existingPolylines.length
       ? Math.max(...existingPolylines.map((row) => Number(row?.daily_generation_count || 0)))
       : 0;
