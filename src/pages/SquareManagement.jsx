@@ -444,7 +444,7 @@ export default function SquareManagement() {
         try {
           const { transactionCount } = await runFullOfflineSnapshotSync({
             onStageChange: setBgSyncProgress,
-            daysBack,
+            daysBack: Math.min(daysBack, 14),
             refreshLocations: true,
           });
           setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
@@ -485,7 +485,7 @@ export default function SquareManagement() {
           setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
           const { transactionCount } = await runFullOfflineSnapshotSync({
             onStageChange: setBgSyncProgress,
-            daysBack: Number(selectedDaysRange || 30),
+            daysBack: Math.min(Number(selectedDaysRange || 30), 14),
             refreshLocations: false,
           });
           setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });

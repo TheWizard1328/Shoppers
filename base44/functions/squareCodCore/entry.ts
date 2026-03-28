@@ -955,14 +955,14 @@ async function handleGetCodData(base44, payload = {}) {
   const [locationConfigs, stores, catalogRecords, transactionRecords, deliveries] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
-    base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []),
-    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []),
+    base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 500).catch(() => []),
+    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 500).catch(() => []),
     base44.asServiceRole.entities.Delivery.filter({
       delivery_date: {
         $gte: startDateStr,
         $lte: endDateStr,
       },
-    }, '-updated_date', 2000).catch(() => []),
+    }, '-updated_date', 500).catch(() => []),
   ]);
 
   const activeConfigById = new Map((locationConfigs || []).map((config) => [config.id, config]));
