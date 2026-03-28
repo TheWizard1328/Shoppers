@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,6 +30,7 @@ export default function AdminDeliveriesTable(props) {
   const [editingDriverId, setEditingDriverId] = useState(null);
   const [showMostRecentOnly, setShowMostRecentOnly] = useState(false);
   const [columnWidths] = useState({ checkbox: 50, date: 120, order: 80, sid_pid: 110, tracking: 90, delivery_to: 220, driver: 140, cod: 120, distance: 90, status: 110, actions: 110 });
+  const isCodFilterActive = selectedCodFilter && selectedCodFilter !== 'all_deliveries';
 
   React.useEffect(() => {
     if (autoSelectIds.length > 0) {
@@ -37,6 +38,12 @@ export default function AdminDeliveriesTable(props) {
       onAutoSelectProcessed?.();
     }
   }, [autoSelectIds, onAutoSelectProcessed]);
+
+  React.useEffect(() => {
+    if (isCodFilterActive && showMostRecentOnly) {
+      setShowMostRecentOnly(false);
+    }
+  }, [isCodFilterActive, showMostRecentOnly]);
 
   const getSortIcon = (columnName) => {
     if (sortColumn === columnName) {
@@ -112,7 +119,7 @@ export default function AdminDeliveriesTable(props) {
           <Select value={selectedDriver} onValueChange={onDriverChange} disabled={isLoadingData}><SelectTrigger className="w-40"><SelectValue placeholder="Select driver" /></SelectTrigger><SelectContent><SelectItem value="all">All Drivers</SelectItem>{drivers && drivers.length > 0 ? drivers.map((driver) => <SelectItem key={driver.id} value={driver.user_name || driver.full_name || ''}>{getDriverDisplayName(driver)}</SelectItem>) : <div className="p-2 text-xs text-slate-500">No drivers available</div>}</SelectContent></Select>
           <Select value={selectedCodFilter} onValueChange={onCodFilterChange} disabled={isLoadingData}><SelectTrigger className="w-40"><SelectValue placeholder="Select COD" /></SelectTrigger><SelectContent><SelectItem value="all_deliveries">All Deliveries</SelectItem><SelectItem value="all">All COD's</SelectItem><SelectItem value="cash">Cash</SelectItem><SelectItem value="debit">Debit</SelectItem><SelectItem value="credit">Credit</SelectItem><SelectItem value="check">Check</SelectItem></SelectContent></Select>
           <Input placeholder="Filter by name, address, SID, TR#, or status..." value={filterText} onChange={(e) => onFilterChange(e.target.value)} className="flex-1 min-w-[200px]" disabled={isLoadingData} />
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}><Checkbox id="show-most-recent" checked={showMostRecentOnly} onCheckedChange={setShowMostRecentOnly} /><label htmlFor="show-most-recent" className="text-sm font-medium cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>Most Recent Date Only</label></div>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}><Checkbox id="show-most-recent" checked={showMostRecentOnly} onCheckedChange={setShowMostRecentOnly} disabled={isCodFilterActive} /><label htmlFor="show-most-recent" className="text-sm font-medium cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>{isCodFilterActive ? 'Most Recent Date Only (off for COD filters)' : 'Most Recent Date Only'}</label></div>
         </div>
         <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
           <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
