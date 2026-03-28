@@ -276,6 +276,15 @@ export default function SquareManagement() {
     const catalogRecords = snapshotData.catalogRecords || [];
     const transactions = snapshotData.transactionRecords || [];
     let deliveryRecords = snapshotData.deliveries || [];
+
+    if ((deliveryRecords || []).length > 0) {
+      const existingWindowDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+      const mergedDeliveries = new Map((existingWindowDeliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
+      (deliveryRecords || []).filter(Boolean).forEach((delivery) => {
+        if (delivery?.id) mergedDeliveries.set(delivery.id, delivery);
+      });
+      deliveryRecords = Array.from(mergedDeliveries.values());
+    }
     const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigsRef.current || []);
 
     if (deliveryRecords.length === 0 && catalogRecords.length > 0) {
@@ -317,7 +326,7 @@ export default function SquareManagement() {
       deliveryCount: (deliveryRecords || []).length,
       transactionCount: (transactions || []).length,
     };
-  }, [getSourceWindow, syncDeliveriesWindowOffline, syncSquareCODSnapshotOffline, loadReconciliationFromOffline, loadSyncStatus]);
+  }, [getSourceWindow, syncDeliveriesWindowOffline, syncSquareCODSnapshotOffline, loadDeliveriesFromOffline, loadReconciliationFromOffline, loadSyncStatus]);
 
   const syncReconciliationToCatalog = async () => {
     setIsUpdatingReconciliationCatalog(true);
