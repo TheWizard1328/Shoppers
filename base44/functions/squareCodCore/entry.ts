@@ -19,6 +19,14 @@ function normalizeText(value) {
   return String(value || '').trim();
 }
 
+function unwrapEntityRecord(record) {
+  if (!record || typeof record !== 'object') return null;
+  if (record.data && typeof record.data === 'object') {
+    return { ...record.data, id: record.data.id || record.id, created_date: record.data.created_date || record.created_date, updated_date: record.data.updated_date || record.updated_date };
+  }
+  return record;
+}
+
 function isValidEntityId(value) {
   return /^[a-f0-9]{24}$/i.test(String(value || ''));
 }
@@ -951,8 +959,8 @@ async function handleGetCodData(base44, payload = {}) {
     base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 500).catch(() => []),
   ]);
 
-  const safeTransactionRecords = Array.isArray(transactionRecords) ? transactionRecords : [];
-  const safeCatalogRecords = Array.isArray(catalogRecords) ? catalogRecords : [];
+  const safeTransactionRecords = (Array.isArray(transactionRecords) ? transactionRecords : []).map(unwrapEntityRecord).filter(Boolean);
+  const safeCatalogRecords = (Array.isArray(catalogRecords) ? catalogRecords : []).map(unwrapEntityRecord).filter(Boolean);
 
   const recentTransactionRecords = safeTransactionRecords.filter((transaction) => {
     const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
@@ -966,19 +974,19 @@ async function handleGetCodData(base44, payload = {}) {
   ));
 
   const deliveriesResult = deliveryIds.length
-    ? await base44.asServiceRole.entities.Delivery.filter({ id: { $in: deliveryIds } }, '-updated_date', 500).catch(() => [])
+    ? await base44.asServiceRole.entities.Delivery.list('-updated_date', 2000).catch(() => [])
     : [];
-  const safeDeliveries = Array.isArray(deliveriesResult) ? deliveriesResult : [];
+  const safeDeliveries = (Array.isArray(deliveriesResult) ? deliveriesResult : []).map(unwrapEntityRecord).filter(Boolean);
 
-  const codDeliveries = safeDeliveries.filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0);
+  const codDeliveries = safeDeliveries.filter((delivery) => deliveryIds.includes(delivery?.id) && Number(delivery?.cod_total_amount_required || 0) > 0);
   const recentCatalogRecords = safeCatalogRecords.filter((record) => {
     if (!record) return false;
     if (record?.delivery_id && deliveryIds.includes(record.delivery_id)) return true;
     return isRecentDelivery(record?.delivery_date || record?.item_name);
   });
 
-  const safeLocationConfigs = Array.isArray(locationConfigs) ? locationConfigs : [];
-  const safeStores = Array.isArray(stores) ? stores : [];
+  const safeLocationConfigs = (Array.isArray(locationConfigs) ? locationConfigs : []).map(unwrapEntityRecord).filter(Boolean);
+  const safeStores = (Array.isArray(stores) ? stores : []).map(unwrapEntityRecord).filter(Boolean);
 
   const activeConfigById = new Map(safeLocationConfigs.map((config) => [config.id, config]));
   const locationIds = Array.from(new Set(

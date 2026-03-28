@@ -274,8 +274,14 @@ export default function SquareManagement() {
     const snapshotData = snapshotResponse?.data || snapshotResponse || {};
     const catalogRecords = snapshotData.catalogRecords || [];
     const transactions = snapshotData.transactionRecords || [];
-    const deliveryRecords = snapshotData.deliveries || [];
+    let deliveryRecords = snapshotData.deliveries || [];
     const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigsRef.current || []);
+
+    if (deliveryRecords.length === 0 && catalogRecords.length > 0) {
+      const catalogDeliveryIds = Array.from(new Set(catalogRecords.map((record) => record?.delivery_id).filter(Boolean)));
+      const fallbackDeliveries = await base44.entities.Delivery.list('-updated_date', 2000);
+      deliveryRecords = (fallbackDeliveries || []).filter((delivery) => catalogDeliveryIds.includes(delivery?.id));
+    }
 
     if (refreshLocations) {
       await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
@@ -295,6 +301,9 @@ export default function SquareManagement() {
         transactions: transactions || [],
       }),
     ]);
+
+    setDeliveries(deliveryRecords || []);
+    setAllTransactions(transactions || []);
 
     onStageChange?.({ stage: 'saving_offline', detail: 'Reloading from offline cache…' });
 
