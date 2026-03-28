@@ -83,6 +83,7 @@ import { getUserAgentInfo, isMobileDeviceForTheme } from './components/utils/dev
 
 import DriverStatusToggle from './components/layout/DriverStatusToggle';
 import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
+import AppErrorBoundary from './components/layout/AppErrorBoundary';
 import { loadUserSettings, saveSetting, clearSettingsCache, getDeviceType, getDeviceIdentifier } from './components/utils/userSettingsManager';
 import DeviceSelectionModal from './components/devices/DeviceSelectionModal';
 import MessagingPanel from './components/messaging/MessagingPanel';
@@ -158,204 +159,6 @@ const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, c
     </div>);
 
 };
-
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    // CRITICAL: Only catch truly fatal errors - let most errors pass through
-    // This prevents intermittent error screens during normal operation
-
-    // Ignore Leaflet map errors
-    if (error.message && (
-    error.message.includes('l is not a function') ||
-    error.message.includes('_leaflet_pos') ||
-    error.message.includes('Leaflet'))) {
-      console.warn('Leaflet error caught by ErrorBoundary, continuing normally');
-      return { hasError: false };
-    }
-
-    // Ignore network/rate limit errors - these should be handled gracefully
-    if (error.message && (
-    error.message.includes('429') ||
-    error.message.includes('Rate limit') ||
-    error.message.includes('Network') ||
-    error.message.includes('fetch')))
-    {
-      console.warn('Network/Rate limit error caught by ErrorBoundary, continuing normally');
-      return { hasError: false };
-    }
-
-    // Ignore React rendering errors during transitions
-    if (error.message && (
-    error.message.includes('flushSync') ||
-    error.message.includes('useEffect') ||
-    error.message.includes('setState')))
-    {
-      console.warn('React state error caught by ErrorBoundary, continuing normally');
-      return { hasError: false };
-    }
-
-    // Cache error to localStorage for debugging (survives refresh)
-    try {
-      localStorage.setItem('rxdeliver_last_error', JSON.stringify({
-        message: error?.message || 'Unknown error',
-        stack: error?.stack || '',
-        timestamp: new Date().toISOString()
-      }));
-    } catch (e) {
-
-
-
-      // Ignore localStorage errors
-    } // CRITICAL: Only show error screen for truly fatal errors
-    console.error('🔴 FATAL ERROR - Showing error screen:', error);return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    // Ignore known non-fatal errors
-    if (error.message && (
-    error.message.includes('l is not a function') ||
-    error.message.includes('_leaflet_pos') ||
-    error.message.includes('Leaflet') ||
-    error.message.includes('429') ||
-    error.message.includes('Rate limit') ||
-    error.message.includes('Network') ||
-    error.message.includes('fetch') ||
-    error.message.includes('flushSync') ||
-    error.message.includes('useEffect') ||
-    error.message.includes('setState')))
-    {
-      console.warn('Non-fatal error caught and neutralized by ErrorBoundary:', error.message);
-      // CRITICAL: Reset error state to continue normally
-      this.setState({ hasError: false, error: null, errorInfo: null });
-      return;
-    }
-
-    // Store errorInfo in state for display
-    this.setState({ errorInfo });
-
-    console.error('═══════════════════════════════════════════════════');
-    console.error('❌ CRITICAL ERROR CAUGHT BY ERROR BOUNDARY');
-    console.error('Error:', error);
-    console.error('Error message:', error?.message);
-    console.error('Error stack:', error?.stack);
-    console.error('Component stack:', errorInfo?.componentStack);
-    console.error('═══════════════════════════════════════════════════');
-  }
-
-  render() {
-    if (this.state.hasError && (window.location.search.includes('_preview_token') || window.location.search.includes('hide_badge=true') || window.location.hostname.includes('preview') || window.location.hostname.includes('sandbox'))) throw this.state.error;
-    if (this.state.hasError) {
-      let cachedError = null;
-      try {
-        const cached = localStorage.getItem('rxdeliver_last_error');
-        if (cached) {
-          cachedError = JSON.parse(cached);
-        }
-      } catch (e) {
-
-
-
-
-        // Ignore
-      }const errorToShow = this.state.error || cachedError; // Check if mobile device
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-      // Check if app owner (from localStorage cache)
-      let isOwner = false;
-      try {
-        const userCache = sessionStorage.getItem('effectiveUserCache');
-        if (userCache) {
-          const parsed = JSON.parse(userCache);
-          isOwner = parsed?.user?.role === 'App Owner';
-        }
-      } catch (e) {
-
-
-
-
-        // Ignore
-      }const showErrorDetails = isMobileDevice && isOwner && errorToShow;const handleCopyError = () => {
-        const errorText = `Error Message:\n${errorToShow?.message || 'Unknown error'}\n\nStack Trace:\n${errorToShow?.stack || 'No stack trace'}`;
-        navigator.clipboard.writeText(errorText).then(() => {
-          alert('Error copied to clipboard');
-        }).catch(() => {
-          alert('Failed to copy error');
-        });
-      };
-
-      return (
-        <div className="h-screen flex items-center justify-center bg-slate-50 p-4">
-          <div className="text-center max-w-2xl mx-auto">
-            <h1 className="text-xl font-semibold text-slate-900 mb-2">Something went wrong</h1>
-            <p className="text-slate-600 mb-4">An error occurred while loading the app.</p>
-
-            {/* Show error details only on mobile for app owners */}
-            {showErrorDetails &&
-            <div className="text-left mb-4 p-4 bg-red-50 rounded-lg border-2 border-red-300">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="font-bold text-red-900 text-lg">Error Details:</div>
-                  <Button
-                  onClick={handleCopyError}
-                  variant="outline"
-                  size="sm"
-                  className="text-red-700 border-red-300 hover:bg-red-100">
-
-                    Copy Error
-                  </Button>
-                </div>
-                <div className="mb-2 p-2 bg-white rounded border border-red-200">
-                  <div className="font-semibold text-red-900 text-sm mb-1">Message:</div>
-                  <div className="text-sm text-red-800 break-words">
-                    {errorToShow.message || 'Unknown error'}
-                  </div>
-                </div>
-                {errorToShow.stack &&
-              <div className="p-2 bg-white rounded border border-red-200">
-                    <div className="font-semibold text-red-900 text-sm mb-1">Stack Trace:</div>
-                    <pre className="text-xs text-red-800 overflow-auto max-h-40 whitespace-pre-wrap break-words">
-                      {errorToShow.stack}
-                    </pre>
-                  </div>
-              }
-                {cachedError &&
-              <div className="mt-2 text-xs text-red-600">
-                    Error occurred at: {new Date(cachedError.timestamp).toLocaleString()}
-                  </div>
-              }
-              </div>
-            }
-
-            <div className="flex gap-3 justify-center">
-              <Button
-                onClick={() => {
-                  localStorage.removeItem('rxdeliver_last_error');
-                  sessionStorage.clear();
-                  window.location.reload();
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700">
-
-                Clear Cache & Refresh
-              </Button>
-              <Button
-                onClick={() => window.location.reload()}
-                variant="outline">
-
-                Refresh Page
-              </Button>
-            </div>
-          </div>
-        </div>);
-
-    }
-
-    return this.props.children;
-  }
-}
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
@@ -2171,7 +1974,7 @@ export default function Layout({ children, currentPageName }) {
   const showWatermark = realUser && isAppOwner(realUser);
 
   return (
-    <ErrorBoundary>
+    <AppErrorBoundary>
       <style>{`
           /* FORCE light mode color-scheme */
           html {
@@ -3258,6 +3061,6 @@ export default function Layout({ children, currentPageName }) {
       }
 
       <OptimizationSpinner />
-    </ErrorBoundary>);
+    </AppErrorBoundary>);
 
 }
