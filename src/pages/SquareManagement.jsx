@@ -919,6 +919,8 @@ export default function SquareManagement() {
         if (!delivery) return false;
         if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
         if (!visibleStoreIds.has(delivery.store_id)) return false;
+        const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
+        if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
         if (selectedDriverFilter === 'all') return true;
         if (selectedDriverUserIds.size === 0) return false;
         return selectedDriverUserIds.has(delivery.driver_id);
