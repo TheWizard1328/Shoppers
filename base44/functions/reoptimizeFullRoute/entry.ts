@@ -358,6 +358,11 @@ Deno.serve(async (req) => {
           stop_order: nextStopOrder,
           display_stop_order: nextStopOrder,
           delivery_time_eta: nextETA
+        }).catch((error) => {
+          if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+            return null;
+          }
+          throw error;
         });
         
         console.log(`✅ [ReoptimizeFullRoute] isNextDelivery #${nextStopOrder}: ${isNextDeliveryStop.patient_name || 'Pickup'} ETA: ${nextETA}`);
@@ -403,6 +408,11 @@ Deno.serve(async (req) => {
         stop_order: newStopOrder,
         display_stop_order: newStopOrder,
         delivery_time_eta: eta
+      }).catch((error) => {
+        if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+          return null;
+        }
+        throw error;
       });
       
       updates.push({

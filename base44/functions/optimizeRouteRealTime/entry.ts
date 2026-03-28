@@ -477,7 +477,12 @@ Deno.serve(async (req) => {
         delivery_time_eta: eta
       };
 
-      await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData);
+      await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData).catch((error) => {
+        if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+          return null;
+        }
+        throw error;
+      });
 
       deliveryUpdates.push({
         stop,
@@ -555,7 +560,12 @@ Deno.serve(async (req) => {
             .map((delivery) => {
               const shouldBeNext = delivery.id === targetId;
               if (delivery.isNextDelivery === shouldBeNext) return null;
-              return base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: shouldBeNext });
+              return base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: shouldBeNext }).catch((error) => {
+                if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+                  return null;
+                }
+                throw error;
+              });
             })
             .filter(Boolean);
 
