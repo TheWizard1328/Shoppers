@@ -20,7 +20,7 @@ export default function CompanyCard({ company, stores = [], onEdit, onDelete }) 
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap min-h-12">
                 <h3 className="text-lg font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>{company.name}</h3>
                 <Badge variant={company.status === 'active' ? 'default' : 'secondary'}>
                   {company.status || 'active'}
