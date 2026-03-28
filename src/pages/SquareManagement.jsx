@@ -41,7 +41,7 @@ export default function SquareManagement() {
   const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState('all');
-  const [selectedDaysRange, setSelectedDaysRange] = useState('7');
+  const [selectedDaysRange, setSelectedDaysRange] = useState(() => localStorage.getItem('square_cod_days_range') || '7');
   const [isUpdatingReconciliationCatalog, setIsUpdatingReconciliationCatalog] = useState(false);
   const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
@@ -405,6 +405,10 @@ export default function SquareManagement() {
       await loadSyncStatus();
     }
   };
+
+  useEffect(() => {
+    localStorage.setItem('square_cod_days_range', selectedDaysRange);
+  }, [selectedDaysRange]);
 
   useEffect(() => {
     const loadKey = `square-cod-${selectedDaysRange}`;

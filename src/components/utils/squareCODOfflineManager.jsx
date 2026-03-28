@@ -1,6 +1,12 @@
 import { offlineDB } from './offlineDatabase';
 
-const LOOKBACK_DAYS = 30;
+const DEFAULT_LOOKBACK_DAYS = 30;
+
+const getLookbackDays = () => {
+  const raw = localStorage.getItem('square_cod_days_range');
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_LOOKBACK_DAYS;
+};
 const SQUARE_COD_STORES = {
   CATALOG_ITEMS: offlineDB.STORES.SQUARE_CATALOG_ITEMS,
   PAYMENT_TRANSACTIONS: offlineDB.STORES.SQUARE_TRANSACTIONS
@@ -8,7 +14,7 @@ const SQUARE_COD_STORES = {
 
 const getLookbackStartMs = () => {
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
+  cutoff.setDate(cutoff.getDate() - getLookbackDays());
   cutoff.setHours(0, 0, 0, 0);
   return cutoff.getTime();
 };
