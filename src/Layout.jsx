@@ -1774,12 +1774,6 @@ export default function Layout({ children, currentPageName }) {
     const isAdmin = realUser && userHasRole(realUser, 'admin');
     const items = [
     {
-      title: 'Companies',
-      pageName: 'Companies',
-      url: createPageUrl("Companies"),
-      icon: Building2
-    },
-    {
       title: 'Cities',
       pageName: 'Cities',
       count: entityCounts.cities,
@@ -2959,7 +2953,7 @@ export default function Layout({ children, currentPageName }) {
                   adminNavigationItems={adminNavigationItems}
                   currentPageName={currentPageName}
                   constructUrlWithParams={constructUrlWithParams}
-                  setSidebarOpen={setSidebarOpen}
+                  setSidebarOpen={setSidebarOpen} currentUser={currentUser}
                 />
                 }
 
