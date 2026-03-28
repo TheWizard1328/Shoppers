@@ -67,6 +67,7 @@ import {
 "@/components/utils/deliveryMessaging";
 import { createStopCardsScrollHandler } from "@/components/dashboard/StopCardsScrollHandler";
 import { getNextTrackingNumberInGroup } from "@/components/common/stopCardActionHelpers";
+import { buildReturnDeliveryData } from "@/components/utils/returnDeliveryBuilder";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
@@ -5110,26 +5111,19 @@ function Dashboard() {
       const routeDate = currentDate;
       const routeDateDeliveries = deliveries.filter((d) => d && d.driver_id === originalDelivery.driver_id && d.delivery_date === routeDate);
       const nextTrackingNumber = getNextTrackingNumberInGroup(originalDelivery.tracking_number, deliveries, originalDelivery.driver_id, routeDate);
-      const driverNotes = `From: ${originalDelivery.delivery_date}\nFor: ${failedPatient?.full_name || originalDelivery.patient_name || 'Unknown'}\n(RTN)`;
 
-      const returnDeliveryData = {
-        patient_id: returnPatient.id,
-        store_id: finalStoreId,
-        driver_id: originalDelivery.driver_id,
-        driver_name: originalDelivery.driver_name,
-        delivery_date: routeDate,
-        delivery_time_start: originalDelivery.delivery_time_start,
-        delivery_time_end: originalDelivery.delivery_time_end,
-        status: 'in_transit',
-        delivery_notes: driverNotes,
-        patient_name: returnPatient.full_name,
-        patient_phone: returnPatient.phone || store?.phone || '',
-        store_phone: store?.phone || '',
-        stop_id: generateUniqueSID(routeDateDeliveries),
-        puid: puid || originalDelivery.stop_id || null,
-        tracking_number: String(nextTrackingNumber),
-        ampm_deliveries: finalAmpm
-      };
+      const returnDeliveryData = buildReturnDeliveryData({
+        originalDelivery,
+        returnPatient,
+        store,
+        routeDate,
+        routeDateDeliveries,
+        finalStoreId,
+        finalAmpm,
+        currentUser,
+        generateUniqueSID,
+        nextTrackingNumber
+      });
 
       await createDeliveryLocal(returnDeliveryData);
 
