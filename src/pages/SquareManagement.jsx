@@ -146,7 +146,7 @@ export default function SquareManagement() {
 
     const [catalogRecords, fetchedPaymentsResponse] = await Promise.all([
       base44.entities.SquareCatalogItems.list('-updated_date', 2000),
-      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: Number(daysBack || selectedDaysRange || 30) }),
+      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: Number(daysBack || 60) }),
     ]);
 
     const transactions = extractSquarePayments(fetchedPaymentsResponse);
@@ -848,7 +848,7 @@ export default function SquareManagement() {
 
   const lookbackStart = React.useMemo(() => {
     const date = new Date();
-    date.setDate(date.getDate() - Number(selectedDaysRange || 30));
+    date.setDate(date.getDate() - Number(selectedDaysRange || 60));
     date.setHours(0, 0, 0, 0);
     return date;
   }, [selectedDaysRange]);
