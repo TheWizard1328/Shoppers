@@ -9,6 +9,7 @@ import CompanyCard from '@/components/companies/CompanyCard';
 import DeleteConfirmDialog from '@/components/deliveries/DeleteConfirmDialog';
 import { getData } from '@/components/utils/dataManager';
 import { createCompanyLocal, updateCompanyLocal, deleteCompanyLocal } from '@/components/utils/offlineMutations';
+
 ...
 
 export default function CompaniesPage() {
