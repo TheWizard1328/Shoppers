@@ -10,8 +10,6 @@ import DeleteConfirmDialog from '@/components/deliveries/DeleteConfirmDialog';
 import { getData } from '@/components/utils/dataManager';
 import { createCompanyLocal, updateCompanyLocal, deleteCompanyLocal } from '@/components/utils/offlineMutations';
 
-...
-
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState([]);
   const [stores, setStores] = useState([]);
