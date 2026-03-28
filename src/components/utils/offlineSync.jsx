@@ -202,6 +202,29 @@ const syncPatientsBatched = async (Entity, filter, latestServerTimestamp) => {
   return { success: true, recordCount: totalRecords };
 };
 
+const syncPatientsByIds = async (patientIds = [], batchSize = 50) => {
+  const uniquePatientIds = Array.from(new Set((patientIds || []).filter(Boolean)));
+  let totalPatients = 0;
+  let freshPatients = [];
+
+  for (let i = 0; i < uniquePatientIds.length; i += batchSize) {
+    const batchIds = uniquePatientIds.slice(i, i + batchSize);
+    const batchPatients = await Patient.filter({ id: { $in: batchIds } });
+
+    if (batchPatients && batchPatients.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+      invalidateEntityCache('Patient');
+      totalPatients += batchPatients.length;
+      freshPatients = [...freshPatients, ...batchPatients];
+    }
+
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  await offlineDB.updateSyncMetadata('Patient', new Date().toISOString(), new Date().toISOString());
+  return { totalPatients, freshPatients };
+};
+
 // ==================== PRIORITY DATA LOADING ====================
 
 /**
@@ -1325,22 +1348,10 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 60, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // 4) Patients (only for the synced deliveries)
+    // 4) Patients for the synced deliveries
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 70 });
     const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
-    let totalPatients = 0;
-    const BATCH_SIZE = 50;
-    for (let i = 0; i < patientIds.length; i += BATCH_SIZE) {
-      const batch = patientIds.slice(i, i + BATCH_SIZE);
-      const batchPatients = await Patient.filter({ id: { $in: batch } });
-      if (batchPatients && batchPatients.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
-        invalidateEntityCache('Patient');
-        totalPatients += batchPatients.length;
-      }
-      await new Promise(r => setTimeout(r, 200));
-    }
-    await offlineDB.updateSyncMetadata('Patient', new Date().toISOString(), new Date().toISOString());
+    const { totalPatients } = await syncPatientsByIds(patientIds);
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: totalPatients });
 
     // Finalize
