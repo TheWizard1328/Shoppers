@@ -1,0 +1,51 @@
+{
+  "name": "Company",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Company/chain name (e.g., 'Shoppers Drug Mart', 'Independent Drugstore')"
+    },
+    "logo_url": {
+      "type": "string",
+      "description": "URL to company logo image"
+    },
+    "favicon_url": {
+      "type": "string",
+      "description": "URL to favicon"
+    },
+    "primary_color": {
+      "type": "string",
+      "description": "Primary brand color in hex format (e.g., #FF6B6B)"
+    },
+    "secondary_color": {
+      "type": "string",
+      "description": "Secondary brand color in hex format"
+    },
+    "accent_color": {
+      "type": "string",
+      "description": "Accent color in hex format"
+    },
+    "store_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Store IDs associated with this company"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "Company status"
+    }
+  },
+  "required": [
+    "name",
+    "logo_url",
+    "primary_color"
+  ]
+}
