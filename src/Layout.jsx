@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import "./components/utils/globalErrorHandler";
+// import "./components/utils/globalErrorHandler";
 import { createPageUrl } from "./utils";
 import { User } from "@/entities/User";
 import { AppUser } from "@/entities/AppUser";
