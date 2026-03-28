@@ -110,6 +110,10 @@ Deno.serve(async (req) => {
     }
 
     // Bulk create invoices
+    if (newInvoices.length === 0) {
+      return Response.json({ error: 'No invoices to generate for this period' }, { status: 400 });
+    }
+
     const createdInvoices = await base44.asServiceRole.entities.Invoice.bulkCreate(newInvoices);
 
     return Response.json({

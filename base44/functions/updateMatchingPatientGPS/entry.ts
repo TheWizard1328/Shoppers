@@ -223,26 +223,28 @@ Deno.serve(async (req) => {
 
     const successfulUpdates = updateResults.filter(Boolean);
 
-    await base44.asServiceRole.entities.PatientGPSLog.bulkCreate(
-      successfulUpdates.map((patient) => ({
-        source_patient_id: sourcePatient.id,
-        patient_id: patient.id,
-        patient_name: patient.full_name || '',
-        patient_address: patient.address || '',
-        store_id: patient.store_id || null,
-        city_id: sourceStore.city_id || null,
-        is_source_patient: patient.id === sourcePatient.id,
-        old_latitude: patient.old_latitude,
-        old_longitude: patient.old_longitude,
-        new_latitude: newLatitude,
-        new_longitude: newLongitude,
-        updated_by_user_id: user.id,
-        updated_by_user_name: user.full_name || user.email || 'Unknown User',
-        normalized_address: sourceStreetKey,
-        related_patients_updated_count: relatedPatientsUpdatedCount,
-        matched_patient_ids: successfulUpdates.map((item) => item.id)
-      }))
-    );
+    if (successfulUpdates.length > 0) {
+      await base44.asServiceRole.entities.PatientGPSLog.bulkCreate(
+        successfulUpdates.map((patient) => ({
+          source_patient_id: sourcePatient.id,
+          patient_id: patient.id,
+          patient_name: patient.full_name || '',
+          patient_address: patient.address || '',
+          store_id: patient.store_id || null,
+          city_id: sourceStore.city_id || null,
+          is_source_patient: patient.id === sourcePatient.id,
+          old_latitude: patient.old_latitude,
+          old_longitude: patient.old_longitude,
+          new_latitude: newLatitude,
+          new_longitude: newLongitude,
+          updated_by_user_id: user.id,
+          updated_by_user_name: user.full_name || user.email || 'Unknown User',
+          normalized_address: sourceStreetKey,
+          related_patients_updated_count: relatedPatientsUpdatedCount,
+          matched_patient_ids: successfulUpdates.map((item) => item.id)
+        }))
+      );
+    }
 
     return Response.json({
       success: true,

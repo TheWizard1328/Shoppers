@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 // In-memory cache for expensive stats (survives across requests in the same Deno isolate)
 const statsCache = {
   monthly: { data: null, cacheDate: '', key: '' },
@@ -627,7 +629,10 @@ Deno.serve(async (req) => {
           const dailyActivities = await base44.asServiceRole.entities.DriverDailyActivity.filter({
             driver_id: driverId,
             activity_date: todayStr
-          }).catch(() => []);
+          }).catch((error) => {
+            if (isNotFoundError(error)) return [];
+            return [];
+          });
           const dailyActivity = dailyActivities?.[0];
           const breakTimeMinutes = dailyActivity?.total_break_time_minutes || 0;
           
@@ -659,7 +664,10 @@ Deno.serve(async (req) => {
               console.log(`⏱️ [TIME CALC] Route complete - using last stop completion time`);
             } else {
               // Route incomplete - check if driver is currently on_duty
-              const driverAppUser = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
+              const driverAppUser = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }).catch((error) => {
+            if (isNotFoundError(error)) return [];
+            throw error;
+          });
               const driverStatus = driverAppUser?.[0]?.driver_status;
               
               if (driverStatus === 'on_duty') {
@@ -820,7 +828,10 @@ Deno.serve(async (req) => {
           const driverDailyActivities = await base44.asServiceRole.entities.DriverDailyActivity.filter({
             driver_id: driverUserId,
             activity_date: todayStr
-          }).catch(() => []);
+          }).catch((error) => {
+            if (isNotFoundError(error)) return [];
+            return [];
+          });
           const driverDailyActivity = driverDailyActivities?.[0];
           const breakTimeMinutes = driverDailyActivity?.total_break_time_minutes || 0;
           

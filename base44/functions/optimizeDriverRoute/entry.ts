@@ -244,10 +244,14 @@ Deno.serve(async (req) => {
     const localTimestamp = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
     
     // Get user's AppUser record for user_name
-    const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+    const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }).catch((error) => {
+      if (isNotFoundError(error)) return [];
+      throw error;
+    });
     const userAppUser = userAppUsers?.[0];
     
     await base44.asServiceRole.entities.GoogleAPILog.create({
+
       timestamp: localTimestamp,
       api_type: 'Directions',
       purpose: `Dependency-aware route optimization for driver ${driverAppUser.user_name || driverId}`,

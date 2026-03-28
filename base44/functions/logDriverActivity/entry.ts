@@ -18,7 +18,10 @@ Deno.serve(async (req) => {
     }
 
     // Get driver's AppUser record
-    const appUsers = await base44.entities.AppUser.filter({ user_id: driverId });
+    const appUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch((error) => {
+      if (isNotFoundError(error)) return [];
+      throw error;
+    });
     if (!appUsers || appUsers.length === 0) {
       return Response.json({ error: 'Driver AppUser not found' }, { status: 404 });
     }
@@ -62,6 +65,9 @@ Deno.serve(async (req) => {
       driver_id: driverId,
       delivery_date: today,
       isNextDelivery: true
+    }).catch((error) => {
+      if (isNotFoundError(error)) return [];
+      throw error;
     });
 
     // If there's an active next delivery, accumulate distance to its travel_dist
@@ -70,14 +76,16 @@ Deno.serve(async (req) => {
       const currentTravelDist = nextDelivery.travel_dist || 0;
       const newTravelDist = parseFloat((currentTravelDist + distanceTraveled).toFixed(2));
 
-      await base44.entities.Delivery.update(nextDelivery.id, {
+      const updatedDelivery = await base44.entities.Delivery.update(nextDelivery.id, {
         travel_dist: newTravelDist
       }).catch((error) => {
         if (isNotFoundError(error)) return null;
         throw error;
       });
 
-      console.log(`📍 [logDriverActivity] Updated travel_dist for ${nextDelivery.patient_name || 'Pickup'}: ${currentTravelDist} + ${distanceTraveled.toFixed(2)} = ${newTravelDist}`);
+      if (updatedDelivery) {
+        console.log(`📍 [logDriverActivity] Updated travel_dist for ${nextDelivery.patient_name || 'Pickup'}: ${currentTravelDist} + ${distanceTraveled.toFixed(2)} = ${newTravelDist}`);
+      }
     }
 
     return Response.json({
