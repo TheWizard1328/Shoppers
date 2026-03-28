@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -41,11 +43,18 @@ Deno.serve(async (req) => {
     }
 
     // Update driver's current location
-    await base44.entities.AppUser.update(appUser.id, {
+    const updatedAppUser = await base44.entities.AppUser.update(appUser.id, {
       current_latitude: latitude,
       current_longitude: longitude,
       location_updated_at: new Date().toISOString()
+    }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
     });
+
+    if (!updatedAppUser) {
+      return Response.json({ success: true, skipped: true, reason: 'app_user_not_found_during_update' });
+    }
 
     // Find the current isNextDelivery stop for today
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
@@ -63,6 +72,9 @@ Deno.serve(async (req) => {
 
       await base44.entities.Delivery.update(nextDelivery.id, {
         travel_dist: newTravelDist
+      }).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
       });
 
       console.log(`📍 [logDriverActivity] Updated travel_dist for ${nextDelivery.patient_name || 'Pickup'}: ${currentTravelDist} + ${distanceTraveled.toFixed(2)} = ${newTravelDist}`);

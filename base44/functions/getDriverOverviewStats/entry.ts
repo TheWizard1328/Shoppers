@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -211,8 +213,16 @@ Deno.serve(async (req) => {
       
       // Update existing cache or create new one
       if (latestCache && latestCache.length > 0) {
-        await base44.asServiceRole.entities.DriverOverviewStatsCache.update(latestCache[0].id, cacheData);
-        console.log('💾 [getDriverOverviewStats] Updated cache');
+        const updatedCache = await base44.asServiceRole.entities.DriverOverviewStatsCache.update(latestCache[0].id, cacheData).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
+        if (updatedCache) {
+          console.log('💾 [getDriverOverviewStats] Updated cache');
+        } else {
+          await base44.asServiceRole.entities.DriverOverviewStatsCache.create(cacheData);
+          console.log('💾 [getDriverOverviewStats] Re-created cache after stale 404');
+        }
       } else {
         await base44.asServiceRole.entities.DriverOverviewStatsCache.create(cacheData);
         console.log('💾 [getDriverOverviewStats] Created new cache entry');

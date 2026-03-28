@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 /**
  * Dependency-Aware Route Optimization for Pharmacy Deliveries
  * 
@@ -224,7 +226,10 @@ Deno.serve(async (req) => {
         updateData.delivery_time_eta = etaUpdate.eta;
       }
       
-      await base44.asServiceRole.entities.Delivery.update(deliveryId, updateData);
+      await base44.asServiceRole.entities.Delivery.update(deliveryId, updateData).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      });
     }
 
     // Log API usage

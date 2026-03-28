@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -85,9 +87,16 @@ Deno.serve(async (req) => {
       if (shouldSetOffDuty) {
         console.log(`📴 [${appUser.user_name}] ${reason} - inactive for ${inactiveMinutes} minutes - setting to Off Duty`);
         
-        await base44.asServiceRole.entities.AppUser.update(appUser.id, {
+        const updatedAppUser = await base44.asServiceRole.entities.AppUser.update(appUser.id, {
           driver_status: 'off_duty'
+        }).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
         });
+
+        if (!updatedAppUser) {
+          continue;
+        }
         
         updatedCount++;
         updates.push({

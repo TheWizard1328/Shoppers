@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 async function computePickupTrackingNumber(base44, pickup, deliveryDate) {
   const slot = pickup.ampm_deliveries || 'AM';
   // Store abbreviation cache
@@ -82,7 +84,10 @@ Deno.serve(async (req) => {
       if (!hasChildren) {
         // Delete unattached staged pickups (cancel flow)
         try {
-          await base44.entities.Delivery.delete(p.id);
+          await base44.entities.Delivery.delete(p.id).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          });
           deleted++;
         } catch (_) { /* ignore */ }
         continue;
@@ -98,7 +103,11 @@ Deno.serve(async (req) => {
       }
 
       try {
-        await base44.entities.Delivery.update(p.id, updatePayload);
+        const updatedPickup = await base44.entities.Delivery.update(p.id, updatePayload).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
+        if (!updatedPickup) continue;
         transitioned++;
         if (needsTrUpdate) trFixed++;
       } catch (_) { /* ignore */ }
