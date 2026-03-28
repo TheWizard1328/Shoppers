@@ -377,9 +377,19 @@ export default function SquareManagement() {
     } catch (err) {
       console.error('Sync error:', err);
       setError(err.message);
-      toast.error('Failed to sync: ' + err.message);
       setBgSyncProgress({ stage: 'error', error: err.message });
       setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
+
+      const isSandboxEditMode = window.location.search.includes('_preview_token') ||
+        window.location.search.includes('hide_badge=true') ||
+        window.location.hostname.includes('preview') ||
+        window.location.hostname.includes('sandbox');
+
+      if (isSandboxEditMode && isAppOwner(currentUser)) {
+        throw err;
+      }
+
+      toast.error('Failed to sync: ' + err.message);
     } finally {
       setIsSyncing(false);
       setIsLoading(false);
