@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const MATCH_RADIUS_KM = 0.15;
 
 const STREET_TYPE_MAP = {
@@ -116,12 +118,18 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields: patientId, storeId, latitude, longitude' }, { status: 400 });
     }
 
-    const sourcePatient = await base44.asServiceRole.entities.Patient.get(patientId);
+    const sourcePatient = await base44.asServiceRole.entities.Patient.get(patientId).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
     if (!sourcePatient) {
       return Response.json({ error: 'Patient not found' }, { status: 404 });
     }
 
-    const sourceStore = await base44.asServiceRole.entities.Store.get(sourcePatient.store_id || storeId);
+    const sourceStore = await base44.asServiceRole.entities.Store.get(sourcePatient.store_id || storeId).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
     if (!sourceStore) {
       return Response.json({ error: 'Store not found' }, { status: 404 });
     }
@@ -196,7 +204,11 @@ Deno.serve(async (req) => {
           payload.distance_from_store = distanceFromStore;
         }
 
-        const updatedPatient = await base44.asServiceRole.entities.Patient.update(patient.id, payload);
+        const updatedPatient = await base44.asServiceRole.entities.Patient.update(patient.id, payload).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
+        if (!updatedPatient) return null;
         return {
           id: updatedPatient.id,
           full_name: updatedPatient.full_name,
@@ -209,8 +221,10 @@ Deno.serve(async (req) => {
       })
     );
 
+    const successfulUpdates = updateResults.filter(Boolean);
+
     await base44.asServiceRole.entities.PatientGPSLog.bulkCreate(
-      updateResults.map((patient) => ({
+      successfulUpdates.map((patient) => ({
         source_patient_id: sourcePatient.id,
         patient_id: patient.id,
         patient_name: patient.full_name || '',
@@ -226,7 +240,7 @@ Deno.serve(async (req) => {
         updated_by_user_name: user.full_name || user.email || 'Unknown User',
         normalized_address: sourceStreetKey,
         related_patients_updated_count: relatedPatientsUpdatedCount,
-        matched_patient_ids: updateResults.map((item) => item.id)
+        matched_patient_ids: successfulUpdates.map((item) => item.id)
       }))
     );
 
@@ -234,9 +248,9 @@ Deno.serve(async (req) => {
       success: true,
       normalizedAddress: sourceStreetKey,
       cityId: sourceStore.city_id || null,
-      updatedCount: updateResults.length,
+      updatedCount: successfulUpdates.length,
       relatedPatientsUpdatedCount,
-      updatedPatients: updateResults.map(({ old_latitude, old_longitude, ...patient }) => patient),
+      updatedPatients: successfulUpdates.map(({ old_latitude, old_longitude, ...patient }) => patient),
       sourcePatientId: sourcePatient.id
     });
   } catch (error) {

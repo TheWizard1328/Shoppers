@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -29,14 +31,32 @@ Deno.serve(async (req) => {
     ]);
 
     await Promise.all([
-      ...(appUsers || []).map((record) => base44.asServiceRole.entities.AppUser.delete(record.id)),
-      ...(userDevices || []).map((record) => base44.asServiceRole.entities.UserDevice.delete(record.id)),
-      ...(userSettings || []).map((record) => base44.asServiceRole.entities.UserSettings.delete(record.id)),
-      ...(sentMessages || []).map((record) => base44.asServiceRole.entities.Message.delete(record.id)),
-      ...(receivedMessages || []).map((record) => base44.asServiceRole.entities.Message.delete(record.id)),
+      ...(appUsers || []).map((record) => base44.asServiceRole.entities.AppUser.delete(record.id).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      })),
+      ...(userDevices || []).map((record) => base44.asServiceRole.entities.UserDevice.delete(record.id).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      })),
+      ...(userSettings || []).map((record) => base44.asServiceRole.entities.UserSettings.delete(record.id).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      })),
+      ...(sentMessages || []).map((record) => base44.asServiceRole.entities.Message.delete(record.id).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      })),
+      ...(receivedMessages || []).map((record) => base44.asServiceRole.entities.Message.delete(record.id).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      })),
     ]);
 
-    await base44.asServiceRole.entities.User.delete(user.id);
+    await base44.asServiceRole.entities.User.delete(user.id).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
 
     return Response.json({ success: true });
   } catch (error) {
