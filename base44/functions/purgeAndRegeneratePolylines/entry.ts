@@ -12,7 +12,14 @@ async function processInChunks(items, chunkSize, processor) {
   const results = [];
   for (let i = 0; i < items.length; i += chunkSize) {
     const chunk = items.slice(i, i + chunkSize);
-    const chunkResults = await Promise.all(chunk.map(processor));
+    const chunkResults = await Promise.all(chunk.map(async (item) => {
+      try {
+        return await processor(item);
+      } catch (error) {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      }
+    }));
     results.push(...chunkResults);
     if (i + chunkSize < items.length) {
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -315,10 +322,7 @@ Deno.serve(async (req) => {
     if (!Array.isArray(deliveries) || deliveries.length === 0) {
       if (Array.isArray(existingPolylines) && existingPolylines.length > 0 && scope !== 'completed_only') {
         await processInChunks(existingPolylines, 5, (row) =>
-          base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
-            if (isNotFoundError(error)) return null;
-            throw error;
-          })
+          base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id)
         );
       }
 
@@ -498,10 +502,7 @@ Deno.serve(async (req) => {
         const rowsToDelete = (existingPolylines || []).filter((row) => !segmentsToKeep.has(row.id));
         if (rowsToDelete.length > 0) {
           await processInChunks(rowsToDelete, 5, (row) =>
-            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
-              if (isNotFoundError(error)) return null;
-              throw error;
-            })
+            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id)
           );
         }
         deletedPolylineCount = rowsToDelete.length;
@@ -513,10 +514,7 @@ Deno.serve(async (req) => {
         const rowsToDelete = (existingPolylines || []).filter((row) => row?.id !== preservedType1Row?.id);
         if (rowsToDelete.length > 0) {
           await processInChunks(rowsToDelete, 5, (row) =>
-            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
-              if (isNotFoundError(error)) return null;
-              throw error;
-            })
+            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id)
           );
         }
         deletedPolylineCount = rowsToDelete.length;
