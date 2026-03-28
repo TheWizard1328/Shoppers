@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 function generateShortStopId() {
   const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   let result = '';
@@ -135,7 +137,10 @@ Deno.serve(async (req) => {
       const ensureData = ensureResponse?.data || ensureResponse || {};
       if (ensureData?.pickup) targetPickup = ensureData.pickup;
       if (!targetPickup && ensureData?.pickupId) {
-        targetPickup = await base44.asServiceRole.entities.Delivery.get(ensureData.pickupId);
+        targetPickup = await base44.asServiceRole.entities.Delivery.get(ensureData.pickupId).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
       }
       if (targetPickup) dateDeliveries.push(targetPickup);
     }

@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const getEdmDate = () => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Edmonton',
@@ -60,7 +62,14 @@ Deno.serve(async (req) => {
     }
 
     // CRITICAL: Update with broadcast to ensure all clients receive the change immediately
-    await base44.asServiceRole.entities.AppUser.update(appUser.id, updateData);
+    const updatedAppUser = await base44.asServiceRole.entities.AppUser.update(appUser.id, updateData).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
+
+    if (!updatedAppUser) {
+      return Response.json({ success: true, skipped: true, reason: 'app_user_not_found_during_update' });
+    }
     
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);
@@ -86,7 +95,10 @@ Deno.serve(async (req) => {
       console.log(`📦 [setDriverStatus] Clearing isNextDelivery on ${incompleteDeliveries.length} incomplete deliveries`);
       
       for (const delivery of incompleteDeliveries) {
-        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
       }
       
       console.log(`✅ [setDriverStatus] All isNextDelivery flags cleared for incomplete stops`);
@@ -103,7 +115,10 @@ Deno.serve(async (req) => {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const flaggedDeliveries = allTodayDeliveries.filter(d => d?.isNextDelivery === true);
       for (const delivery of flaggedDeliveries) {
-        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
       }
 
       if (previousStatus === 'on_break') {
@@ -194,7 +209,10 @@ Deno.serve(async (req) => {
 
             if (bestDelivery) {
               console.log(`🎯 [setDriverStatus] Selected: ${bestDelivery.patient_name || 'Pickup'} (ETA matches time window by ${bestETADifference.toFixed(0)} min)`);
-              await base44.asServiceRole.entities.Delivery.update(bestDelivery.id, { isNextDelivery: true });
+              await base44.asServiceRole.entities.Delivery.update(bestDelivery.id, { isNextDelivery: true }).catch((error) => {
+                if (isNotFoundError(error)) return null;
+                throw error;
+              });
               console.log(`✅ [setDriverStatus] Delivery marked as next - ready for driver to start`);
             } else {
               console.log(`⚠️ [setDriverStatus] Could not evaluate stops with coordinates`);
@@ -203,7 +221,10 @@ Deno.serve(async (req) => {
             const nextDelivery = incompleteDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
             if (nextDelivery) {
               console.log(`📍 [setDriverStatus] No driver location - using first stop by order: ${nextDelivery.patient_name || 'Pickup'}`);
-              await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true });
+              await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true }).catch((error) => {
+                if (isNotFoundError(error)) return null;
+                throw error;
+              });
             }
           }
         } else {
@@ -237,7 +258,10 @@ Deno.serve(async (req) => {
       const deliveriesWithNextFlag = allTodayDeliveries.filter(d => d.isNextDelivery === true);
       
       for (const delivery of deliveriesWithNextFlag) {
-        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
       }
       
       console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${deliveriesWithNextFlag.length} deliveries`);

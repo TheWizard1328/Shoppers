@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 /**
  * Calculate crow-flies distance between two coordinates (Haversine formula)
  */
@@ -385,7 +387,10 @@ Deno.serve(async (req) => {
         }
       }
       
-      await base44.asServiceRole.entities.Delivery.update(deliveryId, updateData);
+      await base44.asServiceRole.entities.Delivery.update(deliveryId, updateData).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      });
     }
 
     // STEP 7: Calculate ETAs for remaining stages (without Google API)
@@ -520,7 +525,10 @@ Deno.serve(async (req) => {
         }
       }
       
-      await base44.asServiceRole.entities.Delivery.update(stop.id, updateData);
+      await base44.asServiceRole.entities.Delivery.update(stop.id, updateData).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      });
       console.log(`  🔢 [optimizeRemainingStops] Stop #${newOrder}: ${stop.patient_name || 'Pickup'}${updateData.delivery_time_start ? ` (start: ${updateData.delivery_time_start})` : ''}`);
     }
 

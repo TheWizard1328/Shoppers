@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -74,7 +76,11 @@ Deno.serve(async (req) => {
         patch.delivery_time_end = p.time_window_end;
       }
 
-      await api.entities.Delivery.update(d.id, patch);
+      const updatedDelivery = await api.entities.Delivery.update(d.id, patch).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      });
+      if (!updatedDelivery) continue;
       updatedCount += 1;
 
       if (d.driver_id && d.delivery_date) {
