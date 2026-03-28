@@ -127,7 +127,8 @@ function samePoint(a, b) {
 }
 
 function findExactCachedSegment(rows, from, to) {
-  return (rows || []).find((row) =>
+  const safeRows = Array.isArray(rows) ? rows : [];
+  return safeRows.find((row) =>
     round5(row?.segment_origin_lat) === round5(from.lat) &&
     round5(row?.segment_origin_lon) === round5(from.lon) &&
     round5(row?.segment_dest_lat) === round5(to.lat) &&
