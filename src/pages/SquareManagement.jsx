@@ -1022,9 +1022,7 @@ export default function SquareManagement() {
     return (catalogItems || [])
       .filter((item) => {
         if (driverScopedLocationIds && !driverScopedLocationIds.has(item.location_id)) return false;
-        const config = locationConfigs.find((c) => c?.square_location_id === item.location_id);
-        const store = stores.find((s) => s?.id === item.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
-        return store ? visibleStoreIds.has(store.id) : visibleLocationIds.has(item.location_id);
+        return true;
       })
       .map((item) => {
         const config = locationConfigs.find((c) => c?.square_location_id === item.location_id);
