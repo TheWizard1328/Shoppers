@@ -110,6 +110,16 @@ export default function SquareManagement() {
     ));
   }, []);
 
+  const getSourceWindow = React.useCallback(() => {
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 60);
+    return {
+      startDateStr: format(startDate, 'yyyy-MM-dd'),
+      endDateStr: format(today, 'yyyy-MM-dd')
+    };
+  }, []);
+
   const loadSyncStatus = React.useCallback(async () => {
     try {
       const status = await getSquareCODSyncStatus();
@@ -228,17 +238,12 @@ export default function SquareManagement() {
   }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
 
   const refreshUiFromOfflineOnly = React.useCallback(async () => {
-    const today = new Date();
-    const daysBack = Number(selectedDaysRange || 30);
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() - daysBack);
-    const startDateStr = format(startDate, 'yyyy-MM-dd');
-    const endDateStr = format(today, 'yyyy-MM-dd');
+    const { startDateStr, endDateStr } = getSourceWindow();
     const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
     await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
     await loadSyncStatus();
-  }, [selectedDaysRange, loadReconciliationFromOffline, loadSyncStatus]);
+  }, [getSourceWindow, loadReconciliationFromOffline, loadSyncStatus]);
 
   const syncDeliveriesWindowOffline = React.useCallback(async (offlineDB, startDateStr, endDateStr, deliveryRecords = []) => {
     const existingDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
@@ -260,12 +265,8 @@ export default function SquareManagement() {
   }, [locationConfigs]);
 
   const runFullOfflineSnapshotSync = React.useCallback(async ({ onStageChange, daysBack, refreshLocations = false } = {}) => {
-    const rangeDays = Number(daysBack || selectedDaysRange || 30);
-    const today = new Date();
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() - rangeDays);
-    const startDateStr = format(startDate, 'yyyy-MM-dd');
-    const endDateStr = format(today, 'yyyy-MM-dd');
+    const rangeDays = Number(daysBack || 60);
+    const { startDateStr, endDateStr } = getSourceWindow();
     const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
     onStageChange?.({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
@@ -316,7 +317,7 @@ export default function SquareManagement() {
       deliveryCount: (deliveryRecords || []).length,
       transactionCount: (transactions || []).length,
     };
-  }, [selectedDaysRange, syncDeliveriesWindowOffline, syncSquareCODSnapshotOffline, loadReconciliationFromOffline, loadSyncStatus]);
+  }, [getSourceWindow, syncDeliveriesWindowOffline, syncSquareCODSnapshotOffline, loadReconciliationFromOffline, loadSyncStatus]);
 
   const syncReconciliationToCatalog = async () => {
     setIsUpdatingReconciliationCatalog(true);
@@ -376,7 +377,7 @@ export default function SquareManagement() {
     try {
       const syncResult = await runFullOfflineSnapshotSync({
         onStageChange: setBgSyncProgress,
-        daysBack: Number(selectedDaysRange || 30),
+        daysBack: 60,
         refreshLocations: true,
       });
 
@@ -418,12 +419,8 @@ export default function SquareManagement() {
     const loadData = async () => {
       try {
         const authUser = await base44.auth.me();
-        const today = new Date();
-        const daysBack = Number(selectedDaysRange || 30);
-        const startDate = new Date(today);
-        startDate.setDate(today.getDate() - daysBack);
-        const startDateStr = format(startDate, 'yyyy-MM-dd');
-        const endDateStr = format(today, 'yyyy-MM-dd');
+        const daysBack = 60;
+        const { startDateStr, endDateStr } = getSourceWindow();
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
         let storesData = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
@@ -484,7 +481,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [selectedDaysRange, loadReconciliationFromOffline, loadSyncStatus, runFullOfflineSnapshotSync]);
+  }, [selectedDaysRange, getSourceWindow, loadReconciliationFromOffline, loadSyncStatus, runFullOfflineSnapshotSync]);
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
@@ -508,7 +505,7 @@ export default function SquareManagement() {
           setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
           const { transactionCount } = await runFullOfflineSnapshotSync({
             onStageChange: setBgSyncProgress,
-            daysBack: Number(selectedDaysRange || 30),
+            daysBack: 60,
             refreshLocations: false,
           });
           setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
