@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const getEdmontonDateString = (value = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Edmonton',
@@ -74,7 +76,10 @@ Deno.serve(async (req) => {
 
           if (Object.keys(updateData).length === 0) continue;
           
-          await base44.asServiceRole.entities.Patient.update(patient.id, updateData);
+          await base44.asServiceRole.entities.Patient.update(patient.id, updateData).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          });
         } catch (error) {
           console.error(`❌ Failed to deactivate ${patient.id}:`, error.message);
         }
@@ -151,7 +156,10 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        await base44.asServiceRole.entities.Patient.update(patientId, updateData);
+        await base44.asServiceRole.entities.Patient.update(patientId, updateData).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
         updatedCount++;
       } catch (error) {
         console.error(`❌ Failed to update patient ${patientId}:`, error.message);

@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const EDMONTON_TIMEZONE = 'America/Edmonton';
 
 function isPlainLocalDateTime(value) {
@@ -179,7 +181,16 @@ Deno.serve(async (req) => {
     const updatedPickup = await base44.asServiceRole.entities.Delivery.update(pickup.id, {
       status: 'completed',
       actual_delivery_time: pickupCompletionTime
+    }).catch((error) => {
+      if (isNotFoundError(error)) {
+        return null;
+      }
+      throw error;
     });
+
+    if (!updatedPickup) {
+      return Response.json({ success: true, skipped: true, reason: 'pickup_not_found_during_update' });
+    }
 
     return Response.json({
       success: true,

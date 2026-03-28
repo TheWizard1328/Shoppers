@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const TERMINAL_STATUSES = new Set(['completed', 'failed']);
 
 const getEdmontonDateString = (value = new Date()) => {
@@ -88,6 +90,9 @@ const syncSingleDelivery = async (base44, delivery) => {
 
   await base44.asServiceRole.entities.Patient.update(patient.id, {
     last_delivery_date: nextLastDeliveryDate
+  }).catch((error) => {
+    if (isNotFoundError(error)) return null;
+    throw error;
   });
 
   return {
@@ -140,6 +145,9 @@ const runBackfill = async (base44, backfillDays) => {
 
     await base44.asServiceRole.entities.Patient.update(patient.id, {
       last_delivery_date: nextLastDeliveryDate
+    }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
     });
     updatedCount += 1;
   }

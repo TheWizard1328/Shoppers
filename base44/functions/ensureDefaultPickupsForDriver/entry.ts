@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const ACTIVE_DELIVERY_STATUSES = new Set(['pending', 'in_transit', 'en_route']);
 const SPECIAL_STORE_NAMES = new Set(['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint']);
 
@@ -131,8 +133,11 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
   const reusablePickup = findReusablePickup(pickups, slot);
   if (reusablePickup) {
     if (!reusablePickup.driver_name && driverName) {
-      const updatedPickup = await base44.asServiceRole.entities.Delivery.update(reusablePickup.id, { driver_name: driverName });
-      return updatedPickup;
+      const updatedPickup = await base44.asServiceRole.entities.Delivery.update(reusablePickup.id, { driver_name: driverName }).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      });
+      return updatedPickup || reusablePickup;
     }
     return reusablePickup;
   }
@@ -273,7 +278,10 @@ Deno.serve(async (req) => {
 
     const matchedPickup = ensuredPickups.find((item) => item.store_id === delivery.store_id && item.slot === primarySlot);
     if (matchedPickup?.puid && matchedPickup.puid !== delivery.puid) {
-      await base44.asServiceRole.entities.Delivery.update(delivery.id, { puid: matchedPickup.puid });
+      await base44.asServiceRole.entities.Delivery.update(delivery.id, { puid: matchedPickup.puid }).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      });
     }
 
     return Response.json({

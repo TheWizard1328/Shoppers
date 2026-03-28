@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 /**
  * Calculates real-time travel durations for all active deliveries for a driver
  * Uses driver's current GPS location and Google Directions API for traffic-aware estimates
@@ -307,6 +309,9 @@ Deno.serve(async (req) => {
         for (const update of etaUpdates) {
           await base44.asServiceRole.entities.Delivery.update(update.deliveryId, {
             delivery_time_eta: update.eta
+          }).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
           });
         }
         console.log(`✅ All ETAs saved to database`);
@@ -329,6 +334,9 @@ Deno.serve(async (req) => {
         await base44.asServiceRole.entities.DriverRoutePolyline.update(latestPolylineRow.id, {
           daily_generation_count: Number(latestPolylineRow.daily_generation_count || 0) + 1,
           last_generated_at: new Date().toISOString()
+        }).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
         });
       }
     } catch (error) {

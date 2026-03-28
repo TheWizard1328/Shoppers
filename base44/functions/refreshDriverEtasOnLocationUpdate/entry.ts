@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
 
+const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
 const ACTIVE_STATUSES = ['pending', 'in_transit', 'en_route'];
 const INACTIVE_STATUSES = ['completed', 'failed', 'cancelled'];
 const APP_TIMEZONE = 'America/Edmonton';
@@ -185,6 +187,9 @@ async function processDriver(base44, appUser, deliveryDate) {
     if (entry.delivery.delivery_time_eta === entry.etaValue) continue;
     await base44.asServiceRole.entities.Delivery.update(entry.delivery.id, {
       delivery_time_eta: entry.etaValue,
+    }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
     });
     updatedCount += 1;
   }
