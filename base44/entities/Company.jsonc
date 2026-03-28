@@ -6,6 +6,15 @@
       "type": "string",
       "description": "Company/chain name (e.g., 'Shoppers Drug Mart', 'Independent Drugstore')"
     },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "Company status"
+    },
     "logo_url": {
       "type": "string",
       "description": "URL to company logo image"
@@ -26,6 +35,30 @@
       "type": "string",
       "description": "Accent color in hex format"
     },
+    "contact_name": {
+      "type": "string",
+      "description": "Primary contact name"
+    },
+    "contact_email": {
+      "type": "string",
+      "description": "Primary contact email address"
+    },
+    "contact_phone": {
+      "type": "string",
+      "description": "Primary contact phone number"
+    },
+    "website_url": {
+      "type": "string",
+      "description": "Company website URL"
+    },
+    "support_email": {
+      "type": "string",
+      "description": "Support email address"
+    },
+    "support_phone": {
+      "type": "string",
+      "description": "Support phone number"
+    },
     "store_ids": {
       "type": "array",
       "items": {
@@ -33,19 +66,16 @@
       },
       "description": "Store IDs associated with this company"
     },
-    "status": {
+    "timezone": {
       "type": "string",
-      "enum": [
-        "active",
-        "inactive"
-      ],
-      "default": "active",
-      "description": "Company status"
+      "description": "Primary timezone for the company"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Primary settings notes and internal company notes"
     }
   },
   "required": [
-    "name",
-    "logo_url",
-    "primary_color"
+    "name"
   ]
 }
