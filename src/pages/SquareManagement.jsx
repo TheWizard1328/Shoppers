@@ -903,7 +903,7 @@ export default function SquareManagement() {
   const filteredDeliveryRows = React.useMemo(() => {
     return (deliveries || [])
       .filter((delivery) => {
-        if (!delivery || !delivery.patient_id) return false;
+        if (!delivery) return false;
         if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
         if (!visibleStoreIds.has(delivery.store_id)) return false;
         if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return false;
@@ -925,7 +925,7 @@ export default function SquareManagement() {
         return {
           id: delivery.id,
           rawStoreId: delivery.store_id || null,
-          itemName: patient?.full_name || delivery.delivery_id || 'Unknown Delivery',
+          itemName: patient?.full_name || delivery.delivery_id || delivery.stop_id || 'Unknown Delivery',
           amount: Number(delivery.cod_total_amount_required || 0),
           storeName: store?.name || 'Unknown',
           locationId: config.square_location_id,
@@ -950,7 +950,6 @@ export default function SquareManagement() {
     return (allTransactions || [])
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
-        if (transaction.type !== 'collection') return false;
         const derivedTransactionDate = parseSquareItemName(transaction.item_name)?.deliveryDate || transaction.created_date || transaction.updated_date;
         const transactionDate = derivedTransactionDate ? new Date(`${String(derivedTransactionDate).slice(0, 10)}T00:00:00`) : null;
         if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
