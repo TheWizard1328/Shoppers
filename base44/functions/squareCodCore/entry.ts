@@ -949,7 +949,8 @@ async function handleFetchPayments(base44, payload) {
 }
 
 async function handleGetCodData(base44, payload = {}) {
-  const daysBack = Math.min(Number(payload?.daysBack || CATALOG_LOOKBACK_DAYS), 14);
+  const requestedDaysBack = Number(payload?.daysBack || CATALOG_LOOKBACK_DAYS);
+  const daysBack = Number.isFinite(requestedDaysBack) && requestedDaysBack > 0 ? requestedDaysBack : CATALOG_LOOKBACK_DAYS;
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
   const [locationConfigs, stores, catalogRecords, transactionRecords] = await Promise.all([
