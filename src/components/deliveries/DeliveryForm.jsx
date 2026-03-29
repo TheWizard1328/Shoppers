@@ -1174,44 +1174,6 @@ export default function DeliveryForm({
   }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
 
-  const handleBatchSave = useCallback(() => runHandleBatchSave({
-    batchSaveLockRef,
-    isSaving,
-    blockPredictions,
-    stagedDeliveries,
-    hasPendingDeletes,
-    setStagedDeliveries,
-    setProjectedDeliveries,
-    setHasPendingDeletes,
-    setHasChanges,
-    hasLoadedPending,
-    unblockPredictions,
-    setIsLoadingPredictions,
-    handleClearForm,
-    onCancel,
-    formData,
-    allDeliveries,
-    stores,
-    setIsSaving,
-    setError,
-    setBatchFormSaving,
-    updateDeliveryLocal,
-    updatePatientLocal,
-    onSave,
-    isNewRouteWithZeroStops
-  }), [
-    isSaving,
-    stagedDeliveries,
-    hasPendingDeletes,
-    formData,
-    allDeliveries,
-    stores,
-    onCancel,
-    onSave,
-    isNewRouteWithZeroStops,
-    handleClearForm
-  ]);
-
   const handleSearchKeyDown = useCallback((e) => {
     // Handle Escape key - always trigger Clear button behavior
     if (e.key === 'Escape') {
@@ -1413,6 +1375,44 @@ export default function DeliveryForm({
       setNewPatientMode
     });
   }, [stagedDeliveries, shouldAutoFocusFields]);
+
+  const handleBatchSave = useCallback(() => runHandleBatchSave({
+    batchSaveLockRef,
+    isSaving,
+    blockPredictions,
+    stagedDeliveries,
+    hasPendingDeletes,
+    setStagedDeliveries,
+    setProjectedDeliveries,
+    setHasPendingDeletes,
+    setHasChanges,
+    hasLoadedPending,
+    unblockPredictions,
+    setIsLoadingPredictions,
+    handleClearForm,
+    onCancel,
+    formData,
+    allDeliveries,
+    stores,
+    setIsSaving,
+    setError,
+    setBatchFormSaving,
+    updateDeliveryLocal,
+    updatePatientLocal,
+    onSave,
+    isNewRouteWithZeroStops
+  }), [
+    isSaving,
+    stagedDeliveries,
+    hasPendingDeletes,
+    formData,
+    allDeliveries,
+    stores,
+    onCancel,
+    onSave,
+    isNewRouteWithZeroStops,
+    handleClearForm
+  ]);
 
   const handleCancelClick = useCallback(() => {
     // Only show confirmation if there are NEW staged deliveries (without an id)
