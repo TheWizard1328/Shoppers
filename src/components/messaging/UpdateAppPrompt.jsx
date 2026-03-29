@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { UPDATE_BROADCAST_PROMPT_POSITION, UPDATE_BROADCAST_PROMPT_THEME } from './updateBroadcastConfig';
 
 export default function UpdateAppPrompt({ message, onUpdate, onCancel }) {
   const [secondsLeft, setSecondsLeft] = useState(30);
+  const isMobile = window.innerWidth < 768;
+  const isTopStatsCardPosition = isMobile && UPDATE_BROADCAST_PROMPT_POSITION.mobile === 'top-stats-card';
 
   useEffect(() => {
     setSecondsLeft(30);
@@ -23,21 +26,25 @@ export default function UpdateAppPrompt({ message, onUpdate, onCancel }) {
   }, [onUpdate]);
 
   return (
-    <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/60 p-4">
+    <div className={`fixed inset-0 z-[10003] p-4 ${isTopStatsCardPosition ? 'pointer-events-none' : 'flex items-center justify-center bg-black/60'}`}>
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-full max-w-md rounded-2xl shadow-2xl p-6"
-        style={{ background: 'var(--bg-white)', border: '1px solid var(--border-slate-200)' }}
+        className={`w-full rounded-2xl shadow-2xl p-6 ${isTopStatsCardPosition ? 'pointer-events-auto mx-auto mt-24 max-w-[345px]' : 'max-w-md'}`}
+        style={{
+          background: UPDATE_BROADCAST_PROMPT_THEME.surface,
+          border: `1px solid ${UPDATE_BROADCAST_PROMPT_THEME.border}`,
+          color: UPDATE_BROADCAST_PROMPT_THEME.title
+        }}
       >
         <div className="space-y-3">
-          <p className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+          <p className="text-lg font-semibold" style={{ color: UPDATE_BROADCAST_PROMPT_THEME.title }}>
             App update available
           </p>
-          <p className="text-sm leading-6" style={{ color: 'var(--text-slate-600)' }}>
+          <p className="text-sm leading-6" style={{ color: UPDATE_BROADCAST_PROMPT_THEME.body }}>
             {message}
           </p>
-          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+          <p className="text-xs" style={{ color: UPDATE_BROADCAST_PROMPT_THEME.meta }}>
             Auto-updating in {secondsLeft}s.
           </p>
         </div>
