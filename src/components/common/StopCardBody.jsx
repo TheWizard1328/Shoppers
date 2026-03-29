@@ -306,17 +306,17 @@ export default function StopCardBody({
                 }
                   </div>
 
-                  <div
-                className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar max-h-[150px]"
-                onWheel={(e) => {
-                  const el = e.currentTarget;
-                  if (el.scrollHeight <= el.clientHeight) return;
-                  if (e.deltaY < 0) {
-                    if (el.scrollTop > 0) e.stopPropagation();
-                  } else if (e.deltaY > 0) {
-                    if (el.scrollTop < el.scrollHeight - el.clientHeight - 1) e.stopPropagation();
-                  }
-                }}>
+                  <div className="space-y-1.5 overflow-y-auto custom-scrollbar max-h-[150px]"
+
+              onWheel={(e) => {
+                const el = e.currentTarget;
+                if (el.scrollHeight <= el.clientHeight) return;
+                if (e.deltaY < 0) {
+                  if (el.scrollTop > 0) e.stopPropagation();
+                } else if (e.deltaY > 0) {
+                  if (el.scrollTop < el.scrollHeight - el.clientHeight - 1) e.stopPropagation();
+                }
+              }}>
                 
                     {[...pendingPickups].
                 sort((a, b) => {
