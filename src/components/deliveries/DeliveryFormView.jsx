@@ -845,7 +845,8 @@ export default function DeliveryFormView({
                     delivery &&
                     ['completed', 'failed', 'cancelled', 'returned'].includes(formData?.status) &&
                     deliveryDate &&
-                    deliveryDate < format(new Date(), 'yyyy-MM-dd')
+                    deliveryDate < format(new Date(), 'yyyy-MM-dd') &&
+                    deliveryDate !== previousDeliveryDate
                   );
                   let didSave = false;
                   const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
@@ -863,7 +864,7 @@ export default function DeliveryFormView({
 
                   if (!didSave) return;
 
-                  if (!isPickupMode && !isHistoricalCompletionEdit) {
+                  if (!isHistoricalCompletionEdit) {
                     const affectedRoutes = [
                       [driverId, deliveryDate],
                       [previousDriverId, previousDeliveryDate]
