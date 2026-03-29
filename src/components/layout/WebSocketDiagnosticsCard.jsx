@@ -56,8 +56,6 @@ export default function WebSocketDiagnosticsCard() {
   }, []);
 
   useEffect(() => {
-    if (isPrimaryDevice) return; // Only show on non-primary devices
-
     const handleWebSocketEvent = (e) => {
       const { data, type, id, updatedBy, changedFields } = e.detail || {};
       if (!data) return;
@@ -119,7 +117,7 @@ export default function WebSocketDiagnosticsCard() {
     };
   }, [isPrimaryDevice]);
 
-  if (!event || isPrimaryDevice) return null;
+  if (!event) return null;
 
   return (
     <Card 
