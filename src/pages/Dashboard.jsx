@@ -3359,9 +3359,6 @@ function Dashboard() {
     try {
       if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
         const stagedItems = Array.isArray(deliveryData._stagedDeliveries) ? deliveryData._stagedDeliveries : [];
-        const pickupIds = new Set((deliveries || []).filter((d) => d && !d.patient_id).map((d) => d.id));
-        const pickups = (deliveryData._ensuredPickups || []).filter((d) => d?.id && !pickupIds.has(d.id));
-        if (pickups.length) await batchCreateDeliveriesLocal(pickups);
         if (stagedItems.length) await batchCreateDeliveriesLocal(stagedItems);
         setShowDeliveryForm(false);
         setEditingDelivery(null);
