@@ -6,6 +6,10 @@ import { resetBatchSaveDraftState, closeBatchFormThenResumeManagers, restartBatc
 import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
 
 export async function handleBatchSave({
+  deliveryData,
+  setShowDeliveryForm,
+  setEditingDelivery,
+  hasAutoSelectedRef,
   batchSaveLockRef,
   isSaving,
   blockPredictions,
@@ -32,7 +36,7 @@ export async function handleBatchSave({
   isNewRouteWithZeroStops
 }) {
   if (deliveryData?._isBatchSave && Array.isArray(deliveryData._stagedDeliveries)) {
-    await onSave(deliveryData);
+    await onSave?.(deliveryData);
     setShowDeliveryForm?.(false);
     setEditingDelivery?.(null);
     if (hasAutoSelectedRef) hasAutoSelectedRef.current = false;
