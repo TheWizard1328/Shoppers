@@ -242,7 +242,10 @@ export default function StatsPanel({
                             try {
                               const selDateStr = format(selectedDate, 'yyyy-MM-dd');
                               const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                              const historical = await base44.entities.DeliveryBreadcrumbs?.filter({ driver_id: driverIdToFetch, delivery_date: selDateStr }) || [];
+                              const hasBreadcrumbEntity = !!base44.entities?.DeliveryBreadcrumbs;
+                              const historical = hasBreadcrumbEntity
+                                ? await base44.entities.DeliveryBreadcrumbs.filter({ driver_id: driverIdToFetch, delivery_date: selDateStr })
+                                : [];
                               let current = [];
                               try {
                                 const all = await offlineDB.getByIndex(offlineDB.STORES.CURRENT_BREADCRUMBS, 'driver_id', driverIdToFetch);
