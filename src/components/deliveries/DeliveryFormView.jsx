@@ -841,13 +841,6 @@ export default function DeliveryFormView({
                   const previousDriverId = delivery?.driver_id;
                   const previousDeliveryDate = delivery?.delivery_date;
                   const shouldOptimizeInBackground = hasTimeWindowChanges;
-                  const isHistoricalCompletionEdit = Boolean(
-                    delivery &&
-                    ['completed', 'failed', 'cancelled', 'returned'].includes(formData?.status) &&
-                    deliveryDate &&
-                    deliveryDate < format(new Date(), 'yyyy-MM-dd') &&
-                    deliveryDate !== previousDeliveryDate
-                  );
                   let didSave = false;
                   const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
@@ -864,7 +857,7 @@ export default function DeliveryFormView({
 
                   if (!didSave) return;
 
-                  if (!isHistoricalCompletionEdit) {
+                  if (true) {
                     const affectedRoutes = [
                       [driverId, deliveryDate],
                       [previousDriverId, previousDeliveryDate]
