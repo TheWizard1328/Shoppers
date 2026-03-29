@@ -267,61 +267,19 @@ function Dashboard() {
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
-  const pendingRealtimeRef = useRef({ Delivery: { upserts: new Map(), deletes: new Set() }, Patient: { upserts: new Map(), deletes: new Set() }, AppUser: { upserts: new Map(), deletes: new Set() } });
-  const realtimeTimerRef = useRef(null);
-  const processRealtimeBatch = useCallback(() => {
-    const batch = pendingRealtimeRef.current;
-    const deliveryUpserts = Array.from(batch.Delivery.upserts.values()),deliveryDeletes = Array.from(batch.Delivery.deletes);
-    const patientUpserts = Array.from(batch.Patient.upserts.values()),patientDeletes = Array.from(batch.Patient.deletes);
-    const appUserUpserts = Array.from(batch.AppUser.upserts.values()),appUserDeletes = Array.from(batch.AppUser.deletes);
-    if (!deliveryUpserts.length && !deliveryDeletes.length && !patientUpserts.length && !patientDeletes.length && !appUserUpserts.length && !appUserDeletes.length) return;
-    pendingRealtimeRef.current = { Delivery: { upserts: new Map(), deletes: new Set() }, Patient: { upserts: new Map(), deletes: new Set() }, AppUser: { upserts: new Map(), deletes: new Set() } };
-    Promise.all([
-    deliveryUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryUpserts) : Promise.resolve(),
-    patientUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientUpserts) : Promise.resolve(),
-    appUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserUpserts) : Promise.resolve(),
-    ...deliveryDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)),
-    ...patientDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => null)),
-    ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null))]
-    ).catch(console.error);
-    if (deliveryUpserts.length || deliveryDeletes.length) {
-      applyDeliveryChangesLocally ? applyDeliveryChangesLocally({ upserts: deliveryUpserts, deleteIds: deliveryDeletes }) : updateDeliveriesLocally && updateDeliveriesLocally(deliveryUpserts, false);
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'realtimeBatch', changeCount: deliveryUpserts.length + deliveryDeletes.length } }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-    }
-    if (appUserUpserts.length || appUserDeletes.length) {
-      const ts = (item) => new Date(item?.location_updated_at || item?.updated_date || item?.created_date || 0).getTime();
-      const byId = new Map((appUsers || []).filter((item) => item?.id && !appUserDeletes.includes(item.id)).map((item) => [item.id, item]));
-      appUserUpserts.forEach((item) => {const current = byId.get(item?.id);if (item?.id && (!current || ts(item) >= ts(current))) byId.set(item.id, item);});
-      const merged = Array.from(byId.values()),currentUserUpdate = appUserUpserts.find((item) => item?.user_id === currentUser?.id),previousCurrentUserAppUser = currentUserUpdate ? (appUsers || []).find((item) => item?.id === currentUserUpdate.id || item?.user_id === currentUserUpdate.user_id) : null;
-      applyAppUserChangesLocally ? applyAppUserChangesLocally({ upserts: appUserUpserts, deleteIds: appUserDeletes }) : updateAppUsersLocally && updateAppUsersLocally(merged, true);
-      if (currentUserUpdate && refreshUser && shouldRefreshUserFromAppUser(previousCurrentUserAppUser, currentUserUpdate)) refreshUser();
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: merged, singleUpdate: appUserUpserts.length === 1, fromRealtime: true } }));
-    }
-    if (patientUpserts.length || patientDeletes.length) {applyPatientChangesLocally && applyPatientChangesLocally({ upserts: patientUpserts, deleteIds: patientDeletes });window.dispatchEvent(new CustomEvent('patientsUpdated', { detail: { patients: patientUpserts, deletedIds: patientDeletes, deletedId: patientDeletes.length === 1 ? patientDeletes[0] : undefined, source: 'realtimeBatch' } }));}
-  }, [deliveries, appUsers, updateDeliveriesLocally, updateAppUsersLocally, applyDeliveryChangesLocally, applyAppUserChangesLocally, applyPatientChangesLocally, currentUser?.id, refreshUser]);
-  const scheduleRealtimeUpdate = useCallback((entity, type, data) => {
-    const recordId = typeof data === 'string' ? data : data?.id;
-    if (!recordId) return;
-    const target = pendingRealtimeRef.current[entity];
-    if (type === 'delete') {target.upserts.delete(recordId);target.deletes.add(recordId);} else {target.deletes.delete(recordId);target.upserts.set(recordId, data);}
-    if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
-    realtimeTimerRef.current = setTimeout(() => {realtimeTimerRef.current = null;processRealtimeBatch();}, 120);
-  }, [processRealtimeBatch]);
-
-  // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
   useEffect(() => {
     if (!currentUser || !isDataLoaded) return;
 
-    // CRITICAL: Listen for immediate updates from Done button (includes fresh data)
     const handleImmediateDeliveryUpdate = async (event) => {
-      const { immediate, freshDeliveries, deliveryDate, driverId } = event.detail || {};
+      const { immediate, freshDeliveries, deliveryDate } = event.detail || {};
 
       if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
-        // Update UI immediately using flushSync for synchronous render
-        if (updateDeliveriesLocally) {const otherDateDeliveries = deliveries.filter((d) => d?.delivery_date !== deliveryDate);updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);}
+        if (updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter((d) => d?.delivery_date !== deliveryDate);
+          const dedupedFresh = Array.from(new Map(freshDeliveries.filter(Boolean).map((d) => [d.id, d])).values());
+          updateDeliveriesLocally([...otherDateDeliveries, ...dedupedFresh], true);
+        }
 
-        // Force refresh driver locations and markers
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
         const latestAppUsers = locationUpdates?.appUsers || appUsers;
 
@@ -329,7 +287,6 @@ function Dashboard() {
           detail: { appUsers: latestAppUsers, forceAll: true }
         }));
 
-        // CRITICAL: Trigger map re-render with Phase 1 as an unlocked, programmatic view
         setMapViewPhase(1);
         setIsMapViewLocked(false);
         lastProgrammaticMapMoveRef.current = Date.now();
@@ -341,95 +298,37 @@ function Dashboard() {
           mapLockTimeoutRef.current = null;
         }
         mapLockExpiresAtRef.current = null;
-
       }
     };
 
-    // CRITICAL: Listen for deliveriesImported events from route importer and real-time sync
     const handleDeliveriesImported = async (event) => {
       const { deliveries: importedDeliveries, source } = event.detail || {};
-
       if (!importedDeliveries || !Array.isArray(importedDeliveries)) return;
 
-      // CRITICAL: ALWAYS merge imported deliveries with existing ones (never replace all)
-      // This prevents clearing data for non-imported drivers
       if (updateDeliveriesLocally && deliveries) {
-        // Get IDs of imported deliveries
-        const importedIds = new Set(importedDeliveries.map((d) => d?.id).filter(Boolean));
-
-        // Keep deliveries that weren't imported (preserve other drivers' data)
+        const dedupedImported = Array.from(new Map(importedDeliveries.filter(Boolean).map((d) => [d.id, d])).values());
+        const importedIds = new Set(dedupedImported.map((d) => d?.id).filter(Boolean));
         const otherDeliveries = deliveries.filter((d) => !importedIds.has(d?.id));
+        const mergedDeliveries = [...otherDeliveries, ...dedupedImported];
 
-        // Merge imported with non-imported
-        const mergedDeliveries = [...otherDeliveries, ...importedDeliveries];
-
-        // Update UI with merged data
         updateDeliveriesLocally(mergedDeliveries, true);
-
-        // Force map update
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
             triggeredBy: 'deliveriesImported',
             source: source
           }
         }));
-
       }
     };
 
     window.addEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
     window.addEventListener('deliveriesImported', handleDeliveriesImported);
 
-    // Subscribe to Patient entity changes
-    const unsubscribePatients = base44.entities.Patient.subscribe((event) => {
-      if (event.type === 'delete') {
-        scheduleRealtimeUpdate('Patient', 'delete', event.id);
-      } else if (event.data) {
-        scheduleRealtimeUpdate('Patient', event.type, event.data);
-      }
-    });
-
-    // Subscribe to AppUser entity changes
-    const unsubscribeAppUsers = base44.entities.AppUser.subscribe((event) => {
-      if (event.type === 'delete') {
-        scheduleRealtimeUpdate('AppUser', 'delete', event.id);
-      } else if (event.data) {
-        scheduleRealtimeUpdate('AppUser', event.type, event.data);
-      }
-    });
-
-    // CRITICAL: Listen for deliveryUpdated events from cityFilteredRealtimeSync
-    const handleDeliveryUpdated = (event) => {
-      const { delivery, type, fromRealtime } = event.detail || {};
-      if (!delivery || !fromRealtime) return;
-      scheduleRealtimeUpdate('Delivery', type, type === 'delete' ? delivery.id : delivery);
-    };
-
-    window.addEventListener('deliveryUpdated', handleDeliveryUpdated);
-
-    // Subscribe to Delivery entity changes with debouncing
-    const unsubscribeDeliveries = base44.entities.Delivery.subscribe((event) => {
-      if (event.type === 'delete' && event.id) {
-        scheduleRealtimeUpdate('Delivery', 'delete', event.id);
-      } else if (event.data) {
-        scheduleRealtimeUpdate('Delivery', event.type, event.data);
-      }
-    });
-
     return () => {
-      if (realtimeTimerRef.current) {
-        clearTimeout(realtimeTimerRef.current);
-        realtimeTimerRef.current = null;
-      }
-      processRealtimeBatch();
       window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
-      window.removeEventListener('deliveryUpdated', handleDeliveryUpdated);
-      if (unsubscribePatients) unsubscribePatients();
-      if (unsubscribeDeliveries) unsubscribeDeliveries();
-      if (unsubscribeAppUsers) unsubscribeAppUsers();
     };
-  }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally, updateAppUsersLocally, refreshUser, deliveries, appUsers, selectedDate, isPrimaryDevice, refreshData, scheduleRealtimeUpdate, processRealtimeBatch]);
+  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, appUsers, selectedDate]);
 
 
 
