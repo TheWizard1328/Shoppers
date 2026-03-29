@@ -835,15 +835,20 @@ export default function DeliveryFormView({
 
                 <Button type="button" size="sm" onClick={async (e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   const driverId = formData?.driver_id;
                   const deliveryDate = formData?.delivery_date;
                   const previousDriverId = delivery?.driver_id;
                   const previousDeliveryDate = delivery?.delivery_date;
                   const shouldOptimizeInBackground = hasTimeWindowChanges;
+                  let didSave = false;
 
                   await runLockedAction('update_delivery', async () => {
                     await handleSubmit(e);
+                    didSave = true;
                   });
+
+                  if (!didSave) return;
 
                   const affectedRoutes = [
                     [driverId, deliveryDate],
