@@ -21,6 +21,7 @@ export default function PullToSync({
   const [showOverlay, setShowOverlay] = useState(false);
   const touchStartY = useRef(0);
   const syncThreshold = 80; // Pull threshold to trigger sync
+  const activeSyncRunIdRef = useRef(null);
 
   useEffect(() => {
     const statsCard = statsCardRef?.current;
@@ -88,8 +89,10 @@ export default function PullToSync({
         ? { driver_id: currentDriverId } 
         : {};
       const syncRunId = `${Date.now()}`;
+      activeSyncRunIdRef.current = syncRunId;
+      window.__activePullToSyncRunId = syncRunId;
 
-      if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent) {
+      if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent && window.__activePullToSyncRunId !== syncRunId) {
         return;
       }
 
@@ -262,7 +265,13 @@ export default function PullToSync({
   useEffect(() => {
     const handleSilentSync = async () => {
       console.log('🔇 [PullToSync] Silent sync triggered after AppUser update');
-      try { window.__dashboardSyncing = true; window.__activePullToSyncRunId = syncRunId; window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { syncRunId } })); } catch (e) {}
+      const syncRunId = `${Date.now()}`;
+      activeSyncRunIdRef.current = syncRunId;
+      try {
+        window.__dashboardSyncing = true;
+        window.__activePullToSyncRunId = syncRunId;
+        window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { syncRunId } }));
+      } catch (e) {}
       await performSync(true);
     };
 
