@@ -85,6 +85,7 @@ export default function PullToSync({
       const driverFilter = selectedDriverId && selectedDriverId !== 'all' 
         ? { driver_id: selectedDriverId } 
         : {};
+      const syncRunId = `${Date.now()}`;
 
       // ─── STEP 1: Fetch deliveries for selected driver + date ───────────────
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
@@ -140,12 +141,18 @@ export default function PullToSync({
       }
 
       // ─── STEP 3: Load from offline DB + update UI ─────────────────────────
-      const [offlineDeliveries, freshAppUsers, freshCities, freshStores] = await Promise.all([
+      const [offlineDeliveriesRaw, freshAppUsers, freshCities, freshStores] = await Promise.all([
         offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr),
         offlineDB.getAll(offlineDB.STORES.APP_USERS).then(r => (r || []).filter(u => u?.user_id && u.user_id !== 'undefined')),
         offlineDB.getAll(offlineDB.STORES.CITIES),
         offlineDB.getAll(offlineDB.STORES.STORES)
       ]);
+
+      const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
+        ? (selectedDriverId && selectedDriverId !== 'all'
+          ? offlineDeliveriesRaw.filter((d) => d?.driver_id === selectedDriverId)
+          : offlineDeliveriesRaw)
+        : [];
 
       // Dispatch one final UI update with the full synced dataset
       window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
@@ -167,7 +174,7 @@ export default function PullToSync({
 
       // Mark UI sync complete + release overlay
       try { window.__dashboardSyncing = false; } catch (e) {}
-      window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { batchedUiUpdate: true } }));
+      window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { batchedUiUpdate: true, syncRunId } }));
 
       if (!silent) {
         toast.success('Data synced', {
@@ -230,7 +237,12 @@ export default function PullToSync({
         setShowOverlay(false);
         setPullDistance(0);
         setIsPulling(false);
-        try { window.__dashboardSyncing = false; } catch (e) {}
+        try {
+          window.__dashboardSyncing = false;
+          if (window.__activePullToSyncRunId === syncRunId) {
+            window.__activePullToSyncRunId = null;
+          }
+        } catch (e) {}
       }, 500);
     }
   };
@@ -239,7 +251,7 @@ export default function PullToSync({
   useEffect(() => {
     const handleSilentSync = async () => {
       console.log('🔇 [PullToSync] Silent sync triggered after AppUser update');
-      try { window.__dashboardSyncing = true; window.dispatchEvent(new CustomEvent('pullToSyncStarted')); } catch (e) {}
+      try { window.__dashboardSyncing = true; window.__activePullToSyncRunId = syncRunId; window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { syncRunId } })); } catch (e) {}
       await performSync(true);
     };
 

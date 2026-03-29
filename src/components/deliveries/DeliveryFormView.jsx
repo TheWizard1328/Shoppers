@@ -102,6 +102,7 @@ export default function DeliveryFormView({
   };
   const [activeDeliveryAction, setActiveDeliveryAction] = React.useState(getActiveDeliveryAction());
   const effectiveDeliveryActionBusy = isDeliveryActionBusy || !!activeDeliveryAction;
+  const enterActionLockRef = React.useRef(false);
 
   React.useEffect(() => subscribeDeliveryActionLock(setActiveDeliveryAction), []);
 
@@ -185,7 +186,7 @@ export default function DeliveryFormView({
 
   const handleGlobalKeyDown = (e) => {
     if (e.key === 'Enter') {
-      if (e.repeat || e.nativeEvent?.isComposing) return;
+      if (e.repeat || e.nativeEvent?.isComposing || e.defaultPrevented) return;
       // Skip if focused on textarea, button, select-like controls, or the patient search input (handled elsewhere)
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
         return;
@@ -197,7 +198,9 @@ export default function DeliveryFormView({
       e.preventDefault();
       e.stopPropagation();
       
-      if (isSaving || effectiveDeliveryActionBusy) return;
+      if (enterActionLockRef.current || isSaving || effectiveDeliveryActionBusy) return;
+      enterActionLockRef.current = true;
+      setTimeout(() => { enterActionLockRef.current = false; }, 400);
 
       if (buttonState === 'done') {
         const isDisabled = isSaving || effectiveDeliveryActionBusy || !hasChanges;

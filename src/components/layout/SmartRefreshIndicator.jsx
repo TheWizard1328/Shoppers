@@ -332,9 +332,11 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   return (
     <div className="flex flex-col items-center gap-1 z-[601]">
       <button
+        data-offline-sync-button
         onClick={handleManualRefresh}
         disabled={isPaused}
-        className={`w-6 h-6 min-w-6 min-h-6 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-xl' : ''}`}
+        className={`w-6 h-6 min-w-6 min-h-6 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-xl' : ''}`}
+        style={{ position: 'relative', zIndex: 10030 }}
         title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 
                activeManager === 'smart' ? 'Smart Refresh active' : 
                activeManager === 'offline' ? 'Offline Sync active' : 

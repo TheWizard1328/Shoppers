@@ -584,8 +584,11 @@ export const handleBatchSaveDelivery = async ({
     });
     const regularDeliveriesToCreate = deliveriesToCreate.filter((delivery) => !specialStorePickupPayloads.includes(delivery));
 
+    const pickupPayloadKeys = new Set(specialStorePickupPayloads.map((delivery) => `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || ''}`));
+    const regularDeliveriesDeduped = regularDeliveriesToCreate.filter((delivery) => !pickupPayloadKeys.has(`${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || ''}`) || !!delivery.patient_id);
+
     const createdPickupDeliveries = specialStorePickupPayloads.length > 0 ? await batchCreateDeliveriesLocal(specialStorePickupPayloads) : [];
-    const createdDeliveries = regularDeliveriesToCreate.length > 0 ? await batchCreateDeliveriesLocal(regularDeliveriesToCreate) : [];
+    const createdDeliveries = regularDeliveriesDeduped.length > 0 ? await batchCreateDeliveriesLocal(regularDeliveriesDeduped) : [];
 
     createdPickupRecords.push(...createdPickupDeliveries);
     allCreatedDeliveries.push(...createdDeliveries);
@@ -608,7 +611,7 @@ export const handleBatchSaveDelivery = async ({
   const batchDriverId = stagedDeliveries[0]?.driver_id;
   
   // Use the locally created/updated deliveries to update UI immediately
-  const allProcessedDeliveries = [...allCreatedDeliveries, ...createdPickupRecords, ...allUpdatedDeliveries];
+  const allProcessedDeliveries = Array.from(new Map([...allCreatedDeliveries, ...createdPickupRecords, ...allUpdatedDeliveries].filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
   
   if (updateDeliveriesLocally && allProcessedDeliveries.length > 0) {
     updateDeliveriesLocally(allProcessedDeliveries, false); // Merge instead of replace
