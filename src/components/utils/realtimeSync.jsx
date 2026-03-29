@@ -10,6 +10,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { offlineDB } from './offlineDatabase';
 
 // Global listeners for real-time updates
 const listeners = new Set();
@@ -392,8 +393,27 @@ export const subscribeToRealtime = (callback) => {
 /**
  * Broadcast a local mutation
  */
-export const broadcastMutation = (entity, action, id, data, ids = null) => {
+export const broadcastMutation = async (entity, action, id, data, ids = null) => {
   console.log(`📡 [RealtimeSync] Broadcasting ${entity} ${action}: ${id}`);
+
+  try {
+    const storeName = entity === 'AppUser' ? offlineDB.STORES.APP_USERS :
+      entity === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+      entity === 'Patient' ? offlineDB.STORES.PATIENTS :
+      null;
+
+    if (storeName) {
+      if ((action === 'create' || action === 'update') && data) {
+        await offlineDB.save(storeName, data);
+        console.log(`💾 [RealtimeSync] Broadcast saved ${entity} to offline DB: ${id}`);
+      } else if (action === 'delete' && id) {
+        await offlineDB.deleteRecord(storeName, id);
+        console.log(`💾 [RealtimeSync] Broadcast deleted ${entity} from offline DB: ${id}`);
+      }
+    }
+  } catch (error) {
+    console.warn(`⚠️ [RealtimeSync] Broadcast offline DB sync failed for ${entity}:`, error.message);
+  }
   
   // Dispatch to all listeners
   listeners.forEach(callback => {
