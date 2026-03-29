@@ -1174,6 +1174,28 @@ export default function DeliveryForm({
   }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
 
+  const handleClearForm = useCallback(() => {
+    void cleanupDetachedAutoCreatedPickups({
+      stagedDeliveries,
+      deleteDeliveryLocal,
+      autoCreatedPickupsRef,
+      setStagedDeliveries
+    });
+    resetDraftEditorState({
+      setSelectedPatient,
+      setSelectedPatientIds,
+      setPatientSearch,
+      setError,
+      setEditingStagedId,
+      setHighlightedPatientIndex,
+      setFormData,
+      setSelectedPickupOption,
+      shouldAutoFocusFields,
+      focusRef: patientSearchInputRef,
+      setNewPatientMode
+    });
+  }, [stagedDeliveries, shouldAutoFocusFields]);
+
   const handleBatchSave = useCallback(() => runHandleBatchSave({
     batchSaveLockRef,
     isSaving,
@@ -1391,28 +1413,6 @@ export default function DeliveryForm({
       setIsSaving(false);
     }
   };
-
-  const handleClearForm = useCallback(() => {
-    void cleanupDetachedAutoCreatedPickups({
-      stagedDeliveries,
-      deleteDeliveryLocal,
-      autoCreatedPickupsRef,
-      setStagedDeliveries
-    });
-    resetDraftEditorState({
-      setSelectedPatient,
-      setSelectedPatientIds,
-      setPatientSearch,
-      setError,
-      setEditingStagedId,
-      setHighlightedPatientIndex,
-      setFormData,
-      setSelectedPickupOption,
-      shouldAutoFocusFields,
-      focusRef: patientSearchInputRef,
-      setNewPatientMode
-    });
-  }, [stagedDeliveries, shouldAutoFocusFields]);
 
   const handleCancelClick = useCallback(() => {
     // Only show confirmation if there are NEW staged deliveries (without an id)
