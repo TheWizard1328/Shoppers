@@ -60,8 +60,40 @@ export const AppDataProvider = ({ children, value }) => {
     let nextAppUsers = appUsersRef.current || [];
     let nextPatients = patientsRef.current || [];
 
-    if (deliveryChanged) {
-      const byId = new Map(nextDeliveries.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
+    try {
+      const { offlineDB } = await import('./offlineDatabase');
+      await Promise.all([
+        deliveryUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryUpserts) : Promise.resolve(),
+        appUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserUpserts) : Promise.resolve(),
+        patientUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientUpserts) : Promise.resolve(),
+        ...deliveryDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)),
+        ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null)),
+        ...patientDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => null))
+      ]);
+
+      if (deliveryChanged) {
+        const selectedDate = value.selectedDate || (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date');
+        const offlineDeliveries = selectedDate
+          ? await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate)
+          : await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        nextDeliveries = Array.isArray(offlineDeliveries) ? offlineDeliveries : [];
+      }
+
+      if (patientsChanged) {
+        const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        nextPatients = Array.isArray(offlinePatients) ? offlinePatients : [];
+      }
+
+      if (appUsersChanged) {
+        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        nextAppUsers = Array.isArray(offlineAppUsers) ? offlineAppUsers : [];
+      }
+    } catch (error) {
+      console.warn('[AppDataContext] Realtime offline sync batch failed:', error.message);
+    }
+
+    if (deliveryChanged && !nextDeliveries.length && deliveriesRef.current?.length) {
+      const byId = new Map(deliveriesRef.current.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
       deliveryDeletes.forEach((id) => byId.delete(id));
       deliveryUpserts.forEach((item) => {
         if (item?.id) byId.set(item.id, item);
@@ -69,14 +101,14 @@ export const AppDataProvider = ({ children, value }) => {
       nextDeliveries = Array.from(byId.values());
     }
 
-    if (appUsersChanged) {
+    if (appUsersChanged && !nextAppUsers.length && appUsersRef.current?.length) {
       const ts = (item) => {
         const value = item?.location_updated_at || item?.updated_date || item?.created_date;
         return value ? new Date(value).getTime() : 0;
       };
 
       const byId = new Map(
-        nextAppUsers
+        appUsersRef.current
           .filter((item) => item?.id && !appUserDeletes.includes(item.id))
           .map((item) => [item.id, item])
       );
@@ -92,27 +124,13 @@ export const AppDataProvider = ({ children, value }) => {
       nextAppUsers = Array.from(byId.values());
     }
 
-    if (patientsChanged) {
-      const byId = new Map(nextPatients.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
+    if (patientsChanged && !nextPatients.length && patientsRef.current?.length) {
+      const byId = new Map(patientsRef.current.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
       patientDeletes.forEach((id) => byId.delete(id));
       patientUpserts.forEach((item) => {
         if (item?.id) byId.set(item.id, item);
       });
       nextPatients = Array.from(byId.values());
-    }
-
-    try {
-      const { offlineDB } = await import('./offlineDatabase');
-      await Promise.all([
-        deliveryUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryUpserts) : Promise.resolve(),
-        appUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserUpserts) : Promise.resolve(),
-        patientUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientUpserts) : Promise.resolve(),
-        ...deliveryDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)),
-        ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null)),
-        ...patientDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => null))
-      ]);
-    } catch (error) {
-      console.warn('[AppDataContext] Realtime offline sync batch failed:', error.message);
     }
 
     if (deliveryChanged) {
