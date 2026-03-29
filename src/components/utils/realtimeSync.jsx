@@ -33,7 +33,7 @@ function bufferEvent(entityName, payload) {
   const prev = buf.get(payload.id);
   if (prev) {
     const mergedChanged = Array.from(new Set([...(prev.changedFields || []), ...(payload.changedFields || [])]));
-    buf.set(payload.id, { ...prev, ...payload, changedFields: mergedChanged });
+    buf.set(payload.id, { ...prev, ...payload, changedFields: mergedChanged, isRemoteUpdate: prev.isRemoteUpdate || payload.isRemoteUpdate });
   } else {
     buf.set(payload.id, payload);
   }
@@ -121,10 +121,10 @@ async function flushBuffered(entityName) {
     }));
   }
 
-  // Center next delivery card if any update warrants it
-  if (entityName === 'Delivery' && items.some(it => shouldCenterForDeliveryUpdate(it.data, it.changedFields))) {
+  // Center next delivery card if any REMOTE update warrants it
+  if (entityName === 'Delivery' && items.some(it => it.isRemoteUpdate && shouldCenterForDeliveryUpdate(it.data, it.changedFields))) {
     scheduleAfterUISettled(() => {
-      triggerCenterNextDeliveryCard({ source: 'realtimeSyncBuffered' });
+      triggerCenterNextDeliveryCard({ source: 'realtimeSyncBuffered', remoteOnly: true });
     });
   }
 }
@@ -240,11 +240,13 @@ const subscribeToEntity = (entityName) => {
       
       // Get current user name for "updatedBy"
       let updatedBy = 'System';
+      let currentUserName = 'System';
       try {
         const userCache = sessionStorage.getItem('effectiveUserCache');
         if (userCache) {
           const parsed = JSON.parse(userCache);
-          updatedBy = parsed?.user?.user_name || parsed?.user?.full_name || 'System';
+          currentUserName = parsed?.user?.user_name || parsed?.user?.full_name || 'System';
+          updatedBy = currentUserName;
         }
       } catch (e) {
         // Ignore
@@ -301,8 +303,11 @@ const subscribeToEntity = (entityName) => {
         console.warn(`⚠️ [RealtimeSync] Failed to update offline DB for ${entityName}:`, offlineError.message);
       }
       
+      const senderName = data?.updated_by_name || data?.updatedBy || updatedBy;
+      const isRemoteUpdate = senderName !== currentUserName;
+
       // Buffer notifications to debounce UI updates
-      bufferEvent(entityName, { entityType: entityName, eventType: type, data, id, updatedBy, changedFields });
+      bufferEvent(entityName, { entityType: entityName, eventType: type, data, id, updatedBy, changedFields, isRemoteUpdate });
     });
 
     activeSubscriptions.set(entityName, unsubscribe);
