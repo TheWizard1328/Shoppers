@@ -196,30 +196,30 @@ export default function WebSocketDiagnosticsCard() {
 
   return (
     <Card 
-      className={`fixed ${isMobile ? 'left-1/2 -translate-x-1/2' : 'right-4'} w-80 p-3 bg-blue-50 border-blue-200 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2`}
+      className={`fixed ${isMobile ? 'left-1/2 -translate-x-1/2' : 'right-4'} w-80 p-3 bg-blue-50 border-blue-200 text-blue-950 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100`}
       style={{ top: `${topOffset}px` }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <div className="text-xs font-semibold text-blue-900">
+            <div className="text-xs font-semibold text-blue-900 dark:text-slate-100">
               {event.entityType}
             </div>
-            <div className="text-[10px] text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded capitalize">
+            <div className="text-[10px] text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded capitalize dark:bg-slate-800 dark:text-slate-200">
               {event.actionType}
             </div>
-            <div className="text-[10px] text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded">
+            <div className="text-[10px] text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded dark:bg-slate-800 dark:text-slate-300">
               {event.updatedBy}
             </div>
           </div>
-          <div className="text-xs text-blue-700">
+          <div className="text-xs text-blue-700 dark:text-slate-200">
             <div className="font-medium">{event.title}</div>
-            <div className="text-xs text-blue-600 mt-1">{event.details}</div>
+            <div className="text-xs text-blue-600 mt-1 dark:text-slate-300">{event.details}</div>
           </div>
         </div>
         <button
           onClick={() => setEvent(null)}
-          className="text-blue-400 hover:text-blue-600 flex-shrink-0"
+          className="text-blue-400 hover:text-blue-600 flex-shrink-0 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <X className="w-4 h-4" />
         </button>
