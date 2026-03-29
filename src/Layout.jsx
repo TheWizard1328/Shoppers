@@ -840,21 +840,9 @@ export default function Layout({ children, currentPageName }) {
 
       // Handle Delivery updates
       if (update.entity === 'Delivery') {
-        if (update.action === 'create') {
-          setDeliveries((prev) => {
-            if (prev.some((d) => d?.id === update.id)) return prev;
-            return [...prev, update.data];
-          });
-        } else if (update.action === 'update') {
-          setDeliveries((prev) => prev.map((d) =>
-          d?.id === update.id ? { ...d, ...update.data } : d
-          ));
-          console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
-        } else if (update.action === 'delete') {
-          setDeliveries((prev) => prev.filter((d) => d?.id !== update.id));
-          // CRITICAL: Remove from offline DB to prevent residual memory on other devices
+        if (update.action === 'delete') {
+          // Keep destructive cleanup here, but let AppDataContext own delivery state updates
           offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, update.id).catch(() => {});
-          // Refresh catalog items after deletion
           setTimeout(() => {
             base44.functions.invoke('squareSyncCatalogItems', {}).
             then((response) => {
@@ -863,13 +851,9 @@ export default function Layout({ children, currentPageName }) {
             });
           }, 500);
         } else if (update.action === 'batch_delete' && update.ids) {
-          const idsToDelete = new Set(update.ids);
-          setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
-          // CRITICAL: Remove ALL deleted IDs from offline DB
           update.ids.forEach((id) => {
             offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
           });
-          // Refresh catalog items after batch deletion
           setTimeout(() => {
             base44.functions.invoke('squareSyncCatalogItems', {}).
             then((response) => {
@@ -940,25 +924,9 @@ export default function Layout({ children, currentPageName }) {
 
 
       // Handle Patient updates
-      if (update.entity === 'Patient') {
-        if (update.action === 'create') {
-          setPatients((prev) => {
-            if (prev.some((p) => p?.id === update.id)) return prev;
-            return [...prev, update.data];
-          });
-          // Save to offline DB immediately
-          offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
-        } else if (update.action === 'update') {
-          setPatients((prev) => prev.map((p) =>
-          p?.id === update.id ? { ...p, ...update.data } : p
-          ));
-          // Update offline DB immediately
-          offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
-        } else if (update.action === 'delete') {
-          setPatients((prev) => prev.filter((p) => p?.id !== update.id));
-          // Remove from offline DB immediately
-          offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, update.id).catch(() => {});
-        }
+      if (update.entity === 'Patient' && update.action === 'delete') {
+        // Let AppDataContext own patient state updates; keep offline cleanup here
+        offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, update.id).catch(() => {});
       }
     });
 
