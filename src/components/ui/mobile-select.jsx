@@ -54,7 +54,7 @@ export function MobileSelect({
           {selectedItem ? (options ? selectedItem.label : selectedItem.props.children) : placeholder}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className={className} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}>
+      <DrawerContent className={`z-[10030] ${className || ''}`} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}>
         <DrawerHeader className="text-left">
           <DrawerTitle>Select an option</DrawerTitle>
         </DrawerHeader>
