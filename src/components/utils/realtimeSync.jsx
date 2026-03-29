@@ -54,6 +54,9 @@ function flushBuffered(entityName) {
     });
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
+      if (entityName === 'Delivery' && (eventType === 'create' || eventType === 'update') && typeof window.__fabFlashUpdate === 'function') {
+        window.__fabFlashUpdate();
+      }
       if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
         window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }));
       }
