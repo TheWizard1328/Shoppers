@@ -133,6 +133,7 @@ export const handleBatchSaveDelivery = async ({
     );
 
     const createdPickupRecords = [];
+    const pendingSpecialPickupKeys = new Set();
 
     // CRITICAL: Always create pickups for ALL assigned stores EXCEPT special stores
     const assignedStores = (stores || []).filter((store) => {
@@ -250,6 +251,7 @@ export const handleBatchSaveDelivery = async ({
         );
 
         if (!existingPickup) {
+          pendingSpecialPickupKeys.add(`${deliveryStore.id}_${deliveryAmpm}`);
 
           // Determine pickup time based on AM/PM
           const pickupTime = deliveryAmpm === 'AM' ?
@@ -577,41 +579,17 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    const createdDeliveries = deliveriesToCreate.length > 0 ? await batchCreateDeliveriesLocal(deliveriesToCreate) : [];
+    const specialStorePickupPayloads = deliveriesToCreate.filter((delivery) => {
+      if (!delivery || delivery.patient_id !== null) return false;
+      return pendingSpecialPickupKeys.has(`${delivery.store_id}_${delivery.ampm_deliveries}`);
+    });
+    const regularDeliveriesToCreate = deliveriesToCreate.filter((delivery) => !specialStorePickupPayloads.includes(delivery));
+
+    const createdPickupDeliveries = specialStorePickupPayloads.length > 0 ? await batchCreateDeliveriesLocal(specialStorePickupPayloads) : [];
+    const createdDeliveries = regularDeliveriesToCreate.length > 0 ? await batchCreateDeliveriesLocal(regularDeliveriesToCreate) : [];
+
+    createdPickupRecords.push(...createdPickupDeliveries);
     allCreatedDeliveries.push(...createdDeliveries);
-
-    // CRITICAL: Create missing special-store pickups immediately so they appear with the new pending stops
-    const specialStoreEnsureTasks = [];
-
-    for (const createdDelivery of createdDeliveries) {
-      if (!createdDelivery?.patient_id || !createdDelivery?.store_id || !createdDelivery?.driver_id) continue;
-      const deliveryStore = stores.find((s) => s && s.id === createdDelivery.store_id);
-      if (!deliveryStore || !specialStoreNames.includes(deliveryStore.name)) continue;
-
-      specialStoreEnsureTasks.push(
-        base44.functions.invoke('ensurePickupForDelivery', {
-          storeId: createdDelivery.store_id,
-          deliveryDate: createdDelivery.delivery_date,
-          driverId: createdDelivery.driver_id,
-          ampmDeliveries: createdDelivery.ampm_deliveries,
-          allowCreateIfMissing: true
-        }).catch((error) => {
-          console.warn(`⚠️ [AddToRoute] Failed to ensure special-store pickup for ${deliveryStore.name}:`, error.message);
-          return null;
-        })
-      );
-    }
-
-    if (specialStoreEnsureTasks.length > 0) {
-      const specialPickupResults = await Promise.allSettled(specialStoreEnsureTasks);
-      specialPickupResults.forEach((result) => {
-        const data = result.status === 'fulfilled' ? (result.value?.data || result.value) : null;
-        const pickup = data?.pickup;
-        if (pickup?.id && !createdPickupRecords.some((existing) => existing?.id === pickup.id)) {
-          createdPickupRecords.push(pickup);
-        }
-      });
-    }
 
     if (deliveriesToUpdate.length > 0) {
       for (const { id, updates } of deliveriesToUpdate) {
