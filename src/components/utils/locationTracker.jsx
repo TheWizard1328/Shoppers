@@ -1011,6 +1011,51 @@ class LocationTracker {
     console.log(`📅 [LocationTracker] Set delivery date for arrival tracking: ${deliveryDate}`);
   }
 
+  async refreshNow(options = {}) {
+    if (!this.isTracking || !this.currentUser || !this.appUserId) return false;
+
+    try {
+      const position = await this.locationProvider.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0,
+        requestPermissions: false
+      });
+
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+
+      this.lastPosition = { latitude, longitude, accuracy };
+
+      await this.updateLocationInDatabase(
+        latitude,
+        longitude,
+        accuracy,
+        true,
+        false,
+        this.isPrimaryDevice
+      );
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('driverLocationFocusRefresh', {
+          detail: {
+            userId: this.currentUser?.id,
+            latitude,
+            longitude,
+            accuracy,
+            source: options.source || 'focus'
+          }
+        }));
+      }
+
+      return true;
+    } catch (error) {
+      console.warn('⚠️ [LocationTracker] Immediate refresh failed:', error?.message || error);
+      return false;
+    }
+  }
+
   getStatus() {
      return {
        isTracking: this.isTracking,
