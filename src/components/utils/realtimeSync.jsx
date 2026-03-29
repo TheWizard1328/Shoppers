@@ -41,12 +41,28 @@ function bufferEvent(entityName, payload) {
   }
 }
 
-function flushBuffered(entityName) {
+async function flushBuffered(entityName) {
   const buf = eventBuffers[entityName];
   if (!buf || buf.size === 0) { if (flushTimers[entityName]) { clearTimeout(flushTimers[entityName]); flushTimers[entityName] = null; } return; }
   const items = Array.from(buf.values());
   buf.clear();
   if (flushTimers[entityName]) { clearTimeout(flushTimers[entityName]); flushTimers[entityName] = null; }
+
+  let fullReplacementData = null;
+  try {
+    if (entityName === 'Delivery') {
+      const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
+      if (selectedDate) {
+        fullReplacementData = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
+      }
+    } else if (entityName === 'AppUser') {
+      fullReplacementData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    } else if (entityName === 'Patient') {
+      fullReplacementData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    }
+  } catch (error) {
+    console.warn(`⚠️ [RealtimeSync] Failed to load full replacement data for ${entityName}:`, error.message);
+  }
 
   // Notify listeners and dispatch window events once per record
   items.forEach(({ entityType, eventType, data, id, updatedBy, changedFields }) => {
@@ -60,6 +76,42 @@ function flushBuffered(entityName) {
       }
     }
   });
+
+  if (typeof window !== 'undefined' && entityName === 'Delivery' && Array.isArray(fullReplacementData)) {
+    const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: {
+        deliveries: fullReplacementData,
+        freshDeliveries: fullReplacementData,
+        immediate: true,
+        deliveryDate: selectedDate,
+        triggeredBy: 'realtimeBufferedFullRefresh',
+        source: 'realtime_sync',
+        fromRealtime: true,
+        fullReplacement: true
+      }
+    }));
+  }
+
+  if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {
+    window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+      detail: {
+        appUsers: fullReplacementData,
+        fromRealtime: true,
+        fullReplacement: true
+      }
+    }));
+  }
+
+  if (typeof window !== 'undefined' && entityName === 'Patient' && Array.isArray(fullReplacementData)) {
+    window.dispatchEvent(new CustomEvent('patientsUpdated', {
+      detail: {
+        patients: fullReplacementData,
+        fromRealtime: true,
+        fullReplacement: true
+      }
+    }));
+  }
 
   // Center next delivery card if any update warrants it
   if (entityName === 'Delivery' && items.some(it => shouldCenterForDeliveryUpdate(it.data, it.changedFields))) {
