@@ -134,10 +134,10 @@ export const AppDataProvider = ({ children, value }) => {
     }
 
     if (deliveryChanged) {
-      if (applyDeliveryChangesLocallyRef.current) {
-        applyDeliveryChangesLocallyRef.current({ upserts: deliveryUpserts, deleteIds: deliveryDeletes });
-      } else if (updateDeliveriesLocallyRef.current) {
+      if (updateDeliveriesLocallyRef.current) {
         updateDeliveriesLocallyRef.current(nextDeliveries, true);
+      } else if (applyDeliveryChangesLocallyRef.current) {
+        applyDeliveryChangesLocallyRef.current({ upserts: nextDeliveries, deleteIds: [] });
       }
 
       if (typeof window !== 'undefined') {
@@ -192,8 +192,12 @@ export const AppDataProvider = ({ children, value }) => {
       }
     }
 
-    if (patientsChanged && applyPatientChangesLocallyRef.current) {
-      applyPatientChangesLocallyRef.current({ upserts: patientUpserts, deleteIds: patientDeletes });
+    if (patientsChanged) {
+      if (value.updatePatientsLocally) {
+        value.updatePatientsLocally({ upserts: nextPatients, deleteIds: [] });
+      } else if (applyPatientChangesLocallyRef.current) {
+        applyPatientChangesLocallyRef.current({ upserts: nextPatients, deleteIds: [] });
+      }
     }
 
     if (deliveryChanged) {
