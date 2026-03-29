@@ -15,7 +15,7 @@ import { base44 } from '@/api/base44Client';
 const listeners = new Set();
 
 // Buffered inbound realtime events to reduce UI thrash
-const DEBOUNCE_MS = 1000; // per request
+const DEBOUNCE_MS = 0;
 const eventBuffers = {
   Delivery: new Map(),
   Patient: new Map(),
