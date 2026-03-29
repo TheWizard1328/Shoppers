@@ -89,12 +89,29 @@ export default function WebSocketDiagnosticsCard() {
           'updated_date'
         ].includes(field));
 
+        const fieldLabels = {
+          delivery_time_end: 'delivery end time',
+          delivery_time_start: 'delivery start time',
+          delivery_time_eta: 'ETA',
+          status: 'status',
+          driver_id: 'driver',
+          driver_name: 'driver',
+          stop_order: 'stop order',
+          delivery_notes: 'delivery notes',
+          delivery_instructions: 'delivery instructions',
+          tracking_number: 'tracking number',
+          actual_delivery_time: 'actual delivery time',
+          arrival_time: 'arrival time'
+        };
+
+        const changedLabel = meaningfulFields.length > 0
+          ? meaningfulFields.map((field) => fieldLabels[field] || field.replace(/_/g, ' ')).join(', ')
+          : null;
+
         displayInfo.title = data.patient_name || data.patient?.full_name || 'Delivery Update';
-        displayInfo.details = meaningfulFields.length > 0
-          ? `Changed: ${meaningfulFields.join(', ')}`
-          : data.status
-            ? `Status: ${data.status}`
-            : 'Delivery updated';
+        displayInfo.details = changedLabel
+          ? `Changed: ${changedLabel}`
+          : 'Delivery updated';
       }
       // Handle Patient updates
       else if (entityName === 'Patient') {
