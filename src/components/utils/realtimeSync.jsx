@@ -409,6 +409,42 @@ export const broadcastMutation = (entity, action, id, data, ids = null) => {
     window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entity}`, {
       detail: { type: action, id, ids, data }
     }));
+
+    if (entity === 'Delivery') {
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          deliveryId: id,
+          deletedId: action === 'delete' ? id : undefined,
+          deliveryDate: data?.delivery_date,
+          freshDeliveries: data ? [data] : undefined,
+          triggeredBy: 'realtimeBroadcast',
+          source: 'realtime_sync',
+          fromRealtime: true
+        }
+      }));
+    }
+
+    if (entity === 'AppUser') {
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: {
+          appUsers: data ? [data] : undefined,
+          deletedId: action === 'delete' ? id : undefined,
+          singleUpdate: data,
+          fromRealtime: true
+        }
+      }));
+    }
+
+    if (entity === 'Patient') {
+      window.dispatchEvent(new CustomEvent('patientsUpdated', {
+        detail: {
+          patients: data ? [data] : undefined,
+          deletedId: action === 'delete' ? id : undefined,
+          deletedIds: action === 'delete' ? [id] : [],
+          fromRealtime: true
+        }
+      }));
+    }
   }
 
   return true;
