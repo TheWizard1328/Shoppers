@@ -635,8 +635,10 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
 
     // STEP 5: Notify UI immediately on this device
     notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
-    
-    // Other devices will receive the real backend websocket delete event.
+
+    // STEP 6: Broadcast immediate delete so other devices update UI right away too
+    await broadcastMutation('Delivery', 'delete', deliveryId, null);
+
     await restartSmartRefresh();
     return true;
   } catch (error) {
@@ -804,7 +806,9 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       data: null 
     });
 
-    // Other devices will receive real backend websocket delete events per record.
+    // STEP 6: Broadcast immediate deletes so other devices update UI right away too
+    await Promise.all(deliveryIds.map((id) => broadcastMutation('Delivery', 'delete', id, null)));
+
     await restartSmartRefresh();
     return true;
   } catch (error) {

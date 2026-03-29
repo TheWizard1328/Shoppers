@@ -398,7 +398,7 @@ export const broadcastMutation = (entity, action, id, data, ids = null) => {
   // Dispatch to all listeners
   listeners.forEach(callback => {
     try {
-      callback({ entityType: entity, eventType: action, data, id });
+      callback({ entityType: entity, eventType: action, data, id, ids });
     } catch (error) {
       console.error('❌ [RealtimeSync] Broadcast listener error:', error);
     }
@@ -407,7 +407,7 @@ export const broadcastMutation = (entity, action, id, data, ids = null) => {
   // Dispatch custom event
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entity}`, {
-      detail: { type: action, id, data }
+      detail: { type: action, id, ids, data }
     }));
   }
 
