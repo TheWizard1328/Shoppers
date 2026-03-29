@@ -58,7 +58,8 @@ export default function WebSocketDiagnosticsCard() {
   useEffect(() => {
     const handleWebSocketEvent = (e) => {
       const { data, type, id, updatedBy, changedFields } = e.detail || {};
-      if (!data) return;
+      const actionType = type || 'update';
+      if (!data && actionType !== 'delete') return;
       
       // Extract entity name from event target
       const eventType = e.type; // e.g., 'realtimeUpdate_Delivery'
@@ -69,6 +70,7 @@ export default function WebSocketDiagnosticsCard() {
         source: 'WebSocket',
         entityType: entityName || 'Unknown',
         updatedBy: updatedBy || 'System',
+        actionType,
         timestamp: Date.now()
       };
 
@@ -108,17 +110,27 @@ export default function WebSocketDiagnosticsCard() {
           ? meaningfulFields.map((field) => fieldLabels[field] || field.replace(/_/g, ' ')).join(', ')
           : null;
 
-        displayInfo.title = data.patient_name || data.patient?.full_name || 'Delivery Update';
-        displayInfo.details = changedLabel
-          ? `Changed: ${changedLabel}`
-          : 'Delivery updated';
+        const deliveryName = data?.patient_name || data?.patient?.full_name || data?.delivery_id || `Delivery ${id || ''}`.trim();
+        displayInfo.title = deliveryName;
+        displayInfo.details = actionType === 'create'
+          ? 'Delivery added'
+          : actionType === 'delete'
+            ? 'Delivery deleted'
+            : changedLabel
+              ? `Updated: ${changedLabel}`
+              : 'Delivery updated';
       }
       // Handle Patient updates
       else if (entityName === 'Patient') {
-        displayInfo.title = data.full_name || 'Patient Update';
-        displayInfo.details = changedFields?.length > 0
-          ? `Changed: ${changedFields.join(', ')}`
-          : 'Patient information updated';
+        const patientName = data?.full_name || `Patient ${id || ''}`.trim();
+        displayInfo.title = patientName;
+        displayInfo.details = actionType === 'create'
+          ? 'Patient added'
+          : actionType === 'delete'
+            ? 'Patient deleted'
+            : changedFields?.length > 0
+              ? `Updated: ${changedFields.join(', ')}`
+              : 'Patient information updated';
       }
       // Generic fallback
       else {
@@ -157,9 +169,12 @@ export default function WebSocketDiagnosticsCard() {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <div className="text-xs font-semibold text-blue-900">
               {event.entityType}
+            </div>
+            <div className="text-[10px] text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded capitalize">
+              {event.actionType}
             </div>
             <div className="text-[10px] text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded">
               {event.updatedBy}
