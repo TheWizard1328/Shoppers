@@ -36,6 +36,7 @@ export const handleBatchSaveDelivery = async ({
   const stagedDeliveries = deliveryData._stagedDeliveries;
   const allCreatedDeliveries = [];
   const allUpdatedDeliveries = [];
+  const createdPickupRecords = [];
 
   if (!stagedDeliveries || stagedDeliveries.length === 0) {
     console.warn('[AddToRoute] ⚠️ No staged deliveries found!');
@@ -132,7 +133,6 @@ export const handleBatchSaveDelivery = async ({
       d?.delivery_notes?.toLowerCase().includes('interstore')
     );
 
-    const createdPickupRecords = [];
     const pendingSpecialPickupKeys = new Set();
 
     // CRITICAL: Always create pickups for ALL assigned stores EXCEPT special stores
