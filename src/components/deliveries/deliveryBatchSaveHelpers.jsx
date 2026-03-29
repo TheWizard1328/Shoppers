@@ -72,7 +72,7 @@ export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, store
   const deliveriesWithCorrectStores = applyParentPickupStoreToNewDeliveries(newDeliveries, allDeliveries);
   const trAssignments = calculateSequentialTRAssignments({
     newItems: deliveriesWithCorrectStores,
-    existingItems: existingDeliveries.filter((delivery) => delivery?.status === 'Staged'),
+    existingItems: existingDeliveries.filter(Boolean),
     stores,
     allDeliveries,
     deliveryDate
@@ -83,9 +83,10 @@ export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, store
       ...delivery,
       tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number
     })),
-    existingDeliveriesWithTRs: existingDeliveries.map((delivery) => delivery?.status === 'Staged'
-      ? { ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number }
-      : delivery)
+    existingDeliveriesWithTRs: existingDeliveries.map((delivery) => ({
+      ...delivery,
+      tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number
+    }))
   };
 };
 

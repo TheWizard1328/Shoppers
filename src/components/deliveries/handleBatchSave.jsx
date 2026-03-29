@@ -81,7 +81,7 @@ export async function handleBatchSave({
   })) return;
 
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(safeStagedDeliveries, safeAllDeliveries));
-  const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
+  const deliveriesToUpdate = existingDeliveries.filter(Boolean);
 
   if (newDeliveries.length === 0 && deliveriesToUpdate.length === 0) {
     safeSetStagedDeliveries([]);
