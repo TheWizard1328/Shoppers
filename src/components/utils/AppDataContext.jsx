@@ -123,9 +123,13 @@ export const AppDataProvider = ({ children, value }) => {
       }
 
       if (typeof window !== 'undefined') {
+        const realtimeDate = deliveryUpserts[0]?.delivery_date;
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
             deliveries: deliveryUpserts,
+            freshDeliveries: deliveryUpserts,
+            immediate: deliveryUpserts.length > 0,
+            deliveryDate: realtimeDate,
             deletedIds: deliveryDeletes,
             deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
             source: 'realtime_sync',
