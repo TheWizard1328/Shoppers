@@ -184,8 +184,8 @@ export default function StopCardBody({
             isFinishedDelivery &&
             !isPickup &&
             !isPastDate &&
-            patient?.notes && (
-                <div className="flex items-start gap-2">
+            patient?.notes &&
+            <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-base font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>
@@ -199,11 +199,11 @@ export default function StopCardBody({
                       </div>
                    </div>
                 </div>
-            )}
+            }
 
               {/* Full Patient Info - only for active deliveries on today/future dates */}
               {!isStrippedForDriver && !isFinishedDelivery && !isPickup && !isPastDate && patient && (
-            (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring)) && (
+            patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
             <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
@@ -278,7 +278,7 @@ export default function StopCardBody({
                       </div>
                     </div>
                   </div>
-            )}
+            }
 
               {/* Show pending pickup list when pickup is en_route (active), including historical dates */}
               {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
@@ -330,8 +330,8 @@ export default function StopCardBody({
                   const projPatient = patients.find((p) => p?.id === projectedDelivery.patient_id || p?.patient_id === projectedDelivery.patient_id);
                   return (
                     <div
-                      key={deliveryId}
-                      className="flex items-center justify-between gap-2 border px-2.5 py-1.5 rounded-md cursor-pointer transition-colors"
+                      key={deliveryId} className="flex items-center justify-between gap-1 border px-2.5 py-1.0 rounded-md cursor-pointer transition-colors"
+
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = 'var(--bg-slate-50)';
@@ -360,8 +360,8 @@ export default function StopCardBody({
                               {canAccessAcceptButtons &&
                         <Button
                           size="sm"
-                          variant="ghost"
-                          className="h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
+                          variant="ghost" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground rounded-md text-xs h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
+
                           onClick={(e) => {
                             e.stopPropagation();
                             // Delegate to parent handler via onEdit + status change; leave as-is to preserve behavior
@@ -407,7 +407,7 @@ export default function StopCardBody({
                 </div>
                 </div>
                 </motion.div>
-                }
+        }
                 </AnimatePresence>
     </>);
 
