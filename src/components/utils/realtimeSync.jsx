@@ -68,7 +68,18 @@ async function flushBuffered(entityName) {
   // Notify listeners and dispatch window events once per record
   items.forEach(({ entityType, eventType, data, id, updatedBy, changedFields }) => {
     listeners.forEach(callback => {
-      try { callback({ entityType, eventType, data, id, updatedBy, changedFields }); } catch (err) { console.error('❌ [RealtimeSync] Listener error:', err); }
+      try {
+        callback({
+          entityType,
+          entity: entityType,
+          eventType,
+          type: eventType,
+          data,
+          id,
+          updatedBy,
+          changedFields
+        });
+      } catch (err) { console.error('❌ [RealtimeSync] Listener error:', err); }
     });
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
@@ -483,7 +494,15 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
   // Dispatch to all listeners
   listeners.forEach(callback => {
     try {
-      callback({ entityType: entity, eventType: action, data, id, ids });
+      callback({
+        entityType: entity,
+        entity,
+        eventType: action,
+        type: action,
+        data,
+        id,
+        ids
+      });
     } catch (error) {
       console.error('❌ [RealtimeSync] Broadcast listener error:', error);
     }

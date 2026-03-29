@@ -307,23 +307,25 @@ export const AppDataProvider = ({ children, value }) => {
     // Start real-time subscriptions
     cityFilteredRealtimeSync.start(selectedCityId, selectedDate);
 
-    const handleRealtimeEvent = ({ entityType, eventType, data, id }) => {
-      const payload = eventType === 'delete'
+    const handleRealtimeEvent = ({ entityType, entity, eventType, type, data, id }) => {
+      const resolvedEntityType = entityType || entity;
+      const resolvedEventType = eventType || type;
+      const payload = resolvedEventType === 'delete'
         ? (typeof data === 'string' ? data : data?.id || id)
         : data;
 
-      if (entityType === 'Delivery') {
-        scheduleRealtimeEntityUpdate('Delivery', eventType, payload);
+      if (resolvedEntityType === 'Delivery') {
+        scheduleRealtimeEntityUpdate('Delivery', resolvedEventType, payload);
         return;
       }
 
-      if (entityType === 'Patient') {
-        scheduleRealtimeEntityUpdate('Patient', eventType, payload);
+      if (resolvedEntityType === 'Patient') {
+        scheduleRealtimeEntityUpdate('Patient', resolvedEventType, payload);
         return;
       }
 
-      if (entityType === 'AppUser') {
-        scheduleRealtimeEntityUpdate('AppUser', eventType, payload);
+      if (resolvedEntityType === 'AppUser') {
+        scheduleRealtimeEntityUpdate('AppUser', resolvedEventType, payload);
       }
     };
 
