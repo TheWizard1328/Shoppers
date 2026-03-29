@@ -65,7 +65,7 @@ export default function WebSocketDiagnosticsCard() {
   useEffect(() => {
     const resolvePatientName = async (patientId) => {
       if (!patientId || patientNameCache[patientId]) return patientNameCache[patientId] || null;
-      const patient = await offlineDB.getRecord(offlineDB.STORES.PATIENTS, patientId);
+      const patient = await offlineDB.getById(offlineDB.STORES.PATIENTS, patientId);
       const resolvedName = patient?.full_name || null;
       if (resolvedName) {
         setPatientNameCache((prev) => ({ ...prev, [patientId]: resolvedName }));
@@ -75,7 +75,7 @@ export default function WebSocketDiagnosticsCard() {
 
     const resolveStoreName = async (storeId) => {
       if (!storeId || storeNameCache[storeId]) return storeNameCache[storeId] || null;
-      const store = await offlineDB.getRecord(offlineDB.STORES.STORES, storeId);
+      const store = await offlineDB.getById(offlineDB.STORES.STORES, storeId);
       const resolvedName = store?.name || null;
       if (resolvedName) {
         setStoreNameCache((prev) => ({ ...prev, [storeId]: resolvedName }));
