@@ -1,7 +1,19 @@
 export const COMPLETION_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
 export const filterValidStagedDeliveries = (stagedDeliveries, allDeliveries) => {
-  return (stagedDeliveries || []).filter(Boolean);
+  const items = (stagedDeliveries || []).filter(Boolean);
+  return items.filter((delivery, index) => {
+    const firstIndex = items.findIndex((item) =>
+      item?.id ? item.id === delivery?.id :
+      item?.patient_id === delivery?.patient_id &&
+      item?.store_id === delivery?.store_id &&
+      item?.driver_id === delivery?.driver_id &&
+      item?.delivery_date === delivery?.delivery_date &&
+      (item?.prescription_number || '') === (delivery?.prescription_number || '') &&
+      !!item?.patient_id === !!delivery?.patient_id
+    );
+    return firstIndex === index;
+  });
 };
 
 export const splitStagedDeliveriesForBatch = (validStagedDeliveries) => {

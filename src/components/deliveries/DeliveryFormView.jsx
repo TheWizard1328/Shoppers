@@ -188,10 +188,10 @@ export default function DeliveryFormView({
     if (e.key === 'Enter') {
       if (e.repeat || e.nativeEvent?.isComposing || e.defaultPrevented) return;
       // Skip if focused on textarea, button, select-like controls, or the patient search input (handled elsewhere)
-      if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
+      if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' || e.target.type === 'submit') {
         return;
       }
-      if (e.target === patientSearchInputRef?.current || e.target.closest?.('[role="combobox"], [data-radix-select-trigger], [data-hotkey-add="false"]')) {
+      if (e.target === patientSearchInputRef?.current || e.target.closest?.('[role="combobox"], [data-radix-select-trigger], [data-hotkey-add="false"], footer button')) {
         return;
       }
       
@@ -805,7 +805,7 @@ export default function DeliveryFormView({
                 </Button>
 
                 {buttonState === 'done' ?
-                <Button type="button" size="sm" onClick={() => runLockedAction('batch_save', handleBatchSave)} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasChanges}>
+                <Button type="button" size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); runLockedAction('batch_save', handleBatchSave); }} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !hasChanges}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button> :
                 buttonState === 'updateStaged' ?
