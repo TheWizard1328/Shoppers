@@ -5,6 +5,7 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { globalFilters } from '@/components/utils/globalFilters';
 
 export default function PullToSync({ 
   selectedDate, 
@@ -81,9 +82,10 @@ export default function PullToSync({
     try { window.__dashboardSyncing = true; window.dispatchEvent(new CustomEvent('pullToSyncStarted')); } catch (e) {}
 
     try {
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      const driverFilter = selectedDriverId && selectedDriverId !== 'all' 
-        ? { driver_id: selectedDriverId } 
+      const selectedDateStr = globalFilters.getSelectedDate() || format(selectedDate, 'yyyy-MM-dd');
+      const currentDriverId = globalFilters.getSelectedDriverId() || selectedDriverId;
+      const driverFilter = currentDriverId && currentDriverId !== 'all' 
+        ? { driver_id: currentDriverId } 
         : {};
       const syncRunId = `${Date.now()}`;
 
@@ -153,8 +155,8 @@ export default function PullToSync({
       ]);
 
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
-        ? (selectedDriverId && selectedDriverId !== 'all'
-          ? offlineDeliveriesRaw.filter((d) => d?.driver_id === selectedDriverId)
+        ? (currentDriverId && currentDriverId !== 'all'
+          ? offlineDeliveriesRaw.filter((d) => d?.driver_id === currentDriverId)
           : offlineDeliveriesRaw)
         : [];
 
@@ -200,7 +202,7 @@ export default function PullToSync({
 
       // ─── STEP 4 (background): Polylines + ETAs for incomplete stops ────────
       // Runs entirely in background — does NOT block UI
-      const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null;
+      const targetDriverId = currentDriverId && currentDriverId !== 'all' ? currentDriverId : null;
       if (targetDriverId) {
         Promise.resolve().then(async () => {
           const incompleteDeliveries = (offlineDeliveries || []).filter(d => 

@@ -234,7 +234,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     // Trigger pull-to-sync (silent mode - no overlay)
     window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-      detail: { silent: true }
+      detail: { silent: true, requestedAt: Date.now() }
     }));
 
     // Also kick polyline repair directly to avoid waiting for pull handler wiring in some views
