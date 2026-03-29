@@ -916,8 +916,7 @@ export default function Layout({ children, currentPageName }) {
               }
             }));
           } else {
-            // Show notification for non-location updates (status, role changes, etc.)
-            toast.success(`${update.data.user_name || 'Driver'} updated`);
+            // AppUser websocket updates should sync silently without pop-up notifications
           }
         }
       }
