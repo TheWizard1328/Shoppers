@@ -9,6 +9,7 @@ export default function WebSocketDiagnosticsCard() {
   const [topOffset, setTopOffset] = useState(72);
   const [isMobile, setIsMobile] = useState(false);
   const [patientNameCache, setPatientNameCache] = useState({});
+  const [storeNameCache, setStoreNameCache] = useState({});
 
   useEffect(() => {
     // Check if this is the primary device
@@ -76,6 +77,16 @@ export default function WebSocketDiagnosticsCard() {
       return resolvedName;
     };
 
+    const resolveStoreName = async (storeId) => {
+      if (!storeId || storeNameCache[storeId]) return storeNameCache[storeId] || null;
+      const results = await base44.entities.Store.filter({ id: storeId });
+      const resolvedName = Array.isArray(results) && results[0]?.name ? results[0].name : null;
+      if (resolvedName) {
+        setStoreNameCache((prev) => ({ ...prev, [storeId]: resolvedName }));
+      }
+      return resolvedName;
+    };
+
     const handleWebSocketEvent = async (e) => {
       const { data, type, id, updatedBy, changedFields } = e.detail || {};
       const actionType = type || 'update';
@@ -131,7 +142,7 @@ export default function WebSocketDiagnosticsCard() {
           ? meaningfulFields.map((field) => fieldLabels[field] || field.replace(/_/g, ' ')).join(', ')
           : null;
 
-        const deliveryName = data?.patient_name || data?.patient?.full_name || await resolvePatientName(data?.patient_id) || deletedName || 'Unnamed delivery';
+        const deliveryName = data?.patient_name || data?.patient?.full_name || await resolvePatientName(data?.patient_id) || await resolveStoreName(data?.store_id) || deletedName || 'Unnamed delivery';
         displayInfo.title = deliveryName;
         displayInfo.details = actionType === 'create'
           ? 'Delivery added'
@@ -179,7 +190,7 @@ export default function WebSocketDiagnosticsCard() {
       window.removeEventListener('realtimeUpdate_Patient', handleWebSocketEvent);
       window.removeEventListener('realtimeUpdate_AppUser', handleWebSocketEvent);
     };
-  }, [isPrimaryDevice, patientNameCache]);
+  }, [isPrimaryDevice, patientNameCache, storeNameCache]);
 
   if (!event) return null;
 
