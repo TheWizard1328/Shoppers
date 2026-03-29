@@ -185,15 +185,17 @@ export default function DeliveryFormView({
 
   const handleGlobalKeyDown = (e) => {
     if (e.key === 'Enter') {
-      // Skip if focused on textarea, button, or the patient search input (handled by handleSearchKeyDown)
+      if (e.repeat || e.nativeEvent?.isComposing) return;
+      // Skip if focused on textarea, button, select-like controls, or the patient search input (handled elsewhere)
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
         return;
       }
-      if (e.target === patientSearchInputRef?.current) {
+      if (e.target === patientSearchInputRef?.current || e.target.closest?.('[role="combobox"], [data-radix-select-trigger], [data-hotkey-add="false"]')) {
         return;
       }
       
       e.preventDefault();
+      e.stopPropagation();
       
       if (isSaving || effectiveDeliveryActionBusy) return;
 
@@ -271,13 +273,14 @@ export default function DeliveryFormView({
   return (
     <div
       className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : 'bg-black/60 flex items-center justify-center p-4'}`}
-      style={useMobileLayout && isMobileDevice ? { background: 'var(--bg-white)' } : {}}>
+      style={useMobileLayout && isMobileDevice ? { background: 'var(--bg-white)', pointerEvents: 'none' } : { pointerEvents: 'none' }}>
       
       <motion.div
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[780px] max-h-[95vh]' : 'max-w-[87.5rem] max-h-[95vh]' : 'max-w-[50rem] max-h-[95vh]'} flex`}>
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[780px] max-h-[95vh]' : 'max-w-[87.5rem] max-h-[95vh]' : 'max-w-[50rem] max-h-[95vh]'} flex`}
+        style={{ pointerEvents: 'auto' }}>
         
         <Card
           onKeyDown={handleGlobalKeyDown}
