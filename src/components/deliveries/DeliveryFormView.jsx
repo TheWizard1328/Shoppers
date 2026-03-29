@@ -101,7 +101,7 @@ export default function DeliveryFormView({
     pending: sortedStagedDeliveries.filter((s) => s.id).length
   };
   const [activeDeliveryAction, setActiveDeliveryAction] = React.useState(getActiveDeliveryAction());
-  const effectiveDeliveryActionBusy = isDeliveryActionBusy || !!activeDeliveryAction;
+  const effectiveDeliveryActionBusy = isDeliveryActionBusy || (!!activeDeliveryAction && activeDeliveryAction !== 'update_delivery');
   const enterActionLockRef = React.useRef(false);
 
   React.useEffect(() => subscribeDeliveryActionLock(setActiveDeliveryAction), []);
@@ -835,38 +835,38 @@ export default function DeliveryFormView({
 
                 <Button type="button" size="sm" onClick={async (e) => {
                   e.preventDefault();
+                  const driverId = formData?.driver_id;
+                  const deliveryDate = formData?.delivery_date;
+                  const previousDriverId = delivery?.driver_id;
+                  const previousDeliveryDate = delivery?.delivery_date;
+                  const shouldOptimizeInBackground = hasTimeWindowChanges;
+
                   await runLockedAction('update_delivery', async () => {
-                    const driverId = formData?.driver_id;
-                    const deliveryDate = formData?.delivery_date;
-                    const previousDriverId = delivery?.driver_id;
-                    const previousDeliveryDate = delivery?.delivery_date;
-                    const shouldOptimizeInBackground = hasTimeWindowChanges;
-
                     await handleSubmit(e);
-
-                    const affectedRoutes = [
-                      [driverId, deliveryDate],
-                      [previousDriverId, previousDeliveryDate]
-                    ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
-
-                    await Promise.all(
-                      Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
-                        .map((key) => {
-                          const [routeDriverId, routeDeliveryDate] = key.split('__');
-                          return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
-                        })
-                    );
-
-                    setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
-
-                    runPostDeliveryUpdateSync({
-                      driverId,
-                      deliveryDate,
-                      hasTimeWindowChanges: shouldOptimizeInBackground
-                    });
-
-                    window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
                   });
+
+                  const affectedRoutes = [
+                    [driverId, deliveryDate],
+                    [previousDriverId, previousDeliveryDate]
+                  ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
+
+                  await Promise.all(
+                    Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
+                      .map((key) => {
+                        const [routeDriverId, routeDeliveryDate] = key.split('__');
+                        return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+                      })
+                  );
+
+                  setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
+
+                  runPostDeliveryUpdateSync({
+                    driverId,
+                    deliveryDate,
+                    hasTimeWindowChanges: shouldOptimizeInBackground
+                  });
+
+                  window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
                 }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
