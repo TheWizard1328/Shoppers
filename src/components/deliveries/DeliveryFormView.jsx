@@ -841,6 +841,12 @@ export default function DeliveryFormView({
                   const previousDriverId = delivery?.driver_id;
                   const previousDeliveryDate = delivery?.delivery_date;
                   const shouldOptimizeInBackground = hasTimeWindowChanges;
+                  const isHistoricalCompletionEdit = Boolean(
+                    delivery &&
+                    ['completed', 'failed', 'cancelled', 'returned'].includes(formData?.status) &&
+                    deliveryDate &&
+                    deliveryDate < format(new Date(), 'yyyy-MM-dd')
+                  );
                   let didSave = false;
                   const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
@@ -857,26 +863,28 @@ export default function DeliveryFormView({
 
                   if (!didSave) return;
 
-                  const affectedRoutes = [
-                    [driverId, deliveryDate],
-                    [previousDriverId, previousDeliveryDate]
-                  ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
+                  if (!isHistoricalCompletionEdit) {
+                    const affectedRoutes = [
+                      [driverId, deliveryDate],
+                      [previousDriverId, previousDeliveryDate]
+                    ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
 
-                  await Promise.all(
-                    Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
-                      .map((key) => {
-                        const [routeDriverId, routeDeliveryDate] = key.split('__');
-                        return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
-                      })
-                  );
+                    await Promise.all(
+                      Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
+                        .map((key) => {
+                          const [routeDriverId, routeDeliveryDate] = key.split('__');
+                          return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+                        })
+                    );
+
+                    runPostDeliveryUpdateSync({
+                      driverId,
+                      deliveryDate,
+                      hasTimeWindowChanges: shouldOptimizeInBackground
+                    });
+                  }
 
                   setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
-
-                  runPostDeliveryUpdateSync({
-                    driverId,
-                    deliveryDate,
-                    hasTimeWindowChanges: shouldOptimizeInBackground
-                  });
 
                   if (isPickupMode) {
                     handleCancelClick();

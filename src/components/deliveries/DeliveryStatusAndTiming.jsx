@@ -50,7 +50,10 @@ export default function DeliveryStatusAndTiming({
 
     const changingToCompletion = completionStatuses.includes(value) && activeStatuses.includes(prevStatus);
     if (changingToCompletion) {
-      setCompletionTime(format(new Date(), 'HH:mm'));
+      const defaultCompletionTime = delivery?.delivery_date && delivery.delivery_date < format(new Date(), 'yyyy-MM-dd')
+        ? (completionTime || '')
+        : format(new Date(), 'HH:mm');
+      setCompletionTime(defaultCompletionTime);
       // Auto-focus the completion time input after state update
       setTimeout(() => completionTimeRef.current?.focus(), 50);
     }
