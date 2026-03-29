@@ -229,9 +229,11 @@ class DriverLocationPoller {
 
        const driverId = user.id || user.user_name;
        const isSelf = user.user_name === currentUserId || 
-                      user.id === currentUserId || 
-                      user.user_name === currentUserUserId ||
-                      user.id === currentUserUserId;
+                        user.id === currentUserId || 
+                        user.user_id === currentUserId ||
+                        user.user_name === currentUserUserId ||
+                        user.id === currentUserUserId ||
+                        user.user_id === currentUserUserId;
 
        // CRITICAL: Check self BEFORE coordinates to enable debugging
        if (isSelf) {
@@ -408,8 +410,10 @@ class DriverLocationPoller {
     const locationObjects = activeDriversWithLocation.map(user => {
       const isSelf = user.user_name === currentUserId || 
                      user.id === currentUserId ||
+                     user.user_id === currentUserId ||
                      user.user_name === currentUserUserId ||
-                     user.id === currentUserUserId;
+                     user.id === currentUserUserId ||
+                     user.user_id === currentUserUserId;
       const isOnBreak = user.driver_status === 'on_break';
 
       return {
