@@ -17,8 +17,8 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'f
     fillColor = '#DC2626'; // Red for very stale (30+ min)
   } else if (staleness === 'stale') {
     fillColor = '#F59E0B'; // Amber for stale (15-30 min)
-  } else if (staleness === 'aging') {
-    fillColor = '#FB923C'; // Orange for aging (5-15 min)
+  } else if (staleness === 'aging' || staleness === 'heartbeat_stale') {
+    fillColor = '#FB923C'; // Orange when heartbeat is older than 60s
   } else if (driverStatus === 'on_break') {
     fillColor = '#3b82f6'; // Blue for on break
   } else {

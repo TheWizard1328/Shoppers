@@ -190,19 +190,21 @@ class DriverLocationPoller {
     const currentTime = Date.now();
     users = users.map(user => {
       if (!user.location_updated_at) {
-        return { ...user, _locationStale: true, _staleness: 'unknown' };
+        return { ...user, _locationStale: true, _staleness: 'unknown', _ageSeconds: null };
       }
       
       const lastUpdate = new Date(user.location_updated_at).getTime();
       const ageMs = currentTime - lastUpdate;
+      const ageSeconds = Math.floor(ageMs / 1000);
       const ageMinutes = Math.floor(ageMs / 60000);
       
-      let staleness = 'fresh'; // 0-5 min
-      if (ageMinutes > 30) staleness = 'very_stale'; // 30+ min
-      else if (ageMinutes > 15) staleness = 'stale'; // 15-30 min
-      else if (ageMinutes > 5) staleness = 'aging'; // 5-15 min
+      let staleness = 'fresh';
+      if (ageSeconds > 60) staleness = 'heartbeat_stale';
+      if (ageMinutes > 30) staleness = 'very_stale';
+      else if (ageMinutes > 15) staleness = 'stale';
+      else if (ageMinutes > 5) staleness = 'aging';
       
-      return { ...user, _locationStale: ageMinutes > 5, _staleness: staleness, _ageMinutes: ageMinutes };
+      return { ...user, _locationStale: ageSeconds > 60, _staleness: staleness, _ageMinutes: ageMinutes, _ageSeconds: ageSeconds };
     });
     
     if (users.length === 0) {
@@ -431,7 +433,8 @@ class DriverLocationPoller {
         _isSelf: isSelf,
         _isOnBreak: isOnBreak && isSelf,
         _staleness: user._staleness || 'fresh',
-        _ageMinutes: user._ageMinutes || 0
+        _ageMinutes: user._ageMinutes || 0,
+        _ageSeconds: user._ageSeconds || 0
       };
     });
 
