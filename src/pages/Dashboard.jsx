@@ -3358,11 +3358,29 @@ function Dashboard() {
 
     try {
       if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
-        const stagedItems = Array.isArray(deliveryData._stagedDeliveries) ? deliveryData._stagedDeliveries : [];
-        if (stagedItems.length) await batchCreateDeliveriesLocal(stagedItems);
-        setShowDeliveryForm(false);
-        setEditingDelivery(null);
-        hasAutoSelectedRef.current = false;
+        const { handleBatchSaveDelivery } = await import('@/components/dashboard/handleBatchSaveDelivery');
+        await handleBatchSaveDelivery({
+          deliveryData,
+          drivers,
+          deliveries,
+          patients,
+          stores,
+          currentUser,
+          selectedDate,
+          invalidate,
+          updateDeliveriesLocally,
+          refreshData,
+          setShowDeliveryForm,
+          setEditingDelivery,
+          hasAutoSelectedRef,
+          invalidateDeliveriesForDate: (date) => {
+            try {
+              if (typeof invalidateDeliveriesForDate === 'function') invalidateDeliveriesForDate(date);
+            } catch (e) {
+              invalidate('Delivery');
+            }
+          }
+        });
         return;
       }
 

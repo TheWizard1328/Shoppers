@@ -13,26 +13,24 @@ import { updateDeliveryLocal } from './entityMutations';
  */
 export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, skipPolylineRegeneration = false) => {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-
-  // Use offline data first to avoid rate-limit bursts during batch saves
+  
+  // Fetch fresh data from backend to ensure accuracy; fallback to offline DB on network error
   const driverDeliveries = await (async () => {
-    try {
-      const { offlineDB } = await import('./offlineDatabase');
-      const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      const offlineMatches = (all || []).filter(d => d?.driver_id === driverId && d?.delivery_date === deliveryDate);
-      if (offlineMatches.length > 0) return offlineMatches;
-    } catch (offlineErr) {
-      console.warn('[StopOrderManager] Offline read failed, falling back to network:', offlineErr?.message || offlineErr);
-    }
-
     try {
       return await base44.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
       });
     } catch (err) {
-      console.warn('[StopOrderManager] Network error fetching deliveries, falling back to empty list:', err?.message || err);
-      return [];
+      console.warn('[StopOrderManager] Network error fetching deliveries, falling back to offline DB:', err?.message || err);
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        return (all || []).filter(d => d?.driver_id === driverId && d?.delivery_date === deliveryDate);
+      } catch (offlineErr) {
+        console.warn('[StopOrderManager] Offline fallback failed:', offlineErr?.message || offlineErr);
+        return [];
+      }
     }
   })();
 

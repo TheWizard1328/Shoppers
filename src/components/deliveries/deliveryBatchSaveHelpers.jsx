@@ -17,10 +17,9 @@ export const filterValidStagedDeliveries = (stagedDeliveries, allDeliveries) => 
 };
 
 export const splitStagedDeliveriesForBatch = (validStagedDeliveries) => {
-  const newDeliveries = validStagedDeliveries.filter((staged) => !staged?.id && !!staged?.patient_id);
+  const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
   const existingDeliveries = validStagedDeliveries.filter((staged) => {
-    if (!staged?.id) return false;
-    if (!staged?.patient_id) return false;
+    if (!staged.id) return false;
     if (COMPLETION_STATUSES.includes(staged.status)) return false;
     return true;
   });
@@ -73,7 +72,7 @@ export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, store
   const deliveriesWithCorrectStores = applyParentPickupStoreToNewDeliveries(newDeliveries, allDeliveries);
   const trAssignments = calculateSequentialTRAssignments({
     newItems: deliveriesWithCorrectStores,
-    existingItems: existingDeliveries.filter(Boolean),
+    existingItems: existingDeliveries.filter((delivery) => delivery?.status === 'Staged'),
     stores,
     allDeliveries,
     deliveryDate
@@ -84,10 +83,9 @@ export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, store
       ...delivery,
       tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number
     })),
-    existingDeliveriesWithTRs: existingDeliveries.map((delivery) => ({
-      ...delivery,
-      tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number
-    }))
+    existingDeliveriesWithTRs: existingDeliveries.map((delivery) => delivery?.status === 'Staged'
+      ? { ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number }
+      : delivery)
   };
 };
 
