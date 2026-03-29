@@ -87,7 +87,7 @@ export async function runDeliverySubmitSideEffects({
     }
   }
 
-  if (delivery && formData.driver_id && formData.delivery_date) {
+  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode) {
     try {
       setTimeout(() => {
         reorderStops(formData.driver_id, formData.delivery_date, allDeliveries)

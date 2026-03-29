@@ -863,7 +863,7 @@ export default function DeliveryFormView({
 
                   if (!didSave) return;
 
-                  if (!isHistoricalCompletionEdit) {
+                  if (!isPickupMode && !isHistoricalCompletionEdit) {
                     const affectedRoutes = [
                       [driverId, deliveryDate],
                       [previousDriverId, previousDeliveryDate]
