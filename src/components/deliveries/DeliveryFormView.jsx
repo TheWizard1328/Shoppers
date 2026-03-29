@@ -880,9 +880,7 @@ export default function DeliveryFormView({
 
                   setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
 
-                  if (isPickupMode) {
-                    handleCancelClick();
-                  }
+                  handleCancelClick();
                   window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
                 }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
