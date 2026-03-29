@@ -141,44 +141,32 @@ export const AppDataProvider = ({ children, value }) => {
       }
 
       if (typeof window !== 'undefined') {
+        const realtimeDate = deliveryUpserts[0]?.delivery_date || nextDeliveries[0]?.delivery_date;
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
-            deliveries: deliveryUpserts,
-            freshDeliveries: deliveryUpserts,
-            immediate: deliveryUpserts.length > 0,
-            deliveryDate: deliveryUpserts[0]?.delivery_date,
-            deletedIds: deliveryDeletes,
-            deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
-            triggeredBy: 'appDataContextRealtimeFlush',
-            source: 'realtime_sync',
-            fromRealtime: true
-          }
-        }));
-
-        const realtimeDate = deliveryUpserts[0]?.delivery_date;
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: {
-            deliveries: deliveryUpserts,
-            freshDeliveries: deliveryUpserts,
-            immediate: deliveryUpserts.length > 0,
+            deliveries: nextDeliveries,
+            freshDeliveries: nextDeliveries,
+            immediate: true,
             deliveryDate: realtimeDate,
             deletedIds: deliveryDeletes,
             deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
             triggeredBy: 'realtimeWebSocket',
             source: 'realtime_sync',
-            fromRealtime: true
+            fromRealtime: true,
+            fullReplacement: true
           }
         }));
 
         window.dispatchEvent(new CustomEvent('deliveryUpdated', {
           detail: {
-            delivery: deliveryUpserts.length === 1 ? deliveryUpserts[0] : null,
-            deliveries: deliveryUpserts,
+            delivery: nextDeliveries.length === 1 ? nextDeliveries[0] : (deliveryUpserts.length === 1 ? deliveryUpserts[0] : null),
+            deliveries: nextDeliveries,
             deletedIds: deliveryDeletes,
             deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
             type: deliveryDeletes.length > 0 && deliveryUpserts.length === 0 ? 'delete' : 'update',
             source: 'realtime_sync',
-            fromRealtime: true
+            fromRealtime: true,
+            fullReplacement: true
           }
         }));
       }
@@ -197,6 +185,18 @@ export const AppDataProvider = ({ children, value }) => {
         value.updatePatientsLocally({ upserts: nextPatients, deleteIds: [] });
       } else if (applyPatientChangesLocallyRef.current) {
         applyPatientChangesLocallyRef.current({ upserts: nextPatients, deleteIds: [] });
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('patientsUpdated', {
+          detail: {
+            patients: nextPatients,
+            deletedIds: patientDeletes,
+            deletedId: patientDeletes.length === 1 ? patientDeletes[0] : undefined,
+            fromRealtime: true,
+            fullReplacement: true
+          }
+        }));
       }
     }
 
