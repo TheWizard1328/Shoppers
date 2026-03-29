@@ -196,7 +196,7 @@ export function DeliveryDeleteConfirmDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[10030] bg-black/60 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60000] bg-black/60 flex items-center justify-center p-4">
       <div className="rounded-lg shadow-xl max-w-md w-full p-4 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
         <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
           Delete Pending {isPickup ? 'Pickup' : 'Delivery'}?
@@ -216,7 +216,7 @@ export function DeliveryDeleteConfirmDialog({
                   onValueChange={(value) => setDeleteConfirmation(prev => ({ ...prev, transferPickupId: value === "delete_all" ? null : value }))}
                 >
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent className="z-[10040]">
+                  <SelectContent className="z-[60010]">
                     <SelectItem value="delete_all">🗑️ Delete All Stops</SelectItem>
                     {otherPickups.map(pickup => (
                       <SelectItem key={pickup.id} value={pickup.id}>{pickup.store_name} [{pickup.ampm_deliveries}] (TR: {pickup.tracking_number})</SelectItem>
