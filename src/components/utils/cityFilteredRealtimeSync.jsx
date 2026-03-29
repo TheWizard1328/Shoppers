@@ -113,8 +113,12 @@ class CityFilteredRealtimeSync {
               window.dispatchEvent(new CustomEvent('deliveryUpdated', {
                 detail: { 
                   delivery: freshDelivery,
+                  deliveries: [freshDelivery],
+                  freshDeliveries: [freshDelivery],
+                  immediate: true,
+                  deliveryDate: freshDelivery.delivery_date,
                   type: event.type,
-                  source: 'realtime',
+                  source: 'realtime_sync',
                   fromRealtime: true
                 }
               }));
@@ -122,8 +126,12 @@ class CityFilteredRealtimeSync {
               // Event 2: deliveriesUpdated for map/dashboard refresh
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                 detail: { 
+                  deliveries: [freshDelivery],
+                  freshDeliveries: [freshDelivery],
+                  immediate: true,
                   deliveryDate: freshDelivery.delivery_date,
                   triggeredBy: 'realtimeWebSocket',
+                  source: 'realtime_sync',
                   fromRealtime: true
                 }
               }));

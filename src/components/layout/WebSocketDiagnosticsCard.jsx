@@ -81,9 +81,17 @@ export default function WebSocketDiagnosticsCard() {
       } 
       // Handle Delivery updates
       else if (entityName === 'Delivery') {
+        const meaningfulFields = (changedFields || []).filter((field) => ![
+          'proof_photo_urls',
+          'cod_payments',
+          'receipt_barcode_values',
+          'barcode_values',
+          'updated_date'
+        ].includes(field));
+
         displayInfo.title = data.patient_name || data.patient?.full_name || 'Delivery Update';
-        displayInfo.details = changedFields?.length > 0
-          ? `Changed: ${changedFields.join(', ')}`
+        displayInfo.details = meaningfulFields.length > 0
+          ? `Changed: ${meaningfulFields.join(', ')}`
           : data.status
             ? `Status: ${data.status}`
             : 'Delivery updated';
