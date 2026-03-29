@@ -22,6 +22,7 @@ export default function PullToSync({
   const touchStartY = useRef(0);
   const syncThreshold = 80; // Pull threshold to trigger sync
   const activeSyncRunIdRef = useRef(null);
+  const lastSyncStartedAtRef = useRef(0);
 
   useEffect(() => {
     const statsCard = statsCardRef?.current;
@@ -69,6 +70,7 @@ export default function PullToSync({
   useEffect(() => {
     const handleTriggerSync = async (event) => {
       const silent = event.detail?.silent || false;
+      if (isSyncing || (window.__dashboardSyncing && window.__activePullToSyncRunId)) return;
       console.log(`🔄 [PullToSync] Sync triggered programmatically (silent: ${silent})`);
       await performSync(silent);
     };
@@ -78,6 +80,11 @@ export default function PullToSync({
   }, []);
 
   const performSync = async (silent = false) => {
+    const now = Date.now();
+    if (isSyncing || (window.__dashboardSyncing && window.__activePullToSyncRunId)) return;
+    if (now - lastSyncStartedAtRef.current < 10000) return;
+
+    lastSyncStartedAtRef.current = now;
     setIsSyncing(true);
     setShowOverlay(!silent);
     try { window.__dashboardSyncing = true; window.dispatchEvent(new CustomEvent('pullToSyncStarted')); } catch (e) {}
@@ -85,6 +92,8 @@ export default function PullToSync({
     try {
       const selectedDateStr = globalFilters.getSelectedDate() || format(selectedDate, 'yyyy-MM-dd');
       const currentDriverId = globalFilters.getSelectedDriverId() || selectedDriverId;
+
+      await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
       const driverFilter = currentDriverId && currentDriverId !== 'all' 
         ? { driver_id: currentDriverId } 
         : {};
@@ -270,20 +279,14 @@ export default function PullToSync({
   // Listen for silent sync trigger (e.g., after AppUser updates)
   useEffect(() => {
     const handleSilentSync = async () => {
+      if (isSyncing || (window.__dashboardSyncing && window.__activePullToSyncRunId)) return;
       console.log('🔇 [PullToSync] Silent sync triggered after AppUser update');
-      const syncRunId = `${Date.now()}`;
-      activeSyncRunIdRef.current = syncRunId;
-      try {
-        window.__dashboardSyncing = true;
-        window.__activePullToSyncRunId = syncRunId;
-        window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { syncRunId } }));
-      } catch (e) {}
       await performSync(true);
     };
 
     window.addEventListener('triggerSilentSync', handleSilentSync);
     return () => window.removeEventListener('triggerSilentSync', handleSilentSync);
-  }, []);
+  }, [isSyncing]);
 
   const pullProgress = Math.min(pullDistance / syncThreshold, 1);
   const rotation = pullProgress * 360;
