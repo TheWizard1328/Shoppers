@@ -104,9 +104,14 @@ export default function WebSocketDiagnosticsCard() {
 
       // Handle AppUser updates
       if (entityName === 'AppUser') {
+        const locationOnlyFields = ['current_latitude', 'current_longitude', 'location_updated_at'];
+        const hasChangedFields = Array.isArray(changedFields) && changedFields.length > 0;
+        const isLocationOnlyUpdate = hasChangedFields && changedFields.every((field) => locationOnlyFields.includes(field));
+        if (isLocationOnlyUpdate) return;
+
         displayInfo.title = data.user_name || data.full_name || 'User Update';
-        displayInfo.details = changedFields?.length > 0 
-          ? changedFields.join(', ') 
+        displayInfo.details = hasChangedFields
+          ? changedFields.join(', ')
           : 'Status updated';
       } 
       // Handle Delivery updates
