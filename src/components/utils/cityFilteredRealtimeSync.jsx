@@ -154,19 +154,31 @@ class CityFilteredRealtimeSync {
              await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
              console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
 
-             // Notify subscribers
-             this.notifySubscribers('Delivery', event.type, { id: event.id });
+             // Notify subscribers with the raw id so delete batching stays consistent
+             this.notifySubscribers('Delivery', event.type, event.id);
              this.lastDeliveryUpdate = Date.now();
              
-             // Dispatch delete event for Dashboard
+             // Dispatch delete events for Dashboard and overlays
              window.dispatchEvent(new CustomEvent('deliveryUpdated', {
                detail: { 
                  delivery: { id: event.id },
+                 deletedId: event.id,
                  type: 'delete',
                  source: 'realtime',
                  fromRealtime: true
                }
              }));
+
+             window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+               detail: {
+                 deletedId: event.id,
+                 triggeredBy: 'realtimeWebSocket',
+                 source: 'realtime_sync',
+                 fromRealtime: true
+               }
+             }));
+
+             window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
            }
        } catch (error) {
          console.error('❌ [Realtime Delivery] Error processing event:', error);
@@ -222,9 +234,13 @@ class CityFilteredRealtimeSync {
           await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, event.id);
           console.log(`✅ [Realtime AppUser] Deleted from offline DB: ${event.id}`);
           
-          // Notify subscribers
-          this.notifySubscribers('AppUser', event.type, { id: event.id });
+          // Notify subscribers with raw id for consistent delete handling
+          this.notifySubscribers('AppUser', event.type, event.id);
           this.lastAppUserUpdate = Date.now();
+
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { deletedId: event.id, fromRealtime: true }
+          }));
         }
       } catch (error) {
         console.error('❌ [Realtime AppUser] Error processing event:', error);
@@ -275,9 +291,13 @@ class CityFilteredRealtimeSync {
           await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, event.id);
           console.log(`✅ [Realtime Patient] Deleted from offline DB: ${event.id}`);
 
-          // Broadcast deletion
-          this.notifySubscribers('Patient', event.type, { id: event.id });
+          // Broadcast deletion with raw id for consistent batching
+          this.notifySubscribers('Patient', event.type, event.id);
           this.lastPatientUpdate = Date.now();
+
+          window.dispatchEvent(new CustomEvent('patientsUpdated', {
+            detail: { deletedId: event.id, deletedIds: [event.id], fromRealtime: true }
+          }));
         }
       } catch (error) {
         console.error('❌ [Realtime Patient] Error processing event:', error);

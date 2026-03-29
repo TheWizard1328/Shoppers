@@ -120,6 +120,18 @@ export const AppDataProvider = ({ children, value }) => {
       } else if (updateDeliveriesLocallyRef.current) {
         updateDeliveriesLocallyRef.current(nextDeliveries, true);
       }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            deliveries: deliveryUpserts,
+            deletedIds: deliveryDeletes,
+            deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
+            source: 'realtime_sync',
+            fromRealtime: true
+          }
+        }));
+      }
     }
 
     if (appUsersChanged) {
