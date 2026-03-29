@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { base44 } from '@/api/base44Client';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 
 export default function WebSocketDiagnosticsCard() {
   const [event, setEvent] = useState(null);
@@ -65,8 +65,8 @@ export default function WebSocketDiagnosticsCard() {
   useEffect(() => {
     const resolvePatientName = async (patientId) => {
       if (!patientId || patientNameCache[patientId]) return patientNameCache[patientId] || null;
-      const results = await base44.entities.Patient.filter({ id: patientId });
-      const resolvedName = Array.isArray(results) && results[0]?.full_name ? results[0].full_name : null;
+      const patient = await offlineDB.getRecord(offlineDB.STORES.PATIENTS, patientId);
+      const resolvedName = patient?.full_name || null;
       if (resolvedName) {
         setPatientNameCache((prev) => ({ ...prev, [patientId]: resolvedName }));
       }
@@ -75,8 +75,8 @@ export default function WebSocketDiagnosticsCard() {
 
     const resolveStoreName = async (storeId) => {
       if (!storeId || storeNameCache[storeId]) return storeNameCache[storeId] || null;
-      const results = await base44.entities.Store.filter({ id: storeId });
-      const resolvedName = Array.isArray(results) && results[0]?.name ? results[0].name : null;
+      const store = await offlineDB.getRecord(offlineDB.STORES.STORES, storeId);
+      const resolvedName = store?.name || null;
       if (resolvedName) {
         setStoreNameCache((prev) => ({ ...prev, [storeId]: resolvedName }));
       }
