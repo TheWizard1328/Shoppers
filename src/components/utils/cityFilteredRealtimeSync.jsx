@@ -171,6 +171,7 @@ class CityFilteredRealtimeSync {
                detail: { 
                  delivery: { id: event.id },
                  deletedId: event.id,
+                 deletedName: event.data?.patient_name || event.data?.patient?.full_name || null,
                  type: 'delete',
                  source: 'realtime',
                  fromRealtime: true
@@ -304,7 +305,7 @@ class CityFilteredRealtimeSync {
           this.lastPatientUpdate = Date.now();
 
           window.dispatchEvent(new CustomEvent('patientsUpdated', {
-            detail: { deletedId: event.id, deletedIds: [event.id], fromRealtime: true }
+            detail: { deletedId: event.id, deletedIds: [event.id], deletedName: event.data?.full_name || null, fromRealtime: true }
           }));
         }
       } catch (error) {

@@ -32,14 +32,22 @@ export default function WebSocketDiagnosticsCard() {
       const isMobileView = isMobileDevice || isTabletPortrait;
       setIsMobile(isMobileView);
 
+      if (!isMobileView) {
+        setTopOffset(12);
+        return;
+      }
+
+      const statsCardContainer = document.querySelector('.horizontal-cards-container');
       const mobileHeader = document.querySelector('[data-mobile-header]');
-      if (mobileHeader) {
+
+      if (statsCardContainer) {
+        const rect = statsCardContainer.getBoundingClientRect();
+        setTopOffset(Math.max(12, rect.top - 70));
+      } else if (mobileHeader) {
         const headerHeight = mobileHeader.getBoundingClientRect().height;
-        // On mobile: position lower to align with stats card (headerHeight + 180px)
-        // On desktop: just below header
-        setTopOffset(isMobileView ? headerHeight + 180 : headerHeight + 8);
+        setTopOffset(headerHeight + 180);
       } else {
-        setTopOffset(isMobileView ? 240 : 72); // Default fallback
+        setTopOffset(240);
       }
     };
 
@@ -59,8 +67,9 @@ export default function WebSocketDiagnosticsCard() {
     const handleWebSocketEvent = (e) => {
       const { data, type, id, updatedBy, changedFields } = e.detail || {};
       const actionType = type || 'update';
+      const deletedName = e.detail?.deletedName || e.detail?.patientName || e.detail?.deliveryName || null;
       if (!data && actionType !== 'delete') return;
-      
+
       // Extract entity name from event target
       const eventType = e.type; // e.g., 'realtimeUpdate_Delivery'
       const entityName = eventType.replace('realtimeUpdate_', '');
@@ -110,7 +119,7 @@ export default function WebSocketDiagnosticsCard() {
           ? meaningfulFields.map((field) => fieldLabels[field] || field.replace(/_/g, ' ')).join(', ')
           : null;
 
-        const deliveryName = data?.patient_name || data?.patient?.full_name || data?.delivery_id || `Delivery ${id || ''}`.trim();
+        const deliveryName = data?.patient_name || data?.patient?.full_name || deletedName || 'Unnamed delivery';
         displayInfo.title = deliveryName;
         displayInfo.details = actionType === 'create'
           ? 'Delivery added'
@@ -122,7 +131,7 @@ export default function WebSocketDiagnosticsCard() {
       }
       // Handle Patient updates
       else if (entityName === 'Patient') {
-        const patientName = data?.full_name || `Patient ${id || ''}`.trim();
+        const patientName = data?.full_name || deletedName || 'Unnamed patient';
         displayInfo.title = patientName;
         displayInfo.details = actionType === 'create'
           ? 'Patient added'
