@@ -59,22 +59,12 @@ Deno.serve(async (req) => {
 
     try {
       const key = `${storeId}|${deliveryDate}|${driverId}|${requestedSlot || 'auto'}`;
-      const last = ensurePickupRecent.get(key);
-      const nowTs = Date.now();
-      if (last && (nowTs - last) < 3500) {
-        return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, debounced: true });
-      }
-      ensurePickupRecent.set(key, nowTs);
+      ensurePickupRecent.set(key, Date.now());
     } catch (_) {}
 
     try {
       const inflightKey = `${storeId}|${deliveryDate}|${driverId}|${requestedSlot || 'auto'}`;
-      const lastTs = ensurePickupInFlight.get(inflightKey);
-      const nowTs = Date.now();
-      if (lastTs && (nowTs - lastTs) < 3500) {
-        return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, debounced: true });
-      }
-      ensurePickupInFlight.set(inflightKey, nowTs);
+      ensurePickupInFlight.set(inflightKey, Date.now());
       setTimeout(() => {
         try { ensurePickupInFlight.delete(inflightKey); } catch (_) {}
       }, 3600);
