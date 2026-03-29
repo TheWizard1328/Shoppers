@@ -10,6 +10,18 @@ import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { invalidateDeliveriesForDate } from "@/components/utils/dataManager";
 
+const buildRadiusBoundsFromStore = (store, radiusKm = 2.5) => {
+  if (!store?.latitude || !store?.longitude) return [];
+  const lat = Number(store.latitude);
+  const lng = Number(store.longitude);
+  const latDelta = radiusKm / 111;
+  const lngDelta = radiusKm / (111 * Math.cos((lat * Math.PI) / 180) || 1);
+  return [
+    [lat - latDelta, lng - lngDelta],
+    [lat + latDelta, lng + lngDelta]
+  ];
+};
+
 export default function FABControls({
   currentUser, isDriver, isDispatcher,
   patients, stores, deliveriesWithStopOrder, filteredDeliveries,
@@ -29,10 +41,19 @@ export default function FABControls({
   const activeStopCount = deliveriesWithStopOrder.filter((delivery) => delivery && !finishedStatuses.includes(delivery.status)).length;
   const isMapCycleEnabled = activeStopCount > 1;
   const fabPosition = isMobileDevice() ? 'absolute' : 'fixed';
+  const selectedStore = stores.find((store) => store?.id === filteredDeliveries?.[0]?.store_id);
 
   return (
     <>
-      <MapViewCycleFAB onClick={handleMapViewCycle} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} />
+      <MapViewCycleFAB onClick={() => {
+        if (isDispatcher && mapViewPhase === 1 && selectedStore) {
+          const pad = getMapPadding();
+          setShouldFitBounds({ bounds: buildRadiusBoundsFromStore(selectedStore, 2.5), options: { ...pad, maxZoom: 14, animate: true } });
+          setMapCenter(null);
+          setMapZoom(null);
+        }
+        handleMapViewCycle();
+      }} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} />
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
         <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
