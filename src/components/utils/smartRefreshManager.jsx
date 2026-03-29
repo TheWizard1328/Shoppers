@@ -589,6 +589,7 @@ class LightweightRefreshManager {
         if (typeof window !== 'undefined' && selectedDriverId && selectedDriverId !== 'all' && selectedDate) {
           const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate).catch(() => []);
           if (shouldAutoCenterNextDeliveryFromSmartRefresh(offlineDeliveries, selectedDriverId, this._currentUser)) {
+            console.log('🎯 [SmartRefresh] Auto-centering next delivery on AppUser 60s refresh');
             window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
             setTimeout(() => {
               window.dispatchEvent(new CustomEvent('centerNextDeliveryCard', {
@@ -734,6 +735,7 @@ class LightweightRefreshManager {
           const selectedDriverId = globalFilters.getSelectedDriverId();
           const deliveriesForCenterCheck = updates.deliveries || currentData.deliveries || [];
           if (shouldAutoCenterNextDeliveryFromSmartRefresh(deliveriesForCenterCheck, selectedDriverId, this._currentUser)) {
+            console.log('🎯 [SmartRefresh] Auto-centering next delivery after smart refresh');
             window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
             setTimeout(() => {
               window.dispatchEvent(new CustomEvent('centerNextDeliveryCard', {

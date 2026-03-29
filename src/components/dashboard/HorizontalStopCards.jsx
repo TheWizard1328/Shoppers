@@ -130,8 +130,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       }
     };
 
-    const handleCenterStopCard = (event) => {
-      const deliveryId = event?.detail?.deliveryId;
+    const centerCardById = (deliveryId) => {
       if (!deliveryId) return;
       const exists = validCards.some((card) => card?.id === deliveryId);
       if (!exists) return;
@@ -149,14 +148,25 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       });
     };
 
+    const handleCenterStopCard = (event) => {
+      centerCardById(event?.detail?.deliveryId);
+    };
+
+    const handleCenterNextDeliveryCard = () => {
+      const nextCard = validCards.find((card) => card?.isNextDelivery === true);
+      centerCardById(nextCard?.id);
+    };
+
     window.addEventListener('collapseAllStopCards', handleCollapseAll);
     window.addEventListener('collapseSelectedStopCard', handleCollapseSelected);
     window.addEventListener('centerStopCard', handleCenterStopCard);
+    window.addEventListener('centerNextDeliveryCard', handleCenterNextDeliveryCard);
 
     return () => {
       window.removeEventListener('collapseAllStopCards', handleCollapseAll);
       window.removeEventListener('collapseSelectedStopCard', handleCollapseSelected);
       window.removeEventListener('centerStopCard', handleCenterStopCard);
+      window.removeEventListener('centerNextDeliveryCard', handleCenterNextDeliveryCard);
     };
   }, [onSelectionChange, onCardClick, validCards, isDesktopFanLayout, scrollToCenterCard]);
 
