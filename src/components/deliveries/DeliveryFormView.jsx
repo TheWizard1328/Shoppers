@@ -845,8 +845,14 @@ export default function DeliveryFormView({
                   const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
                   await runLockedAction('update_delivery', async () => {
-                    await handleSubmit(submitEvent);
-                    didSave = true;
+                    const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+                    smartRefreshManager.pause();
+                    try {
+                      await handleSubmit(submitEvent);
+                      didSave = true;
+                    } finally {
+                      smartRefreshManager.resume();
+                    }
                   });
 
                   if (!didSave) return;
@@ -872,6 +878,9 @@ export default function DeliveryFormView({
                     hasTimeWindowChanges: shouldOptimizeInBackground
                   });
 
+                  if (isPickupMode) {
+                    handleCancelClick();
+                  }
                   window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
                 }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
