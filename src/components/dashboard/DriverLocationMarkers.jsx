@@ -337,8 +337,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     // which already handles all permission checks, status checks, and dispatcher logic
     // We just need to do basic validation and track changes for re-rendering
     
-    console.log(`🔍 [DriverMarkers - users prop] Processing ${users?.length || 0} drivers from prop`);
-    
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
 
@@ -365,8 +363,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const deduplicatedDrivers = dedupeVisibleDrivers(validDrivers);
     const mergedDrivers = mergeVisibleDriversByFreshness(visibleDrivers, deduplicatedDrivers).filter(shouldShowMarker);
     
-    console.log(`📍 [DriverMarkers - users prop] Validated ${deduplicatedDrivers.length}/${users?.length || 0} drivers`);
-    
     const newVisibleIds = new Set(mergedDrivers.map(d => getDriverIdentityKey(d) || d.id));
     const prevIds = prevVisibleIdsRef.current;
     
@@ -381,15 +377,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       const latDiff = Math.abs((driver.current_latitude || 0) - (existing.current_latitude || 0));
       const lngDiff = Math.abs((driver.current_longitude || 0) - (existing.current_longitude || 0));
       
-      if (latDiff > 0 || lngDiff > 0) {
-        console.log(`🔄 [DriverMarkers - users prop] ${driver.user_name} location changed - lat: ${latDiff.toFixed(6)}, lng: ${lngDiff.toFixed(6)}`);
-      }
-      
       return latDiff > 0 || lngDiff > 0;
     });
     
     if (idsChanged || locationsChanged) {
-      console.log(`🔄 [DriverMarkers - users prop] Updating markers - idsChanged: ${idsChanged}, locationsChanged: ${locationsChanged}`);
       setVisibleDrivers(mergedDrivers);
       prevVisibleIdsRef.current = newVisibleIds;
     }
