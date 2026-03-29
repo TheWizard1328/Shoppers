@@ -550,8 +550,8 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       // STEP 5: Notify UI with backend version (most up-to-date)
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
       
-      // Broadcast to other devices
-      broadcastMutation('Delivery', 'update', deliveryId, backendDelivery);
+      // Broadcast to other devices immediately
+      await broadcastMutation('Delivery', 'update', deliveryId, backendDelivery);
       
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery update sync failed, queuing:', error.message);
