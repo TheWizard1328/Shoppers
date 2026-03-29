@@ -907,7 +907,7 @@ export default function Layout({ children, currentPageName }) {
 
           // CRITICAL: If location changed, also refresh delivery markers (for polyline origins)
           // Skip toast notification for location updates
-          if (update.data?.current_latitude || update.data?.current_longitude) {
+          if (update.data?.current_latitude || update.data?.current_longitude || update.data?.location_updated_at) {
             console.log(`📍 [Layout] Driver ${update.data.user_id} location updated - forcing map refresh (no notification)`);
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
               detail: {
