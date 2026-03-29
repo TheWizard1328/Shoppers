@@ -3,6 +3,7 @@ import { smartRefreshManager } from './smartRefreshManager';
 import { base44 } from '@/api/base44Client';
 import { shouldRefreshUserFromAppUser } from './appUserRefreshUtils';
 import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
+import { subscribeToRealtime } from './realtimeSync';
 import { ensurePolylineSubscription } from './hereRouting';
 import ImmediateNextDeliveryController from './ImmediateNextDeliveryController';
 
@@ -248,10 +249,10 @@ export const AppDataProvider = ({ children, value }) => {
     // Start real-time subscriptions
     cityFilteredRealtimeSync.start(value.selectedCityId, value.selectedDate);
 
-    // Subscribe to real-time updates
-    // CRITICAL: Use refs instead of closure-captured values to always get the latest state
-    const unsubscribe = cityFilteredRealtimeSync.subscribe(({ entityType, eventType, data }) => {
-      const payload = eventType === 'delete' ? (typeof data === 'string' ? data : data?.id) : data;
+    const handleRealtimeEvent = ({ entityType, eventType, data, id }) => {
+      const payload = eventType === 'delete'
+        ? (typeof data === 'string' ? data : data?.id || id)
+        : data;
 
       if (entityType === 'Delivery') {
         scheduleRealtimeEntityUpdate('Delivery', eventType, payload);
@@ -266,10 +267,15 @@ export const AppDataProvider = ({ children, value }) => {
       if (entityType === 'AppUser') {
         scheduleRealtimeEntityUpdate('AppUser', eventType, payload);
       }
-    });
+    };
+
+    // Subscribe to both city-filtered websocket events and global local broadcasts
+    const unsubscribe = cityFilteredRealtimeSync.subscribe(handleRealtimeEvent);
+    const unsubscribeGlobalRealtime = subscribeToRealtime(handleRealtimeEvent);
 
     return () => {
       unsubscribe();
+      unsubscribeGlobalRealtime();
       cityFilteredRealtimeSync.stop();
       if (realtimeBatchTimerRef.current) {
         clearTimeout(realtimeBatchTimerRef.current);
