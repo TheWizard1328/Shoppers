@@ -82,12 +82,18 @@ export default function WebSocketDiagnosticsCard() {
       // Handle Delivery updates
       else if (entityName === 'Delivery') {
         displayInfo.title = data.patient_name || data.patient?.full_name || 'Delivery Update';
-        displayInfo.details = data.status ? `→ ${data.status}` : 'Updated';
+        displayInfo.details = changedFields?.length > 0
+          ? `Changed: ${changedFields.join(', ')}`
+          : data.status
+            ? `Status: ${data.status}`
+            : 'Delivery updated';
       }
       // Handle Patient updates
       else if (entityName === 'Patient') {
         displayInfo.title = data.full_name || 'Patient Update';
-        displayInfo.details = 'Patient information updated';
+        displayInfo.details = changedFields?.length > 0
+          ? `Changed: ${changedFields.join(', ')}`
+          : 'Patient information updated';
       }
       // Generic fallback
       else {

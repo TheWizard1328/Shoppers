@@ -132,6 +132,19 @@ export const AppDataProvider = ({ children, value }) => {
             deliveryDate: realtimeDate,
             deletedIds: deliveryDeletes,
             deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
+            triggeredBy: 'realtimeWebSocket',
+            source: 'realtime_sync',
+            fromRealtime: true
+          }
+        }));
+
+        window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+          detail: {
+            delivery: deliveryUpserts.length === 1 ? deliveryUpserts[0] : null,
+            deliveries: deliveryUpserts,
+            deletedIds: deliveryDeletes,
+            deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
+            type: deliveryDeletes.length > 0 && deliveryUpserts.length === 0 ? 'delete' : 'update',
             source: 'realtime_sync',
             fromRealtime: true
           }
