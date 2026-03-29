@@ -271,7 +271,7 @@ function Dashboard() {
     if (!currentUser || !isDataLoaded) return;
 
     const handleImmediateDeliveryUpdate = async (event) => {
-      const { immediate, freshDeliveries, deliveryDate } = event.detail || {};
+      const { immediate, freshDeliveries, deliveryDate, skipMapPhaseOneRefresh } = event.detail || {};
 
       if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
         if (updateDeliveriesLocally) {
@@ -4782,11 +4782,11 @@ function Dashboard() {
           setSelectedCardId(null); setEndOfDayDriver(currentUser); setShowEndOfDayStats(true);
 
           // STEP 2: Set map to Phase 1 as an unlocked programmatic view
-          setMapViewPhase(1);
+          if (skipMapPhaseOneRefresh); else { setMapViewPhase(1);
           setIsMapViewLocked(false);
           lastProgrammaticMapMoveRef.current = Date.now();
           window._lastProgrammaticMapMove = Date.now();
-          setMapViewTrigger((prev) => prev + 1);
+          setMapViewTrigger((prev) => prev + 1); }
 
           if (currentUser?.id) {
             saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);

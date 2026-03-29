@@ -80,20 +80,23 @@ async function flushBuffered(entityName) {
 
   if (typeof window !== 'undefined' && entityName === 'Delivery' && Array.isArray(fullReplacementData)) {
     const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
+    const hasCreateOrDelete = items.some((item) => item.eventType === 'create' || item.eventType === 'delete');
+
     window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
       detail: {
         deliveries: fullReplacementData,
         freshDeliveries: fullReplacementData,
         immediate: true,
         deliveryDate: selectedDate,
-        triggeredBy: 'realtimeBufferedFullRefresh',
+        triggeredBy: hasCreateOrDelete ? 'realtimeBufferedFullRefresh' : 'realtimeBufferedFieldUpdate',
         source: 'realtime_sync',
         fromRealtime: true,
-        fullReplacement: true
+        fullReplacement: hasCreateOrDelete,
+        skipMapPhaseOneRefresh: !hasCreateOrDelete
       }
     }));
 
-    if (items.some((item) => item.eventType === 'create' || item.eventType === 'delete')) {
+    if (hasCreateOrDelete) {
       fabControlEvents.notifyDeliveryRealtimeCreateOrDelete();
     }
   }
