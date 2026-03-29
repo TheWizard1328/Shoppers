@@ -45,12 +45,12 @@ export default function WebSocketDiagnosticsCard() {
 
       if (statsCardContainer) {
         const rect = statsCardContainer.getBoundingClientRect();
-        setTopOffset(Math.max(12, rect.top - 70));
+        setTopOffset(Math.max(12, rect.top));
       } else if (mobileHeader) {
         const headerHeight = mobileHeader.getBoundingClientRect().height;
-        setTopOffset(headerHeight + 180);
+        setTopOffset(headerHeight + 12);
       } else {
-        setTopOffset(240);
+        setTopOffset(12);
       }
     };
 
