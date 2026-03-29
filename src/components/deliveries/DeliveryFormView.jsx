@@ -187,11 +187,11 @@ export default function DeliveryFormView({
   const handleGlobalKeyDown = (e) => {
     if (e.key === 'Enter') {
       if (e.repeat || e.nativeEvent?.isComposing || e.defaultPrevented) return;
-      // Skip if focused on textarea, button, select-like controls, or the patient search input (handled elsewhere)
+      // Skip if focused on textarea, button, footer actions, select-like controls, or the patient search input (handled elsewhere)
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' || e.target.type === 'submit') {
         return;
       }
-      if (e.target === patientSearchInputRef?.current || e.target.closest?.('[role="combobox"], [data-radix-select-trigger], [data-hotkey-add="false"], footer button')) {
+      if (e.target === patientSearchInputRef?.current || e.target.closest?.('button, footer, [role="combobox"], [data-radix-select-trigger], [data-hotkey-add="false"]')) {
         return;
       }
       

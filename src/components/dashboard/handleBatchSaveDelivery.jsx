@@ -33,6 +33,7 @@ export const handleBatchSaveDelivery = async ({
   invalidateDeliveriesForDate
 }) => {
   const stagedDeliveries = deliveryData._stagedDeliveries;
+  const ensuredPickupRecords = Array.isArray(deliveryData._ensuredPickups) ? deliveryData._ensuredPickups.filter(Boolean) : [];
   const allCreatedDeliveries = [];
   const allUpdatedDeliveries = [];
   const createdPickupRecords = [];
@@ -611,7 +612,7 @@ export const handleBatchSaveDelivery = async ({
   const batchDriverId = stagedDeliveries[0]?.driver_id;
   
   // Use the locally created/updated deliveries to update UI immediately
-  const allProcessedDeliveries = Array.from(new Map([...allCreatedDeliveries, ...createdPickupRecords, ...allUpdatedDeliveries].filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
+  const allProcessedDeliveries = Array.from(new Map([...allCreatedDeliveries, ...createdPickupRecords, ...ensuredPickupRecords, ...allUpdatedDeliveries].filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
   
   if (updateDeliveriesLocally && allProcessedDeliveries.length > 0) {
     updateDeliveriesLocally(allProcessedDeliveries, false); // Merge instead of replace
