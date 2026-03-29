@@ -131,6 +131,11 @@ class CityFilteredRealtimeSync {
               // Event 3: Force stats refresh
               window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
+              // Flash FAB only after UI had a chance to apply the delivery update.
+              if (typeof window.__fabFlashUpdate === 'function') {
+                requestAnimationFrame(() => requestAnimationFrame(() => window.__fabFlashUpdate()));
+              }
+
               // CRITICAL: Trigger WebSocket reconciler (5-sec delayed safety check)
               try {
                 const reconciler = await getReconciler();
