@@ -45,6 +45,10 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     }
   }
 
+  if (!dataToSave.patient_id) {
+    dataToSave.status = 'en_route';
+  }
+
   return dataToSave;
 };
 
