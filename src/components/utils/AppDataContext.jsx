@@ -239,18 +239,20 @@ export const AppDataProvider = ({ children, value }) => {
     // Subscribe to real-time updates
     // CRITICAL: Use refs instead of closure-captured values to always get the latest state
     const unsubscribe = cityFilteredRealtimeSync.subscribe(({ entityType, eventType, data }) => {
+      const payload = eventType === 'delete' ? (typeof data === 'string' ? data : data?.id) : data;
+
       if (entityType === 'Delivery') {
-        scheduleRealtimeEntityUpdate('Delivery', eventType, data);
+        scheduleRealtimeEntityUpdate('Delivery', eventType, payload);
         return;
       }
 
       if (entityType === 'Patient') {
-        scheduleRealtimeEntityUpdate('Patient', eventType, data);
+        scheduleRealtimeEntityUpdate('Patient', eventType, payload);
         return;
       }
 
       if (entityType === 'AppUser') {
-        scheduleRealtimeEntityUpdate('AppUser', eventType, data);
+        scheduleRealtimeEntityUpdate('AppUser', eventType, payload);
       }
     });
 
