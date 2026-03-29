@@ -43,12 +43,8 @@ export default function WebSocketDiagnosticsCard() {
       const statsCardContainer = document.querySelector('.horizontal-cards-container');
       const mobileHeader = document.querySelector('[data-mobile-header]');
 
-      if (statsCardContainer) {
-        const rect = statsCardContainer.getBoundingClientRect();
-        setTopOffset(Math.max(12, rect.top));
-      } else if (mobileHeader) {
-        const headerHeight = mobileHeader.getBoundingClientRect().height;
-        setTopOffset(headerHeight + 12);
+      if (statsCardContainer || mobileHeader) {
+        setTopOffset(12);
       } else {
         setTopOffset(12);
       }
