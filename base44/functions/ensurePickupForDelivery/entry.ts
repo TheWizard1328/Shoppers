@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
       }, 3600);
     } catch (_) {}
 
-    const stores = await base44.entities.Store.filter({ id: storeId });
+    const stores = await base44.asServiceRole.entities.Store.filter({ id: storeId });
     const store = stores[0];
     const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || '';
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       const now = new Date();
       const ampmDeliveries = requestedAmpm || (now.getHours() < 14 ? 'AM' : 'PM');
 
-      const existingPickups = await base44.entities.Delivery.filter({
+      const existingPickups = await base44.asServiceRole.entities.Delivery.filter({
         store_id: storeId,
         delivery_date: deliveryDate,
         driver_id: driverId,
@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const storePickups = (await base44.entities.Delivery.filter({
+    const storePickups = (await base44.asServiceRole.entities.Delivery.filter({
       store_id: storeId,
       delivery_date: deliveryDate,
       driver_id: driverId
@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
     const puid = generateShortStopId();
 
     if (!allPickups) {
-      allPickups = await base44.entities.Delivery.filter({
+      allPickups = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: deliveryDate,
         driver_id: driverId
       }, '-created_date', 150);
@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
     const baseNumber = totalPickupsAfterCreate * 20 - 20;
     const trackingNumber = `${store?.abbreviation || ''}${baseNumber}`;
 
-    const newPickup = await base44.entities.Delivery.create({
+    const newPickup = await base44.asServiceRole.entities.Delivery.create({
       stop_id: puid,
       store_id: storeId,
       delivery_id: generateDeliveryId(),
