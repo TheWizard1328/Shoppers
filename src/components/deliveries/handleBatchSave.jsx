@@ -93,11 +93,12 @@ export async function handleBatchSave({
     return;
   }
 
+  const ensuredPickupSeed = safeStagedDeliveries.filter((item) => item && !item.patient_id);
   const { deliveriesWithTRs, existingDeliveriesWithTRs } = attachTrackingNumbers({
     newDeliveries,
     existingDeliveries,
     stores: safeStores,
-    allDeliveries: safeAllDeliveries,
+    allDeliveries: [...safeAllDeliveries, ...ensuredPickupSeed],
     deliveryDate: formData.delivery_date
   });
 
@@ -176,7 +177,8 @@ export async function handleBatchSave({
               storeId: assignedStore.id,
               deliveryDate: group.deliveryDate,
               driverId,
-              ampmDeliveries: timeSlot
+              ampmDeliveries: timeSlot,
+              allowCreateIfMissing: true
             }).catch(() => null)
           );
         });
