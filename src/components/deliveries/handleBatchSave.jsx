@@ -1,7 +1,6 @@
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
-import { offlineDB } from '../utils/offlineDatabase';
-import { broadcastMutation } from '../utils/realtimeSync';
+import { createDeliveryLocal } from '../utils/entityMutations';
 import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
 import { resetBatchSaveDraftState, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
 import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
@@ -160,13 +159,24 @@ export async function handleBatchSave({
     if (deliveriesReadyForDB.length > 0) {
       const ensuredPickups = await Promise.all(deliveriesReadyForDB.map((d) => d?.patient_id && d?.store_id && d?.delivery_date && d?.driver_id ? base44.functions.invoke('ensurePickupForDelivery', { storeId: d.store_id, deliveryDate: d.delivery_date, driverId: d.driver_id, ampmDeliveries: d.ampm_deliveries || 'AM', allowCreateIfMissing: true }).catch(() => null) : null));
       const ensuredPickupRecords = ensuredPickups.map((result) => result?.data?.pickup).filter((pickup) => pickup?.id);
-      if (ensuredPickupRecords.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, ensuredPickupRecords);
-        ensuredPickupRecords.forEach((pickup) => {
-          broadcastMutation('Delivery', 'create', pickup.id, pickup);
-        });
-      }
-      await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB.map((d, i) => ({ ...d, puid: ensuredPickups[i]?.data?.puid || d.puid || '' })), _ensuredPickups: ensuredPickupRecords });
+      const missingPickupRecords = ensuredPickups
+        .map((result, index) => ({ result, delivery: deliveriesReadyForDB[index] }))
+        .filter(({ result }) => !result?.data?.pickup && !!result?.data?.puid)
+        .map(({ result, delivery }) => ({
+          stop_id: result.data.puid,
+          store_id: delivery.store_id,
+          delivery_date: delivery.delivery_date,
+          driver_id: delivery.driver_id,
+          driver_name: delivery.driver_name,
+          dispatcher_id: delivery.dispatcher_id || null,
+          ampm_deliveries: delivery.ampm_deliveries || 'AM',
+          status: 'en_route',
+          delivery_time_start: delivery.ampm_deliveries === 'PM' ? '15:00' : '10:00',
+          delivery_time_end: delivery.ampm_deliveries === 'PM' ? '16:00' : '11:00',
+          tracking_number: ''
+        }));
+      const createdMissingPickups = missingPickupRecords.length > 0 ? await Promise.all(missingPickupRecords.map((pickup) => createDeliveryLocal(pickup).catch(() => null))) : [];
+      await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB.map((d, i) => ({ ...d, puid: ensuredPickups[i]?.data?.puid || d.puid || '' })), _ensuredPickups: [...ensuredPickupRecords, ...createdMissingPickups.filter(Boolean)] });
     }
 
     resetBatchSaveDraftState({
