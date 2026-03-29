@@ -89,13 +89,13 @@ class CityFilteredRealtimeSync {
       console.log(`📡 [Realtime Delivery] ${event.type}:`, event.data?.patient_name || event.id);
       console.log('📦 [Realtime Delivery] Full event:', JSON.stringify({ type: event.type, id: event.id, status: event.data?.status, isNextDelivery: event.data?.isNextDelivery, driver_id: event.data?.driver_id }, null, 2));
 
-      // Process the event WITHOUT any filtering
+      // Process the event WITHOUT city filtering so new creates reach all devices immediately.
        try {
           if (event.type === 'create' || event.type === 'update') {
               console.log(`🚀 [Realtime Delivery] PROCESSING ${event.type} for ${event.data?.patient_name || event.id}`);
 
-              // Use event data directly - don't fetch again
               const freshDelivery = event.data;
+              if (!freshDelivery?.id) return;
 
               // Save to offline DB
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery]);
