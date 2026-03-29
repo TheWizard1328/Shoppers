@@ -856,31 +856,28 @@ export default function DeliveryFormView({
 
                   if (!didSave) return;
 
-                  if (true) {
-                    const affectedRoutes = [
-                      [driverId, deliveryDate],
-                      [previousDriverId, previousDeliveryDate]
-                    ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
+                  setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
+                  handleCancelClick();
+                  window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
 
-                    await Promise.all(
-                      Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
-                        .map((key) => {
-                          const [routeDriverId, routeDeliveryDate] = key.split('__');
-                          return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
-                        })
-                    );
+                  const affectedRoutes = [
+                    [driverId, deliveryDate],
+                    [previousDriverId, previousDeliveryDate]
+                  ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
 
+                  Promise.all(
+                    Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
+                      .map((key) => {
+                        const [routeDriverId, routeDeliveryDate] = key.split('__');
+                        return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+                      })
+                  ).then(() => {
                     runPostDeliveryUpdateSync({
                       driverId,
                       deliveryDate,
                       hasTimeWindowChanges: shouldOptimizeInBackground
                     });
-                  }
-
-                  setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
-
-                  handleCancelClick();
-                  window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
+                  });
                 }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
