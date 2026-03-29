@@ -1071,17 +1071,7 @@ export default function DeliveryForm({
         storeId: store.id,
         deliveryDate: formData.delivery_date,
         driverId: formData.driver_id,
-        timeSlot,
-        ensureMissingPickup: () => base44.functions.invoke('ensurePickupForDelivery', {
-          storeId: store.id,
-          deliveryDate: formData.delivery_date,
-          driverId: formData.driver_id,
-          ampmDeliveries: timeSlot,
-          allowCreateIfMissing: true
-        }).catch((err) => {
-          console.warn('⚠️ [handleAddToStaging] ensurePickup bg failed:', err?.message);
-          throw err;
-        })
+        timeSlot
       });
       newStagedDelivery = buildPatientStagedDelivery({
         formData,
@@ -1327,7 +1317,8 @@ export default function DeliveryForm({
     // Then save new deliveries
     const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
     if (deliveriesReadyForDB.length > 0) {
-      await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
+      const ensuredPickups = await Promise.all(deliveriesReadyForDB.map((d) => d?.patient_id && d?.store_id && d?.delivery_date && d?.driver_id ? base44.functions.invoke('ensurePickupForDelivery', { storeId: d.store_id, deliveryDate: d.delivery_date, driverId: d.driver_id, ampmDeliveries: d.ampm_deliveries || 'AM', allowCreateIfMissing: true }).catch(() => null) : null));
+      await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB.map((d, i) => ({ ...d, puid: ensuredPickups[i]?.data?.puid || d.puid || '' })) });
     }
 
     // CRITICAL: Close form IMMEDIATELY (steps 3-5 will run in background)
