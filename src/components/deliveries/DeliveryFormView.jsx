@@ -845,13 +845,7 @@ export default function DeliveryFormView({
                   const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
                   await runLockedAction('update_delivery', async () => {
-                    const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-                    smartRefreshManager.pause();
-                    try {
-                      didSave = await handleSubmit(submitEvent);
-                    } finally {
-                      smartRefreshManager.resume();
-                    }
+                    didSave = await handleSubmit(submitEvent);
                   });
 
                   if (!didSave) return;
