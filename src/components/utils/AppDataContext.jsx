@@ -173,10 +173,10 @@ export const AppDataProvider = ({ children, value }) => {
     }
 
     if (appUsersChanged) {
-      if (applyAppUserChangesLocallyRef.current) {
-        applyAppUserChangesLocallyRef.current({ upserts: appUserUpserts, deleteIds: appUserDeletes });
-      } else if (updateAppUsersLocallyRef.current) {
+      if (updateAppUsersLocallyRef.current) {
         updateAppUsersLocallyRef.current(nextAppUsers, true);
+      } else if (applyAppUserChangesLocallyRef.current) {
+        applyAppUserChangesLocallyRef.current({ upserts: nextAppUsers, deleteIds: [] });
       }
     }
 
@@ -208,16 +208,16 @@ export const AppDataProvider = ({ children, value }) => {
     if (appUsersChanged) {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: nextAppUsers, singleUpdate: appUserUpserts.length === 1, fromRealtime: true }
+          detail: { appUsers: nextAppUsers, singleUpdate: appUserUpserts.length === 1, fromRealtime: true, fullReplacement: true }
         }));
 
         if (appUserUpserts.length === 1) {
           window.dispatchEvent(new CustomEvent('appUserUpdated', {
-            detail: { appUser: appUserUpserts[0], fromRealtime: true }
+            detail: { appUser: appUserUpserts[0], appUsers: nextAppUsers, fromRealtime: true, fullReplacement: true }
           }));
         } else if (appUserUpserts.length > 1) {
           window.dispatchEvent(new CustomEvent('appUsersUpdated', {
-            detail: { appUsers: appUserUpserts, fromRealtime: true }
+            detail: { appUsers: nextAppUsers, fromRealtime: true, fullReplacement: true }
           }));
         }
       }
@@ -237,15 +237,7 @@ export const AppDataProvider = ({ children, value }) => {
       smartRefreshManager.notifyRealtimeUpdate('AppUser');
     }
 
-    if (patientsChanged && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('patientsUpdated', {
-        detail: {
-          patients: patientUpserts,
-          deletedIds: patientDeletes,
-          deletedId: patientDeletes.length === 1 ? patientDeletes[0] : undefined,
-          fromRealtime: true
-        }
-      }));
+    if (patientsChanged) {
       smartRefreshManager.notifyRealtimeUpdate('Patient');
     }
   }, [value.currentUser?.id, value.refreshUser, value.updatePatientsLocally]);
@@ -674,6 +666,7 @@ export const AppDataProvider = ({ children, value }) => {
     ...value,
     updateDeliveriesLocally: wrappedUpdateDeliveriesLocally,
     updateAppUsersLocally: wrappedUpdateAppUsersLocally,
+    updatePatientsLocally: value.updatePatientsLocally,
     forceRefreshDriverDeliveries,
     onSelectedDateDataReady: value.onSelectedDateDataReady,
     setOnSelectedDateDataReady: value.setOnSelectedDateDataReady
@@ -681,6 +674,7 @@ export const AppDataProvider = ({ children, value }) => {
     value,
     wrappedUpdateDeliveriesLocally,
     wrappedUpdateAppUsersLocally,
+    value.updatePatientsLocally,
     forceRefreshDriverDeliveries
   ]);
   
