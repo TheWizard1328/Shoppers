@@ -842,9 +842,10 @@ export default function DeliveryFormView({
                   const previousDeliveryDate = delivery?.delivery_date;
                   const shouldOptimizeInBackground = hasTimeWindowChanges;
                   let didSave = false;
+                  const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
                   await runLockedAction('update_delivery', async () => {
-                    await handleSubmit(e);
+                    await handleSubmit(submitEvent);
                     didSave = true;
                   });
 
