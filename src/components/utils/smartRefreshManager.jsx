@@ -583,6 +583,24 @@ class LightweightRefreshManager {
         window.dispatchEvent(new CustomEvent('refreshCurrentUserFromSmartRefresh', {
           detail: { updatedAppUsers: freshAppUsers }
         }));
+
+        const selectedDriverId = globalFilters.getSelectedDriverId();
+        const selectedDate = globalFilters.getSelectedDate();
+        if (typeof window !== 'undefined' && selectedDriverId && selectedDriverId !== 'all' && selectedDate) {
+          const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate).catch(() => []);
+          if (shouldAutoCenterNextDeliveryFromSmartRefresh(offlineDeliveries, selectedDriverId, this._currentUser)) {
+            window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('centerNextDeliveryCard', {
+                detail: {
+                  source: 'smartRefreshManagerAppUsers60s',
+                  selectedDriverId,
+                  remoteOnly: false
+                }
+              }));
+            }, 100);
+          }
+        }
         
         console.log(`✅ [SmartRefresh] Refreshed ${freshAppUsers.length} driver locations`);
         return { hasChanges: true, appUsers: freshAppUsers };
