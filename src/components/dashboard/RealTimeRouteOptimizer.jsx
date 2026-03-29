@@ -59,11 +59,13 @@ export default function RealTimeRouteOptimizer({
     // CRITICAL: Only optimize when route has active stops (in_transit or en_route)
     // Skip if all stops are pending, staged, completed, failed, etc.
     try {
-      const activeDeliveries = await base44.entities.Delivery.filter({
+      const dayDeliveries = await base44.entities.Delivery.filter({
         driver_id: selectedDriverId,
-        delivery_date: selectedDate,
-        status: { $in: ['in_transit', 'en_route'] }
+        delivery_date: selectedDate
       });
+      const activeDeliveries = (dayDeliveries || []).filter((delivery) =>
+        delivery && ['in_transit', 'en_route'].includes(delivery.status)
+      );
       
       if (!activeDeliveries || activeDeliveries.length === 0) {
         console.log('⏸️ [RealTimeRouteOptimizer] No active deliveries (in_transit/en_route) - skipping');

@@ -248,8 +248,11 @@ export default function StatsPanel({
                                 : [];
                               let current = [];
                               try {
-                                const all = await offlineDB.getByIndex(offlineDB.STORES.CURRENT_BREADCRUMBS, 'driver_id', driverIdToFetch);
-                                current = all.filter(b => b && b.delivery_date === selDateStr).sort((a, b) => a.timestamp - b.timestamp);
+                                const breadcrumbStore = offlineDB.STORES?.CURRENT_BREADCRUMBS;
+                                if (breadcrumbStore) {
+                                  const all = await offlineDB.getByIndex(breadcrumbStore, 'driver_id', driverIdToFetch);
+                                  current = all.filter(b => b && b.delivery_date === selDateStr).sort((a, b) => a.timestamp - b.timestamp);
+                                }
                               } catch (e) {}
                               if (historical.length === 0 && current.length === 0) { setShowBreadcrumbs(false); return; }
                               setBreadcrumbsData({ historical, current });

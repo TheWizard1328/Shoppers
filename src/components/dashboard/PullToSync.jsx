@@ -218,9 +218,15 @@ export default function PullToSync({
           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
           // Polyline repair for incomplete stops
-          const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
-          repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr })
-            .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message));
+          try {
+            const repairModule = await import('@/functions/repairMissingPolylines');
+            if (typeof repairModule?.repairMissingPolylines === 'function') {
+              repairModule.repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr })
+                .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message));
+            }
+          } catch (e) {
+            console.warn('⚠️ [Pull to Sync] repairMissingPolylines unavailable:', e?.message);
+          }
 
           // ETA recalculation for incomplete stops
           base44.functions.invoke('calculateRealTimeETA', {
