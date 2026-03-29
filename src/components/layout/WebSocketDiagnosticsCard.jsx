@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { base44 } from '@/api/base44Client';
 
 export default function WebSocketDiagnosticsCard() {
   const [event, setEvent] = useState(null);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
   const [topOffset, setTopOffset] = useState(72);
   const [isMobile, setIsMobile] = useState(false);
+  const [patientNameCache, setPatientNameCache] = useState({});
 
   useEffect(() => {
     // Check if this is the primary device
@@ -64,7 +66,17 @@ export default function WebSocketDiagnosticsCard() {
   }, []);
 
   useEffect(() => {
-    const handleWebSocketEvent = (e) => {
+    const resolvePatientName = async (patientId) => {
+      if (!patientId || patientNameCache[patientId]) return patientNameCache[patientId] || null;
+      const results = await base44.entities.Patient.filter({ id: patientId });
+      const resolvedName = Array.isArray(results) && results[0]?.full_name ? results[0].full_name : null;
+      if (resolvedName) {
+        setPatientNameCache((prev) => ({ ...prev, [patientId]: resolvedName }));
+      }
+      return resolvedName;
+    };
+
+    const handleWebSocketEvent = async (e) => {
       const { data, type, id, updatedBy, changedFields } = e.detail || {};
       const actionType = type || 'update';
       const deletedName = e.detail?.deletedName || e.detail?.patientName || e.detail?.deliveryName || null;
@@ -119,7 +131,7 @@ export default function WebSocketDiagnosticsCard() {
           ? meaningfulFields.map((field) => fieldLabels[field] || field.replace(/_/g, ' ')).join(', ')
           : null;
 
-        const deliveryName = data?.patient_name || data?.patient?.full_name || deletedName || 'Unnamed delivery';
+        const deliveryName = data?.patient_name || data?.patient?.full_name || await resolvePatientName(data?.patient_id) || deletedName || 'Unnamed delivery';
         displayInfo.title = deliveryName;
         displayInfo.details = actionType === 'create'
           ? 'Delivery added'
@@ -167,7 +179,7 @@ export default function WebSocketDiagnosticsCard() {
       window.removeEventListener('realtimeUpdate_Patient', handleWebSocketEvent);
       window.removeEventListener('realtimeUpdate_AppUser', handleWebSocketEvent);
     };
-  }, [isPrimaryDevice]);
+  }, [isPrimaryDevice, patientNameCache]);
 
   if (!event) return null;
 
