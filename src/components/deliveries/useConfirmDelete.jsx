@@ -25,9 +25,34 @@ export function useConfirmDelete({
 }) {
   return useCallback(async () => {
     const staged = deleteConfirmation.staged;
-    if (!staged?.id) return;
+    if (!staged) return;
     setIsDeletingPending(true);
     try {
+      if (!staged.id) {
+        setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
+        const remainingStagedIds = new Set(
+          stagedDeliveries
+            .filter((item) => item.id !== staged.id && item._tempId !== staged._tempId)
+            .map((d) => d.patient_id)
+            .filter(Boolean)
+        );
+        setProjectedDeliveries(
+          fullPredictionListRef.current.filter(
+            (pred) =>
+              !remainingStagedIds.has(pred.patient_id) &&
+              !(allDeliveries || []).some(
+                (d) => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id
+              )
+          )
+        );
+        setHasChanges(true);
+        if (editingStagedId === staged._tempId) {
+          setEditingStagedId(null);
+          handleClearForm();
+        }
+        setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
+        return;
+      }
       if (!staged.patient_id && deleteConfirmation.transferPickupId) {
         const linkedStops = sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === staged.stop_id);
         if (linkedStops.length) {
