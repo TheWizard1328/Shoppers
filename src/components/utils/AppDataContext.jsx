@@ -273,12 +273,19 @@ export const AppDataProvider = ({ children, value }) => {
 
   // CRITICAL: Set up city-filtered real-time subscriptions
   useEffect(() => {
-    if (!value.currentUser || !value.selectedCityId || !value.selectedDate) {
+    const resolveFilters = () => ({
+      selectedCityId: value.selectedCityId || (typeof window !== 'undefined' ? window.__appSelectedCityId : null) || localStorage.getItem('global_selected_city_id'),
+      selectedDate: value.selectedDate || (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date')
+    });
+
+    const { selectedCityId, selectedDate } = resolveFilters();
+
+    if (!value.currentUser || !selectedCityId || !selectedDate) {
       return;
     }
     
     // Start real-time subscriptions
-    cityFilteredRealtimeSync.start(value.selectedCityId, value.selectedDate);
+    cityFilteredRealtimeSync.start(selectedCityId, selectedDate);
 
     const handleRealtimeEvent = ({ entityType, eventType, data, id }) => {
       const payload = eventType === 'delete'
@@ -304,10 +311,25 @@ export const AppDataProvider = ({ children, value }) => {
     const unsubscribe = cityFilteredRealtimeSync.subscribe(handleRealtimeEvent);
     const unsubscribeGlobalRealtime = subscribeToRealtime(handleRealtimeEvent);
 
+    const handleFiltersChanged = () => {
+      const { selectedCityId: nextCityId, selectedDate: nextDate } = resolveFilters();
+      if (!nextCityId || !nextDate) return;
+      cityFilteredRealtimeSync.updateFilters(nextCityId, nextDate);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('globalFiltersChanged', handleFiltersChanged);
+      window.addEventListener('storage', handleFiltersChanged);
+    }
+
     return () => {
       unsubscribe();
       unsubscribeGlobalRealtime();
       cityFilteredRealtimeSync.stop();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('globalFiltersChanged', handleFiltersChanged);
+        window.removeEventListener('storage', handleFiltersChanged);
+      }
       if (realtimeBatchTimerRef.current) {
         clearTimeout(realtimeBatchTimerRef.current);
         realtimeBatchTimerRef.current = null;

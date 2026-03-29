@@ -97,6 +97,17 @@ const notifyListeners = () => {
       console.error('Error in global filter listener:', error);
     }
   });
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('globalFiltersChanged', {
+      detail: {
+        selectedDate: globalState.selectedDate,
+        selectedDriverId: globalState.selectedDriverId,
+        selectedCityId: globalState.selectedCityId,
+        selectedStoreId: globalState.selectedStoreId
+      }
+    }));
+  }
 };
 
 // CRITICAL FIX: Only update and notify if value actually changed
