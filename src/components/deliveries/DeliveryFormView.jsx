@@ -848,8 +848,7 @@ export default function DeliveryFormView({
                     const { smartRefreshManager } = await import('../utils/smartRefreshManager');
                     smartRefreshManager.pause();
                     try {
-                      await handleSubmit(submitEvent);
-                      didSave = true;
+                      didSave = await handleSubmit(submitEvent);
                     } finally {
                       smartRefreshManager.resume();
                     }

@@ -1318,7 +1318,7 @@ export default function DeliveryForm({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isSaving) return;
+    if (isSaving) return false;
     setIsSaving(true);
     setError(null);
 
@@ -1326,7 +1326,7 @@ export default function DeliveryForm({
       const dataToSave = await buildInTransitDirectSaveData({ prepareDeliverySaveData, formData, delivery, isCompletionStatus, completionTime, selectedPatient, stores, allDeliveries, stagedDeliveries });
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) {
         import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); });
-        return;
+        return true;
       }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
         try {
@@ -1368,22 +1368,16 @@ export default function DeliveryForm({
         triggerSquareCodDelete({ deliveryId: delivery.id, reason: 'cod_removed' });
       }
 
-      // CRITICAL: Save to both offline and online databases using local-first approach
-      // offlineMutations handles: pausing smart refresh, saving to offline DB, syncing to backend, restarting smart refresh
       if (delivery?.id) {
         await updateDeliveryLocal(delivery.id, { ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
         if (statusChangedToCompletion) triggerPatientLastDeliverySync({ delivery: { ...delivery, ...dataToSave, status: formData.status, patient_id: delivery.patient_id, delivery_date: formData.delivery_date }, previousStatus: delivery.status });
-        // CRITICAL: Force stats refresh AND deliveries update after any delivery update
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));
         if (statusChangedToCompletion) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'active_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Active polyline refresh failed:', e?.message || e)); }, 0);
         if (statusChangedToCompletion || actualDeliveryTimeChanged) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'completed_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Completed polyline refresh failed:', e?.message || e)); }, 0);
-        // NOTE: keep the edit form open after saving so the updated values remain visible
-        // NOTE: updateDeliveryLocal already notifies mutation listeners immediately after local save
       } else {
         await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
-
 
       await runDeliverySubmitSideEffects({
         delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
@@ -1391,8 +1385,10 @@ export default function DeliveryForm({
         actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
         isPickupMode, updateDeliveryLocal
       });
+      return true;
     } catch (error) {
       setError(error.message);
+      return false;
     } finally {
       setIsSaving(false);
     }
