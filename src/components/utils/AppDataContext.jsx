@@ -123,6 +123,20 @@ export const AppDataProvider = ({ children, value }) => {
       }
 
       if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            deliveries: deliveryUpserts,
+            freshDeliveries: deliveryUpserts,
+            immediate: deliveryUpserts.length > 0,
+            deliveryDate: deliveryUpserts[0]?.delivery_date,
+            deletedIds: deliveryDeletes,
+            deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
+            triggeredBy: 'appDataContextRealtimeFlush',
+            source: 'realtime_sync',
+            fromRealtime: true
+          }
+        }));
+
         const realtimeDate = deliveryUpserts[0]?.delivery_date;
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
