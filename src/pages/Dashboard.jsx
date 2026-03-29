@@ -6015,7 +6015,7 @@ function Dashboard() {
                     setEditingDelivery(null);
                     setShowDeliveryForm(true);
                   }}
-                  disabled={(isDriver || isDispatcher) && !isAdmin && !isAppOwner(currentUser) && (() => {const now = new Date();const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());if (selectedDay < today) return true;if (selectedDay.getTime() === today.getTime()) {const currentTime = now.getHours() * 100 + now.getMinutes();return currentTime >= 1900;}return false;})()}
+                  disabled={(isDriver || isDispatcher) && !isAdmin && !isAppOwner(currentUser) && (() => {const now = new Date();const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());if (selectedDay < today) return true;if (selectedDay.getTime() === today.getTime()) {const currentTime = now.getHours() * 100 + now.getMinutes();return currentTime >= 2100;}return false;})()}
                   hasRateLimitError={hasRateLimitError} />
 
               </div>
