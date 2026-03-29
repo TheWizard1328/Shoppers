@@ -3358,29 +3358,20 @@ function Dashboard() {
 
     try {
       if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
-        const { handleBatchSave } = await import('@/components/deliveries/handleBatchSave');
-        await handleBatchSave({
-          deliveryData,
-          drivers,
-          deliveries,
-          patients,
-          stores,
-          currentUser,
-          selectedDate,
-          invalidate,
-          updateDeliveriesLocally,
-          refreshData,
-          setShowDeliveryForm,
-          setEditingDelivery,
-          hasAutoSelectedRef,
-          invalidateDeliveriesForDate: (date) => {
-            try {
-              if (typeof invalidateDeliveriesForDate === 'function') invalidateDeliveriesForDate(date);
-            } catch (e) {
-              invalidate('Delivery');
-            }
-          }
-        });
+        const stagedItems = Array.isArray(deliveryData._stagedDeliveries) ? deliveryData._stagedDeliveries : [];
+        const ensuredPickups = Array.isArray(deliveryData._ensuredPickups) ? deliveryData._ensuredPickups : [];
+
+        if (stagedItems.length > 0) {
+          await batchCreateDeliveriesLocal(stagedItems);
+        }
+
+        if (ensuredPickups.length > 0 && updateDeliveriesLocally) {
+          updateDeliveriesLocally(ensuredPickups, false);
+        }
+
+        setShowDeliveryForm(false);
+        setEditingDelivery(null);
+        hasAutoSelectedRef.current = false;
         return;
       }
 
