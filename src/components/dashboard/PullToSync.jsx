@@ -87,6 +87,10 @@ export default function PullToSync({
         : {};
       const syncRunId = `${Date.now()}`;
 
+      if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent) {
+        return;
+      }
+
       // ─── STEP 1: Fetch deliveries for selected driver + date ───────────────
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
       const freshDeliveries = await base44.entities.Delivery.filter({ 
@@ -154,22 +158,27 @@ export default function PullToSync({
           : offlineDeliveriesRaw)
         : [];
 
+      const safeAppUsers = Array.isArray(freshAppUsers)
+        ? freshAppUsers.filter((u) => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined')
+        : [];
+
       // Dispatch one final UI update with the full synced dataset
       window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
         detail: { 
           deliveryDate: selectedDateStr,
           deliveries: offlineDeliveries,
-          appUsers: freshAppUsers,
+          appUsers: safeAppUsers,
           cities: freshCities,
           stores: freshStores,
           patients: freshPatients,
           triggeredBy: 'pullToSync',
-          batchedUiUpdate: true
+          batchedUiUpdate: true,
+          syncRunId
         }
       }));
 
       if (onSyncComplete) {
-        await onSyncComplete(offlineDeliveries, freshPatients, freshAppUsers);
+        await onSyncComplete(offlineDeliveries, freshPatients, safeAppUsers);
       }
 
       // Mark UI sync complete + release overlay

@@ -228,6 +228,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   // Handle manual refresh click - always triggers pull-to-sync
   const handleManualRefresh = async () => {
     if (isManualRefreshing || isPaused) return;
+    if (window.__dashboardSyncing) return;
 
     setIsManualRefreshing(true);
 
@@ -244,7 +245,10 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     } catch(_) {}
 
     // Listen for completion, with fallback timeout
+    let completed = false;
     const handleSyncComplete = () => {
+      if (completed) return;
+      completed = true;
       setIsManualRefreshing(false);
       window.removeEventListener('pullToSyncComplete', handleSyncComplete);
       window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
