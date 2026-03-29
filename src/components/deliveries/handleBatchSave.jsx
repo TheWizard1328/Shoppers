@@ -35,13 +35,6 @@ export async function handleBatchSave({
   onSave,
   isNewRouteWithZeroStops
 }) {
-  if (deliveryData?._isBatchSave && Array.isArray(deliveryData._stagedDeliveries)) {
-    await onSave?.(deliveryData);
-    setShowDeliveryForm?.(false);
-    setEditingDelivery?.(null);
-    if (hasAutoSelectedRef) hasAutoSelectedRef.current = false;
-    return;
-  }
 
   const safeStagedDeliveries = Array.isArray(stagedDeliveries) ? stagedDeliveries : [];
   const safeAllDeliveries = Array.isArray(allDeliveries) ? allDeliveries : [];
@@ -206,6 +199,7 @@ export async function handleBatchSave({
           tracking_number: ''
         }));
       const createdMissingPickups = missingPickupRecords.length > 0 ? await Promise.all(missingPickupRecords.map((pickup) => createDeliveryLocal(pickup).catch(() => null))) : [];
+      if (typeof onSave !== 'function') throw new Error('Save handler is missing');
       await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB.map((d, i) => ({ ...d, puid: ensuredPickups[i]?.data?.puid || d.puid || '' })), _ensuredPickups: [...ensuredPickupRecords, ...createdMissingPickups.filter(Boolean)] });
     }
 
@@ -248,7 +242,7 @@ export async function handleBatchSave({
     safeSetError(`Failed to save: ${err.message || 'Unknown error'}`);
     safeUnblockPredictions();
     safeSetIsLoadingPredictions(false);
-    await restartBatchSmartRefresh(() => setBatchFormSaving(false));
+    await restartBatchSmartRefresh(() => safeSetBatchFormSaving(false));
   } finally {
     safeBatchSaveLockRef.current = false;
     safeSetIsSaving(false);
