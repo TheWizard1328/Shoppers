@@ -8,6 +8,8 @@ import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import {
   SYSTEM_UPDATES_SENDER_ID,
   isHiddenSystemBroadcastMessageForThisDevice,
+  hasSystemBroadcastBeenAckedForThisDevice,
+  markSystemBroadcastAckedForThisDevice,
 } from './updateBroadcastConfig';
 
 function ChatWindow({
@@ -80,6 +82,36 @@ function ChatWindow({
         );
         // Reverse to show oldest first in thread, newest at bottom
         setMessages(visibleMessages.reverse());
+
+        const latestSystemBroadcast = [...visibleMessages]
+          .reverse()
+          .find((message) => message?.sender_id === SYSTEM_UPDATES_SENDER_ID && message?.content?.trim?.().startsWith('Your app has just been updated.'));
+
+        if (
+          isSystemUpdatesConversation &&
+          latestSystemBroadcast?.id &&
+          !hasSystemBroadcastBeenAckedForThisDevice(latestSystemBroadcast.id)
+        ) {
+          const dispatcherStores = Array.isArray(currentUser?.store_ids) ? currentUser.store_ids.length : 0;
+          const storeSuffix = dispatcherStores > 1
+            ? ` — Stores: ${currentUser.store_ids.join(', ')}`
+            : dispatcherStores === 1
+              ? ` — Store: ${currentUser.store_ids[0]}`
+              : '';
+          const ackContent = `Device updated: ${currentUser?.user_name || currentUser?.full_name || 'Unknown User'}${storeSuffix}`;
+
+          await base44.entities.Message.create({
+            sender_id: currentUser.id,
+            sender_name: currentUser.user_name || currentUser.full_name,
+            receiver_id: SYSTEM_UPDATES_SENDER_ID,
+            receiver_name: 'System Updates',
+            conversation_id: conversationId,
+            content: ackContent,
+            read: false,
+          });
+
+          markSystemBroadcastAckedForThisDevice(latestSystemBroadcast.id);
+        }
 
         // Mark unread messages as read (in parallel for speed)
         const unreadMessages = allMessages.filter(

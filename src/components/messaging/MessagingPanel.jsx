@@ -47,6 +47,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
 
     const results = await Promise.allSettled(
       recipients.map(async (user) => {
+        if (user.id === SYSTEM_UPDATES_SENDER_ID) return { recipientId: user.id, message: null };
         const message = await base44.entities.Message.create({
           sender_id: SYSTEM_UPDATES_SENDER_ID,
           sender_name: SYSTEM_UPDATES_SENDER_NAME,
