@@ -142,6 +142,7 @@ export default function DeliveryMap({
   topOverlayHeight = 0
 }) {
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
+  const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : [];
   const safePatients = Array.isArray(patients) ? patients : [];
   const safeStores = Array.isArray(stores) ? stores : [];
   const isMobile = useMemo(() => isMobileDevice(), []);
@@ -270,9 +271,10 @@ export default function DeliveryMap({
   }, [safeUsers]);
 
   const deliveriesToShow = useMemo(() => {
-    if (!showOtherDriverDeliveries || otherDriverDeliveries.length === 0) return safeDeliveries;
-    return dedupeById([...safeDeliveries, ...otherDriverDeliveries]);
-  }, [safeDeliveries, otherDriverDeliveries, showOtherDriverDeliveries]);
+    const baseDeliveries = safeDeliveries.length > 0 ? safeDeliveries : safeAllDeliveriesForDate;
+    if (!showOtherDriverDeliveries || otherDriverDeliveries.length === 0) return baseDeliveries;
+    return dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
+  }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries]);
 
   const driverNameLookupMap = useMemo(() => {
     const map = new Map();

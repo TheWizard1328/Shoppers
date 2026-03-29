@@ -76,7 +76,10 @@ export const AppDataProvider = ({ children, value }) => {
         const offlineDeliveries = selectedDate
           ? await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate)
           : await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        nextDeliveries = Array.isArray(offlineDeliveries) ? offlineDeliveries : [];
+        const nonSelectedDateDeliveries = (deliveriesRef.current || []).filter((item) => item?.delivery_date !== selectedDate);
+        nextDeliveries = Array.isArray(offlineDeliveries)
+          ? [...nonSelectedDateDeliveries, ...offlineDeliveries]
+          : nonSelectedDateDeliveries;
       }
 
       if (patientsChanged) {
@@ -142,10 +145,13 @@ export const AppDataProvider = ({ children, value }) => {
 
       if (typeof window !== 'undefined') {
         const realtimeDate = deliveryUpserts[0]?.delivery_date || nextDeliveries[0]?.delivery_date;
+        const selectedDateDeliveries = realtimeDate
+          ? nextDeliveries.filter((item) => item?.delivery_date === realtimeDate)
+          : nextDeliveries;
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
-            deliveries: nextDeliveries,
-            freshDeliveries: nextDeliveries,
+            deliveries: selectedDateDeliveries,
+            freshDeliveries: selectedDateDeliveries,
             immediate: true,
             deliveryDate: realtimeDate,
             deletedIds: deliveryDeletes,
@@ -159,8 +165,8 @@ export const AppDataProvider = ({ children, value }) => {
 
         window.dispatchEvent(new CustomEvent('deliveryUpdated', {
           detail: {
-            delivery: nextDeliveries.length === 1 ? nextDeliveries[0] : (deliveryUpserts.length === 1 ? deliveryUpserts[0] : null),
-            deliveries: nextDeliveries,
+            delivery: deliveryUpserts.length === 1 ? deliveryUpserts[0] : null,
+            deliveries: selectedDateDeliveries,
             deletedIds: deliveryDeletes,
             deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
             type: deliveryDeletes.length > 0 && deliveryUpserts.length === 0 ? 'delete' : 'update',

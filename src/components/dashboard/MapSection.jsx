@@ -45,6 +45,7 @@ export default function MapSection({
       <div className="absolute inset-0">
         <DeliveryMap
           deliveries={deliveriesWithStopOrder}
+          allDeliveriesForDate={filteredDeliveries}
           selectedDriverId={selectedDriverId}
           selectedDate={format(selectedDate, 'yyyy-MM-dd')}
           patients={patients}
