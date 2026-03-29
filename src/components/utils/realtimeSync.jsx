@@ -451,7 +451,7 @@ export const subscribeToRealtime = (callback) => {
  * Broadcast a local mutation
  */
 export const broadcastMutation = async (entity, action, id, data, ids = null) => {
-  console.log(`📡 [RealtimeSync] Broadcasting ${entity} ${action}: ${id}`);
+  console.log(`📡 [RealtimeSync] Broadcasting ${entity} ${action}: ${id || (ids ? ids.length + ' ids' : '')}`);
 
   try {
     const storeName = entity === 'AppUser' ? offlineDB.STORES.APP_USERS :
@@ -492,6 +492,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
         detail: {
           deliveryId: id,
           deletedId: action === 'delete' ? id : undefined,
+          deletedIds: action === 'batch_delete' ? ids : action === 'delete' ? [id] : undefined,
           deliveryDate: data?.delivery_date,
           freshDeliveries: data ? [data] : undefined,
           triggeredBy: 'realtimeBroadcast',

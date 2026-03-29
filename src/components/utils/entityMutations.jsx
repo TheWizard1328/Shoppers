@@ -806,8 +806,8 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       data: null 
     });
 
-    // STEP 6: Broadcast immediate deletes so other devices update UI right away too
-    await Promise.all(deliveryIds.map((id) => broadcastMutation('Delivery', 'delete', id, null)));
+    // STEP 6: Broadcast a single batch delete so other devices don't miss events under load
+    await broadcastMutation('Delivery', 'batch_delete', null, null, deliveryIds);
 
     await restartSmartRefresh();
     return true;

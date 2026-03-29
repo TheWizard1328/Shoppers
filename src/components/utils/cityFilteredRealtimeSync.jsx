@@ -171,6 +171,7 @@ class CityFilteredRealtimeSync {
                detail: { 
                  delivery: { id: event.id },
                  deletedId: event.id,
+                 deletedIds: [event.id],
                  deletedName: event.data?.patient_name || event.data?.patient?.full_name || null,
                  type: 'delete',
                  source: 'realtime',
@@ -181,6 +182,7 @@ class CityFilteredRealtimeSync {
              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                detail: {
                  deletedId: event.id,
+                 deletedIds: [event.id],
                  triggeredBy: 'realtimeWebSocket',
                  source: 'realtime_sync',
                  fromRealtime: true
