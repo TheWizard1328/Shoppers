@@ -31,29 +31,44 @@ export async function handleBatchSave({
   onSave,
   isNewRouteWithZeroStops
 }) {
-  if (batchSaveLockRef.current || isSaving) return;
-  batchSaveLockRef.current = true;
-  blockPredictions();
+  const safeBatchSaveLockRef = batchSaveLockRef || { current: false };
+  const safeHasLoadedPending = hasLoadedPending || { current: false };
+  const safeBlockPredictions = blockPredictions || (() => {});
+  const safeUnblockPredictions = unblockPredictions || (() => {});
+  const safeSetStagedDeliveries = setStagedDeliveries || (() => {});
+  const safeSetProjectedDeliveries = setProjectedDeliveries || (() => {});
+  const safeSetHasPendingDeletes = setHasPendingDeletes || (() => {});
+  const safeSetHasChanges = setHasChanges || (() => {});
+  const safeSetIsLoadingPredictions = setIsLoadingPredictions || (() => {});
+  const safeHandleClearForm = handleClearForm || (() => {});
+  const safeOnCancel = onCancel || (() => {});
+  const safeSetIsSaving = setIsSaving || (() => {});
+  const safeSetError = setError || (() => {});
+  const safeSetBatchFormSaving = setBatchFormSaving || (() => {});
+
+  if (safeBatchSaveLockRef.current || isSaving) return;
+  safeBatchSaveLockRef.current = true;
+  safeBlockPredictions();
 
   if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
-    hasLoadedPending.current = false;
-    unblockPredictions();
-    import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
+    safeHasLoadedPending.current = false;
+    safeUnblockPredictions();
+    import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm: safeHandleClearForm, onCancel: safeOnCancel })).catch(()=>{safeHandleClearForm();safeOnCancel();});
     return;
   }
 
   if (await handlePendingDeleteOnlySave({
     stagedDeliveries,
     hasPendingDeletes,
-    setStagedDeliveries,
-    setProjectedDeliveries,
-    setHasPendingDeletes,
-    setHasChanges,
-    hasLoadedPending,
-    unblockPredictions,
-    setIsLoadingPredictions,
-    handleClearForm,
-    onCancel,
+    setStagedDeliveries: safeSetStagedDeliveries,
+    setProjectedDeliveries: safeSetProjectedDeliveries,
+    setHasPendingDeletes: safeSetHasPendingDeletes,
+    setHasChanges: safeSetHasChanges,
+    hasLoadedPending: safeHasLoadedPending,
+    unblockPredictions: safeUnblockPredictions,
+    setIsLoadingPredictions: safeSetIsLoadingPredictions,
+    handleClearForm: safeHandleClearForm,
+    onCancel: safeOnCancel,
     formData
   })) return;
 
@@ -61,12 +76,12 @@ export async function handleBatchSave({
   const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
 
   if (newDeliveries.length === 0 && deliveriesToUpdate.length === 0) {
-    setStagedDeliveries([]);
-    setProjectedDeliveries([]);
-    hasLoadedPending.current = false;
-    unblockPredictions();
-    setIsLoadingPredictions(true);
-    import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
+    safeSetStagedDeliveries([]);
+    safeSetProjectedDeliveries([]);
+    safeHasLoadedPending.current = false;
+    safeUnblockPredictions();
+    safeSetIsLoadingPredictions(true);
+    import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm: safeHandleClearForm, onCancel: safeOnCancel })).catch(()=>{safeHandleClearForm();safeOnCancel();});
     return;
   }
 
@@ -78,9 +93,9 @@ export async function handleBatchSave({
     deliveryDate: formData.delivery_date
   });
 
-  setIsSaving(true);
-  setError(null);
-  setBatchFormSaving(true);
+  safeSetIsSaving(true);
+  safeSetError(null);
+  safeSetBatchFormSaving(true);
 
   try {
     const { smartRefreshManager } = await import('../utils/smartRefreshManager');
@@ -180,15 +195,15 @@ export async function handleBatchSave({
     }
 
     resetBatchSaveDraftState({
-      setStagedDeliveries,
-      setProjectedDeliveries,
-      setHasPendingDeletes,
-      setHasChanges,
-      hasLoadedPendingRef: hasLoadedPending,
-      unblockPredictions,
-      setIsLoadingPredictions
+      setStagedDeliveries: safeSetStagedDeliveries,
+      setProjectedDeliveries: safeSetProjectedDeliveries,
+      setHasPendingDeletes: safeSetHasPendingDeletes,
+      setHasChanges: safeSetHasChanges,
+      hasLoadedPendingRef: safeHasLoadedPending,
+      unblockPredictions: safeUnblockPredictions,
+      setIsLoadingPredictions: safeSetIsLoadingPredictions
     });
-    await closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
+    await closeBatchFormThenResumeManagers({ handleClearForm: safeHandleClearForm, onCancel: safeOnCancel });
 
     Promise.resolve().then(async () => {
       try {
@@ -199,7 +214,7 @@ export async function handleBatchSave({
         if (squarePromises.length > 0) await Promise.allSettled(squarePromises);
 
         await Promise.all(Array.from(new Set([...deliveriesToUpdate.flatMap((delivery) => { const originalDelivery = allDeliveries?.find((item) => item?.id === delivery?.id); return [[delivery?.driver_id, delivery?.delivery_date], [originalDelivery?.driver_id, originalDelivery?.delivery_date]]; }), ...deliveriesReadyForDB.map((delivery) => [delivery?.driver_id, delivery?.delivery_date])].filter(([driverId, deliveryDate]) => driverId && deliveryDate).map(([driverId, deliveryDate]) => `${driverId}__${deliveryDate}`))).map(async (key) => { const [driverId, deliveryDate] = key.split('__'); const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager'); return recalculateAndUpdateStopOrders(driverId, deliveryDate, true); }));
-        await restartBatchSmartRefresh(() => setBatchFormSaving(false));
+        await restartBatchSmartRefresh(() => safeSetBatchFormSaving(false));
 
         if (deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'doneButtonUpdates', immediate: true } }));
@@ -215,12 +230,12 @@ export async function handleBatchSave({
     });
   } catch (err) {
     console.error('[AddToRoute] ❌ Batch save error:', err);
-    setError(`Failed to save: ${err.message || 'Unknown error'}`);
-    unblockPredictions();
-    setIsLoadingPredictions(false);
+    safeSetError(`Failed to save: ${err.message || 'Unknown error'}`);
+    safeUnblockPredictions();
+    safeSetIsLoadingPredictions(false);
     await restartBatchSmartRefresh(() => setBatchFormSaving(false));
   } finally {
-    batchSaveLockRef.current = false;
-    setIsSaving(false);
+    safeBatchSaveLockRef.current = false;
+    safeSetIsSaving(false);
   }
 }
