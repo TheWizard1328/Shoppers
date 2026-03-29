@@ -633,12 +633,10 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
     const { smartRefreshManager } = await import('./smartRefreshManager');
     smartRefreshManager.deletedDeliveryIds.add(deliveryId);
 
-    // STEP 5: Notify UI immediately
+    // STEP 5: Notify UI immediately on this device
     notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
     
-    // Broadcast to other devices
-    broadcastMutation('Delivery', 'delete', deliveryId, null);
-    
+    // Other devices will receive the real backend websocket delete event.
     await restartSmartRefresh();
     return true;
   } catch (error) {
@@ -798,7 +796,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     deliveryIds.forEach(id => smartRefreshManager.deletedDeliveryIds.add(id));
     console.log(`🗑️ [EntityMutations] Marked ${deliveryIds.length} deliveries as deleted`);
 
-    // STEP 5: Notify UI immediately
+    // STEP 5: Notify UI immediately on this device
     notifyMutation({ 
       type: 'batch_delete', 
       entity: 'Delivery', 
@@ -806,9 +804,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       data: null 
     });
 
-    // Broadcast to other devices
-    broadcastMutation('Delivery', 'batch_delete', null, null, deliveryIds);
-
+    // Other devices will receive real backend websocket delete events per record.
     await restartSmartRefresh();
     return true;
   } catch (error) {
