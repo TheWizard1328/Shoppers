@@ -3358,8 +3358,8 @@ function Dashboard() {
 
     try {
       if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
-        const { handleBatchSave } = await import('@/components/deliveries/handleBatchSave');
-        await handleBatchSave({
+        const { handleBatchSaveDelivery } = await import('@/components/dashboard/handleBatchSaveDelivery');
+        await handleBatchSaveDelivery({
           deliveryData,
           drivers,
           deliveries,
