@@ -280,8 +280,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
-  // === DRIVERS & ADMINS: Email store-specific route PDFs only ===
-  if (isDriver || isAdmin) {
+  // === ADMINS ONLY ===
+  if (isAdmin) {
     return (
       <>
         <div className="my-2 w-full flex justify-center">
