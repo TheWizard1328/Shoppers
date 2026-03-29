@@ -2589,7 +2589,7 @@ export default function Layout({ children, currentPageName }) {
       }
 
                                {/* WebSocket Diagnostics Card - App Owners only, non-primary devices */}
-                               {false && isAppOwner(currentUser) &&
+                               {isAppOwner(currentUser) &&
       <WebSocketDiagnosticsCard />
       }
 
