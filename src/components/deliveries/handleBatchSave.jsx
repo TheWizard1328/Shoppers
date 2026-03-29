@@ -31,6 +31,17 @@ export async function handleBatchSave({
   onSave,
   isNewRouteWithZeroStops
 }) {
+  if (deliveryData?._isBatchSave && Array.isArray(deliveryData._stagedDeliveries)) {
+    await onSave(deliveryData);
+    setShowDeliveryForm?.(false);
+    setEditingDelivery?.(null);
+    if (hasAutoSelectedRef) hasAutoSelectedRef.current = false;
+    return;
+  }
+
+  const safeStagedDeliveries = Array.isArray(stagedDeliveries) ? stagedDeliveries : [];
+  const safeAllDeliveries = Array.isArray(allDeliveries) ? allDeliveries : [];
+  const safeStores = Array.isArray(stores) ? stores : [];
   const safeBatchSaveLockRef = batchSaveLockRef || { current: false };
   const safeHasLoadedPending = hasLoadedPending || { current: false };
   const safeBlockPredictions = blockPredictions || (() => {});
@@ -50,7 +61,7 @@ export async function handleBatchSave({
   safeBatchSaveLockRef.current = true;
   safeBlockPredictions();
 
-  if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
+  if (safeStagedDeliveries.length === 0 && !hasPendingDeletes) {
     safeHasLoadedPending.current = false;
     safeUnblockPredictions();
     import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm: safeHandleClearForm, onCancel: safeOnCancel })).catch(()=>{safeHandleClearForm();safeOnCancel();});
@@ -58,7 +69,7 @@ export async function handleBatchSave({
   }
 
   if (await handlePendingDeleteOnlySave({
-    stagedDeliveries,
+    stagedDeliveries: safeStagedDeliveries,
     hasPendingDeletes,
     setStagedDeliveries: safeSetStagedDeliveries,
     setProjectedDeliveries: safeSetProjectedDeliveries,
@@ -72,7 +83,7 @@ export async function handleBatchSave({
     formData
   })) return;
 
-  const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
+  const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(safeStagedDeliveries, safeAllDeliveries));
   const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
 
   if (newDeliveries.length === 0 && deliveriesToUpdate.length === 0) {
@@ -88,8 +99,8 @@ export async function handleBatchSave({
   const { deliveriesWithTRs, existingDeliveriesWithTRs } = attachTrackingNumbers({
     newDeliveries,
     existingDeliveries,
-    stores,
-    allDeliveries,
+    stores: safeStores,
+    allDeliveries: safeAllDeliveries,
     deliveryDate: formData.delivery_date
   });
 
@@ -132,7 +143,7 @@ export async function handleBatchSave({
         const group = driverGroups[driverId];
         const selectedDate = new Date(group.deliveryDate + 'T00:00:00');
         const dayOfWeek = selectedDate.getDay();
-        const driverAssignedStores = stores.filter((s) => {
+        const driverAssignedStores = safeStores.filter((s) => {
           if (!s) return false;
           let driverIds = [];
           if (dayOfWeek === 6) driverIds = [s.saturday_am_driver_id, s.saturday_pm_driver_id];
@@ -208,12 +219,12 @@ export async function handleBatchSave({
     Promise.resolve().then(async () => {
       try {
         const squarePromises = deliveriesReadyForDB.filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit').map(delivery => {
-          const store = stores?.find(s => s && s.id === delivery.store_id);
+          const store = safeStores?.find(s => s && s.id === delivery.store_id);
           return base44.functions.invoke('squareCreateCodItem', { deliveryId: delivery.id || delivery._tempId, patientName: delivery.patient_name, storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: delivery.delivery_date, storeId: delivery.store_id }).then(() => null).catch(() => null);
         });
         if (squarePromises.length > 0) await Promise.allSettled(squarePromises);
 
-        await Promise.all(Array.from(new Set([...deliveriesToUpdate.flatMap((delivery) => { const originalDelivery = allDeliveries?.find((item) => item?.id === delivery?.id); return [[delivery?.driver_id, delivery?.delivery_date], [originalDelivery?.driver_id, originalDelivery?.delivery_date]]; }), ...deliveriesReadyForDB.map((delivery) => [delivery?.driver_id, delivery?.delivery_date])].filter(([driverId, deliveryDate]) => driverId && deliveryDate).map(([driverId, deliveryDate]) => `${driverId}__${deliveryDate}`))).map(async (key) => { const [driverId, deliveryDate] = key.split('__'); const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager'); return recalculateAndUpdateStopOrders(driverId, deliveryDate, true); }));
+        await Promise.all(Array.from(new Set([...deliveriesToUpdate.flatMap((delivery) => { const originalDelivery = safeAllDeliveries?.find((item) => item?.id === delivery?.id); return [[delivery?.driver_id, delivery?.delivery_date], [originalDelivery?.driver_id, originalDelivery?.delivery_date]]; }), ...deliveriesReadyForDB.map((delivery) => [delivery?.driver_id, delivery?.delivery_date])].filter(([driverId, deliveryDate]) => driverId && deliveryDate).map(([driverId, deliveryDate]) => `${driverId}__${deliveryDate}`))).map(async (key) => { const [driverId, deliveryDate] = key.split('__'); const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager'); return recalculateAndUpdateStopOrders(driverId, deliveryDate, true); }));
         await restartBatchSmartRefresh(() => safeSetBatchFormSaving(false));
 
         if (deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
