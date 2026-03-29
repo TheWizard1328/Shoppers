@@ -11,6 +11,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
+import { fabControlEvents } from './fabControlEvents';
 
 // Global listeners for real-time updates
 const listeners = new Set();
@@ -91,6 +92,10 @@ async function flushBuffered(entityName) {
         fullReplacement: true
       }
     }));
+
+    if (items.some((item) => item.eventType === 'create' || item.eventType === 'delete')) {
+      fabControlEvents.notifyDeliveryRealtimeCreateOrDelete();
+    }
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {

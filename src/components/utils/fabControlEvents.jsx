@@ -116,6 +116,17 @@ export const fabControlEvents = {
     });
   },
 
+  notifyDeliveryRealtimeCreateOrDelete: () => {
+    console.log('📢 [FAB Events] Broadcasting delivery realtime create/delete - activating phase 1 for 500ms');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'DELIVERY_REALTIME_CREATE_DELETE' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
+  },
+
   /**
    * Pause FAB updates during form operations
    */
