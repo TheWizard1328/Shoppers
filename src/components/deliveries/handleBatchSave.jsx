@@ -108,6 +108,13 @@ export async function handleBatchSave({
   try {
     const { smartRefreshManager } = await import('../utils/smartRefreshManager');
     smartRefreshManager.pause();
+    console.log('[AddToRoute] batch save counts', {
+      staged: safeStagedDeliveries.length,
+      newDeliveries: newDeliveries.length,
+      deliveriesToUpdate: deliveriesToUpdate.length,
+      date: formData.delivery_date,
+      driverId: formData.driver_id
+    });
   } catch (error) {
     console.warn('⚠️ [AddToRoute] Failed to pause SmartRefresh:', error);
   }
@@ -180,6 +187,7 @@ export async function handleBatchSave({
 
     const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
     if (deliveriesReadyForDB.length > 0) {
+      console.log('[AddToRoute] deliveriesReadyForDB', deliveriesReadyForDB.map((d) => ({ patient_id: d.patient_id, patient_name: d.patient_name, store_id: d.store_id, driver_id: d.driver_id, delivery_date: d.delivery_date, puid: d.puid, status: d.status })));
       const ensuredPickups = await Promise.all(deliveriesReadyForDB.map((d) => d?.patient_id && d?.store_id && d?.delivery_date && d?.driver_id ? base44.functions.invoke('ensurePickupForDelivery', { storeId: d.store_id, deliveryDate: d.delivery_date, driverId: d.driver_id, ampmDeliveries: d.ampm_deliveries || 'AM', allowCreateIfMissing: true }).catch(() => null) : null));
       const ensuredPickupRecords = ensuredPickups.map((result) => result?.data?.pickup).filter((pickup) => pickup?.id);
       const missingPickupRecords = ensuredPickups

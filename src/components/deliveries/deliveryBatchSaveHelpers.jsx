@@ -17,9 +17,10 @@ export const filterValidStagedDeliveries = (stagedDeliveries, allDeliveries) => 
 };
 
 export const splitStagedDeliveriesForBatch = (validStagedDeliveries) => {
-  const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
+  const newDeliveries = validStagedDeliveries.filter((staged) => !staged?.id && !!staged?.patient_id);
   const existingDeliveries = validStagedDeliveries.filter((staged) => {
-    if (!staged.id) return false;
+    if (!staged?.id) return false;
+    if (!staged?.patient_id) return false;
     if (COMPLETION_STATUSES.includes(staged.status)) return false;
     return true;
   });
