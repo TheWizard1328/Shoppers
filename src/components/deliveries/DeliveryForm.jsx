@@ -1,27 +1,17 @@
 import DeliveryFormView from './DeliveryFormView';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { buildInTransitDirectSaveData } from './inTransitDirectSave';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { X, Save, Package, Search, Clock, Plus, Trash2, CheckCircle, Edit2, Camera, Phone, Bell, BellOff, Mailbox, StickyNote, Copy, MapPin, AlertCircle } from "lucide-react";
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import PatientMatchPopup from './PatientMatchPopup';
 import { sortUsers } from "../utils/sorting";
-import { Badge } from "@/components/ui/badge";
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { generateStopId, formatId } from '../utils/idGenerator';
+import { Label } from "@/components/ui/label";
 import { getDriverDisplayName, getDriverNameForStorage } from '../utils/driverUtils';
 import { PhoneInput } from "@/components/ui/phone-input";
-import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getStoreAssignedTimeSlotForDriver, getPickupStopIdForDelivery, calculateInitialDeliveryTimeStart } from '../utils/ampmUtils';
+import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getStoreAssignedTimeSlotForDriver, getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { base44 } from "@/api/base44Client";
-import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
@@ -30,19 +20,12 @@ import {
   updatePatient as updatePatientLocal,
   createDelivery as createDeliveryLocal,
   updateDelivery as updateDeliveryLocal,
-  deleteDelivery as deleteDeliveryLocal,
-  batchCreateDeliveries as batchCreateDeliveriesLocal,
-  setBatchFormSaving
+  deleteDelivery as deleteDeliveryLocal
 } from '../utils/entityMutations';
-import DeliveryFormStaged from './DeliveryFormStaged';
-import BarcodeScanner from './BarcodeScanner';
 import { checkPayrollLock } from '../utils/payrollLockManager';
 import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
 import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
 import useDeliveryProjectionManager from './useDeliveryProjectionManager';
-import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
-import { resetBatchSaveDraftState, resumeManagersAndCloseBatchForm, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runUpdateOnlyBatchRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
-import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
 import { runDeliverySubmitSideEffects } from './deliverySubmitSideEffects';
 import { resolvePatientDriverAssignment, buildSelectedPatientFormData, buildDuplicatePatientDraft, buildNewAddressPatientDraft } from './deliveryPatientSelectionHelpers';
 import { resetDraftEditorState, cleanupDetachedAutoCreatedPickups } from './deliveryDraftStateHelpers';
@@ -221,6 +204,7 @@ export default function DeliveryForm({
   const [extractedData, setExtractedData] = useState(null);
   const [hasPendingDeletes, setHasPendingDeletes] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isBatchFormSaving, setBatchFormSaving] = useState(false);
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
   const [isNewRouteWithZeroStops, setIsNewRouteWithZeroStops] = useState(false);
