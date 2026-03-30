@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
 
     const [assignedStores, driverAppUsers] = await Promise.all([
       loadAssignedStores(base44, deliveryDate, driverId),
-      base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-created_date', 1),
+      base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1),
     ]);
 
     const filteredStores = storeIds.length > 0
