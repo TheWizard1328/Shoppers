@@ -1065,8 +1065,16 @@ export default function DeliveryForm({
         !delivery?.patient_id &&
         (delivery?.ampm_deliveries || 'AM') === timeSlot
       );
-      const uniqueStoreCount = new Set(slotPickups.map((delivery) => delivery?.store_id).filter(Boolean)).size;
-      const trackingNumberBase = (uniqueStoreCount + 1) * 20 - 20;
+      const existingPickupTrackingNumbers = slotPickups
+        .map((delivery) => {
+          const raw = String(delivery?.tracking_number || '');
+          const match = raw.match(/(\d+)$/);
+          return match ? parseInt(match[1], 10) : null;
+        })
+        .filter((value) => Number.isInteger(value));
+      const trackingNumberBase = existingPickupTrackingNumbers.length > 0
+        ? Math.max(...existingPickupTrackingNumbers) + 20
+        : 0;
 
       await createDeliveryLocal({
         ...pickupToCreate,
