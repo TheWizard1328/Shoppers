@@ -136,10 +136,16 @@ export async function handleBatchSave({
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
 
-      const shouldEnsureDefaultPickups = !!routeDriverId && persistedRouteStopCountBeforeProcessing === 0;
+      const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
+      const hasSpecialStoreDeliveries = patientDeliveriesReadyForDB.some((delivery) => {
+        const store = stores?.find((item) => item && item.id === delivery?.store_id);
+        return specialStoreNames.includes(store?.name || '');
+      });
+      const shouldEnsureDefaultPickups = !!routeDriverId && persistedRouteStopCountBeforeProcessing === 0 && !hasSpecialStoreDeliveries;
 
       console.log('[AddToRoute] Default pickup gate', {
         shouldEnsureDefaultPickups,
+        hasSpecialStoreDeliveries,
         persistedRouteStopCountBeforeProcessing,
         deliveriesReadyForDBCount: deliveriesReadyForDB.length,
         patientDeliveriesReadyForDBCount: patientDeliveriesReadyForDB.length,
