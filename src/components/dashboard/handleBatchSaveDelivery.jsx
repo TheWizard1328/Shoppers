@@ -214,16 +214,20 @@ export const handleBatchSaveDelivery = async ({
 
         if (stopPatient?.time_window_start) {
           stop.delivery_time_start = stopPatient.time_window_start;
-        } else if (correspondingPickup && correspondingPickup.delivery_time_start) {
+        } else if (correspondingPickup?.delivery_time_start) {
           stop.delivery_time_start = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
         } else {
           stop.delivery_time_start = stop.delivery_time_start || '10:00';
         }
 
-        // CRITICAL: Only set delivery_time_end for NEW deliveries or if patient has explicit time window
         if (stopPatient?.time_window_end) {
           stop.delivery_time_end = stopPatient.time_window_end;
+        } else if (correspondingPickup?.delivery_time_end) {
+          stop.delivery_time_end = correspondingPickup.delivery_time_end;
         }
+
+        stop.time_window_start = stop.delivery_time_start;
+        stop.time_window_end = stop.delivery_time_end || stop.time_window_end || '';
         // DISABLED: No longer auto-assign 9:00 PM default - leave blank if patient has no time window
       }
     }
@@ -286,13 +290,19 @@ export const handleBatchSaveDelivery = async ({
       const correspondingPickup = optimizedRoute.find((s) => s && s.store_id === stop.store_id && s.patient_id === null && s.ampm_deliveries === stop.ampm_deliveries);
       if (stopPatient?.time_window_start) {
         stop.delivery_time_start = stopPatient.time_window_start;
-      } else if (correspondingPickup) {
+      } else if (correspondingPickup?.delivery_time_start) {
         const p5 = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
         const eta5 = correspondingPickup.estimated_arrival ? addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
         if (eta5 && eta5 > p5) stop.delivery_time_start = eta5;else
         if (p5) stop.delivery_time_start = p5;
       }
-      if (stopPatient?.time_window_end) stop.delivery_time_end = stopPatient.time_window_end;
+      if (stopPatient?.time_window_end) {
+        stop.delivery_time_end = stopPatient.time_window_end;
+      } else if (correspondingPickup?.delivery_time_end) {
+        stop.delivery_time_end = correspondingPickup.delivery_time_end;
+      }
+      stop.time_window_start = stop.delivery_time_start;
+      stop.time_window_end = stop.delivery_time_end || stop.time_window_end || '';
     }
 
     // First, set AM/PM on all pickups based on their scheduled time

@@ -140,7 +140,7 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     status: 'en_route',
     delivery_time_start: times.start || fallbackTimes.start,
     delivery_time_end: times.end || fallbackTimes.end,
-    tracking_number: `${store?.abbreviation || ''}${trackingNumberBase}`,
+    tracking_number: String(trackingNumberBase),
   });
 }
 
