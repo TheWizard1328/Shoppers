@@ -215,23 +215,12 @@ export default function DeliveryFormView({
       } else if (buttonState === 'add') {
         const isDisabled = isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || (!isFormValid && !hasSelectedLocationAndDriver) || (requiresDriverSelection && !hasSelectedLocationAndDriver);
         if (!isDisabled) {
-          if (formData.status === 'in_transit') {
-            runLockedAction('save_delivery_direct', async () => {
-              const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
-              await handleSubmit(submitEvent);
-              if (userHasRole(currentUser, 'admin')) {
-                setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
-              }
-              handleClearForm();
-            });
-          } else {
-            runLockedAction('add_staged_delivery', async () => {
-              await handleAddToStaging();
-              if (userHasRole(currentUser, 'admin')) {
-                setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
-              }
-            });
-          }
+          runLockedAction('add_staged_delivery', async () => {
+            await handleAddToStaging();
+            if (userHasRole(currentUser, 'admin')) {
+              setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
+            }
+          });
         }
       } else if (buttonState === 'update' || !buttonState) {
         const isDisabled = isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll;
@@ -813,13 +802,11 @@ export default function DeliveryFormView({
                 buttonState === 'add' ?
                 <Button type="button" size="sm" onClick={() => {
                   if (formData.status === 'in_transit') {
-                    runLockedAction('save_delivery_direct', async () => {
-                      const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
-                      await handleSubmit(submitEvent);
+                    runLockedAction('add_staged_delivery', async () => {
+                      await handleAddToStaging();
                       if (userHasRole(currentUser, 'admin')) {
                         setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
                       }
-                      handleClearForm();
                     });
                     return;
                   }
