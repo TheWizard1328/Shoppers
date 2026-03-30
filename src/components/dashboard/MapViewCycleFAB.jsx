@@ -16,7 +16,11 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   // Make flash method available globally
   useEffect(() => {
     window.__fabFlashUpdate = flashUpdate;
-    return () => delete window.__fabFlashUpdate;
+    window.__currentMapViewPhase = currentPhase;
+    return () => {
+      delete window.__fabFlashUpdate;
+      delete window.__currentMapViewPhase;
+    };
   }, [currentPhase]);
 
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion

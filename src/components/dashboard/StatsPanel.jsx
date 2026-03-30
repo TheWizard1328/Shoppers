@@ -221,11 +221,16 @@ export default function StatsPanel({
                           }
                           if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
                           mapLockExpiresAtRef.current = null;
-                          setMapViewPhase(1); setIsMapViewLocked(true);
-                          lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
-                          setMapViewTrigger(p => p + 1);
-                          const lockDuration = 500; const expiresAt = Date.now() + lockDuration; mapLockExpiresAtRef.current = expiresAt;
-                          mapLockTimeoutRef.current = setTimeout(() => { if (mapLockExpiresAtRef.current === expiresAt) { setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null; } }, lockDuration);
+                          if (setMapViewPhase && setIsMapViewLocked && setMapViewTrigger) {
+                            if (window.__fabFlashUpdate && (window.__currentMapViewPhase ?? 1) === 1) {
+                              window.__fabFlashUpdate();
+                            }
+                            setIsMapViewLocked(true);
+                            lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
+                            setMapViewTrigger(p => p + 1);
+                            const lockDuration = 500; const expiresAt = Date.now() + lockDuration; mapLockExpiresAtRef.current = expiresAt;
+                            mapLockTimeoutRef.current = setTimeout(() => { if (mapLockExpiresAtRef.current === expiresAt) { setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null; } }, lockDuration);
+                          }
                         }}
                         className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                         style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
