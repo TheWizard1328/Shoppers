@@ -225,9 +225,13 @@ const save = async (storeName, record) => {
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
+    const keyPath = store.keyPath;
+    const normalizedRecord = keyPath && typeof keyPath === 'string' && (record[keyPath] === undefined || record[keyPath] === null || record[keyPath] === '')
+      ? { ...record, [keyPath]: record.id || `${storeName}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` }
+      : record;
 
     return new Promise((resolve, reject) => {
-      const request = store.put(record);
+      const request = store.put(normalizedRecord);
       request.onsuccess = () => resolve({ success: true });
       request.onerror = () => reject(request.error);
     });
