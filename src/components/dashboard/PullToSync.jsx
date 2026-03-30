@@ -85,6 +85,9 @@ export default function PullToSync({
     if (now - lastSyncStartedAtRef.current < 10000) return;
 
     lastSyncStartedAtRef.current = now;
+    const syncRunId = `${Date.now()}`;
+    activeSyncRunIdRef.current = syncRunId;
+    window.__activePullToSyncRunId = syncRunId;
     setIsSyncing(true);
     setShowOverlay(!silent);
     try { window.__dashboardSyncing = true; window.dispatchEvent(new CustomEvent('pullToSyncStarted')); } catch (e) {}
@@ -97,10 +100,6 @@ export default function PullToSync({
       const driverFilter = currentDriverId && currentDriverId !== 'all' 
         ? { driver_id: currentDriverId } 
         : {};
-      const syncRunId = `${Date.now()}`;
-      activeSyncRunIdRef.current = syncRunId;
-      window.__activePullToSyncRunId = syncRunId;
-
       if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent && window.__activePullToSyncRunId !== syncRunId) {
         return;
       }
@@ -230,7 +229,7 @@ export default function PullToSync({
           try {
             const repairModule = await import('@/functions/repairMissingPolylines');
             if (typeof repairModule?.repairMissingPolylines === 'function') {
-              repairModule.repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr })
+              Promise.resolve(repairModule.repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr }))
                 .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message));
             }
           } catch (e) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppData } from "../utils/AppDataContext";
 import { RefreshCw } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -228,7 +228,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   // Handle manual refresh click - always triggers pull-to-sync
   const handleManualRefresh = async () => {
     if (isManualRefreshing || isPaused) return;
-    if (window.__dashboardSyncing) return;
+    if (window.__dashboardSyncing && window.__activePullToSyncRunId) return;
 
     setIsManualRefreshing(true);
 
