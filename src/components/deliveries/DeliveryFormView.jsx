@@ -147,13 +147,22 @@ export default function DeliveryFormView({
   // Helper: get default driver ID for a store based on date and time slot
   const getDefaultDriverForStoreSlot = (storeId, timeSlot, deliveryDate) => {
     const store = stores?.find((s) => s && s.id === storeId);
-    if (!store || !deliveryDate) return null;
+    if (!store || !deliveryDate) return { driverId: null, resolvedSlot: timeSlot || null, hasAnyAssignedSlot: false };
     const dateObj = new Date(deliveryDate + 'T00:00:00');
     const day = dateObj.getDay(); // 0=Sun, 6=Sat
-    const slot = (timeSlot || 'AM').toLowerCase(); // 'am' or 'pm'
-    if (day === 0) return store[`sunday_${slot}_driver_id`] || null;
-    if (day === 6) return store[`saturday_${slot}_driver_id`] || null;
-    return store[`weekday_${slot}_driver_id`] || null;
+    const prefix = day === 0 ? 'sunday' : day === 6 ? 'saturday' : 'weekday';
+    const amDriverId = store[`${prefix}_am_driver_id`] || null;
+    const pmDriverId = store[`${prefix}_pm_driver_id`] || null;
+
+    if (timeSlot === 'PM') {
+      if (pmDriverId) return { driverId: pmDriverId, resolvedSlot: 'PM', hasAnyAssignedSlot: true };
+      if (amDriverId) return { driverId: amDriverId, resolvedSlot: 'AM', hasAnyAssignedSlot: true };
+      return { driverId: null, resolvedSlot: 'PM', hasAnyAssignedSlot: false };
+    }
+
+    if (amDriverId) return { driverId: amDriverId, resolvedSlot: 'AM', hasAnyAssignedSlot: true };
+    if (pmDriverId) return { driverId: pmDriverId, resolvedSlot: 'PM', hasAnyAssignedSlot: true };
+    return { driverId: null, resolvedSlot: timeSlot || 'AM', hasAnyAssignedSlot: false };
   };
 
   const stagedPanelProps = {
@@ -336,19 +345,23 @@ export default function DeliveryFormView({
                   setSelectedPickupOption(value);
                   const sel = availableStores.find((s) => s.id === value);
                   const storeId = sel?._originalStoreId || value;
-                  const timeSlot = sel?._timeSlot || null;
-                  const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                  // Auto-select default driver for this store/slot/date
-                  const defaultDriverId = getDefaultDriverForStoreSlot(storeId, timeSlot || 'AM', formData.delivery_date);
+                  const requestedSlot = sel?._timeSlot || 'AM';
+                  const { driverId: defaultDriverId, resolvedSlot, hasAnyAssignedSlot } = getDefaultDriverForStoreSlot(storeId, requestedSlot, formData.delivery_date);
+                  const effectiveSlot = resolvedSlot || requestedSlot;
+                  const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, effectiveSlot, allDeliveries);
                   const defaultDriver = defaultDriverId ? allDrivers.find((d) => d.id === defaultDriverId) : null;
                   setFormData((prev) => ({
-                    ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '',
-                    driver_id: defaultDriver ? defaultDriverId : prev.driver_id,
-                    driver_name: defaultDriver ? getDriverNameForStorage(defaultDriver) : prev.driver_name
+                    ...prev,
+                    store_id: storeId,
+                    ampm_deliveries: effectiveSlot,
+                    puid: newPuid || '',
+                    driver_id: defaultDriver ? defaultDriverId : '',
+                    driver_name: defaultDriver ? getDriverNameForStorage(defaultDriver) : ''
                   }));
-                  // If no default driver, open the driver dropdown
-                  if (!defaultDriver) {
+                  if (!hasAnyAssignedSlot) {
                     setTimeout(() => setForceOpenDriverSelect(true), 150);
+                  } else {
+                    setForceOpenDriverSelect(false);
                   }
                 }} disabled={isSaving}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
