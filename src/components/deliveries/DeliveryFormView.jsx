@@ -858,8 +858,6 @@ export default function DeliveryFormView({
 
                   if (!didSave) return;
 
-                  setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
-                  closeDeliveryFormAfterSave({ handleClearForm: () => setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null })), onCancel });
                   window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
 
                   const affectedRoutes = [
