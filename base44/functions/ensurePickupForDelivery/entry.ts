@@ -126,8 +126,12 @@ Deno.serve(async (req) => {
         delivery_date: deliveryDate,
         driver_id: driverId
       }, '-created_date', 150);
-      const slotPickups = (routePickups || []).filter((pickup) => !pickup?.patient_id && (pickup?.ampm_deliveries || 'AM') === ampmDeliveries);
-      const uniqueStoreCount = new Set(slotPickups.map((pickup) => pickup.store_id)).size;
+      const activeSlotPickups = (routePickups || []).filter((pickup) =>
+        !pickup?.patient_id &&
+        (pickup?.ampm_deliveries || 'AM') === ampmDeliveries &&
+        !['completed', 'cancelled', 'returned', 'failed'].includes(pickup?.status)
+      );
+      const uniqueStoreCount = new Set(activeSlotPickups.map((pickup) => pickup.store_id)).size;
       const trackingNumber = String(uniqueStoreCount * 20);
 
       const newPickup = await base44.asServiceRole.entities.Delivery.create({
@@ -248,8 +252,12 @@ Deno.serve(async (req) => {
       }, '-created_date', 150);
     }
 
-    const slotPickups = allPickups.filter((pickup) => !pickup.patient_id && (pickup.ampm_deliveries || 'AM') === chosenSlot);
-    const uniqueStoreCount = new Set(slotPickups.map((pickup) => pickup.store_id)).size;
+    const activeSlotPickups = allPickups.filter((pickup) =>
+      !pickup.patient_id &&
+      (pickup.ampm_deliveries || 'AM') === chosenSlot &&
+      !['completed', 'cancelled', 'returned', 'failed'].includes(pickup.status)
+    );
+    const uniqueStoreCount = new Set(activeSlotPickups.map((pickup) => pickup.store_id)).size;
     const totalPickupsAfterCreate = uniqueStoreCount + 1;
     const baseNumber = totalPickupsAfterCreate * 20 - 20;
     const trackingNumber = String(baseNumber);
