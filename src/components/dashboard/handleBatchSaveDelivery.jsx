@@ -232,58 +232,7 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const completedStops = stopsToProcess.filter((s) => s && finishedStatuses.includes(s.status));
-    const incompleteStops = stopsToProcess.filter((s) => s && !finishedStatuses.includes(s.status));
-
-    // Sort completed by actual time
-    completedStops.sort((a, b) => {
-      if (!a || !b) return 0;
-      if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
-      return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
-    });
-
-    // CRITICAL: Sort incomplete stops - pending deliveries ALWAYS LAST
-    incompleteStops.sort((a, b) => {
-      if (!a || !b) return 0;
-
-      const isAPickup = !a.patient_id;
-      const isBPickup = !b.patient_id;
-      const isAPending = a.status === 'pending';
-      const isBPending = b.status === 'pending';
-
-      // CRITICAL: Pending deliveries ALWAYS go last
-      if (isAPending && !isBPending) return 1;
-      if (!isAPending && isBPending) return -1;
-
-      // For non-pending stops, sort by time
-      const timeA = a.delivery_time_start || a.delivery_time_eta || '99:99';
-      const timeB = b.delivery_time_start || b.delivery_time_eta || '99:99';
-
-      if (timeA !== timeB) {
-        return timeA.localeCompare(timeB);
-      }
-
-      // CRITICAL: Same time - pickups before deliveries from same store
-      if (a.store_id === b.store_id) {
-        if (isAPickup && !isBPickup) return -1;
-        if (!isAPickup && isBPickup) return 1;
-
-        // If both are deliveries from same store, sort by distance
-        if (!isAPickup && !isBPickup) {
-          const storeForSort = stores.find((s) => s && s.id === a.store_id);
-          if (storeForSort?.latitude && storeForSort?.longitude && a.latitude && a.longitude && b.latitude && b.longitude) {
-            const distA = calculateDistance(storeForSort.latitude, storeForSort.longitude, a.latitude, a.longitude);
-            const distB = calculateDistance(storeForSort.latitude, storeForSort.longitude, b.latitude, b.longitude);
-            return distA - distB;
-          }
-        }
-      }
-
-      return 0;
-    });
-
-    const optimizedRoute = [...completedStops, ...incompleteStops];
+    const optimizedRoute = [...stopsToProcess];
     for (const stop of optimizedRoute) {
       if (!stop || stop.patient_id === null) continue;
       const stopPatient = patients.find((p) => p.id === stop.patient_id);
@@ -345,9 +294,8 @@ export const handleBatchSaveDelivery = async ({
 
     const storePickupTRMap = {};
 
-    // First pass: preserve existing pickup TR#s and only assign new TR#s after the max existing slot base
     for (const stop of optimizedRoute) {
-      if (!stop || stop.patient_id !== null) continue;
+      if (!stop || !stop.isNew || stop.patient_id !== null) continue;
       const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
       const existingTR = parseInt(stop.tracking_number, 10);
       if (!isNaN(existingTR)) {
@@ -355,51 +303,59 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    let nextPickupTR = Object.values(storePickupTRMap).reduce((max, value) => {
-      return typeof value === 'number' && value > max ? value : max;
-    }, -20) + 20;
+    const allExistingPickupTRs = (driverDeliveriesForDate || [])
+      .filter((stop) => stop && !stop.patient_id)
+      .map((stop) => parseInt(stop.tracking_number, 10))
+      .filter((value) => !isNaN(value));
+
+    let nextPickupTR = (allExistingPickupTRs.length > 0 ? Math.max(...allExistingPickupTRs) : -20) + 20;
 
     for (const stop of optimizedRoute) {
-      if (!stop || stop.patient_id !== null) continue;
+      if (!stop || !stop.isNew || stop.patient_id !== null) continue;
       const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
       const existingTR = parseInt(stop.tracking_number, 10);
-      if (!isNaN(existingTR)) continue;
+      if (!isNaN(existingTR)) {
+        storePickupTRMap[mapKey] = existingTR;
+        continue;
+      }
       stop.tracking_number = String(nextPickupTR);
       storePickupTRMap[mapKey] = nextPickupTR;
       nextPickupTR += 20;
     }
 
-    // Second pass: Assign TR# to deliveries (both active and pending)
+    const existingDeliveryCountsBySlot = (driverDeliveriesForDate || []).reduce((acc, stop) => {
+      if (!stop || !stop.patient_id) return acc;
+      const mapKey = `${stop.store_id}-${stop.ampm_deliveries || 'AM'}`;
+      acc[mapKey] = (acc[mapKey] || 0) + 1;
+      return acc;
+    }, {});
+
+    const newDeliveryCountsBySlot = {};
+
     for (const stop of optimizedRoute) {
-      if (!stop) continue;
+      if (!stop || !stop.isNew || stop.patient_id === null) continue;
 
-      if (stop.patient_id !== null) {
-        const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
-        const pickupBaseTR = storePickupTRMap[mapKey];
+      const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
+      const pickupBaseTR = storePickupTRMap[mapKey];
 
-        if (pickupBaseTR !== undefined) {
-          // Count deliveries from this store and same AM/PM slot that come before this one
-          const deliveriesBeforeThis = optimizedRoute.filter((s) => {
-            if (!s) return false;
-            return s.patient_id !== null &&
-            s.store_id === stop.store_id &&
-            s.ampm_deliveries === stop.ampm_deliveries &&
-            optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop);
-          }).length;
-
-          const trNumber = String(pickupBaseTR + deliveriesBeforeThis + 1).padStart(2, '0');
-          stop.tracking_number = trNumber;
-
-          const patient = patients.find((p) => p.id === stop.patient_id);
-        } else {
-          stop.tracking_number = '99';
-          console.warn(`[AddToRoute]     No pickup found for delivery (${mapKey}), using TR#99`);
-        }
+      if (pickupBaseTR !== undefined) {
+        const existingCount = existingDeliveryCountsBySlot[mapKey] || 0;
+        const newCount = newDeliveryCountsBySlot[mapKey] || 0;
+        stop.tracking_number = String(pickupBaseTR + existingCount + newCount + 1).padStart(2, '0');
+        newDeliveryCountsBySlot[mapKey] = newCount + 1;
+      } else {
+        stop.tracking_number = '99';
+        console.warn(`[AddToRoute]     No pickup found for delivery (${mapKey}), using TR#99`);
       }
     }
 
     const deliveriesToCreate = [];
     const deliveriesToUpdate = [];
+
+    const existingStopOrders = (driverDeliveriesForDate || [])
+      .map((stop) => Number(stop?.stop_order))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    let nextStopOrder = (existingStopOrders.length > 0 ? Math.max(...existingStopOrders) : 0) + 1;
 
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stop = optimizedRoute[i];
@@ -408,7 +364,10 @@ export const handleBatchSaveDelivery = async ({
       const stopPatient = patients.find((p) => p && p.id === stop.patient_id);
       const stopStore = stores.find((s) => s && s.id === stop.store_id);
 
-      stop.stop_order = i + 1;
+      if (stop.isNew) {
+        stop.stop_order = nextStopOrder;
+        nextStopOrder += 1;
+      }
 
       if (!stop.stop_id) {
         stop.stop_id = generateUniqueSID(allDeliveriesForDate);
@@ -462,8 +421,8 @@ export const handleBatchSaveDelivery = async ({
 
       if (stop.isNew) {
         deliveriesToCreate.push(payload);
-      } else {
-        deliveriesToUpdate.push({ id: stop.id, updates: stop._wasEdited ? payload : { stop_id: payload.stop_id, puid: payload.puid, stop_order: payload.stop_order, tracking_number: payload.tracking_number, delivery_time_start: payload.delivery_time_start, delivery_time_end: payload.delivery_time_end, delivery_time_eta: payload.delivery_time_eta, time_window_start: payload.time_window_start, time_window_end: payload.time_window_end, ampm_deliveries: payload.ampm_deliveries, status: payload.status } });
+      } else if (stop._wasEdited) {
+        deliveriesToUpdate.push({ id: stop.id, updates: payload });
       }
     }
 
