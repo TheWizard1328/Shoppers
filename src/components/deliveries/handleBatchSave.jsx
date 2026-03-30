@@ -121,7 +121,7 @@ export async function handleBatchSave({
 
       if (shouldEnsureDefaultPickups) {
         const assignedStoreIds = Array.from(new Set(
-          patientDeliveriesReadyForDB.map((delivery) => delivery?.store_id).filter(Boolean)
+          deliveriesReadyForDB.map((delivery) => delivery?.store_id).filter(Boolean)
         ));
         const defaultPickupResponse = await base44.functions.invoke('ensureDefaultPickupsForDriver', {
           driverId: formData.driver_id,
