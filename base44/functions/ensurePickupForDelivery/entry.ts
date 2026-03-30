@@ -3,6 +3,22 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
+function parseTrackingNumber(value) {
+  if (value === null || value === undefined) return null;
+  const match = String(value).match(/\d+/);
+  if (!match) return null;
+  const parsed = parseInt(match[0], 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getNextPickupTrackingNumber(pickups = []) {
+  const maxTrackingNumber = pickups.reduce((max, pickup) => {
+    const parsed = parseTrackingNumber(pickup?.tracking_number);
+    return parsed !== null && parsed > max ? parsed : max;
+  }, -20);
+  return String(maxTrackingNumber + 20);
+}
+
 function generateShortStopId() {
   const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   let result = '';
@@ -126,13 +142,11 @@ Deno.serve(async (req) => {
         delivery_date: deliveryDate,
         driver_id: driverId
       }, '-created_date', 150);
-      const activeSlotPickups = (routePickups || []).filter((pickup) =>
+      const slotPickups = (routePickups || []).filter((pickup) =>
         !pickup?.patient_id &&
-        (pickup?.ampm_deliveries || 'AM') === ampmDeliveries &&
-        !['completed', 'cancelled', 'returned', 'failed'].includes(pickup?.status)
+        (pickup?.ampm_deliveries || 'AM') === ampmDeliveries
       );
-      const uniqueStoreCount = new Set(activeSlotPickups.map((pickup) => pickup.store_id)).size;
-      const trackingNumber = String(uniqueStoreCount * 20);
+      const trackingNumber = getNextPickupTrackingNumber(slotPickups);
 
       const newPickup = await base44.asServiceRole.entities.Delivery.create({
         stop_id: puid,
@@ -252,15 +266,11 @@ Deno.serve(async (req) => {
       }, '-created_date', 150);
     }
 
-    const activeSlotPickups = allPickups.filter((pickup) =>
+    const slotPickups = allPickups.filter((pickup) =>
       !pickup.patient_id &&
-      (pickup.ampm_deliveries || 'AM') === chosenSlot &&
-      !['completed', 'cancelled', 'returned', 'failed'].includes(pickup.status)
+      (pickup.ampm_deliveries || 'AM') === chosenSlot
     );
-    const uniqueStoreCount = new Set(activeSlotPickups.map((pickup) => pickup.store_id)).size;
-    const totalPickupsAfterCreate = uniqueStoreCount + 1;
-    const baseNumber = totalPickupsAfterCreate * 20 - 20;
-    const trackingNumber = String(baseNumber);
+    const trackingNumber = getNextPickupTrackingNumber(slotPickups);
 
     const newPickup = await base44.asServiceRole.entities.Delivery.create({
       stop_id: puid,
