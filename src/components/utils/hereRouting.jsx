@@ -495,7 +495,6 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
   // Skip HERE call for zero-distance legs
   const samePoint = Math.abs(fromStop.latitude - toStop.latitude) < 1e-5 && Math.abs(fromStop.longitude - toStop.longitude) < 1e-5;
   if (samePoint) {
-    console.info('[HERE][client] Skipping HERE call: zero-distance leg', { from: fromStop, to: toStop });
     return null;
   }
 
