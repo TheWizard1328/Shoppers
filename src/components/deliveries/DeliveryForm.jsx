@@ -1070,7 +1070,7 @@ export default function DeliveryForm({
       });
     }
 
-    if(isPickupMode) { await createDeliveryLocal(newStagedDelivery); setHasPendingDeletes(true); } else setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
+    setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
 
 
     setHasChanges(true);
