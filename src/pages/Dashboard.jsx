@@ -89,7 +89,7 @@ import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
 import BreadcrumbToggleButton from '@/components/dashboard/BreadcrumbToggleButton';
 import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
-import DashboardTopOverlay from '@/components/dashboard/DashboardTopOverlay';
+import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
 import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
@@ -2535,8 +2535,7 @@ function Dashboard() {
 
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence + DOM readiness
-  const initialSyncCompletedRef = useRef(false);
-
+  
   useEffect(() => {
     if (!renderSequence.fullDeliveriesLoaded || renderSequence.fabPhaseReady) return;
     // CRITICAL: Wait for stop cards to be measured in the DOM before activating FAB
