@@ -1080,7 +1080,7 @@ export default function DeliveryForm({
         ...pickupToCreate,
         patient_id: null,
         status: 'en_route',
-        tracking_number: `${store?.abbreviation || ''}${trackingNumberBase}`,
+        tracking_number: String(trackingNumberBase),
         delivery_time_start: pickupTimes?.delivery_time_start || pickupToCreate.delivery_time_start || '',
         delivery_time_end: pickupTimes?.delivery_time_end || pickupToCreate.delivery_time_end || '',
         time_window_start: pickupTimes?.delivery_time_start || pickupToCreate.time_window_start || '',
