@@ -108,7 +108,7 @@ export async function handleBatchSave({
         .map((delivery) => ({ ...delivery, status: 'en_route' }));
       const patientDeliveriesReadyForDB = deliveriesReadyForDB.filter((delivery) => !!delivery?.patient_id);
 
-      let ensuredPickupRecords = [];
+      let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
 
       if (isNewRouteWithZeroStops) {
