@@ -121,9 +121,12 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     driver_id: driverId,
   }, '-created_date', 150);
 
-  const slotPickups = (routeDeliveries || []).filter((item) => !item?.patient_id && (item?.ampm_deliveries || 'AM') === slot);
-  const uniqueStoreCount = new Set(slotPickups.map((item) => item?.store_id).filter(Boolean)).size;
-  const trackingNumberBase = (uniqueStoreCount + 1) * 20 - 20;
+  const routePickups = (routeDeliveries || []).filter((item) => !item?.patient_id);
+  const existingPickupNumbers = routePickups
+    .map((item) => parseInt(String(item?.tracking_number || '').match(/\d+/)?.[0] || '', 10))
+    .filter((value) => !Number.isNaN(value));
+  const highestTrackingNumber = existingPickupNumbers.length > 0 ? Math.max(...existingPickupNumbers) : -20;
+  const trackingNumberBase = highestTrackingNumber + 20;
   const times = getSlotTimes(store, deliveryDate, slot);
   const fallbackTimes = getFallbackTimes(slot);
 
