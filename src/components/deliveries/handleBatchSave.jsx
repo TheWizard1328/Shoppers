@@ -111,7 +111,15 @@ export async function handleBatchSave({
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
 
-      if (isNewRouteWithZeroStops) {
+      const hasExistingPersistedRouteStops = (allDeliveries || []).some((delivery) =>
+        delivery &&
+        delivery.delivery_date === formData.delivery_date &&
+        delivery.driver_id === formData.driver_id &&
+        ['pending', 'en_route', 'in_transit'].includes(delivery.status)
+      );
+      const shouldEnsureDefaultPickups = !hasExistingPersistedRouteStops;
+
+      if (shouldEnsureDefaultPickups) {
         const assignedStoreIds = Array.from(new Set(
           patientDeliveriesReadyForDB.map((delivery) => delivery?.store_id).filter(Boolean)
         ));
