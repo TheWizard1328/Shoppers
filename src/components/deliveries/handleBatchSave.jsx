@@ -56,19 +56,22 @@ export async function handleBatchSave({
     formData
   })) return;
 
+  const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
+  const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
+
   const persistedRouteStopCountBeforeProcessing = (allDeliveries || []).filter((delivery) =>
     delivery &&
-    delivery.delivery_date === formData.delivery_date &&
-    delivery.driver_id === formData.driver_id &&
+    delivery.delivery_date === routeDeliveryDate &&
+    delivery.driver_id === routeDriverId &&
     delivery.status !== 'Staged'
   ).length;
 
   console.log('[AddToRoute] Pre-processing route stop count', {
-    driverId: formData.driver_id,
-    deliveryDate: formData.delivery_date,
+    driverId: routeDriverId,
+    deliveryDate: routeDeliveryDate,
     persistedRouteStopCountBeforeProcessing,
     matchingStops: (allDeliveries || [])
-      .filter((delivery) => delivery && delivery.delivery_date === formData.delivery_date && delivery.driver_id === formData.driver_id)
+      .filter((delivery) => delivery && delivery.delivery_date === routeDeliveryDate && delivery.driver_id === routeDriverId)
       .map((delivery) => ({
         id: delivery.id,
         patient_id: delivery.patient_id,
@@ -133,7 +136,7 @@ export async function handleBatchSave({
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
 
-      const shouldEnsureDefaultPickups = persistedRouteStopCountBeforeProcessing === 0;
+      const shouldEnsureDefaultPickups = !!routeDriverId && persistedRouteStopCountBeforeProcessing === 0;
 
       console.log('[AddToRoute] Default pickup gate', {
         shouldEnsureDefaultPickups,
@@ -148,13 +151,13 @@ export async function handleBatchSave({
           deliveriesReadyForDB.map((delivery) => delivery?.store_id).filter(Boolean)
         ));
         console.log('[AddToRoute] Invoking ensureDefaultPickupsForDriver', {
-          driverId: formData.driver_id,
-          deliveryDate: formData.delivery_date,
+          driverId: routeDriverId,
+          deliveryDate: routeDeliveryDate,
           storeIds: assignedStoreIds
         });
         const defaultPickupResponse = await base44.functions.invoke('ensureDefaultPickupsForDriver', {
-          driverId: formData.driver_id,
-          deliveryDate: formData.delivery_date,
+          driverId: routeDriverId,
+          deliveryDate: routeDeliveryDate,
           storeIds: assignedStoreIds
         }).catch((error) => {
           console.error('[AddToRoute] ensureDefaultPickupsForDriver failed', error);
