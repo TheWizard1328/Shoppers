@@ -68,11 +68,13 @@ export default function StatsPanel({
             }
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: freshAppUsers, forceAll: true } }));
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'pullToSyncComplete', allDrivers: true } }));
-            setIsMapViewLocked(true);
-            lastProgrammaticMapMoveRef.current = Date.now();
-            window._lastProgrammaticMapMove = Date.now();
-            setMapViewTrigger(prev => prev + 1);
-            setTimeout(() => setIsMapViewLocked(false), 500);
+            if ((window.__currentMapViewPhase ?? 1) === 1) {
+              setIsMapViewLocked(true);
+              lastProgrammaticMapMoveRef.current = Date.now();
+              window._lastProgrammaticMapMove = Date.now();
+              setMapViewTrigger(prev => prev + 1);
+              setTimeout(() => setIsMapViewLocked(false), 500);
+            }
             window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
             window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
           }}
@@ -224,12 +226,12 @@ export default function StatsPanel({
                           if (setMapViewPhase && setIsMapViewLocked && setMapViewTrigger) {
                             if (window.__fabFlashUpdate && (window.__currentMapViewPhase ?? 1) === 1) {
                               window.__fabFlashUpdate();
+                              setIsMapViewLocked(true);
+                              lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
+                              setMapViewTrigger(p => p + 1);
+                              const lockDuration = 500; const expiresAt = Date.now() + lockDuration; mapLockExpiresAtRef.current = expiresAt;
+                              mapLockTimeoutRef.current = setTimeout(() => { if (mapLockExpiresAtRef.current === expiresAt) { setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null; } }, lockDuration);
                             }
-                            setIsMapViewLocked(true);
-                            lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
-                            setMapViewTrigger(p => p + 1);
-                            const lockDuration = 500; const expiresAt = Date.now() + lockDuration; mapLockExpiresAtRef.current = expiresAt;
-                            mapLockTimeoutRef.current = setTimeout(() => { if (mapLockExpiresAtRef.current === expiresAt) { setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null; } }, lockDuration);
                           }
                         }}
                         className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
