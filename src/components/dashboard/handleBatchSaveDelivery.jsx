@@ -293,29 +293,32 @@ export const handleBatchSaveDelivery = async ({
     }
 
     const storePickupTRMap = {};
-
-    for (const stop of optimizedRoute) {
-      if (!stop || !stop.isNew || stop.patient_id !== null) continue;
-      const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
-      const existingTR = parseInt(stop.tracking_number, 10);
-      if (!isNaN(existingTR)) {
-        storePickupTRMap[mapKey] = existingTR;
-      }
-    }
-
-    const allExistingPickupTRs = [...(driverDeliveriesForDate || []), ...(ensuredPickupRecords || []), ...optimizedRoute]
+    const allExistingPickupTRs = (driverDeliveriesForDate || [])
       .filter((stop) => stop && !stop.patient_id)
       .map((stop) => parseInt(stop.tracking_number, 10))
       .filter((value) => !isNaN(value) && value > 0);
+
+    for (const stop of driverDeliveriesForDate || []) {
+      if (!stop || stop.patient_id !== null) continue;
+      const mapKey = `${stop.store_id}-${stop.ampm_deliveries || 'AM'}`;
+      const existingTR = parseInt(stop.tracking_number, 10);
+      if (!isNaN(existingTR) && storePickupTRMap[mapKey] === undefined) {
+        storePickupTRMap[mapKey] = existingTR;
+      }
+    }
 
     let nextPickupTR = (allExistingPickupTRs.length > 0 ? Math.max(...allExistingPickupTRs) : 0) + 20;
 
     for (const stop of optimizedRoute) {
       if (!stop || !stop.isNew || stop.patient_id !== null) continue;
-      const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
+      const mapKey = `${stop.store_id}-${stop.ampm_deliveries || 'AM'}`;
       const existingTR = parseInt(stop.tracking_number, 10);
-      if (!isNaN(existingTR)) {
+      if (!isNaN(existingTR) && existingTR > 0) {
         storePickupTRMap[mapKey] = existingTR;
+        continue;
+      }
+      if (storePickupTRMap[mapKey] !== undefined) {
+        stop.tracking_number = String(storePickupTRMap[mapKey]);
         continue;
       }
       stop.tracking_number = String(nextPickupTR);
@@ -323,25 +326,17 @@ export const handleBatchSaveDelivery = async ({
       nextPickupTR += 20;
     }
 
-    const existingDeliveryCountsBySlot = (driverDeliveriesForDate || []).reduce((acc, stop) => {
-      if (!stop || !stop.patient_id) return acc;
-      const mapKey = `${stop.store_id}-${stop.ampm_deliveries || 'AM'}`;
-      acc[mapKey] = (acc[mapKey] || 0) + 1;
-      return acc;
-    }, {});
-
     const newDeliveryCountsBySlot = {};
 
     for (const stop of optimizedRoute) {
       if (!stop || !stop.isNew || stop.patient_id === null) continue;
 
-      const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
+      const mapKey = `${stop.store_id}-${stop.ampm_deliveries || 'AM'}`;
       const pickupBaseTR = storePickupTRMap[mapKey];
 
       if (pickupBaseTR !== undefined) {
-        const existingCount = existingDeliveryCountsBySlot[mapKey] || 0;
         const newCount = newDeliveryCountsBySlot[mapKey] || 0;
-        stop.tracking_number = String(pickupBaseTR + existingCount + newCount + 1).padStart(2, '0');
+        stop.tracking_number = String(pickupBaseTR + newCount + 1).padStart(2, '0');
         newDeliveryCountsBySlot[mapKey] = newCount + 1;
       } else {
         stop.tracking_number = '99';
