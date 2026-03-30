@@ -131,118 +131,7 @@ export const handleBatchSaveDelivery = async ({
     const isSaturday = dayOfWeek === 6;
     const isSunday = dayOfWeek === 0;
 
-    const isFirstStop = driverDeliveriesForDate.length === 0;
-
-    // CRITICAL: Special stores that only get pickups created on-demand (when first delivery is added)
     const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark'];
-
-    // CRITICAL: Skip pickup creation for InterStore deliveries
-    const hasOnlyInterStore = driverDeliveries.every(d => 
-      d?.patient_name?.toLowerCase().includes('interstore') || 
-      d?.delivery_notes?.toLowerCase().includes('interstore')
-    );
-
-    const pendingSpecialPickupKeys = new Set();
-
-    // CRITICAL: Always create pickups for ALL assigned stores EXCEPT special stores
-    const assignedStores = (stores || []).filter((store) => {
-      if (!store) return false;
-      if (!driver) return false; // Skip assigned stores for unassigned
-      // Skip special stores - they get pickups created dynamically below
-      if (specialStoreNames.includes(store.name)) return false;
-
-      if (isSaturday) {
-        return isDriverAssignedToSlot(store, 'saturday_am') || isDriverAssignedToSlot(store, 'saturday_pm');
-      } else if (isSunday) {
-        return isDriverAssignedToSlot(store, 'sunday_am') || isDriverAssignedToSlot(store, 'sunday_pm');
-      } else {
-        return isDriverAssignedToSlot(store, 'weekday_am') || isDriverAssignedToSlot(store, 'weekday_pm');
-      }
-    });
-
-    const storesToCheck = hasOnlyInterStore ? [] : assignedStores;
-
-    for (const store of storesToCheck) {
-      if (isSaturday ? isDriverAssignedToSlot(store, 'saturday_am') :
-      isSunday ? isDriverAssignedToSlot(store, 'sunday_am') :
-      isDriverAssignedToSlot(store, 'weekday_am')) {
-
-        const existingAMPickup = stopsToProcess.find((delivery) => {
-          if (!delivery) return false;
-          return delivery.store_id === store.id && !delivery.patient_id && delivery.ampm_deliveries === 'AM';
-        });
-
-        if (!existingAMPickup) {
-          const amPickupTime = isSaturday ? store.saturday_am_start || '09:00' :
-          isSunday ? store.sunday_am_start || '09:00' :
-          store.weekday_am_start || '09:00';
-          const amPickupEndTime = isSaturday ? store.saturday_am_end || '12:00' :
-          isSunday ? store.sunday_am_end || '12:00' :
-          store.weekday_am_end || '12:00';
-
-          stopsToProcess.push({
-            isNew: true,
-            patient_id: null,
-            store_id: store.id,
-            driver_id: driverId,
-            driver_name: driver.user_name || driver.full_name,
-            delivery_date: deliveryDate,
-            delivery_time_start: amPickupTime,
-            delivery_time_end: amPickupEndTime,
-            ampm_deliveries: 'AM',
-            status: 'en_route',
-            delivery_notes: `Store Pickup for ${store.name}`,
-            latitude: store.latitude,
-            longitude: store.longitude,
-            patient_name: '',
-            patient_phone: '',
-            store_phone: store.phone || '',
-            extra_time: 15
-          });
-
-        }
-      }
-
-      if (isSaturday ? isDriverAssignedToSlot(store, 'saturday_pm') :
-      isSunday ? isDriverAssignedToSlot(store, 'sunday_pm') :
-      isDriverAssignedToSlot(store, 'weekday_pm')) {
-
-        const existingPMPickup = stopsToProcess.find((delivery) => {
-          if (!delivery) return false;
-          return delivery.store_id === store.id && !delivery.patient_id && delivery.ampm_deliveries === 'PM';
-        });
-
-        if (!existingPMPickup) {
-          const pmPickupTime = isSaturday ? store.saturday_pm_start || '13:00' :
-          isSunday ? store.sunday_pm_start || '13:00' :
-          store.weekday_pm_start || '13:00';
-          const pmPickupEndTime = isSaturday ? store.saturday_pm_end || '17:00' :
-          isSunday ? store.sunday_pm_end || '17:00' :
-          store.weekday_pm_end || '17:00';
-
-          stopsToProcess.push({
-            isNew: true,
-            patient_id: null,
-            store_id: store.id,
-            driver_id: driverId,
-            driver_name: driver.user_name || driver.full_name,
-            delivery_date: deliveryDate,
-            delivery_time_start: pmPickupTime,
-            delivery_time_end: pmPickupEndTime,
-            ampm_deliveries: 'PM',
-            status: 'en_route',
-            delivery_notes: `Store Pickup for ${store.name}`,
-            latitude: store.latitude,
-            longitude: store.longitude,
-            patient_name: '',
-            patient_phone: '',
-            store_phone: store.phone || '',
-            extra_time: 15
-          });
-
-        }
-      }
-    }
 
     for (const newDelivery of driverDeliveries) {
       if (!newDelivery) continue;
@@ -251,48 +140,6 @@ export const handleBatchSaveDelivery = async ({
       const deliveryStore = stores.find((s) => s && s.id === newDelivery.store_id) || null;
 
       // CRITICAL: For special stores, create pickup on-demand when first delivery is added
-      if (deliveryStore && specialStoreNames.includes(deliveryStore.name)) {
-        const deliveryAmpm = determineAMPMFromTime(newDelivery.delivery_time_start || '10:00');
-
-        // Check if pickup already exists for this store/AM-PM combo
-        const existingPickup = stopsToProcess.find((s) =>
-        s && !s.patient_id && s.store_id === deliveryStore.id && s.ampm_deliveries === deliveryAmpm
-        );
-
-        if (!existingPickup) {
-          pendingSpecialPickupKeys.add(`${deliveryStore.id}_${deliveryAmpm}`);
-
-          // Determine pickup time based on AM/PM
-          const pickupTime = deliveryAmpm === 'AM' ?
-          (isSaturday ? deliveryStore.saturday_am_start : isSunday ? deliveryStore.sunday_am_start : deliveryStore.weekday_am_start) || '09:00' :
-          (isSaturday ? deliveryStore.saturday_pm_start : isSunday ? deliveryStore.sunday_pm_start : deliveryStore.weekday_pm_start) || '13:00';
-
-          const pickupEndTime = deliveryAmpm === 'AM' ?
-          (isSaturday ? deliveryStore.saturday_am_end : isSunday ? deliveryStore.sunday_am_end : deliveryStore.weekday_am_end) || '12:00' :
-          (isSaturday ? deliveryStore.saturday_pm_end : isSunday ? deliveryStore.sunday_pm_end : deliveryStore.weekday_pm_end) || '17:00';
-
-          stopsToProcess.push({
-            isNew: true,
-            patient_id: null,
-            store_id: deliveryStore.id,
-            driver_id: driverId === 'unassigned' ? null : driverId,
-            driver_name: driver ? (driver.user_name || driver.full_name) : '',
-            delivery_date: deliveryDate,
-            delivery_time_start: pickupTime,
-            delivery_time_end: pickupEndTime,
-            ampm_deliveries: deliveryAmpm,
-            status: 'en_route',
-            delivery_notes: `Store Pickup for ${deliveryStore.name}`,
-            latitude: deliveryStore.latitude,
-            longitude: deliveryStore.longitude,
-            patient_name: '',
-            patient_phone: '',
-            store_phone: deliveryStore.phone || '',
-            extra_time: 15
-          });
-        }
-      }
-
       // CRITICAL: Use the status from DeliveryForm (already converted from 'Staged' to 'pending' or 'in_transit')
       // Do NOT override with hardcoded 'pending' - respect what DeliveryForm sent
       stopsToProcess.push({
@@ -598,17 +445,8 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    const specialStorePickupPayloads = deliveriesToCreate.filter((delivery) => {
-      if (!delivery || delivery.patient_id !== null) return false;
-      return pendingSpecialPickupKeys.has(`${delivery.store_id}_${delivery.ampm_deliveries}`);
-    });
-    const regularDeliveriesToCreate = deliveriesToCreate.filter((delivery) => !specialStorePickupPayloads.includes(delivery));
-
-    const pickupPayloadKeys = new Set(specialStorePickupPayloads.map((delivery) => `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || ''}`));
-    const regularDeliveriesDeduped = regularDeliveriesToCreate.filter((delivery) => !pickupPayloadKeys.has(`${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || ''}`) || !!delivery.patient_id);
-
-    const createdPickupDeliveries = specialStorePickupPayloads.length > 0 ? await batchCreateDeliveriesLocal(specialStorePickupPayloads) : [];
-    const createdDeliveries = regularDeliveriesDeduped.length > 0 ? await batchCreateDeliveriesLocal(regularDeliveriesDeduped) : [];
+    const createdPickupDeliveries = [];
+    const createdDeliveries = deliveriesToCreate.length > 0 ? await batchCreateDeliveriesLocal(deliveriesToCreate) : [];
 
     createdPickupDeliveries.forEach((delivery) => {
       if (delivery?.store_id && delivery?.delivery_date && delivery?.ampm_deliveries) {
