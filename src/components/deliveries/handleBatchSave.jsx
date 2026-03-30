@@ -123,7 +123,10 @@ export async function handleBatchSave({
         ensuredPickupRecords = Array.from(new Map(
           [...(defaultPickupResponse?.data?.pickups || []), ...(defaultPickupResponse?.pickups || []), ...pickupRecordsFromStage]
             .filter((pickup) => pickup?.id || pickup?.stop_id)
-            .map((pickup) => [pickup.id || pickup.stop_id, pickup])
+            .map((pickup) => {
+              const normalizedPickup = { ...pickup, patient_id: null, puid: pickup?.stop_id || pickup?.puid || null };
+              return [normalizedPickup.id || normalizedPickup.stop_id, normalizedPickup];
+            })
         ).values());
         const ensuredPickupByKey = new Map(
           ensuredPickupRecords

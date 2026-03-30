@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
           createdByAppUserId: creatorAppUserId,
         });
 
-        ensuredPickups.push(pickup);
+        ensuredPickups.push({ ...pickup, patient_id: null, puid: pickup?.stop_id || pickup?.puid || null });
       }
     }
 
