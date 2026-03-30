@@ -1,4 +1,11 @@
+import { isAppOwner } from './userRoles';
+
 let managerControllersPromise;
+
+const shouldCatchBackgroundDeliveryError = (currentUser) => {
+  const isLiveApp = typeof window !== 'undefined' && !window.location.hostname.includes('preview-sandbox');
+  return isLiveApp && !isAppOwner(currentUser);
+};
 
 const getManagerControllers = async () => {
   if (!managerControllersPromise) {
@@ -78,7 +85,7 @@ export const closeDeliveryFormAfterSave = ({ handleClearForm, onCancel }) => {
   onCancel();
 };
 
-export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges }) => {
+export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, currentUser }) => {
   if (!driverId || !deliveryDate) return;
 
   setTimeout(async () => {
@@ -113,7 +120,11 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
       }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     } catch (error) {
-      console.warn(`⚠️ [DeliveryForm] Background ${hasTimeWindowChanges ? 'route optimization' : 'ETA refresh'} failed:`, error?.message || error);
+      if (shouldCatchBackgroundDeliveryError(currentUser)) {
+        console.warn(`⚠️ [DeliveryForm] Background ${hasTimeWindowChanges ? 'route optimization' : 'ETA refresh'} failed:`, error?.message || error);
+        return;
+      }
+      throw error;
     }
   }, 0);
 };

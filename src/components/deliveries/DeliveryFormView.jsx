@@ -262,7 +262,8 @@ export default function DeliveryFormView({
             runPostDeliveryUpdateSync({
               driverId,
               deliveryDate,
-              hasTimeWindowChanges: shouldOptimizeInBackground
+              hasTimeWindowChanges: shouldOptimizeInBackground,
+              currentUser
             });
 
             window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
@@ -876,7 +877,8 @@ export default function DeliveryFormView({
                     runPostDeliveryUpdateSync({
                       driverId,
                       deliveryDate,
-                      hasTimeWindowChanges: shouldOptimizeInBackground
+                      hasTimeWindowChanges: shouldOptimizeInBackground,
+                      currentUser
                     });
                   });
                 }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
