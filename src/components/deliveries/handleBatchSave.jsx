@@ -168,7 +168,16 @@ export async function handleBatchSave({
           [...(defaultPickupResponse?.data?.pickups || []), ...(defaultPickupResponse?.pickups || []), ...pickupRecordsFromStage]
             .filter((pickup) => pickup?.id || pickup?.stop_id)
             .map((pickup) => {
-              const normalizedPickup = { ...pickup, patient_id: null, puid: pickup?.stop_id || pickup?.puid || null };
+              const normalizedPickup = {
+                ...pickup,
+                patient_id: null,
+                store_id: pickup?.store_id || pickup?.pickup_store_id || '',
+                driver_id: pickup?.driver_id || routeDriverId,
+                delivery_date: pickup?.delivery_date || routeDeliveryDate,
+                ampm_deliveries: pickup?.ampm_deliveries || 'AM',
+                stop_id: pickup?.stop_id || pickup?.puid || pickup?.id || '',
+                puid: pickup?.stop_id || pickup?.puid || pickup?.id || null
+              };
               return [normalizedPickup.id || normalizedPickup.stop_id, normalizedPickup];
             })
         ).values());
