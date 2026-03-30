@@ -1163,7 +1163,7 @@ export const forceSyncAll = async () => {
     const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
 
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 5 });
-    const appUsersRaw = await AppUser.list();
+    const appUsersRaw = await fetchAppUsersDedup();
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
@@ -1294,7 +1294,7 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
   try {
     // 1) AppUsers (entire entity)
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10 });
-    const appUsersRaw = await AppUser.list();
+    const appUsersRaw = await fetchAppUsersDedup();
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
@@ -1555,7 +1555,7 @@ export const restartDeliveryPatientSync = async () => {
     
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 90 });
     console.log('👤 [ForceSyncAll] Fetching AppUsers...');
-    const appUsersRaw2 = await AppUser.list();
+    const appUsersRaw2 = await fetchAppUsersDedup();
     const appUsersByUserId2 = new Map();
     appUsersRaw2.forEach(au => {
       if (!au || !au.user_id) return;
