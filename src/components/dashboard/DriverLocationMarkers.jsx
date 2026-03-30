@@ -169,7 +169,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
       // RULE 1: Self marker on non-primary device - ALWAYS show if coordinates exist (shared from primary)
       if (isSelf && !isPrimaryDevice) {
-        console.log(`✅ [shouldShowMarker] SELF on NON-PRIMARY device - ALWAYS show (shared from primary)`);
         return true;
       }
 
