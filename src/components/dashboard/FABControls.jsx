@@ -9,6 +9,8 @@ import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineS
 import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { invalidateDeliveriesForDate } from "@/components/utils/dataManager";
+import { fabControlEvents } from "@/components/utils/fabControlEvents";
+import { useEffect } from "react";
 
 const buildRadiusBoundsFromStore = (store, radiusKm = 2.5) => {
   if (!store?.latitude || !store?.longitude) return [];
@@ -37,6 +39,15 @@ export default function FABControls({
   isAIEnabled, showAIAssistant,
   refreshData,
 }) {
+  useEffect(() => {
+    const unsubscribe = fabControlEvents.subscribe((event) => {
+      if (event?.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE') {
+        window.__fabFlashUpdate?.();
+      }
+    });
+
+    return unsubscribe;
+  }, []);
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   const activeStopCount = deliveriesWithStopOrder.filter((delivery) => delivery && !finishedStatuses.includes(delivery.status)).length;
   const isMapCycleEnabled = activeStopCount > 1;
