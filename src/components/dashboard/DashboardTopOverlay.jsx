@@ -52,6 +52,7 @@ export default function DashboardTopOverlay(props) {
     calendarMonth,
     setCalendarMonth,
     handleDateChange,
+    handleDriverChange,
     setShowDeliveryForm,
     setEditingDelivery,
     setIsEntityUpdating,
