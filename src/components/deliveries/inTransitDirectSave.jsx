@@ -1,4 +1,5 @@
 import { getStoreAssignedTimeSlotForDriver } from '../utils/ampmUtils';
+import { base44 } from '@/api/base44Client';
 import { resolvePickupPuid } from './deliveryAddHelpers';
 
 export async function buildInTransitDirectSaveData({
@@ -31,7 +32,14 @@ export async function buildInTransitDirectSaveData({
         deliveryDate: dataToSave.delivery_date,
         driverId: dataToSave.driver_id,
         timeSlot,
-        reuseLatestCompleted: true
+        reuseLatestCompleted: true,
+        ensureMissingPickup: () => base44.functions.invoke('ensurePickupForDelivery', {
+          storeId: patientStoreId,
+          deliveryDate: dataToSave.delivery_date,
+          driverId: dataToSave.driver_id,
+          ampmDeliveries: timeSlot,
+          allowCreateIfMissing: true
+        })
       });
     }
   }
