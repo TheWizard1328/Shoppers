@@ -3330,33 +3330,19 @@ export default function DeliveriesPage() {
                   const deliveriesToDelete = driverFilteredDeliveries.filter(
                     (d) => d.delivery_date === dateStr && d.driver_id === driverId
                   );
-                  const deliveryIds = deliveriesToDelete.map((d) => d.id);
+                  const deliveryIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
 
                   console.log(`🗑️ [DeleteRoute] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
 
-                  // CRITICAL: Delete from BOTH databases simultaneously
-                  // 1. Delete from online database
-                  for (const id of deliveryIds) {
-                    await base44.entities.Delivery.delete(id);
-                  }
-                  console.log(`✅ [DeleteRoute] Deleted ${deliveryIds.length} from online DB`);
+                  await batchDeleteDeliveriesLocal(deliveryIds, {
+                    userId: currentUser?.id,
+                    userName: currentUser?.user_name || currentUser?.full_name
+                  });
 
-                  // 2. Delete from offline database
-                  const { offlineDB } = await import('../components/utils/offlineDatabase');
-                  for (const id of deliveryIds) {
-                    await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id);
-                  }
-                  console.log(`✅ [DeleteRoute] Deleted ${deliveryIds.length} from offline DB`);
-
-                  // 3. Update UI immediately
                   setAllDeliveries((prev) => prev.filter((d) => !deliveryIds.includes(d.id)));
-
-                  // 4. Broadcast to other devices
-                  deliveryIds.forEach((id) => smartRefreshManager.deletedDeliveryIds.add(id));
-
                   invalidate('Delivery');
                   setRefreshKey((prev) => prev + 1);
-                  console.log(`✅ [DeleteRoute] Route deleted successfully from both databases`);
+                  console.log(`✅ [DeleteRoute] Route deleted successfully`);
                 } catch (error) {
                   console.error('❌ [DeleteRoute] Error:', error);
                   alert('Failed to delete route. Please try again.');
@@ -3452,34 +3438,20 @@ export default function DeliveriesPage() {
                     const deliveriesToDelete = driverFilteredDeliveries.filter(
                       (d) => d.delivery_date === dateStr && d.driver_id === driverId
                     );
-                    const deliveryIds = deliveriesToDelete.map((d) => d.id);
+                    const deliveryIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
 
                     console.log(`🗑️ [DeleteRoute-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
 
-                    // CRITICAL: Delete from BOTH databases simultaneously
-                    // 1. Delete from online database
-                    for (const id of deliveryIds) {
-                      await base44.entities.Delivery.delete(id);
-                    }
-                    console.log(`✅ [DeleteRoute-Mobile] Deleted ${deliveryIds.length} from online DB`);
+                    await batchDeleteDeliveriesLocal(deliveryIds, {
+                      userId: currentUser?.id,
+                      userName: currentUser?.user_name || currentUser?.full_name
+                    });
 
-                    // 2. Delete from offline database
-                    const { offlineDB } = await import('../components/utils/offlineDatabase');
-                    for (const id of deliveryIds) {
-                      await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id);
-                    }
-                    console.log(`✅ [DeleteRoute-Mobile] Deleted ${deliveryIds.length} from offline DB`);
-
-                    // 3. Update UI immediately
                     setAllDeliveries((prev) => prev.filter((d) => !deliveryIds.includes(d.id)));
-
-                    // 4. Broadcast to other devices
-                    deliveryIds.forEach((id) => smartRefreshManager.deletedDeliveryIds.add(id));
-
                     invalidate('Delivery');
                     setRefreshKey((prev) => prev + 1);
                     setIsMobileMenuOpen(false);
-                    console.log(`✅ [DeleteRoute-Mobile] Route deleted successfully from both databases`);
+                    console.log(`✅ [DeleteRoute-Mobile] Route deleted successfully`);
                   } catch (error) {
                     console.error('❌ [DeleteRoute-Mobile] Error:', error);
                     alert('Failed to delete route. Please try again.');
