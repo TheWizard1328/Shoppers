@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { getDriverDisplayName, getDriverNameForStorage } from '../utils/driverUtils';
 import { PhoneInput } from "@/components/ui/phone-input";
 import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getStoreAssignedTimeSlotForDriver, getPickupStopIdForDelivery } from '../utils/ampmUtils';
+import { attachTrackingNumbers } from './deliveryBatchSaveHelpers';
 import { base44 } from "@/api/base44Client";
 import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
@@ -1051,10 +1052,28 @@ export default function DeliveryForm({
         existingStopIds: [...(allDeliveries || []).map((d) => d?.stop_id), ...(stagedDeliveries || []).map((d) => d?.stop_id)]
       });
 
+      const pickupTimes = resolvePickupTimeWindow({
+        store,
+        driverId: formData.driver_id,
+        deliveryDate: formData.delivery_date
+      });
+      const { deliveriesWithTRs } = attachTrackingNumbers({
+        newDeliveries: [pickupToCreate],
+        existingDeliveries: [],
+        stores,
+        allDeliveries,
+        deliveryDate: formData.delivery_date
+      });
+      const pickupWithRouteData = deliveriesWithTRs[0] || pickupToCreate;
+
       await createDeliveryLocal({
-        ...pickupToCreate,
+        ...pickupWithRouteData,
         patient_id: null,
-        status: 'en_route'
+        status: 'en_route',
+        delivery_time_start: pickupTimes?.delivery_time_start || pickupWithRouteData.delivery_time_start || '',
+        delivery_time_end: pickupTimes?.delivery_time_end || pickupWithRouteData.delivery_time_end || '',
+        time_window_start: pickupTimes?.delivery_time_start || pickupWithRouteData.time_window_start || '',
+        time_window_end: pickupTimes?.delivery_time_end || pickupWithRouteData.time_window_end || ''
       });
 
       setHasChanges(true);
