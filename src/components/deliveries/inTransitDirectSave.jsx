@@ -25,6 +25,9 @@ export async function buildInTransitDirectSaveData({
     if (patientStoreId) {
       const patientStore = stores?.find((store) => store && store.id === patientStoreId);
       const timeSlot = dataToSave.ampm_deliveries || getStoreAssignedTimeSlotForDriver(patientStore, dataToSave.delivery_date, dataToSave.driver_id, allDeliveries) || 'AM';
+      const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
+      const isSpecialStore = specialStoreNames.includes(patientStore?.name || '');
+
       dataToSave.puid = await resolvePickupPuid({
         stagedDeliveries,
         allDeliveries,
@@ -32,13 +35,14 @@ export async function buildInTransitDirectSaveData({
         deliveryDate: dataToSave.delivery_date,
         driverId: dataToSave.driver_id,
         timeSlot,
-        reuseLatestCompleted: true,
+        reuseLatestCompleted: !isSpecialStore,
         ensureMissingPickup: () => base44.functions.invoke('ensurePickupForDelivery', {
           storeId: patientStoreId,
           deliveryDate: dataToSave.delivery_date,
           driverId: dataToSave.driver_id,
           ampmDeliveries: timeSlot,
-          allowCreateIfMissing: true
+          allowCreateIfMissing: true,
+          skipReuseCheck: isSpecialStore
         })
       });
     }
