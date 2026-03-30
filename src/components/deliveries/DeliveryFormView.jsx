@@ -858,6 +858,7 @@ export default function DeliveryFormView({
 
                   if (!didSave) return;
 
+                  await closeDeliveryFormAfterSave({ handleClearForm, onCancel });
                   window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
 
                   const affectedRoutes = [
