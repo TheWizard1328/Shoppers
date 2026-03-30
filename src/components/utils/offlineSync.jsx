@@ -285,7 +285,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
           console.warn(`⚠️ [PrioritySyncBeforeRefresh] Removed ${duplicatesRemoved} duplicate AppUsers`);
         }
 
-        const saveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+        const saveResult = await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
         console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, saveResult);
         invalidateEntityCache('AppUser');
         await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
@@ -326,7 +326,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     
     const deliveries = await fetchDeliveriesDedup(selectedDateStr, deliveryFilter);
     if (deliveries && deliveries.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries);
         invalidateEntityCache('Delivery');
         await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString(), new Date().toISOString());
         if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
@@ -466,7 +466,7 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
     console.log('🏙️ [PreRenderSync] Fetching fresh Cities (deduplicated)...');
     const cities = await fetchCitiesDedup();
     if (cities && cities.length > 0) {
-    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
     invalidateEntityCache('City');
     await offlineDB.updateSyncMetadata('City', new Date().toISOString(), new Date().toISOString());
       console.log(`✅ [PreRenderSync] Synced ${cities.length} fresh Cities to offline DB`);
@@ -608,7 +608,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     const deliveries = await Delivery.filter(deliveryFilter);
     
     if (deliveries && deliveries.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries);
         invalidateEntityCache('Delivery');
 
         // CRITICAL: Sync patients referenced in these deliveries
@@ -1185,28 +1185,28 @@ export const forceSyncAll = async () => {
       }
     });
     const appUsers = Array.from(appUsersByUserId.values());
-    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
     invalidateEntityCache('AppUser');
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 15 });
     const cities = await City.list();
-    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
     invalidateEntityCache('City');
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 20, count: cities.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 22 });
     const stores = await Store.list();
-    await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
+    await offlineDB.replaceAllRecords(offlineDB.STORES.STORES, stores);
     invalidateEntityCache('Store');
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 24, count: stores.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 25 });
     const companies = await Company.list();
-    await offlineDB.bulkSave(offlineDB.STORES.COMPANIES, companies);
+    await offlineDB.replaceAllRecords(offlineDB.STORES.COMPANIES, companies);
     invalidateEntityCache('Company');
     notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 27, count: companies.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
@@ -1312,7 +1312,7 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
       }
     });
     const appUsers = Array.from(appUsersByUserId.values());
-    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
     invalidateEntityCache('AppUser');
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 20, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
@@ -1320,7 +1320,7 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     // 2) Cities (entire entity)
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 30 });
     const cities = await City.list();
-    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
     invalidateEntityCache('City');
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 35, count: cities.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
@@ -1545,12 +1545,12 @@ export const restartDeliveryPatientSync = async () => {
     // Full sync for OTHER entities (Cities, Stores, AppUsers)
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 80 });
     const cities = await City.list();
-    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 85 });
     const stores = await Store.list();
-    await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
+    await offlineDB.replaceAllRecords(offlineDB.STORES.STORES, stores);
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 90 });

@@ -405,6 +405,65 @@ const clearStore = async (storeName) => {
   } catch (error) {}
 };
 
+const replaceAllRecords = async (storeName, records = []) => {
+  try {
+    await clearStore(storeName);
+    if (!records || records.length === 0) {
+      return { success: true, count: 0 };
+    }
+    return await bulkSave(storeName, records);
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+const replaceRecordsByIndex = async (storeName, indexName, indexValue, records = []) => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([storeName], 'readwrite');
+    const store = transaction.objectStore(storeName);
+    const index = store.index(indexName);
+
+    await new Promise((resolve, reject) => {
+      const request = index.openCursor(IDBKeyRange.only(indexValue));
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          cursor.delete();
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    const uniqueRecords = new Map();
+    (records || []).forEach((record) => {
+      if (record?.id) uniqueRecords.set(record.id, record);
+    });
+
+    const deduplicatedRecords = Array.from(uniqueRecords.values());
+    for (const record of deduplicatedRecords) {
+      await new Promise((resolve, reject) => {
+        const putRequest = store.put(record);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      });
+    }
+
+    await new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+
+    return { success: true, count: deduplicatedRecords.length };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 /**
  * Get sync status for an entity
  */
@@ -1118,6 +1177,8 @@ export const offlineDB = {
   getByCompoundIndex,
   getDeliveriesSortedByDate,
   clearStore,
+  replaceAllRecords,
+  replaceRecordsByIndex,
   clearAllData,
   getSyncStatus,
   updateSyncStatus,
