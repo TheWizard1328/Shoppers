@@ -157,32 +157,29 @@ export async function handleBatchSave({
 
     const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
     if (deliveriesReadyForDB.length > 0) {
-      const ensuredPickups = await Promise.all(deliveriesReadyForDB.map((d) => d?.patient_id && d?.store_id && d?.delivery_date && d?.driver_id ? base44.functions.invoke('ensurePickupForDelivery', { storeId: d.store_id, deliveryDate: d.delivery_date, driverId: d.driver_id, ampmDeliveries: d.ampm_deliveries || 'AM', allowCreateIfMissing: true }).catch(() => null) : null));
-      const ensuredPickupRecords = ensuredPickups.map((result) => result?.data?.pickup).filter((pickup) => pickup?.id);
-      const missingPickupRecords = ensuredPickups
-        .map((result, index) => ({ result, delivery: deliveriesReadyForDB[index] }))
-        .filter(({ result }) => !result?.data?.pickup && !!result?.data?.puid)
-        .map(({ result, delivery }) => ({
-          stop_id: result.data.puid,
-          store_id: delivery.store_id,
-          delivery_date: delivery.delivery_date,
-          driver_id: delivery.driver_id,
-          driver_name: delivery.driver_name,
-          dispatcher_id: delivery.dispatcher_id || null,
-          ampm_deliveries: delivery.ampm_deliveries || 'AM',
-          status: 'en_route',
-          delivery_time_start: delivery.ampm_deliveries === 'PM' ? '15:00' : '10:00',
-          delivery_time_end: delivery.ampm_deliveries === 'PM' ? '16:00' : '11:00',
-          tracking_number: ''
-        }));
-      const createdMissingPickups = missingPickupRecords.length > 0 ? await Promise.all(missingPickupRecords.map((pickup) => createDeliveryLocal(pickup).catch(() => null))) : [];
+      const groupedEnsureKeys = new Map();
+      deliveriesReadyForDB.forEach((delivery, index) => {
+        if (!delivery?.patient_id || !delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return;
+        const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
+        if (!groupedEnsureKeys.has(key)) groupedEnsureKeys.set(key, { index, delivery });
+      });
+      const ensureResultsByKey = new Map(await Promise.all(Array.from(groupedEnsureKeys.entries()).map(async ([key, { delivery }]) => {
+        const result = await base44.functions.invoke('ensurePickupForDelivery', { storeId: delivery.store_id, deliveryDate: delivery.delivery_date, driverId: delivery.driver_id, ampmDeliveries: delivery.ampm_deliveries || 'AM', allowCreateIfMissing: true }).catch(() => null);
+        return [key, result];
+      })));
+      const ensuredPickups = deliveriesReadyForDB.map((delivery) => {
+        if (!delivery?.patient_id || !delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return null;
+        const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
+        return ensureResultsByKey.get(key) || null;
+      });
+      const ensuredPickupRecords = Array.from(new Map(ensuredPickups.map((result) => result?.data?.pickup).filter((pickup) => pickup?.id).map((pickup) => [pickup.id, pickup])).values());
       const stagedDeliveriesWithResolvedIds = deliveriesReadyForDB.map((d, i) => ({
         ...d,
         puid: ensuredPickups[i]?.data?.puid || d.puid || ''
       }));
       const createdDeliveries = await Promise.all(stagedDeliveriesWithResolvedIds.map((delivery) => createDeliveryLocal(delivery).catch(() => null)));
       const savedDeliveries = createdDeliveries.filter(Boolean);
-      await onSave({ _isBatchSave: true, _stagedDeliveries: savedDeliveries, _ensuredPickups: [...ensuredPickupRecords, ...createdMissingPickups.filter(Boolean)] });
+      await onSave({ _isBatchSave: true, _stagedDeliveries: savedDeliveries, _ensuredPickups: ensuredPickupRecords });
     }
 
     resetBatchSaveDraftState({
