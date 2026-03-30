@@ -103,6 +103,11 @@ export const handleBatchSaveDelivery = async ({
     });
 
     const stopsToProcess = [];
+    const ensuredPickupMap = new Map(
+      ensuredPickupRecords
+        .filter((pickup) => pickup && !pickup.patient_id)
+        .map((pickup) => [`${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || 'AM'}`, pickup])
+    );
 
     for (const existingDelivery of driverDeliveriesForDate) {
       if (!existingDelivery) continue;
@@ -166,10 +171,17 @@ export const handleBatchSaveDelivery = async ({
     for (const stop of stopsToProcess) {
       if (!stop || !stop.isNew || !stop.patient_id) continue;
       const resolvedAmpm = stop.ampm_deliveries || determineAMPMFromTime(stop.delivery_time_start || '10:00');
-      stop.ampm_deliveries = resolvedAmpm;
+      const ensuredPickup = ensuredPickupMap.get(`${stop.store_id}__${stop.delivery_date}__${driverId === 'unassigned' ? '' : driverId}__${resolvedAmpm}`);
+      stop.ampm_deliveries = ensuredPickup?.ampm_deliveries || resolvedAmpm;
+
+      if (ensuredPickup?.stop_id) {
+        stop.puid = ensuredPickup.stop_id;
+        continue;
+      }
+
       const correspondingPickup = stopsToProcess.find((p) =>
       p && !p.patient_id && p.store_id === stop.store_id &&
-      p.ampm_deliveries === resolvedAmpm && p.stop_id
+      p.ampm_deliveries === stop.ampm_deliveries && p.stop_id
       );
       if (correspondingPickup) {
         stop.puid = correspondingPickup.stop_id;
@@ -179,7 +191,7 @@ export const handleBatchSaveDelivery = async ({
         );
         if (fallbackPickup) {
           stop.puid = fallbackPickup.stop_id;
-          stop.ampm_deliveries = fallbackPickup.ampm_deliveries || resolvedAmpm;
+          stop.ampm_deliveries = fallbackPickup.ampm_deliveries || stop.ampm_deliveries;
         } else {
           console.warn(`[AddToRoute]   ⚠️ No matching pickup found for ${stop.patient_name || stop.patient_id}`);
         }
@@ -445,8 +457,19 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
+    const pickupKeysToSkipCreate = new Set(
+      ensuredPickupRecords
+        .filter((pickup) => pickup && !pickup.patient_id)
+        .map((pickup) => `${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || 'AM'}`)
+    );
+
+    const deliveriesToCreateFiltered = deliveriesToCreate.filter((delivery) => {
+      if (delivery?.patient_id) return true;
+      return !pickupKeysToSkipCreate.has(`${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || 'AM'}`);
+    });
+
     const createdPickupDeliveries = [];
-    const createdDeliveries = deliveriesToCreate.length > 0 ? await batchCreateDeliveriesLocal(deliveriesToCreate) : [];
+    const createdDeliveries = deliveriesToCreateFiltered.length > 0 ? await batchCreateDeliveriesLocal(deliveriesToCreateFiltered) : [];
 
     createdPickupDeliveries.forEach((delivery) => {
       if (delivery?.store_id && delivery?.delivery_date && delivery?.ampm_deliveries) {

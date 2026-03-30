@@ -125,6 +125,19 @@ export async function handleBatchSave({
             .filter((pickup) => pickup?.id || pickup?.stop_id)
             .map((pickup) => [pickup.id || pickup.stop_id, pickup])
         ).values());
+        const ensuredPickupByKey = new Map(
+          ensuredPickupRecords
+            .filter((pickup) => pickup && !pickup.patient_id)
+            .map((pickup) => [`${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || 'AM'}`, pickup])
+        );
+        stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB.map((delivery) => {
+          const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || 'AM'}`;
+          const ensuredPickup = ensuredPickupByKey.get(key);
+          return {
+            ...delivery,
+            puid: ensuredPickup?.stop_id || delivery.puid || ''
+          };
+        });
       } else {
         const groupedEnsureKeys = new Map();
         patientDeliveriesReadyForDB.forEach((delivery) => {
