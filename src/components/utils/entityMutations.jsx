@@ -76,6 +76,16 @@ const broadcastMutation = async (entity, action, id, data, ids = null) => {
   }
 };
 
+const emitImmediateRealtimeCreate = async (entity, record) => {
+  if (!record?.id) return;
+  try {
+    const { cityFilteredRealtimeSync } = await import('./cityFilteredRealtimeSync');
+    cityFilteredRealtimeSync.notifySubscribers(entity, 'create', record);
+  } catch (error) {
+    console.warn('[EntityMutations] Could not emit immediate realtime create:', error.message);
+  }
+};
+
 const refreshOfflineEntitySnapshots = async (entityName, record = null) => {
   try {
     if (entityName === 'Patient') {
@@ -476,6 +486,7 @@ export const createDelivery = async (deliveryData, options = {}) => {
       
       // Broadcast to other devices
       await broadcastMutation('Delivery', 'create', backendDelivery.id, backendDelivery);
+      await emitImmediateRealtimeCreate('Delivery', backendDelivery);
       
       await restartSmartRefresh();
       return backendDelivery;
@@ -729,6 +740,7 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       // Broadcast to other devices
       for (const d of backendDeliveries) {
         await broadcastMutation('Delivery', 'create', d.id, d);
+        await emitImmediateRealtimeCreate('Delivery', d);
       }
       
       await restartSmartRefresh();
