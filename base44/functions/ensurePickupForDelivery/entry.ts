@@ -84,6 +84,8 @@ Deno.serve(async (req) => {
     const store = stores[0];
     const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || '';
+    const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }) : [];
+    const creatorAppUserId = creatorAppUsers?.[0]?.id || '';
     const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
 
     if (store && specialStoreNames.includes(store.name)) {
@@ -253,7 +255,8 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate,
       driver_id: driverId,
       driver_name: driverName,
-      dispatcher_id: store?.dispatcher_id || null,
+      dispatcher_id: user.id,
+      created_by_app_user_id: creatorAppUserId,
       ampm_deliveries: chosenSlot,
       status: 'en_route',
       delivery_time_start,
