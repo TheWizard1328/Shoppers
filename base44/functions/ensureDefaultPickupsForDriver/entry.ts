@@ -18,43 +18,45 @@ function generateDeliveryId() {
 
 function getDriverStoreFields(deliveryDate) {
   const dayOfWeek = new Date(`${deliveryDate}T00:00:00`).getDay();
-  if (dayOfWeek === 6) return { am: 'saturday_am_driver_id', pm: 'saturday_pm_driver_id' };
-  if (dayOfWeek === 0) return { am: 'sunday_am_driver_id', pm: 'sunday_pm_driver_id' };
-  return { am: 'weekday_am_driver_id', pm: 'weekday_pm_driver_id' };
+  if (dayOfWeek === 6) return {
+    am: 'saturday_am_driver_id',
+    pm: 'saturday_pm_driver_id',
+    amEnabled: 'saturday_am_enabled',
+    pmEnabled: 'saturday_pm_enabled'
+  };
+  if (dayOfWeek === 0) return {
+    am: 'sunday_am_driver_id',
+    pm: 'sunday_pm_driver_id',
+    amEnabled: 'sunday_am_enabled',
+    pmEnabled: 'sunday_pm_enabled'
+  };
+  return {
+    am: 'weekday_am_driver_id',
+    pm: 'weekday_pm_driver_id',
+    amEnabled: 'weekday_am_enabled',
+    pmEnabled: 'weekday_pm_enabled'
+  };
 }
 
 async function loadAssignedStores(base44, deliveryDate, driverId) {
   const fields = getDriverStoreFields(deliveryDate);
-  const [amStores, pmStores] = await Promise.all([
-    base44.asServiceRole.entities.Store.filter({ [fields.am]: driverId }, '-created_date', 100),
-    base44.asServiceRole.entities.Store.filter({ [fields.pm]: driverId }, '-created_date', 100),
-  ]);
+  const stores = await base44.asServiceRole.entities.Store.list('-created_date', 200);
 
-  const deduped = new Map();
-  [...(amStores || []), ...(pmStores || [])].forEach((store) => {
-    if (store?.id) deduped.set(store.id, store);
+  return (stores || []).filter((store) => {
+    if (!store?.id) return false;
+    const amMatch = store?.[fields.amEnabled] === true && store?.[fields.am] === driverId;
+    const pmMatch = store?.[fields.pmEnabled] === true && store?.[fields.pm] === driverId;
+    return amMatch || pmMatch;
   });
-  return Array.from(deduped.values());
 }
 
 function getAssignedSlotsForStore(store, deliveryDate, driverId) {
-  const dayOfWeek = new Date(`${deliveryDate}T00:00:00`).getDay();
+  const fields = getDriverStoreFields(deliveryDate);
   const slots = [];
 
-  if (dayOfWeek === 6) {
-    if (store?.saturday_am_driver_id === driverId) slots.push('AM');
-    if (store?.saturday_pm_driver_id === driverId) slots.push('PM');
-    return slots;
-  }
+  if (store?.[fields.amEnabled] === true && store?.[fields.am] === driverId) slots.push('AM');
+  if (store?.[fields.pmEnabled] === true && store?.[fields.pm] === driverId) slots.push('PM');
 
-  if (dayOfWeek === 0) {
-    if (store?.sunday_am_driver_id === driverId) slots.push('AM');
-    if (store?.sunday_pm_driver_id === driverId) slots.push('PM');
-    return slots;
-  }
-
-  if (store?.weekday_am_driver_id === driverId) slots.push('AM');
-  if (store?.weekday_pm_driver_id === driverId) slots.push('PM');
   return slots;
 }
 
