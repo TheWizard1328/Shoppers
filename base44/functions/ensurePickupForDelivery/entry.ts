@@ -19,6 +19,14 @@ function getNextPickupTrackingNumber(pickups = []) {
   return String(maxTrackingNumber + 20);
 }
 
+function getNextPickupStopOrder(deliveries = []) {
+  const maxStopOrder = deliveries.reduce((max, delivery) => {
+    const parsed = Number(delivery?.stop_order);
+    return Number.isFinite(parsed) && parsed > max ? parsed : max;
+  }, 0);
+  return maxStopOrder + 1;
+}
+
 function generateShortStopId() {
   const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   let result = '';
@@ -147,6 +155,7 @@ Deno.serve(async (req) => {
         (pickup?.ampm_deliveries || 'AM') === ampmDeliveries
       );
       const trackingNumber = getNextPickupTrackingNumber(slotPickups);
+      const stopOrder = getNextPickupStopOrder(routePickups || []);
 
       const newPickup = await base44.asServiceRole.entities.Delivery.create({
         stop_id: puid,
@@ -162,7 +171,8 @@ Deno.serve(async (req) => {
         status: 'en_route',
         delivery_time_start,
         delivery_time_end,
-        tracking_number: trackingNumber
+        tracking_number: trackingNumber,
+        stop_order: stopOrder
       });
 
       return Response.json({ puid, pickupId: newPickup.id, isNew: true, pickup: newPickup });
@@ -271,6 +281,7 @@ Deno.serve(async (req) => {
       (pickup.ampm_deliveries || 'AM') === chosenSlot
     );
     const trackingNumber = getNextPickupTrackingNumber(slotPickups);
+    const stopOrder = getNextPickupStopOrder(allPickups || []);
 
     const newPickup = await base44.asServiceRole.entities.Delivery.create({
       stop_id: puid,
@@ -286,7 +297,8 @@ Deno.serve(async (req) => {
       status: 'en_route',
       delivery_time_start,
       delivery_time_end,
-      tracking_number: trackingNumber
+      tracking_number: trackingNumber,
+      stop_order: stopOrder
     });
 
     return Response.json({ puid, pickupId: newPickup.id, isNew: true, pickup: newPickup });

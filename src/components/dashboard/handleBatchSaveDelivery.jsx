@@ -343,30 +343,30 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    let pickupTRCounter = 0;
     const storePickupTRMap = {};
 
-    // First pass: Assign TR# to pickups (existing and new)
+    // First pass: preserve existing pickup TR#s and only assign new TR#s after the max existing slot base
     for (const stop of optimizedRoute) {
-      if (!stop) continue;
-
-      if (stop.patient_id === null) {
-        const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
-        // If pickup already has TR# (existing), preserve it
-        if (stop.tracking_number && !stop.isNew) {
-          const existingTR = parseInt(stop.tracking_number, 10);
-          if (!isNaN(existingTR)) {
-            storePickupTRMap[mapKey] = existingTR;
-            continue;
-          }
-        }
-
-        // Assign new TR# for new pickups
-        const trNumber = String(pickupTRCounter).padStart(2, '0');
-        stop.tracking_number = trNumber;
-        storePickupTRMap[mapKey] = pickupTRCounter;
-        pickupTRCounter += 20;
+      if (!stop || stop.patient_id !== null) continue;
+      const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
+      const existingTR = parseInt(stop.tracking_number, 10);
+      if (!isNaN(existingTR)) {
+        storePickupTRMap[mapKey] = existingTR;
       }
+    }
+
+    let nextPickupTR = Object.values(storePickupTRMap).reduce((max, value) => {
+      return typeof value === 'number' && value > max ? value : max;
+    }, -20) + 20;
+
+    for (const stop of optimizedRoute) {
+      if (!stop || stop.patient_id !== null) continue;
+      const mapKey = `${stop.store_id}-${stop.ampm_deliveries}`;
+      const existingTR = parseInt(stop.tracking_number, 10);
+      if (!isNaN(existingTR)) continue;
+      stop.tracking_number = String(nextPickupTR);
+      storePickupTRMap[mapKey] = nextPickupTR;
+      nextPickupTR += 20;
     }
 
     // Second pass: Assign TR# to deliveries (both active and pending)

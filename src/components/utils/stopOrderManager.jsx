@@ -54,6 +54,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
   const nextDeliveryId = driverDeliveries.find((delivery) => delivery?.isNextDelivery && !finishedStatuses.includes(delivery?.status) && delivery?.status !== 'pending')?.id || null;
 
   const activeDeliveries = driverDeliveries.filter((delivery) => !finishedStatuses.includes(delivery?.status));
+  const completedDeliveries = driverDeliveries.filter((delivery) => finishedStatuses.includes(delivery?.status));
 
   const sortedDeliveries = [...activeDeliveries].sort((a, b) => {
     const aIsLockedNext = !!nextDeliveryId && a?.id === nextDeliveryId;
@@ -69,10 +70,15 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     return getSortableEta(a).localeCompare(getSortableEta(b));
   });
 
+  const activeStopOrders = activeDeliveries
+    .map((delivery) => Number(delivery?.stop_order))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
+
   const updates = [];
   for (let index = 0; index < sortedDeliveries.length; index += 1) {
     const delivery = sortedDeliveries[index];
-    const newStopOrder = index + 1;
+    const newStopOrder = activeStopOrders[index] || index + 1;
     const currentStopOrder = Number(delivery.stop_order);
 
     if (currentStopOrder !== newStopOrder) {
