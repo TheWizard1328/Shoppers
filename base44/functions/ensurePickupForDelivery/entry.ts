@@ -128,10 +128,11 @@ Deno.serve(async (req) => {
       }, '-created_date', 150);
       const slotPickups = (routePickups || []).filter((pickup) => !pickup?.patient_id && (pickup?.ampm_deliveries || 'AM') === ampmDeliveries);
       const uniqueStoreCount = new Set(slotPickups.map((pickup) => pickup.store_id)).size;
-      const trackingNumber = `${store?.abbreviation || ''}${uniqueStoreCount * 20}`;
+      const trackingNumber = String(uniqueStoreCount * 20);
 
       const newPickup = await base44.asServiceRole.entities.Delivery.create({
         stop_id: puid,
+        puid,
         store_id: storeId,
         delivery_id: generateDeliveryId(),
         delivery_date: deliveryDate,
@@ -194,33 +195,6 @@ Deno.serve(async (req) => {
 
       const nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Edmonton' }));
       const nowLocalMs = nowLocal.getTime();
-      const recentCompletedPickup = storePickups
-        .filter((pickup) => pickup.status === 'completed' && (pickup.ampm_deliveries || 'AM') === primarySlot)
-        .sort((a, b) => new Date(b.actual_delivery_time || b.updated_date || 0) - new Date(a.actual_delivery_time || a.updated_date || 0))
-        .find((pickup) => {
-          let completedAtMs = 0;
-          if (pickup.actual_delivery_time) {
-            completedAtMs = new Date(pickup.actual_delivery_time).getTime();
-          } else if (pickup.updated_date) {
-            completedAtMs = new Date(new Date(pickup.updated_date).toLocaleString('en-US', { timeZone: 'America/Edmonton' })).getTime();
-          }
-          const diffMinutes = (nowLocalMs - completedAtMs) / (60 * 1000);
-          return completedAtMs > 0 && diffMinutes >= 0 && diffMinutes < 60;
-        });
-
-      if (recentCompletedPickup) {
-        const pickupWithDriverName = await ensurePickupDriverName(base44, recentCompletedPickup, driverName);
-        if (!pickupWithDriverName) {
-          return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
-        }
-        return Response.json({
-          puid: pickupWithDriverName.stop_id,
-          pickupId: pickupWithDriverName.id,
-          isNew: false,
-          pickup: pickupWithDriverName,
-          deliveryStatus: 'in_transit'
-        });
-      }
 
       const isIncomplete = (pickup) => !['en_route', 'completed', 'cancelled', 'returned'].includes(pickup.status);
       let targetPickup = storePickups.find((pickup) => isIncomplete(pickup) && (pickup.ampm_deliveries || 'AM') === primarySlot);
@@ -278,10 +252,11 @@ Deno.serve(async (req) => {
     const uniqueStoreCount = new Set(slotPickups.map((pickup) => pickup.store_id)).size;
     const totalPickupsAfterCreate = uniqueStoreCount + 1;
     const baseNumber = totalPickupsAfterCreate * 20 - 20;
-    const trackingNumber = `${store?.abbreviation || ''}${baseNumber}`;
+    const trackingNumber = String(baseNumber);
 
     const newPickup = await base44.asServiceRole.entities.Delivery.create({
       stop_id: puid,
+      puid,
       store_id: storeId,
       delivery_id: generateDeliveryId(),
       delivery_date: deliveryDate,
