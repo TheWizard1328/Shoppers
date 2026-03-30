@@ -516,8 +516,7 @@ function Dashboard() {
       // CRITICAL: Only start if this is a PRIMARY device
       if (!locationTracker.isTracking) {
         try {
-          const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-          const appUser = appUsers?.[0];
+          const appUser = appUsers?.find((au) => au?.user_id === currentUser.id);
 
           if (appUser) {
             await locationTracker.startTracking({
@@ -567,8 +566,7 @@ function Dashboard() {
         wasHidden = false;
 
         try {
-          const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-          const appUser = appUsers?.[0];
+          const appUser = appUsers?.find((au) => au?.user_id === currentUser.id);
 
           if (appUser) {
             // Check if we should be tracking
