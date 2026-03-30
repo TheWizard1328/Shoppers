@@ -103,26 +103,55 @@ export async function handleBatchSave({
 
     const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
     if (deliveriesReadyForDB.length > 0) {
-      const groupedEnsureKeys = new Map();
-      deliveriesReadyForDB.forEach((delivery, index) => {
-        if (!delivery?.patient_id || !delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return;
-        const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
-        if (!groupedEnsureKeys.has(key)) groupedEnsureKeys.set(key, { index, delivery });
-      });
-      const ensureResultsByKey = new Map(await Promise.all(Array.from(groupedEnsureKeys.entries()).map(async ([key, { delivery }]) => {
-        const result = await base44.functions.invoke('ensurePickupForDelivery', { storeId: delivery.store_id, deliveryDate: delivery.delivery_date, driverId: delivery.driver_id, ampmDeliveries: delivery.ampm_deliveries || 'AM', allowCreateIfMissing: true }).catch(() => null);
-        return [key, result];
-      })));
-      const ensuredPickups = deliveriesReadyForDB.map((delivery) => {
-        if (!delivery?.patient_id || !delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return null;
-        const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
-        return ensureResultsByKey.get(key) || null;
-      });
-      const ensuredPickupRecords = Array.from(new Map(ensuredPickups.map((result) => result?.data?.pickup).filter((pickup) => pickup?.id).map((pickup) => [pickup.id, pickup])).values());
-      const stagedDeliveriesWithResolvedIds = deliveriesReadyForDB.map((d, i) => ({
-        ...d,
-        puid: ensuredPickups[i]?.data?.puid || d.puid || ''
-      }));
+      const pickupRecordsFromStage = deliveriesReadyForDB
+        .filter((delivery) => !delivery?.patient_id)
+        .map((delivery) => ({ ...delivery, status: 'en_route' }));
+      const patientDeliveriesReadyForDB = deliveriesReadyForDB.filter((delivery) => !!delivery?.patient_id);
+
+      let ensuredPickupRecords = [];
+      let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
+
+      if (isNewRouteWithZeroStops) {
+        const assignedStoreIds = Array.from(new Set(
+          patientDeliveriesReadyForDB.map((delivery) => delivery?.store_id).filter(Boolean)
+        ));
+        const defaultPickupResponse = await base44.functions.invoke('ensureDefaultPickupsForDriver', {
+          driverId: formData.driver_id,
+          deliveryDate: formData.delivery_date,
+          storeIds: assignedStoreIds
+        }).catch(() => null);
+        ensuredPickupRecords = Array.from(new Map(
+          [...(defaultPickupResponse?.data?.pickups || []), ...pickupRecordsFromStage]
+            .filter((pickup) => pickup?.id || pickup?.stop_id)
+            .map((pickup) => [pickup.id || pickup.stop_id, pickup])
+        ).values());
+      } else {
+        const groupedEnsureKeys = new Map();
+        patientDeliveriesReadyForDB.forEach((delivery) => {
+          if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return;
+          const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
+          if (!groupedEnsureKeys.has(key)) groupedEnsureKeys.set(key, { delivery });
+        });
+        const ensureResultsByKey = new Map(await Promise.all(Array.from(groupedEnsureKeys.entries()).map(async ([key, { delivery }]) => {
+          const result = await base44.functions.invoke('ensurePickupForDelivery', { storeId: delivery.store_id, deliveryDate: delivery.delivery_date, driverId: delivery.driver_id, ampmDeliveries: delivery.ampm_deliveries || 'AM', allowCreateIfMissing: true }).catch(() => null);
+          return [key, result];
+        })));
+        const ensuredPickups = patientDeliveriesReadyForDB.map((delivery) => {
+          if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return null;
+          const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
+          return ensureResultsByKey.get(key) || null;
+        });
+        ensuredPickupRecords = Array.from(new Map(
+          [...ensuredPickups.map((result) => result?.data?.pickup), ...pickupRecordsFromStage]
+            .filter((pickup) => pickup?.id || pickup?.stop_id)
+            .map((pickup) => [pickup.id || pickup.stop_id, pickup])
+        ).values());
+        stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB.map((d, i) => ({
+          ...d,
+          puid: ensuredPickups[i]?.data?.puid || d.puid || ''
+        }));
+      }
+
       await onSave({ _isBatchSave: true, _stagedDeliveries: stagedDeliveriesWithResolvedIds, _ensuredPickups: ensuredPickupRecords });
     }
 
@@ -151,8 +180,8 @@ export async function handleBatchSave({
         if (deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'doneButtonUpdates', immediate: true } }));
         } else {
-          const refreshDriverId = deliveriesReadyForDB[0]?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
-          const refreshDeliveryDate = deliveriesReadyForDB[0]?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
+          const refreshDriverId = deliveriesReadyForDB.find((delivery) => delivery?.patient_id)?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
+          const refreshDeliveryDate = deliveriesReadyForDB.find((delivery) => delivery?.patient_id)?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
           await runCreateBatchRefresh({ refreshDriverId, refreshDeliveryDate });
         }
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
