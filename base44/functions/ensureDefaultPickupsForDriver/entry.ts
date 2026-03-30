@@ -122,7 +122,7 @@ function findReusablePickup(pickups, targetSlot) {
     [...(pickups || [])].sort(byNewest).find((pickup) => ['pending', 'in_transit'].includes(pickup?.status));
 }
 
-async function ensurePickup(base44, { store, deliveryDate, driverId, driverName, slot }) {
+async function ensurePickup(base44, { store, deliveryDate, driverId, driverName, slot, dispatcherId, createdByAppUserId }) {
   const existingStoreDeliveries = await base44.asServiceRole.entities.Delivery.filter({
     store_id: store.id,
     delivery_date: deliveryDate,
@@ -160,7 +160,8 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     delivery_date: deliveryDate,
     driver_id: driverId,
     driver_name: driverName,
-    dispatcher_id: store?.dispatcher_id || null,
+    dispatcher_id: dispatcherId,
+    created_by_app_user_id: createdByAppUserId,
     ampm_deliveries: slot,
     status: 'en_route',
     delivery_time_start: times.start || fallbackTimes.start,
@@ -173,6 +174,9 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const payload = await req.json();
+    const user = await base44.auth.me();
+    const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-created_date', 1) : [];
+    const creatorAppUserId = creatorAppUsers?.[0]?.id || '';
 
     if (payload?.event?.type !== 'create' || payload?.event?.entity_name !== 'Delivery') {
       return Response.json({ skipped: true, reason: 'Not a Delivery create event' });
@@ -269,6 +273,8 @@ Deno.serve(async (req) => {
         driverId: delivery.driver_id,
         driverName,
         slot: target.slot,
+        dispatcherId: user?.id || null,
+        createdByAppUserId: creatorAppUserId
       });
 
       ensuredPickups.push({

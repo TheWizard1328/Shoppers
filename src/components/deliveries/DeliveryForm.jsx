@@ -1628,15 +1628,6 @@ export default function DeliveryForm({
     
   }, [delivery, allDeliveries, formData.driver_id, formData.delivery_date]);
 
-  // Update flag when first patient is added to staged
-  useEffect(() => {
-    if (delivery || stagedDeliveries.length === 0) return;
-    
-    // If we're adding the first patient and flag is currently true, set it to false
-    if (isNewRouteWithZeroStops && stagedDeliveries.some(s => s.patient_id)) {
-      setIsNewRouteWithZeroStops(false);
-    }
-  }, [delivery, stagedDeliveries.length, isNewRouteWithZeroStops]);
 
   // Monitor for deleted pending deliveries on other devices
   useEffect(() => {
