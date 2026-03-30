@@ -157,7 +157,6 @@ export async function handleBatchSave({
 
     const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
     if (deliveriesReadyForDB.length > 0) {
-      const createdDeliveriesByKey = new Map();
       const ensuredPickups = await Promise.all(deliveriesReadyForDB.map((d) => d?.patient_id && d?.store_id && d?.delivery_date && d?.driver_id ? base44.functions.invoke('ensurePickupForDelivery', { storeId: d.store_id, deliveryDate: d.delivery_date, driverId: d.driver_id, ampmDeliveries: d.ampm_deliveries || 'AM', allowCreateIfMissing: true }).catch(() => null) : null));
       const ensuredPickupRecords = ensuredPickups.map((result) => result?.data?.pickup).filter((pickup) => pickup?.id);
       const missingPickupRecords = ensuredPickups
@@ -177,15 +176,13 @@ export async function handleBatchSave({
           tracking_number: ''
         }));
       const createdMissingPickups = missingPickupRecords.length > 0 ? await Promise.all(missingPickupRecords.map((pickup) => createDeliveryLocal(pickup).catch(() => null))) : [];
-      createdMissingPickups.filter(Boolean).forEach((pickup) => {
-        createdDeliveriesByKey.set(`pickup__${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || ''}`, pickup);
-      });
-      const stagedDeliveriesWithResolvedIds = deliveriesReadyForDB.map((d, i) => {
-        const puid = ensuredPickups[i]?.data?.puid || d.puid || '';
-        const resolvedCreated = createdDeliveriesByKey.get(`patient__${d.patient_id}__${d.delivery_date}__${d.driver_id || ''}`);
-        return resolvedCreated ? { ...resolvedCreated, puid } : { ...d, puid };
-      });
-      await onSave({ _isBatchSave: true, _stagedDeliveries: stagedDeliveriesWithResolvedIds, _ensuredPickups: [...ensuredPickupRecords, ...createdMissingPickups.filter(Boolean)] });
+      const stagedDeliveriesWithResolvedIds = deliveriesReadyForDB.map((d, i) => ({
+        ...d,
+        puid: ensuredPickups[i]?.data?.puid || d.puid || ''
+      }));
+      const createdDeliveries = await Promise.all(stagedDeliveriesWithResolvedIds.map((delivery) => createDeliveryLocal(delivery).catch(() => null)));
+      const savedDeliveries = createdDeliveries.filter(Boolean);
+      await onSave({ _isBatchSave: true, _stagedDeliveries: savedDeliveries, _ensuredPickups: [...ensuredPickupRecords, ...createdMissingPickups.filter(Boolean)] });
     }
 
     resetBatchSaveDraftState({
