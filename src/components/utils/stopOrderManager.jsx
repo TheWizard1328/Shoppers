@@ -53,16 +53,9 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
   // Always rebuild the full route order from actual route data.
   const nextDeliveryId = driverDeliveries.find((delivery) => delivery?.isNextDelivery && !finishedStatuses.includes(delivery?.status) && delivery?.status !== 'pending')?.id || null;
 
-  const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
-    const isAFinished = finishedStatuses.includes(a?.status);
-    const isBFinished = finishedStatuses.includes(b?.status);
-    if (isAFinished && !isBFinished) return -1;
-    if (!isAFinished && isBFinished) return 1;
+  const activeDeliveries = driverDeliveries.filter((delivery) => !finishedStatuses.includes(delivery?.status));
 
-    if (isAFinished && isBFinished) {
-      return getSortableCompletionTime(a) - getSortableCompletionTime(b);
-    }
-
+  const sortedDeliveries = [...activeDeliveries].sort((a, b) => {
     const aIsLockedNext = !!nextDeliveryId && a?.id === nextDeliveryId;
     const bIsLockedNext = !!nextDeliveryId && b?.id === nextDeliveryId;
     if (aIsLockedNext && !bIsLockedNext) return -1;
