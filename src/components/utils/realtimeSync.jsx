@@ -491,14 +491,6 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     console.warn(`⚠️ [RealtimeSync] Broadcast offline DB sync failed for ${entity}:`, error.message);
   }
 
-  try {
-    if (entity === 'Delivery' && action === 'update' && id) {
-      await base44.entities.Delivery.update(id, { updated_date: new Date().toISOString() });
-    }
-  } catch (error) {
-    console.warn(`⚠️ [RealtimeSync] Broadcast backend nudge failed for ${entity}:`, error.message);
-  }
-  
   // Dispatch to all listeners
   listeners.forEach(callback => {
     try {
