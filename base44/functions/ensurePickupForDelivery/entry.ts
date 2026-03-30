@@ -15,7 +15,7 @@ function getNextPickupTrackingNumber(pickups = []) {
   const maxTrackingNumber = pickups.reduce((max, pickup) => {
     const parsed = parseTrackingNumber(pickup?.tracking_number);
     return parsed !== null && parsed > max ? parsed : max;
-  }, -20);
+  }, 0);
   return String(maxTrackingNumber + 20);
 }
 

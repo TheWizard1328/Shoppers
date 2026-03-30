@@ -303,12 +303,12 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    const allExistingPickupTRs = (driverDeliveriesForDate || [])
+    const allExistingPickupTRs = [...(driverDeliveriesForDate || []), ...(ensuredPickupRecords || []), ...optimizedRoute]
       .filter((stop) => stop && !stop.patient_id)
       .map((stop) => parseInt(stop.tracking_number, 10))
-      .filter((value) => !isNaN(value));
+      .filter((value) => !isNaN(value) && value > 0);
 
-    let nextPickupTR = (allExistingPickupTRs.length > 0 ? Math.max(...allExistingPickupTRs) : -20) + 20;
+    let nextPickupTR = (allExistingPickupTRs.length > 0 ? Math.max(...allExistingPickupTRs) : 0) + 20;
 
     for (const stop of optimizedRoute) {
       if (!stop || !stop.isNew || stop.patient_id !== null) continue;
