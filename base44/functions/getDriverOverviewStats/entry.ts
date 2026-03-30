@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
@@ -50,11 +50,13 @@ Deno.serve(async (req) => {
 
     // Build filter for year
     let deliveryFilter = {};
-    if (year && year !== 'all') {
-      const yearInt = parseInt(year);
-      deliveryFilter.delivery_date = { 
-        $gte: `${yearInt}-01-01`, 
-        $lte: `${yearInt}-12-31` 
+    const currentYear = new Date().getFullYear();
+    const normalizedYear = year || currentYear;
+    if (normalizedYear && normalizedYear !== 'all') {
+      const yearInt = parseInt(normalizedYear, 10);
+      deliveryFilter.delivery_date = {
+        $gte: `${yearInt}-01-01`,
+        $lte: `${yearInt}-12-31`
       };
     }
 
@@ -64,7 +66,7 @@ Deno.serve(async (req) => {
     let pageCount = 0;
     let hasMore = true;
     
-    while (hasMore && pageCount < 50) { // Max 50 pages = 50,000 deliveries
+    while (hasMore && pageCount < 12) { // Max 12 pages = 12,000 deliveries
       const pageDeliveries = await base44.asServiceRole.entities.Delivery.filter(
         deliveryFilter, 
         '-delivery_date', 
@@ -78,7 +80,7 @@ Deno.serve(async (req) => {
         deliveries.push(...pageDeliveries);
         pageCount++;
         // Add small delay between requests to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 350));
       }
     }
     
@@ -89,7 +91,7 @@ Deno.serve(async (req) => {
     pageCount = 0;
     hasMore = true;
     
-    while (hasMore && pageCount < 50) {
+    while (hasMore && pageCount < 6) {
       const pagePatients = await base44.asServiceRole.entities.Patient.filter({}, 'full_name', 1000, pageCount * 1000);
       
       if (!pagePatients || pagePatients.length === 0) {

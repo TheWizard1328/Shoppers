@@ -2659,7 +2659,7 @@ export default function DeliveriesPage() {
     // CRITICAL: Prevent re-fetching with same parameters within 5 seconds
     const cacheKey = `${selectedOverviewYear}-${currentUser.id}`;
     const now = Date.now();
-    if (lastStatsParamsRef.current.year === cacheKey && now - lastStatsParamsRef.current.timestamp < 5000) {
+    if (lastStatsParamsRef.current.year === cacheKey && now - lastStatsParamsRef.current.timestamp < 30000) {
       console.log('⏸️ [Deliveries] Skipping stats fetch - cached params:', cacheKey);
       return;
     }
@@ -2719,7 +2719,7 @@ export default function DeliveriesPage() {
         lastStatsParamsRef.current = { year: cacheKey, timestamp: now };
       } catch (error) {
         console.error('❌ [Deliveries] Failed to load driver stats:', error);
-        setBackendDriverStats([]);
+        lastStatsParamsRef.current = { year: cacheKey, timestamp: now };
       } finally {
         setIsLoadingStats(false);
       }

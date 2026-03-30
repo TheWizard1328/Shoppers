@@ -492,12 +492,8 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
   }
 
   try {
-    if (entity === 'Delivery') {
-      if (action === 'create' && data?.id) {
-        await base44.entities.Delivery.update(data.id, { updated_date: new Date().toISOString() });
-      } else if (action === 'update' && id) {
-        await base44.entities.Delivery.update(id, { updated_date: new Date().toISOString() });
-      }
+    if (entity === 'Delivery' && action === 'update' && id) {
+      await base44.entities.Delivery.update(id, { updated_date: new Date().toISOString() });
     }
   } catch (error) {
     console.warn(`⚠️ [RealtimeSync] Broadcast backend nudge failed for ${entity}:`, error.message);
