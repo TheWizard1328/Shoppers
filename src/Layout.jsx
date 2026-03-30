@@ -894,7 +894,7 @@ export default function Layout({ children, currentPageName }) {
   // Granular delivery update function for immediate UI synchronization
   const updateDeliveriesLocally = useCallback((newDeliveries, isFullReplacement = false) => {
     if (isFullReplacement) {
-      setDeliveries([...(newDeliveries || []).filter(Boolean)]);
+      setDeliveries((prev) => (newDeliveries?.filter(Boolean).length || !prev.length) ? [...(newDeliveries || []).filter(Boolean)] : prev);
     } else {
       setDeliveries((prevDeliveries) => {
         const merged = new Map((prevDeliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
@@ -911,7 +911,7 @@ export default function Layout({ children, currentPageName }) {
   // Granular AppUser update function for immediate UI synchronization
   const updateAppUsersLocally = useCallback((newAppUsers, isFullReplacement = false) => {
     if (isFullReplacement) {
-      setAppUsers([...newAppUsers.filter(Boolean)]);
+      setAppUsers((prev) => (newAppUsers?.filter(Boolean).length || !prev.length) ? [...newAppUsers.filter(Boolean)] : prev);
     } else {
       setAppUsers((prevAppUsers) => {
         const updatesMap = new Map(newAppUsers.map((u) => [u.id, u]));
