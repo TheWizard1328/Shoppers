@@ -89,14 +89,14 @@ import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
 import BreadcrumbToggleButton from '@/components/dashboard/BreadcrumbToggleButton';
 import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
-import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
+import DashboardTopOverlay from '@/components/dashboard/DashboardTopOverlay';
 import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '../components/dashboard/ReconcileToast';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";import { shouldRefreshUserFromAppUser } from "@/components/utils/appUserRefreshUtils";
 import { saveDriverChangedDelivery } from "@/components/utils/saveDriverChangedDelivery";
-import DashboardTopOverlay from '@/components/dashboard/DashboardTopOverlay';
+import { getFabTargetDriverMapLocation, isDriverOffDuty, getSelfDriverLocationForBounds } from "@/components/dashboard/mapViewPhaseHelpers";
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
