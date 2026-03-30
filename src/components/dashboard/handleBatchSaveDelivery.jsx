@@ -467,33 +467,30 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    const pickupKeysToSkipCreate = new Set(
-      ensuredPickupRecords
-        .filter((pickup) => pickup && !pickup.patient_id)
-        .map((pickup) => `${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || 'AM'}`)
-    );
+    const newEnsuredPickupsToCreate = ensuredPickupRecords.filter((pickup) => {
+      if (!pickup || pickup.patient_id) return false;
+      return !pickup.id;
+    });
 
     const deliveriesToCreateFiltered = deliveriesToCreate.filter((delivery) => {
       if (delivery?.patient_id) return true;
-      return !pickupKeysToSkipCreate.has(`${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || 'AM'}`);
+      return !delivery?.id;
     });
 
-    const createdPickupDeliveries = [];
-    const createdDeliveries = deliveriesToCreateFiltered.length > 0 ? await batchCreateDeliveriesLocal(deliveriesToCreateFiltered) : [];
+    const combinedCreates = [...newEnsuredPickupsToCreate, ...deliveriesToCreateFiltered];
+    const createdDeliveries = combinedCreates.length > 0 ? await batchCreateDeliveriesLocal(combinedCreates) : [];
 
-    createdPickupDeliveries.forEach((delivery) => {
-      if (delivery?.store_id && delivery?.delivery_date && delivery?.ampm_deliveries) {
+    createdDeliveries.forEach((delivery) => {
+      if (!delivery?.patient_id && delivery?.store_id && delivery?.delivery_date) {
         createdDeliveryMap.set(`pickup__${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || ''}`, delivery);
       }
-    });
-    createdDeliveries.forEach((delivery) => {
       if (delivery?.patient_id) {
         createdDeliveryMap.set(`patient__${delivery.patient_id}__${delivery.delivery_date}__${delivery.driver_id || ''}`, delivery);
       }
     });
 
-    createdPickupRecords.push(...createdPickupDeliveries);
-    allCreatedDeliveries.push(...createdDeliveries);
+    createdPickupRecords.push(...createdDeliveries.filter((delivery) => !delivery?.patient_id));
+    allCreatedDeliveries.push(...createdDeliveries.filter((delivery) => !!delivery?.patient_id));
 
     if (deliveriesToUpdate.length > 0) {
       for (const { id, updates } of deliveriesToUpdate) {
