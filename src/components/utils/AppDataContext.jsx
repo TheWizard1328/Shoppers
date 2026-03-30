@@ -137,10 +137,11 @@ export const AppDataProvider = ({ children, value }) => {
     }
 
     if (deliveryChanged) {
+      const dedupedDeliveries = Array.from(new Map((nextDeliveries || []).filter(Boolean).map((item) => [item.id, item])).values());
       if (updateDeliveriesLocallyRef.current) {
-        updateDeliveriesLocallyRef.current(nextDeliveries, true);
+        updateDeliveriesLocallyRef.current(dedupedDeliveries, true);
       } else if (applyDeliveryChangesLocallyRef.current) {
-        applyDeliveryChangesLocallyRef.current({ upserts: nextDeliveries, deleteIds: [] });
+        applyDeliveryChangesLocallyRef.current({ upserts: dedupedDeliveries, deleteIds: [] });
       }
 
       if (typeof window !== 'undefined') {

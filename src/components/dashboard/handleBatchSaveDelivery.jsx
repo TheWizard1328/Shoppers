@@ -317,10 +317,16 @@ export const handleBatchSaveDelivery = async ({
       );
       if (correspondingPickup) {
         stop.puid = correspondingPickup.stop_id;
-      } else if (stop.puid) {
-        stop.puid = stop.puid;
       } else {
-        console.warn(`[AddToRoute]   ⚠️ No matching pickup found for ${stop.patient_name || stop.patient_id}`);
+        const fallbackPickup = stopsToProcess.find((p) =>
+        p && !p.patient_id && p.store_id === stop.store_id && p.stop_id
+        );
+        if (fallbackPickup) {
+          stop.puid = fallbackPickup.stop_id;
+          stop.ampm_deliveries = fallbackPickup.ampm_deliveries || resolvedAmpm;
+        } else {
+          console.warn(`[AddToRoute]   ⚠️ No matching pickup found for ${stop.patient_name || stop.patient_id}`);
+        }
       }
     }
 
