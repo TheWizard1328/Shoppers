@@ -352,22 +352,12 @@ export const handleBatchSaveDelivery = async ({
     const deliveriesToCreate = [];
     const deliveriesToUpdate = [];
 
-    const existingStopOrders = (driverDeliveriesForDate || [])
-      .map((stop) => Number(stop?.stop_order))
-      .filter((value) => Number.isFinite(value) && value > 0);
-    let nextStopOrder = (existingStopOrders.length > 0 ? Math.max(...existingStopOrders) : 0) + 1;
-
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stop = optimizedRoute[i];
       if (!stop) continue; // Defensive check
 
       const stopPatient = patients.find((p) => p && p.id === stop.patient_id);
       const stopStore = stores.find((s) => s && s.id === stop.store_id);
-
-      if (stop.isNew) {
-        stop.stop_order = nextStopOrder;
-        nextStopOrder += 1;
-      }
 
       if (!stop.stop_id) {
         stop.stop_id = generateUniqueSID(allDeliveriesForDate);
@@ -395,7 +385,7 @@ export const handleBatchSaveDelivery = async ({
         status: stop.patient_id ? stop.status : (stop.status || 'en_route'),
         stop_id: stop.stop_id,
         puid: stop.puid || null,
-        stop_order: stop.stop_order,
+        stop_order: stop.isNew ? (stop.stop_order ?? null) : stop.stop_order,
         tracking_number: stop.tracking_number,
         delivery_notes: stop.delivery_notes || '',
         patient_name: stop.patient_id ? stop.patient_name || stopPatient?.full_name || '' : '',
@@ -422,7 +412,8 @@ export const handleBatchSaveDelivery = async ({
       if (stop.isNew) {
         deliveriesToCreate.push(payload);
       } else if (stop._wasEdited) {
-        deliveriesToUpdate.push({ id: stop.id, updates: payload });
+        const { stop_order, ...payloadWithoutStopOrder } = payload;
+        deliveriesToUpdate.push({ id: stop.id, updates: payloadWithoutStopOrder });
       }
     }
 
