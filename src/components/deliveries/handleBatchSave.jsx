@@ -56,6 +56,13 @@ export async function handleBatchSave({
     formData
   })) return;
 
+  const persistedRouteStopCountBeforeProcessing = (allDeliveries || []).filter((delivery) =>
+    delivery &&
+    delivery.delivery_date === formData.delivery_date &&
+    delivery.driver_id === formData.driver_id &&
+    delivery.status !== 'Staged'
+  ).length;
+
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
   const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
 
@@ -111,13 +118,7 @@ export async function handleBatchSave({
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
 
-      const hasExistingPersistedRouteStops = (allDeliveries || []).some((delivery) =>
-        delivery &&
-        delivery.delivery_date === formData.delivery_date &&
-        delivery.driver_id === formData.driver_id &&
-        ['pending', 'en_route', 'in_transit'].includes(delivery.status)
-      );
-      const shouldEnsureDefaultPickups = !hasExistingPersistedRouteStops;
+      const shouldEnsureDefaultPickups = persistedRouteStopCountBeforeProcessing === 0;
 
       if (shouldEnsureDefaultPickups) {
         const assignedStoreIds = Array.from(new Set(
