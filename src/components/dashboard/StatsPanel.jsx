@@ -30,7 +30,7 @@ export default function StatsPanel({
   isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
   showAllDriverMarkers, setShowAllDriverMarkers, showBreadcrumbs, setShowBreadcrumbs, setBreadcrumbsData,
   showRoutes, setShowRoutes, driverRoutes,
-  statsCardRef, retractClustersRef,
+  statsPanelContainerRef, statsCardRef, retractClustersRef,
   mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef,
   setMapViewPhase, setIsMapViewLocked, setMapViewTrigger,
   statsPanelOpacity, isExpanded, setIsExpanded, areCardsVisible,
@@ -45,7 +45,7 @@ export default function StatsPanel({
 }) {
   return (
     <div className={statsCardPositioning} style={{ zIndex: 600 }}>
-      <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
+      <div ref={statsPanelContainerRef} className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
         style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
         onMouseEnter={() => handleStatsPanelInteraction(true)}
         onMouseLeave={() => handleStatsPanelInteraction(false)}>

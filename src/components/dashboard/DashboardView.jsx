@@ -26,7 +26,7 @@ export default function DashboardView({
   showRoutes, setShowRoutes, showAllDriverMarkers, setShowAllDriverMarkers,
   showBreadcrumbs, setShowBreadcrumbs, breadcrumbsData, setBreadcrumbsData,
   highlightedCardId, retractClustersRef, googleApiKey, renderSequence, setRenderSequence,
-  stopCardsBaseHeight, statsCardBaseHeight, statsCardRef, cardsReadyForFAB,
+  stopCardsBaseHeight, statsCardBaseHeight, statsPanelContainerRef, statsCardRef, cardsReadyForFAB,
   mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef,
   // FAB
   handleMapViewCycle, mapViewTrigger, setMapViewTrigger, getMapPadding,
@@ -182,7 +182,7 @@ export default function DashboardView({
         showAllDriverMarkers={showAllDriverMarkers} setShowAllDriverMarkers={setShowAllDriverMarkers}
         showBreadcrumbs={showBreadcrumbs} setShowBreadcrumbs={setShowBreadcrumbs} setBreadcrumbsData={setBreadcrumbsData}
         showRoutes={showRoutes} setShowRoutes={setShowRoutes} driverRoutes={driverRoutes}
-        statsCardRef={statsCardRef} retractClustersRef={retractClustersRef}
+        statsPanelContainerRef={statsPanelContainerRef} statsCardRef={statsCardRef} retractClustersRef={retractClustersRef}
         mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef} lastProgrammaticMapMoveRef={lastProgrammaticMapMoveRef}
         setMapViewPhase={setMapViewPhase} setIsMapViewLocked={setIsMapViewLocked} setMapViewTrigger={setMapViewTrigger}
         statsPanelOpacity={statsPanelOpacity} isExpanded={isExpanded} setIsExpanded={setIsExpanded} areCardsVisible={areCardsVisible}
