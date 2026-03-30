@@ -1,8 +1,15 @@
 import { format } from 'date-fns';
 import { generateUniqueSID, addMinutesToTime } from "@/components/dashboard/DashboardHelpers";
-import { batchCreateDeliveriesLocal, updateDeliveryLocal } from "@/components/utils/offlineMutations";
+import { batchCreateDeliveriesLocal, updateDeliveryLocal } from "@/components/utils/entityMutations";
 import { base44 } from "@/api/base44Client";
 import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
+
+const getCurrentAppUserId = async () => {
+  const me = await base44.auth.me();
+  if (!me?.id) return null;
+  const appUsers = await base44.entities.AppUser.filter({ user_id: me.id }, '-updated_date', 1);
+  return appUsers?.[0]?.id || null;
+};
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return null;
@@ -38,6 +45,7 @@ export const handleBatchSaveDelivery = async ({
   const allUpdatedDeliveries = [];
   const createdPickupRecords = [];
   const createdDeliveryMap = new Map();
+  const currentAppUserId = await getCurrentAppUserId();
 
   if (!stagedDeliveries || stagedDeliveries.length === 0) {
     console.warn('[AddToRoute] ⚠️ No staged deliveries found!');
@@ -540,7 +548,7 @@ export const handleBatchSaveDelivery = async ({
       // CRITICAL: Generate delivery_id for new stops
       const deliveryId = stop.delivery_id || `DID-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const dispatcherId = stop.dispatcher_id || currentUser?.id || null;
-      const createdByAppUserId = stop.created_by_app_user_id || currentUser?.id || null;
+      const createdByAppUserId = stop.created_by_app_user_id || currentAppUserId || null;
 
       const payload = {
         delivery_id: deliveryId,
