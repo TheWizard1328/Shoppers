@@ -1789,21 +1789,14 @@ export default function DeliveryForm({
 
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
     const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, autoDriverId, allDeliveries);
-    let puid = await resolvePickupPuid({
+    const puid = await resolvePickupPuid({
       stagedDeliveries,
       allDeliveries,
       storeId: projected.store_id,
       deliveryDate: formData.delivery_date,
       driverId: autoDriverId,
       timeSlot,
-      allowRecentlyCompleted: true,
-      ensureMissingPickup: () => base44.functions.invoke('ensurePickupForDelivery', {
-        storeId: store.id,
-        deliveryDate: formData.delivery_date,
-        driverId: autoDriverId,
-        ampmDeliveries: timeSlot,
-        allowCreateIfMissing: true
-      })
+      allowRecentlyCompleted: true
     });
 
     const newStagedItem = buildProjectedStagedItem({
@@ -1819,12 +1812,8 @@ export default function DeliveryForm({
 
     // CRITICAL: Remove from projected and add to staged in one synchronous batch
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
-    setStagedDeliveries((prev) => [...prev, newStagedItem]);
+    setStagedDeliveries((prev) => [...prev, puid ? { ...newStagedItem, puid } : newStagedItem]);
     setHasChanges(true);
-
-    if (puid) {
-      setStagedDeliveries((prev) => prev.map((item) => item._tempId === newStagedItem._tempId ? { ...item, puid } : item));
-    }
   }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
 
   const sortedStagedDeliveries = useMemo(() => {
