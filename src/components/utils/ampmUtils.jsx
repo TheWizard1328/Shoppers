@@ -252,11 +252,11 @@ export const getStoreAssignedTimeSlotForDriver = (store, deliveryDate, driverId,
   }
 
   const normalizedDriverId = String(driverId);
-  const isAssignedAM = amDriverId && String(amDriverId) === normalizedDriverId;
-  const isAssignedPM = pmDriverId && String(pmDriverId) === normalizedDriverId;
+  const isAssignedAM = !!amDriverId && String(amDriverId) === normalizedDriverId;
+  const isAssignedPM = !!pmDriverId && String(pmDriverId) === normalizedDriverId;
 
-  if (isAssignedAM && !isAssignedPM) return 'AM';
-  if (isAssignedPM && !isAssignedAM) return 'PM';
+  if (isAssignedAM) return 'AM';
+  if (isAssignedPM) return 'PM';
 
   return getStoreAssignedTimeSlot(store, deliveryDate, allDeliveries);
 };
