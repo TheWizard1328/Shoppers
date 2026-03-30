@@ -115,7 +115,38 @@ Deno.serve(async (req) => {
         return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
       }
 
-      return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true });
+      if (!allowCreateIfMissing) {
+        return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true });
+      }
+
+      const puid = generateShortStopId();
+      const delivery_time_start = ampmDeliveries === 'PM' ? '15:00' : '10:00';
+      const delivery_time_end = ampmDeliveries === 'PM' ? '16:00' : '11:00';
+      const routePickups = await base44.asServiceRole.entities.Delivery.filter({
+        delivery_date: deliveryDate,
+        driver_id: driverId
+      }, '-created_date', 150);
+      const slotPickups = (routePickups || []).filter((pickup) => !pickup?.patient_id && (pickup?.ampm_deliveries || 'AM') === ampmDeliveries);
+      const uniqueStoreCount = new Set(slotPickups.map((pickup) => pickup.store_id)).size;
+      const trackingNumber = `${store?.abbreviation || ''}${uniqueStoreCount * 20}`;
+
+      const newPickup = await base44.asServiceRole.entities.Delivery.create({
+        stop_id: puid,
+        store_id: storeId,
+        delivery_id: generateDeliveryId(),
+        delivery_date: deliveryDate,
+        driver_id: driverId,
+        driver_name: driverName,
+        dispatcher_id: dispatcherId,
+        created_by_app_user_id: creatorAppUserId,
+        ampm_deliveries: ampmDeliveries,
+        status: 'en_route',
+        delivery_time_start,
+        delivery_time_end,
+        tracking_number: trackingNumber
+      });
+
+      return Response.json({ puid, pickupId: newPickup.id, isNew: true, pickup: newPickup });
     }
 
     const now = new Date();
