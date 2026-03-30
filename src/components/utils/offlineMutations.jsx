@@ -428,6 +428,7 @@ export const createDeliveryLocal = async (deliveryData) => {
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
+      return backendDelivery;
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -777,6 +778,7 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
+      return backendDeliveries;
     } catch (error) {
       const isValidationError = error?.response?.status === 400 || error?.response?.status === 422 || /validation|invalid|schema|field|type/i.test(error?.message || '');
 
