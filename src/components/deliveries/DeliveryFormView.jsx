@@ -27,6 +27,7 @@ import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
 import { runPostDeliveryUpdateSync, closeDeliveryFormAfterSave } from '../utils/deliveryFormActionHelpers';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
+import { handleBatchSaveDelivery } from '@/components/dashboard/handleBatchSaveDelivery.jsx';
 import { toast } from 'sonner';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 

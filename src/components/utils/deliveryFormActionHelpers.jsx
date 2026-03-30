@@ -87,7 +87,7 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
 
     try {
       if (hasTimeWindowChanges) {
-        const { optimizeRemainingStops } = await import('@/functions/optimizeRemainingStops');
+        const { optimizeRemainingStops } = await import('@/functions/optimizeRemainingStops.jsx');
         await optimizeRemainingStops({
           driverId,
           deliveryDate,
@@ -95,7 +95,7 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
           deviceTime: currentLocalTime
         });
       } else {
-        const { calculateRealTimeETA } = await import('@/functions/calculateRealTimeETA');
+        const { calculateRealTimeETA } = await import('@/functions/calculateRealTimeETA.jsx');
         await calculateRealTimeETA({
           driverId,
           deliveryDate,
