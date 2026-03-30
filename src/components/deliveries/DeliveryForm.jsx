@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { getDriverDisplayName, getDriverNameForStorage } from '../utils/driverUtils';
 import { PhoneInput } from "@/components/ui/phone-input";
 import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getStoreAssignedTimeSlotForDriver, getPickupStopIdForDelivery } from '../utils/ampmUtils';
-import { attachTrackingNumbers } from './deliveryBatchSaveHelpers';
 import { base44 } from "@/api/base44Client";
 import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
@@ -1057,23 +1056,27 @@ export default function DeliveryForm({
         driverId: formData.driver_id,
         deliveryDate: formData.delivery_date
       });
-      const { deliveriesWithTRs } = attachTrackingNumbers({
-        newDeliveries: [pickupToCreate],
-        existingDeliveries: [],
-        stores,
-        allDeliveries,
-        deliveryDate: formData.delivery_date
-      });
-      const pickupWithRouteData = deliveriesWithTRs[0] || pickupToCreate;
+      const routeDeliveriesForDriver = (allDeliveries || []).filter((delivery) =>
+        delivery &&
+        delivery.delivery_date === formData.delivery_date &&
+        delivery.driver_id === formData.driver_id
+      );
+      const slotPickups = routeDeliveriesForDriver.filter((delivery) =>
+        !delivery?.patient_id &&
+        (delivery?.ampm_deliveries || 'AM') === timeSlot
+      );
+      const uniqueStoreCount = new Set(slotPickups.map((delivery) => delivery?.store_id).filter(Boolean)).size;
+      const trackingNumberBase = (uniqueStoreCount + 1) * 20 - 20;
 
       await createDeliveryLocal({
-        ...pickupWithRouteData,
+        ...pickupToCreate,
         patient_id: null,
         status: 'en_route',
-        delivery_time_start: pickupTimes?.delivery_time_start || pickupWithRouteData.delivery_time_start || '',
-        delivery_time_end: pickupTimes?.delivery_time_end || pickupWithRouteData.delivery_time_end || '',
-        time_window_start: pickupTimes?.delivery_time_start || pickupWithRouteData.time_window_start || '',
-        time_window_end: pickupTimes?.delivery_time_end || pickupWithRouteData.time_window_end || ''
+        tracking_number: `${store?.abbreviation || ''}${trackingNumberBase}`,
+        delivery_time_start: pickupTimes?.delivery_time_start || pickupToCreate.delivery_time_start || '',
+        delivery_time_end: pickupTimes?.delivery_time_end || pickupToCreate.delivery_time_end || '',
+        time_window_start: pickupTimes?.delivery_time_start || pickupToCreate.time_window_start || '',
+        time_window_end: pickupTimes?.delivery_time_end || pickupToCreate.time_window_end || ''
       });
 
       setHasChanges(true);
