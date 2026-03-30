@@ -121,7 +121,7 @@ export async function handleBatchSave({
           storeIds: assignedStoreIds
         }).catch(() => null);
         ensuredPickupRecords = Array.from(new Map(
-          [...(defaultPickupResponse?.data?.pickups || []), ...pickupRecordsFromStage]
+          [...(defaultPickupResponse?.data?.pickups || []), ...(defaultPickupResponse?.pickups || []), ...pickupRecordsFromStage]
             .filter((pickup) => pickup?.id || pickup?.stop_id)
             .map((pickup) => [pickup.id || pickup.stop_id, pickup])
         ).values());

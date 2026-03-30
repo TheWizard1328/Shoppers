@@ -178,23 +178,31 @@ Deno.serve(async (req) => {
     const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-created_date', 1) : [];
     const creatorAppUserId = creatorAppUsers?.[0]?.id || '';
 
-    if (payload?.event?.type !== 'create' || payload?.event?.entity_name !== 'Delivery') {
-      return Response.json({ skipped: true, reason: 'Not a Delivery create event' });
-    }
+    const isEntityEvent = payload?.event?.type === 'create' && payload?.event?.entity_name === 'Delivery';
+    const directDriverId = payload?.driverId || null;
+    const directDeliveryDate = payload?.deliveryDate || null;
+    const directStoreIds = Array.isArray(payload?.storeIds) ? payload.storeIds.filter(Boolean) : [];
 
-    const delivery = payload?.payload_too_large
-      ? await base44.asServiceRole.entities.Delivery.get(payload.event.entity_id).catch((error) => {
-          if (isNotFoundError(error)) return null;
-          throw error;
-        })
-      : payload?.data;
+    let delivery = null;
+    if (isEntityEvent) {
+      delivery = payload?.payload_too_large
+        ? await base44.asServiceRole.entities.Delivery.get(payload.event.entity_id).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          })
+        : payload?.data;
 
-    if (!delivery?.driver_id || !delivery?.delivery_date || !delivery?.store_id) {
-      return Response.json({ skipped: true, reason: 'Missing driver/date/store' });
-    }
+      if (!delivery?.driver_id || !delivery?.delivery_date || !delivery?.store_id) {
+        return Response.json({ skipped: true, reason: 'Missing driver/date/store' });
+      }
 
-    if (!delivery?.patient_id) {
-      return Response.json({ skipped: true, reason: 'Pickup record already' });
+      if (!delivery?.patient_id) {
+        return Response.json({ skipped: true, reason: 'Pickup record already' });
+      }
+    } else {
+      if (!directDriverId || !directDeliveryDate) {
+        return Response.json({ error: 'Missing driverId or deliveryDate' }, { status: 400 });
+      }
     }
 
     // CRITICAL: Skip pickup creation for retry and return deliveries
@@ -221,28 +229,34 @@ Deno.serve(async (req) => {
       }
     }
 
-    const primarySlot = getPrimarySlot(delivery);
+    const driverId = isEntityEvent ? delivery.driver_id : directDriverId;
+    const deliveryDate = isEntityEvent ? delivery.delivery_date : directDeliveryDate;
+    const primarySlot = isEntityEvent ? getPrimarySlot(delivery) : null;
     const routeDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-      driver_id: delivery.driver_id,
-      delivery_date: delivery.delivery_date,
+      driver_id: driverId,
+      delivery_date: deliveryDate,
     }, '-created_date', 200);
 
-    const otherActivePatientStops = (routeDeliveries || []).filter((item) =>
-      item?.id !== delivery.id && item?.patient_id && ACTIVE_DELIVERY_STATUSES.has(item?.status)
-    );
+    const otherActivePatientStops = isEntityEvent
+      ? (routeDeliveries || []).filter((item) => item?.id !== delivery.id && item?.patient_id && ACTIVE_DELIVERY_STATUSES.has(item?.status))
+      : (routeDeliveries || []).filter((item) => item?.patient_id && ACTIVE_DELIVERY_STATUSES.has(item?.status));
 
-    const [currentStoreMatches, assignedStores, driverAppUsers] = await Promise.all([
-      base44.asServiceRole.entities.Store.filter({ id: delivery.store_id }, '-created_date', 1),
-      loadAssignedStores(base44, delivery.delivery_date, delivery.driver_id),
-      base44.asServiceRole.entities.AppUser.filter({ user_id: delivery.driver_id }, '-created_date', 1),
+    const [assignedStores, driverAppUsers] = await Promise.all([
+      loadAssignedStores(base44, deliveryDate, driverId),
+      base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-created_date', 1),
     ]);
 
-    const currentStore = currentStoreMatches?.[0] || null;
-    if (!currentStore) {
+    const requestedStoreIdSet = new Set(directStoreIds);
+    const filteredAssignedStores = !isEntityEvent && requestedStoreIdSet.size > 0
+      ? (assignedStores || []).filter((store) => requestedStoreIdSet.has(store.id))
+      : (assignedStores || []);
+
+    const currentStore = isEntityEvent ? filteredAssignedStores.find((store) => store?.id === delivery.store_id) || null : null;
+    if (isEntityEvent && !currentStore) {
       return Response.json({ skipped: true, reason: 'Store not found' });
     }
 
-    const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || delivery.driver_name || '';
+    const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || delivery?.driver_name || '';
 
     const ensureTargets = [];
     const seenTargets = new Set();
@@ -255,22 +269,24 @@ Deno.serve(async (req) => {
     };
 
     const isFirstStopOnRoute = otherActivePatientStops.length === 0;
-    if (isFirstStopOnRoute) {
-      (assignedStores || []).forEach((store) => {
+    if (isFirstStopOnRoute || !isEntityEvent) {
+      filteredAssignedStores.forEach((store) => {
         if (!store || SPECIAL_STORE_NAMES.has(store.name || '')) return;
-        const slots = getAssignedSlotsForStore(store, delivery.delivery_date, delivery.driver_id);
+        const slots = getAssignedSlotsForStore(store, deliveryDate, driverId);
         slots.forEach((slot) => addTarget(store, slot));
       });
     }
 
-    addTarget(currentStore, primarySlot);
+    if (isEntityEvent) {
+      addTarget(currentStore, primarySlot);
+    }
 
     const ensuredPickups = [];
     for (const target of ensureTargets) {
       const pickup = await ensurePickup(base44, {
         store: target.store,
-        deliveryDate: delivery.delivery_date,
-        driverId: delivery.driver_id,
+        deliveryDate,
+        driverId,
         driverName,
         slot: target.slot,
         dispatcherId: user?.id || null,
@@ -285,24 +301,49 @@ Deno.serve(async (req) => {
       });
     }
 
-    const matchedPickup = ensuredPickups.find((item) => item.store_id === delivery.store_id && item.slot === primarySlot);
-    if (matchedPickup?.puid && matchedPickup.puid !== delivery.puid) {
-    const updatedDelivery = await base44.asServiceRole.entities.Delivery.update(delivery.id, { puid: matchedPickup.puid }).catch((error) => {
-      if (isNotFoundError(error)) return null;
-      throw error;
-    });
-    if (!updatedDelivery) {
-      return Response.json({ skipped: true, reason: 'delivery_not_found_during_puid_update' });
-    }
+    if (isEntityEvent) {
+      const matchedPickup = ensuredPickups.find((item) => item.store_id === delivery.store_id && item.slot === primarySlot);
+      if (matchedPickup?.puid && matchedPickup.puid !== delivery.puid) {
+        const updatedDelivery = await base44.asServiceRole.entities.Delivery.update(delivery.id, { puid: matchedPickup.puid }).catch((error) => {
+          if (isNotFoundError(error)) return null;
+          throw error;
+        });
+        if (!updatedDelivery) {
+          return Response.json({ skipped: true, reason: 'delivery_not_found_during_puid_update' });
+        }
+      }
+
+      return Response.json({
+        success: true,
+        delivery_id: delivery.id,
+        primary_slot: primarySlot,
+        is_first_stop_on_route: isFirstStopOnRoute,
+        assigned_puid: matchedPickup?.puid || null,
+        ensured_pickups: ensuredPickups,
+        pickups: ensuredPickups.map((item) => ({
+          id: item.pickup_id,
+          stop_id: item.puid,
+          store_id: item.store_id,
+          delivery_date: deliveryDate,
+          driver_id: driverId,
+          ampm_deliveries: item.slot
+        }))
+      });
     }
 
     return Response.json({
       success: true,
-      delivery_id: delivery.id,
-      primary_slot: primarySlot,
-      is_first_stop_on_route: isFirstStopOnRoute,
-      assigned_puid: matchedPickup?.puid || null,
+      driver_id: driverId,
+      delivery_date: deliveryDate,
       ensured_pickups: ensuredPickups,
+      pickups: ensuredPickups.map((item) => ({
+        id: item.pickup_id,
+        stop_id: item.puid,
+        store_id: item.store_id,
+        delivery_date: deliveryDate,
+        driver_id: driverId,
+        ampm_deliveries: item.slot
+      }))
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
