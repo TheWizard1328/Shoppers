@@ -549,7 +549,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       console.warn('⚠️ [LoadPriorityData] Cities empty after sync, forcing full fetch...');
       const citiesFromAPI = await City.list();
       if (citiesFromAPI && citiesFromAPI.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesFromAPI);
+        await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, citiesFromAPI);
         invalidateEntityCache('City');
       }
       const updatedCities = await offlineDB.getAll(offlineDB.STORES.CITIES);
@@ -566,7 +566,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       console.warn('⚠️ [LoadPriorityData] Stores empty after sync, forcing full fetch...');
       const storesFromAPI = await Store.list();
       if (storesFromAPI && storesFromAPI.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.STORES, storesFromAPI);
+        await offlineDB.replaceAllRecords(offlineDB.STORES.STORES, storesFromAPI);
         invalidateEntityCache('Store');
         stores = storesFromAPI;
       }
@@ -582,7 +582,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     if (!companies || companies.length === 0) {
       const companiesFromAPI = await Company.list();
       if (companiesFromAPI && companiesFromAPI.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.COMPANIES, companiesFromAPI);
+        await offlineDB.replaceAllRecords(offlineDB.STORES.COMPANIES, companiesFromAPI);
         invalidateEntityCache('Company');
         companies = companiesFromAPI;
       }
