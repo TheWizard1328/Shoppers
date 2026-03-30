@@ -464,9 +464,18 @@ export const createDelivery = async (deliveryData, options = {}) => {
       
       // STEP 5: Notify UI to replace temp with real
       notifyMutation({ type: 'replace', entity: 'Delivery', oldId: tempId, newId: backendDelivery.id, data: backendDelivery });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('offlineMutationRecordReplaced', {
+          detail: {
+            entity: 'Delivery',
+            oldId: tempId,
+            record: backendDelivery
+          }
+        }));
+      }
       
       // Broadcast to other devices
-      broadcastMutation('Delivery', 'create', backendDelivery.id, backendDelivery);
+      await broadcastMutation('Delivery', 'create', backendDelivery.id, backendDelivery);
       
       await restartSmartRefresh();
       return backendDelivery;
@@ -704,12 +713,23 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       console.log('🗑️ [EntityMutations] Invalidated Delivery cache after batch create');
       
       // STEP 5: Notify UI to replace temps with real
-      backendDeliveries.forEach((backend, i) => {
+      for (const [i, backend] of backendDeliveries.entries()) {
         notifyMutation({ type: 'replace', entity: 'Delivery', oldId: localDeliveries[i].id, newId: backend.id, data: backend });
-      });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('offlineMutationRecordReplaced', {
+            detail: {
+              entity: 'Delivery',
+              oldId: localDeliveries[i].id,
+              record: backend
+            }
+          }));
+        }
+      }
       
       // Broadcast to other devices
-      backendDeliveries.forEach(d => broadcastMutation('Delivery', 'create', d.id, d));
+      for (const d of backendDeliveries) {
+        await broadcastMutation('Delivery', 'create', d.id, d);
+      }
       
       await restartSmartRefresh();
       return backendDeliveries;
