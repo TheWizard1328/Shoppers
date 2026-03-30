@@ -101,59 +101,6 @@ export async function handleBatchSave({
       (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(deliveriesToUpdate.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});}catch(_){}})();
     }
 
-    if (newDeliveries.length > 0 && isNewRouteWithZeroStops) {
-      const driverGroups = {};
-      newDeliveries.forEach((del) => {
-        if (!del.patient_id || !del.driver_id) return;
-        if (!driverGroups[del.driver_id]) {
-          driverGroups[del.driver_id] = { driverId: del.driver_id, deliveryDate: del.delivery_date, deliveries: [] };
-        }
-        driverGroups[del.driver_id].deliveries.push(del);
-      });
-
-      const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
-      await Promise.allSettled(Object.keys(driverGroups).map(async (driverId) => {
-        const group = driverGroups[driverId];
-        const selectedDate = new Date(group.deliveryDate + 'T00:00:00');
-        const dayOfWeek = selectedDate.getDay();
-        const driverAssignedStores = stores.filter((s) => {
-          if (!s) return false;
-          let driverIds = [];
-          if (dayOfWeek === 6) driverIds = [s.saturday_am_driver_id, s.saturday_pm_driver_id];
-          else if (dayOfWeek === 0) driverIds = [s.sunday_am_driver_id, s.sunday_pm_driver_id];
-          else driverIds = [s.weekday_am_driver_id, s.weekday_pm_driver_id];
-          return driverIds.includes(driverId);
-        });
-
-        const ensureTasks = driverAssignedStores.flatMap((assignedStore) => {
-          const isSpecialStore = specialStores.some((name) => assignedStore.name?.includes(name));
-          if (isSpecialStore) return [];
-          const timeSlots = [];
-          if (dayOfWeek === 6) {
-            if (assignedStore.saturday_am_driver_id === driverId) timeSlots.push('AM');
-            if (assignedStore.saturday_pm_driver_id === driverId) timeSlots.push('PM');
-          } else if (dayOfWeek === 0) {
-            if (assignedStore.sunday_am_driver_id === driverId) timeSlots.push('AM');
-            if (assignedStore.sunday_pm_driver_id === driverId) timeSlots.push('PM');
-          } else {
-            if (assignedStore.weekday_am_driver_id === driverId) timeSlots.push('AM');
-            if (assignedStore.weekday_pm_driver_id === driverId) timeSlots.push('PM');
-          }
-
-          return timeSlots.map((timeSlot) =>
-            base44.functions.invoke('ensurePickupForDelivery', {
-              storeId: assignedStore.id,
-              deliveryDate: group.deliveryDate,
-              driverId,
-              ampmDeliveries: timeSlot
-            }).catch(() => null)
-          );
-        });
-
-        await Promise.allSettled(ensureTasks);
-      }));
-    }
-
     const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
     if (deliveriesReadyForDB.length > 0) {
       const groupedEnsureKeys = new Map();
