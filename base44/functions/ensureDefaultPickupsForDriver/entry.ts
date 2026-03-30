@@ -154,9 +154,10 @@ Deno.serve(async (req) => {
     }
 
     const payload = await req.json().catch(() => ({}));
-    const driverId = payload?.driverId || null;
-    const deliveryDate = payload?.deliveryDate || null;
-    const storeIds = Array.isArray(payload?.storeIds) ? payload.storeIds.filter(Boolean) : [];
+    const input = payload?.payload && typeof payload.payload === 'object' ? payload.payload : payload;
+    const driverId = input?.driverId || null;
+    const deliveryDate = input?.deliveryDate || null;
+    const storeIds = Array.isArray(input?.storeIds) ? input.storeIds.filter(Boolean) : [];
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'Missing driverId or deliveryDate' }, { status: 400 });
