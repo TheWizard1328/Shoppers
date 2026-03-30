@@ -37,6 +37,7 @@ export const handleBatchSaveDelivery = async ({
   const allCreatedDeliveries = [];
   const allUpdatedDeliveries = [];
   const createdPickupRecords = [];
+  const createdDeliveryMap = new Map();
 
   if (!stagedDeliveries || stagedDeliveries.length === 0) {
     console.warn('[AddToRoute] ⚠️ No staged deliveries found!');
@@ -601,6 +602,17 @@ export const handleBatchSaveDelivery = async ({
     const createdPickupDeliveries = specialStorePickupPayloads.length > 0 ? await batchCreateDeliveriesLocal(specialStorePickupPayloads) : [];
     const createdDeliveries = regularDeliveriesDeduped.length > 0 ? await batchCreateDeliveriesLocal(regularDeliveriesDeduped) : [];
 
+    createdPickupDeliveries.forEach((delivery) => {
+      if (delivery?.store_id && delivery?.delivery_date && delivery?.ampm_deliveries) {
+        createdDeliveryMap.set(`pickup__${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || ''}`, delivery);
+      }
+    });
+    createdDeliveries.forEach((delivery) => {
+      if (delivery?.patient_id) {
+        createdDeliveryMap.set(`patient__${delivery.patient_id}__${delivery.delivery_date}__${delivery.driver_id || ''}`, delivery);
+      }
+    });
+
     createdPickupRecords.push(...createdPickupDeliveries);
     allCreatedDeliveries.push(...createdDeliveries);
 
@@ -622,7 +634,12 @@ export const handleBatchSaveDelivery = async ({
   const batchDriverId = stagedDeliveries[0]?.driver_id;
   
   // Use the locally created/updated deliveries to update UI immediately
-  const allProcessedDeliveries = Array.from(new Map([...allCreatedDeliveries, ...createdPickupRecords, ...ensuredPickupRecords, ...allUpdatedDeliveries].filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
+  const resolvedEnsuredPickups = (ensuredPickupRecords || []).map((delivery) => {
+    const resolved = createdDeliveryMap.get(`pickup__${delivery?.store_id}__${delivery?.delivery_date}__${delivery?.driver_id || ''}__${delivery?.ampm_deliveries || ''}`);
+    return resolved || delivery;
+  });
+
+  const allProcessedDeliveries = Array.from(new Map([...allCreatedDeliveries, ...createdPickupRecords, ...resolvedEnsuredPickups, ...allUpdatedDeliveries].filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
   
   if (updateDeliveriesLocally && allProcessedDeliveries.length > 0) {
     updateDeliveriesLocally(allProcessedDeliveries, false); // Merge instead of replace
