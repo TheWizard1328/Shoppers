@@ -56,7 +56,7 @@ export default function StatsPanel({
           selectedCityId={globalFilters.getSelectedCityId()}
           selectedDriverId={selectedDriverId}
           showAllDriverMarkers={showAllDriverMarkers}
-          statsCardRef={statsCardRef}
+          statsCardRef={statsPanelContainerRef}
           onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
             if (updateDeliveriesLocally) {
               const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
