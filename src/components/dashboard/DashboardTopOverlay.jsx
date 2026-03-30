@@ -98,7 +98,7 @@ export default function DashboardTopOverlay(props) {
     retractClustersRef,
   } = props;
 
-  const legendData = React.useMemo(() => {
+  const legendData = useMemo(() => {
     const dateKey = format(selectedDate, 'yyyy-MM-dd');
     if (isAdmin) {
       return driversList
