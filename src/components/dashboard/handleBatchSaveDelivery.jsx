@@ -309,14 +309,18 @@ export const handleBatchSaveDelivery = async ({
 
     for (const stop of stopsToProcess) {
       if (!stop || !stop.isNew || !stop.patient_id) continue;
+      const resolvedAmpm = stop.ampm_deliveries || determineAMPMFromTime(stop.delivery_time_start || '10:00');
+      stop.ampm_deliveries = resolvedAmpm;
       const correspondingPickup = stopsToProcess.find((p) =>
       p && !p.patient_id && p.store_id === stop.store_id &&
-      p.ampm_deliveries === stop.ampm_deliveries && p.stop_id
+      p.ampm_deliveries === resolvedAmpm && p.stop_id
       );
       if (correspondingPickup) {
         stop.puid = correspondingPickup.stop_id;
+      } else if (stop.puid) {
+        stop.puid = stop.puid;
       } else {
-        console.warn(`[AddToRoute]   ⚠️ No matching pickup found for ${stop.patient_name}`);
+        console.warn(`[AddToRoute]   ⚠️ No matching pickup found for ${stop.patient_name || stop.patient_id}`);
       }
     }
 
