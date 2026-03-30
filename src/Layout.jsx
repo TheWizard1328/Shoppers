@@ -814,121 +814,12 @@ export default function Layout({ children, currentPageName }) {
     };
     window.addEventListener('forceDataRefresh', handleForceDataRefresh);
 
-    // ========================================
-    // REAL-TIME SYNC - WebSocket for instant updates
-    // ========================================
-    // NOTE: Preview check temporarily commented for testing WebSocket functionality
-    // const isPreview = window.location.hostname.includes('preview') || window.location.hostname.includes('sandbox');
-    // if (!isPreview) {
     realtimeSync.connect();
-    // }
-
-    const unsubscribeRealtime = subscribeToRealtime((update) => {
-      if (update.type === 'connected') {
-        console.log('✅ [Layout] Real-time sync connected');
-        return;
-      }
-
-      if (update.type === 'disconnected') {
-        console.log('🔌 [Layout] Real-time sync disconnected');
-        return;
-      }
-
-      if (update.type !== 'entity_change') return;
-
-      console.log(`📥 [Layout] Real-time update: ${update.entity} ${update.action}`, update.id || update.ids);
-
-      // Handle Delivery updates
-      if (update.entity === 'Delivery') {
-        if (update.action === 'create' && update.data?.id) {
-          setDeliveries((prev) => prev.some((d) => d?.id === update.data.id) ? prev : [...prev, update.data]);
-          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [update.data]).catch(() => {});
-        } else if (update.action === 'update' && update.id && update.data) {
-          const nextDelivery = { ...update.data, id: update.id };
-          setDeliveries((prev) => prev.map((d) => d?.id === update.id ? { ...d, ...nextDelivery } : d));
-          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [nextDelivery]).catch(() => {});
-        } else if (update.action === 'delete') {
-          setDeliveries((prev) => prev.filter((d) => d?.id !== update.id));
-          offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, update.id).catch(() => {});
-          setTimeout(() => { base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => setCatalogItems(response?.data?.items || response?.items || [])); }, 500);
-        } else if (update.action === 'batch_delete' && update.ids) {
-          const idsToDelete = new Set(update.ids);
-          setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
-          update.ids.forEach((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {}));
-          setTimeout(() => { base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => setCatalogItems(response?.data?.items || response?.items || [])); }, 500);
-        }
-      }
-
-      // Handle AppUser updates (driver location, status, tracking)
-      if (update.entity === 'AppUser') {
-        if (update.action === 'update') {
-          setAppUsers((prev) => prev.map((au) =>
-          au?.id === update.id ? { ...au, ...update.data } : au
-          ));
-
-          // Also update users array for merged user data
-          setUsers((prev) => prev.map((u) =>
-          u?.id === update.data?.user_id ? { ...u, ...update.data } : u
-          ));
-
-          // CRITICAL: Update offline DB immediately (async but don't await)
-          import('./components/utils/offlineDatabase').then(({ offlineDB }) => {
-            if (update.data) {
-              offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [update.data]).catch(console.error);
-            }
-          });
-
-          // Only refresh full current-user context for access/navigation changes
-          if (update.data?.user_id === currentUser?.id) {
-            const shouldRefreshCurrentUser = hasCurrentUserRefreshImpact(currentUser, update.data);
-
-            if (shouldRefreshCurrentUser) {
-              console.log('🔄 [Layout Real-time] Current user AppUser changed in a critical way - refreshing context');
-              clearUserCache();
-              getEffectiveUser().then((refreshedUser) => {
-                if (refreshedUser) {
-                  setCurrentUser(refreshedUser);
-                }
-              });
-            } else {
-              setCurrentUser((prev) => prev ? { ...prev, ...update.data } : prev);
-            }
-          }
-
-          // CRITICAL: Dispatch event to update map markers AND polylines immediately
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: null, singleUpdate: update.data }
-          }));
-
-          // CRITICAL: If location changed, also refresh delivery markers (for polyline origins)
-          // Skip toast notification for location updates
-          if (update.data?.current_latitude || update.data?.current_longitude || update.data?.location_updated_at) {
-            console.log(`📍 [Layout] Driver ${update.data.user_id} location updated - forcing map refresh (no notification)`);
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: {
-                triggeredBy: 'driver_location_update',
-                driverId: update.data.user_id
-              }
-            }));
-          } else {
-            // AppUser websocket updates should sync silently without pop-up notifications
-          }
-        }
-      }
-
-
-      // Handle Patient updates
-      if (update.entity === 'Patient' && update.action === 'delete') {
-        // Let AppDataContext own patient state updates; keep offline cleanup here
-        offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, update.id).catch(() => {});
-      }
-    });
 
     return () => {
       clearTimeout(bgSyncTimer);
       clearInterval(mutationSyncInterval);
       unsubscribeMutations();
-      unsubscribeRealtime();
       realtimeSync.disconnect();
       window.removeEventListener('offlineSyncComplete', handleSyncComplete);
       window.removeEventListener('userRolesChanged', handleUserRolesChanged);
@@ -1003,18 +894,16 @@ export default function Layout({ children, currentPageName }) {
   // Granular delivery update function for immediate UI synchronization
   const updateDeliveriesLocally = useCallback((newDeliveries, isFullReplacement = false) => {
     if (isFullReplacement) {
-      // CRITICAL: Force new array reference to trigger React re-render
-      setDeliveries([...newDeliveries.filter(Boolean)]);
+      setDeliveries([...(newDeliveries || []).filter(Boolean)]);
     } else {
       setDeliveries((prevDeliveries) => {
-        const updatesMap = new Map(newDeliveries.map((u) => [u.id, u]));
-        // CRITICAL: Create new array with spread to ensure React detects change
-        return prevDeliveries.map((delivery) => {
-          if (!delivery) return delivery;
-          const update = updatesMap.get(delivery.id);
-          if (update) return { ...delivery, ...update };
-          return delivery;
+        const merged = new Map((prevDeliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
+        (newDeliveries || []).filter(Boolean).forEach((delivery) => {
+          if (!delivery?.id) return;
+          const existing = merged.get(delivery.id);
+          merged.set(delivery.id, existing ? { ...existing, ...delivery } : delivery);
         });
+        return Array.from(merged.values());
       });
     }
   }, []);
