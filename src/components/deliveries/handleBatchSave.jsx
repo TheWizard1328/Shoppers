@@ -1,6 +1,5 @@
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
-import { createDeliveryLocal } from '../utils/entityMutations';
 import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
 import { resetBatchSaveDraftState, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
 import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
@@ -177,9 +176,7 @@ export async function handleBatchSave({
         ...d,
         puid: ensuredPickups[i]?.data?.puid || d.puid || ''
       }));
-      const createdDeliveries = await Promise.all(stagedDeliveriesWithResolvedIds.map((delivery) => createDeliveryLocal(delivery).catch(() => null)));
-      const savedDeliveries = createdDeliveries.filter(Boolean);
-      await onSave({ _isBatchSave: true, _stagedDeliveries: savedDeliveries, _ensuredPickups: ensuredPickupRecords });
+      await onSave({ _isBatchSave: true, _stagedDeliveries: stagedDeliveriesWithResolvedIds, _ensuredPickups: ensuredPickupRecords });
     }
 
     resetBatchSaveDraftState({
