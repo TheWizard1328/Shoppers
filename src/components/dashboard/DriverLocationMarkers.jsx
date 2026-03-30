@@ -163,7 +163,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     // (Mobile primary device has live blue GPS dot instead)
     // On DESKTOP, there is no blue GPS dot, so we MUST show the shared marker
     if (isSelf && isPrimaryDevice && isDriver && isMobile) {
-      console.log(`⏭️ [shouldShowMarker] SELF driver on PRIMARY MOBILE device - hide shared location (using live GPS marker)`);
       return false;
     }
 
@@ -174,7 +173,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
       // RULE 2: Non-driver self markers (dispatchers, admins) on primary device
       if (isSelf && isPrimaryDevice && !isDriver) {
-        console.log(`✅ [shouldShowMarker] SELF on PRIMARY device (non-driver) - show`);
         return true;
       }
 
@@ -225,10 +223,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const dateMatch = d.delivery_date === selectedDateStr;
         // CRITICAL: Normalize delivery store_id to string before comparing
         const storeMatch = dispatcherStoreIds.has(String(d.store_id || ''));
-
-        if (driverMatch && dateMatch && !storeMatch) {
-          console.log(`⚠️ [shouldShowMarker] Store mismatch: delivery store '${d.store_id}' not in dispatcher stores: ${JSON.stringify(Array.from(dispatcherStoreIds))}`);
-        }
 
         return driverMatch && dateMatch && storeMatch;
       });
