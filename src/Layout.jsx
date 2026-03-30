@@ -840,27 +840,22 @@ export default function Layout({ children, currentPageName }) {
 
       // Handle Delivery updates
       if (update.entity === 'Delivery') {
-        if (update.action === 'delete') {
-          // Keep destructive cleanup here, but let AppDataContext own delivery state updates
+        if (update.action === 'create' && update.data?.id) {
+          setDeliveries((prev) => prev.some((d) => d?.id === update.data.id) ? prev : [...prev, update.data]);
+          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [update.data]).catch(() => {});
+        } else if (update.action === 'update' && update.id && update.data) {
+          const nextDelivery = { ...update.data, id: update.id };
+          setDeliveries((prev) => prev.map((d) => d?.id === update.id ? { ...d, ...nextDelivery } : d));
+          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [nextDelivery]).catch(() => {});
+        } else if (update.action === 'delete') {
+          setDeliveries((prev) => prev.filter((d) => d?.id !== update.id));
           offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, update.id).catch(() => {});
-          setTimeout(() => {
-            base44.functions.invoke('squareSyncCatalogItems', {}).
-            then((response) => {
-              const items = response?.data?.items || response?.items || [];
-              setCatalogItems(items);
-            });
-          }, 500);
+          setTimeout(() => { base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => setCatalogItems(response?.data?.items || response?.items || [])); }, 500);
         } else if (update.action === 'batch_delete' && update.ids) {
-          update.ids.forEach((id) => {
-            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
-          });
-          setTimeout(() => {
-            base44.functions.invoke('squareSyncCatalogItems', {}).
-            then((response) => {
-              const items = response?.data?.items || response?.items || [];
-              setCatalogItems(items);
-            });
-          }, 500);
+          const idsToDelete = new Set(update.ids);
+          setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
+          update.ids.forEach((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {}));
+          setTimeout(() => { base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => setCatalogItems(response?.data?.items || response?.items || [])); }, 500);
         }
       }
 
