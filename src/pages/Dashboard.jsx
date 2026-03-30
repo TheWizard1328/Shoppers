@@ -287,16 +287,14 @@ function Dashboard() {
           detail: { appUsers: latestAppUsers, forceAll: true }
         }));
 
+        if (mapViewPhaseRef.current !== 1) return;
         setMapViewPhase(1);
         setIsMapViewLocked(false);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
-
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
+        if (mapLockTimeoutRef.current) clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
         mapLockExpiresAtRef.current = null;
       }
     };
