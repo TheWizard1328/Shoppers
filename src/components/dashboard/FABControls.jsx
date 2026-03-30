@@ -57,6 +57,7 @@ export default function FABControls({
   return (
     <>
       <MapViewCycleFAB onClick={() => {
+        fabControlEvents.blockAutoReactivate(8000);
         if (isDispatcher && mapViewPhase === 1 && selectedStore) {
           const pad = getMapPadding();
           setShouldFitBounds({ bounds: buildRadiusBoundsFromStore(selectedStore, 2.5), options: { ...pad, maxZoom: 14, animate: true } });

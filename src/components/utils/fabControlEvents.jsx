@@ -4,6 +4,7 @@
  */
 
 const fabControlListeners = new Set();
+let fabAutoReactivateBlockedUntil = 0;
 
 export const fabControlEvents = {
   /**
@@ -15,6 +16,12 @@ export const fabControlEvents = {
     fabControlListeners.add(callback);
     return () => fabControlListeners.delete(callback);
   },
+
+  blockAutoReactivate: (durationMs = 5000) => {
+    fabAutoReactivateBlockedUntil = Date.now() + durationMs;
+  },
+
+  isAutoReactivateBlocked: () => Date.now() < fabAutoReactivateBlockedUntil,
   
   /**
    * Notify when driver goes on break - FAB should unlock and zoom to phase 1
@@ -80,6 +87,7 @@ export const fabControlEvents = {
    * Called after background data loads, date changes, or driver changes complete
    */
   notifyDataReady: () => {
+    if (Date.now() < fabAutoReactivateBlockedUntil) return;
     console.log('📢 [FAB Events] Broadcasting data ready - reactivating current FAB phase');
     fabControlListeners.forEach(callback => {
       try {
@@ -167,6 +175,7 @@ export const fabControlEvents = {
    * Called when a driver location marker moves or location sharing state changes
    */
   notifyDriverLocationChange: () => {
+    if (Date.now() < fabAutoReactivateBlockedUntil) return;
     console.log('📢 [FAB Events] Broadcasting driver location change - reactivating phase 1 for 500ms');
     fabControlListeners.forEach(callback => {
       try {
