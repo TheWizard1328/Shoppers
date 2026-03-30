@@ -30,7 +30,7 @@ export default function StatsPanel({
   isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
   showAllDriverMarkers, setShowAllDriverMarkers, showBreadcrumbs, setShowBreadcrumbs, setBreadcrumbsData,
   showRoutes, setShowRoutes, driverRoutes,
-  statsPanelContainerRef, statsCardRef, retractClustersRef,
+  statsCardRef, retractClustersRef,
   mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef,
   setMapViewPhase, setIsMapViewLocked, setMapViewTrigger,
   statsPanelOpacity, isExpanded, setIsExpanded, areCardsVisible,
@@ -45,7 +45,7 @@ export default function StatsPanel({
 }) {
   return (
     <div className={statsCardPositioning} style={{ zIndex: 600 }}>
-      <div ref={statsPanelContainerRef} className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
+      <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
         style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
         onMouseEnter={() => handleStatsPanelInteraction(true)}
         onMouseLeave={() => handleStatsPanelInteraction(false)}>
@@ -56,7 +56,7 @@ export default function StatsPanel({
           selectedCityId={globalFilters.getSelectedCityId()}
           selectedDriverId={selectedDriverId}
           showAllDriverMarkers={showAllDriverMarkers}
-          statsCardRef={statsPanelContainerRef}
+          statsCardRef={statsCardRef}
           onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
             if (updateDeliveriesLocally) {
               const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
@@ -89,7 +89,7 @@ export default function StatsPanel({
           onMouseLeave={() => handleCardInteraction(false)}
           onClick={(e) => { e.stopPropagation(); handleCardInteraction(true); if (retractClustersRef.current) retractClustersRef.current(); }}
           className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-[340px] max-w-[345px] cursor-pointer"
-          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', position: 'relative' }}>
+          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
 
           <div className="mt-1 mb-2 flex items-center justify-between">
             <div className="pr-1 flex items-center gap-2">
@@ -328,23 +328,13 @@ export default function StatsPanel({
           </AnimatePresence>
         </motion.div>
 
-        {((isAllDriversMode && driverRoutes.length > 0) || (!isAllDriversMode && isAdmin && driversList.length > 0)) &&
+        {driverRoutes.length > 0 &&
           <div className="backdrop-blur-sm rounded-lg shadow-lg border px-1 py-1" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
             onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
             <div className="flex flex-wrap gap-x-1 gap-y-1 items-center justify-center">
-              {(isAllDriversMode ? [...driverRoutes].sort((a, b) => (a.driverName || '').localeCompare(b.driverName || '')) : driversList
-                .filter(driver => deliveries.some(d => d && d.delivery_date === selectedDateStr && d.driver_id === driver.id))
-                .map(driver => ({
-                  driverId: driver.id,
-                  driverName: driver.user_name || driver.full_name || 'Unknown',
-                  color: 'transparent',
-                  totalStops:
-                    deliveries.filter(d => d && d.delivery_date === selectedDateStr && d.driver_id === driver.id && d.patient_id && String(d.patient_id).trim() !== '').length +
-                    deliveries.filter(d => d && d.delivery_date === selectedDateStr && d.driver_id === driver.id && (!d.patient_id || String(d.patient_id).trim() === '') && d.after_hours_pickup === true).length,
-                  statusRingColor: ((appUsers || []).find(au => au && au.user_id === driver.id)?.driver_status === 'on_duty') ? '#16a34a' : ((appUsers || []).find(au => au && au.user_id === driver.id)?.driver_status === 'on_break') ? '#3b82f6' : ((appUsers || []).find(au => au && au.user_id === driver.id)?.driver_status === 'off_duty') ? '#dc2626' : '#94a3b8'
-                }))).map(route => (
+              {[...driverRoutes].sort((a, b) => (a.driverName || '').localeCompare(b.driverName || '')).map(route => (
                 <div key={route.driverId} className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0" style={{ backgroundColor: isAllDriversMode ? route.color : route.statusRingColor }} />
+                  <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0" style={{ backgroundColor: route.color }} />
                   <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
                   <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
                 </div>

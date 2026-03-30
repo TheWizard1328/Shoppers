@@ -29,19 +29,18 @@ export default function PullToSync({
     if (!statsCard) return;
 
     const handleTouchStart = (e) => {
-      if (isSyncing) return;
+      // Only trigger if swipe starts on the stats card
       touchStartY.current = e.touches[0].clientY;
-      setPullDistance(0);
       setIsPulling(true);
     };
 
     const handleTouchMove = (e) => {
       if (!isPulling || isSyncing) return;
+
       const currentY = e.touches[0].clientY;
       const distance = Math.max(0, currentY - touchStartY.current);
-      if (distance > 0) {
-        e.preventDefault();
-      }
+      
+      // Cap at 120px
       setPullDistance(Math.min(distance, 120));
     };
 
@@ -57,15 +56,13 @@ export default function PullToSync({
     };
 
     statsCard.addEventListener('touchstart', handleTouchStart, { passive: true });
-    statsCard.addEventListener('touchmove', handleTouchMove, { passive: false });
+    statsCard.addEventListener('touchmove', handleTouchMove, { passive: true });
     statsCard.addEventListener('touchend', handleTouchEnd);
-    statsCard.addEventListener('touchcancel', handleTouchEnd);
 
     return () => {
       statsCard.removeEventListener('touchstart', handleTouchStart);
       statsCard.removeEventListener('touchmove', handleTouchMove);
       statsCard.removeEventListener('touchend', handleTouchEnd);
-      statsCard.removeEventListener('touchcancel', handleTouchEnd);
     };
   }, [isPulling, pullDistance, isSyncing, statsCardRef]);
 

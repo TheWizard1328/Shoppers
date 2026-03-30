@@ -195,8 +195,7 @@ export default function DeliveryMap({
     setPolylineRenderKey((value) => value + 1);
   }, [routeRecalcVersion]);
 
-  const effectiveTopOverlayHeight = Number(topOverlayHeight) || 0;
-  const effectiveStatsContainerHeight = effectiveTopOverlayHeight || (isMobile ? (isStatsCardExpanded ? 260 : 150) : 0);
+  const effectiveTopOverlayHeight = topOverlayHeight;
 
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
@@ -705,7 +704,7 @@ export default function DeliveryMap({
     }
 
     const paddingKey = [
-      isMobile ? effectiveStatsContainerHeight + 25 : 60,
+      isMobile ? effectiveTopOverlayHeight + 25 : 60,
       areStopCardsVisible ? stopCardsHeight + 10 : 60
     ].join(":");
     const nextKey = [
@@ -735,7 +734,7 @@ export default function DeliveryMap({
         [nextStop.latitude, nextStop.longitude]
       ],
       {
-        paddingTopLeft: [25, isMobile ? effectiveStatsContainerHeight + 25 : 60],
+        paddingTopLeft: [25, isMobile ? effectiveTopOverlayHeight + 25 : 60],
         paddingBottomRight: [25, areStopCardsVisible ? stopCardsHeight + 10 : 60],
         maxZoom: 17.5,
         animate: true,
@@ -758,7 +757,7 @@ export default function DeliveryMap({
     if (!map) return;
 
     const updateCrosshairCoords = () => {
-      const topObscured = isMobile ? effectiveStatsContainerHeight : 0;
+      const topObscured = isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0;
       const bottomObscured = areStopCardsVisible ? stopCardsHeight : 0;
       const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 5;
       const size = map.getSize();
@@ -801,7 +800,7 @@ export default function DeliveryMap({
     window._lastProgrammaticMapMove = Date.now();
     const targetZoom = Math.max(currentZoom, 15);
     const size = map.getSize();
-    const topObscured = isMobile ? effectiveStatsContainerHeight : 0;
+    const topObscured = isMobile ? (effectiveTopOverlayHeight || 116) : 0;
     const bottomObscured = areStopCardsVisible ? stopCardsHeight : 0;
     // Place marker slightly below the vertical midpoint of the visible area
     const verticalCenter = topObscured + (size.y - topObscured - bottomObscured) * 0.38;
@@ -993,7 +992,7 @@ export default function DeliveryMap({
         {showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} safeUsers={safeUsers} />}
       </MapContainer>
 
-      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? effectiveStatsContainerHeight : 0} isMobile={isMobile} />
+      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} />
     </div>
   );
 }
