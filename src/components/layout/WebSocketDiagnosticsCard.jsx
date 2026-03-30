@@ -2,14 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { offlineDB } from '@/components/utils/offlineDatabase';
+import { isMobileDevice } from '@/components/utils/deviceUtils';
+import { isAppOwner } from '@/components/utils/userRoles';
+import { base44 } from '@/api/base44Client';
 
 export default function WebSocketDiagnosticsCard() {
   const [event, setEvent] = useState(null);
+  const [disableForMobileOwner, setDisableForMobileOwner] = useState(false);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
   const [topOffset, setTopOffset] = useState(72);
   const [isMobile, setIsMobile] = useState(false);
   const [patientNameCache, setPatientNameCache] = useState({});
   const [storeNameCache, setStoreNameCache] = useState({});
+
+  useEffect(() => {
+    const checkDisableState = async () => {
+      try {
+        const user = await base44.auth.me();
+        setDisableForMobileOwner(isMobileDevice() && isAppOwner(user));
+      } catch (_) {
+        setDisableForMobileOwner(false);
+      }
+    };
+
+    checkDisableState();
+  }, []);
 
   useEffect(() => {
     // Check if this is the primary device
@@ -63,6 +80,8 @@ export default function WebSocketDiagnosticsCard() {
   }, []);
 
   useEffect(() => {
+    if (disableForMobileOwner) return;
+
     const resolvePatientName = async (patientId) => {
       if (!patientId || patientNameCache[patientId]) return patientNameCache[patientId] || null;
       const patient = await offlineDB.getById(offlineDB.STORES.PATIENTS, patientId);
@@ -191,9 +210,9 @@ export default function WebSocketDiagnosticsCard() {
       window.removeEventListener('realtimeUpdate_Patient', handleWebSocketEvent);
       window.removeEventListener('realtimeUpdate_AppUser', handleWebSocketEvent);
     };
-  }, [isPrimaryDevice, patientNameCache, storeNameCache]);
+  }, [disableForMobileOwner, isPrimaryDevice, patientNameCache, storeNameCache]);
 
-  if (!event) return null;
+  if (disableForMobileOwner || !event) return null;
 
   return (
     <Card 
