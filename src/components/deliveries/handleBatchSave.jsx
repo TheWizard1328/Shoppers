@@ -63,6 +63,21 @@ export async function handleBatchSave({
     delivery.status !== 'Staged'
   ).length;
 
+  console.log('[AddToRoute] Pre-processing route stop count', {
+    driverId: formData.driver_id,
+    deliveryDate: formData.delivery_date,
+    persistedRouteStopCountBeforeProcessing,
+    matchingStops: (allDeliveries || [])
+      .filter((delivery) => delivery && delivery.delivery_date === formData.delivery_date && delivery.driver_id === formData.driver_id)
+      .map((delivery) => ({
+        id: delivery.id,
+        patient_id: delivery.patient_id,
+        status: delivery.status,
+        stop_id: delivery.stop_id,
+        puid: delivery.puid
+      }))
+  });
+
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
   const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
 
@@ -120,15 +135,32 @@ export async function handleBatchSave({
 
       const shouldEnsureDefaultPickups = persistedRouteStopCountBeforeProcessing === 0;
 
+      console.log('[AddToRoute] Default pickup gate', {
+        shouldEnsureDefaultPickups,
+        persistedRouteStopCountBeforeProcessing,
+        deliveriesReadyForDBCount: deliveriesReadyForDB.length,
+        patientDeliveriesReadyForDBCount: patientDeliveriesReadyForDB.length,
+        pickupRecordsFromStageCount: pickupRecordsFromStage.length
+      });
+
       if (shouldEnsureDefaultPickups) {
         const assignedStoreIds = Array.from(new Set(
           deliveriesReadyForDB.map((delivery) => delivery?.store_id).filter(Boolean)
         ));
+        console.log('[AddToRoute] Invoking ensureDefaultPickupsForDriver', {
+          driverId: formData.driver_id,
+          deliveryDate: formData.delivery_date,
+          storeIds: assignedStoreIds
+        });
         const defaultPickupResponse = await base44.functions.invoke('ensureDefaultPickupsForDriver', {
           driverId: formData.driver_id,
           deliveryDate: formData.delivery_date,
           storeIds: assignedStoreIds
-        }).catch(() => null);
+        }).catch((error) => {
+          console.error('[AddToRoute] ensureDefaultPickupsForDriver failed', error);
+          return null;
+        });
+        console.log('[AddToRoute] ensureDefaultPickupsForDriver result', defaultPickupResponse?.data || defaultPickupResponse || null);
         ensuredPickupRecords = Array.from(new Map(
           [...(defaultPickupResponse?.data?.pickups || []), ...(defaultPickupResponse?.pickups || []), ...pickupRecordsFromStage]
             .filter((pickup) => pickup?.id || pickup?.stop_id)
