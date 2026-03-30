@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
 import { isMobileDevice } from '../utils/deviceUtils';
 import { userHasRole } from '../utils/userRoles';
 import { getCurrentEtaForDelivery } from '../utils/etaTrendBus';
@@ -108,7 +109,7 @@ export default function ETATracker({
         const currentTime = new Date();
         const localTimeString = `${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}`;
 
-        const response = await base44.functions.invoke('calculateRealTimeETA', {
+        const response = await calculateRealTimeETA({
           driverId: selectedDriverId,
           deliveryDate: selectedDate,
           currentLocalTime: localTimeString // Send as HH:mm to avoid UTC conversion
