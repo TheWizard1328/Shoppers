@@ -172,9 +172,7 @@ Deno.serve(async (req) => {
       base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1),
     ]);
 
-    const filteredStores = storeIds.length > 0
-      ? (assignedStores || []).filter((store) => storeIds.includes(store.id))
-      : (assignedStores || []);
+    const filteredStores = assignedStores || [];
 
     const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || '';
     const ensuredPickups = [];

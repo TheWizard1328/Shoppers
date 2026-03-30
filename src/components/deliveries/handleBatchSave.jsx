@@ -147,18 +147,14 @@ export async function handleBatchSave({
       });
 
       if (shouldEnsureDefaultPickups) {
-        const assignedStoreIds = Array.from(new Set(
-          deliveriesReadyForDB.map((delivery) => delivery?.store_id).filter(Boolean)
-        ));
         console.log('[AddToRoute] Invoking ensureDefaultPickupsForDriver', {
           driverId: routeDriverId,
           deliveryDate: routeDeliveryDate,
-          storeIds: assignedStoreIds
+          storeIds: []
         });
         const defaultPickupResponse = await base44.functions.invoke('ensureDefaultPickupsForDriver', {
           driverId: routeDriverId,
-          deliveryDate: routeDeliveryDate,
-          storeIds: assignedStoreIds
+          deliveryDate: routeDeliveryDate
         }).catch((error) => {
           console.error('[AddToRoute] ensureDefaultPickupsForDriver failed', error);
           return null;
