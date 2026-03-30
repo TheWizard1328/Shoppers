@@ -85,6 +85,7 @@ export default function DashboardTopOverlay(props) {
     statsCardPositioning,
     screenWidth,
     cardWidth,
+    isStatsCardCentered,
     getDriverColor,
     driverRoutes,
     setSelectedCardId,
