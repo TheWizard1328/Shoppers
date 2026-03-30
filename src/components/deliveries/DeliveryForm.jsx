@@ -1061,11 +1061,8 @@ export default function DeliveryForm({
         delivery.delivery_date === formData.delivery_date &&
         delivery.driver_id === formData.driver_id
       );
-      const slotPickups = routeDeliveriesForDriver.filter((delivery) =>
-        !delivery?.patient_id &&
-        (delivery?.ampm_deliveries || 'AM') === timeSlot
-      );
-      const existingPickupTrackingNumbers = slotPickups
+      const routePickups = routeDeliveriesForDriver.filter((delivery) => !delivery?.patient_id);
+      const existingPickupTrackingNumbers = routePickups
         .map((delivery) => {
           const raw = String(delivery?.tracking_number || '');
           const match = raw.match(/(\d+)$/);
