@@ -477,7 +477,6 @@ export const handleBatchSaveDelivery = async ({
   setTimeout(async () => {
     try {
       await new Promise((resolve) => setTimeout(resolve, 500));
-      await refreshData();
 
       if (batchDriverId) {
         const allDriverDeliveries = await base44.entities.Delivery.filter({
@@ -504,7 +503,6 @@ export const handleBatchSaveDelivery = async ({
             generatePolyline: true
           });
           if (invalidateDeliveriesForDate) invalidateDeliveriesForDate(batchDeliveryDate);
-          await refreshData();
         }
       }
     } catch (optimizeError) {
