@@ -62,14 +62,6 @@ export const runDeleteOnlyBatchRefresh = ({ deliveryDate, driverId }) => {
       invalidate('Delivery');
       invalidateDeliveriesForDate(deliveryDate);
 
-      if (driverId && deliveryDate) {
-        const { base44 } = await import('@/api/base44Client');
-        await base44.entities.Delivery.filter({
-          driver_id: driverId,
-          delivery_date: deliveryDate
-        });
-      }
-
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveryDate,
@@ -93,14 +85,6 @@ export const runUpdateOnlyBatchRefresh = ({ deliveryDate, driverId }) => {
       const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
       invalidate('Delivery');
       invalidateDeliveriesForDate(deliveryDate);
-
-      if (driverId && deliveryDate) {
-        const { base44 } = await import('@/api/base44Client');
-        await base44.entities.Delivery.filter({
-          driver_id: driverId,
-          delivery_date: deliveryDate
-        });
-      }
 
       const { fabControlEvents } = await import('../utils/fabControlEvents');
       fabControlEvents.notifyDataReady();
