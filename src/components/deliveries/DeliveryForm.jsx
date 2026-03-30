@@ -34,6 +34,7 @@ import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescript
 import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './projectedDeliveryHelpers';
 import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
+import { closeDeliveryFormAfterSave } from '../utils/deliveryFormActionHelpers';
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
 import { createPatientFromDraft, resolvePickupPuid, resolvePickupTimeWindow } from './deliveryAddHelpers';
 import { useConfirmDelete } from './useConfirmDelete';
@@ -1042,13 +1043,35 @@ export default function DeliveryForm({
     let newStagedDelivery;
 
     if (isPickupMode) {
-      newStagedDelivery = buildPickupStagedDelivery({
+      const pickupToCreate = buildPickupStagedDelivery({
         formData,
         codAmount,
         store,
         timeSlot,
         existingStopIds: [...(allDeliveries || []).map((d) => d?.stop_id), ...(stagedDeliveries || []).map((d) => d?.stop_id)]
       });
+
+      await createDeliveryLocal({
+        ...pickupToCreate,
+        patient_id: null,
+        status: 'en_route'
+      });
+
+      setHasChanges(true);
+      resetDraftEditorState({
+        setSelectedPatient,
+        setSelectedPatientIds,
+        setPatientSearch,
+        setError,
+        setEditingStagedId,
+        setHighlightedPatientIndex,
+        setFormData,
+        setSelectedPickupOption,
+        shouldAutoFocusFields,
+        focusRef: patientSearchInputRef,
+        setNewPatientMode
+      });
+      return;
     } else {
       const puid = await resolvePickupPuid({
         stagedDeliveries,
