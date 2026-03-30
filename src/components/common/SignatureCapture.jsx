@@ -150,36 +150,8 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
           </Button>
         </div>
 
-        <div className="flex-1 p-3 overflow-hidden" style={{ background: 'var(--bg-slate-100)' }}>
-          <div
-            className="w-full h-full border-2 rounded-lg relative overflow-hidden"
-            style={{ borderColor: 'var(--border-slate-300)', background: '#ffffff' }}
-          >
-            <canvas
-              ref={canvasRef}
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
-              onTouchStart={startDrawing}
-              onTouchMove={draw}
-              onTouchEnd={stopDrawing}
-              onTouchCancel={stopDrawing}
-              className="w-full h-full touch-none cursor-crosshair block"
-              style={{ touchAction: 'none', display: 'block' }}
-            />
-            {!hasSignature && (
-              <div className="absolute inset-0 flex items-center justify-start pl-[5px] pointer-events-none">
-                <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(-90deg)' }}>
-                  ✍️ Sign here
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
         <div
-          className="border-t px-4 py-3 flex gap-2 justify-between items-center flex-shrink-0"
+          className="border-b px-4 py-3 flex gap-2 justify-between items-center flex-shrink-0"
           style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
         >
           <div>
@@ -213,6 +185,34 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                   <Check className="w-4 h-4 mr-2" />Save
                 </Button>
               </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 p-3 overflow-hidden" style={{ background: 'var(--bg-slate-100)' }}>
+          <div
+            className="w-full h-full border-2 rounded-lg relative overflow-hidden"
+            style={{ borderColor: 'var(--border-slate-300)', background: '#ffffff' }}
+          >
+            <canvas
+              ref={canvasRef}
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+              onMouseLeave={stopDrawing}
+              onTouchStart={startDrawing}
+              onTouchMove={draw}
+              onTouchEnd={stopDrawing}
+              onTouchCancel={stopDrawing}
+              className="w-full h-full touch-none cursor-crosshair block"
+              style={{ touchAction: 'none', display: 'block' }}
+            />
+            {!hasSignature && (
+              <div className="absolute inset-0 flex items-center justify-start pl-[5px] pointer-events-none">
+                <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(-90deg)' }}>
+                  ✍️ Sign here
+                </span>
+              </div>
             )}
           </div>
         </div>
