@@ -1057,10 +1057,25 @@ export const processPendingMutations = async () => {
         successCount++;
         continue;
       }
+      if (mutation.entity === 'Delivery' && mutation.operation === 'create' && mutation.recordId?.startsWith('temp_')) {
+        const existingTempDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, mutation.recordId);
+        if (!existingTempDelivery) {
+          await offlineDB.removePendingMutation(mutation.mutationId);
+          successCount++;
+          continue;
+        }
+      }
       
       if (mutation.operation === 'create') {
-        const createdRecord = await Entity.create(mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
         const storeName = getOfflineStoreName(offlineDB, mutation.entity);
+        const existingLocalRecord = storeName ? await offlineDB.getById(storeName, mutation.recordId) : null;
+        const isLikelyAlreadySynced = mutation.recordId?.startsWith('temp_') && !existingLocalRecord;
+        if (isLikelyAlreadySynced) {
+          await offlineDB.removePendingMutation(mutation.mutationId);
+          successCount++;
+          continue;
+        }
+        const createdRecord = await Entity.create(mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
         if (storeName) {
           if (mutation.recordId?.startsWith('temp_')) {
             await offlineDB.deleteRecord(storeName, mutation.recordId);
