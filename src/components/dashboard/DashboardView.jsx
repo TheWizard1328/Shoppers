@@ -58,7 +58,7 @@ export default function DashboardView({
   // Snapshot
   isSnapshotModeActive, setIsSnapshotModeActive, snapshotData, setSnapshotData,
   // Performance
-  performanceStats, deliveryStats, liveDistance, liveTimeOnDuty, isLoadingPayrollStats,
+  performanceStats, deliveryStats, liveDistance, liveStatsDistance, liveTimeOnDuty, isLoadingPayrollStats,
   dailyPolylineCount,
   // AI
   isAIEnabled, showAIAssistant,
@@ -192,7 +192,7 @@ export default function DashboardView({
         setEditingDelivery={setEditingDelivery} setShowDeliveryForm={setShowDeliveryForm}
         setShowOptimizationSettings={setShowOptimizationSettings}
         setShowQuickAdjustments={setShowQuickAdjustments} setShowSmartPrioritization={setShowSmartPrioritization}
-        deliveryStats={deliveryStats} performanceStats={performanceStats} liveDistance={liveDistance} liveTimeOnDuty={liveTimeOnDuty}
+        deliveryStats={deliveryStats} performanceStats={performanceStats} liveDistance={liveStatsDistance} liveTimeOnDuty={liveTimeOnDuty}
         isLoadingPayrollStats={isLoadingPayrollStats} dailyPolylineCount={dailyPolylineCount} stats={stats}
         finalizedDutyTime={finalizedDutyTime}
         refreshUser={refreshUser} dataSource={dataSource}
