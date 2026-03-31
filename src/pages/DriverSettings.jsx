@@ -224,7 +224,7 @@ export default function DriverSettings() {
 
           return (
             <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full max-w-[420px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <CardContent className="p-4 h-full">
+                <CardContent className="p-4 h-full max-w-aut">
                   <div className="flex items-start gap-4 h-full">
                     {/* Avatar */}
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
