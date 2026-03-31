@@ -45,33 +45,27 @@ Deno.serve(async (req) => {
 
     const pickups = deliveries
       .filter((delivery) => delivery && !delivery.patient_id && delivery.stop_id)
-      .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      .sort((a, b) => {
+        const stopDelta = (a.stop_order || 999999) - (b.stop_order || 999999);
+        if (stopDelta !== 0) return stopDelta;
+        const timeA = String(a.delivery_time_start || '99:99');
+        const timeB = String(b.delivery_time_start || '99:99');
+        if (timeA !== timeB) return timeA.localeCompare(timeB);
+        return String(a.store_id || '').localeCompare(String(b.store_id || ''));
+      });
 
     const updates = [];
     const pickupBaseMap = new Map();
-    const usedPickupBases = new Set(
-      pickups
-        .map((pickup) => parseTrackingNumber(pickup.tracking_number))
-        .filter((value) => value !== null)
-    );
-
-    const assignNextPickupBase = (store) => {
-      const storeBase = Number(store?.base_tracking_number || 0);
-      let candidate = storeBase > 0 ? storeBase : 20;
-      while (usedPickupBases.has(candidate)) {
-        candidate += 20;
-      }
-      usedPickupBases.add(candidate);
-      return candidate;
-    };
+    let nextPickupBase = 0;
 
     for (const pickup of pickups) {
       let pickupBase = parseTrackingNumber(pickup.tracking_number);
       if (pickupBase === null) {
-        pickupBase = assignNextPickupBase(storeMap.get(pickup.store_id));
-        updates.push({ id: pickup.id, tracking_number: String(pickupBase) });
+        pickupBase = nextPickupBase;
+        updates.push({ id: pickup.id, tracking_number: String(pickupBase).padStart(2, '0') });
       }
       pickupBaseMap.set(pickup.stop_id, pickupBase);
+      nextPickupBase = Math.max(nextPickupBase, pickupBase + 20);
     }
 
     for (const pickup of pickups) {
@@ -110,7 +104,7 @@ Deno.serve(async (req) => {
 
         const expectedTrackingNumber = String(nextTrackingNumber);
         if (delivery.tracking_number !== expectedTrackingNumber) {
-          updates.push({ id: delivery.id, tracking_number: expectedTrackingNumber });
+          updates.push({ id: delivery.id, tracking_number: expectedTrackingNumber.padStart(2, '0') });
         }
 
         nextTrackingNumber += 1;
