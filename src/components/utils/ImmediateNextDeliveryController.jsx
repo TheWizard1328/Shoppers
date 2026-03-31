@@ -61,7 +61,7 @@ const getActionFromTarget = (target) => {
 };
 
 export default function ImmediateNextDeliveryController() {
-  const { deliveries, updateDeliveriesLocally, forceRefreshDriverDeliveries } = useAppData();
+  const { deliveries, updateDeliveriesLocally } = useAppData();
   const deliveriesRef = useRef(deliveries || []);
   const recentActionRef = useRef({ key: '', ts: 0 });
   const etaRefreshRef = useRef(new Set());
@@ -212,7 +212,6 @@ export default function ImmediateNextDeliveryController() {
           }));
         }
 
-        await forceRefreshDriverDeliveries?.(driverId, deliveryDate);
         const refreshedDeliveries = deliveriesRef.current || [];
         const nextStop = refreshedDeliveries.find((item) =>
           item &&
@@ -233,7 +232,7 @@ export default function ImmediateNextDeliveryController() {
 
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
     return () => window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
-  }, [forceRefreshDriverDeliveries]);
+  }, []);
 
   return null;
 }
