@@ -902,8 +902,8 @@ export default function DeliveryMetrics() {
   }
 
   return (
-    <div className="min-h-screen p-6" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="h-full min-h-0 overflow-y-auto p-6" style={{ background: 'var(--bg-slate-50)' }}>
+      <div className="max-w-7xl mx-auto space-y-6 pb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
