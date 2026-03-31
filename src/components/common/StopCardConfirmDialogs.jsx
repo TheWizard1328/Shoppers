@@ -8,6 +8,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { getDriverDisplayName } from '../utils/driverUtils';
+import { updateDeliveryLocal, batchDeleteDeliveriesLocal } from '../utils/entityMutations';
 
 export default function StopCardConfirmDialogs({
   // Delete dialog
@@ -119,11 +120,11 @@ export default function StopCardConfirmDialogs({
                       const newPickupTR = parseInt(newPickup.tracking_number, 10);
                       const sortedPending = [...pendingPickups].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
                       const updatePromises = sortedPending.map((pending, index) =>
-                        base44.entities.Delivery.update(pending.id, {
+                        updateDeliveryLocal(pending.id, {
                           puid: newPuid,
                           tracking_number: String(newPickupTR + index + 1),
                           ampm_deliveries: newPickup.ampm_deliveries
-                        })
+                        }, { skipSmartRefresh: true })
                       );
                       await Promise.all(updatePromises);
                       toast.success(`Transferred ${pendingPickups.length} pending stop(s)`);
@@ -137,7 +138,14 @@ export default function StopCardConfirmDialogs({
                       }
                     }
 
-                    await onDeleteDelivery(delivery.id);
+                    if (isPickup && pendingPickups && pendingPickups.length > 0 && (!selectedTransferPickupId || selectedTransferPickupId === 'delete_all')) {
+                      await batchDeleteDeliveriesLocal([
+                        delivery.id,
+                        ...pendingPickups.map((item) => item.id).filter(Boolean)
+                      ]);
+                    } else {
+                      await onDeleteDelivery(delivery.id);
+                    }
                     setShowDeleteConfirm(false);
                     setSelectedTransferPickupId('');
                   } catch (error) {
