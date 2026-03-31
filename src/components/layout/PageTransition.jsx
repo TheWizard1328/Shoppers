@@ -14,7 +14,7 @@ export default function PageTransition({ children }) {
   const exitX = transitionAction === 'pop' ? horizontalOffset : -horizontalOffset;
 
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div className="relative w-full h-full min-h-0 overflow-x-hidden overflow-y-auto">
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={`${location.pathname}${location.search}`}
@@ -22,7 +22,7 @@ export default function PageTransition({ children }) {
           animate={{ opacity: 1, x: 0, scale: 1 }}
           exit={{ opacity: 0, x: exitX, scale: isMobileLayout ? 0.995 : 1 }}
           transition={{ duration: isMobileLayout ? 0.24 : 0.16, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full h-full"
+          className="w-full min-h-full"
         >
           {children}
         </motion.div>
