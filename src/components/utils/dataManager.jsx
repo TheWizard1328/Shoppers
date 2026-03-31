@@ -51,7 +51,7 @@ let offlineDBLoadComplete = false;
 
 // Rate limit protection - track last API call time and global rate limit pause
 let lastApiCallTime = 0;
-const MIN_API_INTERVAL = 3000; // 3 seconds between API calls to prevent rate limiting
+const MIN_API_INTERVAL = 10000; // 10 seconds between API calls to prevent rate limiting
 let globalRateLimitUntil = 0;
 
 const waitForRateLimit = async () => {
@@ -100,7 +100,7 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         // Check staleness: refresh in background if stale or forceRefresh
         const meta = await offlineDB.getSyncMetadata(entityName);
         const lastSync = meta?.last_sync_time ? new Date(meta.last_sync_time).getTime() : 0;
-        const isStale = (Date.now() - lastSync) > (15 * 60 * 1000); // 15 min
+        const isStale = (Date.now() - lastSync) > (60 * 60 * 1000); // 60 min
         
         if (forceRefresh || isStale) {
           (async () => {
@@ -310,7 +310,7 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
       // Check staleness: refresh in background if stale or forceRefresh
       const meta = await offlineDB.getSyncMetadata('Delivery');
       const lastSync = meta?.last_sync_time ? new Date(meta.last_sync_time).getTime() : 0;
-      const isStale = (Date.now() - lastSync) > (15 * 60 * 1000); // 15 min
+      const isStale = (Date.now() - lastSync) > (60 * 60 * 1000); // 60 min
       
       if (forceRefresh || isStale) {
         (async () => {
@@ -465,10 +465,6 @@ export const loadDeliveries = async (
       })
       .catch(() => {});
   }
-
-  loadFullMonthDeliveries(backgroundFilters, false)
-    .then(onFullMonthLoadComplete)
-    .catch(() => {});
 
   return initialDeliveries;
 };
