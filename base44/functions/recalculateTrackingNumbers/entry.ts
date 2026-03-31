@@ -48,10 +48,35 @@ Deno.serve(async (req) => {
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
     const updates = [];
+    const pickupBaseMap = new Map();
+    const usedPickupBases = new Set(
+      pickups
+        .map((pickup) => parseTrackingNumber(pickup.tracking_number))
+        .filter((value) => value !== null)
+    );
+
+    const assignNextPickupBase = (store) => {
+      const storeBase = Number(store?.base_tracking_number || 0);
+      let candidate = storeBase > 0 ? storeBase : 20;
+      while (usedPickupBases.has(candidate)) {
+        candidate += 20;
+      }
+      usedPickupBases.add(candidate);
+      return candidate;
+    };
 
     for (const pickup of pickups) {
-      const pickupBase = parseTrackingNumber(pickup.tracking_number);
-      if (pickupBase === null) continue;
+      let pickupBase = parseTrackingNumber(pickup.tracking_number);
+      if (pickupBase === null) {
+        pickupBase = assignNextPickupBase(storeMap.get(pickup.store_id));
+        updates.push({ id: pickup.id, tracking_number: String(pickupBase) });
+      }
+      pickupBaseMap.set(pickup.stop_id, pickupBase);
+    }
+
+    for (const pickup of pickups) {
+      const pickupBase = pickupBaseMap.get(pickup.stop_id);
+      if (pickupBase === null || pickupBase === undefined) continue;
 
       const linkedDeliveries = deliveries
         .filter((delivery) => delivery && delivery.patient_id && delivery.puid === pickup.stop_id)
@@ -64,12 +89,13 @@ Deno.serve(async (req) => {
           return String(a.patient_name || '').localeCompare(String(b.patient_name || ''));
         });
 
-      const reservedTrackingNumbers = new Set(
-        linkedDeliveries
+      const reservedTrackingNumbers = new Set([
+        pickupBase,
+        ...linkedDeliveries
           .filter((delivery) => FINISHED_STATUSES.includes(delivery.status))
           .map((delivery) => parseTrackingNumber(delivery.tracking_number))
           .filter((value) => value !== null)
-      );
+      ]);
 
       const activeLinkedDeliveries = linkedDeliveries.filter(
         (delivery) => !FINISHED_STATUSES.includes(delivery.status)
