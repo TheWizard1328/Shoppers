@@ -161,7 +161,7 @@ export default function DriverSettings() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-[1600px] mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-3" style={{ color: 'var(--text-slate-900)' }}>
           <SmartRefreshIndicator inline={true} />
@@ -208,8 +208,13 @@ export default function DriverSettings() {
         {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} found
       </div>
 
-      {/* Drivers List - 2 per row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* Drivers List */}
+      <div
+        className="grid gap-3 items-stretch"
+        style={{
+          gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))'
+        }}
+      >
         {filteredDrivers.length === 0 ?
         <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="py-8 text-center" style={{ color: 'var(--text-slate-500)' }}>
@@ -223,7 +228,7 @@ export default function DriverSettings() {
           const dutyStatus = getDriverDutyStatus(driver);
 
           return (
-            <Card key={driver.id} className="hover:shadow-md transition-shadow min-h-[210px] h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card key={driver.id} className="hover:shadow-md transition-shadow min-h-[210px] h-full min-w-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-4 h-full">
                   <div className="flex items-start gap-4 h-full">
                     {/* Avatar */}
