@@ -2672,9 +2672,9 @@ export default function AdminUtilities() {
 
 
 
+
               // Fallback
-            }}if (delivery.delivery_time_eta) {const timeParts = delivery.delivery_time_eta.match(/(\d{2}):(\d{2})/);if (timeParts) {const hours = parseInt(timeParts[1]);const minutes = parseInt(timeParts[2]);return hours * 60 + minutes;}}return 9999;};if (deliverySortColumn === 'stop_order') {const aOrder = a.stop_order ?? 99999;const bOrder = b.stop_order ?? 99999;if (aOrder !== bOrder) {
-            return deliverySortDirection === 'asc' ? aOrder - bOrder : bOrder - aOrder;
+            }}if (delivery.delivery_time_eta) {const timeParts = delivery.delivery_time_eta.match(/(\d{2}):(\d{2})/);if (timeParts) {const hours = parseInt(timeParts[1]);const minutes = parseInt(timeParts[2]);return hours * 60 + minutes;}}return 9999;};if (deliverySortColumn === 'stop_order') {const aOrder = a.stop_order ?? 99999;const bOrder = b.stop_order ?? 99999;if (aOrder !== bOrder) {return deliverySortDirection === 'asc' ? aOrder - bOrder : bOrder - aOrder;
           }
 
           const aDate = a.delivery_date || '';
@@ -3704,7 +3704,7 @@ export default function AdminUtilities() {
                      </TabsList></div>
 
                   <TabsContent value="deliveries" className="mt-6">
-                    <div className="space-y-2">
+                    <div className="space-y-2 overflow-auto">
                       <div className="flex flex-col md:flex-row gap-1 flex-wrap items-stretch md:items-center justify-between">
                         {!manualLoadTriggered ?
                       <Alert className="bg-background text-foreground pt-2 pr-3 pb-1 pl-3 text-sm rounded-lg relative w-full border [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7 flex-1">
