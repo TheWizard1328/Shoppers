@@ -152,15 +152,8 @@ export const useOfflineFirstData = (entityName, query = {}, onlineDataFetcher) =
  * Helper hook to wrap multiple entity loads with offline-first strategy
  */
 export const useOfflineFirstEntities = (entityConfigs) => {
-  const results = {};
-  Object.entries(entityConfigs).forEach(([key, config]) => {
-    results[key] = useOfflineFirstData(config.name, config.query, config.fetcher);
-  });
-
-  const isLoadingAny = Object.values(results).some((result) => result?.isLoading);
-
+  console.warn('useOfflineFirstEntities is deprecated. Call useOfflineFirstData directly in your component instead.');
   return {
-    ...results,
-    isLoadingAny
+    isLoadingAny: false
   };
 };

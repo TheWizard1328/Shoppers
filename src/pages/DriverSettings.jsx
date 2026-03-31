@@ -209,7 +209,7 @@ export default function DriverSettings() {
       </div>
 
       {/* Drivers List - 2 per row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
         {filteredDrivers.length === 0 ?
         <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="py-8 text-center" style={{ color: 'var(--text-slate-500)' }}>

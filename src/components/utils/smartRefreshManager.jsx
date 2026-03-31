@@ -553,59 +553,6 @@ class LightweightRefreshManager {
 
       console.log('📍 [SmartRefresh] Skipping fallback AppUser API poll - using offline/WebSocket data only');
       return { hasChanges: false, appUsers: currentAppUsers };
-      
-      // Success → reset backoff and schedule next fallback at 1 minute
-      this.recordSuccess();
-      this.driverRefreshBackoffMs = 0;
-      this.driverNextAllowedAt = Date.now() + 60000; // 1 minute fallback cadence
-      
-      if (freshAppUsers && freshAppUsers.length > 0) {
-        const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-        
-        const previousTrackedAt = this.lastTrackedRefreshAt;
-        const trackedAt = Date.now();
-        base44.analytics.track({
-          eventName: "driver_location_refresh_run",
-          properties: {
-            success: true,
-            force_notify: Boolean(forceNotify),
-            immediate: Boolean(immediate),
-            app_user_count: Number(freshAppUsers.length),
-            interval_since_last_refresh_ms: previousTrackedAt ? trackedAt - previousTrackedAt : 0
-          }
-        });
-        this.lastTrackedRefreshAt = trackedAt;
-        
-        // Update current user dependent UI
-        window.dispatchEvent(new CustomEvent('refreshCurrentUserFromSmartRefresh', {
-          detail: { updatedAppUsers: freshAppUsers }
-        }));
-
-        const selectedDriverId = globalFilters.getSelectedDriverId();
-        const selectedDate = globalFilters.getSelectedDate();
-        if (typeof window !== 'undefined' && selectedDriverId && selectedDriverId !== 'all' && selectedDate) {
-          const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate).catch(() => []);
-          if (shouldAutoCenterNextDeliveryFromSmartRefresh(offlineDeliveries, selectedDriverId, this._currentUser)) {
-            console.log('🎯 [SmartRefresh] Auto-centering next delivery on AppUser 60s refresh');
-            window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('centerNextDeliveryCard', {
-                detail: {
-                  source: 'smartRefreshManagerAppUsers60s',
-                  selectedDriverId,
-                  remoteOnly: false
-                }
-              }));
-            }, 100);
-          }
-        }
-        
-        console.log(`✅ [SmartRefresh] Refreshed ${freshAppUsers.length} driver locations`);
-        return { hasChanges: true, appUsers: freshAppUsers };
-      }
-      
-      return { hasChanges: false, appUsers: currentAppUsers };
     } catch (error) {
      base44.analytics.track({
        eventName: "driver_location_refresh_run",

@@ -4,9 +4,10 @@ import { MapPin, Navigation, AlertTriangle, CheckCircle, RefreshCw, X } from "lu
 import { Button } from "@/components/ui/button";
 
 export default function RouteNotification({ notification, onDismiss, onNavigate, isOptimizing = false }) {
-  const [isVisible, setIsVisible] = useState(false);
   // Visual notifier globally disabled
   return null;
+
+  const [isVisible, setIsVisible] = useState(false);
   
   useEffect(() => {
     // Don't show notifications while route optimization is in progress
