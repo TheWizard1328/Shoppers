@@ -212,11 +212,17 @@ async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
     return deliveries || [];
   }
 
-  const payload = Array.from(updatesById.entries()).map(([id, update]) => ({ id, ...update }));
+  const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
+  const deliveryMap = new Map(safeDeliveries.map((delivery) => [delivery.id, delivery]));
+  const payload = Array.from(updatesById.entries()).map(([id, update]) => {
+    const existing = deliveryMap.get(id);
+    if (!existing) return null;
+    return { ...existing, ...update };
+  }).filter(Boolean);
 
   try {
     await base44.asServiceRole.entities.Delivery.bulkCreate(payload);
-    return mergeDeliveryUpdates(deliveries, updatesById);
+    return mergeDeliveryUpdates(safeDeliveries, updatesById);
   } catch (error) {
     if (isRateLimitError(error)) {
       console.warn('[bulkUpdateDeliveries] Rate limit during bulk update');
