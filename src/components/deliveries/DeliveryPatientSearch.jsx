@@ -189,12 +189,12 @@ export default function DeliveryPatientSearch({
                 id={`patient-item-${index}`}
                 className={`pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 border-l-4 ${
                   isAlreadyStaged
-                    ? 'bg-amber-50 border-amber-400'
+                    ? 'bg-amber-100/80 border-amber-500'
                     : isSelected
-                    ? 'bg-emerald-50 border-emerald-500'
+                    ? 'bg-emerald-100/80 border-emerald-500'
                     : isHighlighted
-                    ? 'bg-teal-50 border-teal-500'
-                    : 'bg-white border-transparent hover:bg-slate-50'
+                    ? 'bg-teal-100/80 border-teal-500'
+                    : 'bg-card border-transparent hover:bg-accent/60'
                 }`}>
 
                 
@@ -231,27 +231,27 @@ export default function DeliveryPatientSearch({
                   
                       <div className="font-medium truncate flex items-center gap-1.5">
                         {patient.full_name}
-                        {isAlreadyStaged && <Badge className="bg-amber-200 text-amber-800 text-[10px] px-1.5 py-0 h-4">STAGED</Badge>}
+                        {isAlreadyStaged && <Badge className="bg-amber-200/80 text-amber-900 dark:text-amber-950 text-[10px] px-1.5 py-0 h-4">STAGED</Badge>}
                         {storeAbbr && shouldShowStoreBadges(currentUser) && (() => {
                       const color = patientStore ? getStoreColor(patientStore) : '#64748b';
                       return <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: color }}>{storeAbbr}</Badge>;
                     })()}
                       </div>
-                      <div className="text-slate-600 my-2 pt-1 text-xs truncate">{patient.address}</div>
+                      <div className="text-muted-foreground my-2 pt-1 text-xs truncate">{patient.address}</div>
                       {patient.phone &&
-                  <div className="text-xs text-slate-500 truncate">
+                  <div className="text-xs text-muted-foreground truncate">
                           {formatPhoneNumber(patient.phone)}{patient.unit_number && <> • #{patient.unit_number}</>}
                         </div>
                   }
                     </button>
                     <div className="flex flex-col gap-1 ml-1">
-                      <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-blue-100" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
-                        <span className="text-blue-700">Duplicate</span>
-                        <Copy className="w-3 h-3 text-blue-600" />
+                      <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-blue-100/70 dark:hover:bg-blue-900/30" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
+                        <span className="text-blue-700 dark:text-blue-300">Duplicate</span>
+                        <Copy className="w-3 h-3 text-blue-600 dark:text-blue-300" />
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-purple-100" onClick={(e) => {e.stopPropagation();onNewAddressPatient(patient);}} title="New Address">
-                        <span className="text-purple-700">Change</span>
-                        <MapPin className="w-3 h-3 text-purple-600" />
+                      <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-purple-100/70 dark:hover:bg-purple-900/30" onClick={(e) => {e.stopPropagation();onNewAddressPatient(patient);}} title="New Address">
+                        <span className="text-purple-700 dark:text-purple-300">Change</span>
+                        <MapPin className="w-3 h-3 text-purple-600 dark:text-purple-300" />
                       </Button>
                     </div>
                   </div>);
