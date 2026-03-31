@@ -8,6 +8,7 @@ import { generateCompletionTimestamp } from '../utils/timeRoundingHelper';
 import { updateDeliveryLocal } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
+import { base44 } from "@/api/base44Client";
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
 
 export default function StopCardCODCollection({
@@ -165,6 +166,11 @@ export default function StopCardCODCollection({
               try {
                 setIsCompleting(true);
                 const isAlreadyCompleted = delivery.status === 'completed';
+
+                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                if (deliveryExists && deliveryExists.length === 0) {
+                  throw new Error('This delivery no longer exists. Please refresh the page.');
+                }
 
                 if (isAlreadyCompleted) {
                   await onCODUpdate(delivery.id, codPayments, true);
