@@ -116,6 +116,7 @@ export default function DeliveryPatientSearch({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
           <Input
             ref={patientSearchInputRef}
+            autoFocus
             type="text"
             placeholder="Search by name, address, phone..."
             value={patientSearch}

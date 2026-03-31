@@ -1529,6 +1529,12 @@ export default function DeliveryForm({
   }, []);
 
   useEffect(() => {
+    if (shouldAutoFocusFields) {
+      requestAnimationFrame(() => {
+        patientSearchInputRef.current?.focus?.();
+      });
+    }
+
     setIsFormOverlayOpen(true);
     
     // CRITICAL: Keep location tracking active but pause UI updates
