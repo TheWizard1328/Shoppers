@@ -227,13 +227,20 @@ async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
 
 async function markDeliveriesPolylineUpdated(base44, deliveries, value) {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return;
-  const updatesById = new Map(deliveries.map((delivery) => [delivery.id, { PolylineUpdated: value }]));
-  await bulkUpdateDeliveries(base44, deliveries, updatesById).catch((error) => {
-    if (isRateLimitError(error)) {
-      console.warn('[markDeliveriesPolylineUpdated] Rate limit, skipping flag update');
-      return null;
+
+  await processInChunks(deliveries, 20, async (delivery) => {
+    try {
+      return await base44.asServiceRole.entities.Delivery.update(delivery.id, { PolylineUpdated: value });
+    } catch (error) {
+      if (isRateLimitError(error)) {
+        console.warn('[markDeliveriesPolylineUpdated] Rate limit, skipping flag update');
+        return null;
+      }
+      if (isNotFoundError(error)) {
+        return null;
+      }
+      throw error;
     }
-    throw error;
   });
 }
 
