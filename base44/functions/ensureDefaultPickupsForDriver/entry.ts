@@ -116,17 +116,6 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     return reusablePickup;
   }
 
-  const routeDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-    delivery_date: deliveryDate,
-    driver_id: driverId,
-  }, '-created_date', 150);
-
-  const routePickups = (routeDeliveries || []).filter((item) => !item?.patient_id);
-  const existingPickupNumbers = routePickups
-    .map((item) => parseInt(String(item?.tracking_number || '').match(/\d+/)?.[0] || '', 10))
-    .filter((value) => !Number.isNaN(value));
-  const highestTrackingNumber = existingPickupNumbers.length > 0 ? Math.max(...existingPickupNumbers) : -20;
-  const trackingNumberBase = highestTrackingNumber + 20;
   const times = getSlotTimes(store, deliveryDate, slot);
   const fallbackTimes = getFallbackTimes(slot);
 
@@ -143,7 +132,7 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     status: 'en_route',
     delivery_time_start: times.start || fallbackTimes.start,
     delivery_time_end: times.end || fallbackTimes.end,
-    tracking_number: String(trackingNumberBase),
+    tracking_number: '',
   });
 }
 
@@ -198,6 +187,14 @@ Deno.serve(async (req) => {
         ensuredPickups.push({ ...pickup, patient_id: null, puid: pickup?.stop_id || pickup?.puid || null });
       }
     }
+
+    await base44.functions.invoke('recalculateTrackingNumbers', {
+      driverId,
+      deliveryDate
+    }).catch((error) => {
+      if (!isNotFoundError(error)) throw error;
+      return null;
+    });
 
     return Response.json({
       success: true,
