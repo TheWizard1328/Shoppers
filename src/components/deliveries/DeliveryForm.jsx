@@ -1072,12 +1072,13 @@ export default function DeliveryForm({
       const trackingNumberBase = existingPickupTrackingNumbers.length > 0
         ? Math.max(...existingPickupTrackingNumbers) + 20
         : 0;
+      const trackingNumber = trackingNumberBase === 0 ? '00' : String(trackingNumberBase);
 
       await createDeliveryLocal({
         ...pickupToCreate,
         patient_id: null,
         status: 'en_route',
-        tracking_number: String(trackingNumberBase),
+        tracking_number: trackingNumber,
         delivery_time_start: pickupTimes?.delivery_time_start || pickupToCreate.delivery_time_start || '',
         delivery_time_end: pickupTimes?.delivery_time_end || pickupToCreate.delivery_time_end || '',
         time_window_start: pickupTimes?.delivery_time_start || pickupToCreate.time_window_start || '',
