@@ -9,7 +9,7 @@ import { Loader2, ArrowUpDown, Edit, Trash2 } from 'lucide-react';
 import DeliveryRouteDataCell from '@/components/admin/DeliveryRouteDataCell';
 import { getDriverDisplayName } from '@/components/utils/driverUtils';
 
-const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function ResizableColumnHeader({ width, children }) {
   return <th className="p-2 text-left font-semibold" style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}>{children}</th>;
@@ -64,7 +64,7 @@ export default function AdminDeliveriesTable(props) {
 
   const getDeliveryDateTime = (delivery) => ({
     date: delivery.delivery_date || '-',
-    time: delivery.actual_delivery_time?.split('T')[1]?.slice(0,5) || delivery.delivery_time_eta || '-'
+    time: delivery.actual_delivery_time?.split('T')[1]?.slice(0, 5) || delivery.delivery_time_eta || '-'
   });
 
   const getDriverName = (delivery) => {
@@ -90,7 +90,7 @@ export default function AdminDeliveriesTable(props) {
   const handleSelectDelivery = (id, checked) => {
     setSelectedDeliveries((prev) => {
       const next = new Set(prev);
-      if (checked) next.add(id); else next.delete(id);
+      if (checked) next.add(id);else next.delete(id);
       return next;
     });
   };
@@ -99,8 +99,8 @@ export default function AdminDeliveriesTable(props) {
   const isSomeSelected = selectedDeliveries.size > 0 && selectedDeliveries.size < displayDeliveries.length;
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="rounded-xl border bg-card text-card-foreground shadow h-full">
+      <CardHeader className="px-6 py-1 flex flex-col space-y-1.5">
         <CardTitle className="flex items-center justify-between">
           <span>Deliveries</span>
           <div className="flex gap-2">
@@ -147,13 +147,13 @@ export default function AdminDeliveriesTable(props) {
                   const driverName = getDriverName(delivery);
                   const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
                   const collectionType = codPayments.find((p) => Number(p?.amount || 0) > 0)?.type || (delivery.cod_payment_type && delivery.cod_payment_type !== 'No Payment' ? delivery.cod_payment_type : '-');
-                  return <tr key={delivery.id} className="border-b" style={{ borderColor: 'var(--border-slate-200)' }}><td className="p-2"><Checkbox checked={selectedDeliveries.has(delivery.id)} onCheckedChange={(checked) => handleSelectDelivery(delivery.id, checked)} /></td><td className="p-2"><div className="flex flex-col"><span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{dateTime.date}</span><span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{dateTime.time}</span></div></td><td className="p-2 font-mono text-sm"><div className="flex flex-col"><span className="font-semibold">{delivery.stop_order ?? '-'}</span>{delivery.ampm_deliveries && <span className="text-xs text-slate-600">{delivery.ampm_deliveries}</span>}</div></td><td className="p-2 font-mono text-xs"><div className="flex flex-col">{delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}{info.patientPID && <span className="text-slate-600">{info.patientPID}</span>}{!delivery.stop_id && !info.patientPID && <span>-</span>}</div></td><td className="p-2 font-mono text-xs"><div className="flex flex-col"><span>{delivery.tracking_number || '-'}</span>{delivery.puid && <span className="text-slate-600 text-[10px]">{delivery.puid}</span>}</div></td><td className="p-2"><div className="flex flex-col"><span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{info.name}</span><span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{info.address}</span></div></td><td className="p-2">{editingDriverId === delivery.id ? <Select value={delivery.driver_id || ''} onValueChange={(newDriverId) => handleDriverChange(delivery, newDriverId)} onOpenChange={(open) => { if (!open) setEditingDriverId(null); }}><SelectTrigger className="h-7 w-full text-xs"><SelectValue /></SelectTrigger><SelectContent className="z-[9999]">{drivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}</SelectContent></Select> : <div className="flex flex-col gap-1"><span className="cursor-pointer hover:bg-slate-100 px-2 py-1 rounded transition-colors inline-block" onClick={() => setEditingDriverId(delivery.id)}>{driverName}</span>{delivery.isNextDelivery && <Badge className="bg-green-100 !text-green-800 border-green-300 w-fit">Next</Badge>}</div>}</td><td className="p-2"><div className="flex flex-col text-sm"><span className="font-mono" style={{ color: 'var(--text-slate-900)' }}>{Number(delivery.cod_total_amount_required || 0) > 0 ? `$${Number(delivery.cod_total_amount_required || 0).toFixed(2)}` : '-'}</span><span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{collectionType}</span></div></td><td className="p-2"><div className="flex flex-col text-sm font-mono" style={{ color: 'var(--text-slate-900)' }}><span>{delivery.travel_dist ? `${delivery.travel_dist.toFixed(2)}k` : '-'}</span>{(() => { const patient = (patients || []).find((p) => p.id === delivery.patient_id); const patientDist = patient?.distance_from_store; return patientDist ? <span className="text-xs text-slate-600">{patientDist.toFixed(2)}k</span> : null; })()}</div></td><td className="p-2">{getStatusBadge(delivery)}</td><td className="p-2"><DeliveryRouteDataCell delivery={delivery} /></td><td className="p-2 text-right"><div className="flex justify-end gap-2"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(delivery)}><Edit className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onDelete(delivery)}><Trash2 className="w-4 h-4" /></Button></div></td></tr>;
+                  return <tr key={delivery.id} className="border-b" style={{ borderColor: 'var(--border-slate-200)' }}><td className="p-2"><Checkbox checked={selectedDeliveries.has(delivery.id)} onCheckedChange={(checked) => handleSelectDelivery(delivery.id, checked)} /></td><td className="p-2"><div className="flex flex-col"><span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{dateTime.date}</span><span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{dateTime.time}</span></div></td><td className="p-2 font-mono text-sm"><div className="flex flex-col"><span className="font-semibold">{delivery.stop_order ?? '-'}</span>{delivery.ampm_deliveries && <span className="text-xs text-slate-600">{delivery.ampm_deliveries}</span>}</div></td><td className="p-2 font-mono text-xs"><div className="flex flex-col">{delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}{info.patientPID && <span className="text-slate-600">{info.patientPID}</span>}{!delivery.stop_id && !info.patientPID && <span>-</span>}</div></td><td className="p-2 font-mono text-xs"><div className="flex flex-col"><span>{delivery.tracking_number || '-'}</span>{delivery.puid && <span className="text-slate-600 text-[10px]">{delivery.puid}</span>}</div></td><td className="p-2"><div className="flex flex-col"><span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{info.name}</span><span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{info.address}</span></div></td><td className="p-2">{editingDriverId === delivery.id ? <Select value={delivery.driver_id || ''} onValueChange={(newDriverId) => handleDriverChange(delivery, newDriverId)} onOpenChange={(open) => {if (!open) setEditingDriverId(null);}}><SelectTrigger className="h-7 w-full text-xs"><SelectValue /></SelectTrigger><SelectContent className="z-[9999]">{drivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}</SelectContent></Select> : <div className="flex flex-col gap-1"><span className="cursor-pointer hover:bg-slate-100 px-2 py-1 rounded transition-colors inline-block" onClick={() => setEditingDriverId(delivery.id)}>{driverName}</span>{delivery.isNextDelivery && <Badge className="bg-green-100 !text-green-800 border-green-300 w-fit">Next</Badge>}</div>}</td><td className="p-2"><div className="flex flex-col text-sm"><span className="font-mono" style={{ color: 'var(--text-slate-900)' }}>{Number(delivery.cod_total_amount_required || 0) > 0 ? `$${Number(delivery.cod_total_amount_required || 0).toFixed(2)}` : '-'}</span><span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{collectionType}</span></div></td><td className="p-2"><div className="flex flex-col text-sm font-mono" style={{ color: 'var(--text-slate-900)' }}><span>{delivery.travel_dist ? `${delivery.travel_dist.toFixed(2)}k` : '-'}</span>{(() => {const patient = (patients || []).find((p) => p.id === delivery.patient_id);const patientDist = patient?.distance_from_store;return patientDist ? <span className="text-xs text-slate-600">{patientDist.toFixed(2)}k</span> : null;})()}</div></td><td className="p-2">{getStatusBadge(delivery)}</td><td className="p-2"><DeliveryRouteDataCell delivery={delivery} /></td><td className="p-2 text-right"><div className="flex justify-end gap-2"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(delivery)}><Edit className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onDelete(delivery)}><Trash2 className="w-4 h-4" /></Button></div></td></tr>;
                 }) : <tr><td colSpan={12} className="p-3 text-center text-slate-500">No deliveries found.</td></tr>}
               </tbody>
             </table>
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
