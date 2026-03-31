@@ -112,7 +112,7 @@ import MobileBottomNav from './components/layout/MobileBottomNav';
 import MobileOverlayBackHandler from './components/layout/MobileOverlayBackHandler';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
 import AdminNavigationSection from './components/layout/AdminNavigationSection';
-import primeOfflineDashboardData from './components/layout/primeOfflineDashboardData';
+import primeOfflineDashboardData from '@/components/layout/primeOfflineDashboardData';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
