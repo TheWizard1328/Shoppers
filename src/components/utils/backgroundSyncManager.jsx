@@ -1,7 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { format } from 'date-fns';
-import { requestThrottler } from './requestThrottler';
 
 /**
  * Background Sync Manager
@@ -59,8 +58,6 @@ class BackgroundSyncManager {
     this.currentCycleAPICalls = 0;
     this.appStartTime = Date.now();
     this.subscribers = new Set();
-    this.entitySyncQueue = [];
-    this.entitySyncQueueKeys = new Set();
   }
 
   /**
@@ -189,60 +186,6 @@ class BackgroundSyncManager {
     return Math.floor((Date.now() - (this.appStartTime || Date.now())) / 60000);
   }
 
-  requestEntitySync(entityName, options = {}) {
-    const key = `${entityName}:${JSON.stringify(options.query || {})}`;
-    if (this.entitySyncQueueKeys.has(key)) return;
-    this.entitySyncQueue.push({ entityName, options, key, queuedAt: Date.now() });
-    this.entitySyncQueueKeys.add(key);
-  }
-
-  async flushEntitySyncQueue() {
-    while (this.entitySyncQueue.length > 0 && this.currentCycleAPICalls < this.config.maxAPICallsPerCycle) {
-      const next = this.entitySyncQueue.shift();
-      if (!next) break;
-      this.entitySyncQueueKeys.delete(next.key);
-      await this.syncEntityOnDemand(next.entityName, next.options);
-    }
-  }
-
-  async syncEntityOnDemand(entityName, options = {}) {
-    const query = options.query || {};
-    try {
-      const result = await requestThrottler.queue(async () => {
-        if (entityName === 'Delivery') return await base44.entities.Delivery.filter(query, '-updated_date', 5000);
-        if (entityName === 'Patient') return await base44.entities.Patient.filter(query, '-updated_date', 5000);
-        if (entityName === 'AppUser') return await base44.entities.AppUser.list();
-        if (entityName === 'City') return await base44.entities.City.list();
-        if (entityName === 'Store') return await base44.entities.Store.list();
-        if (entityName === 'SquareTransaction') return await base44.entities.SquareTransaction.list('-updated_date', 100);
-        if (entityName === 'SquareLocationConfig') return await base44.entities.SquareLocationConfig.list();
-        return [];
-      }, 'background', `bg-sync:${entityName}`);
-
-      if (entityName === 'Delivery' && Array.isArray(result)) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result);
-      } else if (entityName === 'Patient' && Array.isArray(result)) {
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, result);
-      } else if (entityName === 'AppUser' && Array.isArray(result)) {
-        await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, result);
-      } else if (entityName === 'City' && Array.isArray(result)) {
-        await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, result);
-      } else if (entityName === 'Store' && Array.isArray(result)) {
-        await offlineDB.replaceAllRecords(offlineDB.STORES.STORES, result);
-      } else if (entityName === 'SquareTransaction' && Array.isArray(result)) {
-        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, result);
-      } else if (entityName === 'SquareLocationConfig' && Array.isArray(result)) {
-        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, result);
-      }
-
-      this.currentCycleAPICalls++;
-    } catch (error) {
-      if (!(error.response?.status === 429 || error.message?.includes('429'))) {
-        console.warn(`⚠️ [BackgroundSync] On-demand ${entityName} sync failed:`, error.message);
-      }
-    }
-  }
-
   /**
    * Execute sync tasks in priority order
    */
@@ -257,17 +200,18 @@ class BackgroundSyncManager {
     // Sort by priority (lower number = higher priority)
     tasks.sort((a, b) => a.priority - b.priority);
 
-    await this.flushEntitySyncQueue();
-
+    // Execute tasks in order, respecting API call limits
     for (const task of tasks) {
       if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) {
         console.log('⚠️ [BackgroundSync] API call limit reached for this cycle');
         break;
       }
+
       if (this.isPaused || !this.isRunning) {
         console.log('⏸️ [BackgroundSync] Paused or stopped during cycle');
         break;
       }
+
       try {
         await task.fn();
       } catch (error) {

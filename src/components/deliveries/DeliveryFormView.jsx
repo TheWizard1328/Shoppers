@@ -843,21 +843,20 @@ export default function DeliveryFormView({
                   const previousDriverId = delivery?.driver_id;
                   const previousDeliveryDate = delivery?.delivery_date;
                   const shouldOptimizeInBackground = hasTimeWindowChanges;
+                  let didSave = false;
                   const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
-                  let saveCompleted = false;
 
                   await runLockedAction('update_delivery', async () => {
                     const { smartRefreshManager } = await import('../utils/smartRefreshManager');
                     smartRefreshManager.pause();
                     try {
-                      await handleSubmit(submitEvent);
-                      saveCompleted = true;
+                      didSave = await handleSubmit(submitEvent);
                     } finally {
                       smartRefreshManager.resume();
                     }
                   });
 
-                  if (!saveCompleted) return;
+                  if (!didSave) return;
 
                   handleCancelClick();
                   window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));

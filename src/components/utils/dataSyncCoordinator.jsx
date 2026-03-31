@@ -73,13 +73,7 @@ export const fetchAppUsersDedup = async () => {
   }
   
   // New request
-  const request = AppUser.list().catch((error) => {
-    if (error?.response?.status === 404) {
-      console.warn('⚠️ [DataSyncCoordinator] AppUser.list() returned 404 - using empty result');
-      return [];
-    }
-    throw error;
-  }).then(data => {
+  const request = AppUser.list().then(data => {
     // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at)
     const deduped = new Map();
     (data || []).forEach(au => {

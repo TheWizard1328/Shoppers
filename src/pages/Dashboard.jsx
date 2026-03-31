@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar as CalendarIcon, Clock, Truck, CheckCircle, XCircle, Package, Plus, ChevronUp, ChevronDown, RotateCcw as RefreshIcon, Phone, MapPin, X, Settings, Bot, Sparkles, Navigation, Bell, BellOff, Mailbox, ArrowUp, ArrowDown, Binoculars, LocateFixed } from "lucide-react";
 import { format, startOfDay } from 'date-fns';
-import { getData, invalidate, loadDeliveriesForDate } from "@/components/utils/dataManager";
+import { getData, invalidate } from "@/components/utils/dataManager";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { offlineFirstManager } from "@/components/utils/offlineFirstManager";
 import DeliveryMap from "@/components/dashboard/DeliveryMap";
@@ -516,7 +516,8 @@ function Dashboard() {
       // CRITICAL: Only start if this is a PRIMARY device
       if (!locationTracker.isTracking) {
         try {
-          const appUser = appUsers?.find((au) => au?.user_id === currentUser.id);
+          const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+          const appUser = appUsers?.[0];
 
           if (appUser) {
             await locationTracker.startTracking({
@@ -566,7 +567,8 @@ function Dashboard() {
         wasHidden = false;
 
         try {
-          const appUser = appUsers?.find((au) => au?.user_id === currentUser.id);
+          const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+          const appUser = appUsers?.[0];
 
           if (appUser) {
             // Check if we should be tracking
@@ -1265,10 +1267,22 @@ function Dashboard() {
         setCalendarMonth(dateObj);
       }
 
-      if (newFilters.selectedDriverId !== undefined && newFilters.selectedDriverId !== selectedDriverId) {
-        setSelectedDriverId(newFilters.selectedDriverId || 'all');
-      }
-    });return unsubscribe;}, [window.location.search, selectedDate, selectedDriverId]); // Listen for driver status break/resume events from DriverStatusToggle
+      if (newFilters.selectedDriverId !== undefined) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // This subscription handles changes from other components
+      }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else if (event.type === 'ACCEPT_ALL_CLICKED') pulsePhaseOne(500);else if (event.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE' && mapViewPhaseRef.current === 1) pulsePhaseOne(500);else if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else
           if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else
           if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 900;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 900);}, 140);}
@@ -2976,10 +2990,19 @@ function Dashboard() {
       const shouldLoadAllDeliveries = showAllDriverMarkers || selectedDriverId === 'all';
       let priorityDeliveries;
 
-      priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      if (dataSource === 'online') {
+        // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
+        priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+        // Update offline DB in background (don't wait)
+        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
+      } else {
+        // OFFLINE MODE: Load ALL deliveries for the date from offline DB first; fallback to API
+        priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
-      if ((!priorityDeliveries || priorityDeliveries.length === 0) && dataSource === 'online') {
-        priorityDeliveries = await loadDeliveriesForDate(dateStr, {}, true);
+        if (!priorityDeliveries || priorityDeliveries.length === 0) {
+          priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
+        }
       }
 
       // STEP 3: Update UI immediately with priority data using flushSync for instant render
@@ -3118,10 +3141,19 @@ function Dashboard() {
       let freshDeliveries;
       const shouldLoadAllDeliveries = showAllDriverMarkers || driverId === 'all';
 
-      freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      if (dataSource === 'online') {
+        // ONLINE MODE: Always fetch ALL deliveries for the date; UI filters by driver
+        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+        // Update offline DB in background
+        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+      } else {
+        // OFFLINE MODE: Try offline DB first for ALL deliveries on date
+        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
-      if ((!freshDeliveries || freshDeliveries.length === 0) && dataSource === 'online') {
-        freshDeliveries = await loadDeliveriesForDate(dateStr, {}, true);
+        if (!freshDeliveries || freshDeliveries.length === 0) {
+          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        }
       }
 
       if (driverChangeRequestIdRef.current !== reqId) return;
@@ -6137,9 +6169,9 @@ function Dashboard() {
           {/* Driver Legend - positioned directly below stats card */}
           {(() => {
             const dateKey = format(selectedDate, 'yyyy-MM-dd');
-            const legendSourceDeliveries=(deliveries||[]).filter(d=>d&&d.delivery_date===dateKey&&d.driver_id); const legendData=Array.from(new Set(legendSourceDeliveries.map(d=>d.driver_id))).map(driverId=>{const appUser=(appUsers||[]).find(au=>au&&au.user_id===driverId);const driver=appUser||driversList.find(d=>d&&d.id===driverId);const s=appUser?.driver_status;const c=s==='on_duty'?'#16a34a':s==='on_break'?'#3b82f6':s==='off_duty'?'#dc2626':'#94a3b8';return{driverId,driverName:appUser?.user_name||driver?.user_name||driver?.full_name||'Unknown',sortOrder:appUser?.sort_order??driver?.sort_order??Infinity,color:getDriverColor(appUser||driver||{id:driverId}),totalStops:legendSourceDeliveries.filter(d=>d&&d.driver_id===driverId&&d.patient_id&&String(d.patient_id).trim()!=='').length+legendSourceDeliveries.filter(d=>d&&d.driver_id===driverId&&(!d.patient_id||String(d.patient_id).trim()==='')&&d.after_hours_pickup===true).length,statusRingColor:c,isAllDriversMode:isAllDriversMode};}).sort((a,b)=>(a.sortOrder??Infinity)!==(b.sortOrder??Infinity)?(a.sortOrder??Infinity)-(b.sortOrder??Infinity):(a.driverName||'').localeCompare(b.driverName||''));
+            const legendData=isAdmin?driversList.filter(driver=>deliveries.some(d=>d&&d.delivery_date===dateKey&&d.driver_id===driver.id)).map(driver=>{const s=(appUsers||[]).find(au=>au&&au.user_id===driver.id)?.driver_status;const c=s==='on_duty'?'#16a34a':s==='on_break'?'#3b82f6':s==='off_duty'?'#dc2626':'#94a3b8';return{driverId:driver.id,driverName:driver.user_name||driver.full_name||'Unknown',color:getDriverColor(driver),totalStops:deliveries.filter(d=>d&&d.delivery_date===dateKey&&d.driver_id===driver.id&&d.patient_id&&String(d.patient_id).trim()!=='').length+deliveries.filter(d=>d&&d.delivery_date===dateKey&&d.driver_id===driver.id&&(!d.patient_id||String(d.patient_id).trim()==='')&&d.after_hours_pickup===true).length,statusRingColor:c};}):isAllDriversMode?[...driverRoutes].sort((a,b)=>(a.driverName||'').localeCompare(b.driverName||'')):[];
             if (!legendData.length) return null;
-            return <div className="rounded-lg backdrop-blur-sm shadow-lg border" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)', width: cardWidth }} onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}><div className="flex w-full flex-wrap gap-x-0.5 gap-y-0.5 items-center justify-center">{legendData.map((route) => { const au=(appUsers||[]).find(a=>a&&a.user_id===route.driverId); const s=au?.driver_status; const isOnline=s==='on_duty'||s==='online'||(au?.location_updated_at&&(Date.now()-new Date(au.location_updated_at).getTime()<300000)); const c=s==='on_duty'?'#16a34a':s==='on_break'?'#3b82f6':s==='off_duty'?'#dc2626':'#94a3b8'; const bg=route.isAllDriversMode?route.color:c; const bd=route.isAllDriversMode?`3px solid ${c}`:'0 solid transparent'; const pulseColor=route.isAllDriversMode?c:bg; return <div key={route.driverId} className="flex items-center gap-1.5"><div className="relative flex items-center justify-center w-3 h-3">{isOnline&&<div className="absolute inset-0 rounded-full animate-ping opacity-75" style={{backgroundColor:pulseColor}}/>}<div className="relative w-3 h-3 rounded-full shadow-sm flex-shrink-0" style={{backgroundColor:bg,border:bd}}/></div><span className="text-xs font-medium whitespace-nowrap" style={{color:'var(--text-slate-700)'}}>{route.driverName||'Unknown'}</span><span className="text-xs" style={{color:'var(--text-slate-500)'}}>({route.totalStops})</span></div>; })}</div></div>;
+            return <div className="rounded-lg backdrop-blur-sm shadow-lg border" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)', width: cardWidth }} onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}><div className="flex w-full flex-wrap gap-x-0.5 gap-y-0.5 items-center justify-center">{legendData.map((route) => { const au=(appUsers||[]).find(a=>a&&a.user_id===route.driverId); const s=au?.driver_status; const isOnline=s==='on_duty'||s==='online'||(au?.location_updated_at&&(Date.now()-new Date(au.location_updated_at).getTime()<300000)); const c=s==='on_duty'?'#16a34a':s==='on_break'?'#3b82f6':s==='off_duty'?'#dc2626':'#94a3b8'; const bg=isAllDriversMode?route.color:c; const bd=isAllDriversMode?`3px solid ${c}`:'0 solid transparent'; return <div key={route.driverId} className="flex items-center gap-1.5"><div className="relative flex items-center justify-center w-3 h-3">{isOnline&&<div className="absolute inset-0 rounded-full animate-ping opacity-75" style={{backgroundColor:c}}/>}<div className="relative w-3 h-3 rounded-full shadow-sm flex-shrink-0" style={{backgroundColor:bg,border:bd}}/></div><span className="text-xs font-medium whitespace-nowrap" style={{color:'var(--text-slate-700)'}}>{route.driverName||'Unknown'}</span><span className="text-xs" style={{color:'var(--text-slate-500)'}}>({route.totalStops})</span></div>; })}</div></div>;
           })()}
         </div>
       </div>

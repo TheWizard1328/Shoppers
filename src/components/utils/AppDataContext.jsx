@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback, us
 import { smartRefreshManager } from './smartRefreshManager';
 import { base44 } from '@/api/base44Client';
 import { shouldRefreshUserFromAppUser } from './appUserRefreshUtils';
-import { fetchAppUsersDedup } from './dataSyncCoordinator';
 import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
 import { subscribeToRealtime } from './realtimeSync';
 import { ensurePolylineSubscription } from './hereRouting';
@@ -415,7 +414,7 @@ export const AppDataProvider = ({ children, value }) => {
         if (shouldFetchDeliveries || shouldFetchAppUsers) {
           const [onlineDeliveries, onlineAppUsers] = await Promise.all([
             shouldFetchDeliveries ? base44.entities.Delivery.filter({ delivery_date: selectedDate }).catch(() => []) : Promise.resolve(null),
-            shouldFetchAppUsers ? fetchAppUsersDedup().catch(() => []) : Promise.resolve(null)
+            shouldFetchAppUsers ? base44.entities.AppUser.list().catch(() => []) : Promise.resolve(null)
           ]);
 
           if (cancelled) return;

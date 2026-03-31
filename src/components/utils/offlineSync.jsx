@@ -26,8 +26,6 @@ import {
   invalidateEntityCache
 } from './dataSyncCoordinator';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
-import { backgroundSyncManager } from './backgroundSyncManager';
-import { readEntityOffline } from './offlineReadPolicy';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
@@ -248,9 +246,56 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       await smartRefreshMgr.waitForRateLimit();
     }
 
-    const allAppUsers = await readEntityOffline('AppUser');
-    if (!allAppUsers.length) {
-      backgroundSyncManager.requestEntitySync('AppUser', { reason: 'priority_sync_offline_miss' });
+    // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers) - SKIP if synced recently
+    const timeSinceLastAppUserSync = Date.now() - (smartRefreshMgr?._lastAppUserSyncTime || 0);
+    const shouldSkipAppUserSync = timeSinceLastAppUserSync < 10000; // Skip if synced within last 10 seconds
+
+    if (shouldSkipAppUserSync) {
+      console.log('⏭️ [PrioritySyncBeforeRefresh] STEP 1: Skipping AppUser sync (synced recently)');
+    } else {
+      console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching ALL AppUsers (deduplicated)...');
+      const allAppUsers = await fetchAppUsersDedup();
+      console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers (Mode: ${fetchAllDriversDeliveries ? 'ALL DRIVERS' : 'Individual'})`);
+
+      if (allAppUsers && allAppUsers.length > 0) {
+        // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
+        const appUsersByUserId = new Map();
+        allAppUsers.forEach(au => {
+          if (!au || !au.user_id) return;
+          const existing = appUsersByUserId.get(au.user_id);
+
+          if (!existing) {
+            appUsersByUserId.set(au.user_id, au);
+          } else {
+            const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+            const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+            const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+            const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+
+            if (newLocationTime > existingLocationTime) {
+              appUsersByUserId.set(au.user_id, au);
+            } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
+              appUsersByUserId.set(au.user_id, au);
+            }
+          }
+        });
+        const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
+        const duplicatesRemoved = allAppUsers.length - deduplicatedAppUsers.length;
+        if (duplicatesRemoved > 0) {
+          console.warn(`⚠️ [PrioritySyncBeforeRefresh] Removed ${duplicatesRemoved} duplicate AppUsers`);
+        }
+
+        const saveResult = await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+        console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, saveResult);
+        invalidateEntityCache('AppUser');
+        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+        if (smartRefreshMgr) {
+          smartRefreshMgr.recordSuccess();
+          smartRefreshMgr._lastAppUserSyncTime = Date.now();
+        }
+      } else {
+        console.warn('⚠️ [PrioritySyncBeforeRefresh] No AppUsers returned from API');
+      }
     }
     
     await new Promise(r => setTimeout(r, 500));
@@ -279,13 +324,13 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries (deduplicated, Show All mode)`);
     }
     
-    const deliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
-    if (!deliveries || deliveries.length === 0) {
-      backgroundSyncManager.requestEntitySync('Delivery', {
-        query: { delivery_date: selectedDateStr, ...deliveryFilter },
-        reason: 'priority_sync_offline_miss'
-      });
-    }
+    const deliveries = await fetchDeliveriesDedup(selectedDateStr, deliveryFilter);
+    if (deliveries && deliveries.length > 0) {
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries);
+        invalidateEntityCache('Delivery');
+        await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString(), new Date().toISOString());
+        if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
+      }
     
     await new Promise(r => setTimeout(r, 500));
     notifySyncStatus({ status: 'priority_sync', phase: 'patients' });
@@ -309,17 +354,15 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
         }
         
         const batchIds = patientIdList.slice(i, i + PATIENT_BATCH_SIZE);
-        const batchPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-        const matchedPatients = (batchPatients || []).filter((patient) => batchIds.includes(patient?.id));
-        if (matchedPatients.length > 0) {
-          patients = [...patients, ...matchedPatients];
-        } else {
-          backgroundSyncManager.requestEntitySync('Patient', {
-            query: { id: { $in: batchIds } },
-            reason: 'priority_patient_offline_miss'
-          });
-        }
-        await new Promise(r => setTimeout(r, 50));
+        const batchPatients = await fetchPatientsDedup({ id: { $in: batchIds } });
+        
+        if (batchPatients && batchPatients.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+              invalidateEntityCache('Patient');
+              patients = [...patients, ...batchPatients];
+              if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
+            }
+        await new Promise(r => setTimeout(r, 200));
       }
     }
     
@@ -1120,7 +1163,7 @@ export const forceSyncAll = async () => {
     const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
 
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 5 });
-    const appUsersRaw = await fetchAppUsersDedup();
+    const appUsersRaw = await AppUser.list();
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
@@ -1251,7 +1294,7 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
   try {
     // 1) AppUsers (entire entity)
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10 });
-    const appUsersRaw = await fetchAppUsersDedup();
+    const appUsersRaw = await AppUser.list();
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
@@ -1512,7 +1555,7 @@ export const restartDeliveryPatientSync = async () => {
     
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 90 });
     console.log('👤 [ForceSyncAll] Fetching AppUsers...');
-    const appUsersRaw2 = await fetchAppUsersDedup();
+    const appUsersRaw2 = await AppUser.list();
     const appUsersByUserId2 = new Map();
     appUsersRaw2.forEach(au => {
       if (!au || !au.user_id) return;

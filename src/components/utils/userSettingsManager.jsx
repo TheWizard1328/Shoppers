@@ -16,9 +16,6 @@ let cachedDeviceIdentifier = null;
 let cachedDeviceType = null; // Cache device type (Mobile, Desktop, or Tablet)
 let lastFetchTime = 0;
 let inFlightSettingsPromise = null;
-let cachedUserSettingsRecordId = null;
-let pendingSettingsFlushTimer = null;
-let pendingSettingsByUser = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache to prevent rate limits
 
 /**
@@ -243,7 +240,6 @@ export async function loadUserSettings(userId) {
 
     if (userSettingsRecords && userSettingsRecords.length > 0) {
       const userSettingsRecord = userSettingsRecords[0];
-      cachedUserSettingsRecordId = userSettingsRecord.id;
       
       // Get device-specific settings or initialize empty object
       const deviceProfile = userSettingsRecord.device_settings_profiles?.[deviceIdentifier] || {};
@@ -300,7 +296,6 @@ export async function loadUserSettings(userId) {
         device_identifier: deviceIdentifier,
         device_type: deviceType
       };
-      cachedUserSettingsRecordId = newRecord.id;
       cachedGlobalSettings = {};
       currentUserId = userId;
       lastFetchTime = Date.now();
@@ -347,82 +342,72 @@ export async function saveSetting(userId, key, value) {
   const deviceIdentifier = getDeviceIdentifier();
   const deviceType = getDeviceType();
   const isGlobal = isGlobalSetting(key);
-
+  
   console.log(`💾 [UserSettings] Saving ${isGlobal ? 'GLOBAL' : 'DEVICE'} setting: ${key}=${value}`);
-
+  
+  // Update cache
   if (cachedSettings) {
     cachedSettings[key] = value;
   } else {
     cachedSettings = { ...DEFAULT_SETTINGS, [key]: value };
   }
-
+  
   if (isGlobal) {
     cachedGlobalSettings = { ...cachedGlobalSettings, [key]: value };
   }
   currentUserId = userId;
-
+  
   await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
 
-  const pending = pendingSettingsByUser.get(userId) || { global: {}, device: {} };
-  if (isGlobal) {
-    pending.global[key] = value;
-  } else {
-    pending.device[key] = value;
-  }
-  pendingSettingsByUser.set(userId, pending);
-
-  if (pendingSettingsFlushTimer) {
-    clearTimeout(pendingSettingsFlushTimer);
+  if (!offlineManager.getOnlineStatus()) {
+    console.log(`📴 [UserSettings] Offline - queuing setting ${key} for sync`);
+    // Don't queue UserSettings updates when offline - just update cache
+    // UserSettings should sync when online via background refresh
+    return cachedSettings;
   }
 
-  pendingSettingsFlushTimer = setTimeout(async () => {
-    const queued = pendingSettingsByUser.get(userId);
-    pendingSettingsFlushTimer = null;
-    if (!queued || !offlineManager.getOnlineStatus()) return;
+  try {
+    const userSettingsRecords = await UserSettings.filter({
+      user_id: userId
+    }, '-updated', 1);
 
-    try {
-      let recordId = cachedUserSettingsRecordId;
-      if (!recordId) {
-        const userSettingsRecords = await UserSettings.filter({ user_id: userId }, '-updated', 1);
-        if (userSettingsRecords && userSettingsRecords.length > 0) {
-          recordId = userSettingsRecords[0].id;
-          cachedUserSettingsRecordId = recordId;
-        } else {
-          return;
-        }
-      }
-
+    if (userSettingsRecords && userSettingsRecords.length > 0) {
+      const userSettingsRecord = userSettingsRecords[0];
       const now = new Date().toISOString();
-      const updateData = { updated: now };
+      
+      const updateData = {
+        updated: now
+      };
 
-      if (Object.keys(queued.global).length > 0) {
+      if (isGlobal) {
         updateData.global_settings = {
-          ...cachedGlobalSettings,
-          ...queued.global
+          ...(userSettingsRecord.global_settings || {}),
+          [key]: value
         };
-        cachedGlobalSettings = updateData.global_settings;
-      }
-
-      if (Object.keys(queued.device).length > 0) {
+      } else {
         updateData.device_settings_profiles = {
+          ...(userSettingsRecord.device_settings_profiles || {}),
           [deviceIdentifier]: {
+            ...(userSettingsRecord.device_settings_profiles?.[deviceIdentifier] || {}),
             device_identifier: deviceIdentifier,
             device_type: deviceType,
-            ...queued.device,
+            [key]: value,
             last_active_at: now
           }
         };
       }
 
-      pendingSettingsByUser.delete(userId);
-      await UserSettings.update(recordId, updateData);
-      console.log('✅ [UserSettings] Flushed queued settings update');
-    } catch (error) {
-      console.error('❌ [UserSettings] Error saving setting:', error);
+      await UserSettings.update(userSettingsRecord.id, updateData);
+      console.log(`✅ [UserSettings] Updated ${isGlobal ? 'global' : 'device'} setting`);
     }
-  }, 600);
 
-  return cachedSettings;
+    return cachedSettings;
+
+  } catch (error) {
+    console.error('❌ [UserSettings] Error saving setting:', error);
+    // On error, just return cached - will retry on background refresh
+    return cachedSettings || { ...DEFAULT_SETTINGS, [key]: value };
+  }
 }
 
 /**
@@ -474,30 +459,12 @@ export async function saveSettings(userId, settings) {
   }
 
   try {
-    let userSettingsRecord = null;
-    if (cachedUserSettingsRecordId) {
-      userSettingsRecord = {
-        id: cachedUserSettingsRecordId,
-        global_settings: cachedGlobalSettings || {},
-        device_settings_profiles: {
-          [deviceIdentifier]: {
-            device_identifier: deviceIdentifier,
-            device_type: deviceType,
-            ...(cachedSettings || {})
-          }
-        }
-      };
-    } else {
-      const userSettingsRecords = await UserSettings.filter({
-        user_id: userId
-      }, '-updated', 1);
-      if (userSettingsRecords && userSettingsRecords.length > 0) {
-        userSettingsRecord = userSettingsRecords[0];
-        cachedUserSettingsRecordId = userSettingsRecord.id;
-      }
-    }
+    const userSettingsRecords = await UserSettings.filter({
+      user_id: userId
+    }, '-updated', 1);
 
-    if (userSettingsRecord) {
+    if (userSettingsRecords && userSettingsRecords.length > 0) {
+      const userSettingsRecord = userSettingsRecords[0];
       const now = new Date().toISOString();
       
       const updateData = {
@@ -613,12 +580,6 @@ export function clearSettingsCache() {
   cachedSettings = null;
   currentUserId = null;
   inFlightSettingsPromise = null;
-  cachedUserSettingsRecordId = null;
-  pendingSettingsByUser = new Map();
-  if (pendingSettingsFlushTimer) {
-    clearTimeout(pendingSettingsFlushTimer);
-    pendingSettingsFlushTimer = null;
-  }
   console.log('🧹 [UserSettings] Cache cleared');
 }
 

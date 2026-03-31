@@ -19,7 +19,6 @@ export default function MapSection({
   areCardsVisible, handleMapViewCycle, isStatsCardCentered,
   dailyPolylineCount, isExpanded,
   realTimeETAEnabled, showDeliveryForm, showPatientForm, showOptimizationSettings,
-  topOverlayHeight = 0,
 }) {
   return (
     <>
@@ -84,7 +83,6 @@ export default function MapSection({
           areStopCardsVisible={deliveriesWithStopOrder.length > 0}
           highlightedDeliveryId={highlightedCardId}
           stopCardsHeight={stopCardsBaseHeight}
-          topOverlayHeight={topOverlayHeight}
           onMapReady={() => {
             if (!renderSequence.mapMarkers) {
               setRenderSequence(prev => ({ ...prev, mapMarkers: true, routeLines: true, driverLiveLocation: true, sharedLocations: true }));

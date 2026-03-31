@@ -162,6 +162,7 @@ export default function DeliveryMap({
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
   const [routeRenderKey, setRouteRenderKey] = useState(0);
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
+  const [measuredTopOverlayHeight, setMeasuredTopOverlayHeight] = useState(0);
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
   const prevDriverLocationMarkersRef = useRef([]);
@@ -195,7 +196,21 @@ export default function DeliveryMap({
     setPolylineRenderKey((value) => value + 1);
   }, [routeRecalcVersion]);
 
-  const effectiveTopOverlayHeight = topOverlayHeight;
+  const effectiveTopOverlayHeight = topOverlayHeight || measuredTopOverlayHeight;
+  useEffect(() => {
+    const measureTopOverlay = () => {
+      const anchor = document.querySelector('[data-spotlight-anchor]');
+      const overlayContainer = anchor?.parentElement;
+      const nextHeight = overlayContainer?.offsetHeight || anchor?.offsetHeight || 0;
+      if (nextHeight > 0) {
+        setMeasuredTopOverlayHeight(nextHeight);
+      }
+    };
+
+    measureTopOverlay();
+    window.addEventListener('resize', measureTopOverlay);
+    return () => window.removeEventListener('resize', measureTopOverlay);
+  }, [isStatsCardExpanded, highlightedDeliveryId]);
 
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
@@ -741,7 +756,7 @@ export default function DeliveryMap({
         duration: 0.6
       }
     );
-  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight]);
+  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile]);
 
   useEffect(() => {
     if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
