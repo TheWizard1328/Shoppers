@@ -267,11 +267,11 @@ export default function RouteManagementContent({
                   </Button>
                   <Button className="gap-2" onClick={() => setIsBulkEditPanelOpen(true)} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
                     <Pencil className="w-4 h-4" />
-                    Edit Selected
+                    Edit Bulk Stops
                   </Button>
                   <Button variant="destructive" className="gap-2" onClick={handleBulkDeleteSelected} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
                     <Trash2 className="w-4 h-4" />
-                    Delete Selected
+                    Delete All Selected Stops
                   </Button>
                   <Button variant="ghost" onClick={handleCancelBulkEdit} disabled={isBulkUpdating}>
                     Cancel
