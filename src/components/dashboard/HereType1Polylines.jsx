@@ -336,23 +336,19 @@ export default function HereType1Polylines({
       const hasIncomplete = ((stops?.incomplete?.length || 0) > 0);
       if (hasCompleted || !hasIncomplete) return;
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
-      
+
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-      const live = (currentDriverMarker && (currentDriverMarker.driverId === driverId || currentDriverMarker.driver_id === driverId))
-        ? currentDriverMarker
-        : (driverLocations || []).find((d) => d && (d.driverId === driverId || d.driver_id === driverId));
-      const origin = live || home;
-      const originLat = origin && !Number.isNaN(Number(origin.latitude)) ? Number(origin.latitude) : undefined;
-      const originLon = origin && !Number.isNaN(Number(origin.longitude)) ? Number(origin.longitude) : undefined;
+      const originLat = home && !Number.isNaN(Number(home.latitude)) ? Number(home.latitude) : undefined;
+      const originLon = home && !Number.isNaN(Number(home.longitude)) ? Number(home.longitude) : undefined;
 
       if (!next || originLat === undefined || originLon === undefined) return;
-      
+
       const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
       if (cache[key]) return;
       // ONLY hydrate from offline DB - no backend calls
       hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date);
     });
-  }, [isViewingCurrentDate, driverStops, driverHomeMarkers, currentDriverMarker, optimizing, refreshToken]);
+  }, [isViewingCurrentDate, driverStops, driverHomeMarkers, optimizing, refreshToken]);
 
   useEffect(() => {
     const settings = getRouteOptimizationSettings();
@@ -486,12 +482,8 @@ export default function HereType1Polylines({
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-      const live = (currentDriverMarker && (currentDriverMarker.driverId === driverId || currentDriverMarker.driver_id === driverId))
-        ? currentDriverMarker
-        : (driverLocations || []).find((d) => d && (d.driverId === driverId || d.driver_id === driverId));
-      const origin = live || home;
-      const originLat = origin && !Number.isNaN(Number(origin.latitude)) ? Number(origin.latitude) : undefined;
-      const originLon = origin && !Number.isNaN(Number(origin.longitude)) ? Number(origin.longitude) : undefined;
+      const originLat = home && !Number.isNaN(Number(home.latitude)) ? Number(home.latitude) : undefined;
+      const originLon = home && !Number.isNaN(Number(home.longitude)) ? Number(home.longitude) : undefined;
 
       if (next && originLat !== undefined && originLon !== undefined) {
         const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(next.latitude).toFixed(5)}_${Number(next.longitude).toFixed(5)}`;
