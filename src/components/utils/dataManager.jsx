@@ -30,6 +30,8 @@ import {
 } from './offlineMutations';
 import { connectionMonitor } from './connectionMonitor';
 import { getOfflineStoreName, isOfflineManagedEntity } from './offlineEntityRegistry';
+import { readEntityOffline } from './offlineReadPolicy';
+import { backgroundSyncManager } from './backgroundSyncManager';
 
 const entities = {
   Patient,
@@ -84,141 +86,67 @@ export const isOfflineDBLoadComplete = () => {
 // NO FREQUENT CACHE - removed
 
 export const getData = async (entityName, sortKey = null, queryOrLimit = null, forceRefresh = false) => {
-  // Determine if queryOrLimit is a query object or a limit number
   const isQueryObject = queryOrLimit && typeof queryOrLimit === 'object' && !Array.isArray(queryOrLimit);
   const query = isQueryObject ? queryOrLimit : null;
   const limit = !isQueryObject && typeof queryOrLimit === 'number' ? queryOrLimit : null;
-  
-  // OFFLINE-FIRST: Try IndexedDB for ALL critical entities ALWAYS
-  // NO IN-MEMORY CACHE - only offline DB
-  if (isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
-    try {
-      const storeName = getOfflineStoreName(offlineDB, entityName) || (entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS : offlineDB.STORES.SQUARE_TRANSACTIONS);
-      let offlineData = await offlineDB.getAll(storeName);
-      
-      if (offlineData && offlineData.length > 0) {
-        // Check staleness: refresh in background if stale or forceRefresh
-        const meta = await offlineDB.getSyncMetadata(entityName);
-        const lastSync = meta?.last_sync_time ? new Date(meta.last_sync_time).getTime() : 0;
-        const isStale = (Date.now() - lastSync) > (15 * 60 * 1000); // 15 min
-        
-        if (forceRefresh || isStale) {
-          (async () => {
-            try {
-              await waitForRateLimit();
-              const Entity = entities[entityName];
-              let freshData;
-              if (query) {
-                freshData = await Entity.filter(query, sortKey, limit);
-              } else {
-                freshData = await Entity.list(sortKey, limit);
-              }
-              if (freshData && freshData.length > 0) {
-                await offlineDB.bulkSave(storeName, freshData);
-                await offlineDB.updateSyncMetadata(entityName, new Date().toISOString());
-              }
-            } catch (bgError) {}
-          })();
-        }
-        
-        return offlineData;
-      }
-    } catch (offlineError) {}
+
+  const offlineData = await readEntityOffline(entityName, { sortKey, query, limit });
+
+  if ((isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') && offlineData.length > 0) {
+    if (forceRefresh) {
+      backgroundSyncManager.requestEntitySync(entityName, { query, reason: 'forced_refresh' });
+    }
+    return offlineData;
   }
 
-  // Fallback: Fetch from API if offline DB empty
-  let retries = 3;
-  let lastError = null;
+  if (isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
+    backgroundSyncManager.requestEntitySync(entityName, { query, reason: 'offline_miss' });
+    return offlineData;
+  }
 
+  let retries = 3;
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       await waitForRateLimit();
-
       if (attempt > 0) {
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
 
       const Entity = entities[entityName];
-      if (!Entity) {
-        return [];
-      }
+      if (!Entity) return [];
 
       const startTime = Date.now();
       let data;
-      
       if (query) {
-        if (sortKey && limit) {
-          data = await Entity.filter(query, sortKey, limit);
-        } else if (sortKey) {
-          data = await Entity.filter(query, sortKey);
-        } else {
-          data = await Entity.filter(query);
-        }
+        if (sortKey && limit) data = await Entity.filter(query, sortKey, limit);
+        else if (sortKey) data = await Entity.filter(query, sortKey);
+        else data = await Entity.filter(query);
       } else {
         const defaultLimit = (entityName === 'SquareTransaction') ? 100 : limit;
-
-        if (sortKey && defaultLimit) {
-          data = await Entity.list(sortKey, defaultLimit);
-        } else if (sortKey) {
-          data = await Entity.list(sortKey);
-        } else if (defaultLimit) {
-          data = await Entity.list('-updated_date', defaultLimit);
-        } else {
-          data = await Entity.list();
-        }
-      }
-      
-      const responseTime = Date.now() - startTime;
-      connectionMonitor.recordResponseTime(responseTime);
-
-      // Save to offline DB
-      if (isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
-        const storeName = getOfflineStoreName(offlineDB, entityName) || (entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS : offlineDB.STORES.SQUARE_TRANSACTIONS);
-        await offlineDB.bulkSave(storeName, data);
-        await offlineDB.updateSyncMetadata(entityName, new Date().toISOString());
+        if (sortKey && defaultLimit) data = await Entity.list(sortKey, defaultLimit);
+        else if (sortKey) data = await Entity.list(sortKey);
+        else if (defaultLimit) data = await Entity.list('-updated_date', defaultLimit);
+        else data = await Entity.list();
       }
 
+      connectionMonitor.recordResponseTime(Date.now() - startTime);
       return data;
-      
     } catch (error) {
-        lastError = error;
-
-        // Try offline DB on any error
-        if (isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
-          try {
-            const storeName = getOfflineStoreName(offlineDB, entityName) || (entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS : offlineDB.STORES.SQUARE_TRANSACTIONS);
-            const fallbackData = await offlineDB.getAll(storeName);
-            if (fallbackData && fallbackData.length > 0) {
-              return fallbackData;
-            }
-          } catch (offlineError) {}
-        }
-
-        if (error.response?.status === 403 || error.message?.includes('403')) {
-          return [];
-        }
-
-        if (attempt < retries - 1 && (error.message?.includes('Network Error') || error.code === 'NETWORK_ERROR')) {
-          continue;
-        }
-
-        if (error.response?.status === 429 || error.message?.includes('429')) {
-           connectionMonitor.recordError('rate_limit');
-           // Set global rate limit pause to 2 minutes
-           globalRateLimitUntil = Date.now() + 120000;
-           console.warn('🛑 [DataManager] 429 Rate Limit - pausing all API calls for 2 minutes');
-           const backoffDelay = Math.min(2000 * Math.pow(2, attempt), 10000);
-           await new Promise(resolve => setTimeout(resolve, backoffDelay));
-           if (attempt < retries - 1) continue;
-         } else {
-           connectionMonitor.recordError('network');
-         }
-
-        break;
+      if (error.response?.status === 403 || error.message?.includes('403')) return [];
+      if (attempt < retries - 1 && (error.message?.includes('Network Error') || error.code === 'NETWORK_ERROR')) continue;
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        connectionMonitor.recordError('rate_limit');
+        globalRateLimitUntil = Date.now() + 120000;
+        await new Promise(resolve => setTimeout(resolve, Math.min(2000 * Math.pow(2, attempt), 10000)));
+        if (attempt < retries - 1) continue;
+      } else {
+        connectionMonitor.recordError('network');
       }
+      break;
+    }
   }
-  
+
   return [];
 };
 
@@ -239,55 +167,37 @@ export const setCached = (entityName, data) => {
  * Get deliveries for a specific date range - NO CACHE, always from offline DB or API
  */
 export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}, forceRefresh = false) => {
-  // Try offline DB first
   try {
     const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
     const filtered = allOfflineDeliveries.filter(d => {
       if (!d?.delivery_date) return false;
       if (d.delivery_date < startDate || d.delivery_date > endDate) return false;
-      
-      // Apply additional filters
       for (const [key, value] of Object.entries(filters)) {
         if (d[key] !== value) return false;
       }
-      
       return true;
     });
-    
-    if (filtered.length > 0) {
-      return filtered;
-    }
-  } catch (offlineError) {}
-  
-  // Fallback: Fetch from API
-  const rangeFilters = {
-    ...filters,
-    delivery_date: {
-      $gte: startDate,
-      $lte: endDate
-    }
-  };
-  
-  try {
-    await waitForRateLimit();
-    const Entity = entities.Delivery;
-    const deliveries = await Entity.filter(rangeFilters, '-updated_date');
-    
-    // Save to offline DB
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    
-    return deliveries;
-  } catch (error) {
-    // Final fallback: try offline DB again
-    try {
-      const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      return allOfflineDeliveries.filter(d => {
-        if (!d?.delivery_date) return false;
-        return d.delivery_date >= startDate && d.delivery_date <= endDate;
+
+    if (forceRefresh || filtered.length === 0) {
+      backgroundSyncManager.requestEntitySync('Delivery', {
+        query: {
+          ...filters,
+          delivery_date: { $gte: startDate, $lte: endDate }
+        },
+        reason: filtered.length === 0 ? 'delivery_range_miss' : 'delivery_range_refresh'
       });
-    } catch (e) {
-      return [];
     }
+
+    return filtered;
+  } catch (offlineError) {
+    backgroundSyncManager.requestEntitySync('Delivery', {
+      query: {
+        ...filters,
+        delivery_date: { $gte: startDate, $lte: endDate }
+      },
+      reason: 'delivery_range_error'
+    });
+    return [];
   }
 };
 
@@ -296,71 +206,28 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
  */
 export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh = false) => {
   const { driver_id, ...filtersWithoutDriver } = filters;
-  
-  // Try offline DB first
+
   try {
     let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
-    
     if (filtersWithoutDriver.store_id) {
       const storeIds = filtersWithoutDriver.store_id.$in || [filtersWithoutDriver.store_id];
       offlineData = offlineData.filter(d => storeIds.includes(d.store_id));
     }
-    
-    if (offlineData && offlineData.length > 0) {
-      // Check staleness: refresh in background if stale or forceRefresh
-      const meta = await offlineDB.getSyncMetadata('Delivery');
-      const lastSync = meta?.last_sync_time ? new Date(meta.last_sync_time).getTime() : 0;
-      const isStale = (Date.now() - lastSync) > (15 * 60 * 1000); // 15 min
-      
-      if (forceRefresh || isStale) {
-        (async () => {
-          try {
-            await waitForRateLimit();
-            const dateFilters = { ...filtersWithoutDriver, delivery_date: dateStr };
-            const freshDeliveries = await Delivery.filter(dateFilters, '-updated_date');
-            
-            if (freshDeliveries && freshDeliveries.length > 0) {
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-              await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString());
-            }
-          } catch (bgError) {}
-        })();
-      }
-      
-      return offlineData;
-    }
-  } catch (offlineError) {}
-  
-  // Fallback: Fetch from API
-  const dateFilters = {
-    ...filtersWithoutDriver,
-    delivery_date: dateStr
-  };
-  
-  try {
-    await waitForRateLimit();
-    const Entity = entities.Delivery;
-    const deliveries = await Entity.filter(dateFilters, '-updated_date');
-    
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString());
 
-    return deliveries;
-  } catch (error) {
-    // Final fallback: try offline DB again
-    try {
-      let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
-      if (offlineData && offlineData.length > 0) {
-        return offlineData;
-      }
-    } catch (e) {}
-    
-    if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened') || 
-        error.response?.status === 429 || error.message?.includes('429')) {
-      return [];
+    if (forceRefresh || offlineData.length === 0) {
+      backgroundSyncManager.requestEntitySync('Delivery', {
+        query: { ...filtersWithoutDriver, delivery_date: dateStr },
+        reason: offlineData.length === 0 ? 'delivery_date_miss' : 'delivery_date_refresh'
+      });
     }
-    
-    throw error;
+
+    return offlineData || [];
+  } catch (offlineError) {
+    backgroundSyncManager.requestEntitySync('Delivery', {
+      query: { ...filtersWithoutDriver, delivery_date: dateStr },
+      reason: 'delivery_date_error'
+    });
+    return [];
   }
 };
 
