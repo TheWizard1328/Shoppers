@@ -1567,7 +1567,7 @@ function Dashboard() {
         appUsersToProcess = appUsers.map((au) => updatedMap.get(au?.user_id) || au);
         updatedAppUsers.forEach((au) => {if (au?.user_id && !appUsers.some((existing) => existing?.user_id === au.user_id)) appUsersToProcess.push(au);});
       }
-      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
+      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers || selectedDriverId === 'all');
       const phase = mapViewPhaseRef.current,now = Date.now();
       if (format(selectedDate, 'yyyy-MM-dd') === getEdmDate() && isMapViewLockedRef.current && (phase === 2 || phase === 3) && now - lastProgrammaticMapMoveRef.current >= (phase === 2 ? 1200 : 1800)) {
         lastProgrammaticMapMoveRef.current = now;
@@ -1577,7 +1577,7 @@ function Dashboard() {
     };
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
-  }, [currentUser, deliveries, drivers, stores, selectedDate, showAllDriverMarkers, appUsers]);
+  }, [currentUser, deliveries, drivers, stores, selectedDate, showAllDriverMarkers, appUsers, selectedDriverId]);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   // CRITICAL: Initialize poller once on mount
@@ -3045,7 +3045,7 @@ function Dashboard() {
           new Date(dateStr + 'T00:00:00'),
           true,
           'Dashboard',
-          showAllDriverMarkers
+          showAllDriverMarkers || selectedDriverId === 'all'
         );
 
         // Dispatch location update event
@@ -5492,7 +5492,7 @@ function Dashboard() {
         const appUsersForPoller = validAppUsers.length > 0 ? validAppUsers : appUsers;
 
         if (appUsersForPoller && appUsersForPoller.length > 0) {
-          driverLocationPoller.processLocationData(currentUser, freshDeliveries || [], drivers, stores, appUsersForPoller, selectedDate, true, 'Dashboard', showAllDriverMarkers);
+          driverLocationPoller.processLocationData(currentUser, freshDeliveries || [], drivers, stores, appUsersForPoller, selectedDate, true, 'Dashboard', showAllDriverMarkers || selectedDriverId === 'all');
         }
 
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: format(selectedDate, 'yyyy-MM-dd'), triggeredBy: 'pullToSyncDataReady', forceFullUpdate: true } }));

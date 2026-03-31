@@ -87,19 +87,12 @@ class DriverLocationPoller {
      return;
    }
 
-   // CRITICAL: Skip page/date check when forceNotify=true (smart refresh with fresh data)
-   // Only enforce Dashboard/today check for automatic polling cycles
-   if (!forceNotify && currentPageName && selectedDate) {
-     const todayStr = new Date().toISOString().split('T')[0];
-     const selectedDateStr = selectedDate instanceof Date 
-       ? selectedDate.toISOString().split('T')[0]
-       : selectedDate;
-
-     if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) {
-       console.log(`⏭️ [DriverLocationPoller] Not on Dashboard today - clearing driver markers (page: ${currentPageName}, date: ${selectedDateStr})`);
-       this.notifySubscribers([]);
-       return;
-     }
+   // CRITICAL: Only skip automatic location processing when not on Dashboard.
+   // Do NOT clear markers just because the selected date isn't today, otherwise preloaded data disappears.
+   if (!forceNotify && currentPageName && currentPageName !== 'Dashboard') {
+     console.log(`⏭️ [DriverLocationPoller] Not on Dashboard - clearing driver markers (page: ${currentPageName})`);
+     this.notifySubscribers([]);
+     return;
    }
 
    console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} driver locations (forceNotify: ${forceNotify}, currentPage: ${currentPageName})`);
