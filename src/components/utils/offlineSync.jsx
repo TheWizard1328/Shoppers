@@ -251,12 +251,14 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers) - SKIP if synced recently
     const timeSinceLastAppUserSync = Date.now() - (smartRefreshMgr?._lastAppUserSyncTime || 0);
     const shouldSkipAppUserSync = timeSinceLastAppUserSync < 10000; // Skip if synced within last 10 seconds
+    let allAppUsers = [];
 
     if (shouldSkipAppUserSync) {
       console.log('⏭️ [PrioritySyncBeforeRefresh] STEP 1: Skipping AppUser sync (synced recently)');
+      allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     } else {
       console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching ALL AppUsers (deduplicated)...');
-      const allAppUsers = await fetchAppUsersDedup();
+      allAppUsers = await fetchAppUsersDedup();
       console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers (Mode: ${fetchAllDriversDeliveries ? 'ALL DRIVERS' : 'Individual'})`);
 
       if (allAppUsers && allAppUsers.length > 0) {

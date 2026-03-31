@@ -84,6 +84,16 @@ export default function StopDetailsPanel({
     delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
   );
 
+  useEffect(() => {
+    if (!delivery) return;
+    setEditableStatus(delivery?.status || 'pending');
+    setDeliveryTimeStart(delivery?.delivery_time_start || '');
+    setDeliveryTimeEnd(delivery?.delivery_time_end || '');
+    setCompletionTime(
+      delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
+    );
+  }, [delivery?.id, delivery?.status, delivery?.delivery_time_start, delivery?.delivery_time_end, delivery?.actual_delivery_time]);
+
   if (!delivery) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 text-center" style={{ background: 'var(--bg-slate-50)' }}>
@@ -184,15 +194,6 @@ export default function StopDetailsPanel({
   const isAdminUser = currentUser?.app_roles?.includes('admin') || currentUser?.role === 'admin';
   const canManageStop = currentUser &&
     (isAdminUser || (currentUser.app_roles?.includes('driver') && !isRouteCompleted(delivery, allDeliveries)));
-
-  useEffect(() => {
-    setEditableStatus(delivery?.status || 'pending');
-    setDeliveryTimeStart(delivery?.delivery_time_start || '');
-    setDeliveryTimeEnd(delivery?.delivery_time_end || '');
-    setCompletionTime(
-      delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
-    );
-  }, [delivery?.id, delivery?.status, delivery?.delivery_time_start, delivery?.delivery_time_end, delivery?.actual_delivery_time]);
 
   const activeStatuses = ['in_transit', 'en_route'];
   const completionStatuses = ['completed', 'failed', 'cancelled'];

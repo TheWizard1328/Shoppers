@@ -197,7 +197,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const handleAddCODPayment = (shouldFocusType = false) => {const remainingAmount = codTotalRequired - codTotalCollected;const newPayment = { type: 'Cash', amount: Math.max(0, remainingAmount) };setCodPayments([...codPayments, newPayment]);if (shouldFocusType) {setTimeout(() => {const lastIndex = codPayments.length;const selectTrigger = document.querySelector(`[data-cod-select-index="${lastIndex}"]`);if (selectTrigger) selectTrigger.click();}, 100);} else {setTimeout(() => {const lastIndex = codPayments.length;if (codAmountInputRefs.current[lastIndex]) {codAmountInputRefs.current[lastIndex].focus();codAmountInputRefs.current[lastIndex].select();}}, 50);}};
   const handleRemoveCODPayment = (index) => {const newPayments = codPayments.filter((_, i) => i !== index);setCodPayments(newPayments);};
   const handleSaveCODPayments = async () => {if (onCODUpdate) {try {await onCODUpdate(delivery.id, codPayments, true);setShowCODCollection(false);} catch (error) {console.error('❌ [COD Save] Failed:', error);alert(`Failed to save COD: ${error.message}`);}}};
-  const collapseAndCenterNextDelivery = async (args) => {if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('collapseAllStopCards'));return await setAndCenterNextDelivery(args);};
   const resetActionLocks = React.useCallback((skipCardScroll = true) => {
     startTapLockRef.current = false;
     setIsStarting(false);
@@ -209,6 +208,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     setIsEntityUpdating(false);
     fabControlEvents.reactivateFAB(skipCardScroll);
   }, [setIsEntityUpdating]);
+  const collapseAndCenterNextDelivery = async (args) => {if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('collapseAllStopCards'));return await setAndCenterNextDelivery(args);};
   const handleStartAction = async (e) => {
     e?.preventDefault?.();e?.stopPropagation?.();if (startTapLockRef.current || isStarting || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting) return;
     startTapLockRef.current = true;setIsStarting(true);setIsEntityUpdating(true);setIsProcessingBackground(true);fabControlEvents.deactivateFAB();const { driverLocationPoller } = await import('../utils/driverLocationPoller');driverLocationPoller.pause();smartRefreshManager.pause();

@@ -153,18 +153,11 @@ export const useOfflineFirstData = (entityName, query = {}, onlineDataFetcher) =
  */
 export const useOfflineFirstEntities = (entityConfigs) => {
   const results = {};
-  const [isLoadingAny, setIsLoadingAny] = useState(true);
-
-  const loaders = Object.entries(entityConfigs).map(([key, config]) => {
-    const result = useOfflineFirstData(config.name, config.query, config.fetcher);
-    results[key] = result;
-    return result;
+  Object.entries(entityConfigs).forEach(([key, config]) => {
+    results[key] = useOfflineFirstData(config.name, config.query, config.fetcher);
   });
 
-  useEffect(() => {
-    const allLoading = loaders.some(r => r.isLoading);
-    setIsLoadingAny(allLoading);
-  }, [loaders]);
+  const isLoadingAny = Object.values(results).some((result) => result?.isLoading);
 
   return {
     ...results,
