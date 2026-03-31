@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar as CalendarIcon, Clock, Truck, CheckCircle, XCircle, Package, Plus, ChevronUp, ChevronDown, RotateCcw as RefreshIcon, Phone, MapPin, X, Settings, Bot, Sparkles, Navigation, Bell, BellOff, Mailbox, ArrowUp, ArrowDown, Binoculars, LocateFixed } from "lucide-react";
 import { format, startOfDay } from 'date-fns';
-import { getData, invalidate } from "@/components/utils/dataManager";
+import { getData, invalidate, loadDeliveriesForDate } from "@/components/utils/dataManager";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { offlineFirstManager } from "@/components/utils/offlineFirstManager";
 import DeliveryMap from "@/components/dashboard/DeliveryMap";
@@ -2988,18 +2988,10 @@ function Dashboard() {
       const shouldLoadAllDeliveries = showAllDriverMarkers || selectedDriverId === 'all';
       let priorityDeliveries;
 
-      if (dataSource === 'online') {
-        // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
-        priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, priorityDeliveries).catch(() => {});
-      } else {
-        // OFFLINE MODE: Always hydrate the full selected date first, never a driver-scoped subset
-        priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
-        if (!priorityDeliveries || priorityDeliveries.length === 0) {
-          priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, priorityDeliveries);
-        }
+      if (!priorityDeliveries || priorityDeliveries.length === 0 || dataSource === 'online') {
+        priorityDeliveries = await loadDeliveriesForDate(dateStr, {}, dataSource === 'online');
       }
 
       // STEP 3: Update UI immediately with priority data using flushSync for instant render
@@ -3138,18 +3130,10 @@ function Dashboard() {
       let freshDeliveries;
       const shouldLoadAllDeliveries = showAllDriverMarkers || driverId === 'all';
 
-      if (dataSource === 'online') {
-        // ONLINE MODE: Always fetch ALL deliveries for the date; UI filters by driver
-        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, freshDeliveries).catch(() => {});
-      } else {
-        // OFFLINE MODE: Try offline DB first for the full selected date, never driver-scoped data
-        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
-        if (!freshDeliveries || freshDeliveries.length === 0) {
-          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, freshDeliveries);
-        }
+      if (!freshDeliveries || freshDeliveries.length === 0 || dataSource === 'online') {
+        freshDeliveries = await loadDeliveriesForDate(dateStr, {}, dataSource === 'online');
       }
 
       if (driverChangeRequestIdRef.current !== reqId) return;
