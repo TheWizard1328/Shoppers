@@ -59,6 +59,14 @@ export async function handleBatchSave({
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
   const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
 
+  const scopedStagedDeliveries = (stagedDeliveries || []).filter((delivery) => {
+    if (!delivery || delivery.delivery_date !== routeDeliveryDate) return false;
+    if (routeDriverId === 'unassigned') return !delivery.driver_id;
+    return delivery.driver_id === routeDriverId;
+  });
+
+  const scopedNewDeliveriesForDriver = scopedStagedDeliveries.filter((delivery) => !delivery?.id);
+
   const persistedRouteStopCountBeforeProcessing = (allDeliveries || []).filter((delivery) => {
     if (!delivery || delivery.delivery_date !== routeDeliveryDate || delivery.status === 'Staged') return false;
     if (routeDriverId === 'unassigned') return !delivery.driver_id;
@@ -145,12 +153,13 @@ export async function handleBatchSave({
         const store = stores?.find((item) => item && item.id === delivery?.store_id);
         return specialStoreNames.includes(store?.name || '');
       });
-      const shouldEnsureDefaultPickups = !!routeDriverId && persistedRouteStopCountBeforeProcessing === 0 && !hasSpecialStoreDeliveries;
+      const shouldEnsureDefaultPickups = scopedNewDeliveriesForDriver.length > 0 && persistedRouteStopCountBeforeProcessing === 0 && !hasSpecialStoreDeliveries;
 
       console.log('[AddToRoute] Default pickup gate', {
         shouldEnsureDefaultPickups,
         hasSpecialStoreDeliveries,
         persistedRouteStopCountBeforeProcessing,
+        scopedNewDeliveriesForDriverCount: scopedNewDeliveriesForDriver.length,
         deliveriesReadyForDBCount: deliveriesReadyForDB.length,
         patientDeliveriesReadyForDBCount: patientDeliveriesReadyForDB.length,
         pickupRecordsFromStageCount: pickupRecordsFromStage.length
