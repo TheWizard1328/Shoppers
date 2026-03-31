@@ -123,9 +123,7 @@ function Dashboard() {
     dataSource
     } = useAppData();
 
-    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-
-  const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
+    const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
 
   const [selectedDate, setSelectedDate] = useState(() => {
     // CRITICAL: Check URL params first, then globalFilters
@@ -190,6 +188,7 @@ function Dashboard() {
   const [patientFormCallback, setPatientFormCallback] = useState(null);
   const [patientFormMode, setPatientFormMode] = useState(null); // 'duplicate' | 'newAddress' | null
   const [calendarMonth, setCalendarMonth] = useState(selectedDate);
+  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [mapViewPhase, setMapViewPhase] = useState(1); // Will be loaded from user settings
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
   const [initialMapViewApplied, setInitialMapViewApplied] = useState(false);
@@ -3374,12 +3373,8 @@ function Dashboard() {
           setShowDeliveryForm,
           setEditingDelivery,
           hasAutoSelectedRef,
-          invalidateDeliveriesForDate: (date) => {
-            try {
-              if (typeof invalidateDeliveriesForDate === 'function') invalidateDeliveriesForDate(date);
-            } catch (e) {
-              invalidate('Delivery');
-            }
+          invalidateDeliveriesForDate: () => {
+            invalidate('Delivery');
           }
         });
         return;
@@ -4454,8 +4449,6 @@ function Dashboard() {
         // Create the duplicate delivery for today
         await createDeliveryLocal(retryDeliveryData);
         // Invalidate caches for both the original date and today
-        invalidateDeliveriesForDate(targetDelivery.delivery_date);
-        invalidateDeliveriesForDate(currentDate);
         invalidate('Delivery');
         await refreshData();
         return;
@@ -4782,11 +4775,11 @@ function Dashboard() {
           setSelectedCardId(null); setEndOfDayDriver(currentUser); setShowEndOfDayStats(true);
 
           // STEP 2: Set map to Phase 1 as an unlocked programmatic view
-          if (skipMapPhaseOneRefresh); else { setMapViewPhase(1);
+          setMapViewPhase(1);
           setIsMapViewLocked(false);
           lastProgrammaticMapMoveRef.current = Date.now();
           window._lastProgrammaticMapMove = Date.now();
-          setMapViewTrigger((prev) => prev + 1); }
+          setMapViewTrigger((prev) => prev + 1);
 
           if (currentUser?.id) {
             saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
