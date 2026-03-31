@@ -175,6 +175,7 @@ export default function StopCardCODCollection({
                 if (isAlreadyCompleted) {
                   await onCODUpdate(delivery.id, codPayments, true);
                   setShowCODCollection(false);
+                  return;
                 } else {
                   fabControlEvents.deactivateFAB();
                   const { driverLocationPoller } = await import('../utils/driverLocationPoller');
