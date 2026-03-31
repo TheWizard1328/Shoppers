@@ -99,7 +99,7 @@ export default function AdminDeliveriesTable(props) {
   const isSomeSelected = selectedDeliveries.size > 0 && selectedDeliveries.size < displayDeliveries.length;
 
   return (
-    <Card className="rounded-xl border bg-card text-card-foreground shadow h-full">
+    <Card className="rounded-xl border bg-card text-card-foreground shadow min-h-auto">
       <CardHeader className="px-6 py-1 flex flex-col space-y-1.5">
         <CardTitle className="flex items-center justify-between">
           <span>Deliveries</span>
