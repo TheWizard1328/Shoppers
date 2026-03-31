@@ -200,17 +200,41 @@ function buildStopOrderRepairUpdates(deliveries) {
     }));
 }
 
+function mergeDeliveryUpdates(deliveries, updatesById) {
+  return (deliveries || []).map((delivery) => {
+    const update = updatesById.get(delivery.id);
+    return update ? { ...delivery, ...update } : delivery;
+  });
+}
+
+async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
+  if (!(updatesById instanceof Map) || updatesById.size === 0) {
+    return deliveries || [];
+  }
+
+  const payload = Array.from(updatesById.entries()).map(([id, update]) => ({ id, ...update }));
+
+  try {
+    await base44.asServiceRole.entities.Delivery.bulkCreate(payload);
+    return mergeDeliveryUpdates(deliveries, updatesById);
+  } catch (error) {
+    if (isRateLimitError(error)) {
+      console.warn('[bulkUpdateDeliveries] Rate limit during bulk update');
+    }
+    throw error;
+  }
+}
+
 async function markDeliveriesPolylineUpdated(base44, deliveries, value) {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return;
-  await processInChunks(deliveries, 5, (delivery) =>
-    base44.asServiceRole.entities.Delivery.update(delivery.id, { PolylineUpdated: value }).catch((error) => {
-      if (isRateLimitError(error)) {
-        console.warn('[markDeliveriesPolylineUpdated] Rate limit, skipping flag update');
-        return null;
-      }
-      throw error;
-    })
-  );
+  const updatesById = new Map(deliveries.map((delivery) => [delivery.id, { PolylineUpdated: value }]));
+  await bulkUpdateDeliveries(base44, deliveries, updatesById).catch((error) => {
+    if (isRateLimitError(error)) {
+      console.warn('[markDeliveriesPolylineUpdated] Rate limit, skipping flag update');
+      return null;
+    }
+    throw error;
+  });
 }
 
 function getEdmontonDateString(value = new Date()) {
@@ -288,23 +312,15 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
     }
 
-    const deliveries = await base44.asServiceRole.entities.Delivery.filter({
+    let deliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate
     }, 'stop_order', 50000);
 
     const stopOrderRepairUpdates = buildStopOrderRepairUpdates(deliveries);
     if (stopOrderRepairUpdates.length > 0) {
-      await processInChunks(stopOrderRepairUpdates, 5, (update) =>
-        base44.asServiceRole.entities.Delivery.update(update.id, { stop_order: update.stop_order })
-      );
-
-      deliveries.forEach((delivery) => {
-        const repaired = stopOrderRepairUpdates.find((update) => update.id === delivery.id);
-        if (repaired) {
-          delivery.stop_order = repaired.stop_order;
-        }
-      });
+      const stopOrderUpdatesById = new Map(stopOrderRepairUpdates.map((update) => [update.id, { stop_order: update.stop_order }]));
+      deliveries = await bulkUpdateDeliveries(base44, deliveries, stopOrderUpdatesById);
     }
 
     const existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
@@ -389,6 +405,7 @@ Deno.serve(async (req) => {
     let deletedPolylineCount = 0;
     let clearedFinishedLegs = 0;
     const regeneratedFinishedLegStopIds = [];
+    const deliveryUpdatesById = new Map();
 
     if (scope === 'all' || scope === 'completed_only') {
       const finishedLegsToClear = finishedStops.filter((delivery) => typeof delivery?.finished_leg_encoded_polyline === 'string'
@@ -396,11 +413,12 @@ Deno.serve(async (req) => {
         : !!delivery?.finished_leg_encoded_polyline);
 
       if (finishedLegsToClear.length > 0) {
-        await processInChunks(finishedLegsToClear, 5, (delivery) =>
-          base44.asServiceRole.entities.Delivery.update(delivery.id, {
+        finishedLegsToClear.forEach((delivery) => {
+          deliveryUpdatesById.set(delivery.id, {
+            ...(deliveryUpdatesById.get(delivery.id) || {}),
             finished_leg_encoded_polyline: ''
-          })
-        );
+          });
+        });
       }
       clearedFinishedLegs = finishedLegsToClear.length;
 
@@ -419,7 +437,8 @@ Deno.serve(async (req) => {
           apiCallsMade += 1;
         }
 
-        await base44.asServiceRole.entities.Delivery.update(finishedStops[index].id, {
+        deliveryUpdatesById.set(finishedStops[index].id, {
+          ...(deliveryUpdatesById.get(finishedStops[index].id) || {}),
           finished_leg_encoded_polyline: directions.encoded_polyline || ''
         });
 
@@ -428,6 +447,10 @@ Deno.serve(async (req) => {
     }
 
     const createdSegments = [];
+
+    if (deliveryUpdatesById.size > 0) {
+      deliveries = await bulkUpdateDeliveries(base44, deliveries, deliveryUpdatesById);
+    }
 
     if (scope === 'all' || scope === 'active_only') {
       const firstActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
