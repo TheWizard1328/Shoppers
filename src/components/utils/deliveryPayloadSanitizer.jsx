@@ -4,7 +4,6 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'company_id',
   'delivery_id',
   'patient_id',
-  'dispatcher_id',
   'driver_id',
   'driver_name',
   'created_by_app_user_id',

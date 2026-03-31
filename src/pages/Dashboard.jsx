@@ -3825,7 +3825,6 @@ function Dashboard() {
 
         const payload = {
           delivery_id: deliveryId,
-          dispatcher_id: currentUser?.id || null,
           patient_id: stop.patient_id || null,
           store_id: stop.store_id,
           driver_id: driverId,
