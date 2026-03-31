@@ -465,7 +465,7 @@ export const decodePolyline = (encoded) => {
 
 // In-memory cache for polyline queries to prevent rate limits
 const polylineQueryCache = new Map();
-const POLYLINE_CACHE_DURATION = 5000; // 5 seconds
+const POLYLINE_CACHE_DURATION = 120000; // 2 minutes
 
 /**
  * Fetches and decodes a stored polyline for display
