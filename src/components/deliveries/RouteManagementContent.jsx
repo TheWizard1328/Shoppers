@@ -9,7 +9,7 @@ import StopDetailsPanel from "./StopDetailsPanel";
 import DeliveryListView from "../dashboard/DeliveryListView";
 import BulkEditStopsPanel from "./BulkEditStopsPanel";
 import { isMobileDevice } from "../utils/deviceUtils";
-import { createDeliveryLocal, updateDeliveryLocal } from "../utils/entityMutations";
+import { createDeliveryLocal, updateDeliveryLocal, batchDeleteDeliveriesLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import { getDriverNameForStorage } from "../utils/driverUtils";
@@ -104,19 +104,14 @@ export default function RouteManagementContent({
 
     setIsBulkUpdating(true);
     try {
-      await Promise.all(
-        selectedBulkDeliveryIds.map((deliveryId) => {
-          const delivery = (deliveries || []).find((item) => item.id === deliveryId);
-          return delivery ? onDelete(delivery) : Promise.resolve();
-        })
-      );
+      await batchDeleteDeliveriesLocal(selectedBulkDeliveryIds);
       await loadData(true);
       setSelectedBulkDeliveryIds([]);
       setBulkEditMode(false);
     } finally {
       setIsBulkUpdating(false);
     }
-  }, [deliveries, isBulkUpdating, loadData, onDelete, selectedBulkDeliveryIds]);
+  }, [isBulkUpdating, loadData, selectedBulkDeliveryIds]);
 
   const handleBulkEditApply = useCallback((values) => {
     const baseUpdates = {};
