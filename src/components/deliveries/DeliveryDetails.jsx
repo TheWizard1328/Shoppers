@@ -33,7 +33,7 @@ const safeFormatDate = (dateString, formatString) => {
   }
 };
 
-export default function DeliveryDetails({ delivery, patient, statusConfig }) {
+export default function DeliveryDetails({ delivery, patient, store, statusConfig }) {
   if (!delivery) {
     return (
       <Card className="bg-white border-slate-200 shadow-sm">

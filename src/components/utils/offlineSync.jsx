@@ -379,9 +379,9 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       }));
     }
     
-    notifySyncStatus({ status: 'priority_sync_complete', appUsers: allAppUsers?.length || 0, deliveries: deliveries?.length || 0, patients: patients.length });
+    notifySyncStatus({ status: 'priority_sync_complete', deliveries: deliveries?.length || 0, patients: patients.length });
     
-    return { success: true, appUsers: allAppUsers?.length || 0, deliveries: deliveries?.length || 0, patients: patients.length };
+    return { success: true, deliveries: deliveries?.length || 0, patients: patients.length };
   } catch (error) {
     if (smartRefreshMgr) smartRefreshMgr.recordError();
     notifySyncStatus({ status: 'priority_sync_error', error: error.message });

@@ -785,7 +785,6 @@ class LightweightRefreshManager {
       }
 
       // Save to offline DB
-      const { offlineDB } = await import('./offlineDatabase');
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
 
       // Dispatch event with fresh coordinates for polyline rendering

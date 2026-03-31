@@ -97,6 +97,7 @@ import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerform
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";import { shouldRefreshUserFromAppUser } from "@/components/utils/appUserRefreshUtils";
 import { saveDriverChangedDelivery } from "@/components/utils/saveDriverChangedDelivery";
 import { getFabTargetDriverMapLocation, isDriverOffDuty, getSelfDriverLocationForBounds } from "@/components/dashboard/mapViewPhaseHelpers";
+import DashboardView from "@/components/dashboard/DashboardView";
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
@@ -120,7 +121,9 @@ function Dashboard() {
     isSnapshotModeActive,
     setIsSnapshotModeActive,
     dataSource
-  } = useAppData();
+    } = useAppData();
+
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
   const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
 
@@ -5443,7 +5446,6 @@ function Dashboard() {
   }, [isExpanded, areCardsVisible, isRouteComplete]);
 
   // Force UI refresh when data for selected date becomes available
-  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [forceRender, setForceRender] = useState(0);
 
   useEffect(() => {
@@ -5687,937 +5689,159 @@ function Dashboard() {
       </div>);
   }
 
-  // PLACEHOLDER — replaced below by DashboardView
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
-
-      {/* Snapshot Timeline - Only visible when snapshot mode is active */}
-      {isSnapshotModeActive && isAppOwner(currentUser) &&
-      <div className="absolute left-0 top-0 bottom-0 z-[250]">
-          <SnapshotTimeline
-          selectedDate={selectedDate}
-          selectedDriverId={selectedDriverId}
-          onSnapshotSelect={handleSnapshotSelect}
-          onClose={() => {
-            setIsSnapshotModeActive(false);
-            setSnapshotData(null);
-          }} />
-
-        </div>
-      }
-
-
-      <div className={statsCardPositioning} style={{ zIndex: 600 }}>
-        <div className="flex flex-col items-center gap-0.5 min-w-[345px] max-w-[345px] relative"
-
-        style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
-        onMouseEnter={() => handleStatsPanelInteraction(true)}
-        onMouseLeave={() => handleStatsPanelInteraction(false)}>
-
-          {/* Pull to Sync - Inside stats card container */}
-          <PullToSync
-            key={pullToSyncKey}
-            selectedDate={selectedDate}
-            selectedCityId={globalFilters.getSelectedCityId()}
-            selectedDriverId={selectedDriverId}
-            showAllDriverMarkers={showAllDriverMarkers}
-            statsCardRef={statsCardRef}
-            onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
-              // Update deliveries in context
-              if (updateDeliveriesLocally) {
-                const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                const otherDateDeliveries = deliveries.filter((d) => d?.delivery_date !== selectedDateStr);
-                updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-              }
-
-              // CRITICAL: Process driver locations through poller to update ALL markers
-              // CRITICAL: Filter junk offline DB records (user_id=undefined) before processing — fallback to context
-              const appUsersToProcess = (freshAppUsers || []).filter((u) => u?.user_id && u.user_id !== 'undefined').length > 0 ? freshAppUsers.filter((u) => u?.user_id && u.user_id !== 'undefined') : appUsers;
-
-              if (appUsersToProcess && appUsersToProcess.length > 0) {
-                driverLocationPoller.processLocationData(
-                  currentUser,
-                  freshDeliveries,
-                  drivers,
-                  stores,
-                  appUsersToProcess,
-                  selectedDate,
-                  true, // forceNotify
-                  'Dashboard', // currentPageName
-                  showAllDriverMarkers
-                );
-              } else {
-                console.warn('⚠️ [Pull to Sync] No appUsers available from sync or context - cannot process locations');
-              }
-
-              const validSyncAppUsers = (freshAppUsers || []).filter((u) => u?.user_id && u.user_id !== 'undefined').length > 0 ? freshAppUsers.filter((u) => u?.user_id && u.user_id !== 'undefined') : appUsers;
-              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: validSyncAppUsers, forceAll: true } }));
-
-              // Force map update based on selection mode
-              const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                detail: {
-                  deliveryDate: selectedDateStr,
-                  triggeredBy: 'pullToSyncComplete',
-                  allDrivers: true
-                }
-              }));
-
-              // Trigger map repositioning based on current phase
-              setIsMapViewLocked(mapViewPhase !== 1);
-              lastProgrammaticMapMoveRef.current = Date.now();
-              window._lastProgrammaticMapMove = Date.now();
-              setMapViewTrigger((prev) => prev + 1);
-
-              if (mapLockTimeoutRef.current) {
-                clearTimeout(mapLockTimeoutRef.current);
-                mapLockTimeoutRef.current = null;
-              }
-              mapLockExpiresAtRef.current = null;
-
-              // Force stats refresh
-              window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
-              // Payroll stats refresh disabled on Dashboard.
-
-            }} />
-
-
-          <motion.div
-            ref={statsCardRef} data-spotlight-anchor
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            onMouseEnter={() => handleCardInteraction(true)}
-            onMouseLeave={() => handleCardInteraction(false)}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCardInteraction(true);
-              if (retractClustersRef.current) {
-                retractClustersRef.current();
-              }
-            }} className="px-1 rounded-2xl shadow-xl border min-w-[350px] max-w-[350px] cursor-pointer"
-
-            style={{
-              background: 'var(--bg-white)',
-              borderColor: 'var(--border-slate-200)',
-              pointerEvents: 'auto',
-              touchAction: 'none',
-              position: 'relative'
-            }}>
-
-
-            
-
-            <div className="mt-1 flex items-center justify-between">
-              <div className="pr-1 flex items-center gap-2">
-                <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
-                {currentUser &&
-                <div className="flex items-center gap-1.5">
-                  <SmartRefreshIndicator
-                    inline={true}
-                    onManualRefresh={async () => {
-                      // CRITICAL: Just trigger offline sync button click instead of manual refresh
-                      const syncButton = document.querySelector('[data-offline-sync-button]');
-                      if (syncButton) {
-                        syncButton.click();
-                      } else {
-                        console.warn('⚠️ [Manual Refresh] Offline sync button not found');
-                      }
-                    }} />
-                  
-                  {/* Connection Quality Indicator */}
-                  <ConnectionIndicator />
-                  
-                  {/* Error Flag Indicator */}
-                  <ErrorFlagIndicator />
-                </div>
-                }
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Popover open={isCalendarOpen} onOpenChange={(open) => {
-                  setIsCalendarOpen(open);
-                  if (open) {
-                    setCalendarMonth(selectedDate);
-                  }
-                }} modal={true}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow-sm gap-2 h-8" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-                      <CalendarIcon className="w-3.5 h-3.5" />
-                      <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(date) => {
-                        if (!date) return;
-                        // Exit if clicking on already selected date
-                        if (format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')) {
-                          setIsCalendarOpen(false);
-                          return;
-                        }
-                        handleDateChange(date);
-                      }}
-                      month={calendarMonth}
-                      onMonthChange={setCalendarMonth}
-                      footer={
-                      <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                type="button"
-                                onClick={() => {
-                                  const todayDate = new Date();
-                                  setCalendarMonth(todayDate);
-                                  handleDateChange(todayDate);
-                                }}
-                                className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs"
-                                style={{
-                                  color: 'var(--text-slate-600)',
-                                  '&:hover': {
-                                    background: 'var(--bg-slate-100)',
-                                    color: 'var(--text-slate-800)'
-                                  }
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = 'var(--bg-slate-100)';
-                                  e.currentTarget.style.color = 'var(--text-slate-800)';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = 'transparent';
-                                  e.currentTarget.style.color = 'var(--text-slate-600)';
-                                }}>
-                                  <Clock className="w-3 h-3" />
-                                  Today
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Go to today</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                      } className="px-2 py-2 rdp" style={{ color: 'var(--text-slate-900)' }} />
-
-                  </PopoverContent>
-                </Popover>
-
-                <AddDeliveryButton
-                  onClick={() => {
-                    setEditingDelivery(null);
-                    setShowDeliveryForm(true);
-                  }}
-                  disabled={(isDriver || isDispatcher) && !isAdmin && !isAppOwner(currentUser) && (() => {const now = new Date();const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());if (selectedDay < today) return true;if (selectedDay.getTime() === today.getTime()) {const currentTime = now.getHours() * 100 + now.getMinutes();return currentTime >= 2100;}return false;})()}
-                  hasRateLimitError={hasRateLimitError} />
-
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
-              <ActivePayStats
-                deliveryStats={deliveryStats}
-                localStats={stats}
-                isDispatcher={isDispatcher}
-                isDriver={isDriver}
-                performanceStats={performanceStats}
-                liveDistance={liveDistance}
-                liveTimeOnDuty={liveTimeOnDuty}
-                isLoadingPayrollStats={isLoadingPayrollStats} />
-
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsExpanded(!isExpanded);
-                }}
-                className="h-8 w-8 p-0 flex-shrink-0">
-                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </Button>
-            </div>
-
-
-            {isAppOwner(currentUser) && <DriverLocationBadge users={appUsers} />}
-
-            <AnimatePresence>
-              {isExpanded &&
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden">
-                  <div className="pt-1 pb-1 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
-                    <Select
-                    value={selectedDriverId}
-                    onValueChange={handleDriverChange}
-                    disabled={isDriverDropdownDisabled}>
-
-                      <SelectTrigger className="whitespace-nowrap border-input bg-transparent shadow-sm data-[placeholder]:text-muted-foreground flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                        <SelectValue placeholder="All Drivers" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-                        <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
-                        {driversList.map((driver) =>
-                      <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
-                            {driver.user_name || driver.full_name}
-                          </SelectItem>
-                      )}
-                      </SelectContent>
-                    </Select>
-
-                    {/* Show All and Breadcrumbs Buttons - Only for drivers in single driver mode */}
-                    {isDriver && !isAllDriversMode &&
-                  <div className="flex items-center flex-shrink-0">
-                        <div className="flex flex-col items-center gap-1">
-                          <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={async () => {
-                          const checked = !showAllDriverMarkers;
-                          setShowAllDriverMarkers(checked);
-                          if (currentUser?.id) {
-                            saveSetting(currentUser.id, 'show_all_driver_markers', checked);
-                          }
-
-                          // CRITICAL: Close stats card when checkbox is toggled
-                          setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);
-
-                          // CRITICAL: Respect data source preference when checking "Show All"
-                          if (checked) {
-                            setIsEntityUpdating(true);
-
-                            try {
-                              const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                              let allDateDeliveries;
-
-                              if (dataSource === 'online') {
-                                allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                                offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
-                              } else {
-                                allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-
-                                if (!allDateDeliveries || allDateDeliveries.length === 0) {
-                                  allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
-                                }
-                              }
-
-                              // Update context with full deliveries
-                              if (updateDeliveriesLocally) {
-                                const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-                                const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
-                                updateDeliveriesLocally(mergedDeliveries, true);
-                              }
-
-                              // Wait for UI to update
-                              await new Promise((resolve) => setTimeout(resolve, 300));
-
-                              // CRITICAL: Force refresh driver locations to update all markers
-                              const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
-                              if (locationUpdates?.hasChanges) {
-                                // Process through poller to update markers
-                                driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
-                              }
-
-                              // CRITICAL: Force refresh ALL AppUsers when Show All is checked
-                              const showAllLocationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
-                              const showAllLatestAppUsers = showAllLocationUpdates?.appUsers || appUsers;
-
-                              // Dispatch event to force map to re-render with new markers
-                              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                                detail: { appUsers: showAllLatestAppUsers, forceAll: true }
-                              }));
-                            } catch (error) {
-                              console.error('❌ [Show All] Failed to load deliveries:', error);
-                            } finally {
-                              setIsEntityUpdating(false);
-                            }
-                          }
-
-                          // CRITICAL: Activate Phase 1 immediately when button is toggled
-                          // Clear any existing timers
-                          if (mapLockTimeoutRef.current) {
-                            clearTimeout(mapLockTimeoutRef.current);
-                            mapLockTimeoutRef.current = null;
-                          }
-                          mapLockExpiresAtRef.current = null;
-
-                          // Set to Phase 1 as an unlocked programmatic view
-                          setMapViewPhase(1);
-                          setIsMapViewLocked(false);
-                          lastProgrammaticMapMoveRef.current = Date.now();
-                          window._lastProgrammaticMapMove = Date.now();
-
-                          // Trigger immediately
-                          setMapViewTrigger((prev) => prev + 1);
-
-                          if (mapLockTimeoutRef.current) {
-                            clearTimeout(mapLockTimeoutRef.current);
-                            mapLockTimeoutRef.current = null;
-                          }
-                          mapLockExpiresAtRef.current = null;
-                        }}
-                        className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                        style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
-
-                          <Binoculars className="w-4 h-4" />
-                        </Button>
-                        </div>
-
-                        <div className="flex flex-col items-center gap-1">
-                        <BreadcrumbToggleButton
-                        isMobile={isMobile}
-                        isDriver={isDriver}
-                        isRouteComplete={isRouteComplete}
-                        showBreadcrumbs={showBreadcrumbs}
-                        setShowBreadcrumbs={setShowBreadcrumbs}
-                        setShowRoutes={setShowRoutes}
-                        setBreadcrumbsData={setBreadcrumbsData}
-                        selectedDate={selectedDate}
-                        showAllDriverMarkers={showAllDriverMarkers}
-                        selectedDriverId={selectedDriverId}
-                        currentUser={currentUser}
-                        appUsers={appUsers} />
-
-                        </div>
-                      </div>
-                  }
-
-                    <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowOptimizationSettings(true)}
-                    className="h-8 w-8 p-0 flex-shrink-0"
-                    title="Route Optimization Settings"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                      <Settings className="w-3.5 h-3.5" />
-                    </Button>
-
-                  <Button
-                    variant="default"
-                    size="s"
-                    onClick={() => {
-                      setShowRoutes(!showRoutes);
-                      setIsExpanded(false);
-                    }}
-                    className={`${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white px-2 text-sm font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow gap-2 h-6 flex-shrink-0`}>
-                    Route Lines
-                  </Button>
-                  </div>
-
-                  {/* Location Toggle - All driver devices */}
-                  {shouldShowLocationToggle &&
-                <>
-                      <div className="border-t border-slate-200"></div>
-                      <div className="py-1 flex items-center gap-2">
-                        <LocationTrackingToggle
-                      user={currentUser}
-                      onUserUpdate={async () => {
-                        await refreshUser();
-                      }} />
-                      
-                        {/* Route Management Buttons - All drivers on any device */}
-                        {isDriver &&
-                    <>
-                            {/* Quick Route Adjustments */}
-                            <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowQuickAdjustments(true)}
-                        className="h-8 gap-1.5 px-2 flex-shrink-0"
-                        title="Quick route adjustments"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                              <span className="text-xs">Adjust</span>
-                            </Button>
-                            
-                            {/* AI Smart Prioritization */}
-                            <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowSmartPrioritization(true)}
-                        className="h-8 gap-1.5 px-2 flex-shrink-0"
-                        title="AI delivery prioritization"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                              <Sparkles className="w-3 h-3" />
-                              <span className="text-xs">AI</span>
-                            </Button>
-                          </>
-                    }
-                      </div>
-                    </>
-                }
-
-                  {/* Offline Sync Indicator - embedded when stats card is centered */}
-                  {isStatsCardCentered &&
-                <>
-                      <div className="border-t border-slate-200 mt-2 pt-2"></div>
-                      <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
-                    </>
-                }
-                </motion.div>
-              }
-                </AnimatePresence>
-          </motion.div>
-
-          {/* Driver Legend - positioned directly below stats card */}
-          {(() => {
-            const dateKey = format(selectedDate, 'yyyy-MM-dd');
-            const legendData=isAdmin?driversList.filter(driver=>deliveries.some(d=>d&&d.delivery_date===dateKey&&d.driver_id===driver.id)).map(driver=>{const s=(appUsers||[]).find(au=>au&&au.user_id===driver.id)?.driver_status;const c=s==='on_duty'?'#16a34a':s==='on_break'?'#3b82f6':s==='off_duty'?'#dc2626':'#94a3b8';return{driverId:driver.id,driverName:driver.user_name||driver.full_name||'Unknown',color:getDriverColor(driver),totalStops:deliveries.filter(d=>d&&d.delivery_date===dateKey&&d.driver_id===driver.id&&d.patient_id&&String(d.patient_id).trim()!=='').length+deliveries.filter(d=>d&&d.delivery_date===dateKey&&d.driver_id===driver.id&&(!d.patient_id||String(d.patient_id).trim()==='')&&d.after_hours_pickup===true).length,statusRingColor:c};}):isAllDriversMode?[...driverRoutes].sort((a,b)=>(a.driverName||'').localeCompare(b.driverName||'')):[];
-            if (!legendData.length) return null;
-            return <div className="rounded-lg backdrop-blur-sm shadow-lg border" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)', width: cardWidth }} onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}><div className="flex w-full flex-wrap gap-x-0.5 gap-y-0.5 items-center justify-center">{legendData.map((route) => { const au=(appUsers||[]).find(a=>a&&a.user_id===route.driverId); const s=au?.driver_status; const isOnline=s==='on_duty'||s==='online'||(au?.location_updated_at&&(Date.now()-new Date(au.location_updated_at).getTime()<300000)); const c=s==='on_duty'?'#16a34a':s==='on_break'?'#3b82f6':s==='off_duty'?'#dc2626':'#94a3b8'; const bg=isAllDriversMode?route.color:c; const bd=isAllDriversMode?`3px solid ${c}`:'0 solid transparent'; return <div key={route.driverId} className="flex items-center gap-1.5"><div className="relative flex items-center justify-center w-3 h-3">{isOnline&&<div className="absolute inset-0 rounded-full animate-ping opacity-75" style={{backgroundColor:c}}/>}<div className="relative w-3 h-3 rounded-full shadow-sm flex-shrink-0" style={{backgroundColor:bg,border:bd}}/></div><span className="text-xs font-medium whitespace-nowrap" style={{color:'var(--text-slate-700)'}}>{route.driverName||'Unknown'}</span><span className="text-xs" style={{color:'var(--text-slate-500)'}}>({route.totalStops})</span></div>; })}</div></div>;
-          })()}
-        </div>
-      </div>
-
-      <div className="flex-1 w-full relative min-h-0 overflow-hidden">
-        {currentUser && isAppOwner(currentUser) && <ApiUsageBadge currentUser={currentUser} stopCardsHeight={deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0} showRoutes={showRoutes} showBreadcrumbs={showBreadcrumbs} showCompletedRouteControls={!isMobile && selectedDriverId !== 'all' && filteredDeliveries.length > 0 && filteredDeliveries.every((delivery) => delivery && ['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status))} selectedDate={format(selectedDate, 'yyyy-MM-dd')} selectedDriverIds={selectedDriverId !== 'all' ? [selectedDriverId] : []} />}
-
-        {/* Offline Sync Indicator - separate when stats card is in upper left corner */}
-        {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
-
-        {/* Real-time ETA Tracker - ONLY for mobile drivers viewing their own route */}
-        {realTimeETAEnabled && isMobile && isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
-        <ETATracker
-          selectedDriverId={selectedDriverId}
-          selectedDate={selectedDateStr}
-          currentUser={currentUser}
-          isActive={!showDeliveryForm && !showPatientForm && !showOptimizationSettings}
-          onETAUpdate={(updates) => {
-          }} />
-
-        }
-
-        {/* Real-time Route Optimizer - ONLY for mobile drivers viewing their own route */}
-        {isMobile && isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
-        <RealTimeRouteOptimizer
-          selectedDriverId={selectedDriverId}
-          selectedDate={selectedDateStr}
-          currentUser={currentUser}
-          isActive={!showDeliveryForm && !showPatientForm && !showOptimizationSettings}
-          onRouteOptimized={(updates) => {
-          }} />
-
-        }
-
-
-        <div className="absolute inset-0">
-          <DeliveryMap
-            deliveries={deliveriesWithStopOrder}
-            selectedDriverId={selectedDriverId}
-            selectedDate={format(selectedDate, 'yyyy-MM-dd')}
-            patients={patients}
-            stores={stores}
-            users={appUsers}
-            currentUser={currentUser}
-            driverLocations={isAllDriversMode ? allDriverLocations : showAllDriverMarkers ? allDriverLocations : allDriverLocations}
-            deliveriesForLocationFilter={filteredDeliveries}
-            showOtherDriverDeliveries={showAllDriverMarkers}
-            currentDriverLocation={driverLocation}
-            currentToNextPolyline={currentToNextPolyline}
-            showBreadcrumbs={showBreadcrumbs}
-            breadcrumbsData={breadcrumbsData}
-            center={mapCenter} zoom={mapZoom}
-            setMapCenter={setMapCenter} setMapZoom={setMapZoom}
-            shouldFitBounds={shouldFitBounds}
-            onBoundsFitted={() => setShouldFitBounds(null)}
-            onMarkerClick={handleMarkerClick}
-            mapMode={mapMode}
-            onMapModeChange={setMapMode}
-            autoFitBounds={true}
-            showRoutes={showRoutes}
-            showLegend={false}
-            areCardsVisible={areCardsVisible}
-            onLegendInteraction={handleCardInteraction}
-            onDriverRoutesCalculated={setDriverRoutes}
-            onMapInteraction={handleMapInteraction} mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked}
-            onDoubleTap={handleMapViewCycle}
-            retractClustersRef={retractClustersRef}
-            areStopCardsVisible={deliveriesWithStopOrder.length > 0}
-            highlightedDeliveryId={highlightedCardId}
-            stopCardsHeight={stopCardsBaseHeight}
-            onMapReady={() => {
-              // CRITICAL: Mark map rendering complete (Sequence 3-6 done)
-              if (!renderSequence.mapMarkers) {
-                setRenderSequence((prev) => ({
-                  ...prev,
-                  mapMarkers: true,
-                  routeLines: true,
-                  driverLiveLocation: true,
-                  sharedLocations: true
-                }));
-              }
-            }} />
-        </div>
-
-        <div
-          ref={stopCardsContainerRef}
-          className="horizontal-cards-container absolute bottom-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end max-h-[80vh]"
-          style={{ left: isSnapshotModeActive ? '5rem' : '0' }}
-          onClick={() => {
-            if (retractClustersRef.current) {
-              retractClustersRef.current();
-            }
-          }}>
-            
-            {/* Optimization Message Banner - Above Stop Cards */}
-            <AnimatePresence>
-              {optimizationMessage &&
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="flex justify-center mb-2 pointer-events-auto">
-                <div className="rounded-lg shadow-2xl border-2 border-emerald-500 p-3 flex items-center gap-3 max-w-[90vw]" style={{ background: 'var(--bg-white)' }}>
-                  {isOptimizing &&
-                <div className="animate-spin w-4 h-4 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0"></div>
-                }
-                  <p className="font-medium flex-1 text-sm" style={{ color: 'var(--text-slate-900)' }}>{optimizationMessage}</p>
-                  {!isOptimizing &&
-                <button
-                  onClick={() => setOptimizationMessage(null)}
-                  className="text-slate-400 hover:text-slate-600 flex-shrink-0">
-                      <X className="w-3.5 h-3.5" style={{ color: 'var(--text-slate-400)' }} />
-                    </button>
-                }
-                </div>
-              </motion.div>
-            }
-            </AnimatePresence>
-            
-            <div
-            className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
-            style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
-            onWheel={(e) => {window.__isUserCardSwipe = true;if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) {if (mapLockTimeoutRef.current) clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;mapLockExpiresAtRef.current = null;setIsMapViewLocked(false);}if (!isMobile) {e.preventDefault();e.currentTarget.scrollLeft += e.deltaY;}}}
-            onTouchStart={() => {
-              lastUserInteractionRef.current = Date.now();
-              window.__isUserCardSwipe = true;if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) {if (mapLockTimeoutRef.current) clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;mapLockExpiresAtRef.current = null;setIsMapViewLocked(false);}
-            }}
-            onScroll={isMobile ? createStopCardsScrollHandler({ deliveriesWithStopOrder, patients, stores, appUsers, mapViewPhase, isMapViewLocked, setIsMapViewLocked, setMapViewPhase, setShouldFitBounds, setMapCenter, setMapZoom, getMapPadding, mapLockTimeoutRef, mapLockExpiresAtRef }) : undefined}>
-
-              {/* CRITICAL: Hide stop cards when in "All Drivers" mode (except for dispatchers) */}
-              {(!isAllDriversMode || isDispatcher) &&
-            <HorizontalStopCards
-              ref={horizontalStopCardsRef}
-              pickupCards={deliveriesWithStopOrder.
-              filter((delivery) => delivery && delivery.status !== 'pending') // Hide pending deliveries from cards
-              .map((delivery) => {
-                if (!delivery) return delivery;
-
-                // For pickups with status 'en_route', attach pending deliveries
-                if (!delivery.patient_id && delivery.status === 'en_route' && delivery.stop_id) {
-                  // CRITICAL: Match by stop_id (not puid) - pending deliveries have puid that matches pickup's stop_id
-                  let pendingDeliveriesForPickup = deliveriesWithStopOrder.filter((d) =>
-                  d &&
-                  d.puid === delivery.stop_id &&
-                  d.status === 'pending' &&
-                  d.patient_id // Only patient deliveries, not other pickups
-                  );
-
-                  if (pendingDeliveriesForPickup.length > 0) {
-                    return {
-                      ...delivery,
-                      projected_deliveries: pendingDeliveriesForPickup
-                    };
-                  }
-                }
-
-                // CRITICAL: For drivers, mark all deliveries as stripped when route is complete
-                // EXCEPT for InterStore deliveries and regular Store Pickups
-                if (isDriver && !isDispatcher && !isAdmin) {
-                  const finishedStatuses = ['completed', 'failed', 'cancelled'];
-                  const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
-                  d && d.driver_id === currentUser.id
-                  );
-
-                  // Helper to detect returns by markers
-                  const checkIsReturn = (d) => {
-                    if (!d || !d.patient_id) return false;
-                    const patient = patients.find((p) => p && p.id === d.patient_id);
-                    const notes = d.delivery_notes || '';
-                    const patientName = d.patient_name || '';
-                    const patientFullName = patient?.full_name || '';
-                    return notes.toLowerCase().includes('(rtn)') ||
-                    patientName.toLowerCase().includes('(rtn)') ||
-                    patientFullName.toLowerCase().includes('(rtn)') ||
-                    /\breturn\b/i.test(notes) ||
-                    /\breturn\b/i.test(patientName) ||
-                    /\breturn\b/i.test(patientFullName);
-                  };
-
-                  const routeComplete = allDriverDeliveries.length > 0 &&
-                  allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || (d.status === 'completed' && checkIsReturn(d)));
-
-                  if (routeComplete) {
-                    // CRITICAL: Check if this is an InterStore delivery or Store Pickup
-                    const isInterStore = delivery.patient_name?.toLowerCase().includes('interstore') ||
-                    delivery.delivery_notes?.toLowerCase().includes('interstore');
-                    const isStorePickup = !delivery.patient_id;
-
-                    // Don't strip InterStore deliveries or Store Pickups
-                    if (!isInterStore && !isStorePickup) {
-                      return {
-                        ...delivery,
-                        _isStripped: true
-                      };
-                    }
-                  }
-                }
-
-                return delivery;
-              })}
-              onCardClick={handleCardClick}
-              selectedCardId={selectedCardId}
-              stores={stores}
-              drivers={drivers}
-              patients={patients}
-              currentUser={currentUser}
-              onSelectionChange={() => {}}
-              selectedDeliveryIds={{}}
-              stopOrder={{}}
-              showDriverName={isAllDriversMode}
-              getDriverColor={getDriverColor}
-              onEdit={handleEditDelivery}
-              onEditPatient={handleEditPatient}
-              onDelete={handleDeleteDelivery}
-              onRestart={handleRestartDelivery}
-              onStatusUpdate={handleStatusUpdate}
-              onNotesUpdate={handleNotesUpdate}
-              onCODUpdate={handleCODUpdate}
-              onCreateReturn={handleCreateReturn}
-              onStartDelivery={handleStartDelivery}
-              allDeliveries={deliveries}
-              selectedDate={selectedDate}
-              onDriverStatusChange={async (newStatus) => {
-                await refreshUser();
-              }} />
-
-            }
-
-            </div>
-          </div>
-      </div>
-
-      <AnimatePresence>
-        {showDeliveryForm &&
-        <DeliveryForm
-          delivery={editingDelivery}
-          patients={patients}
-          stores={stores}
-          drivers={drivers}
-          onSave={handleSaveDelivery}
-          onCancel={() => {
-            setShowDeliveryForm(false);
-            setEditingDelivery(null);
-          }}
-          suggestedDate={format(selectedDate, 'yyyy-MM-dd')}
-          currentUser={currentUser}
-          allDeliveries={deliveries}
-          initialDriverId={selectedDriverId} onCreatePatient={handleCreatePatientFromDelivery} />
-        }
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showPatientForm &&
-        <PatientForm
-          patient={editingPatient}
-          stores={stores}
-          cities={[]}
-          currentUser={currentUser}
-          allPatients={patients}
-          duplicateMode={patientFormMode}
-          onSave={handleSavePatient}
-          onCancel={() => {
-            setShowPatientForm(false);
-            setEditingPatient(null);
-            setPatientFormCallback(null);
-            setPatientFormMode(null);
-          }}
-          returnPatientOnSave={!!patientFormCallback} />
-
-        }
-      </AnimatePresence>
-
-      <Dialog open={showOptimizationSettings} onOpenChange={setShowOptimizationSettings}>
-        <DialogContent className="max-w-2xl max-h-[90vh] p-0 z-[10000]">
-          <RouteOptimizationSettings
-            onClose={() => setShowOptimizationSettings(false)}
-            currentUser={currentUser} />
-
-        </DialogContent>
-      </Dialog>
-
-      {/* CRITICAL: Render FABs with high z-index to ensure proper layering above cards */}
-      {(isDriver || isDispatcher) &&
-      <>
-        <MapViewCycleFAB
-          onClick={handleMapViewCycle}
-          currentPhase={mapViewPhase}
-          hasVisibleCards={deliveriesWithStopOrder.length > 0}
-          isAIVisible={showAIAssistant && isAIEnabled}
-          isLocked={isMapViewLocked}
-          stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} />
-
-        <RouteActionButtons
-          currentUser={currentUser}
-          selectedDriverId={selectedDriverId}
-          selectedDate={selectedDate}
-          deliveriesWithStopOrder={deliveriesWithStopOrder}
-          filteredDeliveries={filteredDeliveries}
-          cardsReadyForFAB={cardsReadyForFAB}
-          stopCardsBaseHeight={stopCardsBaseHeight}
-          isDateFinished={isDateFinished}
-          isReoptimizing={isReoptimizing}
-          setIsReoptimizing={setIsReoptimizing}
-          setOptimizationMessage={setOptimizationMessage}
-          setIsEntityUpdating={setIsEntityUpdating}
-          refreshData={refreshData}
-          setIsMapViewLocked={setIsMapViewLocked}
-          setMapViewTrigger={setMapViewTrigger} />
-
-      </>
-      }
-
-      <AnimatePresence>
-        {showRouteSummary &&
-        <RouteSummaryModal
-          deliveries={filteredDeliveries}
-          patients={patients}
-          stores={stores}
-          driver={summaryDriver || currentUser}
-          onClose={async () => {
-            setShowRouteSummary(false);
-            setSummaryDriver(null);
-
-            // Refresh user to update UI after driver status changed
-            if (isDriver && currentUser?.id) {
-              await refreshUser();
-            }
-          }} />
-        }
-      </AnimatePresence>
-
-      {/* End of Day Stats Dialog */}
-      <AnimatePresence>
-        {showEndOfDayStats &&
-        <EndOfDayStatsDialog
-          isOpen={showEndOfDayStats}
-          onClose={() => {
-            setShowEndOfDayStats(false);
-            setEndOfDayDriver(null);
-          }}
-          deliveries={filteredDeliveries}
-          driver={endOfDayDriver || currentUser}
-          deliveryDate={format(selectedDate, 'yyyy-MM-dd')} />
-        }
-      </AnimatePresence>
-
-      {false && <RouteNotification
-        notification={routeNotification}
-        onDismiss={() => setRouteNotification(null)}
-        onNavigate={() => {
-          // Navigate to next stop when notification is clicked
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const nextIncomplete = deliveriesWithStopOrder.find((d) =>
-          d && d.isNextDelivery && !finishedStatuses.includes(d.status)
-          );
-          if (nextIncomplete) {
-            const cardElement = document.getElementById(`stop-card-${nextIncomplete.id}`);
-            if (cardElement) {
-              cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            }
-          }
-        }} />}
-
-
-        {/* Proactive Alert System - monitors route for potential issues */}
-      {isDriver && isAIEnabled &&
-      <ProactiveAlertSystem
-        currentUser={currentUser}
-        deliveries={filteredDeliveries}
-        patients={patients}
-        stores={stores}
-        driverLocation={driverLocation}
-        isEnabled={isAIEnabled}
-        onAlert={(alerts) => {
-        }} />
-
-      }
-
-      {/* Reconcile Toast - shows when offline DB data is updated via reconciliation */}
-      <ReconcileToast />
-
-      {/* Dispatcher Pickup Notification - alerts when driver is en route to their store */}
-      <DispatcherPickupNotification
-        deliveries={deliveries}
-        stores={stores}
-        appUsers={appUsers}
-        currentUser={currentUser}
-        isDispatcher={isDispatcher} />
-
-
-      {/* Quick Route Adjustments Dialog */}
-      {isDriver &&
-      <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
-          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]">
-            <DialogHeader>
-              <DialogTitle>Quick Route Adjustments</DialogTitle>
-            </DialogHeader>
-            
-            {deliveriesWithStopOrder.filter((d) =>
-          d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status) &&
-          d.driver_id === currentUser?.id
-          ).length === 0 ?
-          <p className="text-sm text-slate-500 py-4">No active stops to adjust</p> :
-
-          <QuickRouteAdjustments
-            deliveries={deliveriesWithStopOrder}
-            currentUser={currentUser}
-            patients={patients}
-            stores={stores}
-            onReorder={handleQuickReorder}
-            onAddDelay={handleAddDelay} />
-
-          }
-          </DialogContent>
-        </Dialog>
-      }
-      
-      {/* AI Smart Prioritization Dialog */}
-      {isDriver &&
-      <Dialog open={showSmartPrioritization} onOpenChange={setShowSmartPrioritization}>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto z-[10001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
-                <Sparkles className="w-5 h-5 text-purple-600" />
-                AI Route Intelligence
-              </DialogTitle>
-            </DialogHeader>
-            
-            <SmartPrioritizationPanel
-            driverId={currentUser?.id}
-            deliveryDate={selectedDateStr}
-            currentUser={currentUser}
-            onApplySuggestion={async (suggestion) => {
-              if (suggestion.action?.type === 'move_to_next') {
-                // Move the urgent delivery to next position
-                const deliveryToMove = deliveriesWithStopOrder.find((d) => d?.id === suggestion.deliveryId);
-                if (deliveryToMove) {
-                  await handleStartDelivery(deliveryToMove.id);
-                  setShowSmartPrioritization(false);
-                }
-              }
-            }} />
-
-          </DialogContent>
-        </Dialog>
-      }
-    </div>);
+    <DashboardView
+      currentUser={currentUser}
+      isDriver={isDriver}
+      isAdmin={isAdmin}
+      isDispatcher={isDispatcher}
+      isMobile={isMobile}
+      deliveries={deliveries}
+      patients={patients}
+      stores={stores}
+      drivers={drivers}
+      appUsers={appUsers}
+      filteredDeliveries={filteredDeliveries}
+      deliveriesWithStopOrder={deliveriesWithStopOrder}
+      stats={stats}
+      driversList={driversList}
+      selectedDate={selectedDate}
+      selectedDateStr={selectedDateStr}
+      selectedDriverId={selectedDriverId}
+      calendarMonth={calendarMonth}
+      setCalendarMonth={setCalendarMonth}
+      isCalendarOpen={isCalendarOpen}
+      setIsCalendarOpen={setIsCalendarOpen}
+      handleDateChange={handleDateChange}
+      handleDriverChange={handleDriverChange}
+      isDriverDropdownDisabled={isDriverDropdownDisabled}
+      isAllDriversMode={isAllDriversMode}
+      isDateFinished={isDateFinished}
+      mapCenter={mapCenter}
+      mapZoom={mapZoom}
+      shouldFitBounds={shouldFitBounds}
+      setShouldFitBounds={setShouldFitBounds}
+      setMapCenter={setMapCenter}
+      setMapZoom={setMapZoom}
+      mapMode={mapMode}
+      setMapMode={setMapMode}
+      mapViewPhase={mapViewPhase}
+      setMapViewPhase={setMapViewPhase}
+      isMapViewLocked={isMapViewLocked}
+      setIsMapViewLocked={setIsMapViewLocked}
+      driverLocation={driverLocation}
+      allDriverLocations={allDriverLocations}
+      currentToNextPolyline={currentToNextPolyline}
+      driverRoutes={driverRoutes}
+      setDriverRoutes={setDriverRoutes}
+      showRoutes={showRoutes}
+      setShowRoutes={setShowRoutes}
+      showAllDriverMarkers={showAllDriverMarkers}
+      setShowAllDriverMarkers={setShowAllDriverMarkers}
+      showBreadcrumbs={showBreadcrumbs}
+      setShowBreadcrumbs={setShowBreadcrumbs}
+      breadcrumbsData={breadcrumbsData}
+      setBreadcrumbsData={setBreadcrumbsData}
+      highlightedCardId={highlightedCardId}
+      retractClustersRef={retractClustersRef}
+      googleApiKey={null}
+      renderSequence={renderSequence}
+      setRenderSequence={setRenderSequence}
+      stopCardsBaseHeight={stopCardsBaseHeight}
+      statsCardBaseHeight={statsCardBaseHeight}
+      statsCardRef={statsCardRef}
+      cardsReadyForFAB={cardsReadyForFAB}
+      mapLockTimeoutRef={mapLockTimeoutRef}
+      mapLockExpiresAtRef={mapLockExpiresAtRef}
+      lastProgrammaticMapMoveRef={lastProgrammaticMapMoveRef}
+      handleMapViewCycle={handleMapViewCycle}
+      mapViewTrigger={mapViewTrigger}
+      setMapViewTrigger={setMapViewTrigger}
+      getMapPadding={getMapPadding}
+      statsPanelOpacity={statsPanelOpacity}
+      isExpanded={isExpanded}
+      setIsExpanded={setIsExpanded}
+      areCardsVisible={areCardsVisible}
+      handleStatsPanelInteraction={handleStatsPanelInteraction}
+      handleCardInteraction={handleCardInteraction}
+      isStatsCardCentered={isStatsCardCentered}
+      statsCardPositioning={statsCardPositioning}
+      pullToSyncKey={pullToSyncKey}
+      stopCardsContainerRef={stopCardsContainerRef}
+      horizontalStopCardsRef={horizontalStopCardsRef}
+      optimizationMessage={optimizationMessage}
+      setOptimizationMessage={setOptimizationMessage}
+      isOptimizing={isOptimizing}
+      isReoptimizing={isReoptimizing}
+      setIsReoptimizing={setIsReoptimizing}
+      setIsEntityUpdating={setIsEntityUpdating}
+      hasRateLimitError={hasRateLimitError}
+      updateDeliveriesLocally={updateDeliveriesLocally}
+      updateAppUsersLocally={updateAppUsersLocally}
+      selectedCardId={selectedCardId}
+      handleCardClick={handleCardClick}
+      handleMarkerClick={handleMarkerClick}
+      showDeliveryForm={showDeliveryForm}
+      setShowDeliveryForm={setShowDeliveryForm}
+      editingDelivery={editingDelivery}
+      setEditingDelivery={setEditingDelivery}
+      showPatientForm={showPatientForm}
+      setShowPatientForm={setShowPatientForm}
+      editingPatient={editingPatient}
+      setEditingPatient={setEditingPatient}
+      patientFormCallback={patientFormCallback}
+      setPatientFormCallback={setPatientFormCallback}
+      patientFormMode={patientFormMode}
+      setPatientFormMode={setPatientFormMode}
+      showOptimizationSettings={showOptimizationSettings}
+      setShowOptimizationSettings={setShowOptimizationSettings}
+      showQuickAdjustments={showQuickAdjustments}
+      setShowQuickAdjustments={setShowQuickAdjustments}
+      showSmartPrioritization={showSmartPrioritization}
+      setShowSmartPrioritization={setShowSmartPrioritization}
+      handleSaveDelivery={handleSaveDelivery}
+      handleSavePatient={handleSavePatient}
+      handleEditDelivery={handleEditDelivery}
+      handleEditPatient={handleEditPatient}
+      handleDeleteDelivery={handleDeleteDelivery}
+      handleRestartDelivery={handleRestartDelivery}
+      handleStatusUpdate={handleStatusUpdate}
+      handleNotesUpdate={handleNotesUpdate}
+      handleCODUpdate={handleCODUpdate}
+      handleCreateReturn={handleCreateReturn}
+      handleStartDelivery={handleStartDelivery}
+      handleCreatePatientFromDelivery={handleCreatePatientFromDelivery}
+      handleQuickReorder={handleQuickReorder}
+      handleAddDelay={handleAddDelay}
+      handleAcceptAIOptimization={undefined}
+      showRouteSummary={showRouteSummary}
+      setShowRouteSummary={setShowRouteSummary}
+      summaryDriver={summaryDriver}
+      setSummaryDriver={setSummaryDriver}
+      showEndOfDayStats={showEndOfDayStats}
+      setShowEndOfDayStats={setShowEndOfDayStats}
+      endOfDayDriver={endOfDayDriver}
+      setEndOfDayDriver={setEndOfDayDriver}
+      routeNotification={routeNotification}
+      setRouteNotification={setRouteNotification}
+      isSnapshotModeActive={isSnapshotModeActive}
+      setIsSnapshotModeActive={setIsSnapshotModeActive}
+      snapshotData={snapshotData}
+      setSnapshotData={setSnapshotData}
+      performanceStats={performanceStats}
+      deliveryStats={deliveryStats}
+      liveDistance={liveDistance}
+      liveTimeOnDuty={liveTimeOnDuty}
+      isLoadingPayrollStats={isLoadingPayrollStats}
+      dailyPolylineCount={dailyPolylineCount}
+      isAIEnabled={isAIEnabled}
+      showAIAssistant={showAIAssistant}
+      realTimeETAEnabled={realTimeETAEnabled}
+      refreshUser={refreshUser}
+      refreshData={refreshData}
+      dataSource={dataSource}
+    />
+  );
 
 }
 

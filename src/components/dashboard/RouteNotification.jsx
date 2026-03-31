@@ -3,10 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Navigation, AlertTriangle, CheckCircle, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function RouteNotification({ notification, onDismiss, onNavigate, isOptimizing = false }) {
-  // Visual notifier globally disabled
+export default function RouteNotification() {
   return null;
-  const [isVisible, setIsVisible] = useState(false);
   
   useEffect(() => {
     // Don't show notifications while route optimization is in progress

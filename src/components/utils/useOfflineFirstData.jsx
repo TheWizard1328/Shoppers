@@ -151,23 +151,6 @@ export const useOfflineFirstData = (entityName, query = {}, onlineDataFetcher) =
 /**
  * Helper hook to wrap multiple entity loads with offline-first strategy
  */
-export const useOfflineFirstEntities = (entityConfigs) => {
-  const results = {};
-  const [isLoadingAny, setIsLoadingAny] = useState(true);
-
-  const loaders = Object.entries(entityConfigs).map(([key, config]) => {
-    const result = useOfflineFirstData(config.name, config.query, config.fetcher);
-    results[key] = result;
-    return result;
-  });
-
-  useEffect(() => {
-    const allLoading = loaders.some(r => r.isLoading);
-    setIsLoadingAny(allLoading);
-  }, [loaders]);
-
-  return {
-    ...results,
-    isLoadingAny
-  };
-};
+export const useOfflineFirstEntities = () => ({
+  isLoadingAny: false
+});
