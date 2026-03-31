@@ -29,7 +29,7 @@ export default function DriverSettings() {
   // Default to user's assigned city if not set
   useEffect(() => {
     if (currentUser && (!selectedCityId || selectedCityId === 'waiting-for-selection')) {
-      const userCity = currentUser.city_id || (Array.isArray(currentUser.city_ids) && currentUser.city_ids[0]);
+      const userCity = currentUser.city_id || Array.isArray(currentUser.city_ids) && currentUser.city_ids[0];
       if (userCity) {
         globalFilters.setSelectedCityId(userCity);
       }
@@ -58,7 +58,7 @@ export default function DriverSettings() {
 
     // Fetch immediately on mount
     fetchFreshData();
-    
+
     // Only refresh on manual action or long intervals to avoid rate limits
     const interval = setInterval(fetchFreshData, 60000); // Refresh every 60 seconds max
     return () => clearInterval(interval);
@@ -86,15 +86,15 @@ export default function DriverSettings() {
   // Filter drivers based on search and city
   const filteredDrivers = useMemo(() => {
     let result = drivers;
-    
+
     // Filter by city
     if (selectedCityId && selectedCityId !== 'waiting-for-selection') {
       result = result.filter((driver) => {
-        const cityIds = Array.isArray(driver.city_ids) ? driver.city_ids : (driver.city_id ? [driver.city_id] : []);
+        const cityIds = Array.isArray(driver.city_ids) ? driver.city_ids : driver.city_id ? [driver.city_id] : [];
         return cityIds.includes(selectedCityId);
       });
     }
-    
+
     // Filter by search query
     if (!searchQuery.trim()) return result;
     const query = searchQuery.toLowerCase();
@@ -161,7 +161,7 @@ export default function DriverSettings() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto h-full overflow-y-auto">
+    <div className="p-6 max-w-auto mx-auto h-full overflow-y-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-3" style={{ color: 'var(--text-slate-900)' }}>
           <SmartRefreshIndicator inline={true} />
@@ -172,7 +172,7 @@ export default function DriverSettings() {
       </div>
 
       {/* Search and City Selector */}
-      <div className="mb-4 flex flex-col sm:flex-row gap-3 sm:items-center">
+      <div className="mb-4 flex gap-3 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
@@ -181,11 +181,11 @@ export default function DriverSettings() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10" />
         </div>
-        {sortedCities.length > 0 && (
-          <Select 
-            value={selectedCityId} 
-            onValueChange={(cityId) => globalFilters.setSelectedCityId(cityId)}
-          >
+        {sortedCities.length > 0 &&
+        <Select
+          value={selectedCityId}
+          onValueChange={(cityId) => globalFilters.setSelectedCityId(cityId)}>
+          
             <SelectTrigger className="w-[150px] h-10" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
@@ -193,14 +193,14 @@ export default function DriverSettings() {
               </div>
             </SelectTrigger>
             <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              {sortedCities.map(city => (
-                <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+              {sortedCities.map((city) =>
+            <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                   {city.name}
                 </SelectItem>
-              ))}
+            )}
             </SelectContent>
           </Select>
-        )}
+        }
       </div>
 
       {/* Driver Count */}
@@ -208,11 +208,8 @@ export default function DriverSettings() {
         {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} found
       </div>
 
-      {/* Drivers List */}
-      <div
-        className="grid gap-3 items-stretch"
-        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))' }}
-      >
+      {/* Drivers List - 2 per row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {filteredDrivers.length === 0 ?
         <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="py-8 text-center" style={{ color: 'var(--text-slate-500)' }}>
@@ -226,7 +223,7 @@ export default function DriverSettings() {
           const dutyStatus = getDriverDutyStatus(driver);
 
           return (
-            <Card key={driver.id} className="hover:shadow-md transition-shadow min-h-[210px] h-full min-w-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card key={driver.id} className="hover:shadow-md transition-shadow min-h-[210px] h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-4 h-full">
                   <div className="flex items-start gap-4 h-full">
                     {/* Avatar */}
@@ -255,35 +252,35 @@ export default function DriverSettings() {
                           {dutyStatus.label}
                         </Badge>
                         {latestAppUser?.location_updated_at && dutyStatus.label !== 'Off Duty' && (() => {
-                          const updatedAt = new Date(latestAppUser.location_updated_at);
-                          const diffMs = Date.now() - updatedAt.getTime();
-                          const diffMins = Math.floor(diffMs / 60000);
-                          const isRecent = diffMins < 5;
-                          const gpsLabel = diffMins < 1 ? '<1m' : diffMins > 60 ? `>${Math.floor(diffMins / 60)}h` : `${diffMins}m`;
-                          return (
-                            <Badge className={`text-xs gap-1 ${isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                        const updatedAt = new Date(latestAppUser.location_updated_at);
+                        const diffMs = Date.now() - updatedAt.getTime();
+                        const diffMins = Math.floor(diffMs / 60000);
+                        const isRecent = diffMins < 5;
+                        const gpsLabel = diffMins < 1 ? '<1m' : diffMins > 60 ? `>${Math.floor(diffMins / 60)}h` : `${diffMins}m`;
+                        return (
+                          <Badge className={`text-xs gap-1 ${isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
                               <Navigation className="w-3 h-3" />
                               GPS: {gpsLabel}
-                            </Badge>
-                          );
-                        })()}
+                            </Badge>);
+
+                      })()}
                       </div>
                       
                       <div className="flex flex-col gap-1 mt-1 text-sm" style={{ color: 'var(--text-slate-600)' }}>
                         {driver.phone &&
-                          <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1">
                             <Phone className="w-3.5 h-3.5" />
                             <a href={`tel:${driver.phone}`} className="hover:opacity-80">
                               {formatPhoneNumber(driver.phone)}
                             </a>
                           </div>
-                        }
+                      }
                         {driver.email &&
-                          <div className="flex items-center gap-1 truncate">
+                      <div className="flex items-center gap-1 truncate">
                             <User className="w-3.5 h-3.5 flex-shrink-0" />
                             <span className="truncate text-xs">{driver.email}</span>
                           </div>
-                        }
+                      }
                       </div>
                       
                       {/* Pay rates display */}
@@ -354,8 +351,8 @@ export default function DriverSettings() {
             onSave={async (updates) => {
               await handleSaveDriver(editingDriver.id, updates);
             }}
-            onCancel={() => setEditingDriver(null)} />
-        );
+            onCancel={() => setEditingDriver(null)} />);
+
       })()
       }
     </div>);
