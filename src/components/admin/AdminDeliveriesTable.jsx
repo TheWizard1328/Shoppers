@@ -99,7 +99,7 @@ export default function AdminDeliveriesTable(props) {
   const isSomeSelected = selectedDeliveries.size > 0 && selectedDeliveries.size < displayDeliveries.length;
 
   return (
-    <Card className="h-full min-h-0 rounded-xl border bg-card text-card-foreground shadow">
+    <Card className="h-auto min-h-0 rounded-xl border bg-card text-card-foreground shadow">
       <CardHeader className="px-6 py-1 flex flex-col space-y-1.5">
         <CardTitle className="flex items-center justify-between">
           <span>Deliveries</span>
@@ -121,7 +121,7 @@ export default function AdminDeliveriesTable(props) {
           <Input placeholder="Filter by name, address, SID, TR#, or status..." value={filterText} onChange={(e) => onFilterChange(e.target.value)} className="flex-1 min-w-[200px]" disabled={isLoadingData} />
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}><Checkbox id="show-most-recent" checked={showMostRecentOnly} onCheckedChange={setShowMostRecentOnly} disabled={isCodFilterActive} /><label htmlFor="show-most-recent" className="text-sm font-medium cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>{isCodFilterActive ? 'Most Recent Date Only (off for COD filters)' : 'Most Recent Date Only'}</label></div>
         </div>
-        <div className="border rounded-md overflow-auto" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
           <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
             <table className="w-full text-sm table-fixed">
               <thead className="border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
