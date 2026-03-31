@@ -168,7 +168,7 @@ const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = n
     const rounded = (n) => Number(n.toFixed(5));
     const recs = await base44.entities.DriverRoutePolyline.filter({
       driver_id: driverId,
-      delivery_date: deliveryDate,
+      delivery_date,
       segment_origin_lat: rounded(startLat),
       segment_origin_lon: rounded(startLon),
       segment_dest_lat: rounded(endLat),
@@ -204,7 +204,7 @@ const savePolyline = async ({
     const rounded = (n) => Number(n.toFixed(5));
     const exists = await base44.entities.DriverRoutePolyline.filter({
       driver_id: driverId,
-      delivery_date: deliveryDate,
+      delivery_date,
       segment_origin_lat: rounded(startLat),
       segment_origin_lon: rounded(startLon),
       segment_dest_lat: rounded(endLat),

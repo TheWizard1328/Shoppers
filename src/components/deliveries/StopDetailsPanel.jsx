@@ -84,6 +84,15 @@ export default function StopDetailsPanel({
     delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
   );
 
+  if (!delivery) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-6 text-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <Package className="w-16 h-16 mb-4 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
+        <p className="text-lg font-medium" style={{ color: 'var(--text-slate-500)' }}>Select a stop to view details</p>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-slate-400)' }}>Click on a stop card to see patient and delivery information</p>
+      </div>
+    );
+  }
 
   const handleSignatureSave = async (blob) => {
     try {
@@ -296,16 +305,6 @@ export default function StopDetailsPanel({
       }
     }
   };
-
-  if (!delivery) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center p-6 text-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Package className="w-16 h-16 mb-4 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
-        <p className="text-lg font-medium" style={{ color: 'var(--text-slate-500)' }}>Select a stop to view details</p>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-slate-400)' }}>Click on a stop card to see patient and delivery information</p>
-      </div>
-    );
-  }
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>

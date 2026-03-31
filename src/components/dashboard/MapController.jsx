@@ -98,24 +98,22 @@ export default function MapController({
       }
       
       const bounds = mapInstance.getBounds();
-      setVisibleBounds?.(bounds);
+      setVisibleBounds(bounds);
     },
     moveend: () => {
       if ((window._suppressAutoCenterUntil || 0) > Date.now()) { return; }
       const center = mapInstance.getCenter();
       const newCenter = [center.lat, center.lng];
       
-      if (typeof setMapCenter === 'function') {
-        setMapCenter(prev => {
-          if (!prev || prev[0] !== newCenter[0] || prev[1] !== newCenter[1]) {
-            return newCenter;
-          }
-          return prev;
-        });
-      }
+      setMapCenter(prev => {
+        if (!prev || prev[0] !== newCenter[0] || prev[1] !== newCenter[1]) {
+          return newCenter;
+        }
+        return prev;
+      });
       
       const bounds = mapInstance.getBounds();
-      setVisibleBounds?.(bounds);
+      setVisibleBounds(bounds);
     },
     click: () => {
       setFannedLocationKey(null);

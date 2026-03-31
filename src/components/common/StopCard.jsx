@@ -1,5 +1,4 @@
-import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
-import { motion } from 'framer-motion';
+import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';import { motion } from 'framer-motion';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -151,17 +150,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
   const { displayName, displayAddress, displayPhone, shouldRedact, finalDisplayName, finalDisplayAddress, finalDisplayPhone } = useDeliveryDisplayInfo({ delivery, patient, store, currentUser, isPickup, isInterStore, isInterStorePickup, isStrippedDelivery, isStrippedForDispatcher });
   const shouldDisableRetryReturn = useMemo(() => false, []);
-  const resetActionLocks = React.useCallback((skipCardScroll = true) => {
-    startTapLockRef.current = false;
-    setIsStarting(false);
-    setIsCompleting(false);
-    setIsFailing(false);
-    setIsRetrying(false);
-    setIsRestarting(false);
-    setIsProcessingBackground(false);
-    setIsEntityUpdating(false);
-    fabControlEvents.reactivateFAB(skipCardScroll);
-  }, [setIsEntityUpdating]);
   const { hasFutureRetry, hasFutureReturn, hasCompletedDelivery } = useMemo(() => {
     if (delivery.status !== 'failed' || isPickup || !patient) return { hasFutureRetry: false, hasFutureReturn: false, hasCompletedDelivery: false };
     const failedDate = startOfDay(new Date(delivery.delivery_date));
@@ -210,6 +198,17 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const handleRemoveCODPayment = (index) => {const newPayments = codPayments.filter((_, i) => i !== index);setCodPayments(newPayments);};
   const handleSaveCODPayments = async () => {if (onCODUpdate) {try {await onCODUpdate(delivery.id, codPayments, true);setShowCODCollection(false);} catch (error) {console.error('❌ [COD Save] Failed:', error);alert(`Failed to save COD: ${error.message}`);}}};
   const collapseAndCenterNextDelivery = async (args) => {if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('collapseAllStopCards'));return await setAndCenterNextDelivery(args);};
+  const resetActionLocks = React.useCallback((skipCardScroll = true) => {
+    startTapLockRef.current = false;
+    setIsStarting(false);
+    setIsCompleting(false);
+    setIsFailing(false);
+    setIsRetrying(false);
+    setIsRestarting(false);
+    setIsProcessingBackground(false);
+    setIsEntityUpdating(false);
+    fabControlEvents.reactivateFAB(skipCardScroll);
+  }, [setIsEntityUpdating]);
   const handleStartAction = async (e) => {
     e?.preventDefault?.();e?.stopPropagation?.();if (startTapLockRef.current || isStarting || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting) return;
     startTapLockRef.current = true;setIsStarting(true);setIsEntityUpdating(true);setIsProcessingBackground(true);fabControlEvents.deactivateFAB();const { driverLocationPoller } = await import('../utils/driverLocationPoller');driverLocationPoller.pause();smartRefreshManager.pause();
