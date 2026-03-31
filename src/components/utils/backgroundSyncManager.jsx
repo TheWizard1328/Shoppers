@@ -32,10 +32,10 @@ class BackgroundSyncManager {
     // Default configuration
     this.config = {
       enabled: true,
-      syncInterval: 10 * 60 * 1000, // 10 minutes (reduce daytime pressure)
+      syncInterval: 30 * 60 * 1000, // 30 minutes
       historicalDaysToSync: 90, // Sync past 90 days
       batchSize: 50, // Number of records per batch
-      maxAPICallsPerCycle: 10, // Limit API calls per sync cycle
+      maxAPICallsPerCycle: 2, // Very small limit to avoid 429s
       // New: control historical sync behavior
       deferHistoricalOnLoad: true, // Do NOT run historical sync immediately on app load
       historicalDeferMinutes: 15,   // Wait 15 minutes after load before allowing historical sync
@@ -306,37 +306,8 @@ class BackgroundSyncManager {
   async syncPatients() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
-    // Daytime throttle: only run patient sync during off-peak windows
-    if (!this.isOffPeakNow()) {
-      console.log('\u23f0 [BackgroundSync] Skipping patient sync (daytime)');
-      return;
-    }
-
-    try {
-      // Get patients updated in the last 7 days
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const sevenDaysAgoISO = sevenDaysAgo.toISOString();
-
-      const recentPatients = await base44.entities.Patient.filter({
-        updated_date: { $gte: sevenDaysAgoISO }
-      });
-
-      if (recentPatients && recentPatients.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, recentPatients);
-        console.log(`✅ [BackgroundSync] Synced ${recentPatients.length} recently updated patients`);
-        this.notifySubscribers({ type: 'patients_synced', count: recentPatients.length });
-      }
-
-      this.currentCycleAPICalls++;
-      this.lastSyncTimes.patients = new Date().toISOString();
-    } catch (error) {
-      if (error.response?.status === 429 || error.message?.includes('429')) {
-        console.log('⏰ [BackgroundSync] Rate limited - skipping patient sync');
-        return;
-      }
-      console.warn('⚠️ [BackgroundSync] Patient sync failed:', error.message);
-    }
+    console.log('⏭️ [BackgroundSync] Patient API sync disabled to avoid 429s');
+    return;
   }
 
   /**
@@ -345,30 +316,8 @@ class BackgroundSyncManager {
   async syncAppUsers() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
-    // Daytime throttle: only run appUsers sync during off-peak windows
-    if (!this.isOffPeakNow()) {
-      console.log('\u23f0 [BackgroundSync] Skipping appUsers sync (daytime)');
-      return;
-    }
-
-    try {
-      const appUsers = await base44.entities.AppUser.list();
-      
-      if (appUsers && appUsers.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
-        console.log(`✅ [BackgroundSync] Synced ${appUsers.length} app users`);
-        this.notifySubscribers({ type: 'appUsers_synced', count: appUsers.length });
-      }
-
-      this.currentCycleAPICalls++;
-      this.lastSyncTimes.appUsers = new Date().toISOString();
-    } catch (error) {
-      if (error.response?.status === 429 || error.message?.includes('429')) {
-        console.log('⏰ [BackgroundSync] Rate limited - skipping appUsers sync');
-        return;
-      }
-      console.warn('⚠️ [BackgroundSync] AppUser sync failed:', error.message);
-    }
+    console.log('⏭️ [BackgroundSync] AppUser API sync disabled to avoid 429s');
+    return;
   }
 
   /**

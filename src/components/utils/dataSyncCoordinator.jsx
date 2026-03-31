@@ -12,7 +12,7 @@ import { Patient } from '@/entities/Patient';
 import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 
-const CACHE_TTL = 10000; // 10 seconds - short cache to avoid stale data
+const CACHE_TTL = 600000; // 10 minutes
 
 // Cache for deduplication
 let dataCache = new Map();
@@ -20,13 +20,13 @@ let pendingRequests = new Map();
 
 const SYNC_STRATEGIES = {
   // FULL SYNC: Always fetch all records (smaller datasets, less frequent)
-  AppUser: { strategy: 'full', ttl: 30000 },
-  City: { strategy: 'full', ttl: 30000 },
-  Store: { strategy: 'full', ttl: 30000 },
+  AppUser: { strategy: 'full', ttl: 600000 },
+  City: { strategy: 'full', ttl: 600000 },
+  Store: { strategy: 'full', ttl: 600000 },
   
   // INCREMENTAL: Only fetch updated records (large datasets)
-  Patient: { strategy: 'incremental', ttl: 60000 },
-  Delivery: { strategy: 'incremental', ttl: 20000 }
+  Patient: { strategy: 'incremental', ttl: 600000 },
+  Delivery: { strategy: 'incremental', ttl: 600000 }
 };
 
 /**

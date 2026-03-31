@@ -551,10 +551,8 @@ class LightweightRefreshManager {
         return { hasChanges: false, appUsers: currentAppUsers };
       }
 
-      console.log('📍 [SmartRefresh] Refreshing driver locations (fallback poll)...');
-      await this.waitForRateLimit();
-      
-      const freshAppUsers = await base44.entities.AppUser.list();
+      console.log('📍 [SmartRefresh] Skipping fallback AppUser API poll - using offline/WebSocket data only');
+      return { hasChanges: false, appUsers: currentAppUsers };
       
       // Success → reset backoff and schedule next fallback at 1 minute
       this.recordSuccess();
@@ -692,7 +690,7 @@ class LightweightRefreshManager {
       // Runs at most every 2 minutes to avoid rate limits
       const now = Date.now();
       const timeSinceLastReconcile = now - (this._lastReconcileTime || 0);
-      if (timeSinceLastReconcile > 120000 && filters.deliveryFilter?.delivery_date) {
+      if (timeSinceLastReconcile > 600000 && filters.deliveryFilter?.delivery_date) {
         const selectedDate = filters.deliveryFilter.delivery_date;
         console.log(`🔍 [SmartRefresh] Running quick reconcile for ${selectedDate}...`);
         try {
@@ -766,14 +764,12 @@ class LightweightRefreshManager {
     try {
       console.log('🗺️ [SmartRefresh] Updating polylines with fresh driver coordinates...');
       
-      // Get fresh AppUser data for all on-duty drivers
-      const freshAppUsers = await queueEntityRequest(
-        () => base44.entities.AppUser.list(),
-        'AppUser list for polylines'
-      );
+      // Use offline DB only to avoid AppUser rate-limit polling
+      const { offlineDB } = await import('./offlineDatabase');
+      const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
       
       if (!freshAppUsers || freshAppUsers.length === 0) {
-        console.warn('⚠️ [SmartRefresh] No drivers found for polyline update');
+        console.warn('⚠️ [SmartRefresh] No offline AppUsers found for polyline update');
         return null;
       }
 
