@@ -64,10 +64,12 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
         const dispatcherStoreIds = isDispatcher ? new Set(currentUser.store_ids || []) : null;
 
-        // Filter deliveries for today and month, scoped to dispatcher's stores if applicable
+        // Filter deliveries for today and month, scoped to city/store only for legend stats.
+        // Driver filter is intentionally ignored for admins/dispatchers so the legend always shows aggregated data.
         const filterByStore = (d) => {if (!d) return false;if (dispatcherStoreIds) return dispatcherStoreIds.has(d.store_id);if (Array.isArray(storeIds) && storeIds.length > 0) return storeIds.includes(d.store_id);return true;};
-        const todayDeliveries = allDeliveries.filter((d) => d?.delivery_date === selectedDateStr && filterByStore(d) && (selectedDriverId === 'all' || d?.driver_id === selectedDriverId) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
-        const monthDeliveries = allDeliveries.filter((d) => d?.delivery_date?.startsWith(monthStr) && filterByStore(d) && (selectedDriverId === 'all' || d?.driver_id === selectedDriverId) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || d?.driver_id === currentUser.id));
+        const shouldRestrictToCurrentDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
+        const todayDeliveries = allDeliveries.filter((d) => d?.delivery_date === selectedDateStr && filterByStore(d) && (!shouldRestrictToCurrentDriver || d?.driver_id === currentUser.id));
+        const monthDeliveries = allDeliveries.filter((d) => d?.delivery_date?.startsWith(monthStr) && filterByStore(d) && (!shouldRestrictToCurrentDriver || d?.driver_id === currentUser.id));
 
         // Calculate today's stats
         const todayPatientDeliveries = todayDeliveries.filter((d) => d && d.patient_id);

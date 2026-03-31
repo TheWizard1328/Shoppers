@@ -432,32 +432,45 @@ export const loadDeliveries = async (
   onInitialLoadComplete = () => {},
   onFullMonthLoadComplete = () => {}
 ) => {
-  
+  let initialDeliveries = [];
+
   if (!forceRefresh) {
     try {
       const offlineDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
-      
+
       if (offlineDeliveries && offlineDeliveries.length > 0) {
+        initialDeliveries = offlineDeliveries;
         setTimeout(() => {
           onInitialLoadComplete(offlineDeliveries);
         }, 0);
-        
-        return offlineDeliveries;
       }
     } catch (err) {}
   }
-  
-  const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
-  
-  setTimeout(() => {
-    onInitialLoadComplete(selectedDateDeliveries);
-  }, 0);
-  
+
+  const shouldRefreshSelectedDate = forceRefresh || initialDeliveries.length === 0;
+
+  if (shouldRefreshSelectedDate) {
+    const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
+    initialDeliveries = selectedDateDeliveries;
+
+    setTimeout(() => {
+      onInitialLoadComplete(selectedDateDeliveries);
+    }, 0);
+  } else {
+    loadDeliveriesForDate(selectedDateStr, priorityFilters, true)
+      .then((freshDeliveries) => {
+        if (freshDeliveries && freshDeliveries.length > 0) {
+          onInitialLoadComplete(freshDeliveries);
+        }
+      })
+      .catch(() => {});
+  }
+
   loadFullMonthDeliveries(backgroundFilters, false)
     .then(onFullMonthLoadComplete)
-    .catch(err => {});
+    .catch(() => {});
 
-  return selectedDateDeliveries;
+  return initialDeliveries;
 };
 
 /**
