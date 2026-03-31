@@ -188,11 +188,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    const refreshedPickups = await base44.asServiceRole.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    }, 'stop_order', 50000);
-
     await base44.functions.invoke('recalculateTrackingNumbers', {
       driverId,
       deliveryDate
@@ -200,6 +195,11 @@ Deno.serve(async (req) => {
       if (!isNotFoundError(error)) throw error;
       return null;
     });
+
+    const refreshedPickups = await base44.asServiceRole.entities.Delivery.filter({
+      driver_id: driverId,
+      delivery_date: deliveryDate
+    }, 'stop_order', 50000);
 
     return Response.json({
       success: true,

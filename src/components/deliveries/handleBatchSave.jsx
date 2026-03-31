@@ -131,6 +131,7 @@ export async function handleBatchSave({
       const pickupRecordsFromStage = deliveriesReadyForDB
         .filter((delivery) => !delivery?.patient_id)
         .map((delivery) => ({ ...delivery, status: 'en_route' }));
+      let creatorFlowEnsuredPickups = [];
       const patientDeliveriesReadyForDB = deliveriesReadyForDB.filter((delivery) => !!delivery?.patient_id);
 
       let ensuredPickupRecords = pickupRecordsFromStage;
@@ -166,23 +167,27 @@ export async function handleBatchSave({
           return null;
         });
         console.log('[AddToRoute] ensureDefaultPickupsForDriver result', defaultPickupResponse?.data || defaultPickupResponse || null);
+        const normalizedEnsuredPickups = [...(defaultPickupResponse?.data?.pickups || []), ...(defaultPickupResponse?.pickups || [])]
+          .filter((pickup) => pickup?.id || pickup?.stop_id)
+          .map((pickup) => {
+            const normalizedPickup = {
+              ...pickup,
+              patient_id: null,
+              store_id: pickup?.store_id || pickup?.pickup_store_id || '',
+              driver_id: pickup?.driver_id || routeDriverId,
+              delivery_date: pickup?.delivery_date || routeDeliveryDate,
+              ampm_deliveries: pickup?.ampm_deliveries || 'AM',
+              stop_id: pickup?.stop_id || pickup?.puid || pickup?.id || '',
+              puid: pickup?.stop_id || pickup?.puid || pickup?.id || null
+            };
+            return normalizedPickup;
+          });
         ensuredPickupRecords = Array.from(new Map(
-          [...(defaultPickupResponse?.data?.pickups || []), ...(defaultPickupResponse?.pickups || []), ...pickupRecordsFromStage]
+          [...normalizedEnsuredPickups, ...pickupRecordsFromStage]
             .filter((pickup) => pickup?.id || pickup?.stop_id)
-            .map((pickup) => {
-              const normalizedPickup = {
-                ...pickup,
-                patient_id: null,
-                store_id: pickup?.store_id || pickup?.pickup_store_id || '',
-                driver_id: pickup?.driver_id || routeDriverId,
-                delivery_date: pickup?.delivery_date || routeDeliveryDate,
-                ampm_deliveries: pickup?.ampm_deliveries || 'AM',
-                stop_id: pickup?.stop_id || pickup?.puid || pickup?.id || '',
-                puid: pickup?.stop_id || pickup?.puid || pickup?.id || null
-              };
-              return [normalizedPickup.id || normalizedPickup.stop_id, normalizedPickup];
-            })
+            .map((pickup) => [pickup.id || pickup.stop_id, pickup])
         ).values());
+        creatorFlowEnsuredPickups = normalizedEnsuredPickups;
         const ensuredPickupByKey = new Map(
           ensuredPickupRecords
             .filter((pickup) => pickup && !pickup.patient_id)
@@ -224,6 +229,17 @@ export async function handleBatchSave({
       }
 
       await onSave({ _isBatchSave: true, _stagedDeliveries: stagedDeliveriesWithResolvedIds, _ensuredPickups: ensuredPickupRecords });
+      if (creatorFlowEnsuredPickups.length > 0) {
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            immediate: true,
+            freshDeliveries: creatorFlowEnsuredPickups,
+            deliveryDate: routeDeliveryDate,
+            driverId: routeDriverId,
+            triggeredBy: 'ensureDefaultPickupsForDriver'
+          }
+        }));
+      }
     }
 
     resetBatchSaveDraftState({
