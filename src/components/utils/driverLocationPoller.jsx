@@ -19,7 +19,6 @@ class DriverLocationPoller {
    */
   pause() {
     this.isPaused = true;
-    console.log('⏸️ [DriverLocationPoller] Paused');
   }
 
   /**
@@ -27,7 +26,6 @@ class DriverLocationPoller {
    */
   resume() {
     this.isPaused = false;
-    console.log('▶️ [DriverLocationPoller] Resumed');
   }
 
   /**
@@ -37,7 +35,6 @@ class DriverLocationPoller {
    */
   start(requestDataRefresh, currentUser) {
     if (this.isPolling) {
-      console.log('⏭️ [DriverLocationPoller] Already initialized');
       return;
     }
 
@@ -49,7 +46,6 @@ class DriverLocationPoller {
   stop() {
     this.isPolling = false;
     this.lastLocations.clear();
-    console.log('🛑 [DriverLocationPoller] Stopped');
   }
 
   /**
@@ -69,19 +65,11 @@ class DriverLocationPoller {
   async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false, currentPageName = null, showAllDrivers = false) {
    // Skip processing if paused (e.g., during imports)
    if (this.isPaused) {
-     console.log(`⏸️ [DriverLocationPoller] Paused - skipping location processing`);
      return;
    }
 
-   // CRITICAL: Debug - log deliveries being passed
-   console.log(`📦 [Poller] Deliveries received:`, {
-     count: deliveries?.length || 0,
-     sample: deliveries?.slice(0, 3).map(d => ({ id: d?.id, driver_id: d?.driver_id, store_id: d?.store_id, status: d?.status, delivery_date: d?.delivery_date }))
-   });
-
    // CRITICAL: Validate appUsers FIRST before any other checks
    if (!appUsers || !Array.isArray(appUsers) || appUsers.length === 0) {
-     console.warn('⚠️ [DriverLocationPoller] No appUsers data provided - skipping location processing');
      // Still notify with empty array to clear stale markers
      this.notifySubscribers([]);
      return;
@@ -90,27 +78,12 @@ class DriverLocationPoller {
    // CRITICAL: Only skip automatic location processing when not on Dashboard.
    // Do NOT clear markers just because the selected date isn't today, otherwise preloaded data disappears.
    if (!forceNotify && currentPageName && currentPageName !== 'Dashboard') {
-     console.log(`⏭️ [DriverLocationPoller] Not on Dashboard - clearing driver markers (page: ${currentPageName})`);
      this.notifySubscribers([]);
      return;
    }
 
-   console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} driver locations (forceNotify: ${forceNotify}, currentPage: ${currentPageName})`);
-   console.log(`🔍 [DriverLocationPoller] appUsers input:`, appUsers?.map(u => ({
-     id: u?.id,
-     user_id: u?.user_id,
-     user_name: u?.user_name,
-     has_coords: !!(u?.current_latitude && u?.current_longitude),
-     lat: u?.current_latitude?.toFixed(6),
-     lng: u?.current_longitude?.toFixed(6),
-     timestamp: u?.location_updated_at,
-     driver_status: u?.driver_status,
-     location_tracking_enabled: u?.location_tracking_enabled
-   })));
-
    // Count drivers with coordinates
    const driversWithCoords = appUsers.filter(u => u && u.current_latitude && u.current_longitude).length;
-   console.log(`📊 [DriverLocationPoller] Input: ${driversWithCoords}/${appUsers.length} drivers have coordinates`);
 
    // REMOVED: Stale coordinate cleanup was wiping ALL AppUser coordinates on every poll
    // because the offline DB contains thousands of non-driver AppUser records with no timestamps.
@@ -167,8 +140,6 @@ class DriverLocationPoller {
     const now = Date.now();
     const maxStaleTime = 5 * 60 * 1000; // 5 minutes - hide marker if no updates
     
-    console.log(`🔍 [Poller] Processing ${users.length} users (no deduplication - from real-time stream)`);
-    
     // Filter to only users with valid coordinates
     users = users.filter(user => {
       if (!user.current_latitude || !user.current_longitude) {
@@ -176,8 +147,6 @@ class DriverLocationPoller {
       }
       return true;
     });
-    
-    console.log(`✅ [Poller] After coordinate filter: ${users.length} users with valid coordinates`);
     
     // CRITICAL: Calculate staleness for each user (for visual indicators later)
     const currentTime = Date.now();
@@ -216,7 +185,6 @@ class DriverLocationPoller {
 
     // CRITICAL: Log if user is AppOwner for debugging
      const isUserAppOwner = isAppOwner(this.currentUser);
-     console.log(`🔑 [Poller] Current user isAppOwner: ${isUserAppOwner}, role: ${this.currentUser?.role}, app_roles: ${this.currentUser?.app_roles?.join(', ')}`);
 
      // CRITICAL: Filter drivers based on NEW visibility rules
      const activeDriversWithLocation = users.filter(user => {
@@ -230,24 +198,8 @@ class DriverLocationPoller {
                         user.id === currentUserUserId ||
                         user.user_id === currentUserUserId;
 
-       // CRITICAL: Check self BEFORE coordinates to enable debugging
-       if (isSelf) {
-         console.log(`🔍 [Poller] SELF MARKER CHECK:`, {
-           userId: user.user_name,
-           hasCoordinates: !!(user.current_latitude && user.current_longitude),
-           current_latitude: user.current_latitude,
-           current_longitude: user.current_longitude,
-           location_updated_at: user.location_updated_at,
-           driver_status: user.driver_status,
-           location_tracking_enabled: user.location_tracking_enabled
-         });
-       }
-
        // Skip if no valid coordinates
        if (!user.current_latitude || !user.current_longitude) {
-         if (isSelf) {
-           console.log(`❌ [Poller] SELF marker BLOCKED - no coordinates in AppUser entity`);
-         }
          return false;
        }
 
@@ -258,14 +210,8 @@ class DriverLocationPoller {
        // ========================================
        if (isSelf) {
          if (isDriver && !isDispatcher && !isAdmin && locationTracker.isTracking === true) {
-           console.log(`⏭️ [Poller] SELF marker BLOCKED - primary device uses live location marker`);
            return false;
          }
-         console.log(`✅ [Poller] Including SELF shared marker`, {
-           userId: user.user_name,
-           driver_status: user.driver_status,
-           isTracking: locationTracker.isTracking === true
-         });
          return true;
        }
 
@@ -275,7 +221,6 @@ class DriverLocationPoller {
        // CRITICAL: Check AppOwner FIRST before any other checks
        if (isUserAppOwner) {
          // AppOwners see ALL drivers with coordinates in their city, no filtering
-         console.log(`✅ [Poller] AppOwner seeing driver ${user.user_name} - city: ${user.city_id}, status: ${user.driver_status}, location_tracking: ${user.location_tracking_enabled}, staleness: ${user._staleness}`);
          return true;
        }
 
@@ -295,7 +240,6 @@ class DriverLocationPoller {
        if (isAdmin && !isAppOwner(this.currentUser)) {
          // Admins require location_tracking_enabled to be true
          if (!user.location_tracking_enabled) return false;
-         console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - location_tracking: enabled, staleness: ${user._staleness}`);
          return true;
        }
 
@@ -305,19 +249,16 @@ class DriverLocationPoller {
        if (isDispatcher && !isDriver) {
          // 1. Driver must be On Duty
          if (user.driver_status !== 'on_duty') {
-           console.log(`❌ [Poller] Dispatcher - driver ${user.user_name} not on_duty (status: ${user.driver_status})`);
            return false;
          }
 
          // CRITICAL: Normalize dispatcher store IDs to strings for consistent comparison
          const rawDispatcherStoreIds = this.currentUser.store_ids || [];
          const dispatcherStoreIds = new Set(rawDispatcherStoreIds.map(id => String(id)));
-         console.log(`🔍 [Poller] Dispatcher stores (normalized): ${JSON.stringify(Array.from(dispatcherStoreIds))}, Driver: ${user.user_name}`);
 
          // All possible IDs for this AppUser
          const userIdForDeliveryMatch = user.id || user.user_id;
          const allDriverIdFormats = [userIdForDeliveryMatch, driverId, user.user_id, user.user_user_id].filter(Boolean);
-         console.log(`🔍 [Poller] Driver ID formats to match: ${JSON.stringify(allDriverIdFormats)}`);
 
          // 2. Driver must have at least 1 en_route OR in_transit delivery from dispatcher's stores (today)
          const matchingDeliveries = (deliveries || []).filter(delivery => {
@@ -331,26 +272,17 @@ class DriverLocationPoller {
            const storeMatch = dispatcherStoreIds.has(deliveryStoreIdStr);
            const statusMatch = delivery.status === 'in_transit' || delivery.status === 'en_route';
 
-           // Log only mismatches for dispatcher stores to catch ID format discrepancies
-           if (driverMatch && dateMatch && !storeMatch) {
-             console.log(`  ⚠️ [Poller] Store ID mismatch: delivery.store_id='${delivery.store_id}' (str:'${deliveryStoreIdStr}') not in dispatcher stores: ${JSON.stringify(Array.from(dispatcherStoreIds))}`);
-           }
-
            return driverMatch && dateMatch && storeMatch && statusMatch;
          });
 
          if (matchingDeliveries.length === 0) {
            const allDriverDeliveries = (deliveries || []).filter(d => d && allDriverIdFormats.some(fmt => d.driver_id === fmt) && d.delivery_date === todayStr);
-           console.log(`❌ [Poller] Dispatcher - driver ${user.user_name} has ${allDriverDeliveries.length} total deliveries today, 0 active (en_route/in_transit) from dispatcher stores`);
            if (allDriverDeliveries.length > 0) {
              // Log store IDs of those deliveries to help debug
              const deliveryStoreIds = [...new Set(allDriverDeliveries.map(d => d.store_id))];
-             console.log(`  ℹ️ [Poller] Driver's delivery store_ids today: ${JSON.stringify(deliveryStoreIds)} vs dispatcher's: ${JSON.stringify(Array.from(dispatcherStoreIds))}`);
            }
            return false;
          }
-
-         console.log(`✅ [Poller] Dispatcher seeing driver ${user.user_name} - on_duty with ${matchingDeliveries.length} active deliveries, staleness: ${user._staleness}`);
          return true;
        }
 
@@ -367,8 +299,6 @@ class DriverLocationPoller {
          if (!user.location_tracking_enabled) {
            return false;
          }
-
-         console.log(`✅ [Poller] Driver seeing other driver ${user.user_name} - location_tracking: enabled, staleness: ${user._staleness}`);
          return true;
        }
 
@@ -384,8 +314,6 @@ class DriverLocationPoller {
       newLocations.set(user.id, locationKey);
     });
 
-    console.log(`✅ [DriverLocationPoller] Filtered to ${activeDriversWithLocation.length} drivers with valid rules`);
-    
     this.lastLocations = newLocations;
     this.notifySubscribers(activeDriversWithLocation, forceNotify);
     }
@@ -397,8 +325,6 @@ class DriverLocationPoller {
       return;
     }
     this._lastNotifyTs = now;
-    console.log(`📡 [Poller] Notifying ${activeDriversWithLocation.length} drivers`);
-    
     const currentUserId = this.currentUser?.id;
     const currentUserUserId = this.currentUser?.user_id;
 
