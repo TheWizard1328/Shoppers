@@ -2991,15 +2991,14 @@ function Dashboard() {
       if (dataSource === 'online') {
         // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
         priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        // Update offline DB in background (don't wait)
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
+        offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, priorityDeliveries).catch(() => {});
       } else {
-        // OFFLINE MODE: Load ALL deliveries for the date from offline DB first; fallback to API
+        // OFFLINE MODE: Always hydrate the full selected date first, never a driver-scoped subset
         priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
         if (!priorityDeliveries || priorityDeliveries.length === 0) {
           priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
+          await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, priorityDeliveries);
         }
       }
 
@@ -3142,15 +3141,14 @@ function Dashboard() {
       if (dataSource === 'online') {
         // ONLINE MODE: Always fetch ALL deliveries for the date; UI filters by driver
         freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        // Update offline DB in background
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+        offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, freshDeliveries).catch(() => {});
       } else {
-        // OFFLINE MODE: Try offline DB first for ALL deliveries on date
+        // OFFLINE MODE: Try offline DB first for the full selected date, never driver-scoped data
         freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
         if (!freshDeliveries || freshDeliveries.length === 0) {
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+          await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, freshDeliveries);
         }
       }
 
