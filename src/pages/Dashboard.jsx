@@ -639,29 +639,7 @@ function Dashboard() {
         // Fall back to smart default based on role and store assignments
         if (!driverToSelect) {
           if (userHasRole(currentUser, 'dispatcher')) {
-            // DISPATCHERS: Auto-select based on drivers with deliveries for their stores on SELECTED date
-            const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-            const dispatcherStoreIds = currentUser.store_ids || [];
-
-            // Get drivers with at least 1 pickup or delivery for dispatcher's stores
-            const driversWithDeliveries = new Set(
-              deliveries?.
-              filter((d) => {
-                if (!d || d.delivery_date !== selectedDateStr) return false;
-                if (!dispatcherStoreIds.includes(d.store_id)) return false;
-                return true; // Include ALL deliveries/pickups, not just active ones
-              }).
-              map((d) => d.driver_id).
-              filter(Boolean)
-            );
-
-            if (driversWithDeliveries.size === 1) {
-              // Only 1 driver with stops - select that driver
-              driverToSelect = Array.from(driversWithDeliveries)[0];
-            } else {
-              // 0 or multiple drivers - select "All Drivers"
-              driverToSelect = 'all';
-            }
+            driverToSelect = 'all';
           } else if (userHasRole(currentUser, 'admin')) {
             // Admins - use saved or default
             driverToSelect = settings.selected_driver_id || 'all';
@@ -2933,13 +2911,9 @@ function Dashboard() {
     else if (isDriverRole && !isAdmin && !isDispatcherRole) {
       selection = driverExists(currentUser.id) ? currentUser.id : 'all';
     }
-    // Dispatcher (admin or not): saved -> default for day -> all
+    // Dispatcher (admin or not): always all drivers on load/refresh
     else if (isDispatcherRole) {
-      if (hasSaved) selection = saved;else
-      {
-        const defId = getDispatcherDefaultDriverId();
-        selection = defId || 'all';
-      }
+      selection = 'all';
     }
     // Admin only (not driver): saved -> all
     else if (isAdmin) {
