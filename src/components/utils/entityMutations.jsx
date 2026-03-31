@@ -697,7 +697,12 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
 
     try {
       // STEP 2: Create on backend (with creator attached)
-      const backendDeliveries = await base44.entities.Delivery.bulkCreate(deliveriesWithCreator);
+      const backendDeliveriesRaw = await base44.entities.Delivery.bulkCreate(deliveriesWithCreator);
+      const backendDeliveries = (backendDeliveriesRaw || []).map((delivery) => (
+        !delivery?.patient_id && delivery?.stop_id
+          ? { ...delivery, puid: delivery.puid || delivery.stop_id }
+          : delivery
+      ));
       console.log(`☁️ [EntityMutations] Backend created ${backendDeliveries.length} deliveries`);
       
       // STEP 3: Replace temps with real in IndexedDB

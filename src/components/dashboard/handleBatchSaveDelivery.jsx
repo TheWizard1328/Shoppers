@@ -418,6 +418,13 @@ export const handleBatchSaveDelivery = async ({
     const combinedCreates = [...newEnsuredPickupsToCreate, ...deliveriesToCreateFiltered];
     const createdDeliveries = combinedCreates.length > 0 ? await batchCreateDeliveriesLocal(combinedCreates) : [];
 
+    if (driverId !== 'unassigned' && deliveryDate) {
+      await base44.functions.invoke('recalculateTrackingNumbers', {
+        driverId,
+        deliveryDate
+      }).catch(() => null);
+    }
+
     createdDeliveries.forEach((delivery) => {
       if (!delivery?.patient_id && delivery?.store_id && delivery?.delivery_date) {
         createdDeliveryMap.set(`pickup__${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || ''}`, delivery);
@@ -450,7 +457,8 @@ export const handleBatchSaveDelivery = async ({
   // Use the locally created/updated deliveries to update UI immediately
   const resolvedEnsuredPickups = (ensuredPickupRecords || []).map((delivery) => {
     const resolved = createdDeliveryMap.get(`pickup__${delivery?.store_id}__${delivery?.delivery_date}__${delivery?.driver_id || ''}__${delivery?.ampm_deliveries || ''}`);
-    return resolved || delivery;
+    const merged = resolved || delivery;
+    return !merged?.patient_id && merged?.stop_id ? { ...merged, puid: merged.puid || merged.stop_id } : merged;
   });
 
   const allProcessedDeliveries = Array.from(new Map([...allCreatedDeliveries, ...createdPickupRecords, ...resolvedEnsuredPickups, ...allUpdatedDeliveries].filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
