@@ -1265,22 +1265,10 @@ function Dashboard() {
         setCalendarMonth(dateObj);
       }
 
-      if (newFilters.selectedDriverId !== undefined) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-        // This subscription handles changes from other components
-      }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
+      if (newFilters.selectedDriverId !== undefined && newFilters.selectedDriverId !== selectedDriverId) {
+        setSelectedDriverId(newFilters.selectedDriverId || 'all');
+      }
+    });return unsubscribe;}, [window.location.search, selectedDate, selectedDriverId]); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else if (event.type === 'ACCEPT_ALL_CLICKED') pulsePhaseOne(500);else if (event.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE' && mapViewPhaseRef.current === 1) pulsePhaseOne(500);else if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else
           if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else
           if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 900;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 900);}, 140);}
@@ -2990,8 +2978,8 @@ function Dashboard() {
 
       priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
-      if (!priorityDeliveries || priorityDeliveries.length === 0 || dataSource === 'online') {
-        priorityDeliveries = await loadDeliveriesForDate(dateStr, {}, dataSource === 'online');
+      if ((!priorityDeliveries || priorityDeliveries.length === 0) && dataSource === 'online') {
+        priorityDeliveries = await loadDeliveriesForDate(dateStr, {}, true);
       }
 
       // STEP 3: Update UI immediately with priority data using flushSync for instant render
@@ -3132,8 +3120,8 @@ function Dashboard() {
 
       freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
-      if (!freshDeliveries || freshDeliveries.length === 0 || dataSource === 'online') {
-        freshDeliveries = await loadDeliveriesForDate(dateStr, {}, dataSource === 'online');
+      if ((!freshDeliveries || freshDeliveries.length === 0) && dataSource === 'online') {
+        freshDeliveries = await loadDeliveriesForDate(dateStr, {}, true);
       }
 
       if (driverChangeRequestIdRef.current !== reqId) return;
