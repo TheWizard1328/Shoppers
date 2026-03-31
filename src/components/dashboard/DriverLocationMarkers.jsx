@@ -231,7 +231,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const driverDeliveries = deliveries?.filter(d => d && allDriverIdFormats.some(fmt => d.driver_id === fmt) && d.delivery_date === selectedDateStr) || [];
         if (driverDeliveries.length > 0) {
           const deliveryStoreIds = [...new Set(driverDeliveries.map(d => String(d.store_id)))];
-          console.log(`❌ [shouldShowMarker] Dispatcher: driver ${user.user_name} has ${driverDeliveries.length} deliveries but no store match. Delivery stores: ${JSON.stringify(deliveryStoreIds)} vs dispatcher stores: ${JSON.stringify(Array.from(dispatcherStoreIds))}`);
         }
       }
 
@@ -272,8 +271,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const handleLocationUpdates = (event) => {
       const { appUsers: updatedAppUsers, singleUpdate, forceAll, fromRealtime } = event.detail || {};
       
-      console.log(`📡 [DriverMarkers] Location update event - ${updatedAppUsers?.length || 0} drivers, fromRealtime: ${fromRealtime}`);
-
       // CRITICAL: Don't show markers for past dates - check immediately
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -281,7 +278,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           ? selectedDate.toISOString().split('T')[0]
           : selectedDate;
         if (selectedDateStr < todayStr) {
-          console.log('⏭️ [DriverMarkers] Past date - skipping marker update');
           return;
         }
       }
@@ -290,12 +286,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       if (singleUpdate && updatedAppUsers && updatedAppUsers.length === 1) {
         const user = normalizeDriverRecord(updatedAppUsers[0]);
         const userKey = getDriverIdentityKey(user);
-        console.log(`🔔 [DriverMarkers] Single update - ${user.user_name}, coords: ${user.current_latitude}, ${user.current_longitude}, time: ${user.location_updated_at}`);
         
         if (user.current_latitude && user.current_longitude && shouldShowMarker(user)) {
           setVisibleDrivers(prev => {
             const nextDrivers = prev.filter((driver) => (getDriverIdentityKey(driver) || driver?.id) !== userKey);
-            console.log(`✏️ [DriverMarkers] Upserting marker for ${user.user_name}`);
             return dedupeVisibleDrivers([
               ...nextDrivers,
               {
@@ -312,11 +306,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
       // CRITICAL: Handle bulk appUsers update with FRESH DATA from event
       if (updatedAppUsers && updatedAppUsers.length > 0) {
-        console.log(`📦 [DriverMarkers] Bulk update - processing ${updatedAppUsers.length} drivers`);
-
         const validDrivers = dedupeVisibleDrivers(updatedAppUsers.filter(shouldShowMarker));
-
-        console.log(`📍 [DriverMarkers] Setting ${validDrivers.length} visible drivers`);
         setVisibleDrivers(prev => mergeVisibleDriversByFreshness(prev, validDrivers));
       }
     };
