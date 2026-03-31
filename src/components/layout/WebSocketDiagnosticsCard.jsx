@@ -10,8 +10,6 @@ export default function WebSocketDiagnosticsCard() {
   const [event, setEvent] = useState(null);
   const [disableForMobileOwner, setDisableForMobileOwner] = useState(false);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
-  const [topOffset, setTopOffset] = useState(72);
-  const [isMobile, setIsMobile] = useState(false);
   const [patientNameCache, setPatientNameCache] = useState({});
   const [storeNameCache, setStoreNameCache] = useState({});
 
@@ -44,40 +42,6 @@ export default function WebSocketDiagnosticsCard() {
     checkPrimaryDevice();
   }, []);
 
-  // Detect mobile device and calculate top offset
-  useEffect(() => {
-    const updateLayout = () => {
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isTabletPortrait = window.matchMedia('(max-width: 767px)').matches;
-      const isMobileView = isMobileDevice || isTabletPortrait;
-      setIsMobile(isMobileView);
-
-      if (!isMobileView) {
-        setTopOffset(12);
-        return;
-      }
-
-      const statsCardContainer = document.querySelector('.horizontal-cards-container');
-      const mobileHeader = document.querySelector('[data-mobile-header]');
-
-      if (statsCardContainer || mobileHeader) {
-        setTopOffset(12);
-      } else {
-        setTopOffset(12);
-      }
-    };
-
-    updateLayout();
-    
-    // Update on resize/orientation change
-    window.addEventListener('resize', updateLayout);
-    window.addEventListener('orientationchange', updateLayout);
-    
-    return () => {
-      window.removeEventListener('resize', updateLayout);
-      window.removeEventListener('orientationchange', updateLayout);
-    };
-  }, []);
 
   useEffect(() => {
     if (disableForMobileOwner) return;
@@ -121,20 +85,8 @@ export default function WebSocketDiagnosticsCard() {
         timestamp: Date.now()
       };
 
-      // Handle AppUser updates
-      if (entityName === 'AppUser') {
-        const locationOnlyFields = ['current_latitude', 'current_longitude', 'location_updated_at'];
-        const hasChangedFields = Array.isArray(changedFields) && changedFields.length > 0;
-        const isLocationOnlyUpdate = hasChangedFields && changedFields.every((field) => locationOnlyFields.includes(field));
-        if (isLocationOnlyUpdate) return;
-
-        displayInfo.title = data.user_name || data.full_name || 'User Update';
-        displayInfo.details = hasChangedFields
-          ? changedFields.join(', ')
-          : 'Status updated';
-      } 
       // Handle Delivery updates
-      else if (entityName === 'Delivery') {
+      if (entityName === 'Delivery') {
         const meaningfulFields = (changedFields || []).filter((field) => ![
           'proof_photo_urls',
           'cod_payments',
@@ -203,12 +155,10 @@ export default function WebSocketDiagnosticsCard() {
     // Listen to specific real-time update events
     window.addEventListener('realtimeUpdate_Delivery', handleWebSocketEvent);
     window.addEventListener('realtimeUpdate_Patient', handleWebSocketEvent);
-    window.addEventListener('realtimeUpdate_AppUser', handleWebSocketEvent);
     
     return () => {
       window.removeEventListener('realtimeUpdate_Delivery', handleWebSocketEvent);
       window.removeEventListener('realtimeUpdate_Patient', handleWebSocketEvent);
-      window.removeEventListener('realtimeUpdate_AppUser', handleWebSocketEvent);
     };
   }, [disableForMobileOwner, isPrimaryDevice, patientNameCache, storeNameCache]);
 
@@ -216,8 +166,7 @@ export default function WebSocketDiagnosticsCard() {
 
   return (
     <Card 
-      className={`fixed ${isMobile ? 'left-1/2 -translate-x-1/2' : 'right-4'} w-80 p-3 bg-blue-50 border-blue-200 text-blue-950 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100`}
-      style={{ top: `${topOffset}px` }}
+      className="fixed top-3 right-4 w-80 p-3 bg-blue-50 border-blue-200 text-blue-950 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
