@@ -98,13 +98,14 @@ export default function StopCardBody({
                 </div>
             }
 
-              {/* COD Information - For active deliveries with COD required (always show, but disable editing for driver-stripped) */}
-              {hasCODRequired && !isPickup && !isFinishedDelivery && !isPastDate &&
+              {/* COD Information - Show for both active and finished deliveries */}
+              {hasCODRequired && !isPickup &&
             <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: '#e5e7eb', borderWidth: '1px', borderColor: '#d1d5db' }}>
                   <span className="text-lg font-semibold" style={{ color: '#374151' }}>
                     COD Required: ${codTotalRequired.toFixed(2)}
                   </span>
-                  {userHasRole(currentUser, 'driver') && !isStrippedForDriver &&
+                  {((userHasRole(currentUser, 'driver') && !isStrippedForDriver && !isFinishedDelivery && !isPastDate) ||
+                    (isFinishedDelivery && userHasRole(currentUser, 'admin'))) &&
               <Button
                 size="sm"
                 variant="ghost"
@@ -117,7 +118,6 @@ export default function StopCardBody({
                     setCodPayments([{ type: 'Debit', amount: Math.max(0, codTotalRequired - codTotalCollected) }]);
                   }
                 }}>
-                
                       {codPayments.length > 0 ? 'Edit' : 'Collect'}
                     </Button>
               }
@@ -134,7 +134,7 @@ export default function StopCardBody({
                     COD Collected:{' '}
                     {codPayments.map((payment, index) =>
                 <span key={index}>
-                        {payment.type}: ${payment.amount.toFixed(2)}
+                        {payment.type}: $${payment.amount.toFixed(2)}
                         {index < codPayments.length - 1 && ', '}
                       </span>
                 )}
