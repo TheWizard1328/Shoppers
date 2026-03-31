@@ -120,7 +120,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const patient = useMemo(() => {if (!delivery?.patient_id || !patients || patients.length === 0) return null;return patients.find((p) => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id));}, [delivery?.patient_id, patients]);
   const isPickup = useMemo(() => {if (!delivery) return false;return !delivery.patient_id && !!delivery.store_id;}, [delivery?.patient_id, delivery?.store_id]);
   const availableTransferPickups = useMemo(() => {if (!delivery || !isPickup) return [];return allDeliveries?.filter((d) => d && !d.patient_id && d.store_id === delivery.store_id && d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id && d.id !== delivery.id && d.status !== 'completed' && d.status !== 'cancelled') || [];}, [delivery, allDeliveries, isPickup]);
-  useEffect(() => {if (showDeleteConfirm && isPickup && pendingPickups?.length > 0) {if (availableTransferPickups.length === 0) setSelectedTransferPickupId('delete_all');else if (availableTransferPickups.length >= 1) setSelectedTransferPickupId(availableTransferPickups[0].id);}}, [showDeleteConfirm, isPickup, pendingPickups, availableTransferPickups]);
+  useEffect(() => {
+    if (!showDeleteConfirm || !isPickup || !pendingPickups?.length || selectedTransferPickupId) return;
+    if (availableTransferPickups.length === 0) setSelectedTransferPickupId('delete_all');
+    else setSelectedTransferPickupId(availableTransferPickups[0].id);
+  }, [showDeleteConfirm, isPickup, pendingPickups, availableTransferPickups, selectedTransferPickupId]);
   const isInterStorePickup = useMemo(() => {if (!delivery) return false;const patientName = (delivery.patient_name || '').toLowerCase();if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) return true;const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();if (deliveryNotes.includes('interstore pickup') || deliveryNotes.includes('inter-store pickup') || deliveryNotes.includes('isp')) return true;return false;}, [delivery]);
   const canChangeDriver = useMemo(() => {if (!delivery || !currentUser || !onDriverChange) return false;if (isPickup) return false;if (FINISHED_STATUSES.includes(delivery.status)) return false;return userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher');}, [currentUser, delivery, onDriverChange, isPickup]);
   const currentDriverAppUser = useMemo(() => {
