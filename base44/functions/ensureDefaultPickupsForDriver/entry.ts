@@ -16,6 +16,34 @@ function generateDeliveryId() {
   return `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+function parseTrackingNumber(value) {
+  if (value === null || value === undefined) return null;
+  const match = String(value).match(/\d+/);
+  if (!match) return null;
+  const parsed = parseInt(match[0], 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getNextPickupTrackingNumber(pickups = []) {
+  const usedTrackingNumbers = [...new Set(
+    pickups
+      .map((pickup) => parseTrackingNumber(pickup?.tracking_number))
+      .filter((value) => value !== null && value >= 0 && value % 20 === 0)
+  )].sort((a, b) => a - b);
+
+  let expectedTrackingNumber = 0;
+  for (const trackingNumber of usedTrackingNumbers) {
+    if (trackingNumber > expectedTrackingNumber) {
+      break;
+    }
+    if (trackingNumber === expectedTrackingNumber) {
+      expectedTrackingNumber += 20;
+    }
+  }
+
+  return String(expectedTrackingNumber).padStart(2, '0');
+}
+
 function getDriverStoreFields(deliveryDate) {
   const dayOfWeek = new Date(`${deliveryDate}T00:00:00`).getDay();
   if (dayOfWeek === 6) return {
@@ -105,6 +133,11 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     driver_id: driverId,
   }, '-created_date', 50);
 
+  const routeDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+    delivery_date: deliveryDate,
+    driver_id: driverId,
+  }, '-created_date', 200);
+
   const pickups = (existingStoreDeliveries || []).filter((item) => !item?.patient_id);
   const reusablePickup = findReusablePickup(pickups, slot);
   if (reusablePickup) {
@@ -134,7 +167,7 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     status: 'en_route',
     delivery_time_start: times.start || fallbackTimes.start,
     delivery_time_end: times.end || fallbackTimes.end,
-    tracking_number: '',
+    tracking_number: getNextPickupTrackingNumber((routeDeliveries || []).filter((item) => !item?.patient_id)),
   });
 }
 

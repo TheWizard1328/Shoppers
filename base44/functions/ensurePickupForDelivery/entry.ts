@@ -12,11 +12,23 @@ function parseTrackingNumber(value) {
 }
 
 function getNextPickupTrackingNumber(pickups = []) {
-  const maxTrackingNumber = pickups.reduce((max, pickup) => {
-    const parsed = parseTrackingNumber(pickup?.tracking_number);
-    return parsed !== null && parsed > max ? parsed : max;
-  }, 0);
-  return String(maxTrackingNumber + 20);
+  const usedTrackingNumbers = [...new Set(
+    pickups
+      .map((pickup) => parseTrackingNumber(pickup?.tracking_number))
+      .filter((value) => value !== null && value >= 0 && value % 20 === 0)
+  )].sort((a, b) => a - b);
+
+  let expectedTrackingNumber = 0;
+  for (const trackingNumber of usedTrackingNumbers) {
+    if (trackingNumber > expectedTrackingNumber) {
+      break;
+    }
+    if (trackingNumber === expectedTrackingNumber) {
+      expectedTrackingNumber += 20;
+    }
+  }
+
+  return String(expectedTrackingNumber).padStart(2, '0');
 }
 
 function getNextPickupStopOrder(deliveries = []) {

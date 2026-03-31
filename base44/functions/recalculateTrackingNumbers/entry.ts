@@ -54,18 +54,26 @@ Deno.serve(async (req) => {
         return String(a.store_id || '').localeCompare(String(b.store_id || ''));
       });
 
+    const getNextPickupBase = (usedBases = new Set()) => {
+      let expected = 0;
+      while (usedBases.has(expected)) {
+        expected += 20;
+      }
+      return expected;
+    };
+
     const updates = [];
     const pickupBaseMap = new Map();
-    let nextPickupBase = 0;
+    const usedPickupBases = new Set();
 
     for (const pickup of pickups) {
       let pickupBase = parseTrackingNumber(pickup.tracking_number);
-      if (pickupBase === null) {
-        pickupBase = nextPickupBase;
+      if (pickupBase === null || pickupBase < 0 || pickupBase % 20 !== 0 || usedPickupBases.has(pickupBase)) {
+        pickupBase = getNextPickupBase(usedPickupBases);
         updates.push({ id: pickup.id, tracking_number: String(pickupBase).padStart(2, '0') });
       }
       pickupBaseMap.set(pickup.stop_id, pickupBase);
-      nextPickupBase = Math.max(nextPickupBase, pickupBase + 20);
+      usedPickupBases.add(pickupBase);
     }
 
     for (const pickup of pickups) {

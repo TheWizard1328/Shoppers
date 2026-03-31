@@ -285,11 +285,35 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
+    const parsePickupTrackingNumber = (value) => {
+      if (value === null || value === undefined) return null;
+      const match = String(value).match(/\d+/);
+      if (!match) return null;
+      const parsed = parseInt(match[0], 10);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const getNextPickupTrackingNumber = (pickups = []) => {
+      const usedTrackingNumbers = [...new Set(
+        pickups
+          .map((pickup) => parsePickupTrackingNumber(pickup?.tracking_number))
+          .filter((value) => value !== null && value >= 0 && value % 20 === 0)
+      )].sort((a, b) => a - b);
+
+      let expectedTrackingNumber = 0;
+      for (const trackingNumber of usedTrackingNumbers) {
+        if (trackingNumber > expectedTrackingNumber) break;
+        if (trackingNumber === expectedTrackingNumber) expectedTrackingNumber += 20;
+      }
+
+      return String(expectedTrackingNumber).padStart(2, '0');
+    };
+
     const storePickupTRMap = {};
     const allExistingPickupTRs = (driverDeliveriesForDate || [])
       .filter((stop) => stop && !stop.patient_id)
-      .map((stop) => parseInt(stop.tracking_number, 10))
-      .filter((value) => !isNaN(value) && value > 0);
+      .map((stop) => parsePickupTrackingNumber(stop.tracking_number))
+      .filter((value) => value !== null && value >= 0);
 
     for (const stop of driverDeliveriesForDate || []) {
       if (!stop || stop.patient_id !== null) continue;
@@ -300,23 +324,25 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    let nextPickupTR = (allExistingPickupTRs.length > 0 ? Math.max(...allExistingPickupTRs) : 0) + 20;
+    const pickupTrackingPool = (driverDeliveriesForDate || []).filter((stop) => stop && !stop.patient_id);
 
     for (const stop of optimizedRoute) {
       if (!stop || !stop.isNew || stop.patient_id !== null) continue;
       const mapKey = `${stop.store_id}-${stop.ampm_deliveries || 'AM'}`;
-      const existingTR = parseInt(stop.tracking_number, 10);
-      if (!isNaN(existingTR) && existingTR > 0) {
+      const existingTR = parsePickupTrackingNumber(stop.tracking_number);
+      if (existingTR !== null && existingTR >= 0) {
         storePickupTRMap[mapKey] = existingTR;
+        pickupTrackingPool.push({ tracking_number: String(existingTR).padStart(2, '0') });
         continue;
       }
       if (storePickupTRMap[mapKey] !== undefined) {
-        stop.tracking_number = String(storePickupTRMap[mapKey]);
+        stop.tracking_number = String(storePickupTRMap[mapKey]).padStart(2, '0');
         continue;
       }
-      stop.tracking_number = String(nextPickupTR);
-      storePickupTRMap[mapKey] = nextPickupTR;
-      nextPickupTR += 20;
+      const nextPickupTR = getNextPickupTrackingNumber(pickupTrackingPool);
+      stop.tracking_number = nextPickupTR;
+      storePickupTRMap[mapKey] = parsePickupTrackingNumber(nextPickupTR);
+      pickupTrackingPool.push({ tracking_number: nextPickupTR });
     }
 
     const newDeliveryCountsBySlot = {};
