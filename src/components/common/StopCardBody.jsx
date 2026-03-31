@@ -104,8 +104,8 @@ export default function StopCardBody({
                   <span className="text-lg font-semibold" style={{ color: '#374151' }}>
                     COD Required: ${codTotalRequired.toFixed(2)}
                   </span>
-                  {((userHasRole(currentUser, 'driver') && !isStrippedForDriver && !isFinishedDelivery && !isPastDate) ||
-                    (isFinishedDelivery && userHasRole(currentUser, 'admin'))) &&
+                  {((userHasRole(currentUser, 'driver') && !isStrippedForDriver) ||
+                    (userHasRole(currentUser, 'admin') && !isStrippedForDriver)) &&
               <Button
                 size="sm"
                 variant="ghost"
