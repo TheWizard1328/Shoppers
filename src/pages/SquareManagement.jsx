@@ -330,6 +330,10 @@ export default function SquareManagement() {
 
   const syncReconciliationToCatalog = async () => {
     setIsUpdatingReconciliationCatalog(true);
+    if (realtimeRefreshTimeoutRef.current) {
+      clearTimeout(realtimeRefreshTimeoutRef.current);
+      realtimeRefreshTimeoutRef.current = null;
+    }
     try {
       const items = reconciliationRows
         .map((row) => {
@@ -370,6 +374,7 @@ export default function SquareManagement() {
         items,
         deletions,
       });
+      await refreshUiFromOfflineOnly();
       await syncFromSquare();
       setActiveView('catalog');
       toast.success(`Square catalog replaced with ${items.length} reconciliation items and deleted ${deletions.length} others`);
@@ -508,7 +513,7 @@ export default function SquareManagement() {
       }
 
       realtimeRefreshTimeoutRef.current = setTimeout(async () => {
-        if (!isActive || isSyncing) return;
+        if (!isActive || isSyncing || isUpdatingReconciliationCatalog) return;
 
         try {
           setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
@@ -543,7 +548,7 @@ export default function SquareManagement() {
       unsubscribeCatalogItems?.();
       unsubscribeTransactions?.();
     };
-  }, [hasInitialLoadCompleted, isSyncing, selectedDaysRange, runFullOfflineSnapshotSync]);
+  }, [hasInitialLoadCompleted, isSyncing, isUpdatingReconciliationCatalog, selectedDaysRange, runFullOfflineSnapshotSync]);
 
 
 

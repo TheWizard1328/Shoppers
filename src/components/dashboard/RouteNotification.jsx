@@ -4,29 +4,27 @@ import { MapPin, Navigation, AlertTriangle, CheckCircle, RefreshCw, X } from "lu
 import { Button } from "@/components/ui/button";
 
 export default function RouteNotification({ notification, onDismiss, onNavigate, isOptimizing = false }) {
-  // Visual notifier globally disabled
-  return null;
-
   const [isVisible, setIsVisible] = useState(false);
   
   useEffect(() => {
-    // Don't show notifications while route optimization is in progress
     if (notification && !isOptimizing) {
       setIsVisible(true);
-      
-      // Auto-dismiss after 8 seconds
+
       const timer = setTimeout(() => {
         setIsVisible(false);
         setTimeout(() => onDismiss?.(), 300);
       }, 8000);
-      
+
       return () => clearTimeout(timer);
-    } else if (isOptimizing && isVisible) {
-      // Hide notification immediately when optimization starts
+    }
+
+    if (isOptimizing && isVisible) {
       setIsVisible(false);
     }
-  }, [notification, onDismiss, isOptimizing]);
-  
+  }, [notification, onDismiss, isOptimizing, isVisible]);
+
+  return null;
+
   if (!notification) return null;
   
   const getIcon = () => {

@@ -176,6 +176,17 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const acceptButtonText = useMemo(() => {if (!currentUser || !delivery) return 'Assign All';const isAssignedDriver = delivery.driver_id === currentUser.id && userHasRole(currentUser, 'driver');if (isAssignedDriver) return 'Accept All';return 'Assign All';}, [currentUser, delivery?.driver_id]);
   const nextAvailableStatuses = useMemo(() => {if (!onStatusUpdate || !currentUser) return [];if (!isAssignedDriverOrAppOwner) return [];const canChangeStatus = userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver');if (!canChangeStatus) return [];if (FINISHED_STATUSES.includes(delivery.status)) return [];let statuses = [];if (isPickup) statuses = ['en_route', 'completed', 'cancelled'];else statuses = ['pending', 'in_transit', 'completed', 'failed'];return statuses.filter((s) => s !== delivery.status);}, [delivery?.status, onStatusUpdate, currentUser, isPickup, isAssignedDriverOrAppOwner]);
   const showStatusDropdown = useMemo(() => {if (isRouteCompleted) return false;return nextAvailableStatuses.length > 0;}, [isRouteCompleted, nextAvailableStatuses]);
+  const resetActionLocks = React.useCallback((skipCardScroll = true) => {
+    startTapLockRef.current = false;
+    setIsStarting(false);
+    setIsCompleting(false);
+    setIsFailing(false);
+    setIsRetrying(false);
+    setIsRestarting(false);
+    setIsProcessingBackground(false);
+    setIsEntityUpdating(false);
+    fabControlEvents.reactivateFAB(skipCardScroll);
+  }, [setIsEntityUpdating]);
   if (!delivery) return null;
   const handleNotesBlur = () => {if (!notesInput.trim() || notesInput.trim() === 'No driver notes') {setNotesInput('No driver notes');if (delivery?.delivery_notes && delivery.delivery_notes.trim() && onNotesUpdate) onNotesUpdate(delivery.id, '');return;}if (notesInput !== delivery.delivery_notes && onNotesUpdate) onNotesUpdate(delivery.id, notesInput);};
   const handleNotesKeyDown = (e) => {if (e.key === 'Enter' && !e.shiftKey) {e.preventDefault();if (notesInput !== delivery.delivery_notes && onNotesUpdate) onNotesUpdate(delivery.id, notesInput);e.target.blur();}};
@@ -196,17 +207,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const handleCODPaymentChange = (index, field, value) => {const newPayments = [...codPayments];if (field === 'amount') {const cleaned = String(value).replace(/[^\d]/g, '');const cents = parseInt(cleaned) || 0;newPayments[index] = { ...newPayments[index], [field]: cents / 100 };} else if (field === 'type') {newPayments[index] = { ...newPayments[index], [field]: value };if (newPayments[index].amount === 0) {const remainingAmount = codTotalRequired - codTotalCollected;newPayments[index].amount = Math.max(0, remainingAmount);}} else newPayments[index] = { ...newPayments[index], [field]: value };setCodPayments(newPayments);};
   const handleAddCODPayment = (shouldFocusType = false) => {const remainingAmount = codTotalRequired - codTotalCollected;const newPayment = { type: 'Cash', amount: Math.max(0, remainingAmount) };setCodPayments([...codPayments, newPayment]);if (shouldFocusType) {setTimeout(() => {const lastIndex = codPayments.length;const selectTrigger = document.querySelector(`[data-cod-select-index="${lastIndex}"]`);if (selectTrigger) selectTrigger.click();}, 100);} else {setTimeout(() => {const lastIndex = codPayments.length;if (codAmountInputRefs.current[lastIndex]) {codAmountInputRefs.current[lastIndex].focus();codAmountInputRefs.current[lastIndex].select();}}, 50);}};
   const handleRemoveCODPayment = (index) => {const newPayments = codPayments.filter((_, i) => i !== index);setCodPayments(newPayments);};
-  const resetActionLocks = React.useCallback((skipCardScroll = true) => {
-    startTapLockRef.current = false;
-    setIsStarting(false);
-    setIsCompleting(false);
-    setIsFailing(false);
-    setIsRetrying(false);
-    setIsRestarting(false);
-    setIsProcessingBackground(false);
-    setIsEntityUpdating(false);
-    fabControlEvents.reactivateFAB(skipCardScroll);
-  }, [setIsEntityUpdating]);
   const handleSaveCODPayments = async () => {if (onCODUpdate) {try {await onCODUpdate(delivery.id, codPayments, true);setShowCODCollection(false);} catch (error) {console.error('❌ [COD Save] Failed:', error);alert(`Failed to save COD: ${error.message}`);}}};
   const collapseAndCenterNextDelivery = async (args) => {if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('collapseAllStopCards'));return await setAndCenterNextDelivery(args);};
   const handleStartAction = async (e) => {
