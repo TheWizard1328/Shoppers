@@ -185,7 +185,8 @@ export default function ImmediateNextDeliveryController() {
   useEffect(() => {
     const handleDeliveriesUpdated = async (event) => {
       const { triggeredBy, driverId, deliveryDate } = event.detail || {};
-      if (triggeredBy !== 'complete' || !driverId || !deliveryDate) return;
+      const shouldRefreshEta = ['complete', 'nextDeliveryImmediate', 'deliveryFormUpdate', 'completeEtaRefresh'].includes(triggeredBy);
+      if (!shouldRefreshEta || triggeredBy === 'completeEtaRefresh' || !driverId || !deliveryDate) return;
 
       const routeKey = `${driverId}:${deliveryDate}`;
       if (etaRefreshRef.current.has(routeKey)) return;
