@@ -63,6 +63,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [hasTypedSinceFocus, setHasTypedSinceFocus] = useState(false);
   const debounceTimer = useRef(null);
   const justSelected = useRef(false);
   const inputRef = useRef(null);
@@ -260,6 +261,13 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       clearTimeout(debounceTimer.current);
     }
 
+    if (!hasTypedSinceFocus) {
+      setSuggestions([]);
+      setOpen(false);
+      onSearchStateChange?.(false);
+      return;
+    }
+
     debounceTimer.current = setTimeout(() => {
       if (value && value.trim().length >= 3) {
         fetchSuggestions(value.trim());
@@ -275,7 +283,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [value]);
+  }, [value, hasTypedSinceFocus]);
 
   return (
     <div className="relative">
@@ -289,19 +297,19 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         }}
         value={value}
         onChange={(e) => {
+          setHasTypedSinceFocus(true);
           onChange(e.target.value);
           onSearchStateChange?.(e.target.value.trim().length > 0);
         }}
         onFocus={() => {
-          if (suggestions.length > 0) {
-            setOpen(true);
-          }
+          setHasTypedSinceFocus(false);
         }}
         onBlur={() => {
           // Do not change text on blur; just close the list after a short delay
           setTimeout(() => {
             setOpen(false);
             setSuggestions([]);
+            setHasTypedSinceFocus(false);
             if (!justSelected.current) {
               onSearchStateChange?.(false);
             }

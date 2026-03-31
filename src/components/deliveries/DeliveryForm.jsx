@@ -1506,9 +1506,7 @@ export default function DeliveryForm({
     return () => document.removeEventListener('keydown', handleEscapeKey);
   }, [cancelButtonState, delivery, handleCancelClick, handleClearForm, showCameraOverlay, stopCamera]);
 
-  useEffect(() => {
-    if (!delivery && shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-  }, [delivery, shouldAutoFocusFields]);
+
 
   useEffect(() => {
     const handleKeyDown = (e) => {
