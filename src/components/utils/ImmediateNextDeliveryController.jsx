@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
 import { updateDeliveryLocal } from './offlineMutations';
 import { useAppData } from './AppDataContext';
 
@@ -193,7 +193,7 @@ export default function ImmediateNextDeliveryController() {
 
       try {
         const currentLocalTime = getCurrentLocalTimeString();
-        const etaRes = await base44.functions.invoke('calculateRealTimeETA', {
+        const etaRes = await calculateRealTimeETA({
           driverId,
           deliveryDate,
           currentLocalTime,
