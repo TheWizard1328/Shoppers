@@ -38,24 +38,26 @@ function getDriverStoreFields(deliveryDate) {
   };
 }
 
-async function loadAssignedStores(base44, deliveryDate, driverId) {
+async function loadAssignedStores(base44, deliveryDate, driverId, driverUserId = null) {
   const fields = getDriverStoreFields(deliveryDate);
   const stores = await base44.asServiceRole.entities.Store.list('-created_date', 200);
+  const driverIdsToMatch = [driverId, driverUserId].filter(Boolean);
 
   return (stores || []).filter((store) => {
     if (!store?.id) return false;
-    const amMatch = store?.[fields.amEnabled] === true && store?.[fields.am] === driverId;
-    const pmMatch = store?.[fields.pmEnabled] === true && store?.[fields.pm] === driverId;
+    const amMatch = store?.[fields.amEnabled] === true && driverIdsToMatch.includes(store?.[fields.am]);
+    const pmMatch = store?.[fields.pmEnabled] === true && driverIdsToMatch.includes(store?.[fields.pm]);
     return amMatch || pmMatch;
   });
 }
 
-function getAssignedSlotsForStore(store, deliveryDate, driverId) {
+function getAssignedSlotsForStore(store, deliveryDate, driverId, driverUserId = null) {
   const fields = getDriverStoreFields(deliveryDate);
   const slots = [];
+  const driverIdsToMatch = [driverId, driverUserId].filter(Boolean);
 
-  if (store?.[fields.amEnabled] === true && store?.[fields.am] === driverId) slots.push('AM');
-  if (store?.[fields.pmEnabled] === true && store?.[fields.pm] === driverId) slots.push('PM');
+  if (store?.[fields.amEnabled] === true && driverIdsToMatch.includes(store?.[fields.am])) slots.push('AM');
+  if (store?.[fields.pmEnabled] === true && driverIdsToMatch.includes(store?.[fields.pm])) slots.push('PM');
 
   return slots;
 }
@@ -159,19 +161,19 @@ Deno.serve(async (req) => {
     const creatorAppUserId = creatorAppUsers?.[0]?.id || '';
     const dispatcherId = user.id;
 
-    const [assignedStores, driverAppUsers] = await Promise.all([
-      loadAssignedStores(base44, deliveryDate, driverId),
-      base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1),
-    ]);
+    const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1);
+    const driverAppUser = driverAppUsers?.[0] || null;
+    const driverUserId = driverAppUser?.user_id || null;
+    const assignedStores = await loadAssignedStores(base44, deliveryDate, driverId, driverUserId);
 
     const filteredStores = assignedStores || [];
 
-    const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || '';
+    const driverName = driverAppUser?.user_name || driverAppUser?.full_name || '';
     const ensuredPickups = [];
 
     for (const store of filteredStores) {
       if (!store || SPECIAL_STORE_NAMES.has(store.name || '')) continue;
-      const slots = getAssignedSlotsForStore(store, deliveryDate, driverId);
+      const slots = getAssignedSlotsForStore(store, deliveryDate, driverId, driverUserId);
 
       for (const slot of slots) {
         const pickup = await ensurePickup(base44, {
