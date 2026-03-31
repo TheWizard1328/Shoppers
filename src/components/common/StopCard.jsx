@@ -62,6 +62,7 @@ const formatTime12Hour = (timeString) => {
 export default function StopCard({ delivery, store, driver, patients = [], currentUser, isExpanded: externalIsExpanded, showDriverName = false, onStatusUpdate, onNotesUpdate, onEdit, onDelete, onRestart, allDeliveries = [], selectedDate, onEditPatient, drivers = [], onDriverChange, canEdit = false, getDriverColor, onClick, isSelected, isProjected = false, pendingPickups = [], onSelectionChange, selectedDeliveryIds = [], stopOrder = {}, onCODUpdate, stores = [], onCreateReturn, onStartDelivery, allStopsPending = false, onDriverStatusChange, appUsers = [], showDragHandle = false, dragHandleProps, compact = false, isRailCentered = true }) {
   const isNextDelivery = delivery?.isNextDelivery || false;
   const [, setRangeRefreshTick] = useState(0);
+  const isDashboardPage = typeof window !== 'undefined' && window.location.pathname === '/Dashboard';
   const [notesInput, setNotesInput] = useState(delivery?.delivery_notes || "No driver notes");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [codPayments, setCodPayments] = useState(delivery?.cod_payments || []);
@@ -107,6 +108,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     };
   }, [currentUser?.id]);
   useEffect(() => {
+    if (!isDashboardPage) return;
     const refreshRangeCheck = () => setRangeRefreshTick((prev) => prev + 1);
     window.addEventListener('deliveryRangeCheckRefresh', refreshRangeCheck);
     window.addEventListener('driverLocationFocusRefresh', refreshRangeCheck);
@@ -116,7 +118,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       window.removeEventListener('driverLocationFocusRefresh', refreshRangeCheck);
       window.removeEventListener('driverLocationsUpdated', refreshRangeCheck);
     };
-  }, []);
+  }, [isDashboardPage]);
   const patient = useMemo(() => {if (!delivery?.patient_id || !patients || patients.length === 0) return null;return patients.find((p) => p && (p.id === delivery.patient_id || p.patient_id === delivery.patient_id));}, [delivery?.patient_id, patients]);
   const isPickup = useMemo(() => {if (!delivery) return false;return !delivery.patient_id && !!delivery.store_id;}, [delivery?.patient_id, delivery?.store_id]);
   const availableTransferPickups = useMemo(() => {if (!delivery || !isPickup) return [];return allDeliveries?.filter((d) => d && !d.patient_id && d.store_id === delivery.store_id && d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id && d.id !== delivery.id && d.status !== 'completed' && d.status !== 'cancelled') || [];}, [delivery, allDeliveries, isPickup]);

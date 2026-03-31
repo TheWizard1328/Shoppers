@@ -162,6 +162,7 @@ export default function RouteMapView({
                   showStopCards={false}
                   showRoutes={false}
                   enableRoutePolylines={false}
+                  enableDashboardEffects={false}
                   zoom={11}
                   selectedDeliveryId={selectedDeliveryId}
                   onDeliveryClick={onDeliveryClick}

@@ -140,7 +140,8 @@ export default function DeliveryMap({
   onMapReady = () => {},
   mapViewPhase = 1,
   isMapViewLocked = false,
-  topOverlayHeight = 0
+  topOverlayHeight = 0,
+  enableDashboardEffects = true
 }) {
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
   const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : [];
@@ -176,9 +177,9 @@ export default function DeliveryMap({
   }, [selectedDriverId, safeDeliveries]);
 
   const { routeLocationSnapshot, routeRecalcVersion } = useRouteRecalcSignal({
-    currentDriverLocation,
-    realtimeAppUsers,
-    currentUserId: currentUser?.id
+    currentDriverLocation: enableDashboardEffects ? currentDriverLocation : null,
+    realtimeAppUsers: enableDashboardEffects ? realtimeAppUsers : [],
+    currentUserId: enableDashboardEffects ? currentUser?.id : null
   });
 
   useEffect(() => {
@@ -970,7 +971,7 @@ export default function DeliveryMap({
           </Marker>
         )}
 
-        <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />
+        {enableDashboardEffects && <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />}
 
         {enableRoutePolylines && (showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
           <>
