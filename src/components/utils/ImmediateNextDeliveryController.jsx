@@ -194,14 +194,21 @@ export default function ImmediateNextDeliveryController() {
 
       try {
         const currentLocalTime = getCurrentLocalTimeString();
-        const etaRes = await calculateRealTimeETA({
-          driverId,
-          deliveryDate,
-          currentLocalTime,
-          deviceTime: currentLocalTime
-        });
-        const etaData = etaRes?.data || etaRes;
-        const etaUpdates = etaData?.durationUpdates || etaData?.etas || [];
+        let etaUpdates = [];
+
+        try {
+          const etaRes = await calculateRealTimeETA({
+            driverId,
+            deliveryDate,
+            currentLocalTime,
+            deviceTime: currentLocalTime
+          });
+          const etaData = etaRes?.data || etaRes;
+          etaUpdates = etaData?.durationUpdates || etaData?.etas || [];
+        } catch (error) {
+          console.warn('[ImmediateNextDeliveryController] ETA refresh skipped:', error?.message || error);
+        }
+
         if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
           window.dispatchEvent(new CustomEvent('etaUpdated', {
             detail: {
