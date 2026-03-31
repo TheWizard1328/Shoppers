@@ -59,39 +59,6 @@ export async function handleBatchSave({
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
   const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
 
-  const scopedStagedDeliveries = (stagedDeliveries || []).filter((delivery) => {
-    if (!delivery || delivery.delivery_date !== routeDeliveryDate) return false;
-    if (routeDriverId === 'unassigned') return !delivery.driver_id;
-    return delivery.driver_id === routeDriverId;
-  });
-
-  const scopedNewDeliveriesForDriver = scopedStagedDeliveries.filter((delivery) => !delivery?.id);
-
-  const persistedRouteStopCountBeforeProcessing = (allDeliveries || []).filter((delivery) => {
-    if (!delivery || delivery.delivery_date !== routeDeliveryDate || delivery.status === 'Staged') return false;
-    if (routeDriverId === 'unassigned') return !delivery.driver_id;
-    return delivery.driver_id === routeDriverId;
-  }).length;
-
-  console.log('[AddToRoute] Pre-processing route stop count', {
-    driverId: routeDriverId,
-    deliveryDate: routeDeliveryDate,
-    persistedRouteStopCountBeforeProcessing,
-    matchingStops: (allDeliveries || [])
-      .filter((delivery) => {
-        if (!delivery || delivery.delivery_date !== routeDeliveryDate) return false;
-        if (routeDriverId === 'unassigned') return !delivery.driver_id;
-        return delivery.driver_id === routeDriverId;
-      })
-      .map((delivery) => ({
-        id: delivery.id,
-        patient_id: delivery.patient_id,
-        status: delivery.status,
-        stop_id: delivery.stop_id,
-        puid: delivery.puid
-      }))
-  });
-
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
   const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
 
@@ -149,96 +116,117 @@ export async function handleBatchSave({
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
 
       const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
-      const hasSpecialStoreDeliveries = patientDeliveriesReadyForDB.some((delivery) => {
-        const store = stores?.find((item) => item && item.id === delivery?.store_id);
-        return specialStoreNames.includes(store?.name || '');
-      });
-      const shouldEnsureDefaultPickups = scopedNewDeliveriesForDriver.length > 0 && persistedRouteStopCountBeforeProcessing === 0 && !hasSpecialStoreDeliveries;
+      const groupedEnsureKeys = new Map();
+      const defaultPickupDriverDateKeys = new Set();
+      const existingStopCountByDriverDate = new Map();
 
-      console.log('[AddToRoute] Default pickup gate', {
-        shouldEnsureDefaultPickups,
-        hasSpecialStoreDeliveries,
-        persistedRouteStopCountBeforeProcessing,
-        scopedNewDeliveriesForDriverCount: scopedNewDeliveriesForDriver.length,
-        deliveriesReadyForDBCount: deliveriesReadyForDB.length,
+      patientDeliveriesReadyForDB.forEach((delivery) => {
+        if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return;
+
+        const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
+        if (!groupedEnsureKeys.has(key)) groupedEnsureKeys.set(key, { delivery });
+
+        const driverDateKey = `${delivery.driver_id}__${delivery.delivery_date}`;
+        if (!existingStopCountByDriverDate.has(driverDateKey)) {
+          const count = (allDeliveries || []).filter((item) => {
+            if (!item || item.delivery_date !== delivery.delivery_date || item.status === 'Staged') return false;
+            return item.driver_id === delivery.driver_id;
+          }).length;
+          existingStopCountByDriverDate.set(driverDateKey, count);
+        }
+
+        const store = stores?.find((item) => item && item.id === delivery.store_id);
+        const isSpecialStore = specialStoreNames.includes(store?.name || '');
+        const existingStopCount = existingStopCountByDriverDate.get(driverDateKey) || 0;
+        if (!isSpecialStore && existingStopCount === 0) {
+          defaultPickupDriverDateKeys.add(driverDateKey);
+        }
+      });
+
+      console.log('[AddToRoute] Default pickup gating by assigned driver', {
+        defaultPickupDriverDateKeys: Array.from(defaultPickupDriverDateKeys),
+        existingStopCountByDriverDate: Object.fromEntries(existingStopCountByDriverDate),
         patientDeliveriesReadyForDBCount: patientDeliveriesReadyForDB.length,
         pickupRecordsFromStageCount: pickupRecordsFromStage.length
       });
 
-      if (shouldEnsureDefaultPickups) {
-        console.log('[AddToRoute] Invoking ensureDefaultPickupsForDriver', {
-          driverId: routeDriverId,
-          deliveryDate: routeDeliveryDate,
-          storeIds: []
-        });
-        const defaultPickupResponse = await base44.functions.invoke('ensureDefaultPickupsForDriver', {
-          driverId: routeDriverId,
-          deliveryDate: routeDeliveryDate
-        }).catch((error) => {
-          console.error('[AddToRoute] ensureDefaultPickupsForDriver failed', error);
-          return null;
-        });
-        console.log('[AddToRoute] ensureDefaultPickupsForDriver result', defaultPickupResponse?.data || defaultPickupResponse || null);
-        const normalizedEnsuredPickups = [...(defaultPickupResponse?.data?.pickups || []), ...(defaultPickupResponse?.pickups || [])]
-          .filter((pickup) => pickup?.id || pickup?.stop_id)
-          .map((pickup) => {
-            const normalizedPickup = {
-              ...pickup,
-              patient_id: null,
-              store_id: pickup?.store_id || pickup?.pickup_store_id || '',
-              driver_id: pickup?.driver_id || routeDriverId,
-              delivery_date: pickup?.delivery_date || routeDeliveryDate,
-              ampm_deliveries: pickup?.ampm_deliveries || 'AM',
-              stop_id: pickup?.stop_id || pickup?.puid || pickup?.id || '',
-              puid: pickup?.stop_id || pickup?.puid || pickup?.id || null
-            };
-            return normalizedPickup;
+      const defaultPickupResults = new Map(await Promise.all(
+        Array.from(defaultPickupDriverDateKeys).map(async (driverDateKey) => {
+          const [driverId, deliveryDate] = driverDateKey.split('__');
+          const result = await base44.functions.invoke('ensureDefaultPickupsForDriver', {
+            driverId,
+            deliveryDate
+          }).catch((error) => {
+            console.error('[AddToRoute] ensureDefaultPickupsForDriver failed', { driverId, deliveryDate, error });
+            return null;
           });
-        ensuredPickupRecords = Array.from(new Map(
-          [...normalizedEnsuredPickups, ...pickupRecordsFromStage]
-            .filter((pickup) => pickup?.id || pickup?.stop_id)
-            .map((pickup) => [pickup.id || pickup.stop_id, pickup])
-        ).values());
-        creatorFlowEnsuredPickups = normalizedEnsuredPickups;
-        const ensuredPickupByKey = new Map(
-          ensuredPickupRecords
-            .filter((pickup) => pickup && !pickup.patient_id)
-            .map((pickup) => [`${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || 'AM'}`, pickup])
-        );
-        stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB.map((delivery) => {
-          const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || 'AM'}`;
-          const ensuredPickup = ensuredPickupByKey.get(key);
-          return {
-            ...delivery,
-            puid: ensuredPickup?.stop_id || delivery.puid || ''
-          };
-        });
-      } else {
-        const groupedEnsureKeys = new Map();
-        patientDeliveriesReadyForDB.forEach((delivery) => {
-          if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return;
-          const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
-          if (!groupedEnsureKeys.has(key)) groupedEnsureKeys.set(key, { delivery });
-        });
-        const ensureResultsByKey = new Map(await Promise.all(Array.from(groupedEnsureKeys.entries()).map(async ([key, { delivery }]) => {
-          const result = await base44.functions.invoke('ensurePickupForDelivery', { storeId: delivery.store_id, deliveryDate: delivery.delivery_date, driverId: delivery.driver_id, ampmDeliveries: delivery.ampm_deliveries || 'AM', allowCreateIfMissing: true }).catch(() => null);
-          return [key, result];
-        })));
-        const ensuredPickups = patientDeliveriesReadyForDB.map((delivery) => {
-          if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return null;
-          const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
-          return ensureResultsByKey.get(key) || null;
-        });
-        ensuredPickupRecords = Array.from(new Map(
-          [...ensuredPickups.map((result) => result?.data?.pickup), ...pickupRecordsFromStage]
-            .filter((pickup) => pickup?.id || pickup?.stop_id)
-            .map((pickup) => [pickup.id || pickup.stop_id, pickup])
-        ).values());
-        stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB.map((d, i) => ({
-          ...d,
-          puid: ensuredPickups[i]?.data?.puid || d.puid || ''
-        }));
-      }
+          return [driverDateKey, result];
+        })
+      ));
+
+      const normalizedDefaultPickups = Array.from(defaultPickupResults.entries()).flatMap(([driverDateKey, response]) => {
+        const [driverId, deliveryDate] = driverDateKey.split('__');
+        return [...(response?.data?.pickups || []), ...(response?.pickups || [])]
+          .filter((pickup) => pickup?.id || pickup?.stop_id)
+          .map((pickup) => ({
+            ...pickup,
+            patient_id: null,
+            store_id: pickup?.store_id || pickup?.pickup_store_id || '',
+            driver_id: pickup?.driver_id || driverId,
+            delivery_date: pickup?.delivery_date || deliveryDate,
+            ampm_deliveries: pickup?.ampm_deliveries || 'AM',
+            stop_id: pickup?.stop_id || pickup?.puid || pickup?.id || '',
+            puid: pickup?.stop_id || pickup?.puid || pickup?.id || null
+          }));
+      });
+
+      creatorFlowEnsuredPickups = normalizedDefaultPickups;
+
+      const ensureResultsByKey = new Map(await Promise.all(Array.from(groupedEnsureKeys.entries()).map(async ([key, { delivery }]) => {
+        const driverDateKey = `${delivery.driver_id}__${delivery.delivery_date}`;
+        if (defaultPickupDriverDateKeys.has(driverDateKey)) {
+          return [key, null];
+        }
+        const result = await base44.functions.invoke('ensurePickupForDelivery', {
+          storeId: delivery.store_id,
+          deliveryDate: delivery.delivery_date,
+          driverId: delivery.driver_id,
+          ampmDeliveries: delivery.ampm_deliveries || 'AM',
+          allowCreateIfMissing: true
+        }).catch(() => null);
+        return [key, result];
+      })));
+
+      const ensuredPickups = patientDeliveriesReadyForDB.map((delivery) => {
+        if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return null;
+        const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
+        return ensureResultsByKey.get(key) || null;
+      });
+
+      ensuredPickupRecords = Array.from(new Map(
+        [
+          ...normalizedDefaultPickups,
+          ...ensuredPickups.map((result) => result?.data?.pickup),
+          ...pickupRecordsFromStage
+        ]
+          .filter((pickup) => pickup?.id || pickup?.stop_id)
+          .map((pickup) => [pickup.id || pickup.stop_id, pickup])
+      ).values());
+
+      const ensuredPickupByKey = new Map(
+        ensuredPickupRecords
+          .filter((pickup) => pickup && !pickup.patient_id)
+          .map((pickup) => [`${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || 'AM'}`, pickup])
+      );
+
+      stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB.map((delivery, index) => {
+        const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || 'AM'}`;
+        const ensuredPickup = ensuredPickupByKey.get(key);
+        return {
+          ...delivery,
+          puid: ensuredPickup?.stop_id || ensuredPickups[index]?.data?.puid || delivery.puid || ''
+        };
+      });
 
       await onSave({ _isBatchSave: true, _stagedDeliveries: stagedDeliveriesWithResolvedIds, _ensuredPickups: ensuredPickupRecords });
       if (creatorFlowEnsuredPickups.length > 0) {
@@ -247,7 +235,7 @@ export async function handleBatchSave({
             immediate: true,
             freshDeliveries: creatorFlowEnsuredPickups,
             deliveryDate: routeDeliveryDate,
-            driverId: routeDriverId,
+            driverId: stagedDeliveriesWithResolvedIds[0]?.driver_id || routeDriverId,
             triggeredBy: 'ensureDefaultPickupsForDriver'
           }
         }));
