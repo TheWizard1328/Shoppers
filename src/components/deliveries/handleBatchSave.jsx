@@ -59,19 +59,22 @@ export async function handleBatchSave({
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
   const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
 
-  const persistedRouteStopCountBeforeProcessing = (allDeliveries || []).filter((delivery) =>
-    delivery &&
-    delivery.delivery_date === routeDeliveryDate &&
-    delivery.driver_id === routeDriverId &&
-    delivery.status !== 'Staged'
-  ).length;
+  const persistedRouteStopCountBeforeProcessing = (allDeliveries || []).filter((delivery) => {
+    if (!delivery || delivery.delivery_date !== routeDeliveryDate || delivery.status === 'Staged') return false;
+    if (routeDriverId === 'unassigned') return !delivery.driver_id;
+    return delivery.driver_id === routeDriverId;
+  }).length;
 
   console.log('[AddToRoute] Pre-processing route stop count', {
     driverId: routeDriverId,
     deliveryDate: routeDeliveryDate,
     persistedRouteStopCountBeforeProcessing,
     matchingStops: (allDeliveries || [])
-      .filter((delivery) => delivery && delivery.delivery_date === routeDeliveryDate && delivery.driver_id === routeDriverId)
+      .filter((delivery) => {
+        if (!delivery || delivery.delivery_date !== routeDeliveryDate) return false;
+        if (routeDriverId === 'unassigned') return !delivery.driver_id;
+        return delivery.driver_id === routeDriverId;
+      })
       .map((delivery) => ({
         id: delivery.id,
         patient_id: delivery.patient_id,
