@@ -4,13 +4,6 @@ import { batchCreateDeliveriesLocal, updateDeliveryLocal } from "@/components/ut
 import { base44 } from "@/api/base44Client";
 import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
 
-const getCurrentAppUserId = async () => {
-  const me = await base44.auth.me();
-  if (!me?.id) return null;
-  const appUsers = await base44.entities.AppUser.filter({ user_id: me.id }, '-updated_date', 1);
-  return appUsers?.[0]?.id || null;
-};
-
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return null;
   const R = 6371;
@@ -45,7 +38,7 @@ export const handleBatchSaveDelivery = async ({
   const allUpdatedDeliveries = [];
   const createdPickupRecords = [];
   const createdDeliveryMap = new Map();
-  const currentAppUserId = await getCurrentAppUserId();
+  const currentAppUserId = currentUser?.id || currentUser?.app_user_id || null;
 
   if (!stagedDeliveries || stagedDeliveries.length === 0) {
     console.warn('[AddToRoute] ⚠️ No staged deliveries found!');
@@ -480,17 +473,16 @@ export const handleBatchSaveDelivery = async ({
       await refreshData();
 
       if (batchDriverId) {
-        const allDriverDeliveries = await base44.entities.Delivery.filter({
-          driver_id: batchDriverId,
-          delivery_date: batchDeliveryDate
-        });
-
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const allActive = allDriverDeliveries.every((d) =>
-        d && (d.status === 'in_transit' || d.status === 'en_route' || finishedStatuses.includes(d.status))
+        const allDriverDeliveries = allProcessedDeliveries.filter((d) =>
+          d && d.driver_id === batchDriverId && d.delivery_date === batchDeliveryDate
+        );
+
+        const allActive = allDriverDeliveries.length > 0 && allDriverDeliveries.every((d) =>
+          d && (d.status === 'in_transit' || d.status === 'en_route' || finishedStatuses.includes(d.status))
         );
         const hasIncompleteStops = allDriverDeliveries.some((d) =>
-        d && d.status !== 'pending' && !finishedStatuses.includes(d.status)
+          d && d.status !== 'pending' && !finishedStatuses.includes(d.status)
         );
 
         if (allActive && hasIncompleteStops) {
