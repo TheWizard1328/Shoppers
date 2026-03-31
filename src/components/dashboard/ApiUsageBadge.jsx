@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
 import { Checkbox } from "@/components/ui/checkbox";
 import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
 import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLog";
+import { offlineDB } from "@/components/utils/offlineDatabase";
 
 // Small self-contained badge that shows Google/HERE API usage for today
 // Props:
@@ -35,16 +35,9 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   const fetchCounts = async () => {
     try {
-      const { startISO, endISO } = getDayBoundsISO();
-
-      const apiLogs = await base44.entities.GoogleAPILog.filter({
-        timestamp: { $gte: startISO, $lte: endISO }
-      });
-
-      setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'google'));
-      setHereCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'here'));
+      setGoogleCount(null);
+      setHereCount(null);
     } catch (err) {
-      // Non-critical; keep previous values
       console.warn("[ApiUsageBadge] Failed to fetch counts:", err?.message || err);
     }
   };
