@@ -345,7 +345,10 @@ Deno.serve(async (req) => {
     if (!Array.isArray(deliveries) || deliveries.length === 0) {
       if (Array.isArray(existingPolylines) && existingPolylines.length > 0 && scope !== 'completed_only') {
         await processInChunks(existingPolylines, 5, (row) =>
-          base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id)
+          base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          })
         );
       }
 
@@ -532,7 +535,10 @@ Deno.serve(async (req) => {
         const rowsToDelete = (existingPolylines || []).filter((row) => !segmentsToKeep.has(row.id));
         if (rowsToDelete.length > 0) {
           await processInChunks(rowsToDelete, 5, (row) =>
-            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id)
+            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            })
           );
         }
         deletedPolylineCount = rowsToDelete.length;
@@ -544,7 +550,10 @@ Deno.serve(async (req) => {
         const rowsToDelete = (existingPolylines || []).filter((row) => row?.id !== preservedType1Row?.id);
         if (rowsToDelete.length > 0) {
           await processInChunks(rowsToDelete, 5, (row) =>
-            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id)
+            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            })
           );
         }
         deletedPolylineCount = rowsToDelete.length;
