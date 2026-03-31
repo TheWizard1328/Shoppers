@@ -45,7 +45,7 @@ export default function MapSection({
       <div className="absolute inset-0">
         <DeliveryMap
           deliveries={deliveriesWithStopOrder}
-          allDeliveriesForDate={filteredDeliveries}
+          allDeliveriesForDate={deliveries}
           selectedDriverId={selectedDriverId}
           selectedDate={format(selectedDate, 'yyyy-MM-dd')}
           patients={patients}
@@ -53,8 +53,8 @@ export default function MapSection({
           users={appUsers}
           currentUser={currentUser}
           driverLocations={allDriverLocations}
-          deliveriesForLocationFilter={filteredDeliveries}
-          showOtherDriverDeliveries={showAllDriverMarkers}
+          deliveriesForLocationFilter={deliveries}
+          showOtherDriverDeliveries={showAllDriverMarkers || selectedDriverId === 'all'}
           currentDriverLocation={driverLocation}
           currentToNextPolyline={currentToNextPolyline}
           showBreadcrumbs={showBreadcrumbs}

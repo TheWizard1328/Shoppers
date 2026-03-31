@@ -181,7 +181,9 @@ class DriverLocationPoller {
     const isDriver = this.currentUser && userHasRole(this.currentUser, 'driver');
     const currentUserCityId = this.currentUser?.city_id;
     
-    const todayStr = new Date().toISOString().split('T')[0];
+    const selectedDateStr = selectedDate instanceof Date
+      ? selectedDate.toISOString().split('T')[0]
+      : selectedDate || new Date().toISOString().split('T')[0];
 
     // CRITICAL: Log if user is AppOwner for debugging
      const isUserAppOwner = isAppOwner(this.currentUser);
@@ -260,14 +262,12 @@ class DriverLocationPoller {
          const userIdForDeliveryMatch = user.id || user.user_id;
          const allDriverIdFormats = [userIdForDeliveryMatch, driverId, user.user_id, user.user_user_id].filter(Boolean);
 
-         // 2. Driver must have at least 1 en_route OR in_transit delivery from dispatcher's stores (today)
+         // 2. Driver must have at least 1 en_route OR in_transit delivery from dispatcher's stores on selected date
          const matchingDeliveries = (deliveries || []).filter(delivery => {
            if (!delivery) return false;
 
-           // CRITICAL: Match delivery.driver_id against ALL driver ID formats
            const driverMatch = allDriverIdFormats.some(fmt => delivery.driver_id === fmt);
-           const dateMatch = delivery.delivery_date === todayStr;
-           // CRITICAL: Normalize delivery store_id to string before comparing
+           const dateMatch = delivery.delivery_date === selectedDateStr;
            const deliveryStoreIdStr = String(delivery.store_id || '');
            const storeMatch = dispatcherStoreIds.has(deliveryStoreIdStr);
            const statusMatch = delivery.status === 'in_transit' || delivery.status === 'en_route';
@@ -276,7 +276,7 @@ class DriverLocationPoller {
          });
 
          if (matchingDeliveries.length === 0) {
-           const allDriverDeliveries = (deliveries || []).filter(d => d && allDriverIdFormats.some(fmt => d.driver_id === fmt) && d.delivery_date === todayStr);
+           const allDriverDeliveries = (deliveries || []).filter(d => d && allDriverIdFormats.some(fmt => d.driver_id === fmt) && d.delivery_date === selectedDateStr);
            if (allDriverDeliveries.length > 0) {
              // Log store IDs of those deliveries to help debug
              const deliveryStoreIds = [...new Set(allDriverDeliveries.map(d => d.store_id))];
