@@ -21,6 +21,7 @@ import PullToSync from '@/components/dashboard/PullToSync';
 import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
 import LocationTrackingToggle from "@/components/layout/LocationTrackingToggle";
 import { saveSetting } from "@/components/utils/userSettingsManager";
+import { getDriverColor } from "@/components/utils/driverUtils";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -43,6 +44,48 @@ export default function StatsPanel({
   dailyPolylineCount, stats, finalizedDutyTime,
   refreshUser, dataSource,
 }) {
+  const legendData = (() => {
+    if (!isAdmin || !Array.isArray(driverRoutes) || driverRoutes.length === 0) return [];
+
+    const selectedCityId = globalFilters.getSelectedCityId();
+    const cityStoreIds = new Set(
+      (stores || []).filter((store) => store?.city_id === selectedCityId).map((store) => store.id)
+    );
+
+    const deliveriesForLegend = (deliveries || []).filter((delivery) => {
+      if (!delivery || delivery.delivery_date !== selectedDateStr || !delivery.driver_id) return false;
+      return cityStoreIds.size === 0 || cityStoreIds.has(delivery.store_id);
+    });
+
+    const routeMap = new Map((driverRoutes || []).map((route) => [route.driverId, route]));
+    const driverIdsWithStops = new Set(deliveriesForLegend.map((delivery) => delivery.driver_id));
+
+    return Array.from(driverIdsWithStops).map((driverId) => {
+      const route = routeMap.get(driverId);
+      const driverDeliveries = deliveriesForLegend.filter((delivery) => delivery.driver_id === driverId);
+      const driverAppUser = (appUsers || []).find((appUser) => appUser?.user_id === driverId);
+      const driverName = route?.driverName || driverAppUser?.user_name || driversList.find((driver) => driver?.id === driverId)?.user_name || 'Unknown';
+      const totalStops = driverDeliveries.filter((delivery) => {
+        if (delivery.after_hours_pickup && !delivery.patient_id) return true;
+        return delivery.patient_id && (delivery.status === 'completed' || delivery.status === 'failed');
+      }).length;
+
+      return {
+        driverId,
+        driverName,
+        totalStops,
+        color: route?.color || getDriverColor({ id: driverId, user_name: driverName }) ,
+        driverStatus: driverAppUser?.driver_status || 'offline'
+      };
+    }).sort((a, b) => a.driverName.localeCompare(b.driverName));
+  })();
+
+  const getStatusColor = (status) => {
+    if (status === 'on_duty' || status === 'online') return '#16a34a';
+    if (status === 'on_break') return '#f97316';
+    return '#dc2626';
+  };
+
   return (
     <div className={statsCardPositioning} style={{ zIndex: 600 }}>
       <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
@@ -328,13 +371,16 @@ export default function StatsPanel({
           </AnimatePresence>
         </motion.div>
 
-        {driverRoutes.length > 0 &&
+        {!isAllDriversMode && !isAdmin ? null : legendData.length > 0 &&
           <div className="backdrop-blur-sm rounded-lg shadow-lg border px-1 py-1" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
             onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
-            <div className="flex flex-wrap gap-x-1 gap-y-1 items-center justify-center">
-              {[...driverRoutes].sort((a, b) => (a.driverName || '').localeCompare(b.driverName || '')).map(route => (
+            <div className="flex flex-wrap gap-x-2 gap-y-1 items-center justify-center">
+              {legendData.map(route => (
                 <div key={route.driverId} className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0" style={{ backgroundColor: route.color }} />
+                  <div
+                    className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                    style={{ backgroundColor: isAllDriversMode ? route.color : getStatusColor(route.driverStatus) }}
+                  />
                   <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
                   <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
                 </div>
