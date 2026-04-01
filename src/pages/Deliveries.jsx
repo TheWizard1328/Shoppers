@@ -686,22 +686,8 @@ export default function DeliveriesPage() {
     };
   }, [isDriverOverviewMode]);
 
-  // Subscribe to delivery + patient websockets for real-time updates
-  useEffect(() => {
-    const unsubD = base44.entities.Delivery.subscribe((event) => {
-      if (!isMounted.current) return;
-      if (event.type === 'create') setAllDeliveries((prev) => prev.some((d) => d?.id === event.id) ? prev : [...prev, event.data]);
-      else if (event.type === 'update') setAllDeliveries((prev) => prev.map((d) => d?.id === event.id ? { ...d, ...event.data } : d));
-      else if (event.type === 'delete') setAllDeliveries((prev) => prev.filter((d) => d?.id !== event.id));
-    });
-    const unsubP = base44.entities.Patient.subscribe((event) => {
-      if (!isMounted.current) return;
-      if (event.type === 'create') setAllPatients((prev) => prev.some((p) => p?.id === event.id) ? prev : [...prev, event.data]);
-      else if (event.type === 'update') setAllPatients((prev) => prev.map((p) => p?.id === event.id ? { ...p, ...event.data } : p));
-      else if (event.type === 'delete') setAllPatients((prev) => prev.filter((p) => p?.id !== event.id));
-    });
-    return () => { unsubD(); unsubP(); };
-  }, []);
+  // Real-time entity syncing is handled centrally by realtimeSync + Layout.
+  // Avoid duplicate page-level subscriptions here because they can cause duplicate delete/update flows.
 
   // Fetch fresh AppUser data periodically for accurate driver_status
   useEffect(() => {
