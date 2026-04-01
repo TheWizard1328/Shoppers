@@ -529,22 +529,34 @@ export default function DriverPayrollGrid({
                       const dashSigns = viewMode === 'deliveries' && showAfterHoursMarkers && afterHoursCount > 0
                         ? '-'.repeat(afterHoursCount)
                         : '';
+                      const hasBothMarkers = !!plusSigns && !!dashSigns;
+                      const singleLineMobile = `${displayValueMobile}${plusSigns || dashSigns || ''}`;
+                      const singleLineDesktop = `${displayValueDesktop}${plusSigns || dashSigns || ''}`;
                       return (
                         <td
                            key={store.id}
                            className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                            style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                          >
-                          <span className="md:hidden inline-grid grid-cols-[auto_auto] grid-rows-2 items-center justify-center gap-x-0 leading-[0.7]">
-                            <span className="row-span-2 self-center">{displayValueMobile}</span>
-                            <span className="text-left min-w-[8px] h-[7px] flex items-center">{plusSigns || ''}</span>
-                            <span className="text-left min-w-[8px] h-[7px] flex items-center">{dashSigns || ''}</span>
-                          </span>
-                          <span className="hidden md:inline-grid grid-cols-[auto_auto] grid-rows-2 items-center justify-center gap-x-0 leading-[0.7]">
-                            <span className="row-span-2 self-center">{displayValueDesktop}</span>
-                            <span className="text-left min-w-[10px] h-[7px] flex items-center">{plusSigns || ''}</span>
-                            <span className="text-left min-w-[10px] h-[7px] flex items-center">{dashSigns || ''}</span>
-                          </span>
+                          {hasBothMarkers ? (
+                            <>
+                              <span className="md:hidden inline-grid grid-cols-[auto_14px] grid-rows-2 items-center justify-center gap-x-0 leading-[0.7]">
+                                <span className="row-span-2 self-center">{displayValueMobile}</span>
+                                <span className="text-left h-[7px] flex items-center">{plusSigns}</span>
+                                <span className="text-left h-[7px] flex items-center">{dashSigns}</span>
+                              </span>
+                              <span className="hidden md:inline-grid grid-cols-[auto_18px] grid-rows-2 items-center justify-center gap-x-0 leading-[0.7]">
+                                <span className="row-span-2 self-center">{displayValueDesktop}</span>
+                                <span className="text-left h-[7px] flex items-center">{plusSigns}</span>
+                                <span className="text-left h-[7px] flex items-center">{dashSigns}</span>
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="md:hidden">{singleLineMobile}</span>
+                              <span className="hidden md:inline">{singleLineDesktop}</span>
+                            </>
+                          )}
                          </td>
                       );
                     })}
