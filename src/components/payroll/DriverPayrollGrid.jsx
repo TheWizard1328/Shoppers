@@ -535,23 +535,15 @@ export default function DriverPayrollGrid({
                            className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                            style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                          >
-                          <span className="md:hidden inline-flex items-start justify-center gap-0.5 leading-tight">
-                            <span>{displayValueMobile}</span>
-                            {(plusSigns || dashSigns) && (
-                              <span className="inline-flex flex-col items-start leading-tight">
-                                <span>{plusSigns || ''}</span>
-                                <span>{dashSigns || ''}</span>
-                              </span>
-                            )}
+                          <span className="md:hidden inline-grid grid-cols-[auto_auto] grid-rows-2 items-center justify-center gap-x-0.5 leading-none">
+                            <span className="row-span-2 self-center">{displayValueMobile}</span>
+                            <span className="text-left min-w-[8px]">{plusSigns || ''}</span>
+                            <span className="text-left min-w-[8px]">{dashSigns || ''}</span>
                           </span>
-                          <span className="hidden md:inline-flex items-start justify-center gap-0.5 leading-tight">
-                            <span>{displayValueDesktop}</span>
-                            {(plusSigns || dashSigns) && (
-                              <span className="inline-flex flex-col items-start leading-tight">
-                                <span>{plusSigns || ''}</span>
-                                <span>{dashSigns || ''}</span>
-                              </span>
-                            )}
+                          <span className="hidden md:inline-grid grid-cols-[auto_auto] grid-rows-2 items-center justify-center gap-x-0.5 leading-none">
+                            <span className="row-span-2 self-center">{displayValueDesktop}</span>
+                            <span className="text-left min-w-[10px]">{plusSigns || ''}</span>
+                            <span className="text-left min-w-[10px]">{dashSigns || ''}</span>
                           </span>
                          </td>
                       );
