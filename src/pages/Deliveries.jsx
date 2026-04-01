@@ -3312,21 +3312,16 @@ export default function DeliveriesPage() {
               currentUser={currentUser}
               onDeleteRoute={async (dateStr, driverId) => {
                 try {
-                  const deliveriesToDelete = driverFilteredDeliveries.filter(
-                    (d) => d.delivery_date === dateStr && d.driver_id === driverId
-                  );
-                  const deliveryIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
-
-                  console.log(`🗑️ [DeleteRoute] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
-
-                  await batchDeleteDeliveriesLocal(deliveryIds, {
-                    userId: currentUser?.id,
-                    userName: currentUser?.user_name || currentUser?.full_name
+                  const response = await base44.functions.invoke('deleteDriverRouteForDate', {
+                    driverId,
+                    deliveryDate: dateStr
                   });
+                  const deletedIds = response?.data?.ids || response?.ids || [];
 
-                  setAllDeliveries((prev) => prev.filter((d) => !deliveryIds.includes(d.id)));
+                  setAllDeliveries((prev) => prev.filter((d) => !deletedIds.includes(d.id)));
                   invalidate('Delivery');
                   setRefreshKey((prev) => prev + 1);
+                  window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                   console.log(`✅ [DeleteRoute] Route deleted successfully`);
                 } catch (error) {
                   console.error('❌ [DeleteRoute] Error:', error);
@@ -3420,22 +3415,17 @@ export default function DeliveriesPage() {
                 currentUser={currentUser}
                 onDeleteRoute={async (dateStr, driverId) => {
                   try {
-                    const deliveriesToDelete = driverFilteredDeliveries.filter(
-                      (d) => d.delivery_date === dateStr && d.driver_id === driverId
-                    );
-                    const deliveryIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
-
-                    console.log(`🗑️ [DeleteRoute-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
-
-                    await batchDeleteDeliveriesLocal(deliveryIds, {
-                      userId: currentUser?.id,
-                      userName: currentUser?.user_name || currentUser?.full_name
+                    const response = await base44.functions.invoke('deleteDriverRouteForDate', {
+                      driverId,
+                      deliveryDate: dateStr
                     });
+                    const deletedIds = response?.data?.ids || response?.ids || [];
 
-                    setAllDeliveries((prev) => prev.filter((d) => !deliveryIds.includes(d.id)));
+                    setAllDeliveries((prev) => prev.filter((d) => !deletedIds.includes(d.id)));
                     invalidate('Delivery');
                     setRefreshKey((prev) => prev + 1);
                     setIsMobileMenuOpen(false);
+                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                     console.log(`✅ [DeleteRoute-Mobile] Route deleted successfully`);
                   } catch (error) {
                     console.error('❌ [DeleteRoute-Mobile] Error:', error);
