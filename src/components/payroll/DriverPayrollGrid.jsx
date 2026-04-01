@@ -516,7 +516,7 @@ export default function DriverPayrollGrid({
                         : (dataMap[dateKey]?.[store.id] || 0);
                       const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
                       const afterHoursCount = afterHoursMap[dateKey]?.[store.id] || 0;
-                      const showAfterHoursMarkers = isOwner || currentUser?.id === selectedDriverId;
+                      const showAfterHoursMarkers = !!isOwner || currentUser?.id === selectedDriverId;
                       const displayValueMobile = viewMode === 'extraKm' 
                         ? (value > 0 ? value.toFixed(1) : '')
                         : (value > 0 ? value : '');
