@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 
 export default function useRouteManagementRealtimeSync({
@@ -7,16 +7,29 @@ export default function useRouteManagementRealtimeSync({
   setAllDeliveries,
   setAllPatients
 }) {
+  const deletedDeliveryIdsRef = useRef(new Set());
+
   useEffect(() => {
     if (!enabled) return;
 
     const handleRealtimeDeliveriesUpdated = (event) => {
       const detail = event?.detail || {};
-      const incomingDeliveries = Array.isArray(detail.deliveries)
+      const deletedIds = Array.isArray(detail.deletedIds)
+        ? detail.deletedIds
+        : detail.deletedId
+          ? [detail.deletedId]
+          : [];
+
+      deletedIds.forEach((id) => {
+        if (id) deletedDeliveryIdsRef.current.add(id);
+      });
+
+      const incomingDeliveries = (Array.isArray(detail.deliveries)
         ? detail.deliveries
         : Array.isArray(detail.freshDeliveries)
           ? detail.freshDeliveries
-          : [];
+          : [])
+        .filter((item) => item?.id && !deletedDeliveryIdsRef.current.has(item.id));
 
       const selectedDateString = selectedDate ? format(new Date(selectedDate), 'yyyy-MM-dd') : null;
 
@@ -26,24 +39,18 @@ export default function useRouteManagementRealtimeSync({
           const selectedDateDeliveries = incomingDeliveries.filter((item) => item?.delivery_date === selectedDateString);
           return [...otherDates, ...selectedDateDeliveries];
         });
-        return;
-      }
-
-      if (incomingDeliveries.length > 0) {
+      } else if (incomingDeliveries.length > 0) {
         setAllDeliveries?.((prev) => {
           const byId = new Map((prev || []).filter(Boolean).map((item) => [item.id, item]));
           incomingDeliveries.forEach((item) => {
-            if (item?.id) byId.set(item.id, item);
+            if (item?.id && !deletedDeliveryIdsRef.current.has(item.id)) {
+              byId.set(item.id, item);
+            }
           });
+          deletedDeliveryIdsRef.current.forEach((id) => byId.delete(id));
           return Array.from(byId.values());
         });
       }
-
-      const deletedIds = Array.isArray(detail.deletedIds)
-        ? detail.deletedIds
-        : detail.deletedId
-          ? [detail.deletedId]
-          : [];
 
       if (deletedIds.length > 0) {
         setAllDeliveries?.((prev) => (prev || []).filter((item) => !deletedIds.includes(item?.id)));
@@ -80,12 +87,21 @@ export default function useRouteManagementRealtimeSync({
       }
     };
 
+    const handleBulkDeleteSettled = (event) => {
+      const deletedIds = event?.detail?.deletedIds || [];
+      deletedIds.forEach((id) => {
+        if (id) deletedDeliveryIdsRef.current.add(id);
+      });
+    };
+
     window.addEventListener('deliveriesUpdated', handleRealtimeDeliveriesUpdated);
     window.addEventListener('patientsUpdated', handleRealtimePatientsUpdated);
+    window.addEventListener('routeManagementBulkDeleteSettled', handleBulkDeleteSettled);
 
     return () => {
       window.removeEventListener('deliveriesUpdated', handleRealtimeDeliveriesUpdated);
       window.removeEventListener('patientsUpdated', handleRealtimePatientsUpdated);
+      window.removeEventListener('routeManagementBulkDeleteSettled', handleBulkDeleteSettled);
     };
   }, [enabled, selectedDate, setAllDeliveries, setAllPatients]);
 }

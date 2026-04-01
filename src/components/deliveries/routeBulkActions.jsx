@@ -1,5 +1,4 @@
 import { invalidate } from "../utils/dataManager";
-import { smartRefreshManager } from "../utils/smartRefreshManager";
 import { offlineDB } from "../utils/offlineDatabase";
 import { updateDeliveryLocal, batchDeleteDeliveriesLocal, setBatchDeleteInProgress } from "../utils/entityMutations";
 import { getDriverNameForStorage } from "../utils/driverUtils";
@@ -28,7 +27,9 @@ export async function runBulkDeleteStops({
     const freshOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
     setAllDeliveries?.(freshOfflineDeliveries || []);
     await reloadFromOfflineDB?.();
-    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+    window.dispatchEvent(new CustomEvent('routeManagementBulkDeleteSettled', {
+      detail: { deletedIds: selectedBulkDeliveryIds }
+    }));
     setSelectedBulkDeliveryIds([]);
     setBulkEditMode(false);
     window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -123,7 +124,6 @@ export function runBulkEditStops({
     })
   )
     .then(async () => {
-      smartRefreshManager.restart();
       invalidate("Delivery");
       await loadData(true);
       setSelectedBulkDeliveryIds([]);
