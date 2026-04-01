@@ -945,7 +945,7 @@ export const processPendingMutations = async () => {
   if (deletes.length > 0) {
     const deletePromises = deletes.map(mutation => {
       if (mutation.recordId?.startsWith('temp_')) {
-        return Promise.resolve({ success: true, skip: true });
+        return Promise.resolve({ success: true, skip: true, mutationId: mutation.mutationId, recordId: mutation.recordId, entity: mutation.entity });
       }
       
       const Entity = getMutationEntityClient(mutation.entity);
@@ -987,10 +987,17 @@ export const processPendingMutations = async () => {
         }
         successCount++;
       } else if (result.success && result.skip) {
-        const mutation = deletes.find(m => m.mutationId === result.mutationId || !m.recordId?.startsWith('temp_'));
+        const mutation = deletes.find(m => m.mutationId === result.mutationId);
         if (mutation?.mutationId) {
-          // Always remove from pending queue even if skipped
           offlineDeletePromises.push(offlineDB.removePendingMutation(mutation.mutationId));
+          const relatedTempMutations = mutations.filter((queued) =>
+            queued.mutationId !== mutation.mutationId &&
+            queued.entity === mutation.entity &&
+            queued.recordId === mutation.recordId
+          );
+          relatedTempMutations.forEach((queued) => {
+            offlineDeletePromises.push(offlineDB.removePendingMutation(queued.mutationId));
+          });
         }
         successCount++;
       } else {
@@ -1066,6 +1073,14 @@ export const processPendingMutations = async () => {
             await offlineDB.deleteRecord(storeName, mutation.recordId);
           }
           await offlineDB.bulkSave(storeName, [createdRecord]);
+        }
+        if (mutation.recordId?.startsWith('temp_')) {
+          const relatedTempMutations = mutations.filter((queued) =>
+            queued.mutationId !== mutation.mutationId &&
+            queued.entity === mutation.entity &&
+            queued.recordId === mutation.recordId
+          );
+          await Promise.all(relatedTempMutations.map((queued) => offlineDB.removePendingMutation(queued.mutationId)));
         }
         if (typeof window !== 'undefined' && mutation.recordId?.startsWith('temp_')) {
           window.dispatchEvent(new CustomEvent('offlineMutationRecordReplaced', {
