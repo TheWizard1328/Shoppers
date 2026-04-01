@@ -1377,7 +1377,7 @@ export default function DeliveryForm({
     try {
       const dataToSave = await buildInTransitDirectSaveData({ prepareDeliverySaveData, formData, delivery, isCompletionStatus, completionTime, selectedPatient, stores, allDeliveries, stagedDeliveries });
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) {
-        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); });
+        closeDeliveryFormAfterSave({ handleClearForm, onCancel });
         return true;
       }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
@@ -1435,11 +1435,17 @@ export default function DeliveryForm({
         await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
 
-      await runDeliverySubmitSideEffects({
-        delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
-        isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
-        actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
-        isPickupMode, updateDeliveryLocal
+      Promise.resolve().then(async () => {
+        try {
+          await runDeliverySubmitSideEffects({
+            delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
+            isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
+            actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
+            isPickupMode, updateDeliveryLocal
+          });
+        } catch (sideEffectError) {
+          console.warn('⚠️ [DeliveryForm] Side effects failed:', sideEffectError);
+        }
       });
       return true;
     } catch (error) {
