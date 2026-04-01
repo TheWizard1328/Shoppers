@@ -229,6 +229,21 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     if (isManualRefreshing || isPaused) return;
     if (window.__dashboardSyncing && window.__activePullToSyncRunId) return;
 
+    if (typeof window !== 'undefined' && window.location.pathname.includes('Deliveries')) {
+      setIsManualRefreshing(true);
+      let completed = false;
+      const finish = () => {
+        if (completed) return;
+        completed = true;
+        setIsManualRefreshing(false);
+        window.removeEventListener('routeManagementOfflineRefreshComplete', finish);
+      };
+      window.addEventListener('routeManagementOfflineRefreshComplete', finish);
+      window.dispatchEvent(new CustomEvent('routeManagementOfflineRefreshRequested'));
+      setTimeout(finish, 5000);
+      return;
+    }
+
     setIsManualRefreshing(true);
 
     // Trigger pull-to-sync (silent mode - no overlay)

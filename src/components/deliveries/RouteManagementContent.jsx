@@ -14,6 +14,7 @@ import { createDeliveryLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
 import { userHasRole } from "../utils/userRoles";
 import { runBulkDeleteStops, runBulkEditStops } from "./routeBulkActions";
+import { useAppData } from "../utils/AppDataContext";
 
 export default function RouteManagementContent({
   deliveries,
@@ -37,6 +38,7 @@ export default function RouteManagementContent({
   reloadFromOfflineDB,
   appUsers = []
 }) {
+  const { forceRefreshDriverDeliveries } = useAppData();
   const isMobile = useMemo(() => isMobileDevice(), []);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
@@ -70,6 +72,45 @@ export default function RouteManagementContent({
     const selectedIds = new Set(selectedBulkDeliveryIds);
     return (deliveries || []).filter((delivery) => selectedIds.has(delivery.id));
   }, [deliveries, selectedBulkDeliveryIds]);
+
+  useEffect(() => {
+    const handleRouteManagementOfflineRefresh = async () => {
+      if (!selectedDate) return;
+
+      const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
+      const selectedDriverId = typeof window !== 'undefined' ? localStorage.getItem('global_selected_driver_id') : null;
+
+      let refreshedDeliveries = Array.isArray(offlineDeliveriesForDate) ? offlineDeliveriesForDate : [];
+      if (selectedDriverId && selectedDriverId !== 'all') {
+        refreshedDeliveries = refreshedDeliveries.filter((delivery) => delivery?.driver_id === selectedDriverId);
+        await forceRefreshDriverDeliveries(selectedDriverId, selectedDate);
+      }
+
+      if (reloadFromOfflineDB) {
+        await reloadFromOfflineDB();
+      } else {
+        setAllDeliveries?.(refreshedDeliveries);
+      }
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          deliveries: refreshedDeliveries,
+          freshDeliveries: refreshedDeliveries,
+          deliveryDate: selectedDate,
+          triggeredBy: 'offlineRouteManagementRefresh',
+          source: 'offline_db',
+          immediate: true,
+          fullReplacement: true
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      window.dispatchEvent(new CustomEvent('routeManagementOfflineRefreshComplete'));
+    };
+
+    window.addEventListener('routeManagementOfflineRefreshRequested', handleRouteManagementOfflineRefresh);
+    return () => {
+      window.removeEventListener('routeManagementOfflineRefreshRequested', handleRouteManagementOfflineRefresh);
+    };
+  }, [forceRefreshDriverDeliveries, selectedDate, setAllDeliveries, reloadFromOfflineDB]);
 
   useEffect(() => {
     setSelectedBulkDeliveryIds((current) => current.filter((id) => visibleBulkDeliveryIds.includes(id)));
