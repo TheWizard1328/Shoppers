@@ -12,6 +12,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { bulkDeleteDeliveries } from '@/functions/bulkDeleteDeliveries';
 import { offlineDB } from './offlineDatabase';
 
 // ========================================
@@ -799,7 +800,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     console.log(`💾 [EntityMutations] Found ${idsToDeleteOffline.length} of ${uniqueDeliveryIds.length} in IndexedDB`);
 
     const failedIds = [];
-    const idsDeletedRemotely = [];
+    let idsDeletedRemotely = [];
 
     if (idsToDeleteOffline.length > 0) {
       const db = await offlineDB.openDatabase();
@@ -815,6 +816,10 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       }
       console.log(`💾 [EntityMutations] Deleted ${idsToDeleteOffline.length} from IndexedDB`);
     }
+
+    const backendBulkDeleteResponse = await bulkDeleteDeliveries({ deliveryIds: uniqueDeliveryIds });
+    idsDeletedRemotely = backendBulkDeleteResponse?.data?.deletedIds || backendBulkDeleteResponse?.deletedIds || [];
+    failedIds.push(...(backendBulkDeleteResponse?.data?.failedIds || backendBulkDeleteResponse?.failedIds || []));
 
     if (idsDeletedRemotely.length === 0 && idsToDeleteOffline.length === 0) {
       console.log('⏭️ [EntityMutations] No deliveries found in offline or online DB, all already deleted');
@@ -853,10 +858,10 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
 
     await broadcastMutation('Delivery', 'batch_delete', null, null, locallyDeletedIds);
 
-    for (const id of uniqueDeliveryIds) {
+    for (const id of failedIds) {
       await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: id });
     }
-    console.log(`🗂️ [EntityMutations] Queued ${uniqueDeliveryIds.length} bulk delete mutations for background sync`);
+    console.log(`🗂️ [EntityMutations] Queued ${failedIds.length} failed bulk deletes for background sync`);
 
     await restartSmartRefresh();
     return true;
