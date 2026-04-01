@@ -810,9 +810,13 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     let idsDeletedRemotely = [];
 
     updateBulkDeleteJobProgress({
-      completedIds: idsToDeleteOffline,
+      completedIds: [],
       failedIds,
-      pendingIds: uniqueDeliveryIds.filter(id => !idsToDeleteOffline.includes(id))
+      pendingIds: uniqueDeliveryIds,
+      status: 'running',
+      lastError: idsToDeleteOffline.length > 0
+        ? `Removed ${idsToDeleteOffline.length} locally, waiting for server delete`
+        : 'Waiting for server delete'
     });
 
     if (idsToDeleteOffline.length > 0) {
@@ -833,6 +837,14 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     const backendBulkDeleteResponse = await bulkDeleteDeliveries({ deliveryIds: uniqueDeliveryIds });
     idsDeletedRemotely = backendBulkDeleteResponse?.data?.deletedIds || backendBulkDeleteResponse?.deletedIds || [];
     failedIds.push(...(backendBulkDeleteResponse?.data?.failedIds || backendBulkDeleteResponse?.failedIds || []));
+
+    updateBulkDeleteJobProgress({
+      completedIds: idsDeletedRemotely,
+      failedIds,
+      pendingIds: uniqueDeliveryIds.filter(id => !idsDeletedRemotely.includes(id) && !failedIds.includes(id)),
+      status: failedIds.length > 0 ? 'retrying' : 'running',
+      lastError: failedIds.length > 0 ? 'Some server deletions failed and will retry in background' : null
+    });
 
     if (idsDeletedRemotely.length === 0 && idsToDeleteOffline.length === 0) {
       console.log('⏭️ [EntityMutations] No deliveries found in offline or online DB, all already deleted');
