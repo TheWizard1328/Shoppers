@@ -27,6 +27,7 @@ export async function runBulkDeleteStops({
     const freshOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
     setAllDeliveries?.(freshOfflineDeliveries || []);
     await reloadFromOfflineDB?.();
+    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
     setSelectedBulkDeliveryIds([]);
     setBulkEditMode(false);
     window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));

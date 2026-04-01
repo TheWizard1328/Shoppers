@@ -718,12 +718,12 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // CRITICAL: Route Management loads its own month data independently
-    // NEVER sync context deliveries into Route Management (both overview and with driver selected)
-    // Route Management is completely decoupled from Dashboard
     if (!isDriverOverviewMode) {
-      console.log('⏸️ [Deliveries] Skipping context sync for deliveries - Route Management loads independently from offline DB');
-      // Still sync other data
+      const hasContextDeliveries = Array.isArray(contextDeliveries);
+      if (hasContextDeliveries) {
+        console.log(`🔄 [Deliveries] Syncing Route Management deliveries from shared state: ${contextDeliveries.length}`);
+        setAllDeliveries(contextDeliveries);
+      }
       if (contextPatients.length > 0) {
         setAllPatients(contextPatients);
       }
@@ -739,8 +739,6 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // Driver Overview: DO NOT sync deliveries from context (contextDeliveries is date-filtered)
-    // Driver Overview loads its own data independently from offline DB
     console.log('⏸️ [Deliveries] Skipping context delivery sync for Driver Overview - loads independently from offline DB');
 
     if (contextPatients.length > 0) {
