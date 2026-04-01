@@ -128,6 +128,7 @@ let mutationListeners = [];
 let mutationsPaused = false;
 let isBatchFormSaving = false; // CRITICAL: Track if Add To Route form is batch saving
 let isBatchDeleteInProgress = false;
+let batchDeleteRefreshTimeout = null;
 
 /**
  * Pause all mutations (during route optimization)
@@ -164,6 +165,11 @@ export const setBatchFormSaving = (isSaving) => {
 export const isBatchFormSavingActive = () => isBatchFormSaving;
 export const setBatchDeleteInProgress = (isDeleting) => {
   isBatchDeleteInProgress = isDeleting;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('routeBulkDeleteStateChange', {
+      detail: { isDeleting }
+    }));
+  }
 };
 export const isBatchDeleteActive = () => isBatchDeleteInProgress;
 
@@ -214,9 +220,9 @@ const pauseSmartRefresh = async () => {
  * Restart smart refresh after mutation
  */
 const restartSmartRefresh = async () => {
-  // CRITICAL: Skip restart if batch form is saving (prevents spam during Add To Route)
-  if (isBatchFormSaving) {
-    console.log('⏭️ [EntityMutations] Skipping SmartRefresh restart - batch form saving active');
+  // CRITICAL: Skip restart if batch form is saving or batch delete is in progress
+  if (isBatchFormSaving || isBatchDeleteInProgress) {
+    console.log('⏭️ [EntityMutations] Skipping SmartRefresh restart - batch operation active');
     return;
   }
   
@@ -842,8 +848,16 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       data: null
     });
 
-    if (!isBatchDeleteInProgress) {
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    if (typeof window !== 'undefined') {
+      if (batchDeleteRefreshTimeout) {
+        clearTimeout(batchDeleteRefreshTimeout);
+      }
+      batchDeleteRefreshTimeout = setTimeout(() => {
+        batchDeleteRefreshTimeout = null;
+        if (!isBatchDeleteInProgress) {
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        }
+      }, isBatchDeleteInProgress ? 250 : 0);
     }
 
     await broadcastMutation('Delivery', 'batch_delete', null, null, locallyDeletedIds);
