@@ -104,9 +104,12 @@ export default function RouteManagementContent({
       setIsBulkUpdating,
       setSelectedBulkDeliveryIds,
       setBulkEditMode,
-      setAllDeliveries: setAllDeliveries || onDelete,
-      onAfterDelete: () => window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
-        detail: { deletedIds: selectedBulkDeliveryIds }
+      setAllDeliveries,
+      onAfterDelete: (freshOfflineDeliveries) => window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
+        detail: {
+          deletedIds: selectedBulkDeliveryIds,
+          deliveries: freshOfflineDeliveries
+        }
       }))
     });
   }, [isBulkUpdating, selectedBulkDeliveryIds, setAllDeliveries]);

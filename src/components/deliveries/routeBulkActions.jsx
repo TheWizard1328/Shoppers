@@ -1,5 +1,6 @@
 import { invalidate } from "../utils/dataManager";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
+import { offlineDB } from "../utils/offlineDatabase";
 import { updateDeliveryLocal, batchDeleteDeliveriesLocal, setBatchDeleteInProgress } from "../utils/entityMutations";
 import { getDriverNameForStorage } from "../utils/driverUtils";
 import { getPickupStopIdForDelivery } from "../utils/ampmUtils";
@@ -22,11 +23,12 @@ export async function runBulkDeleteStops({
 
   try {
     await batchDeleteDeliveriesLocal(selectedBulkDeliveryIds);
-    setAllDeliveries?.((prev) => prev.filter((delivery) => !selectedBulkDeliveryIds.includes(delivery?.id)));
+    const freshOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    setAllDeliveries?.(freshOfflineDeliveries || []);
     setSelectedBulkDeliveryIds([]);
     setBulkEditMode(false);
     window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-    onAfterDelete?.();
+    onAfterDelete?.(freshOfflineDeliveries || []);
   } finally {
     setBatchDeleteInProgress(false);
     setIsBulkUpdating(false);
