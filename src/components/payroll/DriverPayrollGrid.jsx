@@ -538,25 +538,25 @@ export default function DriverPayrollGrid({
                            style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                          >
                           <span className="md:hidden inline-grid grid-cols-[20px_14px] items-center justify-center gap-x-0 leading-[0.7]">
-                            <span className={`flex justify-center ${hasBothMarkers ? 'row-span-2 self-center' : ''}`}>{displayValueMobile}</span>
+                            <span className="flex justify-center items-center row-span-2 self-stretch">{displayValueMobile}</span>
                             {hasBothMarkers ? (
                               <>
                                 <span className="text-left h-[7px] flex items-center">{plusSigns}</span>
                                 <span className="text-left h-[7px] flex items-center">{dashSigns}</span>
                               </>
                             ) : (
-                              <span className="text-left flex items-center">{markerValue}</span>
+                              <span className="text-left flex items-center row-span-2 self-stretch">{markerValue}</span>
                             )}
                           </span>
                           <span className="hidden md:inline-grid grid-cols-[28px_18px] items-center justify-center gap-x-0 leading-[0.7]">
-                            <span className={`flex justify-center ${hasBothMarkers ? 'row-span-2 self-center' : ''}`}>{displayValueDesktop}</span>
+                            <span className="flex justify-center items-center row-span-2 self-stretch">{displayValueDesktop}</span>
                             {hasBothMarkers ? (
                               <>
                                 <span className="text-left h-[7px] flex items-center">{plusSigns}</span>
                                 <span className="text-left h-[7px] flex items-center">{dashSigns}</span>
                               </>
                             ) : (
-                              <span className="text-left flex items-center">{markerValue}</span>
+                              <span className="text-left flex items-center row-span-2 self-stretch">{markerValue}</span>
                             )}
                           </span>
                          </td>
