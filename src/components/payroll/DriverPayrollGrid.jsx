@@ -537,8 +537,8 @@ export default function DriverPayrollGrid({
                            className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                            style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                          >
-                          <span className="md:hidden inline-grid grid-cols-[auto_14px] items-center justify-center gap-x-0 leading-[0.7]">
-                            <span className={hasBothMarkers ? 'row-span-2 self-center' : ''}>{displayValueMobile}</span>
+                          <span className="md:hidden inline-grid grid-cols-[20px_14px] items-center justify-center gap-x-0 leading-[0.7]">
+                            <span className={`flex justify-center ${hasBothMarkers ? 'row-span-2 self-center' : ''}`}>{displayValueMobile}</span>
                             {hasBothMarkers ? (
                               <>
                                 <span className="text-left h-[7px] flex items-center">{plusSigns}</span>
@@ -548,8 +548,8 @@ export default function DriverPayrollGrid({
                               <span className="text-left flex items-center">{markerValue}</span>
                             )}
                           </span>
-                          <span className="hidden md:inline-grid grid-cols-[auto_18px] items-center justify-center gap-x-0 leading-[0.7]">
-                            <span className={hasBothMarkers ? 'row-span-2 self-center' : ''}>{displayValueDesktop}</span>
+                          <span className="hidden md:inline-grid grid-cols-[28px_18px] items-center justify-center gap-x-0 leading-[0.7]">
+                            <span className={`flex justify-center ${hasBothMarkers ? 'row-span-2 self-center' : ''}`}>{displayValueDesktop}</span>
                             {hasBothMarkers ? (
                               <>
                                 <span className="text-left h-[7px] flex items-center">{plusSigns}</span>
