@@ -100,7 +100,7 @@ import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import ConnectionRecoveryBanner from './components/layout/ConnectionRecoveryBanner';
 import { subscribeMutations } from './components/utils/entityMutations';
 import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSync';
-import ConflictManager from './components/dashboard/ConflictManager';
+import GlobalOverlays from './components/layout/GlobalOverlays';
 import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
@@ -2424,8 +2424,7 @@ export default function Layout({ children, currentPageName }) {
 
 
 
-                  {/* Global Conflict Manager */}
-                  <ConflictManager />
+                  <GlobalOverlays />
                   
                   {/* Message Notification Balloon */}
                                {currentUser && !showMessaging &&
