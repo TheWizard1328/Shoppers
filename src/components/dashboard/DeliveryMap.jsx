@@ -261,6 +261,9 @@ export default function DeliveryMap({
     return Array.isArray(users) ? users : [];
   }, [realtimeAppUsers, users]);
 
+  const validPatientIds = useMemo(() => new Set(safePatients.map((patient) => patient?.id).filter(Boolean)), [safePatients]);
+  const validStoreIds = useMemo(() => new Set(safeStores.map((store) => store?.id).filter(Boolean)), [safeStores]);
+
   const driverLookupMap = useMemo(() => {
     const map = new Map();
     safeUsers.forEach((user) => {
@@ -272,9 +275,16 @@ export default function DeliveryMap({
 
   const deliveriesToShow = useMemo(() => {
     const baseDeliveries = safeDeliveries.length > 0 ? safeDeliveries : safeAllDeliveriesForDate;
-    if (!showOtherDriverDeliveries || otherDriverDeliveries.length === 0) return baseDeliveries;
-    return dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
-  }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries]);
+    const mergedDeliveries = !showOtherDriverDeliveries || otherDriverDeliveries.length === 0
+      ? baseDeliveries
+      : dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
+
+    return mergedDeliveries.filter((delivery) => {
+      if (!delivery?.id) return false;
+      if (delivery.patient_id) return validPatientIds.has(delivery.patient_id);
+      return validStoreIds.has(delivery.store_id);
+    });
+  }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries, validPatientIds, validStoreIds]);
 
   const driverNameLookupMap = useMemo(() => {
     const map = new Map();
