@@ -440,11 +440,7 @@ export default function DriverPayroll() {
     if (currentPeriod) {
       const periodStart = toLocalYMD(currentPeriod.start);
       const periodEnd = toLocalYMD(currentPeriod.end);
-      filtered = filtered.filter((d) => {
-        if (!d?.delivery_date) return false;
-        const deliveryDate = String(d.delivery_date).slice(0, 10);
-        return deliveryDate >= periodStart && deliveryDate <= periodEnd;
-      });
+      filtered = filtered.filter((d) => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
     }
 
     // Filter by pay cycle

@@ -160,12 +160,9 @@ export default function RouteMapView({
                   showStoreMarkers={true}
                   showDriverMarkers={false}
                   showStopCards={false}
-                  showRoutes={false}
-                  enableRoutePolylines={false}
-                  enableDashboardEffects={false}
                   zoom={11}
-                  selectedDeliveryId={selectedDeliveryId}
-                  onDeliveryClick={onDeliveryClick}
+                  selectedDeliveryId={selectedDeliveryId} // Pass new prop
+                  onDeliveryClick={onDeliveryClick} // Pass new prop
                 />
               </MapContainer>
             ) : (

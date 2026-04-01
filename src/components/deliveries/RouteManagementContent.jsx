@@ -3,21 +3,18 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pencil, Package, Trash2 } from "lucide-react";
+import { Pencil, Package } from "lucide-react";
 import StopCard from "../common/StopCard";
 import StopDetailsPanel from "./StopDetailsPanel";
 import DeliveryListView from "../dashboard/DeliveryListView";
 import BulkEditStopsPanel from "./BulkEditStopsPanel";
 import { isMobileDevice } from "../utils/deviceUtils";
-import { offlineDB } from "../utils/offlineDatabase";
-import { createDeliveryLocal } from "../utils/entityMutations";
+import { createDeliveryLocal, updateDeliveryLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
+import { smartRefreshManager } from "../utils/smartRefreshManager";
+import { getDriverNameForStorage } from "../utils/driverUtils";
+import { getPickupStopIdForDelivery } from "../utils/ampmUtils";
 import { userHasRole } from "../utils/userRoles";
-import { globalFilters } from "../utils/globalFilters";
-import { runBulkEditStops } from "./routeBulkActions";
-import { useAppData } from "../utils/AppDataContext";
-import useRouteManagementRealtimeSync from "./useRouteManagementRealtimeSync";
-import { deleteDeliveriesByQuery } from "@/functions/deleteDeliveriesByQuery";
 
 export default function RouteManagementContent({
   deliveries,
@@ -37,19 +34,9 @@ export default function RouteManagementContent({
   onNotesUpdate,
   onCODUpdate,
   loadData,
-  setAllDeliveries,
-  reloadFromOfflineDB,
   appUsers = []
 }) {
-  const { forceRefreshDriverDeliveries } = useAppData();
   const isMobile = useMemo(() => isMobileDevice(), []);
-
-  useRouteManagementRealtimeSync({
-    enabled: true,
-    selectedDate,
-    setAllDeliveries,
-    setAllPatients: () => {}
-  });
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
   const [bulkEditMode, setBulkEditMode] = useState(false);
@@ -70,13 +57,9 @@ export default function RouteManagementContent({
     return (drivers || []).filter((driver) => userHasRole(driver, "driver"));
   }, [drivers]);
 
-  const dedupedDeliveries = useMemo(() => {
-    return Array.from(new Map((deliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
-  }, [deliveries]);
-
   const visibleBulkDeliveryIds = useMemo(() => {
-    return dedupedDeliveries.map((delivery) => delivery.id).filter(Boolean);
-  }, [dedupedDeliveries]);
+    return (deliveries || []).map((delivery) => delivery.id).filter(Boolean);
+  }, [deliveries]);
 
   const areAllVisibleBulkDeliveriesSelected = useMemo(() => {
     return visibleBulkDeliveryIds.length > 0 && visibleBulkDeliveryIds.every((id) => selectedBulkDeliveryIds.includes(id));
@@ -84,107 +67,8 @@ export default function RouteManagementContent({
 
   const selectedBulkDeliveries = useMemo(() => {
     const selectedIds = new Set(selectedBulkDeliveryIds);
-    return dedupedDeliveries.filter((delivery) => selectedIds.has(delivery.id));
-  }, [dedupedDeliveries, selectedBulkDeliveryIds]);
-
-  useEffect(() => {
-    const handleRouteManagementOfflineRefresh = async () => {
-      if (!selectedDate) return;
-
-      const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
-      const selectedDriverId = typeof window !== 'undefined' ? localStorage.getItem('global_selected_driver_id') : null;
-
-      let refreshedDeliveries = Array.isArray(offlineDeliveriesForDate) ? offlineDeliveriesForDate : [];
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        refreshedDeliveries = refreshedDeliveries.filter((delivery) => delivery?.driver_id === selectedDriverId);
-        await forceRefreshDriverDeliveries(selectedDriverId, selectedDate);
-      }
-
-      if (reloadFromOfflineDB) {
-        await reloadFromOfflineDB();
-      } else {
-        setAllDeliveries?.(refreshedDeliveries);
-      }
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: {
-          deliveries: refreshedDeliveries,
-          freshDeliveries: refreshedDeliveries,
-          deliveryDate: selectedDate,
-          triggeredBy: 'offlineRouteManagementRefresh',
-          source: 'offline_db',
-          immediate: true,
-          fullReplacement: true
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      window.dispatchEvent(new CustomEvent('routeManagementOfflineRefreshComplete'));
-    };
-
-    const handleRouteManagementPullToSync = async (event) => {
-      if (!selectedDate) {
-        window.dispatchEvent(new CustomEvent('routeManagementPullToSyncComplete'));
-        return;
-      }
-
-      const selectedDriverId = typeof window !== 'undefined' ? localStorage.getItem('global_selected_driver_id') : null;
-      const silent = event?.detail?.silent === true;
-
-      try {
-        window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-          detail: {
-            silent,
-            requestedAt: Date.now(),
-            routeManagement: true,
-            selectedDate,
-            selectedDriverId: selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : 'all'
-          }
-        }));
-
-        const finish = async () => {
-          window.removeEventListener('pullToSyncComplete', finish);
-          const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
-          let refreshedDeliveries = Array.isArray(offlineDeliveriesForDate) ? offlineDeliveriesForDate : [];
-
-          if (selectedDriverId && selectedDriverId !== 'all') {
-            refreshedDeliveries = refreshedDeliveries.filter((delivery) => delivery?.driver_id === selectedDriverId);
-            await forceRefreshDriverDeliveries(selectedDriverId, selectedDate);
-          }
-
-          if (reloadFromOfflineDB) {
-            await reloadFromOfflineDB();
-          } else {
-            setAllDeliveries?.(refreshedDeliveries);
-          }
-
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: {
-              deliveries: refreshedDeliveries,
-              freshDeliveries: refreshedDeliveries,
-              deliveryDate: selectedDate,
-              triggeredBy: 'routeManagementPullToSync',
-              source: 'offline_db',
-              immediate: true,
-              fullReplacement: true
-            }
-          }));
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          window.dispatchEvent(new CustomEvent('routeManagementPullToSyncComplete'));
-        };
-
-        window.addEventListener('pullToSyncComplete', finish, { once: true });
-      } catch (error) {
-        console.error('❌ [RouteManagement] Pull to sync failed:', error);
-        window.dispatchEvent(new CustomEvent('routeManagementPullToSyncComplete'));
-      }
-    };
-
-    window.addEventListener('routeManagementOfflineRefreshRequested', handleRouteManagementOfflineRefresh);
-    window.addEventListener('routeManagementPullToSyncRequested', handleRouteManagementPullToSync);
-    return () => {
-      window.removeEventListener('routeManagementOfflineRefreshRequested', handleRouteManagementOfflineRefresh);
-      window.removeEventListener('routeManagementPullToSyncRequested', handleRouteManagementPullToSync);
-    };
-  }, [forceRefreshDriverDeliveries, selectedDate, setAllDeliveries, reloadFromOfflineDB]);
+    return (deliveries || []).filter((delivery) => selectedIds.has(delivery.id));
+  }, [deliveries, selectedBulkDeliveryIds]);
 
   useEffect(() => {
     setSelectedBulkDeliveryIds((current) => current.filter((id) => visibleBulkDeliveryIds.includes(id)));
@@ -213,54 +97,86 @@ export default function RouteManagementContent({
     setSelectedBulkDeliveryIds([]);
   }, []);
 
-  const handleBulkDeleteSelected = useCallback(async () => {
-    if (!selectedBulkDeliveryIds.length || isBulkUpdating || !selectedDate) return;
+  const handleBulkEditApply = useCallback((values) => {
+    const baseUpdates = {};
+    const isAdmin = userHasRole(currentUser, "admin");
 
-    const selectedDriverId = globalFilters.getSelectedDriverId();
-    const query = {
-      delivery_date: selectedDate,
-      ...(selectedDriverId && selectedDriverId !== "all" ? { driver_id: selectedDriverId } : {})
-    };
+    if (values.delivery_date) baseUpdates.delivery_date = values.delivery_date;
+    if (values.delivery_time_start) baseUpdates.delivery_time_start = values.delivery_time_start;
+    if (values.delivery_time_end) baseUpdates.delivery_time_end = values.delivery_time_end;
+    if (values.driverChoice === "unassigned") {
+      baseUpdates.driver_id = null;
+      baseUpdates.driver_name = "";
+    } else if (values.driverChoice !== "unchanged") {
+      const selectedDriver = bulkEditableDrivers.find((driver) => driver.id === values.driverChoice);
+      if (selectedDriver) {
+        baseUpdates.driver_id = selectedDriver.id;
+        baseUpdates.driver_name = getDriverNameForStorage(selectedDriver);
+      }
+    }
+
+    if (!selectedBulkDeliveryIds.length) {
+      return Promise.resolve();
+    }
+
+    const selectedStoreOption = values.storeChoice && values.storeChoice !== "unchanged" ?
+    (() => {
+      const [storeId, slot] = values.storeChoice.split("::");
+      return { storeId, slot };
+    })() :
+    null;
+
+    const hasMeaningfulChanges =
+    Object.keys(baseUpdates).length > 0 ||
+    values.statusChoice !== "unchanged" ||
+    !!selectedStoreOption ||
+    isAdmin && !!values.puid;
+
+    if (!hasMeaningfulChanges) {
+      return Promise.resolve();
+    }
 
     setIsBulkUpdating(true);
-    const response = await deleteDeliveriesByQuery({ query });
-    const deletedIds = response?.data?.deleted_ids || [];
 
-    if (deletedIds.length > 0) {
-      const remainingOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      const filteredDeliveries = remainingOfflineDeliveries.filter((delivery) => !deletedIds.includes(delivery?.id));
-      setAllDeliveries?.(filteredDeliveries);
+    return Promise.all(
+      selectedBulkDeliveryIds.map((deliveryId) => {
+        const selectedDelivery = (deliveries || []).find((delivery) => delivery.id === deliveryId);
+        const nextUpdates = { ...baseUpdates };
+
+        if (values.statusChoice !== "unchanged") {
+          nextUpdates.status = values.statusChoice === "in_transit_or_en_route" ?
+          selectedDelivery?.patient_id ? "in_transit" : "en_route" :
+          values.statusChoice;
+        }
+
+        if (selectedStoreOption) {
+          const puidDate = nextUpdates.delivery_date || selectedDelivery?.delivery_date;
+          const nextPuid = getPickupStopIdForDelivery(
+            selectedStoreOption.storeId,
+            puidDate,
+            selectedStoreOption.slot,
+            allDeliveries || []
+          ) || "";
+
+          nextUpdates.store_id = selectedStoreOption.storeId;
+          nextUpdates.ampm_deliveries = selectedStoreOption.slot;
+          nextUpdates.puid = isAdmin ? values.puid || nextPuid : nextPuid;
+        } else if (isAdmin && values.puid) {
+          nextUpdates.puid = values.puid;
+        }
+
+        return updateDeliveryLocal(deliveryId, nextUpdates, { isBatchOperation: true });
+      })
+    ).
+    then(async () => {
+      smartRefreshManager.restart();
+      invalidate("Delivery");
+      await loadData(true);
       setSelectedBulkDeliveryIds([]);
       setBulkEditMode(false);
-      window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
-        detail: {
-          deletedIds,
-          deliveries: filteredDeliveries
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-    }
-
-    if (reloadFromOfflineDB) {
-      await reloadFromOfflineDB();
-    }
-
-    setIsBulkUpdating(false);
-  }, [isBulkUpdating, selectedBulkDeliveryIds.length, selectedDate, setAllDeliveries, reloadFromOfflineDB]);
-
-  const handleBulkEditApply = useCallback((values) => {
-    return runBulkEditStops({
-      values,
-      currentUser,
-      deliveries,
-      selectedBulkDeliveryIds,
-      bulkEditableDrivers,
-      allDeliveries,
-      setIsBulkUpdating,
-      setSelectedBulkDeliveryIds,
-      setBulkEditMode,
-      loadData,
-      userHasRole
+    }).
+    finally(() => {
+      setIsBulkUpdating(false);
     });
   }, [allDeliveries, bulkEditableDrivers, currentUser, deliveries, loadData, selectedBulkDeliveryIds]);
 
@@ -284,7 +200,7 @@ export default function RouteManagementContent({
     await loadData(true);
   }, [loadData]);
 
-  const selectedDelivery = selectedDeliveryId ? dedupedDeliveries.find((delivery) => delivery?.id === selectedDeliveryId) : null;
+  const selectedDelivery = selectedDeliveryId ? deliveries.find((delivery) => delivery?.id === selectedDeliveryId) : null;
   const selectedPatient = selectedDelivery ? (patients || []).find((patient) => patient && (patient.id === selectedDelivery.patient_id || patient.patient_id === selectedDelivery.patient_id)) : null;
   const selectedStore = selectedDelivery ? (stores || []).find((store) => store && store.id === selectedDelivery.store_id) : null;
   const selectedDriver = selectedDelivery ?
@@ -293,7 +209,7 @@ export default function RouteManagementContent({
   (drivers || []).find((driver) => driver.user_name === selectedDelivery.driver_name) :
   null;
 
-  if (!dedupedDeliveries || dedupedDeliveries.length === 0) {
+  if (!deliveries || deliveries.length === 0) {
     return (
       <div className="text-center py-12 text-slate-500 col-span-full">
         <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
@@ -330,11 +246,7 @@ export default function RouteManagementContent({
                   </Button>
                   <Button className="gap-2" onClick={() => setIsBulkEditPanelOpen(true)} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
                     <Pencil className="w-4 h-4" />
-                    Edit Bulk Stops
-                  </Button>
-                  <Button variant="destructive" className="gap-2" onClick={handleBulkDeleteSelected} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
-                    <Trash2 className="w-4 h-4" />
-                    Delete All Selected Stops
+                    Edit Selected
                   </Button>
                   <Button variant="ghost" onClick={handleCancelBulkEdit} disabled={isBulkUpdating}>
                     Cancel
@@ -350,7 +262,7 @@ export default function RouteManagementContent({
       <div className="flex h-full gap-4">
           <div className={`${showSplitView ? "w-[400px] flex-shrink-0" : "w-full"} h-full overflow-hidden`}>
             <div className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center" style={{ maxHeight: "calc(100vh - 280px)" }}>
-              {dedupedDeliveries.map((delivery, index) =>
+              {deliveries.map((delivery, index) =>
             <StopCard
               key={delivery.id || `${delivery.delivery_date || "unknown"}-${delivery.patient_id ?? "pickup"}-${delivery.store_id ?? "store"}-${delivery.tracking_number || index}`}
               delivery={delivery}
@@ -414,7 +326,7 @@ export default function RouteManagementContent({
 
       <div className="flex-1 min-h-0 min-w-0 h-full w-full max-h-full max-w-full overflow-hidden px-4 relative">
           <DeliveryListView
-          deliveries={dedupedDeliveries}
+          deliveries={deliveries}
           patients={patients || []}
           stores={stores || []}
           drivers={drivers || []}

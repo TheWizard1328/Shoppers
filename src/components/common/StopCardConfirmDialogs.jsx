@@ -146,15 +146,6 @@ export default function StopCardConfirmDialogs({
                     } else {
                       await onDeleteDelivery(delivery.id);
                     }
-
-                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                      detail: {
-                        triggeredBy: 'stopCardDelete',
-                        deliveryDate: delivery.delivery_date,
-                        driverId: delivery.driver_id
-                      }
-                    }));
-
                     setShowDeleteConfirm(false);
                     setSelectedTransferPickupId('');
                   } catch (error) {

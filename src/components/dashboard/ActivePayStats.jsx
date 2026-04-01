@@ -53,7 +53,6 @@ export default function ActivePayStats({
   liveTimeOnDuty = null, // Live time on duty (null = use backend value)
   isLoadingPayrollStats = false
 }) {
-  const websocketDistance = deliveryStats?.liveTravelDistance || 0;
   // Use localStats directly - always reflect the current date's data
   const stats = localStats || {
     total: 0,
@@ -71,7 +70,7 @@ export default function ActivePayStats({
 
   // Use actual performanceStats (no estimates)
   const displayPay = performanceStats?.totalPay || 0;
-  const displayKm = liveDistance > 0 ? liveDistance : websocketDistance > 0 ? websocketDistance : performanceStats?.totalKm || 0;
+  const displayKm = liveDistance > 0 ? liveDistance : performanceStats?.totalKm || 0;
   const displayExtraKm = performanceStats?.totalExtraKm || 0;
   const displayTime = performanceStats?.totalTimeOnDuty ?? '00:00';
   const extraKmLimit = performanceStats?.extraKmLimit || 0;

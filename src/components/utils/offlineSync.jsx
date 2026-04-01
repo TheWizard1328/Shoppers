@@ -26,13 +26,6 @@ import {
   invalidateEntityCache
 } from './dataSyncCoordinator';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
-import {
-  finishBulkDeleteJob,
-  isBulkDeleteJobActive,
-  isBulkDeleteJobBlockingRehydration,
-  scheduleBulkDeleteRetry,
-  updateBulkDeleteJobProgress
-} from './bulkDeleteJobMonitor';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
@@ -720,13 +713,8 @@ const getNextDeliveryDateToSync = async () => {
  * Syncs one delivery date at a time over past 90 days
  */
 export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
-  const { isBatchDeleteActive } = await import('./entityMutations');
-  if (syncInProgress || syncPaused || isBatchDeleteActive()) {
+  if (syncInProgress || syncPaused) {
     return { skipped: true };
-  }
-
-  if (isBulkDeleteJobBlockingRehydration()) {
-    return { skipped: true, reason: 'bulk_delete_job_active' };
   }
 
   const now = Date.now();
@@ -810,11 +798,6 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
  * @returns {Promise<{deliveriesUpdated, freshDeliveries, appUsersUpdated, freshAppUsers}>}
  */
 export const quickReconcile = async (selectedDateStr) => {
-  const { isBatchDeleteActive } = await import('./entityMutations');
-  if (isBatchDeleteActive()) {
-    return { deliveriesUpdated: false, appUsersUpdated: false, skipped: true };
-  }
-
   const result = { deliveriesUpdated: false, appUsersUpdated: false };
 
   // --- Deliveries ---
@@ -960,42 +943,23 @@ export const processPendingMutations = async () => {
   const failedMutationIds = [];
   
   if (deletes.length > 0) {
-    const allDeleteIds = Array.from(new Set(deletes.map(m => m.recordId).filter(Boolean)));
-    const successfulDeleteIds = new Set();
-    const failedDeleteIds = new Set();
-    const prefilteredDeletes = [];
-    for (const mutation of deletes) {
+    const deletePromises = deletes.map(mutation => {
       if (mutation.recordId?.startsWith('temp_')) {
-        await offlineDB.removePendingMutation(mutation.mutationId);
-        successCount++;
-        continue;
+        return Promise.resolve({ success: true, skip: true });
       }
-
-      const storeName = getOfflineStoreName(offlineDB, mutation.entity);
-      const localRecord = storeName ? await offlineDB.getById(storeName, mutation.recordId) : null;
-      if (!localRecord) {
-        await offlineDB.removePendingMutation(mutation.mutationId);
-        successCount++;
-        continue;
-      }
-
-      prefilteredDeletes.push(mutation);
-    }
-
-    const deletePromises = prefilteredDeletes.map(mutation => {
+      
       const Entity = getMutationEntityClient(mutation.entity);
       if (!Entity) {
-        return Promise.resolve({ success: true, mutationId: mutation.mutationId });
+        return Promise.resolve({ success: true, skip: true, mutationId: mutation.mutationId });
       }
       return Entity.delete(mutation.recordId)
         .then(() => ({ success: true, mutationId: mutation.mutationId }))
         .catch(deleteError => {
-          const errorMessage = String(deleteError?.message || '').toLowerCase();
-          const errorDetail = String(deleteError?.response?.data?.message || deleteError?.response?.data?.detail || '').toLowerCase();
-          const isNotFound = deleteError?.response?.status === 404 || errorMessage.includes('404') || errorMessage.includes('not found') || errorDetail.includes('not found');
-          if (isNotFound) {
+          // Ignore 404 errors - record already deleted on backend (silent)
+          if (deleteError.response?.status === 404 || deleteError.message?.includes('404') || deleteError.message?.includes('not found')) {
             return { success: true, mutationId: mutation.mutationId };
           }
+          // Ignore 429 rate limit errors - will retry (silent)
           if (deleteError.response?.status === 429) {
             return { success: false, mutationId: mutation.mutationId, error: deleteError, retryCount: mutation.retryCount || 0, isRateLimit: true };
           }
@@ -1009,7 +973,7 @@ export const processPendingMutations = async () => {
     const offlineDeletePromises = [];
     for (const result of deleteResults) {
       if (result.success && result.mutationId) {
-        const mutation = prefilteredDeletes.find(m => m.mutationId === result.mutationId);
+        const mutation = deletes.find(m => m.mutationId === result.mutationId);
         if (mutation) {
           offlineDeletePromises.push(
             offlineDB.removePendingMutation(result.mutationId)
@@ -1021,19 +985,15 @@ export const processPendingMutations = async () => {
             );
           }
         }
-        if (mutation?.recordId) successfulDeleteIds.add(mutation.recordId);
         successCount++;
       } else if (result.success && result.skip) {
-        const mutation = prefilteredDeletes.find(m => m.mutationId === result.mutationId);
+        const mutation = deletes.find(m => m.mutationId === result.mutationId || !m.recordId?.startsWith('temp_'));
         if (mutation?.mutationId) {
           // Always remove from pending queue even if skipped
           offlineDeletePromises.push(offlineDB.removePendingMutation(mutation.mutationId));
         }
-        if (mutation?.recordId) successfulDeleteIds.add(mutation.recordId);
         successCount++;
       } else {
-        const mutation = prefilteredDeletes.find(m => m.mutationId === result.mutationId);
-        if (mutation?.recordId) failedDeleteIds.add(mutation.recordId);
         failCount++;
         failedMutationIds.push(result.mutationId);
       }
@@ -1042,42 +1002,13 @@ export const processPendingMutations = async () => {
     if (offlineDeletePromises.length > 0) {
       await Promise.all(offlineDeletePromises);
     }
-
-    if (isBulkDeleteJobActive()) {
-      updateBulkDeleteJobProgress({
-        completedIds: Array.from(successfulDeleteIds),
-        failedIds: Array.from(failedDeleteIds),
-        pendingIds: allDeleteIds.filter(id => !successfulDeleteIds.has(id) && !failedDeleteIds.has(id))
-      });
-    }
     
     // Handle failed deletes (retry)
     for (const failedMutationId of failedMutationIds) {
-      const mutation = prefilteredDeletes.find(m => m.mutationId === failedMutationId);
-      if (!mutation) continue;
-
-      const nextRetryCount = (mutation.retryCount || 0) + 1;
-      if (nextRetryCount >= 3) {
-        await offlineDB.removePendingMutation(mutation.mutationId);
-        continue;
+      const mutation = deletes.find(m => m.mutationId === failedMutationId);
+      if (mutation) {
+        await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
       }
-
-      const retryDelayMs = Math.min(30000, 1000 * 2 ** nextRetryCount);
-      await offlineDB.updateMutationRetry(mutation.mutationId, nextRetryCount, Date.now() + retryDelayMs);
-      if (mutation.recordId && isBulkDeleteJobActive()) {
-        scheduleBulkDeleteRetry({
-          pendingIds: Array.from(new Set([...Array.from(failedDeleteIds), mutation.recordId])),
-          attempt: nextRetryCount + 1,
-          delayMs: retryDelayMs,
-          lastError: 'Retry scheduled for failed deletions'
-        });
-      }
-    }
-
-    if (isBulkDeleteJobActive() && failedDeleteIds.size === 0) {
-      finishBulkDeleteJob({ failedIds: [], pendingIds: [] });
-    } else if (isBulkDeleteJobActive() && failedDeleteIds.size > 0 && failedMutationIds.length === 0) {
-      finishBulkDeleteJob({ failedIds: Array.from(failedDeleteIds), pendingIds: [] });
     }
   }
   
@@ -1126,25 +1057,10 @@ export const processPendingMutations = async () => {
         successCount++;
         continue;
       }
-      if (mutation.entity === 'Delivery' && mutation.operation === 'create' && mutation.recordId?.startsWith('temp_')) {
-        const existingTempDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, mutation.recordId);
-        if (!existingTempDelivery) {
-          await offlineDB.removePendingMutation(mutation.mutationId);
-          successCount++;
-          continue;
-        }
-      }
       
       if (mutation.operation === 'create') {
-        const storeName = getOfflineStoreName(offlineDB, mutation.entity);
-        const existingLocalRecord = storeName ? await offlineDB.getById(storeName, mutation.recordId) : null;
-        const isLikelyAlreadySynced = mutation.recordId?.startsWith('temp_') && !existingLocalRecord;
-        if (isLikelyAlreadySynced) {
-          await offlineDB.removePendingMutation(mutation.mutationId);
-          successCount++;
-          continue;
-        }
         const createdRecord = await Entity.create(mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+        const storeName = getOfflineStoreName(offlineDB, mutation.entity);
         if (storeName) {
           if (mutation.recordId?.startsWith('temp_')) {
             await offlineDB.deleteRecord(storeName, mutation.recordId);

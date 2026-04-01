@@ -84,8 +84,7 @@ Deno.serve(async (req) => {
       ampmDeliveries: requestedAmpm = null,
       primarySlot: legacyPrimarySlot = null,
       allowCreateIfMissing = false,
-      skipReuseCheck = false,
-      skipAutoCreate = false
+      skipReuseCheck = false
     } = body || {};
 
     if (!storeId || !deliveryDate || !driverId) {
@@ -251,7 +250,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!allowCreateIfMissing || skipAutoCreate) {
+    if (!allowCreateIfMissing) {
       return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true });
     }
 

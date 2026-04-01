@@ -36,14 +36,32 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
     invalidateDeliveriesForDate(deliveryDate);
     invalidate('Delivery');
 
-    console.log('🗑️ [DELETE Handler] Step 4: Broadcasting delete update...');
-    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-      detail: {
-        triggeredBy: 'stopDelete',
-        deliveryDate,
-        driverId,
+    console.log('🗑️ [DELETE Handler] Step 4: Triggering ETA recalculation...');
+    if (driverId && deliveryDate) {
+      try {
+        await base44.functions.invoke('etaOptimizer', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          triggerFullRecalculation: true,
+          deviceTime: new Date().toISOString()
+        });
+        console.log('✅ [DELETE Handler] ETAs recalculated');
+      } catch (etaError) {
+        console.warn('⚠️ [DELETE Handler] ETA recalculation failed:', etaError);
       }
-    }));
+    }
+
+    if (driverId && deliveryDate) {
+      try {
+        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+          driverId,
+          deliveryDate
+        });
+        console.log('✅ [DELETE Handler] Polylines purged and regenerated');
+      } catch (polylineError) {
+        console.warn('⚠️ [DELETE Handler] Polyline regeneration failed:', polylineError);
+      }
+    }
 
     console.log('🗑️ [DELETE Handler] Step 5: Forcing full data refresh...');
     await refreshData(true);

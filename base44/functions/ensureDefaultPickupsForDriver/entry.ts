@@ -185,21 +185,9 @@ Deno.serve(async (req) => {
     const driverId = input?.driverId || null;
     const deliveryDate = input?.deliveryDate || null;
     const storeIds = Array.isArray(input?.storeIds) ? input.storeIds.filter(Boolean) : [];
-    const skipAutoCreate = input?.skipAutoCreate === true;
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'Missing driverId or deliveryDate' }, { status: 400 });
-    }
-
-    if (skipAutoCreate) {
-      return Response.json({
-        success: true,
-        driver_id: driverId,
-        delivery_date: deliveryDate,
-        pickups: [],
-        skipped: true,
-        reason: 'skip_auto_create'
-      });
     }
 
     const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-created_date', 1) : [];

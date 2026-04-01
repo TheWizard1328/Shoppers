@@ -20,8 +20,7 @@ export default function DateListPanel({
   onDeleteRoute,
   onDeleteMonth,
   dateListWithStats = null,
-  currentUser,
-  getRouteDeleteIds
+  currentUser
 }) {
   const months = [
   { value: 0, label: 'January' },
@@ -231,8 +230,7 @@ export default function DateListPanel({
               onClick={async (e) => {
                 e.stopPropagation();
                 if (window.confirm(`Delete all ${total} stops for this date? This cannot be undone.`)) {
-                  const selectedRouteIds = getRouteDeleteIds ? getRouteDeleteIds(dateStr, selectedDriverId) : null;
-                  await onDeleteRoute(dateStr, selectedDriverId, selectedRouteIds);
+                  await onDeleteRoute(dateStr, selectedDriverId);
                 }
               }}
               title="Delete entire route for this date">
