@@ -536,30 +536,30 @@ export default function DriverPayrollGrid({
                            key={store.id}
                            className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                            style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
-                         >
-                          <span className="md:hidden inline-grid grid-cols-[20px_14px] items-center justify-center gap-x-0 leading-[0.7]">
-                            <span className="flex justify-center items-center row-span-2 self-stretch">{displayValueMobile}</span>
-                            {hasBothMarkers ? (
-                              <>
-                                <span className="text-left h-[7px] flex items-center">{plusSigns}</span>
-                                <span className="text-left h-[7px] flex items-center">{dashSigns}</span>
-                              </>
-                            ) : (
-                              <span className="text-left flex items-center row-span-2 self-stretch">{markerValue}</span>
-                            )}
-                          </span>
-                          <span className="hidden md:inline-grid grid-cols-[28px_18px] items-center justify-center gap-x-0 leading-[0.7]">
-                            <span className="flex justify-center items-center row-span-2 self-stretch">{displayValueDesktop}</span>
-                            {hasBothMarkers ? (
-                              <>
-                                <span className="text-left h-[7px] flex items-center">{plusSigns}</span>
-                                <span className="text-left h-[7px] flex items-center">{dashSigns}</span>
-                              </>
-                            ) : (
-                              <span className="text-left flex items-center row-span-2 self-stretch">{markerValue}</span>
-                            )}
-                          </span>
-                         </td>
+                        >
+                         <span className="md:hidden relative inline-flex w-[20px] justify-center">
+                           <span className="flex justify-center items-center w-full">{displayValueMobile}</span>
+                           {hasBothMarkers ? (
+                             <span className="absolute left-full ml-0 top-1/2 -translate-y-1/2 inline-grid grid-rows-2 leading-[0.7] text-left">
+                               <span className="h-[7px] flex items-center">{plusSigns}</span>
+                               <span className="h-[7px] flex items-center">{dashSigns}</span>
+                             </span>
+                           ) : markerValue ? (
+                             <span className="absolute left-full ml-0 top-1/2 -translate-y-1/2 text-left whitespace-nowrap">{markerValue}</span>
+                           ) : null}
+                         </span>
+                         <span className="hidden md:inline-flex relative w-[28px] justify-center">
+                           <span className="flex justify-center items-center w-full">{displayValueDesktop}</span>
+                           {hasBothMarkers ? (
+                             <span className="absolute left-full ml-0 top-1/2 -translate-y-1/2 inline-grid grid-rows-2 leading-[0.7] text-left w-[18px]">
+                               <span className="h-[7px] flex items-center">{plusSigns}</span>
+                               <span className="h-[7px] flex items-center">{dashSigns}</span>
+                             </span>
+                           ) : markerValue ? (
+                             <span className="absolute left-full ml-0 top-1/2 -translate-y-1/2 text-left whitespace-nowrap w-[18px]">{markerValue}</span>
+                           ) : null}
+                         </span>
+                        </td>
                       );
                     })}
                     <td className="text-center px-1 md:px-2 py-0.5 font-semibold border-l-2 border-purple-300 tabular-nums align-top" style={{ color: 'var(--text-slate-900)' }}>
