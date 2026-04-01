@@ -955,11 +955,12 @@ export const processPendingMutations = async () => {
       return Entity.delete(mutation.recordId)
         .then(() => ({ success: true, mutationId: mutation.mutationId }))
         .catch(deleteError => {
-          // Ignore 404 errors - record already deleted on backend (silent)
-          if (deleteError.response?.status === 404 || deleteError.message?.includes('404') || deleteError.message?.includes('not found')) {
+          const errorMessage = String(deleteError?.message || '').toLowerCase();
+          const errorDetail = String(deleteError?.response?.data?.message || deleteError?.response?.data?.detail || '').toLowerCase();
+          const isNotFound = deleteError?.response?.status === 404 || errorMessage.includes('404') || errorMessage.includes('not found') || errorDetail.includes('not found');
+          if (isNotFound) {
             return { success: true, mutationId: mutation.mutationId };
           }
-          // Ignore 429 rate limit errors - will retry (silent)
           if (deleteError.response?.status === 429) {
             return { success: false, mutationId: mutation.mutationId, error: deleteError, retryCount: mutation.retryCount || 0, isRateLimit: true };
           }
@@ -1006,9 +1007,15 @@ export const processPendingMutations = async () => {
     // Handle failed deletes (retry)
     for (const failedMutationId of failedMutationIds) {
       const mutation = deletes.find(m => m.mutationId === failedMutationId);
-      if (mutation) {
-        await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
+      if (!mutation) continue;
+
+      const nextRetryCount = (mutation.retryCount || 0) + 1;
+      if (nextRetryCount >= 3) {
+        await offlineDB.removePendingMutation(mutation.mutationId);
+        continue;
       }
+
+      await offlineDB.updateMutationRetry(mutation.mutationId, nextRetryCount);
     }
   }
   
