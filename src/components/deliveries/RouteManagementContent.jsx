@@ -68,9 +68,13 @@ export default function RouteManagementContent({
     return (drivers || []).filter((driver) => userHasRole(driver, "driver"));
   }, [drivers]);
 
-  const visibleBulkDeliveryIds = useMemo(() => {
-    return (deliveries || []).map((delivery) => delivery.id).filter(Boolean);
+  const dedupedDeliveries = useMemo(() => {
+    return Array.from(new Map((deliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
   }, [deliveries]);
+
+  const visibleBulkDeliveryIds = useMemo(() => {
+    return dedupedDeliveries.map((delivery) => delivery.id).filter(Boolean);
+  }, [dedupedDeliveries]);
 
   const areAllVisibleBulkDeliveriesSelected = useMemo(() => {
     return visibleBulkDeliveryIds.length > 0 && visibleBulkDeliveryIds.every((id) => selectedBulkDeliveryIds.includes(id));
@@ -78,8 +82,8 @@ export default function RouteManagementContent({
 
   const selectedBulkDeliveries = useMemo(() => {
     const selectedIds = new Set(selectedBulkDeliveryIds);
-    return (deliveries || []).filter((delivery) => selectedIds.has(delivery.id));
-  }, [deliveries, selectedBulkDeliveryIds]);
+    return dedupedDeliveries.filter((delivery) => selectedIds.has(delivery.id));
+  }, [dedupedDeliveries, selectedBulkDeliveryIds]);
 
   useEffect(() => {
     const handleRouteManagementOfflineRefresh = async () => {
@@ -268,7 +272,7 @@ export default function RouteManagementContent({
     await loadData(true);
   }, [loadData]);
 
-  const selectedDelivery = selectedDeliveryId ? deliveries.find((delivery) => delivery?.id === selectedDeliveryId) : null;
+  const selectedDelivery = selectedDeliveryId ? dedupedDeliveries.find((delivery) => delivery?.id === selectedDeliveryId) : null;
   const selectedPatient = selectedDelivery ? (patients || []).find((patient) => patient && (patient.id === selectedDelivery.patient_id || patient.patient_id === selectedDelivery.patient_id)) : null;
   const selectedStore = selectedDelivery ? (stores || []).find((store) => store && store.id === selectedDelivery.store_id) : null;
   const selectedDriver = selectedDelivery ?
@@ -277,7 +281,7 @@ export default function RouteManagementContent({
   (drivers || []).find((driver) => driver.user_name === selectedDelivery.driver_name) :
   null;
 
-  if (!deliveries || deliveries.length === 0) {
+  if (!dedupedDeliveries || dedupedDeliveries.length === 0) {
     return (
       <div className="text-center py-12 text-slate-500 col-span-full">
         <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
@@ -334,7 +338,7 @@ export default function RouteManagementContent({
       <div className="flex h-full gap-4">
           <div className={`${showSplitView ? "w-[400px] flex-shrink-0" : "w-full"} h-full overflow-hidden`}>
             <div className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center" style={{ maxHeight: "calc(100vh - 280px)" }}>
-              {deliveries.map((delivery, index) =>
+              {dedupedDeliveries.map((delivery, index) =>
             <StopCard
               key={delivery.id || `${delivery.delivery_date || "unknown"}-${delivery.patient_id ?? "pickup"}-${delivery.store_id ?? "store"}-${delivery.tracking_number || index}`}
               delivery={delivery}
@@ -398,7 +402,7 @@ export default function RouteManagementContent({
 
       <div className="flex-1 min-h-0 min-w-0 h-full w-full max-h-full max-w-full overflow-hidden px-4 relative">
           <DeliveryListView
-          deliveries={deliveries}
+          deliveries={dedupedDeliveries}
           patients={patients || []}
           stores={stores || []}
           drivers={drivers || []}
