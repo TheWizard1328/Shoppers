@@ -173,7 +173,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // Restore the previous safer behavior: only sync the selected date/city into offline DB.
       const { offlineDB } = await import('../utils/offlineDatabase');
       const { globalFilters } = await import('../utils/globalFilters');
-      const dateForSync = sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
+      const dateForSync = globalFilters?.getSelectedDate?.() || sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
       const selectedCityId = globalFilters?.getSelectedCityId?.();
       const syncResult = await manualSyncSelected(dateForSync, selectedCityId);
       console.log('✅ [OfflineSyncIndicator] manualSyncSelected complete:', syncResult);
