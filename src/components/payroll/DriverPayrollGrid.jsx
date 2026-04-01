@@ -537,26 +537,26 @@ export default function DriverPayrollGrid({
                            className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                            style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                         >
-                         <span className="md:hidden relative inline-flex w-[20px] justify-center">
+                         <span className="md:hidden relative inline-flex w-[20px] justify-center overflow-visible">
                            <span className="flex justify-center items-center w-full">{displayValueMobile}</span>
                            {hasBothMarkers ? (
-                             <span className="absolute left-full ml-0 top-1/2 -translate-y-1/2 inline-grid grid-rows-2 leading-[0.7] text-left">
+                             <span className="absolute left-[calc(100%-2px)] top-1/2 -translate-y-1/2 inline-grid grid-rows-2 leading-[0.7] text-left">
                                <span className="h-[7px] flex items-center">{plusSigns}</span>
                                <span className="h-[7px] flex items-center">{dashSigns}</span>
                              </span>
                            ) : markerValue ? (
-                             <span className="absolute left-full ml-0 top-1/2 -translate-y-1/2 text-left whitespace-nowrap">{markerValue}</span>
+                             <span className="absolute left-[calc(100%-2px)] top-1/2 -translate-y-1/2 text-left whitespace-nowrap">{markerValue}</span>
                            ) : null}
                          </span>
-                         <span className="hidden md:inline-flex relative w-[28px] justify-center">
+                         <span className="hidden md:inline-flex relative w-[28px] justify-center overflow-visible">
                            <span className="flex justify-center items-center w-full">{displayValueDesktop}</span>
                            {hasBothMarkers ? (
-                             <span className="absolute left-full ml-0 top-1/2 -translate-y-1/2 inline-grid grid-rows-2 leading-[0.7] text-left w-[18px]">
+                             <span className="absolute left-[calc(100%-3px)] top-1/2 -translate-y-1/2 inline-grid grid-rows-2 leading-[0.7] text-left w-[18px]">
                                <span className="h-[7px] flex items-center">{plusSigns}</span>
                                <span className="h-[7px] flex items-center">{dashSigns}</span>
                              </span>
                            ) : markerValue ? (
-                             <span className="absolute left-full ml-0 top-1/2 -translate-y-1/2 text-left whitespace-nowrap w-[18px]">{markerValue}</span>
+                             <span className="absolute left-[calc(100%-3px)] top-1/2 -translate-y-1/2 text-left whitespace-nowrap w-[18px]">{markerValue}</span>
                            ) : null}
                          </span>
                         </td>
