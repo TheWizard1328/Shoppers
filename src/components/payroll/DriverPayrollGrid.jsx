@@ -535,15 +535,23 @@ export default function DriverPayrollGrid({
                            className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                            style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                          >
-                          <span className="md:hidden inline-flex flex-col items-center leading-tight">
+                          <span className="md:hidden inline-flex items-start justify-center gap-0.5 leading-tight">
                             <span>{displayValueMobile}</span>
-                            {plusSigns && <span>{plusSigns}</span>}
-                            {dashSigns && <span>{dashSigns}</span>}
+                            {(plusSigns || dashSigns) && (
+                              <span className="inline-flex flex-col items-start leading-tight">
+                                <span>{plusSigns || ''}</span>
+                                <span>{dashSigns || ''}</span>
+                              </span>
+                            )}
                           </span>
-                          <span className="hidden md:inline-flex flex-col items-center leading-tight">
+                          <span className="hidden md:inline-flex items-start justify-center gap-0.5 leading-tight">
                             <span>{displayValueDesktop}</span>
-                            {plusSigns && <span>{plusSigns}</span>}
-                            {dashSigns && <span>{dashSigns}</span>}
+                            {(plusSigns || dashSigns) && (
+                              <span className="inline-flex flex-col items-start leading-tight">
+                                <span>{plusSigns || ''}</span>
+                                <span>{dashSigns || ''}</span>
+                              </span>
+                            )}
                           </span>
                          </td>
                       );
