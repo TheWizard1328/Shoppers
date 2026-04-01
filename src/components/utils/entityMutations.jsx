@@ -14,6 +14,12 @@
 import { base44 } from '@/api/base44Client';
 import { bulkDeleteDeliveries } from '@/functions/bulkDeleteDeliveries';
 import { offlineDB } from './offlineDatabase';
+import {
+  finishBulkDeleteJob,
+  isBulkDeleteJobBlockingRehydration,
+  startBulkDeleteJob,
+  updateBulkDeleteJobProgress
+} from './bulkDeleteJobMonitor';
 
 // ========================================
 // UTILITY: Sanitize actual_delivery_time
@@ -787,6 +793,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
   try {
     const uniqueDeliveryIds = [...new Set((deliveryIds || []).filter(Boolean))];
     console.log(`🗑️ [EntityMutations] Batch deleting ${uniqueDeliveryIds.length} deliveries...`);
+    startBulkDeleteJob(uniqueDeliveryIds);
 
     if (uniqueDeliveryIds.length === 0) {
       await restartSmartRefresh();
@@ -801,6 +808,12 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
 
     const failedIds = [];
     let idsDeletedRemotely = [];
+
+    updateBulkDeleteJobProgress({
+      completedIds: idsToDeleteOffline,
+      failedIds,
+      pendingIds: uniqueDeliveryIds.filter(id => !idsToDeleteOffline.includes(id))
+    });
 
     if (idsToDeleteOffline.length > 0) {
       const db = await offlineDB.openDatabase();
@@ -862,6 +875,18 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: id });
     }
     console.log(`🗂️ [EntityMutations] Queued ${failedIds.length} failed bulk deletes for background sync`);
+
+    if (failedIds.length === 0) {
+      finishBulkDeleteJob({ failedIds: [], pendingIds: [] });
+    } else {
+      updateBulkDeleteJobProgress({
+        completedIds: locallyDeletedIds.filter(id => !failedIds.includes(id)),
+        failedIds,
+        pendingIds: failedIds,
+        status: 'retrying',
+        lastError: 'Waiting for background retry to finish failed deletions'
+      });
+    }
 
     await restartSmartRefresh();
     return true;
