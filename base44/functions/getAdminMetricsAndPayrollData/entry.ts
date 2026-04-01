@@ -197,6 +197,14 @@ Deno.serve(async (req) => {
       const payrollRecords = dedupeById(allYearPayrollRaw || []);
       const appFeeRate = parseFloat(appSettings?.[0]?.setting_value?.app_fees_per_delivery) || 0;
 
+      console.log('📦 [getAdminMetricsAndPayrollData] Year data loaded:', {
+        year,
+        cityId: cityId || 'all',
+        deliveriesCount: deliveries.length,
+        march31Deliveries: deliveries.filter((delivery) => delivery?.delivery_date === `${year}-03-31`).length,
+        march31CompletedOrFailed: deliveries.filter((delivery) => delivery?.delivery_date === `${year}-03-31` && (delivery?.status === 'completed' || delivery?.status === 'failed')).length
+      });
+
       const data = {
         deliveries: deliveries.map((delivery) => pickFields(delivery, DELIVERY_FIELDS)),
         stores,
@@ -275,6 +283,13 @@ Deno.serve(async (req) => {
             storeStats[delivery.store_id].total_after_hours_pickups++;
           }
         }
+      });
+
+      console.log('💰 [getAdminMetricsAndPayrollData] Payroll aggregation snapshot:', {
+        payrollYear,
+        march31Deliveries: yearData.deliveries.filter((delivery) => delivery?.delivery_date === `${payrollYear}-03-31`).length,
+        march31CompletedOrFailed: yearData.deliveries.filter((delivery) => delivery?.delivery_date === `${payrollYear}-03-31` && (delivery?.status === 'completed' || delivery?.status === 'failed')).length,
+        march31DriverStatsEntries: Object.entries(driverStats).filter(([driverId, stats]) => (stats?.total_deliveries || 0) > 0).length
       });
 
       payrollData = {
