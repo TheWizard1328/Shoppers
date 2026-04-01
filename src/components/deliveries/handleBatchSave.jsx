@@ -41,6 +41,11 @@ export async function handleBatchSave({
     return;
   }
 
+  const deletedDeliveryIds = stagedDeliveries
+    .filter((delivery) => delivery?.id && delivery?._pendingDelete)
+    .map((delivery) => delivery.id)
+    .filter(Boolean);
+
   if (await handlePendingDeleteOnlySave({
     stagedDeliveries,
     hasPendingDeletes,
@@ -53,7 +58,8 @@ export async function handleBatchSave({
     setIsLoadingPredictions,
     handleClearForm,
     onCancel,
-    formData
+    formData,
+    deletedDeliveryIds
   })) return;
 
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
