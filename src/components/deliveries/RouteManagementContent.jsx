@@ -13,9 +13,11 @@ import { offlineDB } from "../utils/offlineDatabase";
 import { createDeliveryLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
 import { userHasRole } from "../utils/userRoles";
-import { runBulkDeleteStops, runBulkEditStops } from "./routeBulkActions";
+import { globalFilters } from "../utils/globalFilters";
+import { runBulkEditStops } from "./routeBulkActions";
 import { useAppData } from "../utils/AppDataContext";
 import useRouteManagementRealtimeSync from "./useRouteManagementRealtimeSync";
+import { deleteDeliveriesByQuery } from "@/functions/deleteDeliveriesByQuery";
 
 export default function RouteManagementContent({
   deliveries,
@@ -212,29 +214,39 @@ export default function RouteManagementContent({
   }, []);
 
   const handleBulkDeleteSelected = useCallback(async () => {
-    if (!selectedBulkDeliveryIds.length || isBulkUpdating) return;
+    if (!selectedBulkDeliveryIds.length || isBulkUpdating || !selectedDate) return;
 
-    const fallbackReloadFromOfflineDB = async () => {
-      const fallbackDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      setAllDeliveries?.(fallbackDeliveries || []);
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    const selectedDriverId = globalFilters.getSelectedDriverId();
+    const query = {
+      delivery_date: selectedDate,
+      ...(selectedDriverId && selectedDriverId !== "all" ? { driver_id: selectedDriverId } : {})
     };
 
-    await runBulkDeleteStops({
-      selectedBulkDeliveryIds,
-      setIsBulkUpdating,
-      setSelectedBulkDeliveryIds,
-      setBulkEditMode,
-      setAllDeliveries,
-      reloadFromOfflineDB: reloadFromOfflineDB || fallbackReloadFromOfflineDB,
-      onAfterDelete: (freshOfflineDeliveries) => window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
+    setIsBulkUpdating(true);
+    const response = await deleteDeliveriesByQuery({ query });
+    const deletedIds = response?.data?.deleted_ids || [];
+
+    if (deletedIds.length > 0) {
+      const remainingOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      const filteredDeliveries = remainingOfflineDeliveries.filter((delivery) => !deletedIds.includes(delivery?.id));
+      setAllDeliveries?.(filteredDeliveries);
+      setSelectedBulkDeliveryIds([]);
+      setBulkEditMode(false);
+      window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
         detail: {
-          deletedIds: selectedBulkDeliveryIds,
-          deliveries: freshOfflineDeliveries
+          deletedIds,
+          deliveries: filteredDeliveries
         }
-      }))
-    });
-  }, [isBulkUpdating, selectedBulkDeliveryIds, setAllDeliveries, reloadFromOfflineDB]);
+      }));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    }
+
+    if (reloadFromOfflineDB) {
+      await reloadFromOfflineDB();
+    }
+
+    setIsBulkUpdating(false);
+  }, [isBulkUpdating, selectedBulkDeliveryIds.length, selectedDate, setAllDeliveries, reloadFromOfflineDB]);
 
   const handleBulkEditApply = useCallback((values) => {
     return runBulkEditStops({
