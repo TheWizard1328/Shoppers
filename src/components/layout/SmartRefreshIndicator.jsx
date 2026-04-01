@@ -246,16 +246,18 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     // Listen for completion, with fallback timeout
     let completed = false;
-    const handleSyncComplete = () => {
+    let fallbackTimer = null;
+    const finishRefresh = () => {
       if (completed) return;
       completed = true;
       setIsManualRefreshing(false);
-      window.removeEventListener('pullToSyncComplete', handleSyncComplete);
+      window.removeEventListener('pullToSyncComplete', finishRefresh);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
       window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
     };
 
-    window.addEventListener('pullToSyncComplete', handleSyncComplete);
-    setTimeout(handleSyncComplete, 10000);
+    window.addEventListener('pullToSyncComplete', finishRefresh);
+    fallbackTimer = setTimeout(finishRefresh, 10000);
   };
 
   // Entity labels

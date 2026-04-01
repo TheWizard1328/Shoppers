@@ -120,6 +120,7 @@ export function useConfirmDelete({
       setError(`Failed: ${err.message}`);
     } finally {
       setIsDeletingPending(false);
+      setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
     }
   }, [deleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm]);
 }

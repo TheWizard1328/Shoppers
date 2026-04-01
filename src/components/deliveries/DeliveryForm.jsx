@@ -1377,7 +1377,7 @@ export default function DeliveryForm({
     try {
       const dataToSave = await buildInTransitDirectSaveData({ prepareDeliverySaveData, formData, delivery, isCompletionStatus, completionTime, selectedPatient, stores, allDeliveries, stagedDeliveries });
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) {
-        closeDeliveryFormAfterSave({ handleClearForm, onCancel });
+        await closeDeliveryFormAfterSave({ handleClearForm, onCancel });
         return true;
       }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
@@ -1447,6 +1447,9 @@ export default function DeliveryForm({
           console.warn('⚠️ [DeliveryForm] Side effects failed:', sideEffectError);
         }
       });
+      if (delivery?.id) {
+        await closeDeliveryFormAfterSave({ handleClearForm, onCancel });
+      }
       return true;
     } catch (error) {
       setError(error.message);
