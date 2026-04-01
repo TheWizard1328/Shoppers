@@ -798,17 +798,8 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
 
     console.log(`💾 [EntityMutations] Found ${idsToDeleteOffline.length} of ${uniqueDeliveryIds.length} in IndexedDB`);
 
-    const deleteResults = await Promise.allSettled(
-      uniqueDeliveryIds.map((id) => base44.entities.Delivery.delete(id))
-    );
-    const failedIds = uniqueDeliveryIds.filter((id, index) => {
-      const result = deleteResults[index];
-      if (result?.status === 'fulfilled') return false;
-      const error = result?.reason;
-      return !(error?.message?.includes('not found') || error?.message?.includes('404') || error?.response?.status === 404);
-    });
-    const failedIdSet = new Set(failedIds);
-    const idsDeletedRemotely = uniqueDeliveryIds.filter(id => !failedIdSet.has(id));
+    const failedIds = [];
+    const idsDeletedRemotely = [];
 
     if (idsToDeleteOffline.length > 0) {
       const db = await offlineDB.openDatabase();
@@ -831,7 +822,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       return false;
     }
 
-    const locallyDeletedIds = [...new Set([...idsToDeleteOffline, ...idsDeletedRemotely])];
+    const locallyDeletedIds = [...new Set([...idsToDeleteOffline, ...uniqueDeliveryIds])];
 
     const { removeDeletedFromCache } = await import('./dataManager');
     removeDeletedFromCache('Delivery', locallyDeletedIds);
@@ -862,12 +853,10 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
 
     await broadcastMutation('Delivery', 'batch_delete', null, null, locallyDeletedIds);
 
-    if (failedIds.length > 0) {
-      for (const id of failedIds) {
-        await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: id });
-        console.warn('⚠️ [EntityMutations] Queued failed bulk delete for retry:', id);
-      }
+    for (const id of uniqueDeliveryIds) {
+      await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: id });
     }
+    console.log(`🗂️ [EntityMutations] Queued ${uniqueDeliveryIds.length} bulk delete mutations for background sync`);
 
     await restartSmartRefresh();
     return true;
