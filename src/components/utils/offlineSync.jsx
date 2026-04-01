@@ -949,14 +949,29 @@ export const processPendingMutations = async () => {
   const failedMutationIds = [];
   
   if (deletes.length > 0) {
-    const deletePromises = deletes.map(mutation => {
+    const prefilteredDeletes = [];
+    for (const mutation of deletes) {
       if (mutation.recordId?.startsWith('temp_')) {
-        return Promise.resolve({ success: true, skip: true });
+        await offlineDB.removePendingMutation(mutation.mutationId);
+        successCount++;
+        continue;
       }
-      
+
+      const storeName = getOfflineStoreName(offlineDB, mutation.entity);
+      const localRecord = storeName ? await offlineDB.getById(storeName, mutation.recordId) : null;
+      if (!localRecord) {
+        await offlineDB.removePendingMutation(mutation.mutationId);
+        successCount++;
+        continue;
+      }
+
+      prefilteredDeletes.push(mutation);
+    }
+
+    const deletePromises = prefilteredDeletes.map(mutation => {
       const Entity = getMutationEntityClient(mutation.entity);
       if (!Entity) {
-        return Promise.resolve({ success: true, skip: true, mutationId: mutation.mutationId });
+        return Promise.resolve({ success: true, mutationId: mutation.mutationId });
       }
       return Entity.delete(mutation.recordId)
         .then(() => ({ success: true, mutationId: mutation.mutationId }))
@@ -980,7 +995,7 @@ export const processPendingMutations = async () => {
     const offlineDeletePromises = [];
     for (const result of deleteResults) {
       if (result.success && result.mutationId) {
-        const mutation = deletes.find(m => m.mutationId === result.mutationId);
+        const mutation = prefilteredDeletes.find(m => m.mutationId === result.mutationId);
         if (mutation) {
           offlineDeletePromises.push(
             offlineDB.removePendingMutation(result.mutationId)
@@ -994,7 +1009,7 @@ export const processPendingMutations = async () => {
         }
         successCount++;
       } else if (result.success && result.skip) {
-        const mutation = deletes.find(m => m.mutationId === result.mutationId || !m.recordId?.startsWith('temp_'));
+        const mutation = prefilteredDeletes.find(m => m.mutationId === result.mutationId);
         if (mutation?.mutationId) {
           // Always remove from pending queue even if skipped
           offlineDeletePromises.push(offlineDB.removePendingMutation(mutation.mutationId));
@@ -1012,7 +1027,7 @@ export const processPendingMutations = async () => {
     
     // Handle failed deletes (retry)
     for (const failedMutationId of failedMutationIds) {
-      const mutation = deletes.find(m => m.mutationId === failedMutationId);
+      const mutation = prefilteredDeletes.find(m => m.mutationId === failedMutationId);
       if (!mutation) continue;
 
       const nextRetryCount = (mutation.retryCount || 0) + 1;
