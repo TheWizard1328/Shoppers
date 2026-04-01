@@ -228,6 +228,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       await collapseAndCenterNextDelivery({ driverDeliveries: reorderedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      driverLocationPoller.resume();
+      smartRefreshManager.resume();
+      resetActionLocks(true);
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
@@ -246,6 +249,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           console.warn('Background tasks failed:', err);
         }
       });
+      return;
     } catch (error) {console.error('❌ [START] Error:', error);toast.error(`Failed to start: ${error.message}`);} finally
     {driverLocationPoller.resume();smartRefreshManager.resume();resetActionLocks(true);}
   };
