@@ -9,7 +9,7 @@ import StopDetailsPanel from "./StopDetailsPanel";
 import DeliveryListView from "../dashboard/DeliveryListView";
 import BulkEditStopsPanel from "./BulkEditStopsPanel";
 import { isMobileDevice } from "../utils/deviceUtils";
-import { createDeliveryLocal, updateDeliveryLocal, batchDeleteDeliveriesLocal } from "../utils/entityMutations";
+import { createDeliveryLocal, updateDeliveryLocal, batchDeleteDeliveriesLocal, setBatchDeleteInProgress } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import { getDriverNameForStorage } from "../utils/driverUtils";
@@ -103,12 +103,15 @@ export default function RouteManagementContent({
     if (!confirmed) return;
 
     setIsBulkUpdating(true);
+    setBatchDeleteInProgress(true);
     try {
       await batchDeleteDeliveriesLocal(selectedBulkDeliveryIds);
       setSelectedBulkDeliveryIds([]);
       setBulkEditMode(false);
       await loadData(true);
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     } finally {
+      setBatchDeleteInProgress(false);
       setIsBulkUpdating(false);
     }
   }, [isBulkUpdating, loadData, selectedBulkDeliveryIds]);

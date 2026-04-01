@@ -127,6 +127,7 @@ const getCurrentCreatorAppUserId = async () => {
 let mutationListeners = [];
 let mutationsPaused = false;
 let isBatchFormSaving = false; // CRITICAL: Track if Add To Route form is batch saving
+let isBatchDeleteInProgress = false;
 
 /**
  * Pause all mutations (during route optimization)
@@ -161,6 +162,10 @@ export const setBatchFormSaving = (isSaving) => {
  * Check if batch form is saving
  */
 export const isBatchFormSavingActive = () => isBatchFormSaving;
+export const setBatchDeleteInProgress = (isDeleting) => {
+  isBatchDeleteInProgress = isDeleting;
+};
+export const isBatchDeleteActive = () => isBatchDeleteInProgress;
 
 /**
  * Subscribe to mutation events for UI updates
@@ -842,6 +847,10 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       ids: deliveryIds,
       data: null 
     });
+
+    if (!isBatchDeleteInProgress) {
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    }
 
     // STEP 6: Broadcast a single batch delete so other devices don't miss events under load
     await broadcastMutation('Delivery', 'batch_delete', null, null, deliveryIds);
