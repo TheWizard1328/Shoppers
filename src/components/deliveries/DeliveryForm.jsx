@@ -347,6 +347,7 @@ export default function DeliveryForm({
       }
 
       setFormData({
+        id: delivery.id,
         patient_id: delivery.patient_id || "",
         delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
         delivery_time_start: delivery.delivery_time_start || "",

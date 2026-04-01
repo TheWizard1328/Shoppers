@@ -383,6 +383,7 @@ export const handleBatchSaveDelivery = async ({
       const createdByAppUserId = stop.created_by_app_user_id || currentAppUserId || null;
 
       const payload = {
+        id: stop.id || null,
         delivery_id: deliveryId,
         dispatcher_id: dispatcherId,
         created_by_app_user_id: createdByAppUserId,
@@ -423,10 +424,10 @@ export const handleBatchSaveDelivery = async ({
         first_delivery: stop.first_delivery || false
       };
 
-      if (stop.isNew) {
+      if (stop.isNew && !stop.id) {
         deliveriesToCreate.push(payload);
-      } else if (stop._wasEdited) {
-        const { stop_order, ...payloadWithoutStopOrder } = payload;
+      } else if (stop.id && (stop._wasEdited || !stop.isNew)) {
+        const { id, stop_order, ...payloadWithoutStopOrder } = payload;
         deliveriesToUpdate.push({ id: stop.id, updates: payloadWithoutStopOrder });
       }
     }
