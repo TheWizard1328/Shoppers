@@ -5,6 +5,12 @@
 
 const fabControlListeners = new Set();
 
+const isDashboardRoute = () => {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname.toLowerCase();
+  return path === '/dashboard' || path === '/';
+};
+
 export const fabControlEvents = {
   /**
    * Subscribe to FAB control events
@@ -80,6 +86,7 @@ export const fabControlEvents = {
    * Called after background data loads, date changes, or driver changes complete
    */
   notifyDataReady: () => {
+    if (!isDashboardRoute()) return;
     console.log('📢 [FAB Events] Broadcasting data ready - reactivating current FAB phase');
     fabControlListeners.forEach(callback => {
       try {
@@ -95,6 +102,7 @@ export const fabControlEvents = {
    * Called after DeliveryForm Done button saves and closes
    */
   notifyDoneButtonClicked: () => {
+    if (!isDashboardRoute()) return;
     console.log('📢 [FAB Events] Broadcasting done button clicked - activating phase 1 for 3000ms');
     fabControlListeners.forEach(callback => {
       try {
@@ -106,6 +114,7 @@ export const fabControlEvents = {
   },
 
   notifyAcceptAllClicked: () => {
+    if (!isDashboardRoute()) return;
     console.log('📢 [FAB Events] Broadcasting accept all clicked - activating phase 1 for 500ms');
     fabControlListeners.forEach(callback => {
       try {
@@ -132,6 +141,7 @@ export const fabControlEvents = {
    * Pause FAB updates during form operations
    */
   pauseFAB: () => {
+    if (!isDashboardRoute()) return;
     console.log('📢 [FAB Events] Broadcasting FAB pause');
     fabControlListeners.forEach(callback => {
       try {
@@ -143,9 +153,10 @@ export const fabControlEvents = {
   },
 
   /**
-    * Resume FAB updates after form operations
-    */
+     * Resume FAB updates after form operations
+     */
   resumeFAB: () => {
+    if (!isDashboardRoute()) return;
     console.log('📢 [FAB Events] Broadcasting FAB resume');
     fabControlListeners.forEach(callback => {
       try {
@@ -168,6 +179,7 @@ export const fabControlEvents = {
    * Called when a driver location marker moves or location sharing state changes
    */
   notifyDriverLocationChange: () => {
+    if (!isDashboardRoute()) return;
     console.log('📢 [FAB Events] Broadcasting driver location change - reactivating phase 1 for 500ms');
     fabControlListeners.forEach(callback => {
       try {
@@ -179,6 +191,7 @@ export const fabControlEvents = {
   },
 
   reactivatePhaseTwoIfAvailable: () => {
+    if (!isDashboardRoute()) return;
     console.log('📢 [FAB Events] Broadcasting phase 2 reactivation request');
     fabControlListeners.forEach(callback => {
       try {
@@ -190,6 +203,7 @@ export const fabControlEvents = {
   },
 
   notifyPhaseTwoCompleteRecenter: () => {
+    if (!isDashboardRoute()) return;
     console.log('📢 [FAB Events] Broadcasting phase 2 complete recenter pulse');
     fabControlListeners.forEach(callback => {
       try {
@@ -200,6 +214,7 @@ export const fabControlEvents = {
     });
   },
   notifyPhaseTwoTempUnlock: () => {
+    if (!isDashboardRoute()) return;
     console.log('📢 [FAB Events] Broadcasting phase 2 temporary unlock');
     fabControlListeners.forEach(callback => {
       try {
