@@ -226,6 +226,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         updateDeliveriesLocally(updatedDeliveries, true);
       }
       await collapseAndCenterNextDelivery({ driverDeliveries: reorderedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
+      if (onStartDelivery) {
+        await onStartDelivery(delivery.id, {
+          status: isPickup ? 'en_route' : 'in_transit',
+          delivery_time_start: currentLocalTime,
+          delivery_time_eta: currentLocalTime
+        });
+      }
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       driverLocationPoller.resume();
