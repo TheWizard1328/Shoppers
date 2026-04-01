@@ -238,9 +238,11 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     // Also kick polyline repair directly to avoid waiting for pull handler wiring in some views
     try {
-      const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-      repairMissingPolylines({ date: today }).catch(() => null);
+      window.base44?.functions?.invoke?.('repairMissingPolylines', {
+        deliveryDate: today,
+        date: today
+      }).catch(() => null);
     } catch(_) {}
 
     // Listen for completion, with fallback timeout
