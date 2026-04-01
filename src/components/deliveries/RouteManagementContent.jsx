@@ -105,9 +105,9 @@ export default function RouteManagementContent({
     setIsBulkUpdating(true);
     try {
       await batchDeleteDeliveriesLocal(selectedBulkDeliveryIds);
-      await loadData(true);
       setSelectedBulkDeliveryIds([]);
       setBulkEditMode(false);
+      await loadData(true);
     } finally {
       setIsBulkUpdating(false);
     }

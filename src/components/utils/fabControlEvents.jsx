@@ -117,6 +117,7 @@ export const fabControlEvents = {
   },
 
   notifyDeliveryRealtimeCreateOrDelete: () => {
+    if (window.location.pathname !== '/Dashboard') return;
     console.log('📢 [FAB Events] Broadcasting delivery realtime create/delete - pulse only');
     fabControlListeners.forEach(callback => {
       try {

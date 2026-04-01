@@ -81,6 +81,7 @@ export default function DashboardView({
   const [finalizedDutyTime, setFinalizedDutyTime] = useState(null);
   const initialFabRetriggeredRef = useRef(false);
   useEffect(() => {
+    if (window.location.pathname !== '/Dashboard') return;
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const hasDeliveriesForDate = Array.isArray(deliveries) && deliveries.some(d => d && d.delivery_date === dateStr);
     const hasPatients = Array.isArray(patients) && patients.length > 0;
