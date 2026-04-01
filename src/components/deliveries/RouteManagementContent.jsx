@@ -106,9 +106,69 @@ export default function RouteManagementContent({
       window.dispatchEvent(new CustomEvent('routeManagementOfflineRefreshComplete'));
     };
 
+    const handleRouteManagementPullToSync = async (event) => {
+      if (!selectedDate) {
+        window.dispatchEvent(new CustomEvent('routeManagementPullToSyncComplete'));
+        return;
+      }
+
+      const selectedDriverId = typeof window !== 'undefined' ? localStorage.getItem('global_selected_driver_id') : null;
+      const silent = event?.detail?.silent === true;
+
+      try {
+        window.dispatchEvent(new CustomEvent('triggerPullToSync', {
+          detail: {
+            silent,
+            requestedAt: Date.now(),
+            routeManagement: true,
+            selectedDate,
+            selectedDriverId: selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : 'all'
+          }
+        }));
+
+        const finish = async () => {
+          window.removeEventListener('pullToSyncComplete', finish);
+          const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
+          let refreshedDeliveries = Array.isArray(offlineDeliveriesForDate) ? offlineDeliveriesForDate : [];
+
+          if (selectedDriverId && selectedDriverId !== 'all') {
+            refreshedDeliveries = refreshedDeliveries.filter((delivery) => delivery?.driver_id === selectedDriverId);
+            await forceRefreshDriverDeliveries(selectedDriverId, selectedDate);
+          }
+
+          if (reloadFromOfflineDB) {
+            await reloadFromOfflineDB();
+          } else {
+            setAllDeliveries?.(refreshedDeliveries);
+          }
+
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              deliveries: refreshedDeliveries,
+              freshDeliveries: refreshedDeliveries,
+              deliveryDate: selectedDate,
+              triggeredBy: 'routeManagementPullToSync',
+              source: 'offline_db',
+              immediate: true,
+              fullReplacement: true
+            }
+          }));
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          window.dispatchEvent(new CustomEvent('routeManagementPullToSyncComplete'));
+        };
+
+        window.addEventListener('pullToSyncComplete', finish, { once: true });
+      } catch (error) {
+        console.error('❌ [RouteManagement] Pull to sync failed:', error);
+        window.dispatchEvent(new CustomEvent('routeManagementPullToSyncComplete'));
+      }
+    };
+
     window.addEventListener('routeManagementOfflineRefreshRequested', handleRouteManagementOfflineRefresh);
+    window.addEventListener('routeManagementPullToSyncRequested', handleRouteManagementPullToSync);
     return () => {
       window.removeEventListener('routeManagementOfflineRefreshRequested', handleRouteManagementOfflineRefresh);
+      window.removeEventListener('routeManagementPullToSyncRequested', handleRouteManagementPullToSync);
     };
   }, [forceRefreshDriverDeliveries, selectedDate, setAllDeliveries, reloadFromOfflineDB]);
 

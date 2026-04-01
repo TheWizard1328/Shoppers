@@ -236,11 +236,13 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         if (completed) return;
         completed = true;
         setIsManualRefreshing(false);
-        window.removeEventListener('routeManagementOfflineRefreshComplete', finish);
+        window.removeEventListener('routeManagementPullToSyncComplete', finish);
       };
-      window.addEventListener('routeManagementOfflineRefreshComplete', finish);
-      window.dispatchEvent(new CustomEvent('routeManagementOfflineRefreshRequested'));
-      setTimeout(finish, 5000);
+      window.addEventListener('routeManagementPullToSyncComplete', finish);
+      window.dispatchEvent(new CustomEvent('routeManagementPullToSyncRequested', {
+        detail: { silent: true, requestedAt: Date.now() }
+      }));
+      setTimeout(finish, 10000);
       return;
     }
 
