@@ -108,7 +108,6 @@ export default function RouteManagementContent({
       await batchDeleteDeliveriesLocal(selectedBulkDeliveryIds);
       setSelectedBulkDeliveryIds([]);
       setBulkEditMode(false);
-      await loadData(true);
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     } finally {
       setBatchDeleteInProgress(false);
