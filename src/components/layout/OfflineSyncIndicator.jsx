@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { subscribeSyncStatus, getSyncStats, manualSyncSelected } from '@/components/utils/offlineSync';
+import { subscribeSyncStatus, getSyncStats, forceSyncAll } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -38,9 +38,17 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
       // CRITICAL: Update runtime stats with entity count during sync
       if (status.entity && status.count !== undefined) {
+        const entityKeyMap = {
+          AppUsers: 'appusers',
+          Users: 'appusers',
+          Deliveries: 'deliveries',
+          Patients: 'patients',
+          Cities: 'cities'
+        };
+        const runtimeKey = entityKeyMap[status.entity] || status.entity.toLowerCase();
         setRuntimeStats(prev => ({
           ...prev,
-          [status.entity.toLowerCase()]: status.count
+          [runtimeKey]: status.count
         }));
         console.log(`🔄 [OfflineSyncIndicator] ${status.entity} syncing - count: ${status.count} (progress: ${status.progress || 0}%)`);
       }
@@ -162,16 +170,10 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       console.log('🔄 [OfflineSyncIndicator] Starting manual sync (merge-only, no clear)...');
 
       // CRITICAL: Do NOT clear delivery/patient data before syncing.
-      // forceSyncAll uses bulkSave (upsert) which preserves historical records
-      // across the full date range (90 days mobile / all time desktop).
+      // Use the full merge sync so historical deliveries are restored instead of only the selected date.
       const { offlineDB } = await import('../utils/offlineDatabase');
-
-      // Compute selected date and city, then run targeted manual sync
-      const { globalFilters } = await import('../utils/globalFilters');
-      const dateForSync = sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
-      const selectedCityId = globalFilters?.getSelectedCityId?.();
-      const syncResult = await manualSyncSelected(dateForSync, selectedCityId);
-      console.log('✅ [OfflineSyncIndicator] manualSyncSelected complete:', syncResult);
+      const syncResult = await forceSyncAll();
+      console.log('✅ [OfflineSyncIndicator] forceSyncAll complete:', syncResult);
       
       // Wait for DB to settle
       await new Promise(resolve => setTimeout(resolve, 500));
