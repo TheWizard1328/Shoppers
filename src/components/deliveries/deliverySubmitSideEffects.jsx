@@ -87,7 +87,7 @@ export async function runDeliverySubmitSideEffects({
     }
   }
 
-  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode) {
+  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode && !statusChangedToCompletion) {
     setTimeout(() => {
       reorderStops(formData.driver_id, formData.delivery_date, allDeliveries)
         .then(() => console.log('✅ [DeliveryForm] Stop reordering complete (bg)'))

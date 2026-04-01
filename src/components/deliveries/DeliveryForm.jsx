@@ -1428,10 +1428,22 @@ export default function DeliveryForm({
         if (statusChangedToCompletion || actualDeliveryTimeChanged) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'completed_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Completed polyline refresh failed:', e?.message || e)); }, 0);
 
         await runDeliverySubmitSideEffects({
-          delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
-          isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
-          actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
-          isPickupMode, updateDeliveryLocal
+          delivery,
+          formData,
+          selectedPatient,
+          currentUser,
+          oldDriver,
+          newDriver,
+          driverChanged,
+          isCurrentUserDriver: userHasRole(currentUser,'driver'),
+          statusChangedToCompletion,
+          actualDeliveryTimeChanged,
+          t: dataToSave.actual_delivery_time,
+          allDeliveries: (allDeliveries || []).map((item) =>
+            item?.id === delivery.id ? { ...item, ...dataToSave, status: formData.status } : item
+          ),
+          isPickupMode,
+          updateDeliveryLocal
         });
         return true;
       }
