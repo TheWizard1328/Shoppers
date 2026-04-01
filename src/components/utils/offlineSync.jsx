@@ -713,7 +713,8 @@ const getNextDeliveryDateToSync = async () => {
  * Syncs one delivery date at a time over past 90 days
  */
 export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
-  if (syncInProgress || syncPaused) {
+  const { isBatchDeleteActive } = await import('./entityMutations');
+  if (syncInProgress || syncPaused || isBatchDeleteActive()) {
     return { skipped: true };
   }
 
@@ -798,6 +799,11 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
  * @returns {Promise<{deliveriesUpdated, freshDeliveries, appUsersUpdated, freshAppUsers}>}
  */
 export const quickReconcile = async (selectedDateStr) => {
+  const { isBatchDeleteActive } = await import('./entityMutations');
+  if (isBatchDeleteActive()) {
+    return { deliveriesUpdated: false, appUsersUpdated: false, skipped: true };
+  }
+
   const result = { deliveriesUpdated: false, appUsersUpdated: false };
 
   // --- Deliveries ---
