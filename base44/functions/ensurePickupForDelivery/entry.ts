@@ -121,6 +121,9 @@ Deno.serve(async (req) => {
     if (!store) {
       return Response.json({ error: `Store not found for storeId: ${storeId}` }, { status: 404 });
     }
+    if (!store) {
+      return Response.json({ error: `Store not found for storeId: ${storeId}` }, { status: 404 });
+    }
     const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || '';
     const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }) : [];
