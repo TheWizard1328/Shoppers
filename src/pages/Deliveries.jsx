@@ -87,6 +87,7 @@ import { updateDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/u
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { ProjectedPickupCard, StatBox } from '../components/deliveries/RouteManagementHelpers';
 import DriverOverviewCards from '../components/deliveries/DriverOverviewCards';
+import { updateDeliveriesUrl, navigateToDriverRoute, resolveDriverFilter } from '../components/deliveries/deliveriesRouteState';
 
 const addMinutesToTime = (timeString, minutesToAdd) => {
   if (!timeString) return null;
@@ -800,16 +801,16 @@ export default function DeliveriesPage() {
     });
   }, [hasAccess]);
 
-  // CRITICAL: Reload data on mode transition OR year/month change in Route Management
+  // CRITICAL: Reload data only for month/year changes in Route Management.
   const prevYMRef = useRef({ y: selectedYear, m: selectedMonth });
   useEffect(() => {
     if (prevModeRef.current === null) return;
-    if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') {loadData(true).catch(() => {});prevYMRef.current = { y: selectedYear, m: selectedMonth };return;}
+    prevModeRef.current = isDriverOverviewMode;
     if (isDriverOverviewMode || !initialLoadDone.current) return;
     if (prevYMRef.current.y === selectedYear && prevYMRef.current.m === selectedMonth) return;
     prevYMRef.current = { y: selectedYear, m: selectedMonth };
     loadData(true).catch(() => {});
-  }, [isDriverOverviewMode, driverFilter, loadData, selectedYear, selectedMonth]);
+  }, [isDriverOverviewMode, loadData, selectedYear, selectedMonth]);
 
 
   const availableOverviewYears = useMemo(() => {
@@ -894,73 +895,12 @@ export default function DeliveriesPage() {
 
 
   const updateUrl = useCallback((newFilters) => {
-    const params = new URLSearchParams(location.search);
-    const todayString = format(new Date(), 'yyyy-MM-dd');
-    const currentYear = new Date().getFullYear().toString();
-    const currentMonth = (new Date().getMonth() + 1).toString();
-
-    Object.entries(newFilters).forEach(([key, value]) => {
-      if (value === undefined || value === null || value === '' || value === 'all') {
-        params.delete(key);
-        return;
-      }
-
-      if (key === 'date') {
-        try {
-          let dateStr;
-
-          if (value instanceof Date) {
-            if (isNaN(value.getTime())) {
-              console.warn('[updateUrl] Invalid Date object');
-              return;
-            }
-            dateStr = format(value, 'yyyy-MM-dd');
-          } else if (typeof value === 'string') {
-            const [y, m, d] = value.split('-').map(Number);
-            if (isNaN(y) || isNaN(m) || isNaN(d)) {
-              console.warn('[updateUrl] Invalid date string format:', value);
-              return;
-            }
-            dateStr = value;
-          } else {
-            console.warn('[updateUrl] Unexpected date value type:', typeof value);
-            return;
-          }
-
-          if (dateStr !== todayString) {
-            params.set(key, dateStr);
-          } else {
-            params.delete(key);
-          }
-        } catch (error) {
-          console.error('[updateUrl] Error formatting date:', error, value);
-        }
-      } else if (key === 'year') {
-        const paramValue = value.toString();
-        if (paramValue !== currentYear) {
-          params.set(key, paramValue);
-        } else {
-          params.delete(key);
-        }
-      } else if (key === 'month') {
-        const paramValue = value.toString();
-        if (paramValue !== currentMonth) {
-          params.set(key, paramValue);
-        } else {
-          params.delete(key);
-        }
-      } else if (key === 'city') {
-        if (value !== 'all') {
-          params.set(key, value);
-        } else {
-          params.delete(key);
-        }
-      } else {
-        params.set(key, value.toString());
-      }
+    updateDeliveriesUrl({
+      locationSearch: location.search,
+      locationPathname: location.pathname,
+      navigate,
+      newFilters
     });
-
-    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
   }, [location.search, location.pathname, navigate]);
 
 
@@ -1134,18 +1074,22 @@ export default function DeliveriesPage() {
     // CRITICAL: Driver Overview doesn't use selectedDate - it shows stats for the entire year/period
     // Route Management: selectedDate is managed by date cards selection effect (auto-selected after data loads)
 
-    let newDriverFilter = globalFilters.getSelectedDriverId() || 'all';
+    const newDriverFilter = resolveDriverFilter({
+      driverParam,
+      globalDriverFilter: globalFilters.getSelectedDriverId(),
+      currentDriverFilter: driverFilter,
+      currentUser,
+      effectiveDrivers,
+      userHasRole
+    });
 
     if (driverParam) {
-      newDriverFilter = driverParam;
       console.log('🚗 [Deliveries] Using driver from URL:', driverParam);
-    } else if (userHasRole(currentUser, 'driver')) {
-      const driverUser = (effectiveDrivers || []).find((d) => d.id === newDriverFilter);
-      if (driverUser) {
-        newDriverFilter = driverUser.id;
-      }
     }
-    setDriverFilter(newDriverFilter);
+
+    if (newDriverFilter !== driverFilter) {
+      setDriverFilter(newDriverFilter);
+    }
 
     setStatusFilter(statusParam || 'all');
     setSearchTerm(searchParam || '');
@@ -1168,7 +1112,7 @@ export default function DeliveriesPage() {
       navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
     }
 
-  }, [location.search, currentUser, dataLoaded, hasAccess, isLoadingData, cities, navigate, location.pathname]);
+  }, [location.search, currentUser, dataLoaded, hasAccess, isLoadingData, cities, navigate, location.pathname, driverFilter]);
 
 
   const driverFilteredDeliveries = useMemo(() => {
@@ -2619,16 +2563,20 @@ export default function DeliveriesPage() {
   const handleDriverChange = useCallback((driverId) => {
     try {
       manualDateSelectionRef.current = false;
-      setDriverFilter(driverId);
-      updateUrl({
-        driver: driverId,
-        year: (selectedYear || new Date().getFullYear()).toString(),
-        month: ((selectedMonth ?? new Date().getMonth()) + 1).toString()
+      const nextDriverFilter = driverId || 'all';
+      setDriverFilter(nextDriverFilter);
+      navigateToDriverRoute({
+        locationSearch: location.search,
+        locationPathname: location.pathname,
+        navigate,
+        driverId: nextDriverFilter,
+        selectedYear,
+        selectedMonth
       });
     } catch (error) {
       console.error('[handleDriverChange] Error:', error);
     }
-  }, [updateUrl, selectedYear, selectedMonth]);
+  }, [location.search, location.pathname, navigate, selectedYear, selectedMonth]);
 
 
 
