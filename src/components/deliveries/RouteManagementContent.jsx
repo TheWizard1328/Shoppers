@@ -15,6 +15,7 @@ import { invalidate } from "../utils/dataManager";
 import { userHasRole } from "../utils/userRoles";
 import { runBulkDeleteStops, runBulkEditStops } from "./routeBulkActions";
 import { useAppData } from "../utils/AppDataContext";
+import useRouteManagementRealtimeSync from "./useRouteManagementRealtimeSync";
 
 export default function RouteManagementContent({
   deliveries,
@@ -40,6 +41,13 @@ export default function RouteManagementContent({
 }) {
   const { forceRefreshDriverDeliveries } = useAppData();
   const isMobile = useMemo(() => isMobileDevice(), []);
+
+  useRouteManagementRealtimeSync({
+    enabled: true,
+    selectedDate,
+    setAllDeliveries,
+    setAllPatients: () => {}
+  });
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
   const [bulkEditMode, setBulkEditMode] = useState(false);
