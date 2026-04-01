@@ -515,7 +515,6 @@ export default function Layout({ children, currentPageName }) {
         const idsToDelete = new Set(mutation.ids || []);
         if (mutation.entity === 'Delivery') {
           setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
-          // Remove all from offline DB
           mutation.ids.forEach((id) => {
             offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
           });
@@ -661,8 +660,9 @@ export default function Layout({ children, currentPageName }) {
     const handleOfflineDeliveriesDeleted = (event) => {
       const { deletedIds } = event.detail || {};
       if (deletedIds && deletedIds.length > 0) {
+        const deletedIdSet = new Set(deletedIds);
         console.log(`🗑️ [Layout] Removing ${deletedIds.length} deleted deliveries from UI`);
-        setDeliveries((prevDeliveries) => prevDeliveries.filter((d) => !deletedIds.includes(d?.id)));
+        setDeliveries((prevDeliveries) => prevDeliveries.filter((d) => !deletedIdSet.has(d?.id)));
       }
     };
     window.addEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
