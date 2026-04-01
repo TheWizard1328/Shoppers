@@ -792,8 +792,15 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
 
     console.log(`💾 [EntityMutations] Found ${idsToDeleteOffline.length} of ${uniqueDeliveryIds.length} in IndexedDB`);
 
-    const response = await base44.functions.invoke('bulkDeleteDeliveries', { deliveryIds: uniqueDeliveryIds });
-    const failedIds = response?.data?.failedIds || [];
+    const deleteResults = await Promise.allSettled(
+      uniqueDeliveryIds.map((id) => base44.entities.Delivery.delete(id))
+    );
+    const failedIds = uniqueDeliveryIds.filter((id, index) => {
+      const result = deleteResults[index];
+      if (result?.status === 'fulfilled') return false;
+      const error = result?.reason;
+      return !(error?.message?.includes('not found') || error?.message?.includes('404') || error?.response?.status === 404);
+    });
     const failedIdSet = new Set(failedIds);
     const idsDeletedRemotely = uniqueDeliveryIds.filter(id => !failedIdSet.has(id));
 
@@ -844,6 +851,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     if (failedIds.length > 0) {
       for (const id of failedIds) {
         await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: id });
+        console.warn('⚠️ [EntityMutations] Queued failed bulk delete for retry:', id);
       }
     }
 
