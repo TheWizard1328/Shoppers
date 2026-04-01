@@ -11,6 +11,7 @@ export async function runBulkDeleteStops({
   setSelectedBulkDeliveryIds,
   setBulkEditMode,
   setAllDeliveries,
+  reloadFromOfflineDB,
   onAfterDelete
 }) {
   if (!selectedBulkDeliveryIds.length) return;
@@ -25,6 +26,7 @@ export async function runBulkDeleteStops({
     await batchDeleteDeliveriesLocal(selectedBulkDeliveryIds);
     const freshOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
     setAllDeliveries?.(freshOfflineDeliveries || []);
+    await reloadFromOfflineDB?.();
     setSelectedBulkDeliveryIds([]);
     setBulkEditMode(false);
     window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));

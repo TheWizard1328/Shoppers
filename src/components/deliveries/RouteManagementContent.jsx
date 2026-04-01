@@ -9,6 +9,7 @@ import StopDetailsPanel from "./StopDetailsPanel";
 import DeliveryListView from "../dashboard/DeliveryListView";
 import BulkEditStopsPanel from "./BulkEditStopsPanel";
 import { isMobileDevice } from "../utils/deviceUtils";
+import { offlineDB } from "../utils/offlineDatabase";
 import { createDeliveryLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
 import { userHasRole } from "../utils/userRoles";
@@ -33,6 +34,7 @@ export default function RouteManagementContent({
   onCODUpdate,
   loadData,
   setAllDeliveries,
+  reloadFromOfflineDB,
   appUsers = []
 }) {
   const isMobile = useMemo(() => isMobileDevice(), []);
@@ -99,12 +101,19 @@ export default function RouteManagementContent({
   const handleBulkDeleteSelected = useCallback(async () => {
     if (!selectedBulkDeliveryIds.length || isBulkUpdating) return;
 
+    const fallbackReloadFromOfflineDB = async () => {
+      const fallbackDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      setAllDeliveries?.(fallbackDeliveries || []);
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    };
+
     await runBulkDeleteStops({
       selectedBulkDeliveryIds,
       setIsBulkUpdating,
       setSelectedBulkDeliveryIds,
       setBulkEditMode,
       setAllDeliveries,
+      reloadFromOfflineDB: reloadFromOfflineDB || fallbackReloadFromOfflineDB,
       onAfterDelete: (freshOfflineDeliveries) => window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
         detail: {
           deletedIds: selectedBulkDeliveryIds,
@@ -112,7 +121,7 @@ export default function RouteManagementContent({
         }
       }))
     });
-  }, [isBulkUpdating, selectedBulkDeliveryIds, setAllDeliveries]);
+  }, [isBulkUpdating, selectedBulkDeliveryIds, setAllDeliveries, reloadFromOfflineDB]);
 
   const handleBulkEditApply = useCallback((values) => {
     return runBulkEditStops({
