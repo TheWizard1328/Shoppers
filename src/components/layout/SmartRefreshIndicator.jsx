@@ -112,9 +112,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const handleRateLimitError = (event) => {
-        setHasError(event.detail.hasError);
-        // Clear error after 5 seconds
-        if (event.detail.hasError) {
+        const nextHasError = !!event.detail.hasError;
+        setHasError((prev) => (prev === nextHasError ? prev : nextHasError));
+        if (nextHasError) {
           setTimeout(() => setHasError(false), 5000);
         }
       };
@@ -130,11 +130,10 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       // CRITICAL: Track smart refresh state by polling isRefreshing flag every 50ms
       const checkSmartRefresh = () => {
         const isRefreshing = smartRefreshManager?.isRefreshing || false;
-        
-        // Update state only when it changes to prevent re-renders
+
         if (isRefreshing !== isRefreshingRef.current) {
           isRefreshingRef.current = isRefreshing;
-          setIsSmartRefreshActive(isRefreshing);
+          setIsSmartRefreshActive((prev) => (prev === isRefreshing ? prev : isRefreshing));
           
           if (isRefreshing) {
             console.log('🟢 [Indicator] Smart refresh STARTED - showing green spinner');
@@ -172,27 +171,27 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
   // Determine active manager and color
   useEffect(() => {
-    if (isSmartRefreshActive) {
-      setActiveManager('smart');
-    } else if (isOfflineSyncActive) {
-      setActiveManager('offline');
-    } else if (isPollingActive) {
-      setActiveManager('polling');
-    } else {
-      setActiveManager(null);
-    }
+    const nextManager = isSmartRefreshActive
+      ? 'smart'
+      : isOfflineSyncActive
+        ? 'offline'
+        : isPollingActive
+          ? 'polling'
+          : null;
+
+    setActiveManager((prev) => (prev === nextManager ? prev : nextManager));
   }, [isSmartRefreshActive, isOfflineSyncActive, isPollingActive]);
 
   useEffect(() => {
     const refreshLooksActive = smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive;
 
     if (!refreshLooksActive) {
-      setIsRefreshStuck(false);
+      setIsRefreshStuck((prev) => (prev ? false : prev));
       return;
     }
 
     const stuckTimer = setTimeout(() => {
-      setIsRefreshStuck(true);
+      setIsRefreshStuck((prev) => (prev ? prev : true));
     }, 30000);
 
     return () => clearTimeout(stuckTimer);
