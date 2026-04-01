@@ -3302,23 +3302,11 @@ export default function DeliveriesPage() {
               <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Route Dates</h2>
             </div>
             <div className="flex-1 p-1 sm:p-2 overflow-y-auto">
-              <DateListPanel
-              deliveries={driverFilteredDeliveries}
-              selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-              dateListWithStats={null}
-              onDateSelect={handleDateSelect}
-              patients={effectivePatients}
-              selectedDriverId={driverFilter}
-              currentUser={currentUser}
-              onDeleteRoute={async (dateStr, driverId) => {
+              <DateListPanel deliveries={driverFilteredDeliveries} selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null} dateListWithStats={null} onDateSelect={handleDateSelect} patients={effectivePatients} selectedDriverId={driverFilter} currentUser={currentUser} getRouteDeleteIds={(dateStr, driverId) => driverFilteredDeliveries.filter((d) => d.delivery_date === dateStr && d.driver_id === driverId).map((d) => d.id).filter(Boolean)} onDeleteRoute={async (dateStr, driverId, selectedRouteIds) => {
                 try {
-                  const response = await base44.functions.invoke('deleteDriverRouteForDate', {
-                    driverId,
-                    deliveryDate: dateStr
-                  });
-                  const deletedIds = response?.data?.ids || response?.ids || [];
-
-                  setAllDeliveries((prev) => prev.filter((d) => !deletedIds.includes(d.id)));
+                  const deliveryIds = (selectedRouteIds || []).filter(Boolean);
+                  await batchDeleteDeliveriesLocal(deliveryIds, { userId: currentUser?.id, userName: currentUser?.user_name || currentUser?.full_name });
+                  setAllDeliveries((prev) => prev.filter((d) => !deliveryIds.includes(d.id)));
                   invalidate('Delivery');
                   setRefreshKey((prev) => prev + 1);
                   window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -3402,26 +3390,11 @@ export default function DeliveriesPage() {
                 </Button>
               </div>
               <div className="flex-1 p-2 sm:p-4 overflow-y-auto">
-                <DateListPanel
-                deliveries={driverFilteredDeliveries}
-                selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-                dateListWithStats={null}
-                onDateSelect={(dateStr) => {
-                  handleDateSelect(dateStr);
-                  setIsMobileMenuOpen(false);
-                }}
-                patients={effectivePatients}
-                selectedDriverId={driverFilter}
-                currentUser={currentUser}
-                onDeleteRoute={async (dateStr, driverId) => {
+                <DateListPanel deliveries={driverFilteredDeliveries} selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null} dateListWithStats={null} onDateSelect={(dateStr) => { handleDateSelect(dateStr); setIsMobileMenuOpen(false); }} patients={effectivePatients} selectedDriverId={driverFilter} currentUser={currentUser} getRouteDeleteIds={(dateStr, driverId) => driverFilteredDeliveries.filter((d) => d.delivery_date === dateStr && d.driver_id === driverId).map((d) => d.id).filter(Boolean)} onDeleteRoute={async (dateStr, driverId, selectedRouteIds) => {
                   try {
-                    const response = await base44.functions.invoke('deleteDriverRouteForDate', {
-                      driverId,
-                      deliveryDate: dateStr
-                    });
-                    const deletedIds = response?.data?.ids || response?.ids || [];
-
-                    setAllDeliveries((prev) => prev.filter((d) => !deletedIds.includes(d.id)));
+                    const deliveryIds = (selectedRouteIds || []).filter(Boolean);
+                    await batchDeleteDeliveriesLocal(deliveryIds, { userId: currentUser?.id, userName: currentUser?.user_name || currentUser?.full_name });
+                    setAllDeliveries((prev) => prev.filter((d) => !deliveryIds.includes(d.id)));
                     invalidate('Delivery');
                     setRefreshKey((prev) => prev + 1);
                     setIsMobileMenuOpen(false);
