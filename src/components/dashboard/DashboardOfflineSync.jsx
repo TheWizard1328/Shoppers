@@ -7,14 +7,14 @@ export default function DashboardOfflineSync({ currentUser, dailyPolylineCount, 
   const isMobile = isMobileDevice();
 
   if (isMobile) {
-    // Mobile: always render in expanded stats card
+    // Mobile: only render embedded inside the expanded stats card
     if (!isExpanded) return null;
-    return <OfflineSyncIndicator inline={true} />;
+    return <OfflineSyncIndicator embedded={true} />;
   }
 
   // Desktop: positioned next to stats card (aligned at top)
   return (
-    <div className="absolute top-2 z-[600]" style={{ left: 'calc(2rem + 340px + 0.5rem)' }}>
+    <div className="absolute top-2 z-[600] hidden md:block" style={{ left: 'calc(2rem + 340px + 0.5rem)' }}>
       <OfflineSyncIndicator inline={true} />
     </div>
   );

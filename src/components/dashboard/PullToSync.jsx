@@ -287,14 +287,14 @@ export default function PullToSync({
   return (
     <>
 
-      {/* Pull indicator - inside stats card container with higher z-index */}
+      {/* Pull indicator - mobile only, positioned beside refresh spinner */}
       <AnimatePresence>
         {(isPulling || isSyncing) && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="absolute top-2 left-0 right-0 z-50 pointer-events-none flex justify-center"
+            initial={{ opacity: 0, y: -10, x: -8 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: -10, x: -8 }}
+            className="absolute top-2 left-[16.75rem] z-20 pointer-events-none flex justify-start md:hidden"
           >
             <div 
               className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border backdrop-blur-sm"
@@ -323,14 +323,14 @@ export default function PullToSync({
         )}
       </AnimatePresence>
 
-      {/* Full-screen loading overlay during sync */}
+      {/* Full-screen loading overlay during sync - desktop/tablet only */}
       <AnimatePresence>
         {showOverlay && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md pointer-events-none"
+            className="fixed inset-0 z-[1000] hidden md:flex items-center justify-center bg-black/60 backdrop-blur-md pointer-events-none"
           >
             <div 
               className="rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4"
