@@ -28,7 +28,7 @@ import {
   resumeOfflineMutations } from
 
 "@/components/utils/offlineMutations";
-import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
+import { pauseOfflineSync, resumeOfflineSync, performPrioritySyncBeforeRefresh } from "@/components/utils/offlineSync";
 import RouteOptimizationSettings, { getRouteOptimizationSettings } from "@/components/dashboard/RouteOptimizationSettings";
 import { sortUsers } from "@/components/utils/sorting";
 import { AnimatePresence, motion } from "framer-motion";
@@ -2964,26 +2964,15 @@ function Dashboard() {
       // STEP 1: Clear pending updates for clean slate
       smartRefreshManager.clearPendingUpdates();
 
-      // STEP 2: Load based on data source preference
+      // STEP 2: Run targeted offline refresh FIRST for the selected date + current driver mode
       const shouldLoadAllDeliveries = showAllDriverMarkers || selectedDriverId === 'all';
-      let priorityDeliveries;
+      await performPrioritySyncBeforeRefresh(dateStr, globalFilters.getSelectedCityId(), smartRefreshManager, shouldLoadAllDeliveries);
 
-      if (dataSource === 'online') {
-        // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
-        priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        // Update offline DB in background (don't wait)
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
-      } else {
-        // OFFLINE MODE: Load ALL deliveries for the date from offline DB first; fallback to API
-        priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      // STEP 3: Always reload the refreshed dataset from offline DB
+      let priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      if (!Array.isArray(priorityDeliveries)) priorityDeliveries = [];
 
-        if (!priorityDeliveries || priorityDeliveries.length === 0) {
-          priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
-        }
-      }
-
-      // STEP 3: Update UI immediately with priority data using flushSync for instant render
+      // STEP 4: Update UI immediately with refreshed offline data
       if (updateDeliveriesLocally) {
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
         const mergedDeliveries = [...otherDateDeliveries, ...priorityDeliveries];
@@ -3115,24 +3104,14 @@ function Dashboard() {
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Load based on data source preference
+      // Run targeted offline refresh FIRST for the selected date + driver mode
       let freshDeliveries;
       const shouldLoadAllDeliveries = showAllDriverMarkers || driverId === 'all';
+      await performPrioritySyncBeforeRefresh(dateStr, globalFilters.getSelectedCityId(), smartRefreshManager, shouldLoadAllDeliveries);
 
-      if (dataSource === 'online') {
-        // ONLINE MODE: Always fetch ALL deliveries for the date; UI filters by driver
-        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        // Update offline DB in background
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
-      } else {
-        // OFFLINE MODE: Try offline DB first for ALL deliveries on date
-        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-
-        if (!freshDeliveries || freshDeliveries.length === 0) {
-          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        }
-      }
+      // Then load the refreshed deliveries from offline DB
+      freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      if (!Array.isArray(freshDeliveries)) freshDeliveries = [];
 
       if (driverChangeRequestIdRef.current !== reqId) return;
       if (driverId && driverId !== 'all') {
