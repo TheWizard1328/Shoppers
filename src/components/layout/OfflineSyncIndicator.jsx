@@ -27,12 +27,24 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     return newStats;
   }, []);
 
+  const getTotalCount = useCallback((statsObj) => {
+    if (!statsObj) return 0;
+    return (statsObj?.patients?.count || 0) +
+      (statsObj?.deliveries?.count || 0) +
+      (statsObj?.appUsers?.count || 0) +
+      (statsObj?.cities?.count || 0) +
+      (statsObj?.stores?.count || 0) +
+      (statsObj?.companies?.count || 0) +
+      (statsObj?.squareTransactions?.count || 0) +
+      (statsObj?.driverOverviewStats?.count || 0);
+  }, []);
+
   useEffect(() => {
     if (!isVisible) return;
     // Load initial stats
     refreshStats(true).then(stats => {
       console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
-      const total = (stats?.patients?.count || 0) + (stats?.deliveries?.count || 0) + (stats?.appUsers?.count || 0) + (stats?.cities?.count || 0) + (stats?.stores?.count || 0) + (stats?.companies?.count || 0) + (stats?.squareTransactions?.count || 0) + (stats?.driverOverviewStats?.count || 0);
+      const total = getTotalCount(stats);
       if (total === 0) {
         setIsSyncing(true);
         setSyncStatus({ status: 'syncing', entity: 'Offline DB', progress: 10, count: 0 });
@@ -41,7 +53,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
           setTimeout(() => {
             refreshStats(true).then((retryStats) => {
               console.log('📊 [OfflineSyncIndicator] Startup recheck stats:', retryStats);
-              const retryTotal = (retryStats?.patients?.count || 0) + (retryStats?.deliveries?.count || 0) + (retryStats?.appUsers?.count || 0) + (retryStats?.cities?.count || 0) + (retryStats?.stores?.count || 0) + (retryStats?.companies?.count || 0) + (retryStats?.squareTransactions?.count || 0) + (retryStats?.driverOverviewStats?.count || 0);
+              const retryTotal = getTotalCount(retryStats);
               if (retryTotal > 0) {
                 setIsSyncing(false);
                 setSyncStatus({ status: 'complete' });
@@ -59,6 +71,17 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       console.error('❌ [OfflineSyncIndicator] Failed to load stats:', error);
       setIsFullyLoaded(true); // Still show UI with empty stats
     });
+
+    const startupRefreshDelays = [250, 1000, 2500];
+    const startupRefreshTimers = startupRefreshDelays.map((delay) => setTimeout(() => {
+      refreshStats(true).then((freshStats) => {
+        const freshTotal = getTotalCount(freshStats);
+        if (freshTotal > 0) {
+          setIsSyncing(false);
+          setSyncStatus((prev) => prev.status === 'syncing' ? { status: 'complete' } : prev);
+        }
+      }).catch(() => {});
+    }, delay));
 
     // Subscribe to sync updates (manual sync)
     const unsubscribe = subscribeSyncStatus((status) => {
@@ -151,11 +174,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     // CRITICAL: Refresh stats whenever offline DB is updated by WebSocket events
     let refreshDebounceTimer = null;
     const handleRealtimeDBUpdate = () => {
-      // Debounce to avoid hammering IndexedDB on rapid updates
       clearTimeout(refreshDebounceTimer);
       refreshDebounceTimer = setTimeout(() => {
-        refreshStats(true).catch(() => {});
-      }, 500);
+        refreshStats(true).then((freshStats) => {
+          const freshTotal = getTotalCount(freshStats);
+          if (freshTotal > 0) {
+            setIsSyncing(false);
+          }
+        }).catch(() => {});
+      }, 350);
     };
 
     window.addEventListener('periodicSyncProgress', handlePeriodicSync);
@@ -172,6 +199,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
     return () => {
       unsubscribe();
+      startupRefreshTimers.forEach(clearTimeout);
       clearTimeout(refreshDebounceTimer);
       clearInterval(pollInterval);
       window.removeEventListener('periodicSyncProgress', handlePeriodicSync);
@@ -182,7 +210,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       window.removeEventListener('offlineSyncComplete', handleRealtimeDBUpdate);
       window.removeEventListener('deliveriesUpdated', handleRealtimeDBUpdate);
     };
-  }, [isVisible, refreshStats]);
+  }, [isVisible, refreshStats, getTotalCount]);
 
   // Only show to app owners - MUST be after all hooks
   if (!isVisible) {
