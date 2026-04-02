@@ -1709,18 +1709,22 @@ if (typeof window !== 'undefined' && !window.__rxdeliverReconnectSyncRegistered)
 }
 
 export const getSyncStats = async () => {
-  const stats = await offlineDB.getStats();
-  const pendingMutations = await offlineDB.getPendingMutations();
-  const patientStatus = await offlineDB.getSyncStatus('Patient');
-  const deliveryStatus = await offlineDB.getSyncStatus('Delivery');
-  const cityStatus = await offlineDB.getSyncStatus('City');
-  const storeStatus = await offlineDB.getSyncStatus('Store');
-  const companyStatus = await offlineDB.getSyncStatus('Company');
-  const appUserStatus = await offlineDB.getSyncStatus('AppUser');
-  const squareTxStatus = await offlineDB.getSyncStatus('SquareTransaction');
+  const [stats, pendingMutations, patientStatus, deliveryStatus, cityStatus, storeStatus, companyStatus, appUserStatus, squareTxStatus] = await Promise.all([
+    offlineDB.getStats(),
+    offlineDB.getPendingMutations(),
+    offlineDB.getSyncStatus('Patient'),
+    offlineDB.getSyncStatus('Delivery'),
+    offlineDB.getSyncStatus('City'),
+    offlineDB.getSyncStatus('Store'),
+    offlineDB.getSyncStatus('Company'),
+    offlineDB.getSyncStatus('AppUser'),
+    offlineDB.getSyncStatus('SquareTransaction')
+  ]);
 
   return {
     ...stats,
+    dbName: offlineDB.getDbName(),
+    fallbackDbNames: offlineDB.getLegacyFallbackDbNames(),
     pendingMutations: pendingMutations.length,
     fullSyncStatus: {
       patients: {

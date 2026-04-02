@@ -328,7 +328,10 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     return (
       <div className="w-full">
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => {
+            setIsExpanded(!isExpanded);
+            refreshStats(true).catch(() => {});
+          }}
           className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50">
 
           <div className="flex items-center gap-2">
@@ -339,6 +342,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
             {shouldRenderStats && !isSyncing &&
             <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                 ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0) + (stats.driverOverviewStats?.count || 0)})
+              </span>
+            }
+            {shouldRenderStats?.dbName && isExpanded &&
+            <span className="text-[10px] truncate max-w-[160px]" style={{ color: 'var(--text-slate-400)' }}>
+                {stats.dbName}
               </span>
             }
           </div>
@@ -560,7 +568,10 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
         {/* Collapsed View */}
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => {
+            setIsExpanded(!isExpanded);
+            refreshStats(true).catch(() => {});
+          }}
           className="flex items-center gap-2 px-3 py-2 transition-colors w-full hover:bg-slate-50"
           style={{
             background: 'var(--bg-white)',
@@ -574,6 +585,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
           {shouldRenderStats && !isSyncing &&
           <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
               ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0) + (stats.driverOverviewStats?.count || 0)} records)
+            </span>
+          }
+          {shouldRenderStats?.dbName && isExpanded &&
+          <span className="text-[10px] ml-1" style={{ color: 'var(--text-slate-400)' }}>
+              {stats.dbName}
             </span>
           }
         </button>
