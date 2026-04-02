@@ -122,17 +122,13 @@ export default function DeliveryFormView({
     }
   }, []);
 
-  const requiresDriverSelection = !delivery && !isPickupMode && !formData?.driver_id;
+  const requiresDriverSelection = !delivery && !formData?.driver_id;
 
   const hasSelectedLocationAndDriver = Boolean(
     formData?.delivery_date && formData?.driver_id && (formData?.store_id || selectedPatient?.store_id || selectedPickupOption)
   );
 
-  // Auto-open the driver dropdown when a driver must be selected
   const [forceOpenDriverSelect, setForceOpenDriverSelect] = React.useState(false);
-  React.useEffect(() => {
-    setForceOpenDriverSelect(requiresDriverSelection);
-  }, [requiresDriverSelection]);
 
   // Helper: get default driver ID for a store based on date and time slot
   const getDefaultDriverForStoreSlot = (storeId, timeSlot, deliveryDate) => {
