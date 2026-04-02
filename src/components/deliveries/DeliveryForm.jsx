@@ -94,10 +94,8 @@ export default function DeliveryForm({
   const freshStores = useFreshStores(stores);
 
   const allDrivers = useMemo(() => {
-    // Layout already filters drivers correctly via getActiveDriversForCity
-    // Just ensure they have user_name - no additional role filtering needed
     const sorted = sortUsers(drivers || []);
-    return sorted.filter((driver) => driver && driver.user_name);
+    return sorted.filter((driver) => driver && (driver.user_name || driver.full_name || driver.email));
   }, [drivers]);
 
   const [formData, setFormData] = useState(() => {
@@ -136,9 +134,9 @@ export default function DeliveryForm({
         getDriverNameForStorage
       });
 
-      if (driverId && driverName) {
+      if (driverId) {
         initialState.driver_id = driverId;
-        initialState.driver_name = driverName;
+        initialState.driver_name = driverName || '';
       }
     }
 
@@ -267,11 +265,11 @@ export default function DeliveryForm({
       getDriverNameForStorage
     });
 
-    if (driverIdToSet && driverNameToSet) {
+    if (driverIdToSet) {
       setFormData((prev) => ({
         ...prev,
         driver_id: driverIdToSet,
-        driver_name: driverNameToSet
+        driver_name: driverNameToSet || ''
       }));
     }
   }, [delivery, currentUser, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id]);
