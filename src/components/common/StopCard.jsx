@@ -437,43 +437,92 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     } finally {resetActionLocks(true);}
   };
   const restartCurrentDelivery = async (shouldOptimize = false) => {
-    fabControlEvents.deactivateFAB();setIsRestarting(true);setIsEntityUpdating(true);setIsProcessingBackground(true);
+    fabControlEvents.deactivateFAB();
+    setIsRestarting(true);
+    setIsEntityUpdating(true);
+    setIsProcessingBackground(true);
     try {
-      await withPausedDriverLocationPoller(async () => {
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 100));await verifyDeliveryStillExists(delivery.id);
-          const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-          await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-          const newStatus = isPickup ? 'en_route' : 'in_transit';
-          const restartedRouteDeliveries = reorderActiveRouteLocally(
-            driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: false, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null } : item),
-            delivery.id
-          );
-          await updateDeliveryLocal(delivery.id, { status: newStatus, isNextDelivery: false, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null }, { skipSmartRefresh: true });
-          const { offlineDB } = await import('../utils/offlineDatabase');
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, restartedRouteDeliveries.filter(Boolean));
-          if (updateDeliveriesLocally) {
-            const restartedMap = new Map(restartedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
-            const updatedDeliveries = allDeliveries.map((d) => d && restartedMap.has(d.id) ? restartedMap.get(d.id) : d);
-            updateDeliveriesLocally(updatedDeliveries, true);
+      const driverDeliveries = (allDeliveries || []).filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
+      if (driverDeliveries.length === 0) throw new Error('No route deliveries found');
+
+      const activeRouteDeliveries = driverDeliveries
+        .filter((item) => item && item.id !== delivery.id && !FINISHED_STATUSES.includes(item.status) && item.status !== 'pending')
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+      const nextStopOrder = activeRouteDeliveries[0]?.stop_order || 1;
+      const restartedStatus = isPickup ? 'en_route' : 'in_transit';
+      const restartedRouteDeliveries = driverDeliveries
+        .map((item) => {
+          if (!item) return item;
+          if (item.id === delivery.id) {
+            return {
+              ...item,
+              status: restartedStatus,
+              isNextDelivery: true,
+              stop_order: nextStopOrder,
+              actual_delivery_time: null,
+              delivery_notes: '',
+              finished_leg_encoded_polyline: null
+            };
           }
-          await collapseAndCenterNextDelivery({ driverDeliveries: restartedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-            if (shouldOptimize) {try {await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false });} catch (optimizeError) {console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);}}
-          Promise.resolve().then(async () => {
-            try {
-              await refreshDriverRoute({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, forceRefreshDriverDeliveries, triggeredBy: 'restart' });
-              if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers });
-            } catch (backgroundError) {
-              console.warn('⚠️ [Restart Delivery] Background refresh failed:', backgroundError);
-            }
-          });
-        } catch (error) {
-          console.error('❌ [Restart Delivery] Error:', error);
-          toast.error(`Failed to restart: ${error.message}`);
-          throw error;
+          if (!FINISHED_STATUSES.includes(item.status) && item.status !== 'pending' && (item.stop_order || 0) >= nextStopOrder) {
+            return { ...item, isNextDelivery: false, stop_order: (item.stop_order || 0) + 1 };
+          }
+          return { ...item, isNextDelivery: false };
+        })
+        .sort((a, b) => (a?.stop_order || 0) - (b?.stop_order || 0));
+
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, restartedRouteDeliveries.filter(Boolean));
+      if (updateDeliveriesLocally) {
+        updateDeliveriesLocally(restartedRouteDeliveries, false);
+      }
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          triggeredBy: 'restart_local',
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          freshDeliveries: restartedRouteDeliveries,
+          immediate: true
+        }
+      }));
+      centerDeliveryCard(delivery.id);
+
+      Promise.resolve().then(async () => {
+        try {
+          await base44.functions.invoke('setNextDeliveryFlag', {
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            targetDeliveryId: delivery.id
+          }).catch(() => {});
+          await base44.functions.invoke('calculateRealTimeETA', {
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            targetDeliveryId: delivery.id
+          }).catch(() => {});
+          if (shouldOptimize) {
+            await base44.functions.invoke('reoptimizeFullRoute', {
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date
+            }).catch(() => {});
+          }
+          invalidate('Delivery');
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { triggeredBy: 'restart_final', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+          }));
+          fabControlEvents.notifyPhaseTwoCompleteRecenter();
+        } catch (backgroundError) {
+          console.warn('⚠️ [Restart Delivery] Background refresh failed:', backgroundError);
+        } finally {
+          resetActionLocks(true);
         }
       });
-    } finally {resetActionLocks(true);}
+    } catch (error) {
+      console.error('❌ [Restart Delivery] Error:', error);
+      toast.error(`Failed to restart: ${error.message}`);
+      resetActionLocks(true);
+    }
   };
   const shouldFade = false;const cardZIndex = isHovered && !isRailCentered ? 52 : isRailCentered ? 51 : 50;const shouldAnchorExpandedCard = isMobileDevice() && isSelected && !isStrippedDelivery;const stopLat = Number(isPickup ? store?.latitude : patient?.latitude);const stopLon = Number(isPickup ? store?.longitude : patient?.longitude);const driverLat = Number(currentDriverAppUser?.current_latitude ?? currentUser?.current_latitude);const driverLon = Number(currentDriverAppUser?.current_longitude ?? currentUser?.current_longitude);const isWithinActiveStopRange = Number.isFinite(driverLat) && Number.isFinite(driverLon) && Number.isFinite(stopLat) && Number.isFinite(stopLon) && calculateHaversineDistance(driverLat, driverLon, stopLat, stopLon) <= 100;
   return (
@@ -599,7 +648,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           resetActionLocks(true);
                           if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
                         }
-                      }} size="sm" disabled={isCompleting || isProcessingBackground || isFailing} className={`rounded-md px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white ${isFailing ? 'bg-red-600 hover:bg-red-700 border-red-500' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'}`}>{isCompleting || isProcessingBackground || isFailing ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}<span className="text-white">Complete</span></Button> : onStartDelivery && <Button data-stopcard-action="start" type="button" onClick={handleStartAction} size="sm" disabled={isStarting || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting} className="bg-blue-600 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" title="Start this delivery">{isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}<span className="text-white">Start</span></Button>)}{delivery.status !== 'failed' && ['completed', 'cancelled'].includes(delivery.status) && onRestart && !routeCompleted && <Button onClick={async (e) => {e.stopPropagation();if (isRestarting || isProcessingBackground || isFailing) return;fabControlEvents.deactivateFAB();setIsRestarting(true);setIsProcessingBackground(true);try {const routeDeliveries = (allDeliveries || []).filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);const activeRouteDeliveries = routeDeliveries.filter((item) => item && item.id !== delivery.id && !FINISHED_STATUSES.includes(item.status) && item.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));const nextStopOrder = activeRouteDeliveries[0]?.stop_order || 1;const reorderedRoute = routeDeliveries.map((item) => {if (!item) return item;if (item.id === delivery.id) {return { ...item, status: 'in_transit', isNextDelivery: true, stop_order: nextStopOrder };}if (item.stop_order >= nextStopOrder && item.id !== delivery.id && !FINISHED_STATUSES.includes(item.status) && item.status !== 'pending') {return { ...item, isNextDelivery: false, stop_order: (item.stop_order || 0) + 1 };}return { ...item, isNextDelivery: false };}).sort((a, b) => (a?.stop_order || 0) - (b?.stop_order || 0));const { offlineDB } = await import('../utils/offlineDatabase');await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, reorderedRoute);updateDeliveriesLocally?.(reorderedRoute, false);window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'restart_local', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, freshDeliveries: reorderedRoute, immediate: true } }));centerDeliveryCard(delivery.id);Promise.resolve().then(async () => {try {await base44.functions.invoke('setNextDeliveryFlag', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, targetDeliveryId: delivery.id }).catch(() => {});await base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, targetDeliveryId: delivery.id }).catch(() => {});await base44.functions.invoke('reoptimizeFullRoute', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }).catch(() => {});invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'restart_final', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));fabControlEvents.notifyPhaseTwoCompleteRecenter();} catch (restartError) {console.error('❌ [RESTART] Background restart failed:', restartError);} finally {setIsRestarting(false);setIsProcessingBackground(false);fabControlEvents.reactivateFAB(true);}});} catch (error) {console.error('❌ [RESTART] Error:', error);toast.error(`Failed to restart: ${error.message}`);setIsRestarting(false);setIsProcessingBackground(false);fabControlEvents.reactivateFAB(true);}}} size="sm" className="bg-[#ff0000] text-primary-foreground px-3 text-sm font-medium rounded-r-none inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" disabled={isRestarting || isProcessingBackground || isFailing}>{isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}<span className="text-white">Restart</span></Button>}<DropdownMenu modal={false}><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 border border-slate-300 hover:bg-slate-100 relative z-[10]" onClick={(e) => e.stopPropagation()}><MoreVertical className="w-5 h-5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>{onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !routeCompleted) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEdit(delivery);}} className="text-base py-2.5 md:py-1.5"><Edit className="w-5 h-5 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}</DropdownMenuItem>}{onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner(currentUser) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}} className="text-base py-2.5 md:py-1.5"><User className="w-5 h-5 mr-2" />Edit Patient</DropdownMenuItem>}{(isNextDelivery || isFinishedDelivery) && !isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && <DropdownMenuItem onClick={handleUpdateGPS} className="text-base py-2.5 md:py-1.5"><Locate className="w-5 h-5 mr-2" />Update GPS</DropdownMenuItem>}{delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate && <><DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} /><DropdownMenuItem onClick={(e) => {e.stopPropagation();setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');setShowFailureReasonDialog(true);}} className="text-red-600 text-base py-2.5 md:py-1.5"><XCircle className="w-5 h-5 mr-2" />{isPickup ? 'Cancel Pickup' : 'Mark as Failed'}</DropdownMenuItem></>}{onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && (onEdit || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}{onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}} className="text-red-600 text-base py-2.5 md:py-1.5" disabled={false}><Trash2 className="w-5 h-5 mr-2" />Delete</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></div></>}</>}</div></div></div>}
+                      }} size="sm" disabled={isCompleting || isProcessingBackground || isFailing} className={`rounded-md px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white ${isFailing ? 'bg-red-600 hover:bg-red-700 border-red-500' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'}`}>{isCompleting || isProcessingBackground || isFailing ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}<span className="text-white">Complete</span></Button> : onStartDelivery && <Button data-stopcard-action="start" type="button" onClick={handleStartAction} size="sm" disabled={isStarting || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting} className="bg-blue-600 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" title="Start this delivery">{isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}<span className="text-white">Start</span></Button>)}{delivery.status !== 'failed' && ['completed', 'cancelled'].includes(delivery.status) && onRestart && !routeCompleted && <Button onClick={async (e) => {e.stopPropagation();await restartCurrentDelivery(true);}} size="sm" className="bg-[#ff0000] text-primary-foreground px-3 text-sm font-medium rounded-r-none inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" disabled={isRestarting || isProcessingBackground || isFailing}>{isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}<span className="text-white">Restart</span></Button>}<DropdownMenu modal={false}><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 border border-slate-300 hover:bg-slate-100 relative z-[10]" onClick={(e) => e.stopPropagation()}><MoreVertical className="w-5 h-5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>{onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !routeCompleted) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEdit(delivery);}} className="text-base py-2.5 md:py-1.5"><Edit className="w-5 h-5 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}</DropdownMenuItem>}{onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner(currentUser) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}} className="text-base py-2.5 md:py-1.5"><User className="w-5 h-5 mr-2" />Edit Patient</DropdownMenuItem>}{(isNextDelivery || isFinishedDelivery) && !isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && <DropdownMenuItem onClick={handleUpdateGPS} className="text-base py-2.5 md:py-1.5"><Locate className="w-5 h-5 mr-2" />Update GPS</DropdownMenuItem>}{delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate && <><DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} /><DropdownMenuItem onClick={(e) => {e.stopPropagation();setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');setShowFailureReasonDialog(true);}} className="text-red-600 text-base py-2.5 md:py-1.5"><XCircle className="w-5 h-5 mr-2" />{isPickup ? 'Cancel Pickup' : 'Mark as Failed'}</DropdownMenuItem></>}{onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && (onEdit || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}{onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && <DropdownMenuItem onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}} className="text-red-600 text-base py-2.5 md:py-1.5" disabled={false}><Trash2 className="w-5 h-5 mr-2" />Delete</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></div></>}</>}</div></div></div>}
         </CardContent>
       </Card>
     </motion.div>);
