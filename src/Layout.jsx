@@ -1294,7 +1294,7 @@ export default function Layout({ children, currentPageName }) {
           const dedupedUsers = Array.from(new Map(mergedUsers.map((u) => [u.id, u])).values());
           setUsers(dedupedUsers);
 
-          let activeDrivers = allAppUsers.filter((appUser) => {
+          let activeDrivers = allAppUsers.map((appUser) => appUser?.data ? { ...appUser.data, id: appUser.id } : appUser).filter((appUser) => {
             if (!appUser || !Array.isArray(appUser.app_roles)) return false;
             if (!appUser.app_roles.includes('driver') && !appUser.app_roles.includes('admin')) return false;
             if (!(appUser.user_name || appUser.full_name || appUser.email)) return false;
@@ -1325,7 +1325,7 @@ export default function Layout({ children, currentPageName }) {
 
       const initialUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
 
-      let activeDrivers = allAppUsers.filter((appUser) => {
+      let activeDrivers = allAppUsers.map((appUser) => appUser?.data ? { ...appUser.data, id: appUser.id } : appUser).filter((appUser) => {
         if (!appUser || !Array.isArray(appUser.app_roles)) return false;
         if (!appUser.app_roles.includes('driver') && !appUser.app_roles.includes('admin')) return false;
         if (!(appUser.user_name || appUser.full_name || appUser.email)) return false;
