@@ -20,9 +20,6 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields: deliveryId, driverId, deliveryDate' }, { status: 400 });
     }
 
-    if (!isValidObjectId(deliveryId) || !isValidObjectId(driverId)) {
-      return Response.json({ error: 'Start was blocked because this stop is still syncing.' }, { status: 400 });
-    }
 
     // Step 1: Find old isNextDelivery flags and clear only the ones we no longer need
     const oldNextDeliveries = await base44.asServiceRole.entities.Delivery.filter({
