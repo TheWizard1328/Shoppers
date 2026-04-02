@@ -500,13 +500,23 @@ class LightweightRefreshManager {
           const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
           const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
           const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          const offlineCities = await offlineDB.getAll(offlineDB.STORES.CITIES);
+          const offlineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
 
-          console.log(`💾 [LightweightRefresh] Offline DB: ${offlineDeliveries?.length || 0} deliveries, ${offlinePatients?.length || 0} patients, ${offlineAppUsers?.length || 0} users`);
+          console.log(`💾 [LightweightRefresh] Offline DB: ${offlineDeliveries?.length || 0} deliveries, ${offlinePatients?.length || 0} patients, ${offlineAppUsers?.length || 0} users, ${offlineCities?.length || 0} cities, ${offlineStores?.length || 0} stores`);
 
-          if ((offlineDeliveries?.length || 0) === 0 || (offlinePatients?.length || 0) === 0) {
-            console.warn('⚠️ [LightweightRefresh] Critical offline data missing - restarting delivery/patient sync');
+          const criticalOfflineMissing = (offlineDeliveries?.length || 0) === 0 ||
+            (offlinePatients?.length || 0) === 0 ||
+            (offlineAppUsers?.length || 0) === 0 ||
+            (offlineCities?.length || 0) === 0 ||
+            (offlineStores?.length || 0) === 0;
+
+          if (criticalOfflineMissing) {
+            console.warn('⚠️ [LightweightRefresh] Critical offline data missing - restarting full offline recovery path');
             this.lastRefreshTimes.offlineSync = Date.now();
-            restartDeliveryPatientSync().catch((error) => {
+            restartDeliveryPatientSync().then(() => {
+              window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+            }).catch((error) => {
               console.warn('⚠️ [LightweightRefresh] restartDeliveryPatientSync failed:', error?.message || error);
             });
           }

@@ -6,7 +6,7 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
-import { processPendingMutations } from '@/components/utils/offlineSync';
+import { processPendingMutations, restartDeliveryPatientSync } from '@/components/utils/offlineSync';
 
 export default function PullToSync({ 
   selectedDate, 
@@ -103,23 +103,27 @@ export default function PullToSync({
       });
 
       await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
-      const driverFilter = currentDriverId && currentDriverId !== 'all'
-        ? { driver_id: currentDriverId }
-        : {};
-      const cityStores = currentCityId
+      let cityStores = currentCityId
         ? await offlineDB.getByIndex(offlineDB.STORES.STORES, 'city_id', currentCityId)
         : [];
+
+      if (currentCityId && (!Array.isArray(cityStores) || cityStores.length === 0)) {
+        console.warn('⚠️ [PullToSync] Offline city stores missing - triggering recovery sync');
+        await restartDeliveryPatientSync().catch(() => {});
+        cityStores = await offlineDB.getByIndex(offlineDB.STORES.STORES, 'city_id', currentCityId);
+      }
+
       const cityStoreIds = Array.isArray(cityStores) ? cityStores.map((store) => store?.id).filter(Boolean) : [];
       const deliveryFilter = {
         delivery_date: selectedDateStr,
-        ...driverFilter,
         ...(cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {})
       };
+      const uiDriverFilter = currentDriverId && currentDriverId !== 'all' ? currentDriverId : null;
       if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent && window.__activePullToSyncRunId !== syncRunId) {
         return;
       }
 
-      // ─── STEP 1: Fetch deliveries for selected driver/date/city scope ──────
+      // ─── STEP 1: Fetch deliveries for full date/city scope, with recovery if offline foundation is blank ──────
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
       const freshDeliveriesRaw = await base44.entities.Delivery.filter(deliveryFilter);
 
@@ -136,7 +140,6 @@ export default function PullToSync({
       const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
       const scopedRecords = (existingForDate || []).filter((delivery) => {
         if (!delivery) return false;
-        if (currentDriverId && currentDriverId !== 'all' && delivery.driver_id !== currentDriverId) return false;
         if (cityStoreIds.length > 0 && !cityStoreIds.includes(delivery.store_id)) return false;
         return true;
       });
@@ -185,8 +188,8 @@ export default function PullToSync({
       ]);
 
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
-        ? (currentDriverId && currentDriverId !== 'all'
-          ? offlineDeliveriesRaw.filter((d) => d?.driver_id === currentDriverId)
+        ? (uiDriverFilter
+          ? offlineDeliveriesRaw.filter((d) => d?.driver_id === uiDriverFilter)
           : offlineDeliveriesRaw)
         : [];
 
@@ -304,8 +307,23 @@ export default function PullToSync({
       await performSync(true);
     };
 
+    const handleSmartRefreshComplete = () => {
+      setIsSyncing(false);
+      setShowOverlay(false);
+      setPullDistance(0);
+      setIsPulling(false);
+    };
+
     window.addEventListener('triggerSilentSync', handleSilentSync);
-    return () => window.removeEventListener('triggerSilentSync', handleSilentSync);
+    window.addEventListener('smartRefreshComplete', handleSmartRefreshComplete);
+    window.addEventListener('lightweightRefreshComplete', handleSmartRefreshComplete);
+    window.addEventListener('offlineSyncComplete', handleSmartRefreshComplete);
+    return () => {
+      window.removeEventListener('triggerSilentSync', handleSilentSync);
+      window.removeEventListener('smartRefreshComplete', handleSmartRefreshComplete);
+      window.removeEventListener('lightweightRefreshComplete', handleSmartRefreshComplete);
+      window.removeEventListener('offlineSyncComplete', handleSmartRefreshComplete);
+    };
   }, [isSyncing]);
 
   const pullProgress = Math.min(pullDistance / syncThreshold, 1);
@@ -334,7 +352,7 @@ export default function PullToSync({
               <RefreshCw 
                 className="w-4 h-4"
                 style={{ 
-                  color: 'var(--text-emerald-600)',
+                  color: isSyncing || pullProgress >= 1 ? 'var(--text-emerald-600)' : 'var(--text-slate-500)',
                   transform: isSyncing ? undefined : `rotate(${rotation}deg)`,
                   animation: isSyncing ? 'spin 1s linear infinite' : undefined
                 }}
