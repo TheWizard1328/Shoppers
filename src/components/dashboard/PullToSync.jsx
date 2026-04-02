@@ -294,7 +294,7 @@ export default function PullToSync({
             initial={{ opacity: 0, y: -10, x: -8 }}
             animate={{ opacity: 1, y: 0, x: 0 }}
             exit={{ opacity: 0, y: -10, x: -8 }}
-            className="absolute top-2 left-[16.75rem] z-20 pointer-events-none flex justify-start md:hidden"
+            className="absolute top-2 left-[15.2rem] z-20 pointer-events-none flex justify-start md:hidden"
           >
             <div 
               className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border backdrop-blur-sm"
