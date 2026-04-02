@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { subscribeSyncStatus, getSyncStats, restartDeliveryPatientSync } from '@/components/utils/offlineSync';
@@ -18,12 +18,20 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   const isVisible = currentUser && isAppOwner(currentUser);
 
+  const refreshStats = useCallback(async (preserveRuntime = false) => {
+    const newStats = await getSyncStats();
+    setStats(newStats);
+    if (!preserveRuntime) {
+      setRuntimeStats({});
+    }
+    return newStats;
+  }, []);
+
   useEffect(() => {
     if (!isVisible) return;
     // Load initial stats
-    getSyncStats().then(stats => {
+    refreshStats(true).then(stats => {
       console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
-      setStats(stats);
       const total = (stats?.patients?.count || 0) + (stats?.deliveries?.count || 0) + (stats?.appUsers?.count || 0) + (stats?.cities?.count || 0) + (stats?.stores?.count || 0) + (stats?.companies?.count || 0) + (stats?.squareTransactions?.count || 0) + (stats?.driverOverviewStats?.count || 0);
       if (total === 0) {
         setIsSyncing(true);
@@ -31,9 +39,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
         const retryDelays = [1500, 4000, 8000];
         retryDelays.forEach((delay, index) => {
           setTimeout(() => {
-            getSyncStats().then((retryStats) => {
+            refreshStats(true).then((retryStats) => {
               console.log('📊 [OfflineSyncIndicator] Startup recheck stats:', retryStats);
-              setStats(retryStats);
               const retryTotal = (retryStats?.patients?.count || 0) + (retryStats?.deliveries?.count || 0) + (retryStats?.appUsers?.count || 0) + (retryStats?.cities?.count || 0) + (retryStats?.stores?.count || 0) + (retryStats?.companies?.count || 0) + (retryStats?.squareTransactions?.count || 0) + (retryStats?.driverOverviewStats?.count || 0);
               if (retryTotal > 0) {
                 setIsSyncing(false);
@@ -77,14 +84,14 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       
       // CRITICAL: Refresh stats on sync complete
       if (status.status === 'complete' || status.status === 'synced') {
-        getSyncStats().then(newStats => {
-          console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
-          setStats(newStats);
-          setRuntimeStats({}); // Clear runtime stats when sync completes
-          setIsFullyLoaded(true); // Always show stats after sync
-        }).catch(error => {
-          console.error('❌ [OfflineSyncIndicator] Failed to refresh stats:', error);
-        });
+        setTimeout(() => {
+          refreshStats().then(newStats => {
+            console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
+            setIsFullyLoaded(true); // Always show stats after sync
+          }).catch(error => {
+            console.error('❌ [OfflineSyncIndicator] Failed to refresh stats:', error);
+          });
+        }, 800);
       }
       
       // CRITICAL: Update UI in real-time if syncing entities relevant to current screen
@@ -122,10 +129,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // If sync complete, refresh stats after short delay
       if (isComplete) {
         setTimeout(() => {
-          getSyncStats().then(newStats => {
+          refreshStats().then(newStats => {
             console.log('📊 [OfflineSyncIndicator] Periodic sync complete - stats:', newStats);
-            setStats(newStats);
-            setRuntimeStats({});
             setIsSyncing(false);
           }).catch(error => {
             console.error('❌ [OfflineSyncIndicator] Failed to load stats after periodic sync:', error);
@@ -149,9 +154,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // Debounce to avoid hammering IndexedDB on rapid updates
       clearTimeout(refreshDebounceTimer);
       refreshDebounceTimer = setTimeout(() => {
-        getSyncStats().then(newStats => {
-          setStats(newStats);
-        }).catch(() => {});
+        refreshStats(true).catch(() => {});
       }, 500);
     };
 
@@ -179,7 +182,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       window.removeEventListener('offlineSyncComplete', handleRealtimeDBUpdate);
       window.removeEventListener('deliveriesUpdated', handleRealtimeDBUpdate);
     };
-  }, [isVisible]);
+  }, [isVisible, refreshStats]);
 
   // Only show to app owners - MUST be after all hooks
   if (!isVisible) {
@@ -198,10 +201,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // Wait for DB to settle
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      const updatedStats = await getSyncStats();
+      const updatedStats = await refreshStats();
       console.log('📊 [OfflineSyncIndicator] Updated stats:', updatedStats);
-      setStats(updatedStats);
-      setRuntimeStats({}); // Clear runtime stats
 
       // Wait for UI to update before dispatching events
       await new Promise(resolve => setTimeout(resolve, 500));
