@@ -866,13 +866,15 @@ export default function DeliveryFormView({
                     [previousDriverId, previousDeliveryDate]
                   ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
 
-                  Promise.all(
-                    Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
-                      .map((key) => {
-                        const [routeDriverId, routeDeliveryDate] = key.split('__');
-                        return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
-                      })
-                  ).then(() => {
+                  Promise.resolve().then(async () => {
+                    await Promise.all(
+                      Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
+                        .map((key) => {
+                          const [routeDriverId, routeDeliveryDate] = key.split('__');
+                          return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+                        })
+                    );
+
                     runPostDeliveryUpdateSync({
                       driverId,
                       deliveryDate,
