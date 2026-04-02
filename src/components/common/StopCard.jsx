@@ -279,10 +279,17 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     {driverLocationPoller.resume();smartRefreshManager.resume();resetActionLocks(true);}
   };
   const handleAcceptAllStops = async () => {
+    if (isAcceptingAll || isProcessingBackground) return;
+    const allPendingDeliveries = Array.from(new Map((pendingPickups || []).filter((p) => p?.id && p.status === 'pending').map((p) => [p.id, p])).values());
+    if (allPendingDeliveries.length === 0) {
+      toast.message('No pending stops to accept.');
+      return;
+    }
+
     setIsAcceptingAll(true);const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     try {
       driverLocationPoller.pause();smartRefreshManager.pause();setIsEntityUpdating(true);
-      const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');const now = new Date();const currentMinutes = now.getHours() * 60 + now.getMinutes();const startMinutes = currentMinutes + 5;const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const now = new Date();const currentMinutes = now.getHours() * 60 + now.getMinutes();const startMinutes = currentMinutes + 5;const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const sortedPending = [...allPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
       // OFFLINE-FIRST: Update all deliveries locally and repaint immediately
@@ -293,6 +300,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1),
         isNextDelivery: false
       }));
+      const pendingIds = new Set(localUpdates.map((update) => update.id));
 
       const optimisticMap = new Map(localUpdates.map((update) => [update.id, update]));
       const optimisticRouteDeliveries = allDeliveries.map((item) => {
@@ -300,11 +308,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         const update = optimisticMap.get(item.id);
         return update ? { ...item, ...update } : item;
       });
+      const refreshedPendingPickups = pendingPickups.filter((item) => item?.id && !pendingIds.has(item.id));
 
       await Promise.all(localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true })));
       if (updateDeliveriesLocally) {
         updateDeliveriesLocally(optimisticRouteDeliveries, true);
       }
+      if (onClick) onClick({ ...delivery, projected_deliveries: refreshedPendingPickups });
 
       // Dispatch events immediately for UI responsiveness
       fabControlEvents.notifyAcceptAllClicked();
