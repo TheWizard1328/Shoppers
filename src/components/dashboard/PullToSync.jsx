@@ -102,7 +102,7 @@ export default function PullToSync({
         console.warn('⚠️ [PullToSync] Pending mutation flush failed:', error?.message || error);
       });
 
-      await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
+      await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 1200));
       let cityStores = currentCityId
         ? await offlineDB.getByIndex(offlineDB.STORES.STORES, 'city_id', currentCityId)
         : [];
@@ -144,6 +144,10 @@ export default function PullToSync({
         freshDeliveries,
         { allowEmptyReplace: true }
       );
+      await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], {
+        scopeKey: `date:${selectedDateStr}`,
+        syncType: 'manual_pull_sync'
+      });
 
       await offlineDB.updateSyncMetadata(
         'Delivery',

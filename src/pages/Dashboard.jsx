@@ -5424,8 +5424,8 @@ function Dashboard() {
       try {
         setCurrentToNextPolyline(null);
         setDriverRoutes([]);
-        if (updateDeliveriesLocally && freshDeliveries) {
-          const _sd = freshDeliveries[0]?.delivery_date, _si = new Set(freshDeliveries.map(d=>d?.id).filter(Boolean));
+        if (updateDeliveriesLocally && freshDeliveries?.length) {
+          const _sd = event.detail?.deliveryDate || format(selectedDate, 'yyyy-MM-dd'), _si = new Set(freshDeliveries.map(d=>d?.id).filter(Boolean));
           updateDeliveriesLocally([...deliveries.filter(d=>d&&(d.delivery_date!==_sd||!_si.has(d.id))),...freshDeliveries], true);
         }
         if (updateAppUsersLocally && freshAppUsers) { updateAppUsersLocally(freshAppUsers, true); }
