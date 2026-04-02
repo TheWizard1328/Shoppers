@@ -386,6 +386,14 @@ Deno.serve(async (req) => {
       last_generated_at: new Date().toISOString()
     };
 
+    if (originStop?.id) {
+      await base44.asServiceRole.entities.Delivery.update(originStop.id, {
+        finished_leg_encoded_polyline: directions.encoded_polyline,
+        finished_leg_end_latitude: round5(nextStopCoords.lat),
+        finished_leg_end_longitude: round5(nextStopCoords.lon)
+      });
+    }
+
     // Validation handled by determining originCoords; if we reach here, coordinates are considered valid.
 
     // Aggressive cleanup: delete any existing duplicate polylines for the exact origin-destination pair

@@ -151,13 +151,34 @@ export default function HereType1Polylines({
   };
   const hydrateFromOffline = async (key, driverId, from, to, date) => {
     try {
+      const fLat = round5(from.latitude), fLon = round5(from.longitude);
+      const tLat = round5(to.latitude), tLon = round5(to.longitude);
+
+      const finishedMatch = [...deliveryMarkers, ...pickupMarkers].find((stop) =>
+        stop?.driver_id === driverId &&
+        stop?.delivery_date === date &&
+        round5(Number(stop.latitude)) === fLat &&
+        round5(Number(stop.longitude)) === fLon &&
+        round5(Number(stop.finished_leg_end_latitude || to.latitude)) === tLat &&
+        round5(Number(stop.finished_leg_end_longitude || to.longitude)) === tLon &&
+        typeof stop?.finished_leg_encoded_polyline === 'string' &&
+        stop.finished_leg_encoded_polyline.trim().length > 0
+      );
+
+      if (finishedMatch?.finished_leg_encoded_polyline) {
+        const coords = decodePolyline(finishedMatch.finished_leg_encoded_polyline);
+        if (Array.isArray(coords) && coords.length > 1) {
+          setCache((p) => ({ ...p, [key]: coords }));
+          try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
+          return true;
+        }
+      }
+
       const { offlineDB } = await import('../utils/offlineDatabase');
       const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
       const parts = formatter.formatToParts(new Date());
       const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
       const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', date || todayStr);
-      const fLat = round5(from.latitude), fLon = round5(from.longitude);
-      const tLat = round5(to.latitude), tLon = round5(to.longitude);
       const match = rows.find(r => r.driver_id === driverId && round5(r.segment_origin_lat) === fLat && round5(r.segment_origin_lon) === fLon && round5(r.segment_dest_lat) === tLat && round5(r.segment_dest_lon) === tLon && r.encoded_polyline);
       if (match) {
         const coords = decodePolyline(match.encoded_polyline);
@@ -548,17 +569,20 @@ export default function HereType1Polylines({
     let coords = getCachedPolyline(key, cache);
 
     if (!coords && !optimizing) {
-      if (Date.now() - mountTimeRef.current < 1200) return;
-      const lastReq = requestTimesRef.current[key] || 0;
-      const now = Date.now();
-      if (now - lastReq > 4000) {
-        requestTimesRef.current[key] = now;
-        getHerePolyline(driverId, origin, destination, nextStop.delivery_date).then((fetched) => {
-          if (Array.isArray(fetched) && fetched.length > 1) {
-            setCache((p) => ({ ...p, [key]: fetched }));
-          }
-        }).catch(() => {});
-      }
+      hydrateFromOffline(key, driverId, origin, destination, nextStop.delivery_date).then((found) => {
+        if (found) return;
+        if (Date.now() - mountTimeRef.current < 1200) return;
+        const lastReq = requestTimesRef.current[key] || 0;
+        const now = Date.now();
+        if (now - lastReq > 4000) {
+          requestTimesRef.current[key] = now;
+          getHerePolyline(driverId, origin, destination, nextStop.delivery_date).then((fetched) => {
+            if (Array.isArray(fetched) && fetched.length > 1) {
+              setCache((p) => ({ ...p, [key]: fetched }));
+            }
+          }).catch(() => {});
+        }
+      });
     }
 
     if (!seenKeys.has(key)) {
