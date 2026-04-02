@@ -108,10 +108,7 @@ export default function PullToSync({
         : [];
 
       if (currentCityId && (!Array.isArray(cityStores) || cityStores.length === 0)) {
-        cityStores = await base44.entities.Store.filter({ city_id: currentCityId });
-        if (Array.isArray(cityStores) && cityStores.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.STORES, cityStores);
-        }
+        cityStores = [];
       }
 
       const cityStoreIds = Array.isArray(cityStores) ? cityStores.map((store) => store?.id).filter(Boolean) : [];
@@ -160,14 +157,14 @@ export default function PullToSync({
       let freshPatients = [];
       if (patientIds.length > 0) {
         const batchSize = 50;
-        const patientBatches = [];
         for (let i = 0; i < patientIds.length; i += batchSize) {
-          patientBatches.push(patientIds.slice(i, i + batchSize));
+          const ids = patientIds.slice(i, i + batchSize);
+          const batchPatients = await base44.entities.Patient.filter({ id: { $in: ids } });
+          if (Array.isArray(batchPatients) && batchPatients.length > 0) {
+            freshPatients.push(...batchPatients);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 250));
         }
-
-        freshPatients = (await Promise.all(
-          patientBatches.map((ids) => base44.entities.Patient.filter({ id: { $in: ids } }))
-        )).flat().filter(Boolean);
 
         if (freshPatients.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
@@ -236,7 +233,10 @@ export default function PullToSync({
       console.error('❌ [Pull to Sync] Sync failed:', error);
       try { window.__dashboardSyncing = false; window.dispatchEvent(new CustomEvent('pullToSyncComplete')); } catch (e) {}
       if (!silent) {
-        toast.error('Sync failed', { description: error.message });
+        const isRateLimited = error?.response?.status === 429 || error?.message?.includes('Rate limit') || error?.message?.includes('429');
+        toast.error(isRateLimited ? 'Sync paused briefly' : 'Sync failed', {
+          description: isRateLimited ? 'Too many requests at once, please wait a few seconds and try again.' : error.message
+        });
       }
     } finally {
       setTimeout(() => {
