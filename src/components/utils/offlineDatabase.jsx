@@ -8,6 +8,7 @@ const DB_VERSION = 9; // Incremented to add Company offline store
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 
+const LEGACY_DB_NAME = 'rxdeliver_persistent_offline_v1';
 const getScopedDbName = () => {
   try {
     const host = typeof window !== 'undefined' ? window.location.hostname : 'unknown-host';
@@ -16,6 +17,17 @@ const getScopedDbName = () => {
   } catch {
     return 'rxdeliver_persistent_offline_v1_default';
   }
+};
+
+const getLegacyFallbackDbNames = () => {
+  const names = [LEGACY_DB_NAME];
+  try {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (host.includes('preview--wizard-worxx')) {
+      names.push('rxdeliver_persistent_offline_v1_preview-sandbox--68570f3cd01bfa2d2408a9d6_base44_app');
+    }
+  } catch {}
+  return Array.from(new Set(names));
 };
 
 // Store names
@@ -39,6 +51,7 @@ const STORES = {
 
 let dbInstance = null;
 let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
+let migrationPromise = null;
 
 const buildMetadataKey = (entityName, scopeKey = DEFAULT_CACHE_SCOPE) => {
   if (!scopeKey || scopeKey === DEFAULT_CACHE_SCOPE) return entityName;
@@ -67,6 +80,100 @@ const buildDataVersion = (records = []) => {
   const lastId = sortedIds[sortedIds.length - 1] || 'none';
 
   return `${records.length}:${latestTimestamp}:${firstId}:${lastId}`;
+};
+
+const copyStoreRecords = async (sourceDb, targetDb, storeName) => {
+  if (!sourceDb.objectStoreNames.contains(storeName) || !targetDb.objectStoreNames.contains(storeName)) return 0;
+
+  const sourceTx = sourceDb.transaction([storeName], 'readonly');
+  const sourceStore = sourceTx.objectStore(storeName);
+  const records = await new Promise((resolve, reject) => {
+    const request = sourceStore.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  }).catch(() => []);
+
+  if (!records.length) return 0;
+
+  const targetTx = targetDb.transaction([storeName], 'readwrite');
+  const targetStore = targetTx.objectStore(storeName);
+  await Promise.all(records.map((record) => new Promise((resolve, reject) => {
+    const request = targetStore.put(record);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  }).catch(() => null)));
+
+  await new Promise((resolve, reject) => {
+    targetTx.oncomplete = () => resolve();
+    targetTx.onerror = () => reject(targetTx.error);
+    targetTx.onabort = () => reject(targetTx.error);
+  }).catch(() => null);
+
+  return records.length;
+};
+
+const migrateLegacyDataIfNeeded = async (targetDb) => {
+  if (migrationPromise) return migrationPromise;
+
+  migrationPromise = (async () => {
+    try {
+      if (!targetDb?.objectStoreNames?.contains(STORES.DELIVERIES)) return;
+
+      const existingDeliveries = await new Promise((resolve, reject) => {
+        const tx = targetDb.transaction([STORES.DELIVERIES], 'readonly');
+        const store = tx.objectStore(STORES.DELIVERIES);
+        const request = store.count();
+        request.onsuccess = () => resolve(request.result || 0);
+        request.onerror = () => reject(request.error);
+      }).catch(() => 0);
+
+      if (existingDeliveries > 0) return;
+
+      const fallbackNames = getLegacyFallbackDbNames().filter((name) => name !== getScopedDbName());
+      for (const fallbackName of fallbackNames) {
+        const sourceDb = await new Promise((resolve) => {
+          const request = indexedDB.open(fallbackName);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => resolve(null);
+          request.onupgradeneeded = () => {
+            request.transaction?.abort?.();
+            resolve(null);
+          };
+        });
+
+        if (!sourceDb) continue;
+
+        const sourceDeliveryCount = await new Promise((resolve, reject) => {
+          if (!sourceDb.objectStoreNames.contains(STORES.DELIVERIES)) {
+            resolve(0);
+            return;
+          }
+          const tx = sourceDb.transaction([STORES.DELIVERIES], 'readonly');
+          const store = tx.objectStore(STORES.DELIVERIES);
+          const request = store.count();
+          request.onsuccess = () => resolve(request.result || 0);
+          request.onerror = () => reject(request.error);
+        }).catch(() => 0);
+
+        if (sourceDeliveryCount === 0) {
+          sourceDb.close();
+          continue;
+        }
+
+        const storesToCopy = Object.values(STORES);
+        for (const storeName of storesToCopy) {
+          await copyStoreRecords(sourceDb, targetDb, storeName);
+        }
+
+        sourceDb.close();
+        break;
+      }
+    } finally {
+      migrationPromise = null;
+    }
+  })();
+
+  return migrationPromise;
 };
 
 /**
@@ -111,7 +218,9 @@ const openDatabase = () => {
       };
       
       dbOpenPromise = null;
-      resolve(dbInstance);
+      migrateLegacyDataIfNeeded(dbInstance)
+        .then(() => resolve(dbInstance))
+        .catch(() => resolve(dbInstance));
     };
 
     request.onupgradeneeded = (event) => {
