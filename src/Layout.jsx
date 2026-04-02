@@ -2466,7 +2466,7 @@ export default function Layout({ children, currentPageName }) {
 
       <UserProvider initialUser={currentUser}>
            <AppDataProvider value={{
-          deliveries: deliveries || [], patients: patients || [], stores: stores || [], drivers: drivers || [], users: users || [], appUsers: appUsers || [], cities: cities || [], currentUser,
+          deliveries: deliveries || [], patients: patients || [], stores: stores || [], drivers: (appUsers || []).filter((appUser) => appUser && Array.isArray(appUser.app_roles) && appUser.app_roles.includes('driver') && (appUser.user_name || appUser.full_name || appUser.email)), users: users || [], appUsers: appUsers || [], cities: cities || [], currentUser,
           isDataLoaded: dataLoaded, refreshData: triggerFullDataLoadRef.current, updateDeliveriesLocally, updateAppUsersLocally,
           applyDeliveryChangesLocally: ({ upserts = [], deleteIds = [] }) => setDeliveries((prev) => { const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id)); (deleteIds || []).forEach((id) => map.delete(id)); (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); }); return Array.from(map.values()); }),
           applyAppUserChangesLocally: ({ upserts = [], deleteIds = [] }) => setAppUsers((prev) => { const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id)); (deleteIds || []).forEach((id) => map.delete(id)); (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); }); return Array.from(map.values()); }),

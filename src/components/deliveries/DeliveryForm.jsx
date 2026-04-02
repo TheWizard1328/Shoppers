@@ -94,7 +94,7 @@ export default function DeliveryForm({
   const freshStores = useFreshStores(stores);
 
   const driverSource = useMemo(() => {
-    return contextDrivers?.length ? contextDrivers : (drivers || []);
+    return contextDrivers || drivers || [];
   }, [contextDrivers, drivers]);
 
   const allDrivers = useMemo(() => {
