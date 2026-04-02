@@ -1,5 +1,5 @@
 /* Force Redeploy */
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const ACTIVE_STATUSES = new Set(['in_transit', 'en_route']);
 const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);

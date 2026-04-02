@@ -347,6 +347,7 @@ export default function DeliveryForm({
       }
 
       setFormData({
+        id: delivery.id,
         patient_id: delivery.patient_id || "",
         delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
         delivery_time_start: delivery.delivery_time_start || "",
@@ -1376,7 +1377,7 @@ export default function DeliveryForm({
     try {
       const dataToSave = await buildInTransitDirectSaveData({ prepareDeliverySaveData, formData, delivery, isCompletionStatus, completionTime, selectedPatient, stores, allDeliveries, stagedDeliveries });
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) {
-        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); });
+        await closeDeliveryFormAfterSave({ handleClearForm, onCancel });
         return true;
       }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
@@ -1426,40 +1427,29 @@ export default function DeliveryForm({
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));
         if (statusChangedToCompletion) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'active_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Active polyline refresh failed:', e?.message || e)); }, 0);
         if (statusChangedToCompletion || actualDeliveryTimeChanged) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'completed_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Completed polyline refresh failed:', e?.message || e)); }, 0);
-
-        await runDeliverySubmitSideEffects({
-          delivery,
-          formData,
-          selectedPatient,
-          currentUser,
-          oldDriver,
-          newDriver,
-          driverChanged,
-          isCurrentUserDriver: userHasRole(currentUser,'driver'),
-          statusChangedToCompletion,
-          actualDeliveryTimeChanged,
-          t: dataToSave.actual_delivery_time,
-          allDeliveries: (allDeliveries || []).map((item) =>
-            item?.id === delivery.id ? { ...item, ...dataToSave, status: formData.status } : item
-          ),
-          isPickupMode,
-          updateDeliveryLocal
-        });
-        return true;
+      } else {
+        if (buttonState === 'add' || buttonState === 'updateStaged' || buttonState === 'done') {
+          setIsSaving(false);
+          return false;
+        }
+        await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
 
-      if (buttonState === 'add' || buttonState === 'updateStaged' || buttonState === 'done') {
-        return false;
-      }
-
-      await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
-
-      await runDeliverySubmitSideEffects({
-        delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
-        isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
-        actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
-        isPickupMode, updateDeliveryLocal
+      Promise.resolve().then(async () => {
+        try {
+          await runDeliverySubmitSideEffects({
+            delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
+            isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
+            actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
+            isPickupMode, updateDeliveryLocal
+          });
+        } catch (sideEffectError) {
+          console.warn('⚠️ [DeliveryForm] Side effects failed:', sideEffectError);
+        }
       });
+      if (delivery?.id) {
+        await closeDeliveryFormAfterSave({ handleClearForm, onCancel });
+      }
       return true;
     } catch (error) {
       setError(error.message);
@@ -1962,7 +1952,6 @@ export default function DeliveryForm({
       handleRefreshProjections={handleRefreshProjections} showStagedPanel={showStagedPanel} setShowStagedPanel={setShowStagedPanel}
       deleteConfirmation={deleteConfirmation} setDeleteConfirmation={setDeleteConfirmation} isDeletingPending={isDeletingPending}
       handleConfirmDelete={handleConfirmDelete}
-      deleteConfirmLabel={deleteConfirmation?.transferPickupId ? 'Delete All' : 'Delete'}
       currentFrequency={currentFrequency} weeklyLabel={weeklyLabel} biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
       showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup} setActiveRecurringType={setActiveRecurringType}
       handleRecurringChange={handleRecurringChange} handleFrequencyChange={handleFrequencyChange} handleWeeklyDaysDone={handleWeeklyDaysDone}

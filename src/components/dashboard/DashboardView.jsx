@@ -58,7 +58,7 @@ export default function DashboardView({
   // Snapshot
   isSnapshotModeActive, setIsSnapshotModeActive, snapshotData, setSnapshotData,
   // Performance
-  performanceStats, deliveryStats, liveDistance, liveStatsDistance, liveTimeOnDuty, isLoadingPayrollStats,
+  performanceStats, deliveryStats, liveDistance, liveTimeOnDuty, isLoadingPayrollStats,
   dailyPolylineCount,
   // AI
   isAIEnabled, showAIAssistant,
@@ -81,7 +81,6 @@ export default function DashboardView({
   const [finalizedDutyTime, setFinalizedDutyTime] = useState(null);
   const initialFabRetriggeredRef = useRef(false);
   useEffect(() => {
-    if (window.location.pathname !== '/Dashboard') return;
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const hasDeliveriesForDate = Array.isArray(deliveries) && deliveries.some(d => d && d.delivery_date === dateStr);
     const hasPatients = Array.isArray(patients) && patients.length > 0;
@@ -193,7 +192,7 @@ export default function DashboardView({
         setEditingDelivery={setEditingDelivery} setShowDeliveryForm={setShowDeliveryForm}
         setShowOptimizationSettings={setShowOptimizationSettings}
         setShowQuickAdjustments={setShowQuickAdjustments} setShowSmartPrioritization={setShowSmartPrioritization}
-        deliveryStats={deliveryStats} performanceStats={performanceStats} liveDistance={liveStatsDistance} liveTimeOnDuty={liveTimeOnDuty}
+        deliveryStats={deliveryStats} performanceStats={performanceStats} liveDistance={liveDistance} liveTimeOnDuty={liveTimeOnDuty}
         isLoadingPayrollStats={isLoadingPayrollStats} dailyPolylineCount={dailyPolylineCount} stats={stats}
         finalizedDutyTime={finalizedDutyTime}
         refreshUser={refreshUser} dataSource={dataSource}

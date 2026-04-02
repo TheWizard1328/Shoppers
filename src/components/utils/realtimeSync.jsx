@@ -92,7 +92,6 @@ async function flushBuffered(entityName) {
   if (typeof window !== 'undefined' && entityName === 'Delivery' && Array.isArray(fullReplacementData)) {
     const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
     const hasCreateOrDelete = items.some((item) => item.eventType === 'create' || item.eventType === 'delete');
-    const hasBurstCreates = items.filter((item) => item.eventType === 'create').length > 5;
 
     window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
       detail: {
@@ -101,7 +100,6 @@ async function flushBuffered(entityName) {
         immediate: true,
         deliveryDate: selectedDate,
         triggeredBy: hasCreateOrDelete ? 'realtimeBufferedFullRefresh' : 'realtimeBufferedFieldUpdate',
-        suppressCreateBurstEffects: hasBurstCreates,
         source: 'realtime_sync',
         fromRealtime: true,
         fullReplacement: hasCreateOrDelete,

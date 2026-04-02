@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
 import { updateDeliveryLocal } from './offlineMutations';
 import { useAppData } from './AppDataContext';
 
@@ -192,6 +193,33 @@ export default function ImmediateNextDeliveryController() {
       etaRefreshRef.current.add(routeKey);
 
       try {
+        const currentLocalTime = getCurrentLocalTimeString();
+        let etaUpdates = [];
+
+        try {
+          const etaRes = await calculateRealTimeETA({
+            driverId,
+            deliveryDate,
+            currentLocalTime,
+            deviceTime: currentLocalTime
+          });
+          const etaData = etaRes?.data || etaRes;
+          etaUpdates = etaData?.durationUpdates || etaData?.etas || [];
+        } catch (error) {
+          console.warn('[ImmediateNextDeliveryController] ETA refresh skipped:', error?.message || error);
+        }
+
+        if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
+          window.dispatchEvent(new CustomEvent('etaUpdated', {
+            detail: {
+              updates: etaUpdates.map((item) => ({
+                deliveryId: item.deliveryId || item.delivery_id,
+                newEta: item.eta || item.newETA
+              }))
+            }
+          }));
+        }
+
         const refreshedDeliveries = deliveriesRef.current || [];
         const nextStop = refreshedDeliveries.find((item) =>
           item &&

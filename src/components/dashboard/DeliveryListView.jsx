@@ -467,12 +467,6 @@ const DeliveryListView = ({
   }, [bulkEditMode]);
 
   useEffect(() => {
-    if (selectedDeliveryId && !deliveries.some((delivery) => delivery?.id === selectedDeliveryId)) {
-      setSelectedDeliveryId(null);
-    }
-  }, [deliveries, selectedDeliveryId]);
-
-  useEffect(() => {
     const container = bodyScrollRef.current;
     if (!container) return;
 

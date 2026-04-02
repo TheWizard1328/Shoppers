@@ -120,7 +120,6 @@ export default function DeliveryMap({
   onMapModeChange,
   autoFitBounds = true,
   showRoutes = true,
-  enableRoutePolylines = true,
   showLegend = false,
   areCardsVisible = false,
   onLegendInteraction = () => {},
@@ -140,8 +139,7 @@ export default function DeliveryMap({
   onMapReady = () => {},
   mapViewPhase = 1,
   isMapViewLocked = false,
-  topOverlayHeight = 0,
-  enableDashboardEffects = true
+  topOverlayHeight = 0
 }) {
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
   const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : [];
@@ -177,9 +175,9 @@ export default function DeliveryMap({
   }, [selectedDriverId, safeDeliveries]);
 
   const { routeLocationSnapshot, routeRecalcVersion } = useRouteRecalcSignal({
-    currentDriverLocation: enableDashboardEffects ? currentDriverLocation : null,
-    realtimeAppUsers: enableDashboardEffects ? realtimeAppUsers : [],
-    currentUserId: enableDashboardEffects ? currentUser?.id : null
+    currentDriverLocation,
+    realtimeAppUsers,
+    currentUserId: currentUser?.id
   });
 
   useEffect(() => {
@@ -263,6 +261,9 @@ export default function DeliveryMap({
     return Array.isArray(users) ? users : [];
   }, [realtimeAppUsers, users]);
 
+  const validPatientIds = useMemo(() => new Set(safePatients.map((patient) => patient?.id).filter(Boolean)), [safePatients]);
+  const validStoreIds = useMemo(() => new Set(safeStores.map((store) => store?.id).filter(Boolean)), [safeStores]);
+
   const driverLookupMap = useMemo(() => {
     const map = new Map();
     safeUsers.forEach((user) => {
@@ -274,9 +275,16 @@ export default function DeliveryMap({
 
   const deliveriesToShow = useMemo(() => {
     const baseDeliveries = safeDeliveries.length > 0 ? safeDeliveries : safeAllDeliveriesForDate;
-    if (!showOtherDriverDeliveries || otherDriverDeliveries.length === 0) return baseDeliveries;
-    return dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
-  }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries]);
+    const mergedDeliveries = !showOtherDriverDeliveries || otherDriverDeliveries.length === 0
+      ? baseDeliveries
+      : dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
+
+    return mergedDeliveries.filter((delivery) => {
+      if (!delivery?.id) return false;
+      if (delivery.patient_id) return validPatientIds.has(delivery.patient_id);
+      return validStoreIds.has(delivery.store_id);
+    });
+  }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries, validPatientIds, validStoreIds]);
 
   const driverNameLookupMap = useMemo(() => {
     const map = new Map();
@@ -971,9 +979,9 @@ export default function DeliveryMap({
           </Marker>
         )}
 
-        {enableDashboardEffects && <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />}
+        <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />
 
-        {enableRoutePolylines && (showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
+        {(showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
           <>
             <HereType2Polylines key={`type2-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={selectedDriverId === "all" || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} />
             <HereType1Polylines key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={routeAwareCurrentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} driverLocations={routeAwareDriverLocationMarkers} />

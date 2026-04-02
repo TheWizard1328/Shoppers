@@ -83,7 +83,7 @@ export default function DeliveryFormView({
   handleRefreshProjections, showStagedPanel, setShowStagedPanel,
   // Delete dialog
   deleteConfirmation, setDeleteConfirmation, isDeletingPending,
-  handleConfirmDelete, deleteConfirmLabel,
+  handleConfirmDelete,
   // Recurring
   currentFrequency, weeklyLabel, biWeeklyLabel, weeklyX4Label,
   showDayPopup, setShowDayPopup, setActiveRecurringType,
@@ -907,7 +907,6 @@ export default function DeliveryFormView({
         deleteConfirmation={deleteConfirmation} setDeleteConfirmation={setDeleteConfirmation}
         isDeletingPending={isDeletingPending} sortedStagedDeliveries={sortedStagedDeliveries}
         stores={stores} stagedDeliveries={stagedDeliveries} allDeliveries={allDeliveries}
-        deleteLabel={deleteConfirmLabel}
         onConfirmDelete={handleConfirmDelete} />
       
     </div>);

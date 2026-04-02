@@ -1,5 +1,5 @@
 // Redeployed on 2026-03-28
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
@@ -84,8 +84,7 @@ Deno.serve(async (req) => {
       ampmDeliveries: requestedAmpm = null,
       primarySlot: legacyPrimarySlot = null,
       allowCreateIfMissing = false,
-      skipReuseCheck = false,
-      skipAutoCreate = false
+      skipReuseCheck = false
     } = body || {};
 
     if (!storeId || !deliveryDate || !driverId) {
@@ -99,7 +98,7 @@ Deno.serve(async (req) => {
       const last = ensurePickupRecent.get(key);
       const nowTs = Date.now();
       if (last && (nowTs - last) < 3500) {
-        return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, debounced: true });
+        return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, debounced: true }, { status: 200 });
       }
       ensurePickupRecent.set(key, nowTs);
     } catch (_) {}
@@ -109,7 +108,7 @@ Deno.serve(async (req) => {
       const lastTs = ensurePickupInFlight.get(inflightKey);
       const nowTs = Date.now();
       if (lastTs && (nowTs - lastTs) < 3500) {
-        return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, debounced: true });
+        return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, debounced: true }, { status: 200 });
       }
       ensurePickupInFlight.set(inflightKey, nowTs);
       setTimeout(() => {
@@ -119,6 +118,12 @@ Deno.serve(async (req) => {
 
     const stores = await base44.asServiceRole.entities.Store.filter({ id: storeId });
     const store = stores[0];
+    if (!store) {
+      return Response.json({ error: `Store not found for storeId: ${storeId}` }, { status: 404 });
+    }
+    if (!store) {
+      return Response.json({ error: `Store not found for storeId: ${storeId}` }, { status: 404 });
+    }
     const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || '';
     const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }) : [];
@@ -251,7 +256,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!allowCreateIfMissing || skipAutoCreate) {
+    if (!allowCreateIfMissing) {
       return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true });
     }
 

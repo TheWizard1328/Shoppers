@@ -234,7 +234,6 @@ Deno.serve(async (req) => {
         const serviceMinutes = isPickup
           ? Math.max(Number(delivery.extra_time || 0), 15)
           : Math.max(Number(delivery.extra_time || 0), 5);
-        const uniqueWaypointId = `destination${index + 1}`;
 
         return {
           delivery,
@@ -244,8 +243,8 @@ Deno.serve(async (req) => {
           windowStart,
           windowEnd,
           serviceMinutes,
-          waypointId: uniqueWaypointId,
-          waypointLabel: uniqueWaypointId
+          waypointId: `destination${index + 1}`,
+          waypointLabel: delivery.stop_id || delivery.delivery_id || delivery.id
         };
       })
       .filter((stop) => stop.lat != null && stop.lng != null && !Number.isNaN(stop.lat) && !Number.isNaN(stop.lng));

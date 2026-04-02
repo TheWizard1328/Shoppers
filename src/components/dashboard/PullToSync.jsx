@@ -70,10 +70,6 @@ export default function PullToSync({
   useEffect(() => {
     const handleTriggerSync = async (event) => {
       const silent = event.detail?.silent || false;
-      if (typeof window !== 'undefined') {
-        window.__routeManagementPullToSyncDate = event.detail?.routeManagement ? event.detail?.selectedDate || null : null;
-        window.__routeManagementPullToSyncDriverId = event.detail?.routeManagement && event.detail?.selectedDriverId !== 'all' ? event.detail?.selectedDriverId : null;
-      }
       if (isSyncing || (window.__dashboardSyncing && window.__activePullToSyncRunId)) return;
       console.log(`🔄 [PullToSync] Sync triggered programmatically (silent: ${silent})`);
       await performSync(silent);
@@ -97,10 +93,8 @@ export default function PullToSync({
     try { window.__dashboardSyncing = true; window.dispatchEvent(new CustomEvent('pullToSyncStarted')); } catch (e) {}
 
     try {
-      const routeManagementDate = typeof window !== 'undefined' ? window.__routeManagementPullToSyncDate : null;
-      const routeManagementDriverId = typeof window !== 'undefined' ? window.__routeManagementPullToSyncDriverId : null;
-      const selectedDateStr = routeManagementDate || globalFilters.getSelectedDate() || format(selectedDate, 'yyyy-MM-dd');
-      const currentDriverId = routeManagementDriverId || globalFilters.getSelectedDriverId() || selectedDriverId;
+      const selectedDateStr = globalFilters.getSelectedDate() || format(selectedDate, 'yyyy-MM-dd');
+      const currentDriverId = globalFilters.getSelectedDriverId() || selectedDriverId;
 
       await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
       const driverFilter = currentDriverId && currentDriverId !== 'all' 
@@ -273,8 +267,6 @@ export default function PullToSync({
         setIsPulling(false);
         try {
           window.__dashboardSyncing = false;
-          window.__routeManagementPullToSyncDate = null;
-          window.__routeManagementPullToSyncDriverId = null;
           if (window.__activePullToSyncRunId === syncRunId) {
             window.__activePullToSyncRunId = null;
           }
