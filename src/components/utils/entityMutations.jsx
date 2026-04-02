@@ -767,6 +767,77 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
   }
 };
 
+export const batchUpdateDeliveriesLocal = async (updates = [], options = {}) => {
+  if (mutationsPaused) throw new Error('Mutations are paused');
+  await pauseSmartRefresh();
+
+  try {
+    const sanitizedUpdates = updates
+      .filter((item) => item?.id && item?.updates)
+      .map((item) => ({ id: item.id, updates: sanitizeDeliveryData(item.updates) }));
+
+    if (sanitizedUpdates.length === 0) {
+      await restartSmartRefresh();
+      return [];
+    }
+
+    const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const existingMap = new Map((deliveries || []).filter(Boolean).map((d) => [d.id, d]));
+
+    const localRecords = sanitizedUpdates
+      .map(({ id, updates: recordUpdates }) => {
+        const existing = existingMap.get(id);
+        if (!existing) return null;
+        return { ...existing, ...recordUpdates, updated_date: new Date().toISOString() };
+      })
+      .filter(Boolean);
+
+    if (localRecords.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, localRecords);
+      localRecords.forEach((record) => {
+        notifyMutation({ type: 'update', entity: 'Delivery', id: record.id, data: record });
+      });
+    }
+
+    const backendResults = await Promise.all(
+      sanitizedUpdates.map(async ({ id, updates: recordUpdates }) => {
+        try {
+          const backendDelivery = await base44.entities.Delivery.update(id, recordUpdates);
+          return { id, success: true, data: backendDelivery };
+        } catch (error) {
+          await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: id, payload: recordUpdates });
+          const localFallback = localRecords.find((record) => record.id === id) || existingMap.get(id) || null;
+          return { id, success: false, data: localFallback, error };
+        }
+      })
+    );
+
+    const authoritativeRecords = backendResults.map((result) => result.data).filter(Boolean);
+    if (authoritativeRecords.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, authoritativeRecords);
+      await refreshOfflineEntitySnapshots('Delivery', authoritativeRecords[0]);
+      authoritativeRecords.forEach((record) => {
+        notifyMutation({ type: 'update', entity: 'Delivery', id: record.id, data: record });
+      });
+    }
+
+    const { updateCache } = await import('./dataManager');
+    authoritativeRecords.forEach((record) => {
+      updateCache('Delivery', record.id, record);
+    });
+
+    for (const record of authoritativeRecords) {
+      await broadcastMutation('Delivery', 'update', record.id, record);
+    }
+
+    await restartSmartRefresh();
+    return backendResults;
+  } catch (error) {
+    await restartSmartRefresh();
+    throw error;
+  }
+};
+
 /**
  * Batch delete deliveries (local-first with guaranteed cache refresh)
  * CRITICAL: Skips deliveries that don't exist in offline or online DB
