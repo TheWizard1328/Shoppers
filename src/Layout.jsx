@@ -1294,11 +1294,11 @@ export default function Layout({ children, currentPageName }) {
           const dedupedUsers = Array.from(new Map(mergedUsers.map((u) => [u.id, u])).values());
           setUsers(dedupedUsers);
 
-          let activeDrivers = dedupedUsers.filter((user) => {
-            if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
-            if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
-            if (!user.user_name) return false;
-            if (user.status !== 'active') return false;
+          let activeDrivers = allAppUsers.filter((appUser) => {
+            if (!appUser || !Array.isArray(appUser.app_roles)) return false;
+            if (!appUser.app_roles.includes('driver') && !appUser.app_roles.includes('admin')) return false;
+            if (!(appUser.user_name || appUser.full_name || appUser.email)) return false;
+            if (appUser.status && appUser.status !== 'active') return false;
             return true;
           });
           activeDrivers = sortUsers(activeDrivers);
@@ -1325,11 +1325,11 @@ export default function Layout({ children, currentPageName }) {
 
       const initialUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
 
-      let activeDrivers = initialUsers.filter((user) => {
-        if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
-        if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
-        if (!user.user_name) return false;
-        if (user.status !== 'active') return false;
+      let activeDrivers = allAppUsers.filter((appUser) => {
+        if (!appUser || !Array.isArray(appUser.app_roles)) return false;
+        if (!appUser.app_roles.includes('driver') && !appUser.app_roles.includes('admin')) return false;
+        if (!(appUser.user_name || appUser.full_name || appUser.email)) return false;
+        if (appUser.status && appUser.status !== 'active') return false;
         return true;
       });
       activeDrivers = sortUsers(activeDrivers);
