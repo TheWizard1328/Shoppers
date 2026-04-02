@@ -442,15 +442,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     setIsProcessingBackground(true);
     try {
       const driverDeliveries = (allDeliveries || []).filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-      if (driverDeliveries.length === 0) throw new Error('No route deliveries found');
+      const fallbackRouteDeliveries = driverDeliveries.length > 0 ? driverDeliveries : [delivery];
 
-      const activeRouteDeliveries = driverDeliveries
+      const activeRouteDeliveries = fallbackRouteDeliveries
         .filter((item) => item && item.id !== delivery.id && !FINISHED_STATUSES.includes(item.status) && item.status !== 'pending')
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
       const nextStopOrder = activeRouteDeliveries[0]?.stop_order || 1;
       const restartedStatus = isPickup ? 'en_route' : 'in_transit';
-      const restartedRouteDeliveries = driverDeliveries
+      const restartedRouteDeliveries = fallbackRouteDeliveries
         .map((item) => {
           if (!item) return item;
           if (item.id === delivery.id) {
