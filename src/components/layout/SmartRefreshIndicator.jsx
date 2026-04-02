@@ -6,6 +6,7 @@ import { isAppOwner } from '../utils/userRoles';
 import { useUser } from '../utils/UserContext';
 import { offlineManager } from '../utils/offlineManager';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
+import { base44 } from '@/api/base44Client';
 
 /**
  * Smart Refresh Indicator - Shows app owners when smart refresh is active
@@ -239,10 +240,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     // Also kick polyline repair directly to avoid waiting for pull handler wiring in some views
     try {
-      const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-      repairMissingPolylines({ date: today }).catch(() => null);
-    } catch(_) {}
+      base44.functions.invoke('repairMissingPolylines', { date: today }).catch(() => null);
+    } catch (_) {}
 
     // Listen for completion, with fallback timeout
     let completed = false;
