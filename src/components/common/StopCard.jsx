@@ -258,11 +258,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
-          await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-          const [etaRes, optimizeRes] = await Promise.allSettled([base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: currentLocalTime }), base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, generatePolyline: false })]);
-          const etaData = etaRes.status === 'fulfilled' ? etaRes.value?.data || etaRes.value : null;const optimizeData = optimizeRes.status === 'fulfilled' ? optimizeRes.value?.data || optimizeRes.value : null;const etaUpdates = etaData?.durationUpdates || etaData?.etas || optimizeData?.optimizedRoute || [];
+          const startResponse = await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
+          const startData = startResponse?.data || startResponse || null;
+          const etaRes = await Promise.allSettled([base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: currentLocalTime })]);
+          const etaData = etaRes[0]?.status === 'fulfilled' ? etaRes[0].value?.data || etaRes[0].value : null;const optimizeData = startData?.optimization || null;const etaUpdates = etaData?.durationUpdates || etaData?.etas || optimizeData?.optimizedRoute || [];
           if (Array.isArray(etaUpdates) && etaUpdates.length > 0) window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: etaUpdates.map((u) => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) } }));
-          invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);fabControlEvents.reactivatePhaseTwoIfAvailable();window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+          invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);fabControlEvents.reactivatePhaseTwoIfAvailable();window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, optimization: optimizeData } }));
         } catch (optErr) {console.warn('⚠️ [Start] background optimization failed:', optErr?.message || optErr);} finally
         {window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));}
       });

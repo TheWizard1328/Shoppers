@@ -128,12 +128,14 @@ export default function PullToSync({
         offlineDB.getPendingMutations().catch(() => [])
       ]);
 
+      const freshDeliveriesById = new Map((freshDeliveriesRaw || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
+
       const pendingDeleteIds = new Set(
         (pendingMutations || [])
           .filter((mutation) => mutation?.entity === 'Delivery' && mutation?.operation === 'delete' && mutation?.recordId)
           .map((mutation) => mutation.recordId)
       );
-      const freshDeliveries = (freshDeliveriesRaw || []).filter((delivery) => !pendingDeleteIds.has(delivery?.id));
+      const freshDeliveries = Array.from(freshDeliveriesById.values()).filter((delivery) => !pendingDeleteIds.has(delivery?.id));
 
       await offlineDB.replaceRecordsByIndex(
         offlineDB.STORES.DELIVERIES,
@@ -156,16 +158,7 @@ export default function PullToSync({
 
       let freshPatients = [];
       if (patientIds.length > 0) {
-        const batchSize = 50;
-        for (let i = 0; i < patientIds.length; i += batchSize) {
-          const ids = patientIds.slice(i, i + batchSize);
-          const batchPatients = await base44.entities.Patient.filter({ id: { $in: ids } });
-          if (Array.isArray(batchPatients) && batchPatients.length > 0) {
-            freshPatients.push(...batchPatients);
-          }
-          await new Promise((resolve) => setTimeout(resolve, 250));
-        }
-
+        freshPatients = await base44.entities.Patient.filter({ id: { $in: patientIds } });
         if (freshPatients.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
         }
