@@ -289,8 +289,14 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
           console.warn(`⚠️ [PrioritySyncBeforeRefresh] Removed ${duplicatesRemoved} duplicate AppUsers`);
         }
 
-        const saveResult = await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
-        console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, saveResult);
+        const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        if (deduplicatedAppUsers.length >= existingAppUsers.length || existingAppUsers.length === 0) {
+          const saveResult = await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+          console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, saveResult);
+        } else {
+          console.warn(`⚠️ [PrioritySyncBeforeRefresh] Skipped AppUser replacement because incoming data was smaller (${deduplicatedAppUsers.length} < ${existingAppUsers.length})`);
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+        }
         invalidateEntityCache('AppUser');
         await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
         if (smartRefreshMgr) {
@@ -330,7 +336,12 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     
     const deliveries = await fetchDeliveriesDedup(selectedDateStr, deliveryFilter);
     if (deliveries && deliveries.length > 0) {
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries);
+        const existingDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        if (deliveries.length > 0 || existingDateDeliveries.length === 0) {
+          await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries);
+        } else {
+          console.warn(`⚠️ [PrioritySyncBeforeRefresh] Skipped delivery replacement for ${selectedDateStr} because incoming data was empty while offline DB had ${existingDateDeliveries.length} records`);
+        }
         invalidateEntityCache('Delivery');
         await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString(), new Date().toISOString());
         if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
@@ -743,7 +754,12 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     }
 
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
-    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDateToSync, deliveries || []);
+    const existingDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDateToSync);
+    if ((deliveries || []).length > 0 || existingDateDeliveries.length === 0) {
+      await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDateToSync, deliveries || []);
+    } else {
+      console.warn(`⚠️ [BackgroundSync] Skipped delivery replacement for ${deliveryDateToSync} because incoming data was empty while offline DB had ${existingDateDeliveries.length} records`);
+    }
     invalidateEntityCache('Delivery');
 
     const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
@@ -1159,7 +1175,13 @@ export const forceSyncAll = async () => {
     });
     const appUsers = Array.from(appUsersByUserId.values());
     if (shouldRefetchAppUsers) {
-      await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+      const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      if (appUsers.length >= existingAppUsers.length || existingAppUsers.length === 0) {
+        await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+      } else {
+        console.warn(`⚠️ [ForceSyncAll] Skipped AppUser replacement because incoming data was smaller (${appUsers.length} < ${existingAppUsers.length})`);
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+      }
       invalidateEntityCache('AppUser');
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString(), {
         last_full_appuser_sync_at: new Date().toISOString()
@@ -1170,21 +1192,36 @@ export const forceSyncAll = async () => {
     
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 15 });
     const cities = await City.list();
-    await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
+    const existingCities = await offlineDB.getAll(offlineDB.STORES.CITIES);
+    if (cities.length > 0 || existingCities.length === 0) {
+      await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
+    } else {
+      console.warn(`⚠️ [ForceSyncAll] Skipped city replacement because incoming data was empty while offline DB had ${existingCities.length} records`);
+    }
     invalidateEntityCache('City');
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 20, count: cities.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 22 });
     const stores = await Store.list();
-    await offlineDB.replaceAllRecords(offlineDB.STORES.STORES, stores);
+    const existingStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+    if (stores.length > 0 || existingStores.length === 0) {
+      await offlineDB.replaceAllRecords(offlineDB.STORES.STORES, stores);
+    } else {
+      console.warn(`⚠️ [ForceSyncAll] Skipped store replacement because incoming data was empty while offline DB had ${existingStores.length} records`);
+    }
     invalidateEntityCache('Store');
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 24, count: stores.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 25 });
     const companies = await Company.list();
-    await offlineDB.replaceAllRecords(offlineDB.STORES.COMPANIES, companies);
+    const existingCompanies = await offlineDB.getAll(offlineDB.STORES.COMPANIES);
+    if (companies.length > 0 || existingCompanies.length === 0) {
+      await offlineDB.replaceAllRecords(offlineDB.STORES.COMPANIES, companies);
+    } else {
+      console.warn(`⚠️ [ForceSyncAll] Skipped company replacement because incoming data was empty while offline DB had ${existingCompanies.length} records`);
+    }
     invalidateEntityCache('Company');
     notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 27, count: companies.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
