@@ -228,8 +228,8 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
     `,
     className: 'custom-store-icon',
     iconSize: [size, size * 1.4],
-    iconAnchor: [size / 2, size * 1.4],
-    popupAnchor: [0, -size * 1.1]
+    iconAnchor: [size / 2, size * 0.7],
+    popupAnchor: [0, -size * 0.7]
   });
 };
 
@@ -332,8 +332,8 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
     `,
     className: 'custom-delivery-icon',
     iconSize: [size, size * 1.4],
-    iconAnchor: [size / 2, size * 1.4],
-    popupAnchor: [0, -size * 1.1]
+    iconAnchor: [size / 2, size * 0.7],
+    popupAnchor: [0, -size * 0.7]
   });
 };
 
