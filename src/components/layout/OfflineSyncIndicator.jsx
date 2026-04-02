@@ -41,17 +41,25 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   useEffect(() => {
     if (!isVisible) return;
-    // Load initial stats
-    refreshStats(true).then(stats => {
-      console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
-      const total = getTotalCount(stats);
-      if (total === 0) {
-        setIsSyncing(true);
-        setSyncStatus({ status: 'syncing', entity: 'Offline DB', progress: 10, count: 0 });
-        const retryDelays = [1500, 4000, 8000];
-        retryDelays.forEach((delay, index) => {
-          setTimeout(() => {
+
+    let cancelled = false;
+    let startupRefreshTimers = [];
+
+    const loadStats = async () => {
+      try {
+        const loadedStats = await refreshStats(true);
+        if (cancelled) return;
+
+        console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', loadedStats);
+        const total = getTotalCount(loadedStats);
+
+        if (total === 0) {
+          setIsSyncing(true);
+          setSyncStatus({ status: 'syncing', entity: 'Offline DB', progress: 10, count: 0 });
+          const retryDelays = [1500, 4000, 8000];
+          startupRefreshTimers = retryDelays.map((delay, index) => setTimeout(() => {
             refreshStats(true).then((retryStats) => {
+              if (cancelled) return;
               console.log('📊 [OfflineSyncIndicator] Startup recheck stats:', retryStats);
               const retryTotal = getTotalCount(retryStats);
               if (retryTotal > 0) {
@@ -63,18 +71,25 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                 setSyncStatus({ status: 'syncing', entity: 'Offline DB', progress: 30 + index * 25, count: 0 });
               }
             }).catch(() => {});
-          }, delay);
-        });
-      }
-      setIsFullyLoaded(true);
-    }).catch(error => {
-      console.error('❌ [OfflineSyncIndicator] Failed to load stats:', error);
-      setIsFullyLoaded(true); // Still show UI with empty stats
-    });
+          }, delay));
+        } else {
+          setIsSyncing(false);
+          setSyncStatus((prev) => prev.status === 'syncing' ? { status: 'complete' } : prev);
+        }
 
-    const startupRefreshDelays = [250, 1000, 2500];
-    const startupRefreshTimers = startupRefreshDelays.map((delay) => setTimeout(() => {
+        setIsFullyLoaded(true);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('❌ [OfflineSyncIndicator] Failed to load stats:', error);
+        setIsFullyLoaded(true);
+      }
+    };
+
+    loadStats();
+
+    const delayedRefreshes = [250, 1000, 2500].map((delay) => setTimeout(() => {
       refreshStats(true).then((freshStats) => {
+        if (cancelled) return;
         const freshTotal = getTotalCount(freshStats);
         if (freshTotal > 0) {
           setIsSyncing(false);
@@ -82,6 +97,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
         }
       }).catch(() => {});
     }, delay));
+
+    startupRefreshTimers = [...startupRefreshTimers, ...delayedRefreshes];
 
     // Subscribe to sync updates (manual sync)
     const unsubscribe = subscribeSyncStatus((status) => {
@@ -198,6 +215,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     const pollInterval = setInterval(handleRealtimeDBUpdate, 30000);
 
     return () => {
+      cancelled = true;
       unsubscribe();
       startupRefreshTimers.forEach(clearTimeout);
       clearTimeout(refreshDebounceTimer);
@@ -210,7 +228,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       window.removeEventListener('offlineSyncComplete', handleRealtimeDBUpdate);
       window.removeEventListener('deliveriesUpdated', handleRealtimeDBUpdate);
     };
-  }, [isVisible, refreshStats, getTotalCount]);
+  }, [isVisible, refreshStats, getTotalCount, embedded, inline]);
 
   // Only show to app owners - MUST be after all hooks
   if (!isVisible) {
