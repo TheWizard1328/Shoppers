@@ -1028,11 +1028,14 @@ export default function DeliveryForm({
     const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
 
     if (formData.patient_id && !isNewPatient) {
-      try {
-        await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
-      } catch (error) {
-        console.error('Failed to update patient:', error);
-        setError('Failed to update patient data. Delivery will still be staged.');
+      const patientUpdatePayload = buildPatientUpdatePayload(formData, patient);
+      if (Object.keys(patientUpdatePayload).length > 0) {
+        try {
+          await updatePatientLocal(formData.patient_id, patientUpdatePayload);
+        } catch (error) {
+          console.error('Failed to update patient:', error);
+          setError('Failed to update patient data. Delivery will still be staged.');
+        }
       }
     }
 
