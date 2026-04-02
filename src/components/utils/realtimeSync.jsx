@@ -524,13 +524,25 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     }));
 
     if (entity === 'Delivery') {
+      let fullReplacementDeliveries;
+      try {
+        const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
+        if (selectedDate) {
+          fullReplacementDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
+        }
+      } catch (error) {
+        console.warn('⚠️ [RealtimeSync] Failed to build full delivery replacement for broadcast:', error.message);
+      }
+
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveryId: id,
           deletedId: action === 'delete' ? id : undefined,
           deletedIds: action === 'batch_delete' ? ids : action === 'delete' ? [id] : undefined,
           deliveryDate: data?.delivery_date,
-          freshDeliveries: data ? [data] : undefined,
+          deliveries: fullReplacementDeliveries,
+          freshDeliveries: Array.isArray(fullReplacementDeliveries) ? fullReplacementDeliveries : data ? [data] : undefined,
+          fullReplacement: Array.isArray(fullReplacementDeliveries),
           triggeredBy: 'realtimeBroadcast',
           source: 'realtime_sync',
           fromRealtime: true
