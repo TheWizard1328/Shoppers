@@ -1034,7 +1034,6 @@ export default function DeliveryForm({
           await updatePatientLocal(formData.patient_id, patientUpdatePayload);
         } catch (error) {
           console.error('Failed to update patient:', error);
-          setError('Failed to update patient data. Delivery will still be staged.');
         }
       }
     }
@@ -1204,7 +1203,10 @@ export default function DeliveryForm({
     } else {
       const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
       if (formData.patient_id) {
-        try { await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData)); } catch (error) { console.error('Failed to update patient:', error); setError('Failed to update patient data. Delivery will still be updated.'); }
+        const patientUpdatePayload = buildPatientUpdatePayload(formData, patient);
+        if (Object.keys(patientUpdatePayload).length > 0) {
+          try { await updatePatientLocal(formData.patient_id, patientUpdatePayload); } catch (error) { console.error('Failed to update patient:', error); setError('Failed to update patient data. Delivery will still be updated.'); }
+        }
       }
       setStagedDeliveries((prev) => prev.map((staged) => staged._tempId !== editingStagedId ? staged : ({ ...formData, cod_total_amount_required: codAmount, _tempId: editingStagedId, _wasEdited: false, id: staged.id, patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)', store_name: store.name, store_abbreviation: store.abbreviation, distanceFromStore: distanceFromStore, delivery_address: patient?.address || store.address, first_delivery: formData.first_delivery || false, oversized: formData.oversized || false, fridge_item: formData.fridge_item || false, signature_needed: formData.signature_needed || false, paid_km_override: formData.paid_km_override !== null && formData.paid_km_override !== undefined ? parseFloat(formData.paid_km_override.toFixed(2)) : null })));
       setHasChanges(true);
@@ -1398,8 +1400,11 @@ export default function DeliveryForm({
       }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
         Promise.resolve().then(async () => {
+          const originalPatient = patients.find((p) => p && p.id === formData.patient_id);
+          const patientUpdatePayload = buildPatientUpdatePayload(formData, originalPatient);
+          if (Object.keys(patientUpdatePayload).length === 0) return;
           try {
-            await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
+            await updatePatientLocal(formData.patient_id, patientUpdatePayload);
           } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
         });
       }
