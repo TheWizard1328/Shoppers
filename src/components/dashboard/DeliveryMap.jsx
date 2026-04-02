@@ -182,7 +182,7 @@ export default function DeliveryMap({
 
   useEffect(() => {
     if (Array.isArray(users) && users.length > 0) {
-      setRealtimeAppUsers((prev) => mergeAppUsersByFreshness(prev, users));
+      setRealtimeAppUsers((prev) => dedupeById(mergeAppUsersByFreshness(prev, users)));
     }
   }, [users]);
 
@@ -216,11 +216,12 @@ export default function DeliveryMap({
     const handleDriverLocationUpdate = (event) => {
       const appUsers = event?.detail?.appUsers;
       if (!Array.isArray(appUsers) || appUsers.length === 0) return;
-      setRealtimeAppUsers((prev) => mergeAppUsersByFreshness(prev, appUsers));
+      setRealtimeAppUsers((prev) => dedupeById(mergeAppUsersByFreshness(prev, appUsers)));
     };
 
     const handleDeliveriesUpdate = () => {
       prevDriverRoutesRef.current = [];
+      markerRefs.current = {};
       setRouteRenderKey((value) => value + 1);
       setPolylineRenderKey((value) => value + 1);
       setFannedLocationKey(null);
@@ -249,7 +250,7 @@ export default function DeliveryMap({
           rows = await base44.entities.Delivery.filter({ delivery_date: selectedDate });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, rows || []);
         }
-        setOtherDriverDeliveries((rows || []).filter((row) => row?.driver_id && row.driver_id !== selectedDriverId));
+        setOtherDriverDeliveries(dedupeById((rows || []).filter((row) => row?.driver_id && row.driver_id !== selectedDriverId)));
       } catch {
         setOtherDriverDeliveries([]);
       }
@@ -274,16 +275,16 @@ export default function DeliveryMap({
   }, [safeUsers]);
 
   const deliveriesToShow = useMemo(() => {
-    const baseDeliveries = safeDeliveries.length > 0 ? safeDeliveries : safeAllDeliveriesForDate;
+    const baseDeliveries = dedupeById(safeDeliveries.length > 0 ? safeDeliveries : safeAllDeliveriesForDate);
     const mergedDeliveries = !showOtherDriverDeliveries || otherDriverDeliveries.length === 0
       ? baseDeliveries
       : dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
 
-    return mergedDeliveries.filter((delivery) => {
+    return dedupeById(mergedDeliveries.filter((delivery) => {
       if (!delivery?.id) return false;
       if (delivery.patient_id) return validPatientIds.has(delivery.patient_id);
       return validStoreIds.has(delivery.store_id);
-    });
+    }));
   }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries, validPatientIds, validStoreIds]);
 
   const driverNameLookupMap = useMemo(() => {
@@ -308,7 +309,7 @@ export default function DeliveryMap({
     const allMarkers = [];
     const hasIncomplete = deliveriesToShow.some((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status));
 
-    deliveriesToShow.forEach((delivery) => {
+    dedupeById(deliveriesToShow).forEach((delivery) => {
       if (!delivery) return;
       const store = safeStores.find((item) => item?.id === delivery.store_id) || null;
       const driver = driverLookupMap.get(delivery.driver_id) || (delivery.driver_name ? { id: delivery.driver_id, user_name: delivery.driver_name, full_name: delivery.driver_name } : null);
