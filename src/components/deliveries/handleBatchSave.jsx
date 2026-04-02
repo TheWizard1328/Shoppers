@@ -264,7 +264,10 @@ export async function handleBatchSave({
       unblockPredictions,
       setIsLoadingPredictions
     });
-    await closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
+
+    setBatchFormSaving(false);
+    setIsSaving(false);
+    closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
 
     Promise.resolve().then(async () => {
       try {
@@ -296,6 +299,5 @@ export async function handleBatchSave({
     await restartBatchSmartRefresh(() => setBatchFormSaving(false));
   } finally {
     batchSaveLockRef.current = false;
-    setIsSaving(false);
   }
 }
