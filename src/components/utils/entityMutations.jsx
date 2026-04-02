@@ -769,6 +769,7 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
 
 export const batchUpdateDeliveriesLocal = async (updates = [], options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
+  console.log('🔄 [EntityMutations] batchUpdateDeliveriesLocal start', { requested: updates?.length || 0 });
   await pauseSmartRefresh();
 
   try {
@@ -777,6 +778,7 @@ export const batchUpdateDeliveriesLocal = async (updates = [], options = {}) => 
       .map((item) => ({ id: item.id, updates: sanitizeDeliveryData(item.updates) }));
 
     if (sanitizedUpdates.length === 0) {
+      console.warn('⚠️ [EntityMutations] batchUpdateDeliveriesLocal received no valid updates');
       await restartSmartRefresh();
       return [];
     }
@@ -792,6 +794,8 @@ export const batchUpdateDeliveriesLocal = async (updates = [], options = {}) => 
       })
       .filter(Boolean);
 
+    console.log('💾 [EntityMutations] batchUpdateDeliveriesLocal local matches', { matched: localRecords.length, requested: sanitizedUpdates.length });
+
     if (localRecords.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, localRecords);
       localRecords.forEach((record) => {
@@ -805,6 +809,7 @@ export const batchUpdateDeliveriesLocal = async (updates = [], options = {}) => 
           const backendDelivery = await base44.entities.Delivery.update(id, recordUpdates);
           return { id, success: true, data: backendDelivery };
         } catch (error) {
+          console.warn('⚠️ [EntityMutations] batch update queued', { id, message: error?.message || error });
           await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: id, payload: recordUpdates });
           const localFallback = localRecords.find((record) => record.id === id) || existingMap.get(id) || null;
           return { id, success: false, data: localFallback, error };
@@ -830,6 +835,7 @@ export const batchUpdateDeliveriesLocal = async (updates = [], options = {}) => 
       await broadcastMutation('Delivery', 'update', record.id, record);
     }
 
+    console.log('✅ [EntityMutations] batchUpdateDeliveriesLocal complete', { successful: backendResults.filter((result) => result.success).length, queued: backendResults.filter((result) => !result.success).length });
     await restartSmartRefresh();
     return backendResults;
   } catch (error) {

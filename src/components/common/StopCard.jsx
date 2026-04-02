@@ -286,9 +286,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     {driverLocationPoller.resume();smartRefreshManager.resume();resetActionLocks(true);}
   };
   const handleAcceptAllStops = async () => {
-    if (isAcceptingAll || isProcessingBackground || !delivery?.stop_id) return;
+    if (isAcceptingAll || isProcessingBackground) return;
+    const pickupPuid = delivery?.puid || delivery?.stop_id;
+    if (!pickupPuid) {
+      toast.error('This pickup is missing its route link.');
+      return;
+    }
     const routeDeliveries = (allDeliveries || []).filter((item) => item?.driver_id === delivery.driver_id && item?.delivery_date === delivery.delivery_date);
-    const allPendingDeliveries = routeDeliveries.filter((item) => item?.puid === delivery.stop_id && item?.status === 'pending');
+    const allPendingDeliveries = routeDeliveries.filter((item) => item?.puid === pickupPuid && item?.status === 'pending');
     if (allPendingDeliveries.length === 0) {
       toast.message('No pending stops to accept.');
       return;
@@ -309,8 +314,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         }
       }));
 
+      console.log('🚚 [Accept All] Starting batch accept', { pickupPuid, count: batchPayload.length, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
       const batchResults = await batchUpdateDeliveriesLocal(batchPayload);
       const acceptedDeliveries = batchResults.map((result) => result?.data).filter(Boolean);
+      console.log('✅ [Accept All] Batch accept finished', { updated: acceptedDeliveries.length, requested: batchPayload.length });
       const acceptedIdSet = new Set(acceptedDeliveries.map((item) => item.id));
       const refreshedRouteDeliveries = routeDeliveries.map((item) => {
         const updatedItem = acceptedDeliveries.find((candidate) => candidate.id === item.id);
