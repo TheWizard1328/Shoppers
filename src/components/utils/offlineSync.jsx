@@ -713,7 +713,7 @@ const getNextDeliveryDateToSync = async () => {
  * Syncs one delivery date at a time over past 90 days
  */
 export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
-  if (syncInProgress || syncPaused) {
+  if (syncPaused) {
     return { skipped: true };
   }
 
@@ -731,7 +731,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
 
     // Strictly defer and throttle background work: one historical delivery date only.
     const deliveryDateToSync = await getNextDeliveryDateToSync();
-    if (!deliveryDateToSync || deliveryDateToSync === selectedDateStr) {
+    if (!deliveryDateToSync) {
       notifySyncStatus({ status: 'complete', skippedHistorical: true });
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       return { success: true, skippedHistorical: true };
@@ -742,10 +742,14 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       deliveryFilter.store_id = { $in: storeIds };
     }
 
-    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 500);
-    if (deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-      invalidateEntityCache('Delivery');
+    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDateToSync, deliveries || []);
+    invalidateEntityCache('Delivery');
+
+    const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
+    if (patientIds.length > 0) {
+      await syncPatientsByIds(patientIds);
+      invalidateEntityCache('Patient');
     }
 
     await offlineDB.updateSyncMetadata('Delivery', null, new Date().toISOString());
@@ -1314,11 +1318,49 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 60, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // 4) Patients for the synced deliveries
+    // 4) Patients - restore ALL active patients so the app is usable again
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 70 });
-    const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
-    const { totalPatients } = await syncPatientsByIds(patientIds);
+    let allPatients = [];
+    let patientOffset = 0;
+    const PATIENT_FETCH_SIZE = 100;
+
+    while (true) {
+      const patientBatch = await Patient.filter(
+        { status: 'active' },
+        '-updated_date',
+        PATIENT_FETCH_SIZE,
+        patientOffset
+      );
+
+      if (!patientBatch || patientBatch.length === 0) break;
+
+      allPatients = allPatients.concat(patientBatch);
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientBatch);
+      invalidateEntityCache('Patient');
+
+      if (patientBatch.length < PATIENT_FETCH_SIZE) break;
+      patientOffset += PATIENT_FETCH_SIZE;
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    const totalPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_')).length;
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: totalPatients });
+
+    // 5) Historical deliveries - refill recent history so background recovery is not required to unblock the user
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries (history)', progress: 90 });
+    for (let i = 1; i < 30; i++) {
+      const dateToSync = format(subDays(new Date(selectedDateStr + 'T00:00:00'), i), 'yyyy-MM-dd');
+      const historicalFilter = { delivery_date: dateToSync };
+      if (storeIds && storeIds.length > 0) {
+        historicalFilter.store_id = { $in: storeIds };
+      }
+      const historicalDeliveries = await Delivery.filter(historicalFilter, '-updated_date', 5000);
+      if (historicalDeliveries && historicalDeliveries.length > 0) {
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateToSync, historicalDeliveries);
+      }
+      await new Promise(r => setTimeout(r, 150));
+    }
+    invalidateEntityCache('Delivery');
 
     // Finalize
     notifySyncStatus({ status: 'complete', progress: 100 });
