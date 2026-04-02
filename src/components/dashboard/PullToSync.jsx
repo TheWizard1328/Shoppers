@@ -6,6 +6,7 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
+import { processPendingMutations } from '@/components/utils/offlineSync';
 
 export default function PullToSync({ 
   selectedDate, 
@@ -96,6 +97,10 @@ export default function PullToSync({
       const selectedDateStr = globalFilters.getSelectedDate() || format(selectedDate, 'yyyy-MM-dd');
       const currentDriverId = globalFilters.getSelectedDriverId() || selectedDriverId;
 
+      await processPendingMutations().catch((error) => {
+        console.warn('⚠️ [PullToSync] Pending mutation flush failed:', error?.message || error);
+      });
+
       await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
       const driverFilter = currentDriverId && currentDriverId !== 'all' 
         ? { driver_id: currentDriverId } 
@@ -106,10 +111,18 @@ export default function PullToSync({
 
       // ─── STEP 1: Fetch deliveries for selected driver + date ───────────────
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
-      const freshDeliveries = await base44.entities.Delivery.filter({ 
+      const freshDeliveriesRaw = await base44.entities.Delivery.filter({ 
         delivery_date: selectedDateStr,
         ...driverFilter
       });
+
+      const pendingMutations = await offlineDB.getPendingMutations().catch(() => []);
+      const pendingDeleteIds = new Set(
+        (pendingMutations || [])
+          .filter((mutation) => mutation?.entity === 'Delivery' && mutation?.operation === 'delete' && mutation?.recordId)
+          .map((mutation) => mutation.recordId)
+      );
+      const freshDeliveries = (freshDeliveriesRaw || []).filter((delivery) => !pendingDeleteIds.has(delivery?.id));
 
       // FULL REPLACEMENT: Delete all offline deliveries for this date, then save fresh ones.
       // This ensures deletions and driver transfers are properly reflected.
@@ -203,6 +216,8 @@ export default function PullToSync({
           description: `${freshDeliveries?.length || 0} deliveries updated`
         });
       }
+
+      await offlineDB.deduplicateDeliveries().catch(() => {});
 
       // Reactivate FAB
       const currentFABPhase = window.__currentFABPhase || 1;
