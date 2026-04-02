@@ -93,24 +93,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     });
   }, []);
 
-  // CRITICAL: Listen for collapseAllStopCards event
-  React.useEffect(() => {
-    const handleCollapseAll = () => {
-      console.log('🗜️ [HorizontalStopCards] Collapsing all cards');
-      if (onSelectionChange) {
-        onSelectionChange(null, false);
-      } else if (onCardClick) {
-        onCardClick(null);
-      }
-    };
-
-    window.addEventListener('collapseAllStopCards', handleCollapseAll);
-
-    return () => {
-      window.removeEventListener('collapseAllStopCards', handleCollapseAll);
-    };
-  }, [onSelectionChange, onCardClick]);
-
   // CRITICAL: Listen for collapseAllStopCards event and collapse all cards
   React.useEffect(() => {
     const handleCollapseAll = () => {
