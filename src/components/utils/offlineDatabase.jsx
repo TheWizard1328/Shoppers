@@ -8,26 +8,15 @@ const DB_VERSION = 9; // Incremented to add Company offline store
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 
-const LEGACY_DB_NAME = 'rxdeliver_persistent_offline_v1';
-const getScopedDbName = () => {
-  try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : 'unknown-host';
-    const normalizedHost = host.replace(/[^a-zA-Z0-9_-]/g, '_');
-    return `rxdeliver_persistent_offline_v1_${normalizedHost}`;
-  } catch {
-    return 'rxdeliver_persistent_offline_v1_default';
-  }
-};
+const CANONICAL_DB_NAME = 'rxdeliver_persistent_offline_v1';
+const getScopedDbName = () => CANONICAL_DB_NAME;
 
 const getLegacyFallbackDbNames = () => {
-  const names = [LEGACY_DB_NAME];
-  try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '';
-    if (host.includes('preview--wizard-worxx')) {
-      names.push('rxdeliver_persistent_offline_v1_preview-sandbox--68570f3cd01bfa2d2408a9d6_base44_app');
-    }
-  } catch {}
-  return Array.from(new Set(names));
+  const names = [
+    'rxdeliver_persistent_offline_v1_preview--wizard-worxx-2408a9d6_base44_app',
+    'rxdeliver_persistent_offline_v1_preview-sandbox--68570f3cd01bfa2d2408a9d6_base44_app'
+  ];
+  return Array.from(new Set(names.filter((name) => name && name !== CANONICAL_DB_NAME)));
 };
 
 // Store names
@@ -129,7 +118,10 @@ const migrateLegacyDataIfNeeded = async (targetDb) => {
 
       if (existingDeliveries > 0) return;
 
-      const fallbackNames = getLegacyFallbackDbNames().filter((name) => name !== getScopedDbName());
+      const fallbackNames = getLegacyFallbackDbNames();
+      let bestSourceDb = null;
+      let bestSourceCount = 0;
+
       for (const fallbackName of fallbackNames) {
         const sourceDb = await new Promise((resolve) => {
           const request = indexedDB.open(fallbackName);
@@ -155,18 +147,21 @@ const migrateLegacyDataIfNeeded = async (targetDb) => {
           request.onerror = () => reject(request.error);
         }).catch(() => 0);
 
-        if (sourceDeliveryCount === 0) {
+        if (sourceDeliveryCount > bestSourceCount) {
+          if (bestSourceDb) bestSourceDb.close();
+          bestSourceDb = sourceDb;
+          bestSourceCount = sourceDeliveryCount;
+        } else {
           sourceDb.close();
-          continue;
         }
+      }
 
+      if (bestSourceDb && bestSourceCount > 0) {
         const storesToCopy = Object.values(STORES);
         for (const storeName of storesToCopy) {
-          await copyStoreRecords(sourceDb, targetDb, storeName);
+          await copyStoreRecords(bestSourceDb, targetDb, storeName);
         }
-
-        sourceDb.close();
-        break;
+        bestSourceDb.close();
       }
     } finally {
       migrationPromise = null;
@@ -1298,6 +1293,7 @@ const deduplicateDriverRoutePolylines = async (dateStr = null) => {
 export const offlineDB = {
   STORES,
   getDbName: getScopedDbName,
+  getLegacyFallbackDbNames,
   openDatabase,
   save,
   bulkSave,
