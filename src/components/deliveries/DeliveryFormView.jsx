@@ -103,6 +103,7 @@ export default function DeliveryFormView({
   };
   const [activeDeliveryAction, setActiveDeliveryAction] = React.useState(getActiveDeliveryAction());
   const effectiveDeliveryActionBusy = isDeliveryActionBusy || (!!activeDeliveryAction && activeDeliveryAction !== 'update_delivery');
+  const isUpdateDeliveryBusy = isSaving || activeDeliveryAction === 'update_delivery';
   const enterActionLockRef = React.useRef(false);
 
   React.useEffect(() => subscribeDeliveryActionLock(setActiveDeliveryAction), []);
@@ -882,8 +883,8 @@ export default function DeliveryFormView({
                       currentUser
                     });
                   });
-                }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
-                    {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
+                }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isUpdateDeliveryBusy || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
+                    {isUpdateDeliveryBusy ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
                 }
               </div>
