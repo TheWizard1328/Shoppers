@@ -143,17 +143,23 @@ export default function StopCardConfirmDialogs({
                         delivery.id,
                         ...pendingPickups.map((item) => item.id).filter(Boolean)
                       ];
+                      const deleted = await batchDeleteDeliveries(deleteIds);
+                      if (!deleted) {
+                        throw new Error('Delete did not complete');
+                      }
                       window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
                         detail: { deletedIds: deleteIds }
                       }));
-                      await batchDeleteDeliveries(deleteIds);
                     } else {
+                      const deleted = await deleteDelivery(delivery.id);
+                      if (!deleted) {
+                        throw new Error('Delete did not complete');
+                      }
                       window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
                         detail: { deletedIds: [delivery.id] }
                       }));
-                      await deleteDelivery(delivery.id);
                       if (typeof onDeleteDelivery === 'function') {
-                        await onDeleteDelivery(delivery.id).catch(() => {});
+                        await onDeleteDelivery(delivery.id);
                       }
                     }
                     setShowDeleteConfirm(false);
