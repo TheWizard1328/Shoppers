@@ -28,6 +28,7 @@ import { createCODWithTimeout, deleteCODWithTimeout } from '../utils/squareCODHa
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
 import { notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
+import { completeRouteStop } from "@/functions/completeRouteStop";
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
@@ -616,17 +617,27 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           if (isPickup && pendingPickups && pendingPickups.length > 0) {const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');if (hasPendingDeliveries) await handleAcceptAllStops();}
                           const freshAllDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date }).catch(() => []);
                           const routeScopeDeliveries = freshAllDeliveries.length > 0 ? freshAllDeliveries : allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-                          const localTimeString = generateCompletionTimestamp(delivery, routeScopeDeliveries, FINISHED_STATUSES);const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries: routeScopeDeliveries, patients, stores, isAppOwner: isAppOwner(currentUser), todayDateString: edmontonTodayStr });const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = routeScopeDeliveries;
+                          const localTimeString = generateCompletionTimestamp(delivery, routeScopeDeliveries, FINISHED_STATUSES);const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries: routeScopeDeliveries, patients, stores, isAppOwner: isAppOwner(currentUser), todayDateString: edmontonTodayStr });const completionCodPayments = autoCODPayment || codPayments;
                           const resolvedActualDeliveryTime = isPickup && isPastDeliveryDate ? retroactiveTiming?.actual_delivery_time : retroactiveTiming?.actual_delivery_time || localTimeString;
                           const shouldAutoSetArrivalTime = delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
                           const fallbackSignatureUrl = !delivery.signature_image_url && patient?.signature_image_url ? patient.signature_image_url : null;
-                          const completionUpdate = { status: 'completed', actual_delivery_time: resolvedActualDeliveryTime, isNextDelivery: false, finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldAutoSetArrivalTime ? { arrival_time: retroactiveTiming?.arrival_time || localTimeString } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
-                          const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
-                          const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
-                          const saveResults = await Promise.all([
-                          updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true }),
-                          ...clearNextFlags]
-                          );
+                          const completionData = { actual_delivery_time: resolvedActualDeliveryTime, finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldAutoSetArrivalTime ? { arrival_time: retroactiveTiming?.arrival_time || localTimeString } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
+                          const completionUpdate = { status: 'completed', isNextDelivery: false, ...completionData };
+                          const completionResponse = await completeRouteStop({
+                            deliveryId: delivery.id,
+                            completionData
+                          });
+                          const completionPayload = completionResponse?.data || completionResponse;
+                          const routeDeliveries = completionPayload?.routeDeliveries || [];
+                          const nextStop = routeDeliveries.find((d) => d?.isNextDelivery) || null;
+                          if (updateDeliveriesLocally && routeDeliveries.length > 0) {
+                            updateDeliveriesLocally(routeDeliveries, true);
+                          }
+                          if (completionPayload?.etaUpdates?.length > 0) {
+                            window.dispatchEvent(new CustomEvent('etaUpdated', {
+                              detail: { updates: completionPayload.etaUpdates }
+                            }));
+                          }
                           if (fallbackSignatureUrl && patient?.id) {
                             try {
                               const { updatePatientLocal } = await import('../utils/entityMutations');
@@ -635,16 +646,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           }
                           if (pendingBreadcrumbsString) {try {await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (_) {}}
                           runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: 'completed', overrides: completionUpdate });
-                          const pendingPickupIds = isPickup ? new Set((pendingPickups || []).filter((p) => p?.status === 'pending').map((p) => p.id)) : null;
-                          const optimisticDeliveries = routeScopeDeliveries.map((d) => {if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;if (d.id === delivery.id) return { ...d, ...completionUpdate, isNextDelivery: false };if (pendingPickupIds?.has(d.id)) return { ...d, status: 'in_transit', isNextDelivery: false };return { ...d, isNextDelivery: false };});
-                          const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));const shouldDelayNextDeliverySelection = isPickup && pendingPickupIds && pendingPickupIds.size > 0;const nextStop = shouldDelayNextDeliverySelection ? null : incompleteDeliveries[0] || null;
-                          await collapseAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-                          if (!nextStop) {fabControlEvents.notifyDoneButtonClicked();window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));try {locationTracker.stopTracking();} catch (trackingError) {console.warn('Could not stop location tracking:', trackingError.message);}if (onDriverStatusChange) onDriverStatusChange('off_duty');}
-                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('collapseAllStopCards'));fabControlEvents.notifyPhaseTwoCompleteRecenter();fabControlEvents.reactivateFAB(true);
+                          if (nextStop?.id) {
+                            centerDeliveryCard(nextStop.id);
+                          } else {
+                            fabControlEvents.notifyDoneButtonClicked();window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));try {locationTracker.stopTracking();} catch (trackingError) {console.warn('Could not stop location tracking:', trackingError.message);}if (onDriverStatusChange) onDriverStatusChange('off_duty');}
+                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, freshDeliveries: routeDeliveries } }));if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('collapseAllStopCards'));fabControlEvents.notifyPhaseTwoCompleteRecenter();fabControlEvents.reactivateFAB(true);
                           const { updateCompletionPolylines } = await import('@/components/utils/updateCompletionPolylines');
                           const backgroundTasks = [];
                           if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
-                          backgroundTasks.push(updateCompletionPolylines({ completedDelivery: { ...delivery, ...completionUpdate }, nextDelivery: nextStop || null, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, allDeliveries: routeScopeDeliveries, patients, stores, breadcrumbPayload: pendingBreadcrumbsString }));
+                          backgroundTasks.push(updateCompletionPolylines({ completedDelivery: { ...delivery, ...completionUpdate }, nextDelivery: nextStop || null, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, allDeliveries: routeDeliveries, patients, stores, breadcrumbPayload: pendingBreadcrumbsString }));
                           if (!nextStop && currentUser?.id) backgroundTasks.push((async () => {const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });if (appUsers && appUsers.length > 0) await base44.entities.AppUser.update(appUsers[0].id, { driver_status: 'off_duty', location_tracking_enabled: false });})());
                           backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve());
                           await Promise.allSettled(backgroundTasks);
