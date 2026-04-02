@@ -96,25 +96,32 @@ export default function PullToSync({
     try {
       const selectedDateStr = globalFilters.getSelectedDate() || format(selectedDate, 'yyyy-MM-dd');
       const currentDriverId = globalFilters.getSelectedDriverId() || selectedDriverId;
+      const currentCityId = globalFilters.getSelectedCityId() || selectedCityId;
 
       await processPendingMutations().catch((error) => {
         console.warn('⚠️ [PullToSync] Pending mutation flush failed:', error?.message || error);
       });
 
       await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
-      const driverFilter = currentDriverId && currentDriverId !== 'all' 
-        ? { driver_id: currentDriverId } 
+      const driverFilter = currentDriverId && currentDriverId !== 'all'
+        ? { driver_id: currentDriverId }
         : {};
+      const cityStores = currentCityId
+        ? await offlineDB.getByIndex(offlineDB.STORES.STORES, 'city_id', currentCityId)
+        : [];
+      const cityStoreIds = Array.isArray(cityStores) ? cityStores.map((store) => store?.id).filter(Boolean) : [];
+      const deliveryFilter = {
+        delivery_date: selectedDateStr,
+        ...driverFilter,
+        ...(cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {})
+      };
       if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent && window.__activePullToSyncRunId !== syncRunId) {
         return;
       }
 
-      // ─── STEP 1: Fetch deliveries for selected driver + date ───────────────
+      // ─── STEP 1: Fetch deliveries for selected driver/date/city scope ──────
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
-      const freshDeliveriesRaw = await base44.entities.Delivery.filter({ 
-        delivery_date: selectedDateStr,
-        ...driverFilter
-      });
+      const freshDeliveriesRaw = await base44.entities.Delivery.filter(deliveryFilter);
 
       const pendingMutations = await offlineDB.getPendingMutations().catch(() => []);
       const pendingDeleteIds = new Set(
@@ -124,19 +131,18 @@ export default function PullToSync({
       );
       const freshDeliveries = (freshDeliveriesRaw || []).filter((delivery) => !pendingDeleteIds.has(delivery?.id));
 
-      // FULL REPLACEMENT: Delete all offline deliveries for this date, then save fresh ones.
-      // This ensures deletions and driver transfers are properly reflected.
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        // Driver-specific sync: only delete that driver's records for this date
-        const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        const driverRecords = (existingForDate || []).filter(d => d?.driver_id === selectedDriverId);
-        await Promise.all(
-          driverRecords.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {}))
-        );
-      } else {
-        // All-drivers sync: wipe the entire date using the efficient cursor-based delete
-        await offlineDB.deleteDeliveriesByDate(selectedDateStr).catch(() => {});
-      }
+      // FULL REPLACEMENT: Delete all offline deliveries for this exact selected date + city scope,
+      // then save the fresh online dataset for that same scope.
+      const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+      const scopedRecords = (existingForDate || []).filter((delivery) => {
+        if (!delivery) return false;
+        if (currentDriverId && currentDriverId !== 'all' && delivery.driver_id !== currentDriverId) return false;
+        if (cityStoreIds.length > 0 && !cityStoreIds.includes(delivery.store_id)) return false;
+        return true;
+      });
+      await Promise.all(
+        scopedRecords.map((delivery) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id).catch(() => {}))
+      );
 
       // Save fresh records from server
       if (freshDeliveries?.length > 0) {
@@ -146,7 +152,7 @@ export default function PullToSync({
         'Delivery',
         new Date().toISOString(),
         new Date().toISOString(),
-        { synced_delivery_date: selectedDateStr }
+        { synced_delivery_date: selectedDateStr, synced_city_id: currentCityId || null }
       );
 
       // ─── STEP 2: Sync patients for those deliveries ────────────────────────
