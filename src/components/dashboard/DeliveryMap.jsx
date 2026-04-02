@@ -162,6 +162,8 @@ export default function DeliveryMap({
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
   const [routeRenderKey, setRouteRenderKey] = useState(0);
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
+  const deliveriesUpdateRafRef = useRef(null);
+  const driverLocationUpdateRafRef = useRef(null);
   const [measuredTopOverlayHeight, setMeasuredTopOverlayHeight] = useState(0);
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
@@ -216,21 +218,31 @@ export default function DeliveryMap({
     const handleDriverLocationUpdate = (event) => {
       const appUsers = event?.detail?.appUsers;
       if (!Array.isArray(appUsers) || appUsers.length === 0) return;
-      setRealtimeAppUsers((prev) => dedupeById(mergeAppUsersByFreshness(prev, appUsers)));
+      if (driverLocationUpdateRafRef.current) cancelAnimationFrame(driverLocationUpdateRafRef.current);
+      driverLocationUpdateRafRef.current = requestAnimationFrame(() => {
+        setRealtimeAppUsers((prev) => dedupeById(mergeAppUsersByFreshness(prev, appUsers)));
+        driverLocationUpdateRafRef.current = null;
+      });
     };
 
     const handleDeliveriesUpdate = () => {
-      prevDriverRoutesRef.current = [];
-      markerRefs.current = {};
-      setRouteRenderKey((value) => value + 1);
-      setPolylineRenderKey((value) => value + 1);
-      setFannedLocationKey(null);
+      if (deliveriesUpdateRafRef.current) cancelAnimationFrame(deliveriesUpdateRafRef.current);
+      deliveriesUpdateRafRef.current = requestAnimationFrame(() => {
+        prevDriverRoutesRef.current = [];
+        markerRefs.current = {};
+        setRouteRenderKey((value) => value + 1);
+        setPolylineRenderKey((value) => value + 1);
+        setFannedLocationKey(null);
+        deliveriesUpdateRafRef.current = null;
+      });
     };
 
     window.addEventListener("driverLocationsUpdated", handleDriverLocationUpdate);
     window.addEventListener("deliveriesUpdated", handleDeliveriesUpdate);
     window.addEventListener("routeOptimizationComplete", handleDeliveriesUpdate);
     return () => {
+      if (driverLocationUpdateRafRef.current) cancelAnimationFrame(driverLocationUpdateRafRef.current);
+      if (deliveriesUpdateRafRef.current) cancelAnimationFrame(deliveriesUpdateRafRef.current);
       window.removeEventListener("driverLocationsUpdated", handleDriverLocationUpdate);
       window.removeEventListener("deliveriesUpdated", handleDeliveriesUpdate);
       window.removeEventListener("routeOptimizationComplete", handleDeliveriesUpdate);
@@ -676,6 +688,10 @@ export default function DeliveryMap({
     if (!map || mapViewPhase !== 2 || !isMapViewLocked) {
       phase2FollowKeyRef.current = "";
       phase2OwnDriverAnchorRef.current = null;
+      return;
+    }
+
+    if (Date.now() - (window._lastUserMapInteraction || 0) < 1200) {
       return;
     }
 

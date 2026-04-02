@@ -1219,13 +1219,10 @@ function Dashboard() {
   }, [mapViewPhase]);
 
   const handleMapInteraction = useCallback((isUserInteraction = false) => {
-    // PHASE 2 NO LONGER UNLOCKS ON MAP INTERACTION
-    // It stays permanently locked until FAB is clicked to change phases
-    // This simplifies the logic and prevents accidental unlocks
-
-    // Record user interaction time (prevents proximity snap for 5 minutes)
     if (isUserInteraction) {
-      lastUserInteractionRef.current = Date.now();
+      const now = Date.now();
+      lastUserInteractionRef.current = now;
+      window._lastUserMapInteraction = now;
     }
   }, []);
 
