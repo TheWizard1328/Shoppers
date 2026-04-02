@@ -71,16 +71,16 @@ Deno.serve(async (req) => {
     await Promise.all(updatePromises);
 
     let etaUpdates = [];
-    try {
-      const etaResponse = await base44.asServiceRole.functions.invoke('calculateRealTimeETA', {
-        driverId: targetDelivery.driver_id,
-        deliveryDate: targetDelivery.delivery_date,
-        currentLocalTime: getCurrentLocalTimeString(),
-        deviceTime: getCurrentLocalTimeString()
-      });
-      const etaData = etaResponse?.data || etaResponse;
-      etaUpdates = etaData?.durationUpdates || etaData?.etas || [];
-    } catch (_) {}
+    Promise.resolve().then(async () => {
+      try {
+        await base44.asServiceRole.functions.invoke('calculateRealTimeETA', {
+          driverId: targetDelivery.driver_id,
+          deliveryDate: targetDelivery.delivery_date,
+          currentLocalTime: getCurrentLocalTimeString(),
+          deviceTime: getCurrentLocalTimeString()
+        });
+      } catch (_) {}
+    });
 
     const refreshedRouteDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: targetDelivery.driver_id,

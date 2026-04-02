@@ -629,22 +629,33 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           let pendingBreadcrumbsString = null;
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           if (isPickup && pendingPickups && pendingPickups.length > 0) {const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');if (hasPendingDeliveries) await handleAcceptAllStops();}
-                          const freshAllDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date }).catch(() => []);
-                          const routeScopeDeliveries = freshAllDeliveries.length > 0 ? freshAllDeliveries : allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
+                          const routeScopeDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
                           const localTimeString = generateCompletionTimestamp(delivery, routeScopeDeliveries, FINISHED_STATUSES);const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries: routeScopeDeliveries, patients, stores, isAppOwner: isAppOwner(currentUser), todayDateString: edmontonTodayStr });const completionCodPayments = autoCODPayment || codPayments;
                           const resolvedActualDeliveryTime = isPickup && isPastDeliveryDate ? retroactiveTiming?.actual_delivery_time : retroactiveTiming?.actual_delivery_time || localTimeString;
                           const shouldAutoSetArrivalTime = delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
                           const fallbackSignatureUrl = !delivery.signature_image_url && patient?.signature_image_url ? patient.signature_image_url : null;
                           const completionData = { actual_delivery_time: resolvedActualDeliveryTime, finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldAutoSetArrivalTime ? { arrival_time: retroactiveTiming?.arrival_time || localTimeString } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
                           const completionUpdate = { status: 'completed', isNextDelivery: false, ...completionData };
+                          const optimisticRouteDeliveries = routeScopeDeliveries.map((item) => {
+                            if (!item) return item;
+                            if (item.id === delivery.id) return { ...item, ...completionUpdate };
+                            return item.isNextDelivery ? { ...item, isNextDelivery: false } : item;
+                          });
+                          const optimisticNextStop = optimisticRouteDeliveries
+                            .filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
+                            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0] || null;
+                          const optimisticFinalRoute = optimisticRouteDeliveries.map((item) => item?.id === optimisticNextStop?.id ? { ...item, isNextDelivery: true } : item);
+                          if (updateDeliveriesLocally) {
+                            updateDeliveriesLocally(optimisticFinalRoute, true);
+                          }
                           const completionResponse = await completeRouteStop({
                             deliveryId: delivery.id,
                             completionData
                           });
                           const completionPayload = completionResponse?.data || completionResponse;
-                          const routeDeliveries = completionPayload?.routeDeliveries || [];
-                          const nextStop = routeDeliveries.find((d) => d?.isNextDelivery) || null;
-                          if (updateDeliveriesLocally && routeDeliveries.length > 0) {
+                          const routeDeliveries = completionPayload?.routeDeliveries || optimisticFinalRoute;
+                          const nextStop = routeDeliveries.find((d) => d?.isNextDelivery) || optimisticNextStop || null;
+                          if (updateDeliveriesLocally && completionPayload?.routeDeliveries?.length > 0) {
                             updateDeliveriesLocally(routeDeliveries, true);
                           }
                           if (completionPayload?.etaUpdates?.length > 0) {
