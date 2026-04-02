@@ -504,7 +504,9 @@ export const AppDataProvider = ({ children, value }) => {
       const otherDeliveries = (value.deliveries || []).filter(d => 
         d && (d.delivery_date !== deliveryDate || d.driver_id !== driverId)
       );
-      const mergedDeliveries = [...otherDeliveries, ...freshDeliveriesForDriver].filter(Boolean);
+      const mergedDeliveries = Array.from(
+        new Map([...otherDeliveries, ...freshDeliveriesForDriver].filter(Boolean).map((item) => [item.id, item])).values()
+      );
       
       if (value.updateDeliveriesLocally) {
         // Full replacement to ensure deletions are reflected
