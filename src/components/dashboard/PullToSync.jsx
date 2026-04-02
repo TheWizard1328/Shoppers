@@ -6,7 +6,7 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
-import { processPendingMutations, restartDeliveryPatientSync } from '@/components/utils/offlineSync';
+import { processPendingMutations } from '@/components/utils/offlineSync';
 
 export default function PullToSync({ 
   selectedDate, 
@@ -108,9 +108,10 @@ export default function PullToSync({
         : [];
 
       if (currentCityId && (!Array.isArray(cityStores) || cityStores.length === 0)) {
-        console.warn('⚠️ [PullToSync] Offline city stores missing - triggering recovery sync');
-        await restartDeliveryPatientSync().catch(() => {});
-        cityStores = await offlineDB.getByIndex(offlineDB.STORES.STORES, 'city_id', currentCityId);
+        cityStores = await base44.entities.Store.filter({ city_id: currentCityId });
+        if (Array.isArray(cityStores) && cityStores.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.STORES, cityStores);
+        }
       }
 
       const cityStoreIds = Array.isArray(cityStores) ? cityStores.map((store) => store?.id).filter(Boolean) : [];
@@ -123,11 +124,13 @@ export default function PullToSync({
         return;
       }
 
-      // ─── STEP 1: Fetch deliveries for full date/city scope, with recovery if offline foundation is blank ──────
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
-      const freshDeliveriesRaw = await base44.entities.Delivery.filter(deliveryFilter);
 
-      const pendingMutations = await offlineDB.getPendingMutations().catch(() => []);
+      const [freshDeliveriesRaw, pendingMutations] = await Promise.all([
+        base44.entities.Delivery.filter(deliveryFilter),
+        offlineDB.getPendingMutations().catch(() => [])
+      ]);
+
       const pendingDeleteIds = new Set(
         (pendingMutations || [])
           .filter((mutation) => mutation?.entity === 'Delivery' && mutation?.operation === 'delete' && mutation?.recordId)
@@ -135,22 +138,14 @@ export default function PullToSync({
       );
       const freshDeliveries = (freshDeliveriesRaw || []).filter((delivery) => !pendingDeleteIds.has(delivery?.id));
 
-      // FULL REPLACEMENT: Delete all offline deliveries for this exact selected date + city scope,
-      // then save the fresh online dataset for that same scope.
-      const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-      const scopedRecords = (existingForDate || []).filter((delivery) => {
-        if (!delivery) return false;
-        if (cityStoreIds.length > 0 && !cityStoreIds.includes(delivery.store_id)) return false;
-        return true;
-      });
-      await Promise.all(
-        scopedRecords.map((delivery) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id).catch(() => {}))
+      await offlineDB.replaceRecordsByIndex(
+        offlineDB.STORES.DELIVERIES,
+        'delivery_date',
+        selectedDateStr,
+        freshDeliveries,
+        { allowEmptyReplace: true }
       );
 
-      // Save fresh records from server
-      if (freshDeliveries?.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-      }
       await offlineDB.updateSyncMetadata(
         'Delivery',
         new Date().toISOString(),
@@ -158,20 +153,20 @@ export default function PullToSync({
         { synced_delivery_date: selectedDateStr, synced_city_id: currentCityId || null }
       );
 
-      // ─── STEP 2: Sync patients for those deliveries ────────────────────────
       const patientIds = Array.from(
-        new Set((freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id))
+        new Set((freshDeliveries || []).filter((d) => d?.patient_id).map((d) => d.patient_id))
       );
 
       let freshPatients = [];
       if (patientIds.length > 0) {
         const batchSize = 50;
-        const batches = [];
+        const patientBatches = [];
         for (let i = 0; i < patientIds.length; i += batchSize) {
-          batches.push(patientIds.slice(i, i + batchSize));
+          patientBatches.push(patientIds.slice(i, i + batchSize));
         }
+
         freshPatients = (await Promise.all(
-          batches.map(ids => base44.entities.Patient.filter({ id: { $in: ids } }))
+          patientBatches.map((ids) => base44.entities.Patient.filter({ id: { $in: ids } }))
         )).flat().filter(Boolean);
 
         if (freshPatients.length > 0) {
@@ -179,18 +174,20 @@ export default function PullToSync({
         }
       }
 
-      // ─── STEP 3: Load from offline DB + update UI ─────────────────────────
       const [offlineDeliveriesRaw, freshAppUsers, freshCities, freshStores] = await Promise.all([
         offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr),
-        offlineDB.getAll(offlineDB.STORES.APP_USERS).then(r => (r || []).filter(u => u?.user_id && u.user_id !== 'undefined')),
+        offlineDB.getAll(offlineDB.STORES.APP_USERS).then((r) => (r || []).filter((u) => u?.user_id && u.user_id !== 'undefined')),
         offlineDB.getAll(offlineDB.STORES.CITIES),
         offlineDB.getAll(offlineDB.STORES.STORES)
       ]);
 
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
-        ? (uiDriverFilter
-          ? offlineDeliveriesRaw.filter((d) => d?.driver_id === uiDriverFilter)
-          : offlineDeliveriesRaw)
+        ? offlineDeliveriesRaw.filter((d) => {
+            if (!d) return false;
+            if (cityStoreIds.length > 0 && !cityStoreIds.includes(d.store_id)) return false;
+            if (uiDriverFilter && d.driver_id !== uiDriverFilter) return false;
+            return true;
+          })
         : [];
 
       const safeAppUsers = Array.isArray(freshAppUsers)
@@ -228,53 +225,10 @@ export default function PullToSync({
 
       await offlineDB.deduplicateDeliveries().catch(() => {});
 
-      // Reactivate FAB
       const currentFABPhase = window.__currentFABPhase || 1;
       if (currentFABPhase !== 1) {
         const { fabControlEvents } = await import('@/components/utils/fabControlEvents');
         fabControlEvents.notifyDataReady();
-      }
-
-      // ─── STEP 4 (background): Polylines + ETAs for incomplete stops ────────
-      // Runs entirely in background — does NOT block UI
-      const targetDriverId = currentDriverId && currentDriverId !== 'all' ? currentDriverId : null;
-      if (targetDriverId) {
-        Promise.resolve().then(async () => {
-          const incompleteDeliveries = (offlineDeliveries || []).filter(d => 
-            d && !['completed', 'failed', 'cancelled'].includes(d.status)
-          );
-
-          if (incompleteDeliveries.length === 0) return;
-
-          const now = new Date();
-          const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-          // Polyline repair for incomplete stops
-          try {
-            const repairModule = await import('@/functions/repairMissingPolylines');
-            if (typeof repairModule?.repairMissingPolylines === 'function') {
-              Promise.resolve(repairModule.repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr }))
-                .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message));
-            }
-          } catch (e) {
-            console.warn('⚠️ [Pull to Sync] repairMissingPolylines unavailable:', e?.message);
-          }
-
-          // ETA recalculation for incomplete stops
-          base44.functions.invoke('calculateRealTimeETA', {
-            driverId: targetDriverId,
-            deliveryDate: selectedDateStr,
-            currentLocalTime,
-            deviceTime: currentLocalTime
-          }).then(etaRes => {
-            const etaUpdates = etaRes?.data?.durationUpdates || etaRes?.data?.etas || etaRes?.etas || [];
-            if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
-              window.dispatchEvent(new CustomEvent('etaUpdated', {
-                detail: { updates: etaUpdates.map(u => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) }
-              }));
-            }
-          }).catch(e => console.warn('⚠️ [Pull to Sync] Background ETA update failed:', e?.message));
-        }).catch(e => console.warn('⚠️ [Pull to Sync] Background tasks failed:', e?.message));
       }
 
     } catch (error) {
@@ -396,7 +350,7 @@ export default function PullToSync({
                   className="text-sm mt-1"
                   style={{ color: 'var(--text-slate-600)' }}
                 >
-                  Updating deliveries, patients & drivers
+                  Replacing route data and updating patients
                 </p>
               </div>
             </div>
