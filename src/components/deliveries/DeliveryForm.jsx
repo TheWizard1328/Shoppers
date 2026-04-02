@@ -1389,9 +1389,11 @@ export default function DeliveryForm({
         return true;
       }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
-        try {
-          await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
-        } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
+        Promise.resolve().then(async () => {
+          try {
+            await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
+          } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
+        });
       }
 
       const {
