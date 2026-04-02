@@ -308,6 +308,13 @@ export default function DeliveryForm({
       if (patientId !== delivery.patient_id) return;
       setFormData(prev => ({ ...prev, patient_name: updates.full_name || prev.patient_name, patient_phone: updates.phone || prev.patient_phone, unit_number: updates.unit_number || prev.unit_number, delivery_instructions: updates.notes || prev.delivery_instructions, mailbox_ok: updates.mailbox_ok !== undefined ? updates.mailbox_ok : prev.mailbox_ok, call_upon_arrival: updates.call_upon_arrival !== undefined ? updates.call_upon_arrival : prev.call_upon_arrival, ring_bell: updates.ring_bell !== undefined ? updates.ring_bell : prev.ring_bell, dont_ring_bell: updates.dont_ring_bell !== undefined ? updates.dont_ring_bell : prev.dont_ring_bell, back_door: updates.back_door !== undefined ? updates.back_door : prev.back_door, signature_needed: updates.signature_needed !== undefined ? updates.signature_needed : prev.signature_needed, recurring: updates.recurring !== undefined ? updates.recurring : prev.recurring, recurring_daily: updates.recurring_daily !== undefined ? updates.recurring_daily : prev.recurring_daily, recurring_weekly_mon: updates.recurring_weekly_mon !== undefined ? updates.recurring_weekly_mon : prev.recurring_weekly_mon, recurring_weekly_tue: updates.recurring_weekly_tue !== undefined ? updates.recurring_weekly_tue : prev.recurring_weekly_tue, recurring_weekly_wed: updates.recurring_weekly_wed !== undefined ? updates.recurring_weekly_wed : prev.recurring_weekly_wed, recurring_weekly_thu: updates.recurring_weekly_thu !== undefined ? updates.recurring_weekly_thu : prev.recurring_weekly_thu, recurring_weekly_fri: updates.recurring_weekly_fri !== undefined ? updates.recurring_weekly_fri : prev.recurring_weekly_fri, recurring_weekly_sat: updates.recurring_weekly_sat !== undefined ? updates.recurring_weekly_sat : prev.recurring_weekly_sat, recurring_weekly_sun: updates.recurring_weekly_sun !== undefined ? updates.recurring_weekly_sun : prev.recurring_weekly_sun, recurring_biweekly: updates.recurring_biweekly !== undefined ? updates.recurring_biweekly : prev.recurring_biweekly, recurring_weekly_x4: updates.recurring_weekly_x4 !== undefined ? updates.recurring_weekly_x4 : prev.recurring_weekly_x4, recurring_monthly: updates.recurring_monthly !== undefined ? updates.recurring_monthly : prev.recurring_monthly, recurring_bimonthly: updates.recurring_bimonthly !== undefined ? updates.recurring_bimonthly : prev.recurring_bimonthly }));
     };
+    const handlePatientDeleted = (event) => {
+      const { patientId } = event.detail || {};
+      if (!patientId) return;
+      if (delivery.patient_id === patientId) {
+        onCancel?.();
+      }
+    };
     const unsubscribeDelivery = base44.entities.Delivery.subscribe((event) => {
       const changedId = event?.id || event?.data?.id;
       if (changedId !== delivery.id) return;
@@ -317,7 +324,8 @@ export default function DeliveryForm({
       if (d.actual_delivery_time && !Number.isNaN(new Date(d.actual_delivery_time).getTime())) setCompletionTime(format(new Date(d.actual_delivery_time), 'HH:mm'));
     });
     window.addEventListener('patientUpdated', handlePatientUpdated);
-    return () => { window.removeEventListener('patientUpdated', handlePatientUpdated); unsubscribeDelivery?.(); };
+    window.addEventListener('patientDeleted', handlePatientDeleted);
+    return () => { window.removeEventListener('patientUpdated', handlePatientUpdated); window.removeEventListener('patientDeleted', handlePatientDeleted); unsubscribeDelivery?.(); };
   }, [delivery?.id, delivery?.patient_id, stores]);
 
   useEffect(() => {

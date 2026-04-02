@@ -397,6 +397,17 @@ export const deletePatient = async (patientId, options = {}) => {
       req.onerror = () => reject(req.error);
     });
 
+    try {
+      const { smartRefreshManager } = await import('./smartRefreshManager');
+      smartRefreshManager.deletedPatientIds?.add?.(patientId);
+    } catch (_) {}
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('patientDeleted', {
+        detail: { patientId }
+      }));
+    }
+
     // Notify UI immediately
     notifyMutation({ type: 'delete', entity: 'Patient', id: patientId, data: null });
 
