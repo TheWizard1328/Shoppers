@@ -8,7 +8,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { getDriverDisplayName } from '../utils/driverUtils';
-import { updateDeliveryLocal, deleteDeliveryLocal, batchDeleteDeliveriesLocal } from '../utils/entityMutations';
+import { updateDeliveryLocal, deleteDelivery, batchDeleteDeliveries } from '../utils/entityMutations';
 
 export default function StopCardConfirmDialogs({
   // Delete dialog
@@ -146,12 +146,12 @@ export default function StopCardConfirmDialogs({
                       window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
                         detail: { deletedIds: deleteIds }
                       }));
-                      await batchDeleteDeliveriesLocal(deleteIds);
+                      await batchDeleteDeliveries(deleteIds);
                     } else {
                       window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
                         detail: { deletedIds: [delivery.id] }
                       }));
-                      await deleteDeliveryLocal(delivery.id);
+                      await deleteDelivery(delivery.id);
                       if (typeof onDeleteDelivery === 'function') {
                         await onDeleteDelivery(delivery.id).catch(() => {});
                       }
