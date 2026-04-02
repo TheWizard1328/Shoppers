@@ -3,11 +3,20 @@
  * Stores Patient and Delivery entities locally for offline access
  */
 
-// CRITICAL: Use stable database name and version to prevent recreation
-const DB_NAME = 'rxdeliver_persistent_offline_v1';
+// CRITICAL: Use an app-scoped database name so different preview hosts don't fight over the same IndexedDB
 const DB_VERSION = 9; // Incremented to add Company offline store
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
+
+const getScopedDbName = () => {
+  try {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'unknown-host';
+    const normalizedHost = host.replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `rxdeliver_persistent_offline_v1_${normalizedHost}`;
+  } catch {
+    return 'rxdeliver_persistent_offline_v1_default';
+  }
+};
 
 // Store names
 const STORES = {
@@ -77,7 +86,7 @@ const openDatabase = () => {
 
   // Start new open operation
   dbOpenPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(getScopedDbName(), DB_VERSION);
 
     request.onerror = () => {
       dbOpenPromise = null;
@@ -1179,6 +1188,7 @@ const deduplicateDriverRoutePolylines = async (dateStr = null) => {
 
 export const offlineDB = {
   STORES,
+  getDbName: getScopedDbName,
   openDatabase,
   save,
   bulkSave,
