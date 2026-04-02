@@ -388,8 +388,8 @@ export default function Layout({ children, currentPageName }) {
         if(!globalFilters.getSelectedDate())globalFilters.setSelectedDate(today);
         if(!globalFilters.getSelectedDriverId())globalFilters.setSelectedDriverId('all');
         try {
-          const dd=await offlineDB.getByDate(offlineDB.STORES.DELIVERIES,todayStr).catch(()=>[]);
-          const pd=await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(()=>[]);
+          const dd=((await offlineDB.getByDate(offlineDB.STORES.DELIVERIES,todayStr).catch(()=>[]))?.length?await offlineDB.getByDate(offlineDB.STORES.DELIVERIES,todayStr).catch(()=>[]):(Array.isArray(manifest.deliveries)?manifest.deliveries:[]));
+          const pd=((await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(()=>[]))?.length?await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(()=>[]):(Array.isArray(manifest.patients)?manifest.patients:[]));
           const aud=Array.isArray(manifest.appUsers)?manifest.appUsers:[];
           const sd=Array.isArray(manifest.stores)?[...manifest.stores]:[];
           if(dd?.length){await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES,dd);setDeliveries(dd);}
