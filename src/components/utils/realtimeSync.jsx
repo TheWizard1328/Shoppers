@@ -93,21 +93,21 @@ async function flushBuffered(entityName) {
     const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
     const hasCreateOrDelete = items.some((item) => item.eventType === 'create' || item.eventType === 'delete');
 
-    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-      detail: {
-        deliveries: fullReplacementData,
-        freshDeliveries: fullReplacementData,
-        immediate: true,
-        deliveryDate: selectedDate,
-        triggeredBy: hasCreateOrDelete ? 'realtimeBufferedFullRefresh' : 'realtimeBufferedFieldUpdate',
-        source: 'realtime_sync',
-        fromRealtime: true,
-        fullReplacement: hasCreateOrDelete,
-        skipMapPhaseOneRefresh: !hasCreateOrDelete
-      }
-    }));
-
     if (hasCreateOrDelete) {
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          deliveries: fullReplacementData,
+          freshDeliveries: fullReplacementData,
+          immediate: true,
+          deliveryDate: selectedDate,
+          triggeredBy: 'realtimeBufferedFullRefresh',
+          source: 'realtime_sync',
+          fromRealtime: true,
+          fullReplacement: true,
+          skipMapPhaseOneRefresh: false
+        }
+      }));
+
       fabControlEvents.notifyDeliveryRealtimeCreateOrDelete();
     }
   }
