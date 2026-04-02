@@ -1133,7 +1133,10 @@ export const forceSyncAll = async () => {
     const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
 
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 5 });
-    const appUsersRaw = await fetchAppUsersDedup();
+    const appUserMeta = await offlineDB.getSyncMetadata('AppUser');
+    const lastFullAppUserSyncAt = appUserMeta?.last_full_appuser_sync_at ? new Date(appUserMeta.last_full_appuser_sync_at).getTime() : 0;
+    const shouldRefetchAppUsers = !lastFullAppUserSyncAt || (Date.now() - lastFullAppUserSyncAt) >= 120000;
+    const appUsersRaw = shouldRefetchAppUsers ? await fetchAppUsersDedup() : await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
@@ -1155,8 +1158,13 @@ export const forceSyncAll = async () => {
       }
     });
     const appUsers = Array.from(appUsersByUserId.values());
-    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
-    invalidateEntityCache('AppUser');
+    if (shouldRefetchAppUsers) {
+      await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+      invalidateEntityCache('AppUser');
+      await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString(), {
+        last_full_appuser_sync_at: new Date().toISOString()
+      });
+    }
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
@@ -1262,28 +1270,39 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
   syncInProgress = true;
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   try {
-    // 1) AppUsers (entire entity)
+    // 1) AppUsers (offline-first)
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10 });
-    const appUsersRaw = await fetchAppUsersDedup();
-    const appUsersByUserId = new Map();
-    appUsersRaw.forEach(au => {
-      if (!au || !au.user_id) return;
-      const existing = appUsersByUserId.get(au.user_id);
-      if (!existing) {
-        appUsersByUserId.set(au.user_id, au);
-      } else {
-        const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-        const exLoc = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
-        const newUpd = au.updated_date ? new Date(au.updated_date).getTime() : 0;
-        const exUpd = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
-        if (newLoc > exLoc || (newLoc === exLoc && newUpd > exUpd)) {
+    const appUserMeta = await offlineDB.getSyncMetadata('AppUser');
+    const lastFullAppUserSyncAt = appUserMeta?.last_full_appuser_sync_at ? new Date(appUserMeta.last_full_appuser_sync_at).getTime() : 0;
+    const shouldRefetchAppUsers = !lastFullAppUserSyncAt || (Date.now() - lastFullAppUserSyncAt) >= 120000;
+    let appUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+
+    if (shouldRefetchAppUsers) {
+      const appUsersRaw = await fetchAppUsersDedup();
+      const appUsersByUserId = new Map();
+      appUsersRaw.forEach(au => {
+        if (!au || !au.user_id) return;
+        const existing = appUsersByUserId.get(au.user_id);
+        if (!existing) {
           appUsersByUserId.set(au.user_id, au);
+        } else {
+          const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+          const exLoc = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+          const newUpd = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+          const exUpd = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+          if (newLoc > exLoc || (newLoc === exLoc && newUpd > exUpd)) {
+            appUsersByUserId.set(au.user_id, au);
+          }
         }
-      }
-    });
-    const appUsers = Array.from(appUsersByUserId.values());
-    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
-    invalidateEntityCache('AppUser');
+      });
+      appUsers = Array.from(appUsersByUserId.values());
+      await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+      invalidateEntityCache('AppUser');
+      await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString(), {
+        last_full_appuser_sync_at: new Date().toISOString()
+      });
+    }
+
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 20, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
