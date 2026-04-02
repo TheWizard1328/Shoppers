@@ -331,15 +331,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
       const codBatch = allPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);return { deliveryId: pendingDelivery.id, patientName: pendingDelivery.patient_name, storeAbbreviation: storeForCod?.abbreviation || '', codAmount: pendingDelivery.cod_total_amount_required, deliveryDate: pendingDelivery.delivery_date, storeId: pendingDelivery.store_id };});
 
-      try {
-        invalidate('Delivery');
-        await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-      } catch (syncErr) {
-        console.warn('⚠️ [Accept All] immediate refresh failed:', syncErr?.message || syncErr);
-      }
-
-      // Background: Route optimization (final UI update only after optimization completes)
+      // Background: route refresh + optimization (don't block Accept All completion)
       Promise.resolve().then(async () => {
+        try {
+          invalidate('Delivery');
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+        } catch (syncErr) {
+          console.warn('⚠️ [Accept All] background refresh failed:', syncErr?.message || syncErr);
+        }
+
+        // Background: Route optimization (final UI update only after optimization completes)
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
           const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: currentLocalTime, generatePolyline: false });
