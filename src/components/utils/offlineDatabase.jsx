@@ -13,8 +13,7 @@ const getScopedDbName = () => CANONICAL_DB_NAME;
 
 const getLegacyFallbackDbNames = () => {
   const names = [
-    'rxdeliver_persistent_offline_v1_preview--wizard-worxx-2408a9d6_base44_app',
-    'rxdeliver_persistent_offline_v1_preview-sandbox--68570f3cd01bfa2d2408a9d6_base44_app'
+    'rxdeliver_persistent_offline_v1_preview--wizard-worxx-2408a9d6_base44_app'
   ];
   return Array.from(new Set(names.filter((name) => name && name !== CANONICAL_DB_NAME)));
 };
