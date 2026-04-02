@@ -219,6 +219,8 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
           background: transparent !important;
           border: none !important;
           pointer-events: auto;
+          width: ${size}px !important;
+          height: ${size * 1.4}px !important;
         }
         .custom-store-icon .store-marker:hover { z-index: 9999 !important; transform: scale(1.15); }
         .leaflet-marker-icon:has(.store-marker:hover) { z-index: 9999 !important; }
@@ -321,6 +323,8 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
           background: transparent !important;
           border: none !important;
           pointer-events: auto;
+          width: ${size}px !important;
+          height: ${size * 1.4}px !important;
         }
         .custom-delivery-icon .delivery-marker:hover { z-index: 9999 !important; transform: scale(1.15); }
         .leaflet-marker-icon:has(.delivery-marker:hover) { z-index: 9999 !important; }
