@@ -2,7 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { requestManager } from './requestManager';
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
-const DEVICE_CACHE_TTL_MS = 60000;
+const DEVICE_CACHE_TTL_MS = 15 * 60 * 1000;
 
 const getDeviceCacheStorageKey = (userId, deviceId) => `rxdeliver_current_device_${userId}_${deviceId}`;
 
