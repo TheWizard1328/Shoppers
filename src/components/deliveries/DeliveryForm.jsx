@@ -90,13 +90,17 @@ export default function DeliveryForm({
   closeOnSave = false,
   onCreatePatient
 }) {
-  const { setIsFormOverlayOpen } = useAppData();
+  const { setIsFormOverlayOpen, drivers: contextDrivers = [] } = useAppData();
   const freshStores = useFreshStores(stores);
 
+  const driverSource = useMemo(() => {
+    return contextDrivers?.length ? contextDrivers : (drivers || []);
+  }, [contextDrivers, drivers]);
+
   const allDrivers = useMemo(() => {
-    const sorted = sortUsers(drivers || []);
+    const sorted = sortUsers(driverSource);
     return sorted.filter((driver) => driver && (driver.user_name || driver.full_name || driver.email));
-  }, [drivers]);
+  }, [driverSource]);
 
   const [formData, setFormData] = useState(() => {
     const initialState = {
@@ -122,11 +126,11 @@ export default function DeliveryForm({
       recurring_monthly: false, recurring_bimonthly: false
     };
 
-    if (!delivery && currentUser && stores && drivers) {
+    if (!delivery && currentUser && stores && driverSource.length) {
       const { driverId, driverName } = resolveDefaultDriverForNewDelivery({
         currentUser,
         stores,
-        drivers,
+        drivers: driverSource,
         allDrivers,
         deliveryDate: initialState.delivery_date,
         initialDriverId,
@@ -272,7 +276,7 @@ export default function DeliveryForm({
         driver_name: driverNameToSet || ''
       }));
     }
-  }, [delivery, currentUser, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id]);
+  }, [delivery, currentUser, stores, driverSource, allDrivers, formData.delivery_date, formData.driver_id]);
 
   // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
   const isLoadingExistingDelivery = useRef(false);
