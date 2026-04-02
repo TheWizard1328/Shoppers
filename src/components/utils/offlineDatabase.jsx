@@ -100,6 +100,58 @@ const copyStoreRecords = async (sourceDb, targetDb, storeName) => {
   return records.length;
 };
 
+const countStoreRecords = async (db, storeName) => {
+  if (!db?.objectStoreNames?.contains(storeName)) return 0;
+  return await new Promise((resolve, reject) => {
+    const tx = db.transaction([storeName], 'readonly');
+    const store = tx.objectStore(storeName);
+    const request = store.count();
+    request.onsuccess = () => resolve(request.result || 0);
+    request.onerror = () => reject(request.error);
+  }).catch(() => 0);
+};
+
+const importBestLegacyDataIntoTarget = async (targetDb) => {
+  const fallbackNames = getLegacyFallbackDbNames();
+  let bestSourceDb = null;
+  let bestSourceCount = 0;
+
+  for (const fallbackName of fallbackNames) {
+    const sourceDb = await new Promise((resolve) => {
+      const request = indexedDB.open(fallbackName);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+      request.onupgradeneeded = () => {
+        request.transaction?.abort?.();
+        resolve(null);
+      };
+    });
+
+    if (!sourceDb) continue;
+
+    const sourceDeliveryCount = await countStoreRecords(sourceDb, STORES.DELIVERIES);
+
+    if (sourceDeliveryCount > bestSourceCount) {
+      if (bestSourceDb) bestSourceDb.close();
+      bestSourceDb = sourceDb;
+      bestSourceCount = sourceDeliveryCount;
+    } else {
+      sourceDb.close();
+    }
+  }
+
+  if (bestSourceDb && bestSourceCount > 0) {
+    const storesToCopy = Object.values(STORES);
+    for (const storeName of storesToCopy) {
+      await copyStoreRecords(bestSourceDb, targetDb, storeName);
+    }
+    bestSourceDb.close();
+    return bestSourceCount;
+  }
+
+  return 0;
+};
+
 const migrateLegacyDataIfNeeded = async (targetDb) => {
   if (migrationPromise) return migrationPromise;
 
@@ -117,51 +169,7 @@ const migrateLegacyDataIfNeeded = async (targetDb) => {
 
       if (existingDeliveries > 0) return;
 
-      const fallbackNames = getLegacyFallbackDbNames();
-      let bestSourceDb = null;
-      let bestSourceCount = 0;
-
-      for (const fallbackName of fallbackNames) {
-        const sourceDb = await new Promise((resolve) => {
-          const request = indexedDB.open(fallbackName);
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => resolve(null);
-          request.onupgradeneeded = () => {
-            request.transaction?.abort?.();
-            resolve(null);
-          };
-        });
-
-        if (!sourceDb) continue;
-
-        const sourceDeliveryCount = await new Promise((resolve, reject) => {
-          if (!sourceDb.objectStoreNames.contains(STORES.DELIVERIES)) {
-            resolve(0);
-            return;
-          }
-          const tx = sourceDb.transaction([STORES.DELIVERIES], 'readonly');
-          const store = tx.objectStore(STORES.DELIVERIES);
-          const request = store.count();
-          request.onsuccess = () => resolve(request.result || 0);
-          request.onerror = () => reject(request.error);
-        }).catch(() => 0);
-
-        if (sourceDeliveryCount > bestSourceCount) {
-          if (bestSourceDb) bestSourceDb.close();
-          bestSourceDb = sourceDb;
-          bestSourceCount = sourceDeliveryCount;
-        } else {
-          sourceDb.close();
-        }
-      }
-
-      if (bestSourceDb && bestSourceCount > 0) {
-        const storesToCopy = Object.values(STORES);
-        for (const storeName of storesToCopy) {
-          await copyStoreRecords(bestSourceDb, targetDb, storeName);
-        }
-        bestSourceDb.close();
-      }
+      await importBestLegacyDataIntoTarget(targetDb);
     } finally {
       migrationPromise = null;
     }
@@ -213,7 +221,13 @@ const openDatabase = () => {
       
       dbOpenPromise = null;
       migrateLegacyDataIfNeeded(dbInstance)
-        .then(() => resolve(dbInstance))
+        .then(async () => {
+          const deliveryCount = await countStoreRecords(dbInstance, STORES.DELIVERIES);
+          if (deliveryCount === 0) {
+            await importBestLegacyDataIntoTarget(dbInstance);
+          }
+          resolve(dbInstance);
+        })
         .catch(() => resolve(dbInstance));
     };
 
