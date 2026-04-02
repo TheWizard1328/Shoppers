@@ -238,18 +238,23 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           delivery_time_eta: currentLocalTime
         });
       }
+      try {
+        await setAndCenterNextDelivery({
+          driverDeliveries: reorderedRouteDeliveries,
+          targetDeliveryId: delivery.id,
+          updateDeliveryLocal,
+          updateDeliveriesLocally,
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date
+        });
+      } catch (centerErr) {
+        console.warn('⚠️ [Start] recenter failed:', centerErr?.message || centerErr);
+      }
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       driverLocationPoller.resume();
       smartRefreshManager.resume();
       resetActionLocks(true);
-      Promise.resolve().then(async () => {
-        try {
-          await collapseAndCenterNextDelivery({ driverDeliveries: reorderedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
-        } catch (centerErr) {
-          console.warn('⚠️ [Start] recenter failed:', centerErr?.message || centerErr);
-        }
-      });
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
