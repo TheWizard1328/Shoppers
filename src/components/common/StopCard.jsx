@@ -267,7 +267,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');const now = new Date();const currentMinutes = now.getHours() * 60 + now.getMinutes();const startMinutes = currentMinutes + 5;const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const sortedPending = [...allPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
-      // OFFLINE-FIRST: Update all deliveries locally in parallel (fire and forget)
+      // OFFLINE-FIRST: Update all deliveries locally and repaint immediately
       const localUpdates = sortedPending.map((pendingDelivery, i) => ({
         id: pendingDelivery.id,
         status: 'in_transit',
@@ -276,20 +276,43 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         isNextDelivery: false
       }));
 
-      Promise.all(localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true }))).catch((err) => console.warn('Local update failed:', err));
+      const optimisticMap = new Map(localUpdates.map((update) => [update.id, update]));
+      const optimisticRouteDeliveries = allDeliveries.map((item) => {
+        if (!item) return item;
+        const update = optimisticMap.get(item.id);
+        return update ? { ...item, ...update } : item;
+      });
+
+      await Promise.all(localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true })));
+      if (updateDeliveriesLocally) {
+        updateDeliveriesLocally(optimisticRouteDeliveries, true);
+      }
 
       // Dispatch events immediately for UI responsiveness
       fabControlEvents.notifyAcceptAllClicked();
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, freshDeliveries: optimisticRouteDeliveries.filter((item) => item?.driver_id === delivery.driver_id && item?.delivery_date === delivery.delivery_date) } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+      toast.success(`${sortedPending.length} stops accepted`);
 
       const codBatch = allPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);return { deliveryId: pendingDelivery.id, patientName: pendingDelivery.patient_name, storeAbbreviation: storeForCod?.abbreviation || '', codAmount: pendingDelivery.cod_total_amount_required, deliveryDate: pendingDelivery.delivery_date, storeId: pendingDelivery.store_id };});
 
-      // Background: Sync updates to server (no await in main thread)
-      sortedPending.forEach((pendingDelivery, i) => {queueDeliveryUpdate(pendingDelivery.id, { status: 'in_transit', delivery_time_start: deliveryTimeStart, tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1) });});
-      await flushQueuedDeliveryUpdates();
-      invalidate('Delivery');
-      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+      // Background: Sync updates to server and optimize route without blocking the UI
+      Promise.resolve().then(async () => {
+        try {
+          sortedPending.forEach((pendingDelivery, i) => {
+            queueDeliveryUpdate(pendingDelivery.id, {
+              status: 'in_transit',
+              delivery_time_start: deliveryTimeStart,
+              tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1)
+            });
+          });
+          await flushQueuedDeliveryUpdates();
+          invalidate('Delivery');
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+        } catch (syncErr) {
+          console.warn('⚠️ [Accept All] background sync failed:', syncErr?.message || syncErr);
+        }
+      });
 
       // Background: Route optimization (final UI update only after optimization completes)
       Promise.resolve().then(async () => {
