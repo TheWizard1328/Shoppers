@@ -24,7 +24,16 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     getSyncStats().then(stats => {
       console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
       setStats(stats);
-      // CRITICAL: Always mark as loaded - show counts even if 0
+      // CRITICAL: If first read is all zeros, re-check shortly after startup because IndexedDB bootstrap can still be in progress
+      const total = (stats?.patients?.count || 0) + (stats?.deliveries?.count || 0) + (stats?.appUsers?.count || 0) + (stats?.cities?.count || 0) + (stats?.stores?.count || 0) + (stats?.companies?.count || 0) + (stats?.squareTransactions?.count || 0) + (stats?.driverOverviewStats?.count || 0);
+      if (total === 0) {
+        setTimeout(() => {
+          getSyncStats().then((retryStats) => {
+            console.log('📊 [OfflineSyncIndicator] Startup recheck stats:', retryStats);
+            setStats(retryStats);
+          }).catch(() => {});
+        }, 1500);
+      }
       setIsFullyLoaded(true);
     }).catch(error => {
       console.error('❌ [OfflineSyncIndicator] Failed to load stats:', error);

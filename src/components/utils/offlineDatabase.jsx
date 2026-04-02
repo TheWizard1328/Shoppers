@@ -405,8 +405,14 @@ const clearStore = async (storeName) => {
   } catch (error) {}
 };
 
-const replaceAllRecords = async (storeName, records = []) => {
+const replaceAllRecords = async (storeName, records = [], options = {}) => {
+  const { allowEmptyReplace = false } = options;
   try {
+    const existingRecords = await getAll(storeName);
+    if ((!records || records.length === 0) && existingRecords.length > 0 && !allowEmptyReplace) {
+      console.warn(`⚠️ [OfflineDB] Skipping replaceAllRecords for ${storeName} because incoming data is empty while existing store has ${existingRecords.length} records`);
+      return { success: true, skipped: true, count: existingRecords.length };
+    }
     await clearStore(storeName);
     if (!records || records.length === 0) {
       return { success: true, count: 0 };
@@ -417,8 +423,14 @@ const replaceAllRecords = async (storeName, records = []) => {
   }
 };
 
-const replaceRecordsByIndex = async (storeName, indexName, indexValue, records = []) => {
+const replaceRecordsByIndex = async (storeName, indexName, indexValue, records = [], options = {}) => {
+  const { allowEmptyReplace = false } = options;
   try {
+    const existingRecords = await getByIndex(storeName, indexName, indexValue);
+    if ((!records || records.length === 0) && existingRecords.length > 0 && !allowEmptyReplace) {
+      console.warn(`⚠️ [OfflineDB] Skipping replaceRecordsByIndex for ${storeName}/${indexName}=${indexValue} because incoming data is empty while existing set has ${existingRecords.length} records`);
+      return { success: true, skipped: true, count: existingRecords.length };
+    }
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
