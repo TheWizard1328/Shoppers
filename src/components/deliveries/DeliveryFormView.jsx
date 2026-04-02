@@ -122,20 +122,7 @@ export default function DeliveryFormView({
     }
   }, []);
 
-  // Require driver selection only when there is no selected patient yet and no reusable pickup exists
-  const requiresDriverSelection = (() => {
-    if (delivery || isPickupMode) return false;
-    if (formData?.driver_id) return false;
-    const patientToCheck = selectedPatient || (formData?.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
-    if (patientToCheck) return false;
-    const storeId = formData?.store_id;
-    if (!storeId || !formData?.delivery_date) return false;
-    const storeObj = stores?.find((s) => s && s.id === storeId);
-    const slot = getStoreAssignedTimeSlot(storeObj, formData.delivery_date, allDeliveries) || 'AM';
-    const existsInStaged = (stagedDeliveries || []).some((d) => !d.patient_id && d.store_id === storeId && d.delivery_date === formData.delivery_date && (d.ampm_deliveries || 'AM') === slot);
-    const existsInSaved = (allDeliveries || []).some((d) => d && !d.patient_id && d.store_id === storeId && d.delivery_date === formData.delivery_date && (d.ampm_deliveries || 'AM') === slot && !['completed', 'cancelled', 'returned'].includes(d.status));
-    return !(existsInStaged || existsInSaved);
-  })();
+  const requiresDriverSelection = !delivery && !isPickupMode && !formData?.driver_id;
 
   const hasSelectedLocationAndDriver = Boolean(
     formData?.delivery_date && formData?.driver_id && (formData?.store_id || selectedPatient?.store_id || selectedPickupOption)
@@ -225,7 +212,7 @@ export default function DeliveryFormView({
           runLockedAction('update_staged_delivery', handleUpdateStaged);
         }
       } else if (buttonState === 'add') {
-        const isDisabled = isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || (!isFormValid && !hasSelectedLocationAndDriver) || (requiresDriverSelection && !hasSelectedLocationAndDriver);
+        const isDisabled = isSaving || effectiveDeliveryActionBusy || !isFormValid || requiresDriverSelection;
         if (!isDisabled) {
           runLockedAction('add_staged_delivery', async () => {
             await handleAddToStaging();
@@ -833,7 +820,7 @@ export default function DeliveryFormView({
                       setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
                     }
                   });
-                }} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || requiresDriverSelection} title={!isFormValid ? 'Complete the required pickup fields before adding' : requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
+                }} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || requiresDriverSelection} title={!isFormValid ? 'Complete the required fields before adding' : requiresDriverSelection ? 'Select a driver before adding' : undefined}>
                     <Plus className="w-4 h-4" />Add
                   </Button> :
 
