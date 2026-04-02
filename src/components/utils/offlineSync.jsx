@@ -1375,9 +1375,22 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
         historicalFilter.store_id = { $in: storeIds };
       }
       const historicalDeliveries = await Delivery.filter(historicalFilter, '-updated_date', 5000);
-      if (historicalDeliveries && historicalDeliveries.length > 0) {
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateToSync, historicalDeliveries);
-      }
+      const existingHistoricalDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateToSync);
+      const historicalDeliveriesToKeep = (existingHistoricalDeliveries || []).filter((delivery) => {
+        if (!delivery) return false;
+        if (storeIds && storeIds.length > 0) {
+          return !storeIds.includes(delivery.store_id);
+        }
+        return false;
+      });
+      await offlineDB.replaceRecordsByIndex(
+        offlineDB.STORES.DELIVERIES,
+        'delivery_date',
+        dateToSync,
+        [...historicalDeliveriesToKeep, ...(historicalDeliveries || [])],
+        { allowEmptyReplace: true }
+      );
+      await offlineDB.deduplicateDeliveries().catch(() => {});
       await new Promise(r => setTimeout(r, 150));
     }
     invalidateEntityCache('Delivery');

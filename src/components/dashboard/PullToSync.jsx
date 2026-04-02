@@ -184,6 +184,7 @@ export default function PullToSync({
         offlineDB.getAll(offlineDB.STORES.CITIES),
         offlineDB.getAll(offlineDB.STORES.STORES)
       ]);
+      console.log('🔄 [PullToSync] Online deliveries fetched:', freshDeliveries.length, 'Offline date deliveries after replace:', offlineDeliveriesRaw?.length || 0, 'Date:', selectedDateStr, 'City stores:', cityStoreIds.length);
 
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
         ? offlineDeliveriesRaw.filter((d) => {
