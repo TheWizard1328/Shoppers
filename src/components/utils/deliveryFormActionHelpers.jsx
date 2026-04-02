@@ -74,7 +74,7 @@ export const getClearedDraftFormData = (prev) => ({
 export const resumeDeliveryFormManagers = async () => {
   const { smartRefreshManager, driverLocationPoller, routePolylineManager, fabControlEvents } = await getManagerControllers();
 
-  smartRefreshManager.resume();
+  smartRefreshManager.restart();
   driverLocationPoller.resume();
   routePolylineManager?.resume?.();
   fabControlEvents.resumeFAB();
