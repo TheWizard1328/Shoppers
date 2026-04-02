@@ -762,11 +762,21 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
 
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
     const existingDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDateToSync);
-    if ((deliveries || []).length > 0 || existingDateDeliveries.length === 0) {
-      await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDateToSync, deliveries || []);
-    } else {
-      console.warn(`⚠️ [BackgroundSync] Skipped delivery replacement for ${deliveryDateToSync} because incoming data was empty while offline DB had ${existingDateDeliveries.length} records`);
-    }
+    const deliveriesToKeepForDate = (existingDateDeliveries || []).filter((delivery) => {
+      if (!delivery) return false;
+      if (storeIds && storeIds.length > 0) {
+        return !storeIds.includes(delivery.store_id);
+      }
+      return false;
+    });
+    await offlineDB.replaceRecordsByIndex(
+      offlineDB.STORES.DELIVERIES,
+      'delivery_date',
+      deliveryDateToSync,
+      [...deliveriesToKeepForDate, ...(deliveries || [])],
+      { allowEmptyReplace: true }
+    );
+    await offlineDB.deduplicateDeliveries().catch(() => {});
     invalidateEntityCache('Delivery');
 
     const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));

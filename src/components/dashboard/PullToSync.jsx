@@ -124,7 +124,7 @@ export default function PullToSync({
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
 
       const [freshDeliveriesRaw, pendingMutations] = await Promise.all([
-        base44.entities.Delivery.filter(deliveryFilter),
+        base44.entities.Delivery.filter(deliveryFilter, '-updated_date', 5000),
         offlineDB.getPendingMutations().catch(() => [])
       ]);
 
@@ -137,16 +137,26 @@ export default function PullToSync({
       );
       const freshDeliveries = Array.from(freshDeliveriesById.values()).filter((delivery) => !pendingDeleteIds.has(delivery?.id));
 
+      const existingDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+      const deliveriesToKeepForDate = (existingDateDeliveries || []).filter((delivery) => {
+        if (!delivery) return false;
+        if (cityStoreIds.length > 0) {
+          return !cityStoreIds.includes(delivery.store_id);
+        }
+        return false;
+      });
       await offlineDB.replaceRecordsByIndex(
         offlineDB.STORES.DELIVERIES,
         'delivery_date',
         selectedDateStr,
-        freshDeliveries,
+        [...deliveriesToKeepForDate, ...freshDeliveries],
         { allowEmptyReplace: true }
       );
+      await offlineDB.deduplicateDeliveries().catch(() => {});
       await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], {
         scopeKey: `date:${selectedDateStr}`,
-        syncType: 'manual_pull_sync'
+        syncType: 'manual_pull_sync',
+        synced_city_id: currentCityId || null
       });
 
       await offlineDB.updateSyncMetadata(
