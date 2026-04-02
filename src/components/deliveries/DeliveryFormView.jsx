@@ -122,15 +122,16 @@ export default function DeliveryFormView({
     }
   }, []);
 
-  // Require driver selection when no regular pickup exists for the patient's store/date/slot
+  // Require driver selection only when there is no selected patient yet and no reusable pickup exists
   const requiresDriverSelection = (() => {
-    if (delivery || isPickupMode) return false; // only for new patient deliveries
-    if (formData?.driver_id) return false; // driver already chosen
+    if (delivery || isPickupMode) return false;
+    if (formData?.driver_id) return false;
     const patientToCheck = selectedPatient || (formData?.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
-    const storeId = patientToCheck?.store_id || formData?.store_id;
-    if (!storeId || !formData?.delivery_date) return false; // don't block when incomplete
+    if (patientToCheck) return false;
+    const storeId = formData?.store_id;
+    if (!storeId || !formData?.delivery_date) return false;
     const storeObj = stores?.find((s) => s && s.id === storeId);
-    const slot = determineDeliveryAMPM(patientToCheck) || getStoreAssignedTimeSlot(storeObj, formData.delivery_date, allDeliveries) || 'AM';
+    const slot = getStoreAssignedTimeSlot(storeObj, formData.delivery_date, allDeliveries) || 'AM';
     const existsInStaged = (stagedDeliveries || []).some((d) => !d.patient_id && d.store_id === storeId && d.delivery_date === formData.delivery_date && (d.ampm_deliveries || 'AM') === slot);
     const existsInSaved = (allDeliveries || []).some((d) => d && !d.patient_id && d.store_id === storeId && d.delivery_date === formData.delivery_date && (d.ampm_deliveries || 'AM') === slot && !['completed', 'cancelled', 'returned'].includes(d.status));
     return !(existsInStaged || existsInSaved);
