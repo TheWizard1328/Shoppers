@@ -53,7 +53,8 @@ export async function handleBatchSave({
     setIsLoadingPredictions,
     handleClearForm,
     onCancel,
-    formData
+    formData,
+    setBatchFormSaving
   })) return;
 
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';

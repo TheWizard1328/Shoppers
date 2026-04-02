@@ -12,7 +12,8 @@ export async function handlePendingDeleteOnlySave({
   setIsLoadingPredictions,
   handleClearForm,
   onCancel,
-  formData
+  formData,
+  setBatchFormSaving
 }) {
   if (stagedDeliveries.length !== 0 || !hasPendingDeletes) return false;
 
@@ -27,6 +28,9 @@ export async function handlePendingDeleteOnlySave({
   });
 
   await resumeManagersAndCloseBatchForm({ handleClearForm, onCancel });
+  if (typeof setBatchFormSaving === 'function') {
+    setBatchFormSaving(false);
+  }
   runDeleteOnlyBatchRefresh({ deliveryDate: formData.delivery_date, driverId: formData.driver_id });
   return true;
 }
