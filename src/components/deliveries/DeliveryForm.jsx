@@ -970,29 +970,26 @@ export default function DeliveryForm({
 
   const isFormValid = useMemo(() => {
     if (delivery) {
-      // Editing existing delivery - always valid
       return true;
     }
-    
-    // Editing staged delivery - check if has required data
+
     if (editingStagedId) {
       if (isPickupMode) {
-        return !!formData.store_id && !!formData.delivery_date && !!formData.driver_id;
+        return !!formData.store_id && !!formData.delivery_date;
       }
-      return (!!formData.patient_id || !!formData.patient_name) && 
-             !!formData.store_id && 
+      return (!!formData.patient_id || !!formData.patient_name) &&
+             !!formData.store_id &&
              !!formData.delivery_date;
     }
-    
-    // For new deliveries, driver is optional (can use "All Drivers" filter)
-    if (isPickupMode) return selectedPickupOption !== '' && !!formData.delivery_date && !!formData.driver_id;
+
+    if (isPickupMode) return selectedPickupOption !== '' && !!formData.delivery_date;
     return (!!formData.patient_id || !!formData.patient_name) && !!formData.store_id &&
     !!formData.delivery_date && !isFormDisabled;
   }, [formData, selectedPickupOption, isPickupMode, delivery, isFormDisabled, editingStagedId]);
 
   const handleAddToStaging = useCallback(async () => {
-    if (!formData.delivery_date || !formData.driver_id || !isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
-      setError(!formData.delivery_date || !formData.driver_id ? 'Please select both a date and driver before adding.' : 'Please fill all required fields.');
+    if (!formData.delivery_date || !isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
+      setError(!formData.delivery_date ? 'Please select a date before adding.' : 'Please fill all required fields.');
       return;
     }
 
@@ -1048,12 +1045,18 @@ export default function DeliveryForm({
     });
 
     const selectedStore = availableStores.find((s) => s && s.id === selectedPickupOption);
-    const timeSlot = selectedStore?._timeSlot || formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, formData.driver_id, allDeliveries) || 'AM';
+    const resolvedDriverId = formData.driver_id;
+    const resolvedDriverName = formData.driver_name;
+    const timeSlot = selectedStore?._timeSlot || formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, resolvedDriverId, allDeliveries) || 'AM';
     let newStagedDelivery;
 
     if (isPickupMode) {
       const pickupToCreate = buildPickupStagedDelivery({
-        formData,
+        formData: {
+          ...formData,
+          driver_id: resolvedDriverId,
+          driver_name: resolvedDriverName
+        },
         codAmount,
         store,
         timeSlot,
@@ -1062,13 +1065,13 @@ export default function DeliveryForm({
 
       const pickupTimes = resolvePickupTimeWindow({
         store,
-        driverId: formData.driver_id,
-        deliveryDate: formData.delivery_date
+        deliveryDate: formData.delivery_date,
+        timeSlot
       });
       const routeDeliveriesForDriver = (allDeliveries || []).filter((delivery) =>
         delivery &&
         delivery.delivery_date === formData.delivery_date &&
-        delivery.driver_id === formData.driver_id
+        delivery.driver_id === resolvedDriverId
       );
       const routePickups = routeDeliveriesForDriver.filter((delivery) => !delivery?.patient_id);
       const existingPickupTrackingNumbers = routePickups
@@ -1115,11 +1118,15 @@ export default function DeliveryForm({
         allDeliveries,
         storeId: store.id,
         deliveryDate: formData.delivery_date,
-        driverId: formData.driver_id,
+        driverId: resolvedDriverId,
         timeSlot
       });
       newStagedDelivery = buildPatientStagedDelivery({
-        formData,
+        formData: {
+          ...formData,
+          driver_id: resolvedDriverId,
+          driver_name: resolvedDriverName
+        },
         patient,
         store,
         codAmount,
@@ -1309,11 +1316,11 @@ export default function DeliveryForm({
     if (e.key === 'Enter' && !patientSearch.trim()) {
       e.preventDefault();
       if (buttonState === 'done') {
-        handleBatchSave();
+        void handleBatchSave();
       } else if (buttonState === 'add' && isFormValid) {
-        handleAddToStaging();
+        void handleAddToStaging();
       } else if (buttonState === 'updateStaged' && isFormValid) {
-        handleUpdateStaged();
+        void handleUpdateStaged();
       }
       return;
     }
@@ -1356,9 +1363,9 @@ export default function DeliveryForm({
           });
         }
       } else if (!hasFormData) {
-        if (buttonState === 'done') handleBatchSave();else
-        if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else
-        if (buttonState === 'add' && isFormValid) handleAddToStaging();
+        if (buttonState === 'done') void handleBatchSave();else
+        if (buttonState === 'updateStaged' && isFormValid) void handleUpdateStaged();else
+        if (buttonState === 'add' && isFormValid) void handleAddToStaging();
       }
     }
   }, [patientSearch, filteredPatients, highlightedPatientIndex, handlePatientSelect, hasFormData, buttonState, isFormValid, handleBatchSave, handleUpdateStaged, handleAddToStaging, onCreatePatient, currentUser]);
