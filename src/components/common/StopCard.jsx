@@ -32,7 +32,7 @@ import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
-import { createDeliveryLocal, updateDeliveryLocal } from '../utils/offlineMutations';
+import { createDeliveryLocal, updateDeliveryLocal } from '../utils/entityMutations';
 import { queueDeliveryUpdate, flushQueuedDeliveryUpdates } from '../utils/updateBatcher';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
@@ -625,7 +625,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           );
                           if (fallbackSignatureUrl && patient?.id) {
                             try {
-                              const { updatePatientLocal } = await import('../utils/offlineMutations');
+                              const { updatePatientLocal } = await import('../utils/entityMutations');
                               await updatePatientLocal(patient.id, { signature_image_url: fallbackSignatureUrl });
                             } catch (_) {}
                           }
