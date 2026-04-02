@@ -497,13 +497,14 @@ export default function HereType1Polylines({
     // Only show home->first when there are NO completed stops yet
     if (!hasCompleted && hasIncomplete) {
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
-      
+      const nextLat = Number(next?.latitude);
+      const nextLon = Number(next?.longitude);
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
       const originLat = home && !Number.isNaN(Number(home.latitude)) ? Number(home.latitude) : undefined;
       const originLon = home && !Number.isNaN(Number(home.longitude)) ? Number(home.longitude) : undefined;
 
-      if (next && originLat !== undefined && originLon !== undefined) {
-        const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(next.latitude).toFixed(5)}_${Number(next.longitude).toFixed(5)}`;
+      if (next && Number.isFinite(nextLat) && Number.isFinite(nextLon) && originLat !== undefined && originLon !== undefined) {
+        const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${nextLat.toFixed(5)}_${nextLon.toFixed(5)}`;
         let coords = cache[key];
         if (!coords) {
           try {
@@ -520,7 +521,7 @@ export default function HereType1Polylines({
           lines.push(
             <Polyline
               key={`type1-pre-home-${driverId}`}
-              positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
+              positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, { latitude: nextLat, longitude: nextLon })}
               pathOptions={{ color: coords ? "#2563eb" : '#3b82f6', weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
               pane="routeBasePane"
             />

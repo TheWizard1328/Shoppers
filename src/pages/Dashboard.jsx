@@ -1952,8 +1952,7 @@ function Dashboard() {
         const mapHomeMarkers = (window.__mapHomeMarkers || []).filter((home) => {
           const stops = [...(window.__mapDeliveryMarkers || []), ...(window.__mapPickupMarkers || [])].filter((stop) => stop?.driver_id === home.driverId);
           const completed = stops.filter((stop) => ['completed', 'failed', 'cancelled', 'returned'].includes(stop.status)).length;
-          const remainingPickups = stops.filter((stop) => stop?.markerType === 'pickup' && !['completed', 'failed', 'cancelled', 'returned'].includes(stop.status)).length;
-          return !home.excludeFromBounds && (completed === 0 || remainingPickups === 0) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && !(showAllDriverMarkers || selectedDriverId === 'all')) || home.driverId === currentUser.id || home.driverId === selectedDriverId);
+          return !home.excludeFromBounds && completed === 0 && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && !(showAllDriverMarkers || selectedDriverId === 'all')) || home.driverId === currentUser.id || home.driverId === selectedDriverId);
         });
         mapHomeMarkers.forEach((home) => {if (home.latitude && home.longitude) allCoordinates.push([home.latitude, home.longitude]);});
 
