@@ -24,15 +24,28 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     getSyncStats().then(stats => {
       console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
       setStats(stats);
-      // CRITICAL: If first read is all zeros, re-check shortly after startup because IndexedDB bootstrap can still be in progress
       const total = (stats?.patients?.count || 0) + (stats?.deliveries?.count || 0) + (stats?.appUsers?.count || 0) + (stats?.cities?.count || 0) + (stats?.stores?.count || 0) + (stats?.companies?.count || 0) + (stats?.squareTransactions?.count || 0) + (stats?.driverOverviewStats?.count || 0);
       if (total === 0) {
-        setTimeout(() => {
-          getSyncStats().then((retryStats) => {
-            console.log('📊 [OfflineSyncIndicator] Startup recheck stats:', retryStats);
-            setStats(retryStats);
-          }).catch(() => {});
-        }, 1500);
+        setIsSyncing(true);
+        setSyncStatus({ status: 'syncing', entity: 'Offline DB', progress: 10, count: 0 });
+        const retryDelays = [1500, 4000, 8000];
+        retryDelays.forEach((delay, index) => {
+          setTimeout(() => {
+            getSyncStats().then((retryStats) => {
+              console.log('📊 [OfflineSyncIndicator] Startup recheck stats:', retryStats);
+              setStats(retryStats);
+              const retryTotal = (retryStats?.patients?.count || 0) + (retryStats?.deliveries?.count || 0) + (retryStats?.appUsers?.count || 0) + (retryStats?.cities?.count || 0) + (retryStats?.stores?.count || 0) + (retryStats?.companies?.count || 0) + (retryStats?.squareTransactions?.count || 0) + (retryStats?.driverOverviewStats?.count || 0);
+              if (retryTotal > 0) {
+                setIsSyncing(false);
+                setSyncStatus({ status: 'complete' });
+              } else if (index === retryDelays.length - 1) {
+                window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
+              } else {
+                setSyncStatus({ status: 'syncing', entity: 'Offline DB', progress: 30 + index * 25, count: 0 });
+              }
+            }).catch(() => {});
+          }, delay);
+        });
       }
       setIsFullyLoaded(true);
     }).catch(error => {

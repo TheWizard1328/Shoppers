@@ -11,6 +11,7 @@ import { Delivery } from '@/entities/Delivery';
 import { Patient } from '@/entities/Patient';
 import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
+import { queueEntityRequest } from './requestQueue';
 
 const CACHE_TTL = 600000; // 10 minutes
 
@@ -73,7 +74,7 @@ export const fetchAppUsersDedup = async () => {
   }
   
   // New request
-  const request = AppUser.list().then(data => {
+  const request = queueEntityRequest(() => AppUser.list(), 'AppUser list').then(data => {
     // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at)
     const deduped = new Map();
     (data || []).forEach(au => {
@@ -128,7 +129,7 @@ export const fetchDeliveriesDedup = async (dateStr, filter = {}) => {
   }
   
   // New request
-  const request = Delivery.filter({ delivery_date: dateStr, ...filter })
+  const request = queueEntityRequest(() => Delivery.filter({ delivery_date: dateStr, ...filter }), `Delivery filter ${dateStr}`)
     .then(data => {
       // Cache result
       dataCache.set(cacheKey, {
@@ -167,7 +168,7 @@ export const fetchPatientsDedup = async (filter = {}) => {
   }
   
   // New request
-  const request = Patient.filter(filter)
+  const request = queueEntityRequest(() => Patient.filter(filter), `Patient filter ${JSON.stringify(filter)}`)
     .then(data => {
       const clean = (data || []).filter(p => p && p.id && !p.id.startsWith('temp_'));
       
@@ -208,7 +209,7 @@ export const fetchCitiesDedup = async () => {
   }
   
   // New request
-  const request = City.list()
+  const request = queueEntityRequest(() => City.list(), 'City list')
     .then(data => {
       // Cache result
       dataCache.set(cacheKey, {
@@ -247,7 +248,7 @@ export const fetchStoresDedup = async () => {
   }
   
   // New request
-  const request = Store.list()
+  const request = queueEntityRequest(() => Store.list(), 'Store list')
     .then(data => {
       // Cache result
       dataCache.set(cacheKey, {
