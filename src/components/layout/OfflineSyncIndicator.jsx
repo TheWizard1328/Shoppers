@@ -124,14 +124,12 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       
       // CRITICAL: Refresh stats on sync complete
       if (status.status === 'complete' || status.status === 'synced') {
-        setTimeout(() => {
-          refreshStats().then(newStats => {
-            console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
-            setIsFullyLoaded(true); // Always show stats after sync
-          }).catch(error => {
-            console.error('❌ [OfflineSyncIndicator] Failed to refresh stats:', error);
-          });
-        }, 800);
+        refreshStats().then(newStats => {
+          console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
+          setIsFullyLoaded(true);
+        }).catch(error => {
+          console.error('❌ [OfflineSyncIndicator] Failed to refresh stats:', error);
+        });
       }
       
       // CRITICAL: Update UI in real-time if syncing entities relevant to current screen
@@ -166,17 +164,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       
       console.log(`🔄 [OfflineSyncIndicator] Periodic sync: ${entity} - count: ${count}`);
       
-      // If sync complete, refresh stats after short delay
+      // If sync complete, refresh stats immediately
       if (isComplete) {
-        setTimeout(() => {
-          refreshStats().then(newStats => {
-            console.log('📊 [OfflineSyncIndicator] Periodic sync complete - stats:', newStats);
-            setIsSyncing(false);
-          }).catch(error => {
-            console.error('❌ [OfflineSyncIndicator] Failed to load stats after periodic sync:', error);
-            setIsSyncing(false);
-          });
-        }, 300);
+        refreshStats().then(newStats => {
+          console.log('📊 [OfflineSyncIndicator] Periodic sync complete - stats:', newStats);
+          setIsSyncing(false);
+        }).catch(error => {
+          console.error('❌ [OfflineSyncIndicator] Failed to load stats after periodic sync:', error);
+          setIsSyncing(false);
+        });
       }
     };
     
@@ -199,7 +195,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
             setIsSyncing(false);
           }
         }).catch(() => {});
-      }, 350);
+      }, embedded || inline ? 50 : 350);
     };
 
     window.addEventListener('periodicSyncProgress', handlePeriodicSync);

@@ -215,6 +215,7 @@ export default function PullToSync({
 
       // Mark UI sync complete + release overlay
       try { window.__dashboardSyncing = false; } catch (e) {}
+      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { batchedUiUpdate: true, syncRunId } }));
 
       if (!silent) {
