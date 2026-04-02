@@ -156,16 +156,20 @@ export default function HereType1Polylines({
       const parts = formatter.formatToParts(new Date());
       const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
       const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', date || todayStr);
+      console.log(`[Type1] Hydrating from offline DB for ${driverId} on ${date || todayStr}: found ${rows?.length || 0} polylines`);
       const fLat = round5(from.latitude), fLon = round5(from.longitude);
       const tLat = round5(to.latitude), tLon = round5(to.longitude);
       const match = rows.find(r => r.driver_id === driverId && round5(r.segment_origin_lat) === fLat && round5(r.segment_origin_lon) === fLon && round5(r.segment_dest_lat) === tLat && round5(r.segment_dest_lon) === tLon && r.encoded_polyline);
       if (match) {
+        console.log(`[Type1] Found matching polyline in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
         const coords = decodePolyline(match.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
           setCache((p) => ({ ...p, [key]: coords }));
           try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
           return true;
         }
+      } else {
+        console.log(`[Type1] No matching polyline found in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
       }
     } catch (err) {
       console.error(`[Type1] Error hydrating from offline DB:`, err);

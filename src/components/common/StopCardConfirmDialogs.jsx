@@ -139,20 +139,22 @@ export default function StopCardConfirmDialogs({
                     }
 
                     if (isPickup && pendingPickups && pendingPickups.length > 0 && (!selectedTransferPickupId || selectedTransferPickupId === 'delete_all')) {
-                      const deleteIds = [
+                      await batchDeleteDeliveriesLocal([
                         delivery.id,
                         ...pendingPickups.map((item) => item.id).filter(Boolean)
-                      ];
-                      window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
-                        detail: { deletedIds: deleteIds }
-                      }));
-                      await batchDeleteDeliveriesLocal(deleteIds);
+                      ]);
                     } else {
-                      window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
-                        detail: { deletedIds: [delivery.id] }
-                      }));
                       await onDeleteDelivery(delivery.id);
                     }
+
+                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                      detail: {
+                        triggeredBy: 'stopCardDelete',
+                        deliveryDate: delivery.delivery_date,
+                        driverId: delivery.driver_id
+                      }
+                    }));
+
                     setShowDeleteConfirm(false);
                     setSelectedTransferPickupId('');
                   } catch (error) {

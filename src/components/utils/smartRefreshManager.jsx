@@ -43,7 +43,7 @@ class LightweightRefreshManager {
       cities: 1800000,       // 30min - Cities dataset (less frequent to avoid 429)
       stores: 1800000,       // 30min - Stores dataset (less frequent to avoid 429)
       appUsers: 60000,       // 60sec - Backup poll ONLY if no recent WebSocket update
-      offlineSync: 60000,    // 60sec - offline DB health check / repopulation trigger
+      offlineSync: 0,        // DISABLED - offlineDB reads, not syncs
       cacheRefresh: 600000   // 10min - Cache consistency check
     };
 
@@ -480,20 +480,13 @@ class LightweightRefreshManager {
         try {
           console.log('💾 [LightweightRefresh] Offline sync reconciliation');
           const { offlineDB } = await import('./offlineDatabase');
-          const { restartDeliveryPatientSync } = await import('./offlineSync');
           
+          // Verify offline DB consistency
           const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
           const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
           const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
 
           console.log(`💾 [LightweightRefresh] Offline DB: ${offlineDeliveries?.length || 0} deliveries, ${offlinePatients?.length || 0} patients, ${offlineAppUsers?.length || 0} users`);
-
-          if ((offlineDeliveries?.length || 0) === 0 || (offlinePatients?.length || 0) === 0) {
-            console.warn('⚠️ [LightweightRefresh] Critical offline data missing - restarting delivery/patient sync');
-            restartDeliveryPatientSync().catch((error) => {
-              console.warn('⚠️ [LightweightRefresh] restartDeliveryPatientSync failed:', error?.message || error);
-            });
-          }
           
           this.markRefreshed('offlineSync');
         } catch (e) {

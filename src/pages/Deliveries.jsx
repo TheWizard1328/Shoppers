@@ -86,6 +86,8 @@ import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { updateDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { ProjectedPickupCard, StatBox } from '../components/deliveries/RouteManagementHelpers';
+import DriverOverviewCards from '../components/deliveries/DriverOverviewCards';
+import { updateDeliveriesUrl, navigateToDriverRoute, resolveDriverFilter } from '../components/deliveries/deliveriesRouteState';
 
 const addMinutesToTime = (timeString, minutesToAdd) => {
   if (!timeString) return null;
@@ -686,22 +688,8 @@ export default function DeliveriesPage() {
     };
   }, [isDriverOverviewMode]);
 
-  // Subscribe to delivery + patient websockets for real-time updates
-  useEffect(() => {
-    const unsubD = base44.entities.Delivery.subscribe((event) => {
-      if (!isMounted.current) return;
-      if (event.type === 'create') setAllDeliveries((prev) => prev.some((d) => d?.id === event.id) ? prev : [...prev, event.data]);
-      else if (event.type === 'update') setAllDeliveries((prev) => prev.map((d) => d?.id === event.id ? { ...d, ...event.data } : d));
-      else if (event.type === 'delete') setAllDeliveries((prev) => prev.filter((d) => d?.id !== event.id));
-    });
-    const unsubP = base44.entities.Patient.subscribe((event) => {
-      if (!isMounted.current) return;
-      if (event.type === 'create') setAllPatients((prev) => prev.some((p) => p?.id === event.id) ? prev : [...prev, event.data]);
-      else if (event.type === 'update') setAllPatients((prev) => prev.map((p) => p?.id === event.id ? { ...p, ...event.data } : p));
-      else if (event.type === 'delete') setAllPatients((prev) => prev.filter((p) => p?.id !== event.id));
-    });
-    return () => { unsubD(); unsubP(); };
-  }, []);
+  // Real-time entity syncing is handled centrally by realtimeSync + Layout.
+  // Avoid duplicate page-level subscriptions here because they can cause duplicate delete/update flows.
 
   // Fetch fresh AppUser data periodically for accurate driver_status
   useEffect(() => {
@@ -731,12 +719,12 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // CRITICAL: Route Management loads its own month data independently
-    // NEVER sync context deliveries into Route Management (both overview and with driver selected)
-    // Route Management is completely decoupled from Dashboard
     if (!isDriverOverviewMode) {
-      console.log('⏸️ [Deliveries] Skipping context sync for deliveries - Route Management loads independently from offline DB');
-      // Still sync other data
+      const hasContextDeliveries = Array.isArray(contextDeliveries);
+      if (hasContextDeliveries) {
+        console.log(`🔄 [Deliveries] Syncing Route Management deliveries from shared state: ${contextDeliveries.length}`);
+        setAllDeliveries(contextDeliveries);
+      }
       if (contextPatients.length > 0) {
         setAllPatients(contextPatients);
       }
@@ -752,8 +740,6 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // Driver Overview: DO NOT sync deliveries from context (contextDeliveries is date-filtered)
-    // Driver Overview loads its own data independently from offline DB
     console.log('⏸️ [Deliveries] Skipping context delivery sync for Driver Overview - loads independently from offline DB');
 
     if (contextPatients.length > 0) {
@@ -815,16 +801,16 @@ export default function DeliveriesPage() {
     });
   }, [hasAccess]);
 
-  // CRITICAL: Reload data on mode transition OR year/month change in Route Management
+  // CRITICAL: Reload data only for month/year changes in Route Management.
   const prevYMRef = useRef({ y: selectedYear, m: selectedMonth });
   useEffect(() => {
     if (prevModeRef.current === null) return;
-    if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') {loadData(true).catch(() => {});prevYMRef.current = { y: selectedYear, m: selectedMonth };return;}
+    prevModeRef.current = isDriverOverviewMode;
     if (isDriverOverviewMode || !initialLoadDone.current) return;
     if (prevYMRef.current.y === selectedYear && prevYMRef.current.m === selectedMonth) return;
     prevYMRef.current = { y: selectedYear, m: selectedMonth };
     loadData(true).catch(() => {});
-  }, [isDriverOverviewMode, driverFilter, loadData, selectedYear, selectedMonth]);
+  }, [isDriverOverviewMode, loadData, selectedYear, selectedMonth]);
 
 
   const availableOverviewYears = useMemo(() => {
@@ -909,73 +895,12 @@ export default function DeliveriesPage() {
 
 
   const updateUrl = useCallback((newFilters) => {
-    const params = new URLSearchParams(location.search);
-    const todayString = format(new Date(), 'yyyy-MM-dd');
-    const currentYear = new Date().getFullYear().toString();
-    const currentMonth = (new Date().getMonth() + 1).toString();
-
-    Object.entries(newFilters).forEach(([key, value]) => {
-      if (value === undefined || value === null || value === '' || value === 'all') {
-        params.delete(key);
-        return;
-      }
-
-      if (key === 'date') {
-        try {
-          let dateStr;
-
-          if (value instanceof Date) {
-            if (isNaN(value.getTime())) {
-              console.warn('[updateUrl] Invalid Date object');
-              return;
-            }
-            dateStr = format(value, 'yyyy-MM-dd');
-          } else if (typeof value === 'string') {
-            const [y, m, d] = value.split('-').map(Number);
-            if (isNaN(y) || isNaN(m) || isNaN(d)) {
-              console.warn('[updateUrl] Invalid date string format:', value);
-              return;
-            }
-            dateStr = value;
-          } else {
-            console.warn('[updateUrl] Unexpected date value type:', typeof value);
-            return;
-          }
-
-          if (dateStr !== todayString) {
-            params.set(key, dateStr);
-          } else {
-            params.delete(key);
-          }
-        } catch (error) {
-          console.error('[updateUrl] Error formatting date:', error, value);
-        }
-      } else if (key === 'year') {
-        const paramValue = value.toString();
-        if (paramValue !== currentYear) {
-          params.set(key, paramValue);
-        } else {
-          params.delete(key);
-        }
-      } else if (key === 'month') {
-        const paramValue = value.toString();
-        if (paramValue !== currentMonth) {
-          params.set(key, paramValue);
-        } else {
-          params.delete(key);
-        }
-      } else if (key === 'city') {
-        if (value !== 'all') {
-          params.set(key, value);
-        } else {
-          params.delete(key);
-        }
-      } else {
-        params.set(key, value.toString());
-      }
+    updateDeliveriesUrl({
+      locationSearch: location.search,
+      locationPathname: location.pathname,
+      navigate,
+      newFilters
     });
-
-    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
   }, [location.search, location.pathname, navigate]);
 
 
@@ -1149,18 +1074,22 @@ export default function DeliveriesPage() {
     // CRITICAL: Driver Overview doesn't use selectedDate - it shows stats for the entire year/period
     // Route Management: selectedDate is managed by date cards selection effect (auto-selected after data loads)
 
-    let newDriverFilter = globalFilters.getSelectedDriverId() || 'all';
+    const newDriverFilter = resolveDriverFilter({
+      driverParam,
+      globalDriverFilter: globalFilters.getSelectedDriverId(),
+      currentDriverFilter: driverFilter,
+      currentUser,
+      effectiveDrivers,
+      userHasRole
+    });
 
     if (driverParam) {
-      newDriverFilter = driverParam;
       console.log('🚗 [Deliveries] Using driver from URL:', driverParam);
-    } else if (userHasRole(currentUser, 'driver')) {
-      const driverUser = (effectiveDrivers || []).find((d) => d.id === newDriverFilter);
-      if (driverUser) {
-        newDriverFilter = driverUser.id;
-      }
     }
-    setDriverFilter(newDriverFilter);
+
+    if (newDriverFilter !== driverFilter) {
+      setDriverFilter(newDriverFilter);
+    }
 
     setStatusFilter(statusParam || 'all');
     setSearchTerm(searchParam || '');
@@ -1183,7 +1112,7 @@ export default function DeliveriesPage() {
       navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
     }
 
-  }, [location.search, currentUser, dataLoaded, hasAccess, isLoadingData, cities, navigate, location.pathname]);
+  }, [location.search, currentUser, dataLoaded, hasAccess, isLoadingData, cities, navigate, location.pathname, driverFilter]);
 
 
   const driverFilteredDeliveries = useMemo(() => {
@@ -2634,16 +2563,20 @@ export default function DeliveriesPage() {
   const handleDriverChange = useCallback((driverId) => {
     try {
       manualDateSelectionRef.current = false;
-      setDriverFilter(driverId);
-      updateUrl({
-        driver: driverId,
-        year: (selectedYear || new Date().getFullYear()).toString(),
-        month: ((selectedMonth ?? new Date().getMonth()) + 1).toString()
+      const nextDriverFilter = driverId || 'all';
+      setDriverFilter(nextDriverFilter);
+      navigateToDriverRoute({
+        locationSearch: location.search,
+        locationPathname: location.pathname,
+        navigate,
+        driverId: nextDriverFilter,
+        selectedYear,
+        selectedMonth
       });
     } catch (error) {
       console.error('[handleDriverChange] Error:', error);
     }
-  }, [updateUrl, selectedYear, selectedMonth]);
+  }, [location.search, location.pathname, navigate, selectedYear, selectedMonth]);
 
 
 
@@ -3317,31 +3250,14 @@ export default function DeliveriesPage() {
               <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Route Dates</h2>
             </div>
             <div className="flex-1 p-1 sm:p-2 overflow-y-auto">
-              <DateListPanel
-              deliveries={driverFilteredDeliveries}
-              selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-              dateListWithStats={null}
-              onDateSelect={handleDateSelect}
-              patients={effectivePatients}
-              selectedDriverId={driverFilter}
-              currentUser={currentUser}
-              onDeleteRoute={async (dateStr, driverId) => {
+              <DateListPanel deliveries={driverFilteredDeliveries} selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null} dateListWithStats={null} onDateSelect={handleDateSelect} patients={effectivePatients} selectedDriverId={driverFilter} currentUser={currentUser} getRouteDeleteIds={(dateStr, driverId) => driverFilteredDeliveries.filter((d) => d.delivery_date === dateStr && d.driver_id === driverId).map((d) => d.id).filter(Boolean)} onDeleteRoute={async (dateStr, driverId, selectedRouteIds) => {
                 try {
-                  const deliveriesToDelete = driverFilteredDeliveries.filter(
-                    (d) => d.delivery_date === dateStr && d.driver_id === driverId
-                  );
-                  const deliveryIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
-
-                  console.log(`🗑️ [DeleteRoute] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
-
-                  await batchDeleteDeliveriesLocal(deliveryIds, {
-                    userId: currentUser?.id,
-                    userName: currentUser?.user_name || currentUser?.full_name
-                  });
-
+                  const deliveryIds = (selectedRouteIds || []).filter(Boolean);
+                  await batchDeleteDeliveriesLocal(deliveryIds, { userId: currentUser?.id, userName: currentUser?.user_name || currentUser?.full_name });
                   setAllDeliveries((prev) => prev.filter((d) => !deliveryIds.includes(d.id)));
                   invalidate('Delivery');
                   setRefreshKey((prev) => prev + 1);
+                  window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                   console.log(`✅ [DeleteRoute] Route deleted successfully`);
                 } catch (error) {
                   console.error('❌ [DeleteRoute] Error:', error);
@@ -3422,35 +3338,15 @@ export default function DeliveriesPage() {
                 </Button>
               </div>
               <div className="flex-1 p-2 sm:p-4 overflow-y-auto">
-                <DateListPanel
-                deliveries={driverFilteredDeliveries}
-                selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-                dateListWithStats={null}
-                onDateSelect={(dateStr) => {
-                  handleDateSelect(dateStr);
-                  setIsMobileMenuOpen(false);
-                }}
-                patients={effectivePatients}
-                selectedDriverId={driverFilter}
-                currentUser={currentUser}
-                onDeleteRoute={async (dateStr, driverId) => {
+                <DateListPanel deliveries={driverFilteredDeliveries} selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null} dateListWithStats={null} onDateSelect={(dateStr) => { handleDateSelect(dateStr); setIsMobileMenuOpen(false); }} patients={effectivePatients} selectedDriverId={driverFilter} currentUser={currentUser} getRouteDeleteIds={(dateStr, driverId) => driverFilteredDeliveries.filter((d) => d.delivery_date === dateStr && d.driver_id === driverId).map((d) => d.id).filter(Boolean)} onDeleteRoute={async (dateStr, driverId, selectedRouteIds) => {
                   try {
-                    const deliveriesToDelete = driverFilteredDeliveries.filter(
-                      (d) => d.delivery_date === dateStr && d.driver_id === driverId
-                    );
-                    const deliveryIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
-
-                    console.log(`🗑️ [DeleteRoute-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
-
-                    await batchDeleteDeliveriesLocal(deliveryIds, {
-                      userId: currentUser?.id,
-                      userName: currentUser?.user_name || currentUser?.full_name
-                    });
-
+                    const deliveryIds = (selectedRouteIds || []).filter(Boolean);
+                    await batchDeleteDeliveriesLocal(deliveryIds, { userId: currentUser?.id, userName: currentUser?.user_name || currentUser?.full_name });
                     setAllDeliveries((prev) => prev.filter((d) => !deliveryIds.includes(d.id)));
                     invalidate('Delivery');
                     setRefreshKey((prev) => prev + 1);
                     setIsMobileMenuOpen(false);
+                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                     console.log(`✅ [DeleteRoute-Mobile] Route deleted successfully`);
                   } catch (error) {
                     console.error('❌ [DeleteRoute-Mobile] Error:', error);
@@ -3670,66 +3566,12 @@ export default function DeliveriesPage() {
                     <p className="text-lg font-medium">No drivers with deliveries for this period</p>
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
                   </div> :
-
-              <div key={refreshKey} className="flex-1 min-h-0 w-full overflow-y-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start', marginBottom: 'var(--bottom-nav-height, 0px)', paddingBottom: '12px', boxSizing: 'border-box' }}>
-                  {driverCards.map((card) => {
-                  const driverBadgeClass = getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status);
-                  return (
-                    <Card
-                      key={card.driver.id} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg h-auto"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', minWidth: '280px', display: 'flex', flexDirection: 'column' }}
-                      onClick={() => handleDriverCardClick(card.driver)}>
-
-                        <CardHeader className="px-6 py-2 flex flex-col space-y-1.5">
-                          <CardTitle className="text-base flex items-center justify-between">
-                            <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                              {card.firstName}
-                            </span>
-                            <Badge
-                            variant="outline" className={`px-2.5 py-0.5 text-xs font-semibold rounded-full w-[90px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${driverBadgeClass}`}>
-
-
-                            
-
-                              {card.stats.totalStops} stops
-                            </Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-6 px-4 py-3 flex flex-col">
-                          <div className="mb-3 flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
-                            {card.todayStats && card.todayStats.total > 0 ?
-                          <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
-                                <span className="text-blue-600">Active: {card.todayStats.active}</span>
-                                <span className="text-green-600">Comp: {card.todayStats.completed}</span>
-                                <span className="text-red-600">Failed: {card.todayStats.failed}</span>
-                                <span className="text-orange-600">Returns: {card.todayStats.returned}</span>
-                              </div> :
-                          <div className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No deliveries today</div>
-                          }
-                          </div>
-                          <div className="space-y-1 text-sm">
-                            <div className="flex justify-between items-center">
-                              <span style={{ color: 'var(--text-slate-600)' }}>Pickups:</span>
-                              <span className="bg-blue-500 text-white px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">{card.stats.pickups}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span style={{ color: 'var(--text-slate-600)' }}>Completed:</span>
-                              <span className="bg-emerald-500 text-white px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">{card.stats.completed}</span>
-                            </div>
-                            {(card.stats.failed > 0 || card.stats.returned > 0) &&
-                          <div className="flex justify-between items-center">
-                                <span style={{ color: 'var(--text-slate-600)' }}>Failed/Returned:</span>
-                                <span className="bg-red-500 text-white px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">
-                                  {card.stats.failed}/{card.stats.returned}
-                                </span>
-                              </div>
-                          }
-                          </div>
-                        </CardContent>
-                      </Card>);
-
-                })}
-                  </div>
+              <DriverOverviewCards
+                key={refreshKey}
+                driverCards={driverCards}
+                getDriverStatusBadgeClass={getDriverStatusBadgeClass}
+                handleDriverCardClick={handleDriverCardClick}
+              />
               }
               </div>
             </div> :

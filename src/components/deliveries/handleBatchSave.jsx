@@ -41,6 +41,11 @@ export async function handleBatchSave({
     return;
   }
 
+  const deletedDeliveryIds = stagedDeliveries
+    .filter((delivery) => delivery?.id && delivery?._pendingDelete)
+    .map((delivery) => delivery.id)
+    .filter(Boolean);
+
   if (await handlePendingDeleteOnlySave({
     stagedDeliveries,
     hasPendingDeletes,
@@ -53,7 +58,8 @@ export async function handleBatchSave({
     setIsLoadingPredictions,
     handleClearForm,
     onCancel,
-    formData
+    formData,
+    deletedDeliveryIds
   })) return;
 
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
@@ -184,16 +190,14 @@ export async function handleBatchSave({
 
       const ensureResultsByKey = new Map(await Promise.all(Array.from(groupedEnsureKeys.entries()).map(async ([key, { delivery }]) => {
         const driverDateKey = `${delivery.driver_id}__${delivery.delivery_date}`;
-        const shouldTryDefaultOnlyFirst = defaultPickupDriverDateKeys.has(driverDateKey);
+        const shouldUseDefaultPickupFlowOnly = defaultPickupDriverDateKeys.has(driverDateKey);
 
-        if (shouldTryDefaultOnlyFirst) {
+        if (shouldUseDefaultPickupFlowOnly) {
           const defaultPickupKey = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || 'AM'}`;
           const existingDefaultPickup = normalizedDefaultPickups.find((pickup) =>
             `${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || 'AM'}` === defaultPickupKey
           );
-          if (existingDefaultPickup) {
-            return [key, { data: { pickup: existingDefaultPickup, puid: existingDefaultPickup.stop_id || existingDefaultPickup.puid || '' } }];
-          }
+          return [key, existingDefaultPickup ? { data: { pickup: existingDefaultPickup, puid: existingDefaultPickup.stop_id || existingDefaultPickup.puid || '' } } : null];
         }
 
         const result = await base44.functions.invoke('ensurePickupForDelivery', {

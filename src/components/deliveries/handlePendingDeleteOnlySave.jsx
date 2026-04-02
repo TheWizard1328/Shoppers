@@ -12,9 +12,11 @@ export async function handlePendingDeleteOnlySave({
   setIsLoadingPredictions,
   handleClearForm,
   onCancel,
-  formData
+  formData,
+  deletedDeliveryIds = []
 }) {
   if (stagedDeliveries.length !== 0 || !hasPendingDeletes) return false;
+  if (!deletedDeliveryIds.length) return false;
 
   resetBatchSaveDraftState({
     setStagedDeliveries,

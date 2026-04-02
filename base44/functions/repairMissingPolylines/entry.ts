@@ -16,16 +16,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
     }
 
-    const deliveries = await base44.asServiceRole.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    }, 'stop_order', 50000);
+    const result = await base44.functions.invoke('purgeAndRegeneratePolylines', {
+      driverId,
+      deliveryDate
+    });
 
-    if (!Array.isArray(deliveries) || deliveries.length === 0) {
-      return Response.json({ success: true, skipped: true, reason: 'no_deliveries' });
-    }
-
-    return Response.json({ success: true, skipped: false, message: 'Use purgeAndRegeneratePolylines directly for regeneration.' });
+    return Response.json(result?.data || result || { success: true });
   } catch (error) {
     return Response.json({ error: error?.message || 'Internal error' }, { status: 500 });
   }

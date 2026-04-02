@@ -38,17 +38,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
       // CRITICAL: Update runtime stats with entity count during sync
       if (status.entity && status.count !== undefined) {
-        const entityKeyMap = {
-          AppUsers: 'appusers',
-          Users: 'appusers',
-          Deliveries: 'deliveries',
-          Patients: 'patients',
-          Cities: 'cities'
-        };
-        const runtimeKey = entityKeyMap[status.entity] || status.entity.toLowerCase();
         setRuntimeStats(prev => ({
           ...prev,
-          [runtimeKey]: status.count
+          [status.entity.toLowerCase()]: status.count
         }));
         console.log(`🔄 [OfflineSyncIndicator] ${status.entity} syncing - count: ${status.count} (progress: ${status.progress || 0}%)`);
       }
@@ -170,10 +162,13 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       console.log('🔄 [OfflineSyncIndicator] Starting manual sync (merge-only, no clear)...');
 
       // CRITICAL: Do NOT clear delivery/patient data before syncing.
-      // Restore the previous safer behavior: only sync the selected date/city into offline DB.
+      // forceSyncAll uses bulkSave (upsert) which preserves historical records
+      // across the full date range (90 days mobile / all time desktop).
       const { offlineDB } = await import('../utils/offlineDatabase');
+
+      // Compute selected date and city, then run targeted manual sync
       const { globalFilters } = await import('../utils/globalFilters');
-      const dateForSync = globalFilters?.getSelectedDate?.() || sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
+      const dateForSync = sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
       const selectedCityId = globalFilters?.getSelectedCityId?.();
       const syncResult = await manualSyncSelected(dateForSync, selectedCityId);
       console.log('✅ [OfflineSyncIndicator] manualSyncSelected complete:', syncResult);

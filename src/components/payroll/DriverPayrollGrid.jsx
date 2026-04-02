@@ -216,11 +216,12 @@ export default function DriverPayrollGrid({
     return extraKm > 0 ? extraKm : 0;
   };
 
-  // Build a map of dateKey -> store -> count (deliveries), extraKm, and oversized count
-  const { dataMap, extraKmMap, oversizedMap, storesWithData } = useMemo(() => {
+  // Build a map of dateKey -> store -> count (deliveries), extraKm, oversized count, and after-hours count
+  const { dataMap, extraKmMap, oversizedMap, afterHoursMap, storesWithData } = useMemo(() => {
     const deliveryMap = {};
     const kmMap = {};
     const oversizedCountMap = {};
+    const afterHoursCountMap = {};
     const storeHasData = {};
     
     
@@ -229,10 +230,12 @@ export default function DriverPayrollGrid({
       deliveryMap[dateKey] = {};
       kmMap[dateKey] = {};
       oversizedCountMap[dateKey] = {};
+      afterHoursCountMap[dateKey] = {};
       allSortedStores.forEach(store => {
         deliveryMap[dateKey][store.id] = 0;
         kmMap[dateKey][store.id] = 0;
         oversizedCountMap[dateKey][store.id] = 0;
+        afterHoursCountMap[dateKey][store.id] = 0;
       });
     });
 
@@ -246,6 +249,9 @@ export default function DriverPayrollGrid({
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
+        if (d.after_hours_pickup) {
+          afterHoursCountMap[dateKey][storeId]++;
+        }
       }
     });
 
@@ -254,7 +260,7 @@ export default function DriverPayrollGrid({
       store.status !== 'inactive'
     );
 
-    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, storesWithData: storesWithDataList };
+    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, afterHoursMap: afterHoursCountMap, storesWithData: storesWithDataList };
   }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers, selectedDriverId, currentPeriod]);
 
   // Use stores with data for display (hide empty columns)
@@ -509,6 +515,8 @@ export default function DriverPayrollGrid({
                         ? (extraKmMap[dateKey]?.[store.id] || 0)
                         : (dataMap[dateKey]?.[store.id] || 0);
                       const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
+                      const afterHoursCount = afterHoursMap[dateKey]?.[store.id] || 0;
+                      const showAfterHoursMarkers = !!isOwner || currentUser?.id === selectedDriverId;
                       const displayValueMobile = viewMode === 'extraKm' 
                         ? (value > 0 ? value.toFixed(1) : '')
                         : (value > 0 ? value : '');
@@ -518,14 +526,39 @@ export default function DriverPayrollGrid({
                       const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 
                         ? '+'.repeat(oversizedCount) 
                         : '';
+                      const dashSigns = viewMode === 'deliveries' && showAfterHoursMarkers && afterHoursCount > 0
+                        ? '-'.repeat(afterHoursCount)
+                        : '';
+                      const hasBothMarkers = !!plusSigns && !!dashSigns;
+                      const markerValue = plusSigns || dashSigns || '';
                       return (
                         <td
                            key={store.id}
                            className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                            style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
-                         >
-                          <span className="md:hidden">{displayValueMobile}{plusSigns}</span>
-                          <span className="hidden md:inline">{displayValueDesktop}{plusSigns}</span>
+                        >
+                         <span className="md:hidden relative inline-flex w-[20px] justify-center overflow-visible">
+                           <span className="flex justify-center items-center w-full">{displayValueMobile}</span>
+                           {hasBothMarkers ? (
+                             <span className="absolute left-[calc(100%-2px)] top-1/2 -translate-y-1/2 inline-grid grid-rows-2 leading-[0.7] text-left">
+                               <span className="h-[7px] flex items-center">{plusSigns}</span>
+                               <span className="h-[7px] flex items-center">{dashSigns}</span>
+                             </span>
+                           ) : markerValue ? (
+                             <span className="absolute left-[calc(100%-2px)] top-1/2 -translate-y-1/2 text-left whitespace-nowrap">{markerValue}</span>
+                           ) : null}
+                         </span>
+                         <span className="hidden md:inline-flex relative w-[28px] justify-center overflow-visible">
+                           <span className="flex justify-center items-center w-full">{displayValueDesktop}</span>
+                           {hasBothMarkers ? (
+                             <span className="absolute left-[calc(100%-3px)] top-1/2 -translate-y-1/2 inline-grid grid-rows-2 leading-[0.7] text-left w-[18px]">
+                               <span className="h-[7px] flex items-center">{plusSigns}</span>
+                               <span className="h-[7px] flex items-center">{dashSigns}</span>
+                             </span>
+                           ) : markerValue ? (
+                             <span className="absolute left-[calc(100%-3px)] top-1/2 -translate-y-1/2 text-left whitespace-nowrap w-[18px]">{markerValue}</span>
+                           ) : null}
+                         </span>
                         </td>
                       );
                     })}

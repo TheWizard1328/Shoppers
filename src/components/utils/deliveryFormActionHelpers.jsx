@@ -80,17 +80,9 @@ export const resumeDeliveryFormManagers = async () => {
   fabControlEvents.resumeFAB();
 };
 
-export const closeDeliveryFormAfterSave = async ({ handleClearForm, onCancel }) => {
-  try {
-    handleClearForm();
-    onCancel();
-  } finally {
-    try {
-      await resumeDeliveryFormManagers();
-    } catch (error) {
-      console.warn('⚠️ [DeliveryForm] Failed to resume managers after close:', error?.message || error);
-    }
-  }
+export const closeDeliveryFormAfterSave = ({ handleClearForm, onCancel }) => {
+  handleClearForm();
+  onCancel();
 };
 
 export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, currentUser }) => {

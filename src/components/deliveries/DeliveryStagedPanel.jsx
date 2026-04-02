@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 import DeliveryFormStaged from './DeliveryFormStaged';
 
 // Desktop staged panel
@@ -179,6 +179,7 @@ export function DeliveryDeleteConfirmDialog({
   stagedDeliveries,
   allDeliveries,
   onConfirmDelete,
+  deleteLabel = 'Delete',
 }) {
   if (!deleteConfirmation.show || !deleteConfirmation.staged) return null;
 
@@ -214,6 +215,7 @@ export function DeliveryDeleteConfirmDialog({
                 <Select
                   value={deleteConfirmation.transferPickupId || otherPickups[0]?.id || "delete_all"}
                   onValueChange={(value) => setDeleteConfirmation(prev => ({ ...prev, transferPickupId: value === "delete_all" ? null : value }))}
+                  disabled={isDeletingPending}
                 >
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent className="z-[60010]">
@@ -232,8 +234,8 @@ export function DeliveryDeleteConfirmDialog({
 
         <div className="flex gap-2 justify-end">
           <Button variant="outline" size="sm" onClick={() => setDeleteConfirmation({ show: false, staged: null, transferPickupId: null })} disabled={isDeletingPending}>Cancel</Button>
-          <Button variant="destructive" size="sm" disabled={isDeletingPending} onClick={onConfirmDelete}>
-            {isDeletingPending ? 'Processing...' : (deleteConfirmation.transferPickupId ? 'Trans & Del' : 'Delete')}
+          <Button variant="destructive" size="sm" disabled={isDeletingPending} onClick={onConfirmDelete} className="disabled:opacity-100 disabled:pointer-events-none">
+            {isDeletingPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting...</> : (deleteConfirmation.transferPickupId ? 'Trans & Del' : deleteLabel)}
           </Button>
         </div>
       </div>

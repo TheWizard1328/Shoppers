@@ -53,11 +53,8 @@ export function useConfirmDelete({
         setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
         return;
       }
-      const linkedStops = !staged.patient_id
-        ? sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === staged.stop_id)
-        : [];
-
       if (!staged.patient_id && deleteConfirmation.transferPickupId) {
+        const linkedStops = sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === staged.stop_id);
         if (linkedStops.length) {
           const targetPickup = sortedStagedDeliveries.find((s) => s.id === deleteConfirmation.transferPickupId);
           if (!targetPickup) throw new Error('Target pickup not found');
@@ -72,19 +69,6 @@ export function useConfirmDelete({
             });
           }
         }
-      }
-
-      window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
-        detail: {
-          deletedIds: [
-            staged.id,
-            ...(!staged.patient_id && !deleteConfirmation.transferPickupId ? linkedStops.map((item) => item.id).filter(Boolean) : [])
-          ]
-        }
-      }));
-
-      if (!staged.patient_id && !deleteConfirmation.transferPickupId && linkedStops.length > 0) {
-        await Promise.all(linkedStops.map((item) => deleteDeliveryLocal(item.id)));
       }
 
       await deleteDeliveryLocal(staged.id);
@@ -136,7 +120,6 @@ export function useConfirmDelete({
       setError(`Failed: ${err.message}`);
     } finally {
       setIsDeletingPending(false);
-      setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
     }
   }, [deleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm]);
 }

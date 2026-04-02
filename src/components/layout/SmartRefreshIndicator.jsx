@@ -112,9 +112,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const handleRateLimitError = (event) => {
-        setHasError(event.detail.hasError);
-        // Clear error after 5 seconds
-        if (event.detail.hasError) {
+        const nextHasError = !!event.detail.hasError;
+        setHasError((prev) => (prev === nextHasError ? prev : nextHasError));
+        if (nextHasError) {
           setTimeout(() => setHasError(false), 5000);
         }
       };
@@ -130,11 +130,10 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       // CRITICAL: Track smart refresh state by polling isRefreshing flag every 50ms
       const checkSmartRefresh = () => {
         const isRefreshing = smartRefreshManager?.isRefreshing || false;
-        
-        // Update state only when it changes to prevent re-renders
+
         if (isRefreshing !== isRefreshingRef.current) {
           isRefreshingRef.current = isRefreshing;
-          setIsSmartRefreshActive(isRefreshing);
+          setIsSmartRefreshActive((prev) => (prev === isRefreshing ? prev : isRefreshing));
           
           if (isRefreshing) {
             console.log('🟢 [Indicator] Smart refresh STARTED - showing green spinner');
@@ -172,27 +171,27 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
   // Determine active manager and color
   useEffect(() => {
-    if (isSmartRefreshActive) {
-      setActiveManager('smart');
-    } else if (isOfflineSyncActive) {
-      setActiveManager('offline');
-    } else if (isPollingActive) {
-      setActiveManager('polling');
-    } else {
-      setActiveManager(null);
-    }
+    const nextManager = isSmartRefreshActive
+      ? 'smart'
+      : isOfflineSyncActive
+        ? 'offline'
+        : isPollingActive
+          ? 'polling'
+          : null;
+
+    setActiveManager((prev) => (prev === nextManager ? prev : nextManager));
   }, [isSmartRefreshActive, isOfflineSyncActive, isPollingActive]);
 
   useEffect(() => {
     const refreshLooksActive = smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive;
 
     if (!refreshLooksActive) {
-      setIsRefreshStuck(false);
+      setIsRefreshStuck((prev) => (prev ? false : prev));
       return;
     }
 
     const stuckTimer = setTimeout(() => {
-      setIsRefreshStuck(true);
+      setIsRefreshStuck((prev) => (prev ? prev : true));
     }, 30000);
 
     return () => clearTimeout(stuckTimer);
@@ -230,6 +229,23 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     if (isManualRefreshing || isPaused) return;
     if (window.__dashboardSyncing && window.__activePullToSyncRunId) return;
 
+    if (typeof window !== 'undefined' && window.location.pathname.includes('Deliveries')) {
+      setIsManualRefreshing(true);
+      let completed = false;
+      const finish = () => {
+        if (completed) return;
+        completed = true;
+        setIsManualRefreshing(false);
+        window.removeEventListener('routeManagementPullToSyncComplete', finish);
+      };
+      window.addEventListener('routeManagementPullToSyncComplete', finish);
+      window.dispatchEvent(new CustomEvent('routeManagementPullToSyncRequested', {
+        detail: { silent: true, requestedAt: Date.now() }
+      }));
+      setTimeout(finish, 10000);
+      return;
+    }
+
     setIsManualRefreshing(true);
 
     // Trigger pull-to-sync (silent mode - no overlay)
@@ -239,25 +255,25 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     // Also kick polyline repair directly to avoid waiting for pull handler wiring in some views
     try {
-      const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-      repairMissingPolylines({ date: today }).catch(() => null);
+      window.base44?.functions?.invoke?.('repairMissingPolylines', {
+        deliveryDate: today,
+        date: today
+      }).catch(() => null);
     } catch(_) {}
 
     // Listen for completion, with fallback timeout
     let completed = false;
-    let fallbackTimer = null;
-    const finishRefresh = () => {
+    const handleSyncComplete = () => {
       if (completed) return;
       completed = true;
       setIsManualRefreshing(false);
-      window.removeEventListener('pullToSyncComplete', finishRefresh);
-      if (fallbackTimer) clearTimeout(fallbackTimer);
+      window.removeEventListener('pullToSyncComplete', handleSyncComplete);
       window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
     };
 
-    window.addEventListener('pullToSyncComplete', finishRefresh);
-    fallbackTimer = setTimeout(finishRefresh, 10000);
+    window.addEventListener('pullToSyncComplete', handleSyncComplete);
+    setTimeout(handleSyncComplete, 10000);
   };
 
   // Entity labels

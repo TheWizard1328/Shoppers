@@ -87,16 +87,12 @@ export async function runDeliverySubmitSideEffects({
     }
   }
 
-  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode) {
-    try {
-      setTimeout(() => {
-        reorderStops(formData.driver_id, formData.delivery_date, allDeliveries)
-          .then(() => console.log('✅ [DeliveryForm] Stop reordering complete (bg)'))
-          .catch((error) => console.error('❌ [DeliveryForm] Stop reordering failed (bg):', error));
-      }, 0);
-    } catch (error) {
-      console.error('❌ [DeliveryForm] Stop reordering failed:', error);
-    }
+  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode && !statusChangedToCompletion) {
+    setTimeout(() => {
+      reorderStops(formData.driver_id, formData.delivery_date, allDeliveries)
+        .then(() => console.log('✅ [DeliveryForm] Stop reordering complete (bg)'))
+        .catch((error) => console.warn('⚠️ [DeliveryForm] Stop reordering skipped (bg):', error?.message || error));
+    }, 0);
   }
 
   if (statusChangedToCompletion && delivery && formData.status === 'completed') {
@@ -105,7 +101,7 @@ export async function runDeliverySubmitSideEffects({
         deliveryDate: formData.delivery_date,
         driverId: formData.driver_id
       }).catch((error) => {
-        console.error('❌ [DeliveryForm] Patient update failed:', error);
+        console.warn('⚠️ [DeliveryForm] Patient update skipped:', error?.message || error);
       });
     }, 0);
   }
