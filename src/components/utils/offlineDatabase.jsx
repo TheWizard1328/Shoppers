@@ -13,7 +13,8 @@ const getScopedDbName = () => CANONICAL_DB_NAME;
 
 const getLegacyFallbackDbNames = () => {
   const names = [
-    'rxdeliver_persistent_offline_v1_preview--wizard-worxx-2408a9d6_base44_app'
+    'rxdeliver_persistent_offline_v1_preview--wizard-worxx-2408a9d6_base44_app',
+    'rxdeliver_persistent_offline_v1_preview-sandbox--68570f3cd01bfa2d2408a9d6_base44_app'
   ];
   return Array.from(new Set(names.filter((name) => name && name !== CANONICAL_DB_NAME)));
 };
@@ -152,6 +153,16 @@ const importBestLegacyDataIntoTarget = async (targetDb) => {
   return 0;
 };
 
+const deleteLegacyDatabases = async () => {
+  const fallbackNames = getLegacyFallbackDbNames();
+  await Promise.all(fallbackNames.map((name) => new Promise((resolve) => {
+    const request = indexedDB.deleteDatabase(name);
+    request.onsuccess = () => resolve(true);
+    request.onerror = () => resolve(false);
+    request.onblocked = () => resolve(false);
+  })));
+};
+
 const migrateLegacyDataIfNeeded = async (targetDb) => {
   if (migrationPromise) return migrationPromise;
 
@@ -167,9 +178,11 @@ const migrateLegacyDataIfNeeded = async (targetDb) => {
         request.onerror = () => reject(request.error);
       }).catch(() => 0);
 
-      if (existingDeliveries > 0) return;
+      if (existingDeliveries === 0) {
+        await importBestLegacyDataIntoTarget(targetDb);
+      }
 
-      await importBestLegacyDataIntoTarget(targetDb);
+      await deleteLegacyDatabases();
     } finally {
       migrationPromise = null;
     }
@@ -1307,6 +1320,7 @@ export const offlineDB = {
   STORES,
   getDbName: getScopedDbName,
   getLegacyFallbackDbNames,
+  deleteLegacyDatabases,
   openDatabase,
   save,
   bulkSave,
