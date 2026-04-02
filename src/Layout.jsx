@@ -396,7 +396,7 @@ export default function Layout({ children, currentPageName }) {
           if(pd?.length){await offlineDB.bulkSave(offlineDB.STORES.PATIENTS,pd);setPatients(pd);}
           if(aud?.length){await offlineDB.bulkSave(offlineDB.STORES.APP_USERS,aud);setAppUsers(aud);}
           if(sd?.length){sd.sort((a,b)=>(a.sort_order??Infinity)-(b.sort_order??Infinity));await offlineDB.bulkSave(offlineDB.STORES.STORES,sd);setStores(sd);}
-          if(!dd?.length||!pd?.length||!aud?.length)window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
+          if(!dd?.length||!pd?.length){window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
         } catch(e){console.warn('⚠️ Offline DB prime failed:',e.message);window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
         const {markOfflineDBLoadComplete}=await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { subscribeSyncStatus, getSyncStats, manualSyncSelected } from '@/components/utils/offlineSync';
+import { subscribeSyncStatus, getSyncStats, restartDeliveryPatientSync } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -169,14 +169,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       setIsSyncing(true);
       console.log('🔄 [OfflineSyncIndicator] Starting manual sync (merge-only, no clear)...');
 
-      // CRITICAL: Do NOT clear delivery/patient data before syncing.
-      // Restore the previous safer behavior: only sync the selected date/city into offline DB.
       const { offlineDB } = await import('../utils/offlineDatabase');
-      const { globalFilters } = await import('../utils/globalFilters');
-      const dateForSync = globalFilters?.getSelectedDate?.() || sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
-      const selectedCityId = globalFilters?.getSelectedCityId?.();
-      const syncResult = await manualSyncSelected(dateForSync, selectedCityId);
-      console.log('✅ [OfflineSyncIndicator] manualSyncSelected complete:', syncResult);
+      const syncResult = await restartDeliveryPatientSync();
+      console.log('✅ [OfflineSyncIndicator] restartDeliveryPatientSync complete:', syncResult);
       
       // Wait for DB to settle
       await new Promise(resolve => setTimeout(resolve, 500));

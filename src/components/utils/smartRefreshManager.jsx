@@ -490,6 +490,7 @@ class LightweightRefreshManager {
 
           if ((offlineDeliveries?.length || 0) === 0 || (offlinePatients?.length || 0) === 0) {
             console.warn('⚠️ [LightweightRefresh] Critical offline data missing - restarting delivery/patient sync');
+            this.lastRefreshTimes.offlineSync = Date.now();
             restartDeliveryPatientSync().catch((error) => {
               console.warn('⚠️ [LightweightRefresh] restartDeliveryPatientSync failed:', error?.message || error);
             });
