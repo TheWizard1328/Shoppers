@@ -855,59 +855,6 @@ export const quickReconcile = async (selectedDateStr) => {
     console.warn('⚠️ [QuickReconcile] Delivery check failed:', e.message);
   }
 
-  // --- AppUsers ---
-  try {
-    const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-    const offlineLatest = (offlineAppUsers || []).reduce((max, u) => {
-      const t = u.updated_date ? new Date(u.updated_date).getTime() : 0;
-      return t > max ? t : max;
-    }, 0);
-
-    const [serverSampleUser] = await AppUser.filter({}, '-updated_date', 1);
-    if (serverSampleUser) {
-      const serverLatest = new Date(serverSampleUser.updated_date || 0).getTime();
-      const isEmpty = !offlineAppUsers || offlineAppUsers.length === 0;
-      if (serverLatest > offlineLatest || isEmpty) {
-        console.log(`🔄 [QuickReconcile] AppUsers: server has newer data or offline empty. Syncing...`);
-        const freshAppUsers = await fetchAppUsersDedup();
-        if (freshAppUsers && freshAppUsers.length > 0) {
-          const userMap = new Map();
-          freshAppUsers.forEach(au => {
-            if (!au?.user_id) return;
-            const ex = userMap.get(au.user_id);
-            if (!ex) { userMap.set(au.user_id, au); return; }
-            const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-            const exLoc = ex.location_updated_at ? new Date(ex.location_updated_at).getTime() : 0;
-            if (newLoc > exLoc) userMap.set(au.user_id, au);
-          });
-          const deduped = Array.from(userMap.values());
-          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduped);
-          invalidateEntityCache('AppUser');
-          await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
-          result.appUsersUpdated = true;
-          result.freshAppUsers = deduped;
-          console.log(`✅ [QuickReconcile] Synced ${deduped.length} AppUsers`);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('offlineDBReconciled', {
-              detail: { entity: 'AppUser', count: deduped.length }
-            }));
-            // CRITICAL: Only dispatch valid AppUsers (filter out junk offline records)
-            const validDeduped = deduped.filter(u => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined');
-            if (validDeduped.length > 0) {
-              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                detail: { appUsers: validDeduped }
-              }));
-            }
-          }
-        }
-      } else {
-        console.log(`✅ [QuickReconcile] AppUsers up-to-date (${offlineAppUsers?.length || 0})`);
-      }
-    }
-  } catch (e) {
-    console.warn('⚠️ [QuickReconcile] AppUser check failed:', e.message);
-  }
-
   return result;
 };
 

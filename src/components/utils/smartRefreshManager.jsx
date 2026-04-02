@@ -33,7 +33,9 @@ class LightweightRefreshManager {
 
     // Track last WebSocket update timestamp for conditional polling
     this.lastWebSocketAppUserUpdate = 0;
-    this.WEBSOCKET_FRESHNESS_THRESHOLD = 30000; // 30 seconds
+    this.lastAppUserApiRefreshAt = 0;
+    this.allowSingleAppUserFallbackUntil = 0;
+    this.WEBSOCKET_FRESHNESS_THRESHOLD = 60000; // 60 seconds
     // Driver locations fallback/backoff
     this.driverRefreshBackoffMs = 0;
     this.driverNextAllowedAt = 0;
@@ -123,6 +125,8 @@ class LightweightRefreshManager {
 
       if (lastFullSyncMs && (now - lastFullSyncMs) < 120000) {
         console.log('⏭️ [SmartRefresh] Skipping AppUser startup sync - full sync ran within 120s');
+        this.lastAppUserApiRefreshAt = lastFullSyncMs;
+        this.allowSingleAppUserFallbackUntil = Date.now() + 60000;
         return;
       }
 
@@ -139,6 +143,8 @@ class LightweightRefreshManager {
         await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString(), {
           last_full_appuser_sync_at: new Date().toISOString()
         });
+        this.lastAppUserApiRefreshAt = Date.now();
+        this.allowSingleAppUserFallbackUntil = Date.now() + 60000;
         console.log(`✅ [SmartRefresh] AppUser offline sync complete; websocket-first updates will take over.`);
         this.recordSuccess();
       } else {
@@ -178,20 +184,26 @@ class LightweightRefreshManager {
    * Restart refresh timers
    */
   restart(specificEntityType = null) {
-    if (specificEntityType) {
-      console.log(`🔄 [LightweightRefresh] Restarting ${specificEntityType} refresh timer`);
-      this.lastRefreshTimes[specificEntityType] = 0;
-    } else {
-      console.log('🔄 [LightweightRefresh] Restarting all refresh timers');
-      this.lastRefreshTimes = {
-        cities: 0,
-        stores: 0,
-        appUsers: 0,
-        offlineSync: 0,
-        cacheRefresh: 0
-      };
-      this._paused = false;
-    }
+   if (specificEntityType) {
+     console.log(`🔄 [LightweightRefresh] Restarting ${specificEntityType} refresh timer`);
+     this.lastRefreshTimes[specificEntityType] = 0;
+     if (specificEntityType === 'appUsers') {
+       this.lastAppUserApiRefreshAt = Date.now();
+       this.allowSingleAppUserFallbackUntil = Date.now() + 60000;
+     }
+   } else {
+     console.log('🔄 [LightweightRefresh] Restarting all refresh timers');
+     this.lastRefreshTimes = {
+       cities: 0,
+       stores: 0,
+       appUsers: 0,
+       offlineSync: 0,
+       cacheRefresh: 0
+     };
+     this.lastAppUserApiRefreshAt = Date.now();
+     this.allowSingleAppUserFallbackUntil = Date.now() + 60000;
+     this._paused = false;
+   }
   }
 
   /**
@@ -476,13 +488,17 @@ class LightweightRefreshManager {
         }
       }
 
-      // AppUser is offline-first: websocket updates offline DB, and every 30s we refresh UI from offline DB only
+      // AppUser is websocket-first after initial load/refresh.
+      // Only refresh UI from offline DB during the 60s post-load/post-refresh fallback window.
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
-          const { offlineDB } = await import('./offlineDatabase');
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-          if (offlineAppUsers && offlineAppUsers.length > 0) {
-            updates.appUsers = offlineAppUsers;
+          const withinFallbackWindow = Date.now() <= this.allowSingleAppUserFallbackUntil;
+          if (withinFallbackWindow) {
+            const { offlineDB } = await import('./offlineDatabase');
+            const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            if (offlineAppUsers && offlineAppUsers.length > 0) {
+              updates.appUsers = offlineAppUsers;
+            }
           }
         } catch (e) {
           console.warn('⚠️ [LightweightRefresh] AppUser offline UI refresh failed:', e.message);
@@ -666,8 +682,8 @@ class LightweightRefreshManager {
         Object.assign(updates, lightweightUpdates);
       }
 
-      // STEP 4: Quick reconciliation - compare online vs offline for Deliveries & AppUsers
-      // Runs at most every 2 minutes to avoid rate limits
+      // STEP 4: Quick reconciliation - compare online vs offline for Deliveries only
+      // AppUser stays websocket-first after initial load/refresh to avoid rate limits.
       const now = Date.now();
       const timeSinceLastReconcile = now - (this._lastReconcileTime || 0);
       if (timeSinceLastReconcile > 600000 && filters.deliveryFilter?.delivery_date) {
@@ -681,10 +697,6 @@ class LightweightRefreshManager {
             updates.deliveries = reconcileResult.freshDeliveries;
             updates.isFullReplacementDeliveries = true;
             console.log(`📦 [SmartRefresh] Reconcile updated deliveries: ${reconcileResult.freshDeliveries.length}`);
-          }
-          if (reconcileResult.appUsersUpdated && reconcileResult.freshAppUsers) {
-            updates.appUsers = reconcileResult.freshAppUsers;
-            console.log(`👤 [SmartRefresh] Reconcile updated AppUsers: ${reconcileResult.freshAppUsers.length}`);
           }
           this.recordSuccess();
         } catch (e) {
