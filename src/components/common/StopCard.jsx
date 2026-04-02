@@ -651,13 +651,19 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           } else {
                             fabControlEvents.notifyDoneButtonClicked();window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));try {locationTracker.stopTracking();} catch (trackingError) {console.warn('Could not stop location tracking:', trackingError.message);}if (onDriverStatusChange) onDriverStatusChange('off_duty');}
                           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, freshDeliveries: routeDeliveries } }));if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('collapseAllStopCards'));fabControlEvents.notifyPhaseTwoCompleteRecenter();fabControlEvents.reactivateFAB(true);
-                          const { updateCompletionPolylines } = await import('@/components/utils/updateCompletionPolylines');
-                          const backgroundTasks = [];
-                          if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
-                          backgroundTasks.push(updateCompletionPolylines({ completedDelivery: { ...delivery, ...completionUpdate }, nextDelivery: nextStop || null, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, allDeliveries: routeDeliveries, patients, stores, breadcrumbPayload: pendingBreadcrumbsString }));
-                          if (!nextStop && currentUser?.id) backgroundTasks.push((async () => {const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });if (appUsers && appUsers.length > 0) await base44.entities.AppUser.update(appUsers[0].id, { driver_status: 'off_duty', location_tracking_enabled: false });})());
-                          backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve());
-                          await Promise.allSettled(backgroundTasks);
+                          Promise.resolve().then(async () => {
+                            try {
+                              const { updateCompletionPolylines } = await import('@/components/utils/updateCompletionPolylines');
+                              const backgroundTasks = [];
+                              if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
+                              backgroundTasks.push(updateCompletionPolylines({ completedDelivery: { ...delivery, ...completionUpdate }, nextDelivery: nextStop || null, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, allDeliveries: routeDeliveries, patients, stores, breadcrumbPayload: pendingBreadcrumbsString }));
+                              if (!nextStop && currentUser?.id) backgroundTasks.push((async () => {const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });if (appUsers && appUsers.length > 0) await base44.entities.AppUser.update(appUsers[0].id, { driver_status: 'off_duty', location_tracking_enabled: false });})());
+                              backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve());
+                              await Promise.allSettled(backgroundTasks);
+                            } catch (backgroundError) {
+                              console.warn('⚠️ [COMPLETE] Background tasks failed:', backgroundError?.message || backgroundError);
+                            }
+                          });
                         } catch (error) {console.error('❌ [COMPLETE] Error:', error);toast.error(`Failed to complete: ${error.message}`);throw error;} finally {
                           driverLocationPoller?.resume?.();
                           smartRefreshManager.resume();
