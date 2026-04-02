@@ -52,10 +52,7 @@ async function flushBuffered(entityName) {
   let fullReplacementData = null;
   try {
     if (entityName === 'Delivery') {
-      const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
-      if (selectedDate) {
-        fullReplacementData = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
-      }
+      fullReplacementData = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
     } else if (entityName === 'AppUser') {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     } else if (entityName === 'Patient') {
@@ -90,7 +87,6 @@ async function flushBuffered(entityName) {
   });
 
   if (typeof window !== 'undefined' && entityName === 'Delivery' && Array.isArray(fullReplacementData)) {
-    const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
     const hasRelevantDeliveryChange = items.some((item) => item.eventType === 'create' || item.eventType === 'delete' || item.eventType === 'update');
 
     if (hasRelevantDeliveryChange) {
@@ -99,7 +95,6 @@ async function flushBuffered(entityName) {
           deliveries: fullReplacementData,
           freshDeliveries: fullReplacementData,
           immediate: true,
-          deliveryDate: selectedDate,
           triggeredBy: 'realtimeBufferedFullRefresh',
           source: 'realtime_sync',
           fromRealtime: true,

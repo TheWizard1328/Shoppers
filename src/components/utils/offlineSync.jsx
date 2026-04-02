@@ -337,7 +337,8 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     const deliveries = await fetchDeliveriesDedup(selectedDateStr, deliveryFilter);
     if (deliveries && deliveries.length > 0) {
         const existingDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        if (deliveries.length > 0 || existingDateDeliveries.length === 0) {
+        const shouldReplaceDateRecords = deliveries.length > 0 || existingDateDeliveries.length === 0;
+        if (shouldReplaceDateRecords) {
           await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries);
         } else {
           console.warn(`⚠️ [PrioritySyncBeforeRefresh] Skipped delivery replacement for ${selectedDateStr} because incoming data was empty while offline DB had ${existingDateDeliveries.length} records`);
@@ -621,11 +622,17 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     // Step 5: Deliveries for selected date
     const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
     const deliveries = await Delivery.filter(deliveryFilter);
+    const existingSelectedDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+    const shouldReplaceSelectedDateDeliveries = (deliveries && deliveries.length > 0) || existingSelectedDateDeliveries.length === 0;
     
-    if (deliveries && deliveries.length > 0) {
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries);
+    if (shouldReplaceSelectedDateDeliveries) {
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries || []);
         invalidateEntityCache('Delivery');
+    } else {
+        console.warn(`⚠️ [LoadPriorityData] Skipped delivery replacement for ${selectedDateStr} because incoming data was empty while offline DB had ${existingSelectedDateDeliveries.length} records`);
+    }
 
+    if (deliveries && deliveries.length > 0) {
         // CRITICAL: Sync patients referenced in these deliveries
       const patientIds = new Set(
         deliveries
