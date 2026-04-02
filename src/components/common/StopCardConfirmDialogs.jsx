@@ -159,7 +159,7 @@ export default function StopCardConfirmDialogs({
                         detail: { deletedIds: [delivery.id] }
                       }));
                       if (typeof onDeleteDelivery === 'function') {
-                        await onDeleteDelivery(delivery.id);
+                        onDeleteDelivery(delivery.id).catch(() => {});
                       }
                     }
                     setShowDeleteConfirm(false);

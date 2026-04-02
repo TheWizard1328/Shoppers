@@ -617,7 +617,10 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
     let backendNotFound = false;
 
     try {
-      await base44.entities.Delivery.delete(deliveryId);
+      await Promise.race([
+        base44.entities.Delivery.delete(deliveryId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Delete request timed out')), 12000))
+      ]);
       backendDeleted = true;
       console.log('☁️ [EntityMutations] Backend deleted:', deliveryId);
     } catch (error) {
@@ -803,7 +806,10 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     
     for (const id of deliveryIds) {
       try {
-        await base44.entities.Delivery.delete(id);
+        await Promise.race([
+          base44.entities.Delivery.delete(id),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Delete request timed out')), 12000))
+        ]);
         deletedOnlineIds.push(id);
       } catch (error) {
         if (error.message?.includes('not found') || error.message?.includes('404') || error.response?.status === 404) {
