@@ -317,7 +317,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       });
       const refreshedPendingPickups = pendingPickups.filter((item) => item?.id && !pendingIds.has(item.id));
 
-      await Promise.all(localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true })));
+      await Promise.all(localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true, isBatchOperation: true })));
       if (updateDeliveriesLocally) {
         updateDeliveriesLocally(optimisticRouteDeliveries, true);
       }
@@ -331,21 +331,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
       const codBatch = allPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);return { deliveryId: pendingDelivery.id, patientName: pendingDelivery.patient_name, storeAbbreviation: storeForCod?.abbreviation || '', codAmount: pendingDelivery.cod_total_amount_required, deliveryDate: pendingDelivery.delivery_date, storeId: pendingDelivery.store_id };});
 
-      // Commit the pending → in_transit transition immediately so all devices stay in sync
       try {
-        await Promise.all(
-          sortedPending.map((pendingDelivery, i) =>
-            updateDeliveryLocal(pendingDelivery.id, {
-              status: 'in_transit',
-              delivery_time_start: deliveryTimeStart,
-              tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1)
-            }, { skipSmartRefresh: true, isBatchOperation: true })
-          )
-        );
         invalidate('Delivery');
         await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
       } catch (syncErr) {
-        console.warn('⚠️ [Accept All] immediate sync failed:', syncErr?.message || syncErr);
+        console.warn('⚠️ [Accept All] immediate refresh failed:', syncErr?.message || syncErr);
       }
 
       // Background: Route optimization (final UI update only after optimization completes)
