@@ -71,13 +71,28 @@ Deno.serve(async (req) => {
 
     console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}, transferred ${distanceToTransfer} km`);
 
+    let optimization = null;
+    try {
+      const now = new Date();
+      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
+        driverId,
+        deliveryDate,
+        currentLocalTime,
+        deviceTime: now.toISOString()
+      });
+      optimization = optimizationResponse?.data || optimizationResponse || null;
+    } catch (error) {
+      console.warn('[handleStartDelivery] optimizeRemainingStops failed:', error?.message || error);
+    }
+
     return Response.json({
       success: true,
       distanceTransferred: distanceToTransfer,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId,
-      routeChanged: false,
-      optimization: null
+      routeChanged: Boolean(optimization?.routeChanged),
+      optimization
     });
 
   } catch (error) {
