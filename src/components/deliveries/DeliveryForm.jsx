@@ -99,7 +99,12 @@ export default function DeliveryForm({
 
   const allDrivers = useMemo(() => {
     const sorted = sortUsers(driverSource);
-    return sorted.filter((driver) => driver && (driver.user_name || driver.full_name || driver.email));
+    return sorted.filter((driver) =>
+      driver &&
+      Array.isArray(driver.app_roles) &&
+      driver.app_roles.includes('driver') &&
+      (driver.user_name || driver.full_name || driver.email)
+    );
   }, [driverSource]);
 
   const [formData, setFormData] = useState(() => {

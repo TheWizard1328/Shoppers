@@ -1327,7 +1327,7 @@ export default function Layout({ children, currentPageName }) {
 
       let activeDrivers = allAppUsers.filter((appUser) => {
         if (!appUser || !Array.isArray(appUser.app_roles)) return false;
-        if (!appUser.app_roles.includes('driver') && !appUser.app_roles.includes('admin')) return false;
+        if (!appUser.app_roles.includes('driver')) return false;
         if (!(appUser.user_name || appUser.full_name || appUser.email)) return false;
         if (appUser.status && appUser.status !== 'active') return false;
         return true;
