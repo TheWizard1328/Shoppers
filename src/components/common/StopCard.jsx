@@ -487,6 +487,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         }
       }));
       centerDeliveryCard(delivery.id);
+      setIsProcessingBackground(false);
 
       Promise.resolve().then(async () => {
         try {
