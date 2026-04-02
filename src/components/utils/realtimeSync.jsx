@@ -91,9 +91,9 @@ async function flushBuffered(entityName) {
 
   if (typeof window !== 'undefined' && entityName === 'Delivery' && Array.isArray(fullReplacementData)) {
     const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
-    const hasCreateOrDelete = items.some((item) => item.eventType === 'create' || item.eventType === 'delete');
+    const hasRelevantDeliveryChange = items.some((item) => item.eventType === 'create' || item.eventType === 'delete' || item.eventType === 'update');
 
-    if (hasCreateOrDelete) {
+    if (hasRelevantDeliveryChange) {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveries: fullReplacementData,
@@ -108,7 +108,9 @@ async function flushBuffered(entityName) {
         }
       }));
 
-      fabControlEvents.notifyDeliveryRealtimeCreateOrDelete();
+      if (items.some((item) => item.eventType === 'create' || item.eventType === 'delete')) {
+        fabControlEvents.notifyDeliveryRealtimeCreateOrDelete();
+      }
     }
   }
 
