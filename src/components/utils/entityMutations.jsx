@@ -610,64 +610,53 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
   await pauseSmartRefresh();
 
   try {
-    // STEP 1: Check if exists in IndexedDB and delete
-    let existedOffline = false;
-    try {
-      const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      const exists = deliveries.find(d => d.id === deliveryId);
-      
-      if (exists) {
-        const db = await offlineDB.openDatabase();
-        const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
-        await new Promise((resolve, reject) => {
-          const req = tx.objectStore(offlineDB.STORES.DELIVERIES).delete(deliveryId);
-          req.onsuccess = resolve;
-          req.onerror = () => reject(req.error);
-        });
-        existedOffline = true;
-        console.log('💾 [EntityMutations] Deleted from IndexedDB:', deliveryId);
-      } else {
-        console.log('⏭️ [EntityMutations] Not in IndexedDB, skipping offline delete:', deliveryId);
-      }
-    } catch (offlineError) {
-      console.warn('⚠️ [EntityMutations] IndexedDB delete check failed:', offlineError.message);
-    }
+    const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const existingOffline = deliveries.find(d => d.id === deliveryId) || null;
 
-    // STEP 2: Delete from backend (skip if not found)
-    let existedOnline = false;
+    let backendDeleted = false;
+    let backendNotFound = false;
+
     try {
       await base44.entities.Delivery.delete(deliveryId);
-      existedOnline = true;
+      backendDeleted = true;
       console.log('☁️ [EntityMutations] Backend deleted:', deliveryId);
     } catch (error) {
       if (error.message?.includes('not found') || error.message?.includes('404') || error.response?.status === 404) {
-        console.log('⏭️ [EntityMutations] Not found in backend, skipping online delete:', deliveryId);
+        backendNotFound = true;
+        console.log('⏭️ [EntityMutations] Not found in backend, treating as already deleted:', deliveryId);
       } else {
-        console.warn('⚠️ [EntityMutations] Delivery delete sync failed, queuing:', error.message);
+        console.warn('⚠️ [EntityMutations] Delivery delete failed, keeping local record and queuing retry:', error.message);
         await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: deliveryId });
+        await restartSmartRefresh();
+        throw error;
       }
     }
 
-    // If delivery didn't exist in either DB, skip the rest
-    if (!existedOffline && !existedOnline) {
+    if (!existingOffline && !backendDeleted && !backendNotFound) {
       console.log('⏭️ [EntityMutations] Delivery not found in offline or online DB, skipping:', deliveryId);
       await restartSmartRefresh();
-      return false; // Indicate it was already deleted
+      return false;
     }
 
-    // STEP 3: CRITICAL - Remove from cache (prevents deleted item from showing)
+    if (existingOffline) {
+      const db = await offlineDB.openDatabase();
+      const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+      await new Promise((resolve, reject) => {
+        const req = tx.objectStore(offlineDB.STORES.DELIVERIES).delete(deliveryId);
+        req.onsuccess = resolve;
+        req.onerror = () => reject(req.error);
+      });
+      console.log('💾 [EntityMutations] Deleted from IndexedDB:', deliveryId);
+    }
+
     const { removeDeletedFromCache } = await import('./dataManager');
     removeDeletedFromCache('Delivery', [deliveryId]);
     console.log('🗑️ [EntityMutations] Removed deleted delivery from all caches');
-    
-    // STEP 4: Mark as deleted in smart refresh to prevent resurrection
+
     const { smartRefreshManager } = await import('./smartRefreshManager');
     smartRefreshManager.deletedDeliveryIds.add(deliveryId);
 
-    // STEP 5: Notify UI immediately on this device
     notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
-
-    // STEP 6: Broadcast immediate delete so other devices update UI right away too
     await broadcastMutation('Delivery', 'delete', deliveryId, null);
 
     await restartSmartRefresh();
