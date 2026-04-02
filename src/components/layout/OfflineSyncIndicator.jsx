@@ -279,6 +279,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       console.error('❌ [OfflineSyncIndicator] Force sync failed:', error);
       console.error('   Error message:', error.message);
       console.error('   Stack:', error.stack);
+      setSyncStatus({ status: 'error', error: error.message });
     } finally {
       setIsSyncing(false);
     }
@@ -323,14 +324,13 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     
     return (
       <div className="w-full">
-        <button
-          onClick={() => {
-            setIsExpanded(!isExpanded);
-            refreshStats(true).catch(() => {});
-          }}
-          className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50">
-
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50">
+          <button
+            type="button"
+            onClick={handleForceSync}
+            disabled={isSyncing}
+            className="flex items-center gap-2 min-w-0 flex-1 text-left disabled:opacity-70"
+          >
             {getStatusIcon()}
             <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
               {isSyncing ? 'Syncing...' : 'Offline DB'}
@@ -345,9 +345,18 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                 {stats.dbName}
               </span>
             }
-          </div>
-          {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-        </button>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsExpanded(!isExpanded);
+              refreshStats(true).catch(() => {});
+            }}
+            className="ml-2 flex items-center justify-center rounded-md p-1 text-slate-400"
+          >
+            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+        </div>
         
         <AnimatePresence>
           {isExpanded &&
