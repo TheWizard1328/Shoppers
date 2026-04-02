@@ -113,13 +113,17 @@ async function flushBuffered(entityName) {
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {
-    window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-      detail: {
-        appUsers: fullReplacementData,
-        fromRealtime: true,
-        fullReplacement: true
-      }
-    }));
+    const shouldRunUiRefresh = !window.__lastAppUserUiRefreshAt || (Date.now() - window.__lastAppUserUiRefreshAt) >= 30000;
+    if (shouldRunUiRefresh) {
+      window.__lastAppUserUiRefreshAt = Date.now();
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: {
+          appUsers: fullReplacementData,
+          fromRealtime: true,
+          fullReplacement: true
+        }
+      }));
+    }
   }
 
   if (typeof window !== 'undefined' && entityName === 'Patient' && Array.isArray(fullReplacementData)) {
@@ -292,6 +296,9 @@ const subscribeToEntity = (entityName) => {
 
           if (storeName) {
             await offlineDB.save(storeName, data);
+            if (entityName === 'AppUser') {
+              await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+            }
             if (entityName === 'DriverRoutePolyline') {
               console.log(`💾 [RealtimeSync] Saved DriverRoutePolyline to offline DB: ${data.driver_id} segment ${data.segment_origin_lat},${data.segment_origin_lon} -> ${data.segment_dest_lat},${data.segment_dest_lon}`);
             } else {

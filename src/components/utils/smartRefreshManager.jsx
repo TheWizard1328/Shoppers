@@ -42,7 +42,7 @@ class LightweightRefreshManager {
     this.intervals = {
       cities: 1800000,       // 30min - Cities dataset (less frequent to avoid 429)
       stores: 1800000,       // 30min - Stores dataset (less frequent to avoid 429)
-      appUsers: 60000,       // 60sec - Backup poll ONLY if no recent WebSocket update
+      appUsers: 30000,       // 30sec - UI refresh from offline DB only to catch missed websocket updates
       offlineSync: 60000,    // 60sec - offline DB health check / repopulation trigger
       cacheRefresh: 600000   // 10min - Cache consistency check
     };
@@ -117,27 +117,35 @@ class LightweightRefreshManager {
   async initializeAllAppUsersToOfflineDB() {
     try {
       const { offlineDB } = await import('./offlineDatabase');
+      const metadata = await offlineDB.getSyncMetadata('AppUser');
+      const lastFullSyncMs = metadata?.last_full_appuser_sync_at ? new Date(metadata.last_full_appuser_sync_at).getTime() : 0;
+      const now = Date.now();
 
-      // Fetch current user and save to offline DB
-      // AppUser.list() uses RLS so will only return current user on startup
-      console.log('📥 [SmartRefresh] Loading current user to offline DB on startup...');
+      if (lastFullSyncMs && (now - lastFullSyncMs) < 120000) {
+        console.log('⏭️ [SmartRefresh] Skipping AppUser startup sync - full sync ran within 120s');
+        return;
+      }
+
+      console.log('📥 [SmartRefresh] Loading AppUsers to offline DB on startup (120s gate passed)...');
       await this.waitForRateLimit();
 
       const currentAppUsers = await queueEntityRequest(
         () => base44.entities.AppUser.list(),
-        'Current user load'
+        'AppUser startup sync'
       );
 
       if (currentAppUsers && currentAppUsers.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, currentAppUsers);
-        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
-        console.log(`✅ [SmartRefresh] Synced offline DB with current user. WebSocket will sync other users.`);
+        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString(), {
+          last_full_appuser_sync_at: new Date().toISOString()
+        });
+        console.log(`✅ [SmartRefresh] AppUser offline sync complete; websocket-first updates will take over.`);
         this.recordSuccess();
       } else {
-        console.warn('⚠️ [SmartRefresh] No current user AppUser record found');
+        console.warn('⚠️ [SmartRefresh] No AppUser records returned during startup sync');
       }
     } catch (error) {
-      console.warn('⚠️ [SmartRefresh] Failed to initialize current user:', error.message);
+      console.warn('⚠️ [SmartRefresh] Failed to initialize AppUsers:', error.message);
       this.recordError();
     }
   }
@@ -468,10 +476,17 @@ class LightweightRefreshManager {
         }
       }
 
-      // CRITICAL: Skip AppUser polling entirely - AppUser.list() has RLS rules and returns only current user
-      // ONLY rely on WebSocket real-time subscriptions for cross-device AppUser syncing
-      if (this.shouldRefresh('appUsers')) {
-        console.log(`👥 [LightweightRefresh] Skipping AppUser API poll - WebSocket subscriptions handle all cross-device sync`);
+      // AppUser is offline-first: websocket updates offline DB, and every 30s we refresh UI from offline DB only
+      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
+        try {
+          const { offlineDB } = await import('./offlineDatabase');
+          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          if (offlineAppUsers && offlineAppUsers.length > 0) {
+            updates.appUsers = offlineAppUsers;
+          }
+        } catch (e) {
+          console.warn('⚠️ [LightweightRefresh] AppUser offline UI refresh failed:', e.message);
+        }
         this.markRefreshed('appUsers');
       }
 
