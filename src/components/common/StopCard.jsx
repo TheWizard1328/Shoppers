@@ -231,7 +231,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         const updatedDeliveries = allDeliveries.map((d) => d && optimisticMap.has(d.id) ? optimisticMap.get(d.id) : d);
         updateDeliveriesLocally(updatedDeliveries, true);
       }
-      await collapseAndCenterNextDelivery({ driverDeliveries: reorderedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
       if (onStartDelivery) {
         await onStartDelivery(delivery.id, {
           status: isPickup ? 'en_route' : 'in_transit',
@@ -244,6 +243,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       driverLocationPoller.resume();
       smartRefreshManager.resume();
       resetActionLocks(true);
+      Promise.resolve().then(async () => {
+        try {
+          await collapseAndCenterNextDelivery({ driverDeliveries: reorderedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
+        } catch (centerErr) {
+          console.warn('⚠️ [Start] recenter failed:', centerErr?.message || centerErr);
+        }
+      });
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
