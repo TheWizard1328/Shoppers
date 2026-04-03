@@ -103,7 +103,6 @@ export default function DeliveryFormView({
   };
   const [activeDeliveryAction, setActiveDeliveryAction] = React.useState(getActiveDeliveryAction());
   const effectiveDeliveryActionBusy = isDeliveryActionBusy || (!!activeDeliveryAction && activeDeliveryAction !== 'update_delivery');
-  const isUpdateDeliveryBusy = isSaving || activeDeliveryAction === 'update_delivery';
   const enterActionLockRef = React.useRef(false);
 
   React.useEffect(() => subscribeDeliveryActionLock(setActiveDeliveryAction), []);
@@ -122,16 +121,15 @@ export default function DeliveryFormView({
     }
   }, []);
 
-  // Require driver selection only when there is no selected patient yet and no reusable pickup exists
+  // Require driver selection when no regular pickup exists for the patient's store/date/slot
   const requiresDriverSelection = (() => {
-    if (delivery || isPickupMode) return false;
-    if (formData?.driver_id) return false;
+    if (delivery || isPickupMode) return false; // only for new patient deliveries
+    if (formData?.driver_id) return false; // driver already chosen
     const patientToCheck = selectedPatient || (formData?.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
-    if (patientToCheck) return false;
-    const storeId = formData?.store_id;
-    if (!storeId || !formData?.delivery_date) return false;
+    const storeId = patientToCheck?.store_id || formData?.store_id;
+    if (!storeId || !formData?.delivery_date) return false; // don't block when incomplete
     const storeObj = stores?.find((s) => s && s.id === storeId);
-    const slot = getStoreAssignedTimeSlot(storeObj, formData.delivery_date, allDeliveries) || 'AM';
+    const slot = determineDeliveryAMPM(patientToCheck) || getStoreAssignedTimeSlot(storeObj, formData.delivery_date, allDeliveries) || 'AM';
     const existsInStaged = (stagedDeliveries || []).some((d) => !d.patient_id && d.store_id === storeId && d.delivery_date === formData.delivery_date && (d.ampm_deliveries || 'AM') === slot);
     const existsInSaved = (allDeliveries || []).some((d) => d && !d.patient_id && d.store_id === storeId && d.delivery_date === formData.delivery_date && (d.ampm_deliveries || 'AM') === slot && !['completed', 'cancelled', 'returned'].includes(d.status));
     return !(existsInStaged || existsInSaved);
@@ -146,18 +144,6 @@ export default function DeliveryFormView({
   React.useEffect(() => {
     setForceOpenDriverSelect(requiresDriverSelection);
   }, [requiresDriverSelection]);
-
-  React.useEffect(() => {
-    const handleForceDriverSelect = () => setForceOpenDriverSelect(true);
-    window.addEventListener('deliveryFormForceDriverSelect', handleForceDriverSelect);
-    return () => window.removeEventListener('deliveryFormForceDriverSelect', handleForceDriverSelect);
-  }, []);
-
-  React.useEffect(() => {
-    const handleForceDriverSelect = () => setForceOpenDriverSelect(true);
-    window.addEventListener('deliveryFormForceDriverSelect', handleForceDriverSelect);
-    return () => window.removeEventListener('deliveryFormForceDriverSelect', handleForceDriverSelect);
-  }, []);
 
   // Helper: get default driver ID for a store based on date and time slot
   const getDefaultDriverForStoreSlot = (storeId, timeSlot, deliveryDate) => {
@@ -880,15 +866,13 @@ export default function DeliveryFormView({
                     [previousDriverId, previousDeliveryDate]
                   ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
 
-                  Promise.resolve().then(async () => {
-                    await Promise.all(
-                      Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
-                        .map((key) => {
-                          const [routeDriverId, routeDeliveryDate] = key.split('__');
-                          return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
-                        })
-                    );
-
+                  Promise.all(
+                    Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
+                      .map((key) => {
+                        const [routeDriverId, routeDeliveryDate] = key.split('__');
+                        return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+                      })
+                  ).then(() => {
                     runPostDeliveryUpdateSync({
                       driverId,
                       deliveryDate,
@@ -896,8 +880,8 @@ export default function DeliveryFormView({
                       currentUser
                     });
                   });
-                }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isUpdateDeliveryBusy || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
-                    {isUpdateDeliveryBusy ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
+                }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
+                    {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
                 }
               </div>

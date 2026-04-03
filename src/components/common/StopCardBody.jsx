@@ -77,10 +77,6 @@ export default function StopCardBody({
     }
   };
 
-  const uniquePendingPickups = Array.from(
-    new Map((pendingPickups || []).filter((item) => item?.id).map((item) => [item.id, item])).values()
-  );
-
   return (
     <>
       {/* BODY SECTION - Expandable - Always show when expanded (BUT never for dispatcher-stripped cards) */}
@@ -285,12 +281,12 @@ export default function StopCardBody({
             }
 
               {/* Show pending pickup list when pickup is en_route (active), including historical dates */}
-              {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && uniquePendingPickups.length > 0 &&
+              {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
             <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
                       <Package className="w-3.5 h-3.5" />
-                      Pending Pickup List ({uniquePendingPickups.length})
+                      Pending Pickup List ({pendingPickups.length})
                       <HelpTooltip title={HELP_CONTENT.pendingPickups.title} content={HELP_CONTENT.pendingPickups.content} size="sm" />
                     </h4>
                     {canAccessAcceptButtons &&
@@ -322,7 +318,7 @@ export default function StopCardBody({
                 }
               }}>
                 
-                    {[...uniquePendingPickups].
+                    {[...pendingPickups].
                 sort((a, b) => {
                   const trA = parseInt(a.tracking_number || '999', 10);
                   const trB = parseInt(b.tracking_number || '999', 10);

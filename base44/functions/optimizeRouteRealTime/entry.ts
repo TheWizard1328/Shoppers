@@ -1,4 +1,3 @@
-// Redeployed on 2026-04-01
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const TIME_ZONE = 'America/Edmonton';
@@ -316,51 +315,28 @@ Deno.serve(async (req) => {
 
       const hereUrl = `https://wps.hereapi.com/v8/findsequence2?${params.toString()}`;
       console.log(`🌐 [optimizeRouteRealTime] Calling HERE Waypoints Sequence API for ${stopsToSequence.length} stops${includeTimeWindows ? ' with time windows' : ' without time windows'}`);
-
+      
+      // Retry with exponential backoff for rate limits
       let lastError = null;
-      let lastFailure = null;
       for (let attempt = 0; attempt < 3; attempt++) {
-        const attemptNumber = attempt + 1;
         try {
-          const response = await fetch(hereUrl, {
-            signal: AbortSignal.timeout(12000),
-            headers: { accept: 'application/json' }
-          });
+          const response = await fetch(hereUrl, { signal: AbortSignal.timeout(20000) });
+          if (response.status === 429) {
+            const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+            console.warn(`⏳ [optimizeRouteRealTime] Rate limited, retrying in ${waitMs}ms (attempt ${attempt + 1}/3)`);
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
+            continue;
+          }
           const data = await response.json().catch(() => null);
-
-          if (response.ok) {
-            return { response, data, includeTimeWindows };
-          }
-
-          lastFailure = { status: response.status, data };
-
-          const shouldRetry = response.status === 429 || response.status >= 500;
-          if (!shouldRetry || attempt === 2) {
-            return { response, data, includeTimeWindows };
-          }
-
-          const waitMs = Math.min(1000 * Math.pow(2, attempt), 4000);
-          console.warn(`⏳ [optimizeRouteRealTime] HERE returned ${response.status}, retrying in ${waitMs}ms (attempt ${attemptNumber}/3)`);
-          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          return { response, data, includeTimeWindows };
         } catch (err) {
           lastError = err;
-          const isAbort = err?.name === 'TimeoutError' || err?.name === 'AbortError';
-          if (attempt === 2) break;
-          const waitMs = Math.min(1000 * Math.pow(2, attempt), 4000);
-          console.warn(`⏳ [optimizeRouteRealTime] HERE ${isAbort ? 'timed out' : 'request failed'}, retrying in ${waitMs}ms (attempt ${attemptNumber}/3)`);
-          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw err;
         }
       }
-
-      if (lastFailure) {
-        return {
-          response: { ok: false, status: lastFailure.status },
-          data: lastFailure.data,
-          includeTimeWindows
-        };
-      }
-
-      throw lastError || new Error('HERE API request failed after retries');
+      
+      // All retries exhausted
+      throw lastError || new Error('HERE API rate limit exceeded after retries');
     };
 
     let hereResponse = { ok: true, status: 200 };
@@ -398,8 +374,7 @@ Deno.serve(async (req) => {
           error: 'HERE Waypoints Sequence API request failed',
           details: hereData,
           status: hereResponse.status,
-          usedTimeWindows,
-          retryable: hereResponse.status === 429 || hereResponse.status >= 500
+          usedTimeWindows
         }, { status: 502 });
       }
 

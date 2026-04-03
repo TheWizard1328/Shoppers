@@ -280,29 +280,26 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'missing_next_stop_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
-    // CRITICAL: Origin for Type 1 should be the CURRENT active stop immediately before the next one,
-    // falling back to the last finished stop, then home/current location.
+    // CRITICAL: Origin is the stop immediately BEFORE the next delivery by stop_order, NOT by completion time
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
     const nextStopOrder = Number(nextActiveStop?.stop_order || 0);
-
-    const previousActiveStop = activeStops
-      .filter((d) => d?.id !== nextActiveStop.id && Number(d?.stop_order || 0) < nextStopOrder)
-      .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
-
-    const originStop = previousActiveStop || (deliveries || [])
+    
+    // Find the stop with the highest stop_order that is less than nextStopOrder and is finished
+    const originStop = (deliveries || [])
       .filter((d) => finishedStatuses.has(d.status) && Number(d?.stop_order || 0) < nextStopOrder)
       .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
-
+    
     let originCoords;
     if (originStop) {
       originCoords = getLatLon(originStop);
-      console.log(`[regenerateType1Polyline] Using stop ${originStop.id} (status=${originStop.status}, stop_order=${originStop.stop_order}) as origin`);
+      console.log(`[regenerateType1Polyline] Using completed stop ${originStop.id} (stop_order=${originStop.stop_order}) as origin`);
     } else if (Number.isFinite(homeLat) && Number.isFinite(homeLon)) {
       originCoords = { lat: homeLat, lon: homeLon };
-      console.log(`[regenerateType1Polyline] Using driver home location as origin (no prior stop found)`);
+      console.log(`[regenerateType1Polyline] Using driver home location as origin (no completed stops yet)`);
     } else {
+      // Fallback if no home location set and no completed stops - use current location
       originCoords = { lat: currentLat, lon: currentLon };
-      console.log(`[regenerateType1Polyline] WARNING: Using driver current location as origin (no prior stop/home location found)`);
+      console.log(`[regenerateType1Polyline] WARNING: Using driver current location as origin (no home location set)`);
     }
     
     if (!originCoords) {
@@ -388,14 +385,6 @@ Deno.serve(async (req) => {
       daily_generation_count: Number(existingType1?.daily_generation_count || 0) + 1,
       last_generated_at: new Date().toISOString()
     };
-
-    if (originStop?.id) {
-      await base44.asServiceRole.entities.Delivery.update(originStop.id, {
-        finished_leg_encoded_polyline: directions.encoded_polyline,
-        finished_leg_end_latitude: round5(nextStopCoords.lat),
-        finished_leg_end_longitude: round5(nextStopCoords.lon)
-      });
-    }
 
     // Validation handled by determining originCoords; if we reach here, coordinates are considered valid.
 

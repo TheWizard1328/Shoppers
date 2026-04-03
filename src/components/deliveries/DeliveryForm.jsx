@@ -13,9 +13,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getStoreAssignedTimeSlotForDriver, getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { base44 } from "@/api/base44Client";
 import { useAppData } from '../utils/AppDataContext';
-import { globalFilters } from '../utils/globalFilters';
 import { getUserAgentInfo } from '../utils/deviceUtils';
-import { getCityDriversForDeliveryForm, resolvePatientDriverSelection } from './deliveryDriverOptionsHelper';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import {
   createPatient as createPatientLocal,
@@ -92,14 +90,15 @@ export default function DeliveryForm({
   closeOnSave = false,
   onCreatePatient
 }) {
-  const { setIsFormOverlayOpen, appUsers = [] } = useAppData();
+  const { setIsFormOverlayOpen } = useAppData();
   const freshStores = useFreshStores(stores);
 
-  const selectedCityId = globalFilters.getSelectedCityId();
-
   const allDrivers = useMemo(() => {
-    return getCityDriversForDeliveryForm({ appUsers, selectedCityId });
-  }, [appUsers, selectedCityId]);
+    // Layout already filters drivers correctly via getActiveDriversForCity
+    // Just ensure they have user_name - no additional role filtering needed
+    const sorted = sortUsers(drivers || []);
+    return sorted.filter((driver) => driver && driver.user_name);
+  }, [drivers]);
 
   const [formData, setFormData] = useState(() => {
     const initialState = {
@@ -125,11 +124,11 @@ export default function DeliveryForm({
       recurring_monthly: false, recurring_bimonthly: false
     };
 
-    if (!delivery && currentUser && stores && allDrivers.length) {
+    if (!delivery && currentUser && stores && drivers) {
       const { driverId, driverName } = resolveDefaultDriverForNewDelivery({
         currentUser,
         stores,
-        drivers: allDrivers,
+        drivers,
         allDrivers,
         deliveryDate: initialState.delivery_date,
         initialDriverId,
@@ -137,9 +136,9 @@ export default function DeliveryForm({
         getDriverNameForStorage
       });
 
-      if (driverId) {
+      if (driverId && driverName) {
         initialState.driver_id = driverId;
-        initialState.driver_name = driverName || '';
+        initialState.driver_name = driverName;
       }
     }
 
@@ -255,12 +254,12 @@ export default function DeliveryForm({
   useEffect(() => {
     if (delivery || formData.driver_id) return; // Skip if editing or driver already set
 
-    if (!currentUser || !stores || allDrivers.length === 0) return;
+    if (!currentUser || !stores || !drivers || allDrivers.length === 0) return;
 
     const { driverId: driverIdToSet, driverName: driverNameToSet } = resolveDefaultDriverForNewDelivery({
       currentUser,
       stores,
-      drivers: allDrivers,
+      drivers,
       allDrivers,
       deliveryDate: formData.delivery_date,
       initialDriverId,
@@ -268,14 +267,14 @@ export default function DeliveryForm({
       getDriverNameForStorage
     });
 
-    if (driverIdToSet) {
+    if (driverIdToSet && driverNameToSet) {
       setFormData((prev) => ({
         ...prev,
         driver_id: driverIdToSet,
-        driver_name: driverNameToSet || ''
+        driver_name: driverNameToSet
       }));
     }
-  }, [delivery, currentUser, stores, allDrivers, formData.delivery_date, formData.driver_id]);
+  }, [delivery, currentUser, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id]);
 
   // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
   const isLoadingExistingDelivery = useRef(false);
@@ -309,13 +308,6 @@ export default function DeliveryForm({
       if (patientId !== delivery.patient_id) return;
       setFormData(prev => ({ ...prev, patient_name: updates.full_name || prev.patient_name, patient_phone: updates.phone || prev.patient_phone, unit_number: updates.unit_number || prev.unit_number, delivery_instructions: updates.notes || prev.delivery_instructions, mailbox_ok: updates.mailbox_ok !== undefined ? updates.mailbox_ok : prev.mailbox_ok, call_upon_arrival: updates.call_upon_arrival !== undefined ? updates.call_upon_arrival : prev.call_upon_arrival, ring_bell: updates.ring_bell !== undefined ? updates.ring_bell : prev.ring_bell, dont_ring_bell: updates.dont_ring_bell !== undefined ? updates.dont_ring_bell : prev.dont_ring_bell, back_door: updates.back_door !== undefined ? updates.back_door : prev.back_door, signature_needed: updates.signature_needed !== undefined ? updates.signature_needed : prev.signature_needed, recurring: updates.recurring !== undefined ? updates.recurring : prev.recurring, recurring_daily: updates.recurring_daily !== undefined ? updates.recurring_daily : prev.recurring_daily, recurring_weekly_mon: updates.recurring_weekly_mon !== undefined ? updates.recurring_weekly_mon : prev.recurring_weekly_mon, recurring_weekly_tue: updates.recurring_weekly_tue !== undefined ? updates.recurring_weekly_tue : prev.recurring_weekly_tue, recurring_weekly_wed: updates.recurring_weekly_wed !== undefined ? updates.recurring_weekly_wed : prev.recurring_weekly_wed, recurring_weekly_thu: updates.recurring_weekly_thu !== undefined ? updates.recurring_weekly_thu : prev.recurring_weekly_thu, recurring_weekly_fri: updates.recurring_weekly_fri !== undefined ? updates.recurring_weekly_fri : prev.recurring_weekly_fri, recurring_weekly_sat: updates.recurring_weekly_sat !== undefined ? updates.recurring_weekly_sat : prev.recurring_weekly_sat, recurring_weekly_sun: updates.recurring_weekly_sun !== undefined ? updates.recurring_weekly_sun : prev.recurring_weekly_sun, recurring_biweekly: updates.recurring_biweekly !== undefined ? updates.recurring_biweekly : prev.recurring_biweekly, recurring_weekly_x4: updates.recurring_weekly_x4 !== undefined ? updates.recurring_weekly_x4 : prev.recurring_weekly_x4, recurring_monthly: updates.recurring_monthly !== undefined ? updates.recurring_monthly : prev.recurring_monthly, recurring_bimonthly: updates.recurring_bimonthly !== undefined ? updates.recurring_bimonthly : prev.recurring_bimonthly }));
     };
-    const handlePatientDeleted = (event) => {
-      const { patientId } = event.detail || {};
-      if (!patientId) return;
-      if (delivery.patient_id === patientId) {
-        onCancel?.();
-      }
-    };
     const unsubscribeDelivery = base44.entities.Delivery.subscribe((event) => {
       const changedId = event?.id || event?.data?.id;
       if (changedId !== delivery.id) return;
@@ -325,8 +317,7 @@ export default function DeliveryForm({
       if (d.actual_delivery_time && !Number.isNaN(new Date(d.actual_delivery_time).getTime())) setCompletionTime(format(new Date(d.actual_delivery_time), 'HH:mm'));
     });
     window.addEventListener('patientUpdated', handlePatientUpdated);
-    window.addEventListener('patientDeleted', handlePatientDeleted);
-    return () => { window.removeEventListener('patientUpdated', handlePatientUpdated); window.removeEventListener('patientDeleted', handlePatientDeleted); unsubscribeDelivery?.(); };
+    return () => { window.removeEventListener('patientUpdated', handlePatientUpdated); unsubscribeDelivery?.(); };
   }, [delivery?.id, delivery?.patient_id, stores]);
 
   useEffect(() => {
@@ -356,7 +347,6 @@ export default function DeliveryForm({
       }
 
       setFormData({
-        id: delivery.id,
         patient_id: delivery.patient_id || "",
         delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
         delivery_time_start: delivery.delivery_time_start || "",
@@ -615,25 +605,26 @@ export default function DeliveryForm({
 
     setSelectedPatient(patient);
 
-    const {
-      patientStore,
-      resolvedDriverId,
-      updatedFormData,
-      shouldForceDriverSelection
-    } = resolvePatientDriverSelection({
+    const patientStore = stores.find((s) => s && s.id === patient.store_id);
+    const { autoSelectedDriverId, autoSelectedDriverName, deliveryAMPM } = resolvePatientDriverAssignment({
       patient,
-      stores,
-      allDrivers,
+      patientStore,
       deliveryDate: formData.delivery_date,
+      drivers,
       allDeliveries,
-      formData
+      getDriverNameForStorage
+    });
+
+    const updatedFormData = buildSelectedPatientFormData({
+      formData,
+      patient,
+      deliveryAMPM,
+      autoSelectedDriverId,
+      autoSelectedDriverName
     });
 
     setFormData(updatedFormData);
     if (!autoAddToStaged) {
-      if (shouldForceDriverSelection) {
-        window.dispatchEvent(new CustomEvent('deliveryFormForceDriverSelect'));
-      }
       if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.());
       setPatientSearch('');
       setHighlightedPatientIndex(-1);
@@ -641,7 +632,7 @@ export default function DeliveryForm({
       return;
     }
 
-    if (!patientStore || !resolvedDriverId) {
+    if (!patientStore || !autoSelectedDriverId) {
       driverLocationPoller.resume();
       return;
     }
@@ -656,13 +647,13 @@ export default function DeliveryForm({
       calculateDistance
     });
 
-    const timeSlot = getStoreAssignedTimeSlotForDriver(patientStore, formData.delivery_date, resolvedDriverId, allDeliveries);
+    const timeSlot = getStoreAssignedTimeSlotForDriver(patientStore, formData.delivery_date, autoSelectedDriverId, allDeliveries);
     const puid = await resolvePickupPuid({
       stagedDeliveries,
       allDeliveries,
       storeId: patientStore.id,
       deliveryDate: formData.delivery_date,
-      driverId: resolvedDriverId,
+      driverId: autoSelectedDriverId,
       timeSlot
     });
 
@@ -970,26 +961,29 @@ export default function DeliveryForm({
 
   const isFormValid = useMemo(() => {
     if (delivery) {
+      // Editing existing delivery - always valid
       return true;
     }
-
+    
+    // Editing staged delivery - check if has required data
     if (editingStagedId) {
       if (isPickupMode) {
-        return !!formData.store_id && !!formData.delivery_date;
+        return !!formData.store_id && !!formData.delivery_date && !!formData.driver_id;
       }
-      return (!!formData.patient_id || !!formData.patient_name) &&
-             !!formData.store_id &&
+      return (!!formData.patient_id || !!formData.patient_name) && 
+             !!formData.store_id && 
              !!formData.delivery_date;
     }
-
-    if (isPickupMode) return selectedPickupOption !== '' && !!formData.delivery_date;
+    
+    // For new deliveries, driver is optional (can use "All Drivers" filter)
+    if (isPickupMode) return selectedPickupOption !== '' && !!formData.delivery_date && !!formData.driver_id;
     return (!!formData.patient_id || !!formData.patient_name) && !!formData.store_id &&
     !!formData.delivery_date && !isFormDisabled;
   }, [formData, selectedPickupOption, isPickupMode, delivery, isFormDisabled, editingStagedId]);
 
   const handleAddToStaging = useCallback(async () => {
-    if (!formData.delivery_date || !isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
-      setError(!formData.delivery_date ? 'Please select a date before adding.' : 'Please fill all required fields.');
+    if (!formData.delivery_date || !formData.driver_id || !isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
+      setError(!formData.delivery_date || !formData.driver_id ? 'Please select both a date and driver before adding.' : 'Please fill all required fields.');
       return;
     }
 
@@ -1030,13 +1024,11 @@ export default function DeliveryForm({
     const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
 
     if (formData.patient_id && !isNewPatient) {
-      const patientUpdatePayload = buildPatientUpdatePayload(formData, patient);
-      if (Object.keys(patientUpdatePayload).length > 0) {
-        try {
-          await updatePatientLocal(formData.patient_id, patientUpdatePayload);
-        } catch (error) {
-          console.error('Failed to update patient:', error);
-        }
+      try {
+        await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
+      } catch (error) {
+        console.error('Failed to update patient:', error);
+        setError('Failed to update patient data. Delivery will still be staged.');
       }
     }
 
@@ -1047,18 +1039,12 @@ export default function DeliveryForm({
     });
 
     const selectedStore = availableStores.find((s) => s && s.id === selectedPickupOption);
-    const resolvedDriverId = formData.driver_id;
-    const resolvedDriverName = formData.driver_name;
-    const timeSlot = selectedStore?._timeSlot || formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, resolvedDriverId, allDeliveries) || 'AM';
+    const timeSlot = selectedStore?._timeSlot || formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, formData.driver_id, allDeliveries) || 'AM';
     let newStagedDelivery;
 
     if (isPickupMode) {
       const pickupToCreate = buildPickupStagedDelivery({
-        formData: {
-          ...formData,
-          driver_id: resolvedDriverId,
-          driver_name: resolvedDriverName
-        },
+        formData,
         codAmount,
         store,
         timeSlot,
@@ -1067,13 +1053,13 @@ export default function DeliveryForm({
 
       const pickupTimes = resolvePickupTimeWindow({
         store,
-        deliveryDate: formData.delivery_date,
-        timeSlot
+        driverId: formData.driver_id,
+        deliveryDate: formData.delivery_date
       });
       const routeDeliveriesForDriver = (allDeliveries || []).filter((delivery) =>
         delivery &&
         delivery.delivery_date === formData.delivery_date &&
-        delivery.driver_id === resolvedDriverId
+        delivery.driver_id === formData.driver_id
       );
       const routePickups = routeDeliveriesForDriver.filter((delivery) => !delivery?.patient_id);
       const existingPickupTrackingNumbers = routePickups
@@ -1120,15 +1106,11 @@ export default function DeliveryForm({
         allDeliveries,
         storeId: store.id,
         deliveryDate: formData.delivery_date,
-        driverId: resolvedDriverId,
+        driverId: formData.driver_id,
         timeSlot
       });
       newStagedDelivery = buildPatientStagedDelivery({
-        formData: {
-          ...formData,
-          driver_id: resolvedDriverId,
-          driver_name: resolvedDriverName
-        },
+        formData,
         patient,
         store,
         codAmount,
@@ -1197,7 +1179,7 @@ export default function DeliveryForm({
     const selectedStaged = stagedDeliveries.find((staged) => staged._tempId === editingStagedId);
 
     if (selectedStaged?.id) {
-      const { persistPendingDeliveryUpdate } = await import('./persistPendingDeliveryUpdate');
+      const { persistPendingDeliveryUpdate } = await import('./persistPendingDeliveryUpdate.jsx');
       const { stagedDelivery, deliveryId } = await persistPendingDeliveryUpdate({ selectedStaged, formData, patient, store, editingStagedId, distanceFromStore });
       setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged));setHasChanges(true);
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -1205,10 +1187,7 @@ export default function DeliveryForm({
     } else {
       const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
       if (formData.patient_id) {
-        const patientUpdatePayload = buildPatientUpdatePayload(formData, patient);
-        if (Object.keys(patientUpdatePayload).length > 0) {
-          try { await updatePatientLocal(formData.patient_id, patientUpdatePayload); } catch (error) { console.error('Failed to update patient:', error); setError('Failed to update patient data. Delivery will still be updated.'); }
-        }
+        try { await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData)); } catch (error) { console.error('Failed to update patient:', error); setError('Failed to update patient data. Delivery will still be updated.'); }
       }
       setStagedDeliveries((prev) => prev.map((staged) => staged._tempId !== editingStagedId ? staged : ({ ...formData, cod_total_amount_required: codAmount, _tempId: editingStagedId, _wasEdited: false, id: staged.id, patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)', store_name: store.name, store_abbreviation: store.abbreviation, distanceFromStore: distanceFromStore, delivery_address: patient?.address || store.address, first_delivery: formData.first_delivery || false, oversized: formData.oversized || false, fridge_item: formData.fridge_item || false, signature_needed: formData.signature_needed || false, paid_km_override: formData.paid_km_override !== null && formData.paid_km_override !== undefined ? parseFloat(formData.paid_km_override.toFixed(2)) : null })));
       setHasChanges(true);
@@ -1321,11 +1300,11 @@ export default function DeliveryForm({
     if (e.key === 'Enter' && !patientSearch.trim()) {
       e.preventDefault();
       if (buttonState === 'done') {
-        void handleBatchSave();
+        handleBatchSave();
       } else if (buttonState === 'add' && isFormValid) {
-        void handleAddToStaging();
+        handleAddToStaging();
       } else if (buttonState === 'updateStaged' && isFormValid) {
-        void handleUpdateStaged();
+        handleUpdateStaged();
       }
       return;
     }
@@ -1368,9 +1347,9 @@ export default function DeliveryForm({
           });
         }
       } else if (!hasFormData) {
-        if (buttonState === 'done') void handleBatchSave();else
-        if (buttonState === 'updateStaged' && isFormValid) void handleUpdateStaged();else
-        if (buttonState === 'add' && isFormValid) void handleAddToStaging();
+        if (buttonState === 'done') handleBatchSave();else
+        if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else
+        if (buttonState === 'add' && isFormValid) handleAddToStaging();
       }
     }
   }, [patientSearch, filteredPatients, highlightedPatientIndex, handlePatientSelect, hasFormData, buttonState, isFormValid, handleBatchSave, handleUpdateStaged, handleAddToStaging, onCreatePatient, currentUser]);
@@ -1397,18 +1376,13 @@ export default function DeliveryForm({
     try {
       const dataToSave = await buildInTransitDirectSaveData({ prepareDeliverySaveData, formData, delivery, isCompletionStatus, completionTime, selectedPatient, stores, allDeliveries, stagedDeliveries });
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) {
-        await closeDeliveryFormAfterSave({ handleClearForm, onCancel });
+        import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); });
         return true;
       }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) {
-        Promise.resolve().then(async () => {
-          const originalPatient = patients.find((p) => p && p.id === formData.patient_id);
-          const patientUpdatePayload = buildPatientUpdatePayload(formData, originalPatient);
-          if (Object.keys(patientUpdatePayload).length === 0) return;
-          try {
-            await updatePatientLocal(formData.patient_id, patientUpdatePayload);
-          } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
-        });
+        try {
+          await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
+        } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); }
       }
 
       const {
@@ -1460,21 +1434,12 @@ export default function DeliveryForm({
         await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
 
-      Promise.resolve().then(async () => {
-        try {
-          await runDeliverySubmitSideEffects({
-            delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
-            isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
-            actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
-            isPickupMode, updateDeliveryLocal
-          });
-        } catch (sideEffectError) {
-          console.warn('⚠️ [DeliveryForm] Side effects failed:', sideEffectError);
-        }
+      await runDeliverySubmitSideEffects({
+        delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
+        isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
+        actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
+        isPickupMode, updateDeliveryLocal
       });
-      if (delivery?.id) {
-        await closeDeliveryFormAfterSave({ handleClearForm, onCancel });
-      }
       return true;
     } catch (error) {
       setError(error.message);

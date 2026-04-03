@@ -1,4 +1,3 @@
-// Redeployed on 2026-04-01
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
@@ -20,6 +19,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields: deliveryId, driverId, deliveryDate' }, { status: 400 });
     }
 
+    if (!isValidObjectId(deliveryId) || !isValidObjectId(driverId)) {
+      return Response.json({ error: 'Start was blocked because this stop is still syncing.' }, { status: 400 });
+    }
 
     // Step 1: Find old isNextDelivery flags and clear only the ones we no longer need
     const oldNextDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -71,28 +73,13 @@ Deno.serve(async (req) => {
 
     console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}, transferred ${distanceToTransfer} km`);
 
-    let optimization = null;
-    try {
-      const now = new Date();
-      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
-        driverId,
-        deliveryDate,
-        currentLocalTime,
-        deviceTime: now.toISOString()
-      });
-      optimization = optimizationResponse?.data || optimizationResponse || null;
-    } catch (error) {
-      console.warn('[handleStartDelivery] optimizeRemainingStops failed:', error?.message || error);
-    }
-
     return Response.json({
       success: true,
       distanceTransferred: distanceToTransfer,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId,
-      routeChanged: Boolean(optimization?.routeChanged),
-      optimization
+      routeChanged: false,
+      optimization: null
     });
 
   } catch (error) {

@@ -6,7 +6,6 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
-import { processPendingMutations } from '@/components/utils/offlineSync';
 
 export default function PullToSync({ 
   selectedDate, 
@@ -96,103 +95,80 @@ export default function PullToSync({
     try {
       const selectedDateStr = globalFilters.getSelectedDate() || format(selectedDate, 'yyyy-MM-dd');
       const currentDriverId = globalFilters.getSelectedDriverId() || selectedDriverId;
-      const currentCityId = globalFilters.getSelectedCityId() || selectedCityId;
 
-      await processPendingMutations().catch((error) => {
-        console.warn('⚠️ [PullToSync] Pending mutation flush failed:', error?.message || error);
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 1200));
-      let cityStores = currentCityId
-        ? await offlineDB.getByIndex(offlineDB.STORES.STORES, 'city_id', currentCityId)
-        : [];
-
-      if (currentCityId && (!Array.isArray(cityStores) || cityStores.length === 0)) {
-        cityStores = [];
-      }
-
-      const cityStoreIds = Array.isArray(cityStores) ? cityStores.map((store) => store?.id).filter(Boolean) : [];
-      const deliveryFilter = {
-        delivery_date: selectedDateStr,
-        ...(cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {})
-      };
-      const uiDriverFilter = currentDriverId && currentDriverId !== 'all' ? currentDriverId : null;
+      await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
+      const driverFilter = currentDriverId && currentDriverId !== 'all' 
+        ? { driver_id: currentDriverId } 
+        : {};
       if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent && window.__activePullToSyncRunId !== syncRunId) {
         return;
       }
 
+      // ─── STEP 1: Fetch deliveries for selected driver + date ───────────────
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
-
-      const [freshDeliveriesRaw, pendingMutations] = await Promise.all([
-        base44.entities.Delivery.filter(deliveryFilter, '-updated_date', 5000),
-        offlineDB.getPendingMutations().catch(() => [])
-      ]);
-
-      const freshDeliveriesById = new Map((freshDeliveriesRaw || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
-
-      const pendingDeleteIds = new Set(
-        (pendingMutations || [])
-          .filter((mutation) => mutation?.entity === 'Delivery' && mutation?.operation === 'delete' && mutation?.recordId)
-          .map((mutation) => mutation.recordId)
-      );
-      const freshDeliveries = Array.from(freshDeliveriesById.values()).filter((delivery) => !pendingDeleteIds.has(delivery?.id));
-
-      const existingDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-      const deliveriesToKeepForDate = (existingDateDeliveries || []).filter((delivery) => {
-        if (!delivery) return false;
-        if (cityStoreIds.length > 0) {
-          return !cityStoreIds.includes(delivery.store_id);
-        }
-        return false;
-      });
-      await offlineDB.replaceRecordsByIndex(
-        offlineDB.STORES.DELIVERIES,
-        'delivery_date',
-        selectedDateStr,
-        [...deliveriesToKeepForDate, ...freshDeliveries],
-        { allowEmptyReplace: true }
-      );
-      await offlineDB.deduplicateDeliveries().catch(() => {});
-      await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], {
-        scopeKey: `date:${selectedDateStr}`,
-        syncType: 'manual_pull_sync',
-        synced_city_id: currentCityId || null
+      const freshDeliveries = await base44.entities.Delivery.filter({ 
+        delivery_date: selectedDateStr,
+        ...driverFilter
       });
 
+      // FULL REPLACEMENT: Delete all offline deliveries for this date, then save fresh ones.
+      // This ensures deletions and driver transfers are properly reflected.
+      if (selectedDriverId && selectedDriverId !== 'all') {
+        // Driver-specific sync: only delete that driver's records for this date
+        const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        const driverRecords = (existingForDate || []).filter(d => d?.driver_id === selectedDriverId);
+        await Promise.all(
+          driverRecords.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {}))
+        );
+      } else {
+        // All-drivers sync: wipe the entire date using the efficient cursor-based delete
+        await offlineDB.deleteDeliveriesByDate(selectedDateStr).catch(() => {});
+      }
+
+      // Save fresh records from server
+      if (freshDeliveries?.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+      }
       await offlineDB.updateSyncMetadata(
         'Delivery',
         new Date().toISOString(),
         new Date().toISOString(),
-        { synced_delivery_date: selectedDateStr, synced_city_id: currentCityId || null }
+        { synced_delivery_date: selectedDateStr }
       );
 
+      // ─── STEP 2: Sync patients for those deliveries ────────────────────────
       const patientIds = Array.from(
-        new Set((freshDeliveries || []).filter((d) => d?.patient_id).map((d) => d.patient_id))
+        new Set((freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id))
       );
 
       let freshPatients = [];
       if (patientIds.length > 0) {
-        freshPatients = await base44.entities.Patient.filter({ id: { $in: patientIds } });
+        const batchSize = 50;
+        const batches = [];
+        for (let i = 0; i < patientIds.length; i += batchSize) {
+          batches.push(patientIds.slice(i, i + batchSize));
+        }
+        freshPatients = (await Promise.all(
+          batches.map(ids => base44.entities.Patient.filter({ id: { $in: ids } }))
+        )).flat().filter(Boolean);
+
         if (freshPatients.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
         }
       }
 
+      // ─── STEP 3: Load from offline DB + update UI ─────────────────────────
       const [offlineDeliveriesRaw, freshAppUsers, freshCities, freshStores] = await Promise.all([
         offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr),
-        offlineDB.getAll(offlineDB.STORES.APP_USERS).then((r) => (r || []).filter((u) => u?.user_id && u.user_id !== 'undefined')),
+        offlineDB.getAll(offlineDB.STORES.APP_USERS).then(r => (r || []).filter(u => u?.user_id && u.user_id !== 'undefined')),
         offlineDB.getAll(offlineDB.STORES.CITIES),
         offlineDB.getAll(offlineDB.STORES.STORES)
       ]);
-      console.log('🔄 [PullToSync] Online deliveries fetched:', freshDeliveries.length, 'Offline date deliveries after replace:', offlineDeliveriesRaw?.length || 0, 'Date:', selectedDateStr, 'City stores:', cityStoreIds.length);
 
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
-        ? offlineDeliveriesRaw.filter((d) => {
-            if (!d) return false;
-            if (cityStoreIds.length > 0 && !cityStoreIds.includes(d.store_id)) return false;
-            if (uiDriverFilter && d.driver_id !== uiDriverFilter) return false;
-            return true;
-          })
+        ? (currentDriverId && currentDriverId !== 'all'
+          ? offlineDeliveriesRaw.filter((d) => d?.driver_id === currentDriverId)
+          : offlineDeliveriesRaw)
         : [];
 
       const safeAppUsers = Array.isArray(freshAppUsers)
@@ -220,7 +196,6 @@ export default function PullToSync({
 
       // Mark UI sync complete + release overlay
       try { window.__dashboardSyncing = false; } catch (e) {}
-      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { batchedUiUpdate: true, syncRunId } }));
 
       if (!silent) {
@@ -229,22 +204,60 @@ export default function PullToSync({
         });
       }
 
-      await offlineDB.deduplicateDeliveries().catch(() => {});
-
+      // Reactivate FAB
       const currentFABPhase = window.__currentFABPhase || 1;
       if (currentFABPhase !== 1) {
         const { fabControlEvents } = await import('@/components/utils/fabControlEvents');
         fabControlEvents.notifyDataReady();
       }
 
+      // ─── STEP 4 (background): Polylines + ETAs for incomplete stops ────────
+      // Runs entirely in background — does NOT block UI
+      const targetDriverId = currentDriverId && currentDriverId !== 'all' ? currentDriverId : null;
+      if (targetDriverId) {
+        Promise.resolve().then(async () => {
+          const incompleteDeliveries = (offlineDeliveries || []).filter(d => 
+            d && !['completed', 'failed', 'cancelled'].includes(d.status)
+          );
+
+          if (incompleteDeliveries.length === 0) return;
+
+          const now = new Date();
+          const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+          // Polyline repair for incomplete stops
+          try {
+            const repairModule = await import('@/functions/repairMissingPolylines');
+            if (typeof repairModule?.repairMissingPolylines === 'function') {
+              Promise.resolve(repairModule.repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr }))
+                .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message));
+            }
+          } catch (e) {
+            console.warn('⚠️ [Pull to Sync] repairMissingPolylines unavailable:', e?.message);
+          }
+
+          // ETA recalculation for incomplete stops
+          base44.functions.invoke('calculateRealTimeETA', {
+            driverId: targetDriverId,
+            deliveryDate: selectedDateStr,
+            currentLocalTime,
+            deviceTime: currentLocalTime
+          }).then(etaRes => {
+            const etaUpdates = etaRes?.data?.durationUpdates || etaRes?.data?.etas || etaRes?.etas || [];
+            if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
+              window.dispatchEvent(new CustomEvent('etaUpdated', {
+                detail: { updates: etaUpdates.map(u => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) }
+              }));
+            }
+          }).catch(e => console.warn('⚠️ [Pull to Sync] Background ETA update failed:', e?.message));
+        }).catch(e => console.warn('⚠️ [Pull to Sync] Background tasks failed:', e?.message));
+      }
+
     } catch (error) {
       console.error('❌ [Pull to Sync] Sync failed:', error);
       try { window.__dashboardSyncing = false; window.dispatchEvent(new CustomEvent('pullToSyncComplete')); } catch (e) {}
       if (!silent) {
-        const isRateLimited = error?.response?.status === 429 || error?.message?.includes('Rate limit') || error?.message?.includes('429');
-        toast.error(isRateLimited ? 'Sync paused briefly' : 'Sync failed', {
-          description: isRateLimited ? 'Too many requests at once, please wait a few seconds and try again.' : error.message
-        });
+        toast.error('Sync failed', { description: error.message });
       }
     } finally {
       setTimeout(() => {
@@ -270,23 +283,8 @@ export default function PullToSync({
       await performSync(true);
     };
 
-    const handleSmartRefreshComplete = () => {
-      setIsSyncing(false);
-      setShowOverlay(false);
-      setPullDistance(0);
-      setIsPulling(false);
-    };
-
     window.addEventListener('triggerSilentSync', handleSilentSync);
-    window.addEventListener('smartRefreshComplete', handleSmartRefreshComplete);
-    window.addEventListener('lightweightRefreshComplete', handleSmartRefreshComplete);
-    window.addEventListener('offlineSyncComplete', handleSmartRefreshComplete);
-    return () => {
-      window.removeEventListener('triggerSilentSync', handleSilentSync);
-      window.removeEventListener('smartRefreshComplete', handleSmartRefreshComplete);
-      window.removeEventListener('lightweightRefreshComplete', handleSmartRefreshComplete);
-      window.removeEventListener('offlineSyncComplete', handleSmartRefreshComplete);
-    };
+    return () => window.removeEventListener('triggerSilentSync', handleSilentSync);
   }, [isSyncing]);
 
   const pullProgress = Math.min(pullDistance / syncThreshold, 1);
@@ -295,14 +293,14 @@ export default function PullToSync({
   return (
     <>
 
-      {/* Pull indicator - mobile only, positioned beside refresh spinner */}
+      {/* Pull indicator - inside stats card container with higher z-index */}
       <AnimatePresence>
         {(isPulling || isSyncing) && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-2 left-0 right-0 z-20 pointer-events-none flex justify-center md:hidden"
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-2 left-0 right-0 z-50 pointer-events-none flex justify-center"
           >
             <div 
               className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border backdrop-blur-sm"
@@ -315,7 +313,7 @@ export default function PullToSync({
               <RefreshCw 
                 className="w-4 h-4"
                 style={{ 
-                  color: isSyncing || pullProgress >= 1 ? 'var(--text-emerald-600)' : 'var(--text-slate-500)',
+                  color: 'var(--text-emerald-600)',
                   transform: isSyncing ? undefined : `rotate(${rotation}deg)`,
                   animation: isSyncing ? 'spin 1s linear infinite' : undefined
                 }}
@@ -331,14 +329,14 @@ export default function PullToSync({
         )}
       </AnimatePresence>
 
-      {/* Full-screen loading overlay during sync - desktop/tablet only */}
+      {/* Full-screen loading overlay during sync */}
       <AnimatePresence>
         {showOverlay && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1000] hidden md:flex items-center justify-center bg-black/60 backdrop-blur-md pointer-events-none"
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md pointer-events-none"
           >
             <div 
               className="rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4"
@@ -359,7 +357,7 @@ export default function PullToSync({
                   className="text-sm mt-1"
                   style={{ color: 'var(--text-slate-600)' }}
                 >
-                  Replacing route data and updating patients
+                  Updating deliveries, patients & drivers
                 </p>
               </div>
             </div>

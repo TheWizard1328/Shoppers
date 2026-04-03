@@ -388,15 +388,15 @@ export default function Layout({ children, currentPageName }) {
         if(!globalFilters.getSelectedDate())globalFilters.setSelectedDate(today);
         if(!globalFilters.getSelectedDriverId())globalFilters.setSelectedDriverId('all');
         try {
-          const dd=((await offlineDB.getByDate(offlineDB.STORES.DELIVERIES,todayStr).catch(()=>[]))?.length?await offlineDB.getByDate(offlineDB.STORES.DELIVERIES,todayStr).catch(()=>[]):(Array.isArray(manifest.deliveries)?manifest.deliveries:[]));
-          const pd=((await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(()=>[]))?.length?await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(()=>[]):(Array.isArray(manifest.patients)?manifest.patients:[]));
+          const dd=await offlineDB.getByDate(offlineDB.STORES.DELIVERIES,todayStr).catch(()=>[]);
+          const pd=await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(()=>[]);
           const aud=Array.isArray(manifest.appUsers)?manifest.appUsers:[];
           const sd=Array.isArray(manifest.stores)?[...manifest.stores]:[];
           if(dd?.length){await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES,dd);setDeliveries(dd);}
           if(pd?.length){await offlineDB.bulkSave(offlineDB.STORES.PATIENTS,pd);setPatients(pd);}
           if(aud?.length){await offlineDB.bulkSave(offlineDB.STORES.APP_USERS,aud);setAppUsers(aud);}
           if(sd?.length){sd.sort((a,b)=>(a.sort_order??Infinity)-(b.sort_order??Infinity));await offlineDB.bulkSave(offlineDB.STORES.STORES,sd);setStores(sd);}
-          if(!dd?.length||!pd?.length){window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
+          if(!dd?.length||!pd?.length||!aud?.length)window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
         } catch(e){console.warn('⚠️ Offline DB prime failed:',e.message);window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
         const {markOfflineDBLoadComplete}=await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
@@ -515,6 +515,7 @@ export default function Layout({ children, currentPageName }) {
         const idsToDelete = new Set(mutation.ids || []);
         if (mutation.entity === 'Delivery') {
           setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
+          // Remove all from offline DB
           mutation.ids.forEach((id) => {
             offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
           });
@@ -660,9 +661,8 @@ export default function Layout({ children, currentPageName }) {
     const handleOfflineDeliveriesDeleted = (event) => {
       const { deletedIds } = event.detail || {};
       if (deletedIds && deletedIds.length > 0) {
-        const deletedIdSet = new Set(deletedIds);
         console.log(`🗑️ [Layout] Removing ${deletedIds.length} deleted deliveries from UI`);
-        setDeliveries((prevDeliveries) => prevDeliveries.filter((d) => !deletedIdSet.has(d?.id)));
+        setDeliveries((prevDeliveries) => prevDeliveries.filter((d) => !deletedIds.includes(d?.id)));
       }
     };
     window.addEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);

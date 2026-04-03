@@ -42,64 +42,21 @@ Deno.serve(async (req) => {
       apikey: hereApiKey,
     });
 
-    let resp = null;
-    let data = null;
-    let lastProviderStatus = null;
-    let lastProviderDetails = null;
-    let lastRequestError = null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+      signal: controller.signal,
+      headers: { accept: 'application/json' }
+    });
+    clearTimeout(timeoutId);
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const attemptNumber = attempt + 1;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-      try {
-        resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
-          signal: controller.signal,
-          headers: { accept: 'application/json' }
-        });
-        clearTimeout(timeoutId);
-
-        if (resp.ok) {
-          data = await resp.json();
-          break;
-        }
-
-        lastProviderStatus = resp.status;
-        lastProviderDetails = await resp.text();
-        const shouldRetry = resp.status === 429 || resp.status >= 500;
-        if (!shouldRetry || attempt === 2) {
-          console.error('[HERE Routing] provider error', { status: resp.status, details: lastProviderDetails?.slice(0, 500) });
-          return buildFallback(origin, destination, { provider_status: resp.status, retryable: shouldRetry });
-        }
-
-        const waitMs = Math.min(1000 * Math.pow(2, attempt), 4000);
-        console.warn(`[getHereDirections] HERE returned ${resp.status}, retrying in ${waitMs}ms (attempt ${attemptNumber}/3)`);
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-      } catch (err) {
-        clearTimeout(timeoutId);
-        lastRequestError = err;
-        const isAbort = err?.name === 'AbortError' || err?.name === 'TimeoutError';
-        if (attempt === 2) {
-          console.error('[getHereDirections] request failed', err?.message || err);
-          return buildFallback(origin, destination, {
-            error: err?.message || 'Unknown error',
-            retryable: true,
-            timed_out: isAbort
-          });
-        }
-        const waitMs = Math.min(1000 * Math.pow(2, attempt), 4000);
-        console.warn(`[getHereDirections] HERE ${isAbort ? 'timed out' : 'request failed'}, retrying in ${waitMs}ms (attempt ${attemptNumber}/3)`);
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-      }
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error('[HERE Routing] provider error', { status: resp.status, details: text?.slice(0, 500) });
+      return buildFallback(origin, destination, { provider_status: resp.status });
     }
 
-    if (!resp?.ok || !data) {
-      return buildFallback(origin, destination, {
-        provider_status: lastProviderStatus,
-        error: lastRequestError?.message || lastProviderDetails || 'HERE request failed'
-      });
-    }
+    const data = await resp.json();
     const route = Array.isArray(data?.routes) ? data.routes[0] : null;
     const sections = Array.isArray(route?.sections) ? route.sections : [];
 

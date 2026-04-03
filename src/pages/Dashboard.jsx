@@ -28,7 +28,7 @@ import {
   resumeOfflineMutations } from
 
 "@/components/utils/offlineMutations";
-import { pauseOfflineSync, resumeOfflineSync, performPrioritySyncBeforeRefresh } from "@/components/utils/offlineSync";
+import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
 import RouteOptimizationSettings, { getRouteOptimizationSettings } from "@/components/dashboard/RouteOptimizationSettings";
 import { sortUsers } from "@/components/utils/sorting";
 import { AnimatePresence, motion } from "framer-motion";
@@ -1219,10 +1219,13 @@ function Dashboard() {
   }, [mapViewPhase]);
 
   const handleMapInteraction = useCallback((isUserInteraction = false) => {
+    // PHASE 2 NO LONGER UNLOCKS ON MAP INTERACTION
+    // It stays permanently locked until FAB is clicked to change phases
+    // This simplifies the logic and prevents accidental unlocks
+
+    // Record user interaction time (prevents proximity snap for 5 minutes)
     if (isUserInteraction) {
-      const now = Date.now();
-      lastUserInteractionRef.current = now;
-      window._lastUserMapInteraction = now;
+      lastUserInteractionRef.current = Date.now();
     }
   }, []);
 
@@ -1949,7 +1952,8 @@ function Dashboard() {
         const mapHomeMarkers = (window.__mapHomeMarkers || []).filter((home) => {
           const stops = [...(window.__mapDeliveryMarkers || []), ...(window.__mapPickupMarkers || [])].filter((stop) => stop?.driver_id === home.driverId);
           const completed = stops.filter((stop) => ['completed', 'failed', 'cancelled', 'returned'].includes(stop.status)).length;
-          return !home.excludeFromBounds && completed === 0 && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && !(showAllDriverMarkers || selectedDriverId === 'all')) || home.driverId === currentUser.id || home.driverId === selectedDriverId);
+          const remainingPickups = stops.filter((stop) => stop?.markerType === 'pickup' && !['completed', 'failed', 'cancelled', 'returned'].includes(stop.status)).length;
+          return !home.excludeFromBounds && (completed === 0 || remainingPickups === 0) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && !(showAllDriverMarkers || selectedDriverId === 'all')) || home.driverId === currentUser.id || home.driverId === selectedDriverId);
         });
         mapHomeMarkers.forEach((home) => {if (home.latitude && home.longitude) allCoordinates.push([home.latitude, home.longitude]);});
 
@@ -2960,15 +2964,26 @@ function Dashboard() {
       // STEP 1: Clear pending updates for clean slate
       smartRefreshManager.clearPendingUpdates();
 
-      // STEP 2: Run targeted offline refresh FIRST for the selected date + current driver mode
+      // STEP 2: Load based on data source preference
       const shouldLoadAllDeliveries = showAllDriverMarkers || selectedDriverId === 'all';
-      await performPrioritySyncBeforeRefresh(dateStr, globalFilters.getSelectedCityId(), smartRefreshManager, shouldLoadAllDeliveries);
+      let priorityDeliveries;
 
-      // STEP 3: Always reload the refreshed dataset from offline DB
-      let priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-      if (!Array.isArray(priorityDeliveries)) priorityDeliveries = [];
+      if (dataSource === 'online') {
+        // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
+        priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+        // Update offline DB in background (don't wait)
+        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
+      } else {
+        // OFFLINE MODE: Load ALL deliveries for the date from offline DB first; fallback to API
+        priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
 
-      // STEP 4: Update UI immediately with refreshed offline data
+        if (!priorityDeliveries || priorityDeliveries.length === 0) {
+          priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
+        }
+      }
+
+      // STEP 3: Update UI immediately with priority data using flushSync for instant render
       if (updateDeliveriesLocally) {
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
         const mergedDeliveries = [...otherDateDeliveries, ...priorityDeliveries];
@@ -3100,14 +3115,24 @@ function Dashboard() {
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Run targeted offline refresh FIRST for the selected date + driver mode
+      // Load based on data source preference
       let freshDeliveries;
       const shouldLoadAllDeliveries = showAllDriverMarkers || driverId === 'all';
-      await performPrioritySyncBeforeRefresh(dateStr, globalFilters.getSelectedCityId(), smartRefreshManager, shouldLoadAllDeliveries);
 
-      // Then load the refreshed deliveries from offline DB
-      freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-      if (!Array.isArray(freshDeliveries)) freshDeliveries = [];
+      if (dataSource === 'online') {
+        // ONLINE MODE: Always fetch ALL deliveries for the date; UI filters by driver
+        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+        // Update offline DB in background
+        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+      } else {
+        // OFFLINE MODE: Try offline DB first for ALL deliveries on date
+        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+
+        if (!freshDeliveries || freshDeliveries.length === 0) {
+          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        }
+      }
 
       if (driverChangeRequestIdRef.current !== reqId) return;
       if (driverId && driverId !== 'all') {
@@ -5424,8 +5449,8 @@ function Dashboard() {
       try {
         setCurrentToNextPolyline(null);
         setDriverRoutes([]);
-        if (updateDeliveriesLocally && freshDeliveries?.length) {
-          const _sd = event.detail?.deliveryDate || format(selectedDate, 'yyyy-MM-dd'), _si = new Set(freshDeliveries.map(d=>d?.id).filter(Boolean));
+        if (updateDeliveriesLocally && freshDeliveries) {
+          const _sd = freshDeliveries[0]?.delivery_date, _si = new Set(freshDeliveries.map(d=>d?.id).filter(Boolean));
           updateDeliveriesLocally([...deliveries.filter(d=>d&&(d.delivery_date!==_sd||!_si.has(d.id))),...freshDeliveries], true);
         }
         if (updateAppUsersLocally && freshAppUsers) { updateAppUsersLocally(freshAppUsers, true); }

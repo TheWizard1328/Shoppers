@@ -13,15 +13,6 @@ import { Company } from '@/entities/Company';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 import { sanitizeDeliveryPayload, sanitizeDeliveryPayloads } from './deliveryPayloadSanitizer';
 
-const broadcastMutation = async (entity, action, id, data, ids = null) => {
-  try {
-    const { broadcastMutation: broadcast } = await import('./realtimeSync');
-    return broadcast(entity, action, id, data, ids);
-  } catch (error) {
-    console.warn('[OfflineMutations] Could not broadcast mutation:', error.message);
-  }
-};
-
 // Listeners for UI updates
 let mutationListeners = [];
 let mutationsPaused = false; // CRITICAL: Pause mutations during route optimization
@@ -432,7 +423,6 @@ export const createDeliveryLocal = async (deliveryData) => {
         newId: backendDelivery.id,
         data: backendDelivery 
       });
-      await broadcastMutation('Delivery', 'create', backendDelivery.id, backendDelivery);
       
       console.log('✅ [Sync] Temp delivery replaced with backend delivery in IndexedDB');
       
@@ -501,7 +491,8 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         const { base44 } = await import('@/api/base44Client');
         const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
         console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
-        await broadcastMutation('Delivery', 'update', deliveryId, backendDelivery);
+        
+        // Broadcast removed
 
         // Add to IndexedDB
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
@@ -580,7 +571,8 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         const { base44 } = await import('@/api/base44Client');
         await base44.entities.Delivery.update(deliveryId, updates);
         console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
-        await broadcastMutation('Delivery', 'update', deliveryId, { ...updatedDelivery, ...updates });
+        
+        // Broadcast removed
       } catch (error) {
         console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
         // Queue for backend sync if immediate sync fails
@@ -665,7 +657,6 @@ export const deleteDeliveryLocal = async (deliveryId) => {
     // Step 2: CRITICAL - Handle backend sync result and queue mutation if needed
     if (backendResult.success) {
       console.log('✅ [Sync] Delivery deletion synced to backend immediately:', deliveryId);
-      await broadcastMutation('Delivery', 'delete', deliveryId, null);
     } else {
       console.warn('⚠️ [Sync] Backend deletion failed, queuing mutation for retry:', backendResult.error?.message);
       // CRITICAL: Queue mutation so it retries later
@@ -784,7 +775,6 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
       });
       
       console.log('✅ [Sync] All temp deliveries replaced with backend deliveries in IndexedDB');
-      await Promise.allSettled(backendDeliveries.map((backendDelivery) => broadcastMutation('Delivery', 'create', backendDelivery.id, backendDelivery)));
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();

@@ -230,14 +230,6 @@
       "type": "string",
       "description": "Encoded polyline for the finished route leg that ended at this stop"
     },
-    "finished_leg_end_latitude": {
-      "type": "number",
-      "description": "Destination latitude for the stored finished route leg"
-    },
-    "finished_leg_end_longitude": {
-      "type": "number",
-      "description": "Destination longitude for the stored finished route leg"
-    },
     "PolylineUpdated": {
       "type": "boolean",
       "default": false,

@@ -43,7 +43,6 @@ import DeliveryRouteDataCell from '../components/admin/DeliveryRouteDataCell';
 import { ResizableColumnHeader, ColumnVisibilityControl } from '../components/admin/AdminTableControls';
 import AdminDeliveriesTable from '../components/admin/AdminDeliveriesTable';
 import { matchesDeliveryCodFilter } from '../components/admin/deliveryCodFilter';
-import AdminBulkDeleteDialog from '../components/admin/AdminBulkDeleteDialog';
 
 // Wrapper to reload data when Routes tab is opened
 const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
@@ -2983,10 +2982,10 @@ export default function AdminUtilities() {
         console.log(`📦 Reloaded ${data?.length || 0} offline deliveries after delete`);
       }
 
-      window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: deliveriesToDelete.map((d) => d?.id).filter(Boolean) } }));
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'adminUtilitiesBatchDelete' } }));
       queryClient.invalidateQueries(['deliveries']);
       await refetchDeliveries();
+
+      console.log('🔄 [AdminUtilities] Triggering global data refresh after batch delete');
       await refreshData();
 
       console.log(`✅ [AdminUtilities] Batch delete complete: ${successCount} deleted, ${failCount} failed`);
@@ -3172,8 +3171,6 @@ export default function AdminUtilities() {
         setOfflineDeliveries(data || []);
         console.log(`📦 Reloaded ${data?.length || 0} offline deliveries after delete`);
       } else {
-        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: deliveriesToDelete.map((d) => d?.id).filter(Boolean) } }));
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'adminUtilitiesDelete' } }));
         queryClient.invalidateQueries(['deliveries']);
         await refetchDeliveries();
         await refreshData();
@@ -3611,8 +3608,6 @@ export default function AdminUtilities() {
                 await refetchPatients();
                 break;
               case 'deliveries':
-                window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: [entity.id] } }));
-                window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'adminUtilitiesSingleDelete' } }));
                 await refetchDeliveries();
                 break;
               case 'stores':
@@ -3943,7 +3938,46 @@ export default function AdminUtilities() {
 
       }
 
-      <AdminBulkDeleteDialog bulkDelete={bulkDelete} setBulkDelete={setBulkDelete} />
+      <Dialog open={bulkDelete.open} onOpenChange={(open) => {
+        if (!bulkDelete.running) {
+          setBulkDelete((prev) => ({ ...prev, open }));
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deleting {bulkDelete.entityLabel}</DialogTitle>
+            <DialogDescription>
+              {bulkDelete.running ?
+              `Please keep this window open while we delete the filtered ${bulkDelete.entityLabel.toLowerCase()}.` :
+              "Bulk delete completed."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="text-sm text-slate-600">
+              {bulkDelete.processed} / {bulkDelete.total} processed
+              {bulkDelete.currentLabel ? ` • Last: ${bulkDelete.currentLabel}` : ""}
+            </div>
+            <div className="text-xs text-slate-500">
+              Current delay: {Math.round(bulkDelete.currentDelay)} ms • Retrying: {bulkDelete.retryQueue}
+            </div>
+            <Progress value={bulkDelete.total ? bulkDelete.processed / bulkDelete.total * 100 : 0} />
+            <div className="flex items-center justify-between text-sm">
+              <div className="text-emerald-600 font-medium">Success: {bulkDelete.success}</div>
+              <div className="text-red-600 font-medium">Failed: {bulkDelete.failed}</div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              onClick={() => setBulkDelete((prev) => ({ ...prev, open: false }))}
+              disabled={bulkDelete.running}>
+              
+              {bulkDelete.running ? 'Deleting…' : 'Close'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmationDialog
         open={confirmDialog.open}

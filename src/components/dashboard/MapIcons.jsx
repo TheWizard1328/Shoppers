@@ -210,26 +210,14 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
         ` : ''}
       </div>
       <style>
-        .store-marker {
-          transition: transform 0.15s ease-out;
-          will-change: transform;
-          pointer-events: auto;
-        }
-        .custom-store-icon {
-          background: transparent !important;
-          border: none !important;
-          pointer-events: auto;
-          width: ${size}px !important;
-          height: ${size * 1.4}px !important;
-        }
-        .custom-store-icon .store-marker:hover { z-index: 9999 !important; transform: scale(1.15); }
+        .store-marker { transition: transform 0.15s ease-out; will-change: transform; }
+        .store-marker:hover { z-index: 9999 !important; transform: scale(1.15); }
         .leaflet-marker-icon:has(.store-marker:hover) { z-index: 9999 !important; }
       </style>
     `,
     className: 'custom-store-icon',
     iconSize: [size, size * 1.4],
-    iconAnchor: [size / 2, size * 0.7],
-    popupAnchor: [0, -size * 0.7]
+    iconAnchor: [size / 2, size * 1.4]
   });
 };
 
@@ -314,26 +302,14 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
         ` : ''}
       </div>
       <style>
-        .delivery-marker {
-          transition: transform 0.15s ease-out;
-          will-change: transform;
-          pointer-events: auto;
-        }
-        .custom-delivery-icon {
-          background: transparent !important;
-          border: none !important;
-          pointer-events: auto;
-          width: ${size}px !important;
-          height: ${size * 1.4}px !important;
-        }
-        .custom-delivery-icon .delivery-marker:hover { z-index: 9999 !important; transform: scale(1.15); }
+        .delivery-marker { transition: transform 0.15s ease-out; will-change: transform; }
+        .delivery-marker:hover { z-index: 9999 !important; transform: scale(1.15); }
         .leaflet-marker-icon:has(.delivery-marker:hover) { z-index: 9999 !important; }
       </style>
     `,
     className: 'custom-delivery-icon',
     iconSize: [size, size * 1.4],
-    iconAnchor: [size / 2, size * 0.7],
-    popupAnchor: [0, -size * 0.7]
+    iconAnchor: [size / 2, size * 1.4]
   });
 };
 

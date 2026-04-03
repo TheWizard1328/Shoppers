@@ -2,7 +2,7 @@
  * Build a patient update payload from formData for saving to Patient entity.
  * Includes time_window fields and recurring schedule fields.
  */
-export function buildPatientUpdatePayload(formData, originalPatient = null) {
+export function buildPatientUpdatePayload(formData) {
   let weeklyX4Day = undefined;
   if (formData.recurring_weekly_x4) {
     if (formData.recurring_weekly_mon) weeklyX4Day = 'mon';
@@ -14,7 +14,7 @@ export function buildPatientUpdatePayload(formData, originalPatient = null) {
     else if (formData.recurring_weekly_sun) weeklyX4Day = 'sun';
   }
 
-  const payload = {
+  return {
     full_name: formData.patient_name,
     phone: formData.patient_phone,
     unit_number: formData.unit_number,
@@ -42,14 +42,4 @@ export function buildPatientUpdatePayload(formData, originalPatient = null) {
     recurring_monthly: formData.recurring_monthly,
     recurring_bimonthly: formData.recurring_bimonthly
   };
-
-  if (!originalPatient) {
-    return payload;
-  }
-
-  const changedPayload = Object.fromEntries(
-    Object.entries(payload).filter(([key, value]) => (originalPatient[key] ?? '') !== (value ?? ''))
-  );
-
-  return changedPayload;
 }

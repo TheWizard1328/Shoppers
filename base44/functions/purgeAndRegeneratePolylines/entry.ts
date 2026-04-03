@@ -234,13 +234,7 @@ async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
 async function markDeliveriesPolylineUpdated(base44, deliveries, value) {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return;
 
-  const eligibleDeliveries = deliveries.filter((delivery) =>
-    delivery && delivery.finished_leg_end_longitude != null && delivery.finished_leg_end_longitude !== ''
-  );
-
-  if (eligibleDeliveries.length === 0) return;
-
-  await processInChunks(eligibleDeliveries, 20, async (delivery) => {
+  await processInChunks(deliveries, 20, async (delivery) => {
     try {
       return await base44.asServiceRole.entities.Delivery.update(delivery.id, { PolylineUpdated: value });
     } catch (error) {

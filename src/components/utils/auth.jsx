@@ -2,7 +2,6 @@ import { User } from '@/entities/User';
 import { AppUser } from '@/entities/AppUser';
 import { createMergedUser } from './driverUtils';
 import { offlineDB } from './offlineDatabase';
-import { recoverIfSelectedDriverDateIsOutrageous } from './deliveryRecoveryManager';
 
 const clearLegacyHereLocalStorageCache = () => {
   try {
@@ -158,8 +157,6 @@ export const getEffectiveUser = async () => {
         let retryCount = 0;
         const maxRetries = 2;
         const baseDelay = 2000;
-
-        await recoverIfSelectedDriverDateIsOutrageous().catch(() => null);
 
         const cachedAuthUser = getFreshCachedAuthUser();
         if (cachedAuthUser) {

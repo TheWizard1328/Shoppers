@@ -44,18 +44,22 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'google'));
       setHereCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'here'));
     } catch (err) {
-      // Non-critical; keep previous values and stop retrying on rate limits
-      if (String(err?.message || '').includes('Rate limit')) return;
+      // Non-critical; keep previous values
       console.warn("[ApiUsageBadge] Failed to fetch counts:", err?.message || err);
     }
   };
 
   useEffect(() => {
-    // One delayed fetch only; no polling to avoid rate limits
-    const t = setTimeout(fetchCounts, 4000);
+    // Initial fetch shortly after mount
+    const t = setTimeout(fetchCounts, 1000);
+
+    // Poll every 60 seconds instead of listening to every single log insertion
+    // which causes massive rate limits when many logs are created at once
+    const interval = setInterval(fetchCounts, 60000);
 
     return () => {
       clearTimeout(t);
+      clearInterval(interval);
     };
   }, []);
 

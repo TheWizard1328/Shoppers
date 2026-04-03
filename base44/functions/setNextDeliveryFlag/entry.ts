@@ -1,4 +1,3 @@
-// Redeployed on 2026-04-01
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];

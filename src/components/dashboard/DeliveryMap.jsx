@@ -162,8 +162,6 @@ export default function DeliveryMap({
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
   const [routeRenderKey, setRouteRenderKey] = useState(0);
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
-  const deliveriesUpdateRafRef = useRef(null);
-  const driverLocationUpdateRafRef = useRef(null);
   const [measuredTopOverlayHeight, setMeasuredTopOverlayHeight] = useState(0);
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
@@ -184,7 +182,7 @@ export default function DeliveryMap({
 
   useEffect(() => {
     if (Array.isArray(users) && users.length > 0) {
-      setRealtimeAppUsers((prev) => dedupeById(mergeAppUsersByFreshness(prev, users)));
+      setRealtimeAppUsers((prev) => mergeAppUsersByFreshness(prev, users));
     }
   }, [users]);
 
@@ -218,31 +216,20 @@ export default function DeliveryMap({
     const handleDriverLocationUpdate = (event) => {
       const appUsers = event?.detail?.appUsers;
       if (!Array.isArray(appUsers) || appUsers.length === 0) return;
-      if (driverLocationUpdateRafRef.current) cancelAnimationFrame(driverLocationUpdateRafRef.current);
-      driverLocationUpdateRafRef.current = requestAnimationFrame(() => {
-        setRealtimeAppUsers((prev) => dedupeById(mergeAppUsersByFreshness(prev, appUsers)));
-        driverLocationUpdateRafRef.current = null;
-      });
+      setRealtimeAppUsers((prev) => mergeAppUsersByFreshness(prev, appUsers));
     };
 
     const handleDeliveriesUpdate = () => {
-      if (deliveriesUpdateRafRef.current) cancelAnimationFrame(deliveriesUpdateRafRef.current);
-      deliveriesUpdateRafRef.current = requestAnimationFrame(() => {
-        prevDriverRoutesRef.current = [];
-        markerRefs.current = {};
-        setRouteRenderKey((value) => value + 1);
-        setPolylineRenderKey((value) => value + 1);
-        setFannedLocationKey(null);
-        deliveriesUpdateRafRef.current = null;
-      });
+      prevDriverRoutesRef.current = [];
+      setRouteRenderKey((value) => value + 1);
+      setPolylineRenderKey((value) => value + 1);
+      setFannedLocationKey(null);
     };
 
     window.addEventListener("driverLocationsUpdated", handleDriverLocationUpdate);
     window.addEventListener("deliveriesUpdated", handleDeliveriesUpdate);
     window.addEventListener("routeOptimizationComplete", handleDeliveriesUpdate);
     return () => {
-      if (driverLocationUpdateRafRef.current) cancelAnimationFrame(driverLocationUpdateRafRef.current);
-      if (deliveriesUpdateRafRef.current) cancelAnimationFrame(deliveriesUpdateRafRef.current);
       window.removeEventListener("driverLocationsUpdated", handleDriverLocationUpdate);
       window.removeEventListener("deliveriesUpdated", handleDeliveriesUpdate);
       window.removeEventListener("routeOptimizationComplete", handleDeliveriesUpdate);
@@ -262,7 +249,7 @@ export default function DeliveryMap({
           rows = await base44.entities.Delivery.filter({ delivery_date: selectedDate });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, rows || []);
         }
-        setOtherDriverDeliveries(dedupeById((rows || []).filter((row) => row?.driver_id && row.driver_id !== selectedDriverId)));
+        setOtherDriverDeliveries((rows || []).filter((row) => row?.driver_id && row.driver_id !== selectedDriverId));
       } catch {
         setOtherDriverDeliveries([]);
       }
@@ -274,9 +261,6 @@ export default function DeliveryMap({
     return Array.isArray(users) ? users : [];
   }, [realtimeAppUsers, users]);
 
-  const validPatientIds = useMemo(() => new Set(safePatients.map((patient) => patient?.id).filter(Boolean)), [safePatients]);
-  const validStoreIds = useMemo(() => new Set(safeStores.map((store) => store?.id).filter(Boolean)), [safeStores]);
-
   const driverLookupMap = useMemo(() => {
     const map = new Map();
     safeUsers.forEach((user) => {
@@ -287,17 +271,10 @@ export default function DeliveryMap({
   }, [safeUsers]);
 
   const deliveriesToShow = useMemo(() => {
-    const baseDeliveries = dedupeById(safeDeliveries.length > 0 ? safeDeliveries : safeAllDeliveriesForDate);
-    const mergedDeliveries = !showOtherDriverDeliveries || otherDriverDeliveries.length === 0
-      ? baseDeliveries
-      : dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
-
-    return dedupeById(mergedDeliveries.filter((delivery) => {
-      if (!delivery?.id) return false;
-      if (delivery.patient_id) return validPatientIds.has(delivery.patient_id);
-      return validStoreIds.has(delivery.store_id);
-    }));
-  }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries, validPatientIds, validStoreIds]);
+    const baseDeliveries = safeDeliveries.length > 0 ? safeDeliveries : safeAllDeliveriesForDate;
+    if (!showOtherDriverDeliveries || otherDriverDeliveries.length === 0) return baseDeliveries;
+    return dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
+  }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries]);
 
   const driverNameLookupMap = useMemo(() => {
     const map = new Map();
@@ -321,7 +298,7 @@ export default function DeliveryMap({
     const allMarkers = [];
     const hasIncomplete = deliveriesToShow.some((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status));
 
-    dedupeById(deliveriesToShow).forEach((delivery) => {
+    deliveriesToShow.forEach((delivery) => {
       if (!delivery) return;
       const store = safeStores.find((item) => item?.id === delivery.store_id) || null;
       const driver = driverLookupMap.get(delivery.driver_id) || (delivery.driver_name ? { id: delivery.driver_id, user_name: delivery.driver_name, full_name: delivery.driver_name } : null);
@@ -688,10 +665,6 @@ export default function DeliveryMap({
     if (!map || mapViewPhase !== 2 || !isMapViewLocked) {
       phase2FollowKeyRef.current = "";
       phase2OwnDriverAnchorRef.current = null;
-      return;
-    }
-
-    if (Date.now() - (window._lastUserMapInteraction || 0) < 1200) {
       return;
     }
 

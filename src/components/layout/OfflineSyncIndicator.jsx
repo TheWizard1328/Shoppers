@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { subscribeSyncStatus, getSyncStats, restartDeliveryPatientSync } from '@/components/utils/offlineSync';
+import { subscribeSyncStatus, getSyncStats, manualSyncSelected } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -18,87 +18,18 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   const isVisible = currentUser && isAppOwner(currentUser);
 
-  const refreshStats = useCallback(async (preserveRuntime = false) => {
-    const newStats = await getSyncStats();
-    setStats(newStats);
-    if (!preserveRuntime) {
-      setRuntimeStats({});
-    }
-    return newStats;
-  }, []);
-
-  const getTotalCount = useCallback((statsObj) => {
-    if (!statsObj) return 0;
-    return (statsObj?.patients?.count || 0) +
-      (statsObj?.deliveries?.count || 0) +
-      (statsObj?.appUsers?.count || 0) +
-      (statsObj?.cities?.count || 0) +
-      (statsObj?.stores?.count || 0) +
-      (statsObj?.companies?.count || 0) +
-      (statsObj?.squareTransactions?.count || 0) +
-      (statsObj?.driverOverviewStats?.count || 0);
-  }, []);
-
   useEffect(() => {
     if (!isVisible) return;
-
-    let cancelled = false;
-    let startupRefreshTimers = [];
-
-    const loadStats = async () => {
-      try {
-        const loadedStats = await refreshStats(true);
-        if (cancelled) return;
-
-        console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', loadedStats);
-        const total = getTotalCount(loadedStats);
-
-        if (total === 0) {
-          setIsSyncing(true);
-          setSyncStatus({ status: 'syncing', entity: 'Offline DB', progress: 10, count: 0 });
-          const retryDelays = [1500, 4000, 8000];
-          startupRefreshTimers = retryDelays.map((delay, index) => setTimeout(() => {
-            refreshStats(true).then((retryStats) => {
-              if (cancelled) return;
-              console.log('📊 [OfflineSyncIndicator] Startup recheck stats:', retryStats);
-              const retryTotal = getTotalCount(retryStats);
-              if (retryTotal > 0) {
-                setIsSyncing(false);
-                setSyncStatus({ status: 'complete' });
-              } else if (index === retryDelays.length - 1) {
-                window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
-              } else {
-                setSyncStatus({ status: 'syncing', entity: 'Offline DB', progress: 30 + index * 25, count: 0 });
-              }
-            }).catch(() => {});
-          }, delay));
-        } else {
-          setIsSyncing(false);
-          setSyncStatus((prev) => prev.status === 'syncing' ? { status: 'complete' } : prev);
-        }
-
-        setIsFullyLoaded(true);
-      } catch (error) {
-        if (cancelled) return;
-        console.error('❌ [OfflineSyncIndicator] Failed to load stats:', error);
-        setIsFullyLoaded(true);
-      }
-    };
-
-    loadStats();
-
-    const delayedRefreshes = [250, 1000, 2500].map((delay) => setTimeout(() => {
-      refreshStats(true).then((freshStats) => {
-        if (cancelled) return;
-        const freshTotal = getTotalCount(freshStats);
-        if (freshTotal > 0) {
-          setIsSyncing(false);
-          setSyncStatus((prev) => prev.status === 'syncing' ? { status: 'complete' } : prev);
-        }
-      }).catch(() => {});
-    }, delay));
-
-    startupRefreshTimers = [...startupRefreshTimers, ...delayedRefreshes];
+    // Load initial stats
+    getSyncStats().then(stats => {
+      console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
+      setStats(stats);
+      // CRITICAL: Always mark as loaded - show counts even if 0
+      setIsFullyLoaded(true);
+    }).catch(error => {
+      console.error('❌ [OfflineSyncIndicator] Failed to load stats:', error);
+      setIsFullyLoaded(true); // Still show UI with empty stats
+    });
 
     // Subscribe to sync updates (manual sync)
     const unsubscribe = subscribeSyncStatus((status) => {
@@ -107,26 +38,20 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
       // CRITICAL: Update runtime stats with entity count during sync
       if (status.entity && status.count !== undefined) {
-        const entityKeyMap = {
-          AppUsers: 'appusers',
-          Users: 'appusers',
-          Deliveries: 'deliveries',
-          Patients: 'patients',
-          Cities: 'cities'
-        };
-        const runtimeKey = entityKeyMap[status.entity] || status.entity.toLowerCase();
         setRuntimeStats(prev => ({
           ...prev,
-          [runtimeKey]: status.count
+          [status.entity.toLowerCase()]: status.count
         }));
         console.log(`🔄 [OfflineSyncIndicator] ${status.entity} syncing - count: ${status.count} (progress: ${status.progress || 0}%)`);
       }
       
       // CRITICAL: Refresh stats on sync complete
       if (status.status === 'complete' || status.status === 'synced') {
-        refreshStats().then(newStats => {
+        getSyncStats().then(newStats => {
           console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
-          setIsFullyLoaded(true);
+          setStats(newStats);
+          setRuntimeStats({}); // Clear runtime stats when sync completes
+          setIsFullyLoaded(true); // Always show stats after sync
         }).catch(error => {
           console.error('❌ [OfflineSyncIndicator] Failed to refresh stats:', error);
         });
@@ -164,15 +89,19 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       
       console.log(`🔄 [OfflineSyncIndicator] Periodic sync: ${entity} - count: ${count}`);
       
-      // If sync complete, refresh stats immediately
+      // If sync complete, refresh stats after short delay
       if (isComplete) {
-        refreshStats().then(newStats => {
-          console.log('📊 [OfflineSyncIndicator] Periodic sync complete - stats:', newStats);
-          setIsSyncing(false);
-        }).catch(error => {
-          console.error('❌ [OfflineSyncIndicator] Failed to load stats after periodic sync:', error);
-          setIsSyncing(false);
-        });
+        setTimeout(() => {
+          getSyncStats().then(newStats => {
+            console.log('📊 [OfflineSyncIndicator] Periodic sync complete - stats:', newStats);
+            setStats(newStats);
+            setRuntimeStats({});
+            setIsSyncing(false);
+          }).catch(error => {
+            console.error('❌ [OfflineSyncIndicator] Failed to load stats after periodic sync:', error);
+            setIsSyncing(false);
+          });
+        }, 300);
       }
     };
     
@@ -187,15 +116,13 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     // CRITICAL: Refresh stats whenever offline DB is updated by WebSocket events
     let refreshDebounceTimer = null;
     const handleRealtimeDBUpdate = () => {
+      // Debounce to avoid hammering IndexedDB on rapid updates
       clearTimeout(refreshDebounceTimer);
       refreshDebounceTimer = setTimeout(() => {
-        refreshStats(true).then((freshStats) => {
-          const freshTotal = getTotalCount(freshStats);
-          if (freshTotal > 0) {
-            setIsSyncing(false);
-          }
+        getSyncStats().then(newStats => {
+          setStats(newStats);
         }).catch(() => {});
-      }, embedded || inline ? 50 : 350);
+      }, 500);
     };
 
     window.addEventListener('periodicSyncProgress', handlePeriodicSync);
@@ -211,9 +138,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     const pollInterval = setInterval(handleRealtimeDBUpdate, 30000);
 
     return () => {
-      cancelled = true;
       unsubscribe();
-      startupRefreshTimers.forEach(clearTimeout);
       clearTimeout(refreshDebounceTimer);
       clearInterval(pollInterval);
       window.removeEventListener('periodicSyncProgress', handlePeriodicSync);
@@ -224,7 +149,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       window.removeEventListener('offlineSyncComplete', handleRealtimeDBUpdate);
       window.removeEventListener('deliveriesUpdated', handleRealtimeDBUpdate);
     };
-  }, [isVisible, refreshStats, getTotalCount, embedded, inline]);
+  }, [isVisible]);
 
   // Only show to app owners - MUST be after all hooks
   if (!isVisible) {
@@ -236,15 +161,25 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       setIsSyncing(true);
       console.log('🔄 [OfflineSyncIndicator] Starting manual sync (merge-only, no clear)...');
 
+      // CRITICAL: Do NOT clear delivery/patient data before syncing.
+      // forceSyncAll uses bulkSave (upsert) which preserves historical records
+      // across the full date range (90 days mobile / all time desktop).
       const { offlineDB } = await import('../utils/offlineDatabase');
-      const syncResult = await restartDeliveryPatientSync();
-      console.log('✅ [OfflineSyncIndicator] restartDeliveryPatientSync complete:', syncResult);
+
+      // Compute selected date and city, then run targeted manual sync
+      const { globalFilters } = await import('../utils/globalFilters');
+      const dateForSync = sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
+      const selectedCityId = globalFilters?.getSelectedCityId?.();
+      const syncResult = await manualSyncSelected(dateForSync, selectedCityId);
+      console.log('✅ [OfflineSyncIndicator] manualSyncSelected complete:', syncResult);
       
       // Wait for DB to settle
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      const updatedStats = await refreshStats();
+      const updatedStats = await getSyncStats();
       console.log('📊 [OfflineSyncIndicator] Updated stats:', updatedStats);
+      setStats(updatedStats);
+      setRuntimeStats({}); // Clear runtime stats
 
       // Wait for UI to update before dispatching events
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -279,7 +214,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       console.error('❌ [OfflineSyncIndicator] Force sync failed:', error);
       console.error('   Error message:', error.message);
       console.error('   Stack:', error.stack);
-      setSyncStatus({ status: 'error', error: error.message });
     } finally {
       setIsSyncing(false);
     }
@@ -324,13 +258,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     
     return (
       <div className="w-full">
-        <div className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50">
-          <button
-            type="button"
-            onClick={handleForceSync}
-            disabled={isSyncing}
-            className="flex items-center gap-2 min-w-0 flex-1 text-left disabled:opacity-70"
-          >
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50">
+
+          <div className="flex items-center gap-2">
             {getStatusIcon()}
             <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
               {isSyncing ? 'Syncing...' : 'Offline DB'}
@@ -340,23 +272,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                 ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0) + (stats.driverOverviewStats?.count || 0)})
               </span>
             }
-            {shouldRenderStats?.dbName && isExpanded &&
-            <span className="text-[10px] truncate max-w-[160px]" style={{ color: 'var(--text-slate-400)' }}>
-                {stats.dbName}
-              </span>
-            }
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsExpanded(!isExpanded);
-              refreshStats(true).catch(() => {});
-            }}
-            className="ml-2 flex items-center justify-center rounded-md p-1 text-slate-400"
-          >
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-        </div>
+          </div>
+          {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        </button>
         
         <AnimatePresence>
           {isExpanded &&
@@ -573,10 +491,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
         {/* Collapsed View */}
         <button
-          onClick={() => {
-            setIsExpanded(!isExpanded);
-            refreshStats(true).catch(() => {});
-          }}
+          onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 px-3 py-2 transition-colors w-full hover:bg-slate-50"
           style={{
             background: 'var(--bg-white)',
@@ -590,11 +505,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
           {shouldRenderStats && !isSyncing &&
           <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
               ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0) + (stats.driverOverviewStats?.count || 0)} records)
-            </span>
-          }
-          {shouldRenderStats?.dbName && isExpanded &&
-          <span className="text-[10px] ml-1" style={{ color: 'var(--text-slate-400)' }}>
-              {stats.dbName}
             </span>
           }
         </button>

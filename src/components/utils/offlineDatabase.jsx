@@ -3,21 +3,11 @@
  * Stores Patient and Delivery entities locally for offline access
  */
 
-// CRITICAL: Use an app-scoped database name so different preview hosts don't fight over the same IndexedDB
+// CRITICAL: Use stable database name and version to prevent recreation
+const DB_NAME = 'rxdeliver_persistent_offline_v1';
 const DB_VERSION = 9; // Incremented to add Company offline store
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
-
-const CANONICAL_DB_NAME = 'rxdeliver_persistent_offline_v1';
-const getScopedDbName = () => CANONICAL_DB_NAME;
-
-const getLegacyFallbackDbNames = () => {
-  const names = [
-    'rxdeliver_persistent_offline_v1_preview--wizard-worxx-2408a9d6_base44_app',
-    'rxdeliver_persistent_offline_v1_preview-sandbox--68570f3cd01bfa2d2408a9d6_base44_app'
-  ];
-  return Array.from(new Set(names.filter((name) => name && name !== CANONICAL_DB_NAME)));
-};
 
 // Store names
 const STORES = {
@@ -40,7 +30,6 @@ const STORES = {
 
 let dbInstance = null;
 let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
-let migrationPromise = null;
 
 const buildMetadataKey = (entityName, scopeKey = DEFAULT_CACHE_SCOPE) => {
   if (!scopeKey || scopeKey === DEFAULT_CACHE_SCOPE) return entityName;
@@ -71,126 +60,6 @@ const buildDataVersion = (records = []) => {
   return `${records.length}:${latestTimestamp}:${firstId}:${lastId}`;
 };
 
-const copyStoreRecords = async (sourceDb, targetDb, storeName) => {
-  if (!sourceDb.objectStoreNames.contains(storeName) || !targetDb.objectStoreNames.contains(storeName)) return 0;
-
-  const sourceTx = sourceDb.transaction([storeName], 'readonly');
-  const sourceStore = sourceTx.objectStore(storeName);
-  const records = await new Promise((resolve, reject) => {
-    const request = sourceStore.getAll();
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  }).catch(() => []);
-
-  if (!records.length) return 0;
-
-  const targetTx = targetDb.transaction([storeName], 'readwrite');
-  const targetStore = targetTx.objectStore(storeName);
-  await Promise.all(records.map((record) => new Promise((resolve, reject) => {
-    const request = targetStore.put(record);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  }).catch(() => null)));
-
-  await new Promise((resolve, reject) => {
-    targetTx.oncomplete = () => resolve();
-    targetTx.onerror = () => reject(targetTx.error);
-    targetTx.onabort = () => reject(targetTx.error);
-  }).catch(() => null);
-
-  return records.length;
-};
-
-const countStoreRecords = async (db, storeName) => {
-  if (!db?.objectStoreNames?.contains(storeName)) return 0;
-  return await new Promise((resolve, reject) => {
-    const tx = db.transaction([storeName], 'readonly');
-    const store = tx.objectStore(storeName);
-    const request = store.count();
-    request.onsuccess = () => resolve(request.result || 0);
-    request.onerror = () => reject(request.error);
-  }).catch(() => 0);
-};
-
-const importBestLegacyDataIntoTarget = async (targetDb) => {
-  const fallbackNames = getLegacyFallbackDbNames();
-  let bestSourceDb = null;
-  let bestSourceCount = 0;
-
-  for (const fallbackName of fallbackNames) {
-    const sourceDb = await new Promise((resolve) => {
-      const request = indexedDB.open(fallbackName);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-      request.onupgradeneeded = () => {
-        request.transaction?.abort?.();
-        resolve(null);
-      };
-    });
-
-    if (!sourceDb) continue;
-
-    const sourceDeliveryCount = await countStoreRecords(sourceDb, STORES.DELIVERIES);
-
-    if (sourceDeliveryCount > bestSourceCount) {
-      if (bestSourceDb) bestSourceDb.close();
-      bestSourceDb = sourceDb;
-      bestSourceCount = sourceDeliveryCount;
-    } else {
-      sourceDb.close();
-    }
-  }
-
-  if (bestSourceDb && bestSourceCount > 0) {
-    const storesToCopy = Object.values(STORES);
-    for (const storeName of storesToCopy) {
-      await copyStoreRecords(bestSourceDb, targetDb, storeName);
-    }
-    bestSourceDb.close();
-    return bestSourceCount;
-  }
-
-  return 0;
-};
-
-const deleteLegacyDatabases = async () => {
-  const fallbackNames = getLegacyFallbackDbNames();
-  await Promise.all(fallbackNames.map((name) => new Promise((resolve) => {
-    const request = indexedDB.deleteDatabase(name);
-    request.onsuccess = () => resolve(true);
-    request.onerror = () => resolve(false);
-    request.onblocked = () => resolve(false);
-  })));
-};
-
-const migrateLegacyDataIfNeeded = async (targetDb) => {
-  if (migrationPromise) return migrationPromise;
-
-  migrationPromise = (async () => {
-    try {
-      if (!targetDb?.objectStoreNames?.contains(STORES.DELIVERIES)) return;
-
-      const existingDeliveries = await new Promise((resolve, reject) => {
-        const tx = targetDb.transaction([STORES.DELIVERIES], 'readonly');
-        const store = tx.objectStore(STORES.DELIVERIES);
-        const request = store.count();
-        request.onsuccess = () => resolve(request.result || 0);
-        request.onerror = () => reject(request.error);
-      }).catch(() => 0);
-
-      if (existingDeliveries === 0) {
-        await importBestLegacyDataIntoTarget(targetDb);
-      }
-
-      await deleteLegacyDatabases();
-    } finally {
-      migrationPromise = null;
-    }
-  })();
-
-  return migrationPromise;
-};
-
 /**
  * Initialize and open the IndexedDB database
  * CRITICAL: Uses promise pooling to prevent race conditions
@@ -208,7 +77,7 @@ const openDatabase = () => {
 
   // Start new open operation
   dbOpenPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(getScopedDbName(), DB_VERSION);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = () => {
       dbOpenPromise = null;
@@ -233,15 +102,7 @@ const openDatabase = () => {
       };
       
       dbOpenPromise = null;
-      migrateLegacyDataIfNeeded(dbInstance)
-        .then(async () => {
-          const deliveryCount = await countStoreRecords(dbInstance, STORES.DELIVERIES);
-          if (deliveryCount === 0) {
-            await importBestLegacyDataIntoTarget(dbInstance);
-          }
-          resolve(dbInstance);
-        })
-        .catch(() => resolve(dbInstance));
+      resolve(dbInstance);
     };
 
     request.onupgradeneeded = (event) => {
@@ -544,14 +405,8 @@ const clearStore = async (storeName) => {
   } catch (error) {}
 };
 
-const replaceAllRecords = async (storeName, records = [], options = {}) => {
-  const { allowEmptyReplace = false } = options;
+const replaceAllRecords = async (storeName, records = []) => {
   try {
-    const existingRecords = await getAll(storeName);
-    if ((!records || records.length === 0) && existingRecords.length > 0 && !allowEmptyReplace) {
-      console.warn(`⚠️ [OfflineDB] Skipping replaceAllRecords for ${storeName} because incoming data is empty while existing store has ${existingRecords.length} records`);
-      return { success: true, skipped: true, count: existingRecords.length };
-    }
     await clearStore(storeName);
     if (!records || records.length === 0) {
       return { success: true, count: 0 };
@@ -562,14 +417,8 @@ const replaceAllRecords = async (storeName, records = [], options = {}) => {
   }
 };
 
-const replaceRecordsByIndex = async (storeName, indexName, indexValue, records = [], options = {}) => {
-  const { allowEmptyReplace = false } = options;
+const replaceRecordsByIndex = async (storeName, indexName, indexValue, records = []) => {
   try {
-    const existingRecords = await getByIndex(storeName, indexName, indexValue);
-    if ((!records || records.length === 0) && existingRecords.length > 0 && !allowEmptyReplace) {
-      console.warn(`⚠️ [OfflineDB] Skipping replaceRecordsByIndex for ${storeName}/${indexName}=${indexValue} because incoming data is empty while existing set has ${existingRecords.length} records`);
-      return { success: true, skipped: true, count: existingRecords.length };
-    }
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
@@ -1318,9 +1167,6 @@ const deduplicateDriverRoutePolylines = async (dateStr = null) => {
 
 export const offlineDB = {
   STORES,
-  getDbName: getScopedDbName,
-  getLegacyFallbackDbNames,
-  deleteLegacyDatabases,
   openDatabase,
   save,
   bulkSave,

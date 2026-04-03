@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { format } from 'date-fns';
@@ -19,15 +19,7 @@ export default function PickupMarkers({
   onMarkerClick, handleMarkerClickForFanning, handleMarkerDragEnd,
   markerRefs, safeStores, safePatients, safeUsers,
 }) {
-  const uniquePickups = useMemo(() => {
-    const map = new Map();
-    (pickupMarkers || []).forEach((pickup) => {
-      if (pickup?.id) map.set(pickup.id, pickup);
-    });
-    return Array.from(map.values());
-  }, [pickupMarkers]);
-
-  return uniquePickups.map((pickup) => {
+  return pickupMarkers.map((pickup) => {
     const lk = `${pickup.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${pickup.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
     const isClustered = pickup.duplicateCount > 1;
     const isFanned = fannedLocationKey === lk;

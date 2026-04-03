@@ -397,17 +397,6 @@ export const deletePatient = async (patientId, options = {}) => {
       req.onerror = () => reject(req.error);
     });
 
-    try {
-      const { smartRefreshManager } = await import('./smartRefreshManager');
-      smartRefreshManager.deletedPatientIds?.add?.(patientId);
-    } catch (_) {}
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('patientDeleted', {
-        detail: { patientId }
-      }));
-    }
-
     // Notify UI immediately
     notifyMutation({ type: 'delete', entity: 'Patient', id: patientId, data: null });
 
@@ -610,56 +599,64 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
   await pauseSmartRefresh();
 
   try {
-    const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-    const existingOffline = deliveries.find(d => d.id === deliveryId) || null;
-
-    let backendDeleted = false;
-    let backendNotFound = false;
-
+    // STEP 1: Check if exists in IndexedDB and delete
+    let existedOffline = false;
     try {
-      await Promise.race([
-        base44.entities.Delivery.delete(deliveryId),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Delete request timed out')), 12000))
-      ]);
-      backendDeleted = true;
+      const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      const exists = deliveries.find(d => d.id === deliveryId);
+      
+      if (exists) {
+        const db = await offlineDB.openDatabase();
+        const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+        await new Promise((resolve, reject) => {
+          const req = tx.objectStore(offlineDB.STORES.DELIVERIES).delete(deliveryId);
+          req.onsuccess = resolve;
+          req.onerror = () => reject(req.error);
+        });
+        existedOffline = true;
+        console.log('💾 [EntityMutations] Deleted from IndexedDB:', deliveryId);
+      } else {
+        console.log('⏭️ [EntityMutations] Not in IndexedDB, skipping offline delete:', deliveryId);
+      }
+    } catch (offlineError) {
+      console.warn('⚠️ [EntityMutations] IndexedDB delete check failed:', offlineError.message);
+    }
+
+    // STEP 2: Delete from backend (skip if not found)
+    let existedOnline = false;
+    try {
+      await base44.entities.Delivery.delete(deliveryId);
+      existedOnline = true;
       console.log('☁️ [EntityMutations] Backend deleted:', deliveryId);
     } catch (error) {
       if (error.message?.includes('not found') || error.message?.includes('404') || error.response?.status === 404) {
-        backendNotFound = true;
-        console.log('⏭️ [EntityMutations] Not found in backend, treating as already deleted:', deliveryId);
+        console.log('⏭️ [EntityMutations] Not found in backend, skipping online delete:', deliveryId);
       } else {
-        console.warn('⚠️ [EntityMutations] Delivery delete failed, keeping local record and queuing retry:', error.message);
+        console.warn('⚠️ [EntityMutations] Delivery delete sync failed, queuing:', error.message);
         await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: deliveryId });
-        await restartSmartRefresh();
-        throw error;
       }
     }
 
-    if (!existingOffline && !backendDeleted && !backendNotFound) {
+    // If delivery didn't exist in either DB, skip the rest
+    if (!existedOffline && !existedOnline) {
       console.log('⏭️ [EntityMutations] Delivery not found in offline or online DB, skipping:', deliveryId);
       await restartSmartRefresh();
-      return false;
+      return false; // Indicate it was already deleted
     }
 
-    if (existingOffline) {
-      const db = await offlineDB.openDatabase();
-      const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
-      await new Promise((resolve, reject) => {
-        const req = tx.objectStore(offlineDB.STORES.DELIVERIES).delete(deliveryId);
-        req.onsuccess = resolve;
-        req.onerror = () => reject(req.error);
-      });
-      console.log('💾 [EntityMutations] Deleted from IndexedDB:', deliveryId);
-    }
-
+    // STEP 3: CRITICAL - Remove from cache (prevents deleted item from showing)
     const { removeDeletedFromCache } = await import('./dataManager');
     removeDeletedFromCache('Delivery', [deliveryId]);
     console.log('🗑️ [EntityMutations] Removed deleted delivery from all caches');
-
+    
+    // STEP 4: Mark as deleted in smart refresh to prevent resurrection
     const { smartRefreshManager } = await import('./smartRefreshManager');
     smartRefreshManager.deletedDeliveryIds.add(deliveryId);
 
+    // STEP 5: Notify UI immediately on this device
     notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
+
+    // STEP 6: Broadcast immediate delete so other devices update UI right away too
     await broadcastMutation('Delivery', 'delete', deliveryId, null);
 
     await restartSmartRefresh();
@@ -767,83 +764,6 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
   }
 };
 
-export const batchUpdateDeliveriesLocal = async (updates = [], options = {}) => {
-  if (mutationsPaused) throw new Error('Mutations are paused');
-  console.log('🔄 [EntityMutations] batchUpdateDeliveriesLocal start', { requested: updates?.length || 0 });
-  await pauseSmartRefresh();
-
-  try {
-    const sanitizedUpdates = updates
-      .filter((item) => item?.id && item?.updates)
-      .map((item) => ({ id: item.id, updates: sanitizeDeliveryData(item.updates) }));
-
-    if (sanitizedUpdates.length === 0) {
-      console.warn('⚠️ [EntityMutations] batchUpdateDeliveriesLocal received no valid updates');
-      await restartSmartRefresh();
-      return [];
-    }
-
-    const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-    const existingMap = new Map((deliveries || []).filter(Boolean).map((d) => [d.id, d]));
-
-    const localRecords = sanitizedUpdates
-      .map(({ id, updates: recordUpdates }) => {
-        const existing = existingMap.get(id);
-        if (!existing) return null;
-        return { ...existing, ...recordUpdates, updated_date: new Date().toISOString() };
-      })
-      .filter(Boolean);
-
-    console.log('💾 [EntityMutations] batchUpdateDeliveriesLocal local matches', { matched: localRecords.length, requested: sanitizedUpdates.length });
-
-    if (localRecords.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, localRecords);
-      localRecords.forEach((record) => {
-        notifyMutation({ type: 'update', entity: 'Delivery', id: record.id, data: record });
-      });
-    }
-
-    const backendResults = await Promise.all(
-      sanitizedUpdates.map(async ({ id, updates: recordUpdates }) => {
-        try {
-          const backendDelivery = await base44.entities.Delivery.update(id, recordUpdates);
-          return { id, success: true, data: backendDelivery };
-        } catch (error) {
-          console.warn('⚠️ [EntityMutations] batch update queued', { id, message: error?.message || error });
-          await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: id, payload: recordUpdates });
-          const localFallback = localRecords.find((record) => record.id === id) || existingMap.get(id) || null;
-          return { id, success: false, data: localFallback, error };
-        }
-      })
-    );
-
-    const authoritativeRecords = backendResults.map((result) => result.data).filter(Boolean);
-    if (authoritativeRecords.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, authoritativeRecords);
-      await refreshOfflineEntitySnapshots('Delivery', authoritativeRecords[0]);
-      authoritativeRecords.forEach((record) => {
-        notifyMutation({ type: 'update', entity: 'Delivery', id: record.id, data: record });
-      });
-    }
-
-    const { updateCache } = await import('./dataManager');
-    authoritativeRecords.forEach((record) => {
-      updateCache('Delivery', record.id, record);
-    });
-
-    for (const record of authoritativeRecords) {
-      await broadcastMutation('Delivery', 'update', record.id, record);
-    }
-
-    console.log('✅ [EntityMutations] batchUpdateDeliveriesLocal complete', { successful: backendResults.filter((result) => result.success).length, queued: backendResults.filter((result) => !result.success).length });
-    await restartSmartRefresh();
-    return backendResults;
-  } catch (error) {
-    await restartSmartRefresh();
-    throw error;
-  }
-};
-
 /**
  * Batch delete deliveries (local-first with guaranteed cache refresh)
  * CRITICAL: Skips deliveries that don't exist in offline or online DB
@@ -883,10 +803,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     
     for (const id of deliveryIds) {
       try {
-        await Promise.race([
-          base44.entities.Delivery.delete(id),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Delete request timed out')), 12000))
-        ]);
+        await base44.entities.Delivery.delete(id);
         deletedOnlineIds.push(id);
       } catch (error) {
         if (error.message?.includes('not found') || error.message?.includes('404') || error.response?.status === 404) {

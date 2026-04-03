@@ -93,6 +93,24 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     });
   }, []);
 
+  // CRITICAL: Listen for collapseAllStopCards event
+  React.useEffect(() => {
+    const handleCollapseAll = () => {
+      console.log('🗜️ [HorizontalStopCards] Collapsing all cards');
+      if (onSelectionChange) {
+        onSelectionChange(null, false);
+      } else if (onCardClick) {
+        onCardClick(null);
+      }
+    };
+
+    window.addEventListener('collapseAllStopCards', handleCollapseAll);
+
+    return () => {
+      window.removeEventListener('collapseAllStopCards', handleCollapseAll);
+    };
+  }, [onSelectionChange, onCardClick]);
+
   // CRITICAL: Listen for collapseAllStopCards event and collapse all cards
   React.useEffect(() => {
     const handleCollapseAll = () => {
@@ -191,15 +209,22 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
 
     const handleSmartRefreshComplete = () => {
-      if (selectedCardId) return;
+      // RULE 2: Collapse all cards, then center next delivery if not centered
       if (!isNextDeliveryCardCentered()) {
-        const nextCard = validCards.find((card) => card?.isNextDelivery === true);
-        if (nextCard) {
-          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-          if (cardElement) {
-            scrollToCenterCard(cardElement);
-          }
+        console.log('🎯 [Auto-Center Rule 2] Smart refresh - collapsing all and centering next');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
         }
+
+        setTimeout(() => {
+          const nextCard = validCards.find((card) => card?.isNextDelivery === true);
+          if (nextCard) {
+            const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+            if (cardElement) {
+              scrollToCenterCard(cardElement);
+            }
+          }
+        }, 100);
       }
     };
 

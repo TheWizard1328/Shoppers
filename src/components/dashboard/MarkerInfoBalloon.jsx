@@ -1,22 +1,6 @@
 import React from 'react';
 import { Clock, Home, MapPin, Truck } from 'lucide-react';
 
-const buildNavigationUrl = (patient, delivery) => {
-  const lat = patient?.latitude ?? delivery?.latitude;
-  const lng = patient?.longitude ?? delivery?.longitude;
-  const address = patient?.address || delivery?.delivery_address || '';
-
-  if (lat != null && lng != null) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
-  }
-
-  if (address) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-  }
-
-  return '';
-};
-
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
 const getStatusColor = (status) => {
@@ -59,8 +43,6 @@ export default function MarkerInfoBalloon({
     : delivery?.delivery_time_eta ? delivery.delivery_time_eta : null;
 
   const patientLabel = isPickup ? 'Store Pickup' : (patient?.full_name || 'Patient');
-  const patientAddress = !isPickup ? (patient?.address || delivery?.delivery_address || '') : '';
-  const navigationUrl = !isPickup ? buildNavigationUrl(patient, delivery) : '';
   const wrapperClass = compact ? 'space-y-1' : 'space-y-1.5';
 
   return (
@@ -81,40 +63,21 @@ export default function MarkerInfoBalloon({
       </div>
 
       {/* Row 3: Name, Stop#, Time */}
-      <div className="flex items-start justify-between gap-2 text-[11px]">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5" style={{ color: 'var(--text-slate-900)' }}>
-            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="shrink-0 font-medium" style={{ color: 'var(--text-slate-500)', fontFamily: 'Courier New, monospace' }}>#{stopNumber}</span>
-            {onPatientClick && !isPickup ? (
-              <button
-                onClick={(event) => { event.stopPropagation(); onPatientClick(); }}
-                className="truncate text-left"
-                style={{ color: 'var(--text-slate-900)' }}
-              >
-                {patientLabel}
-              </button>
-            ) : (
-              <span className="truncate">{patientLabel}</span>
-            )}
-          </div>
-          {patientAddress && navigationUrl ? (
-            <a
-              href={navigationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
-              className="mt-1 block truncate pl-5 text-[11px] underline underline-offset-2"
-              style={{ color: 'var(--text-slate-600)' }}
-              title={patientAddress}
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <div className="flex min-w-0 items-center gap-1.5" style={{ color: 'var(--text-slate-900)' }}>
+          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="shrink-0 font-medium" style={{ color: 'var(--text-slate-500)', fontFamily: 'Courier New, monospace' }}>#{stopNumber}</span>
+          {onPatientClick && !isPickup ? (
+            <button
+              onClick={(event) => { event.stopPropagation(); onPatientClick(); }}
+              className="truncate text-left"
+              style={{ color: 'var(--text-slate-900)' }}
             >
-              {patientAddress}
-            </a>
-          ) : patientAddress ? (
-            <div className="mt-1 truncate pl-5 text-[11px]" style={{ color: 'var(--text-slate-600)' }} title={patientAddress}>
-              {patientAddress}
-            </div>
-          ) : null}
+              {patientLabel}
+            </button>
+          ) : (
+            <span className="truncate">{patientLabel}</span>
+          )}
         </div>
         <div className={`shrink-0 text-right ${timeLabel ? 'flex items-center gap-1' : ''} ${getTimeColor(delivery?.status)}`}>
           {timeLabel ? <Clock className="w-3.5 h-3.5 flex-shrink-0" /> : null}

@@ -52,7 +52,10 @@ async function flushBuffered(entityName) {
   let fullReplacementData = null;
   try {
     if (entityName === 'Delivery') {
-      fullReplacementData = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
+      if (selectedDate) {
+        fullReplacementData = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
+      }
     } else if (entityName === 'AppUser') {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     } else if (entityName === 'Patient') {
@@ -87,40 +90,36 @@ async function flushBuffered(entityName) {
   });
 
   if (typeof window !== 'undefined' && entityName === 'Delivery' && Array.isArray(fullReplacementData)) {
-    const hasRelevantDeliveryChange = items.some((item) => item.eventType === 'create' || item.eventType === 'delete' || item.eventType === 'update');
+    const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
+    const hasCreateOrDelete = items.some((item) => item.eventType === 'create' || item.eventType === 'delete');
 
-    if (hasRelevantDeliveryChange) {
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: {
-          deliveries: fullReplacementData,
-          freshDeliveries: fullReplacementData,
-          immediate: true,
-          triggeredBy: 'realtimeBufferedFullRefresh',
-          source: 'realtime_sync',
-          fromRealtime: true,
-          fullReplacement: true,
-          skipMapPhaseOneRefresh: false
-        }
-      }));
-
-      if (items.some((item) => item.eventType === 'create' || item.eventType === 'delete')) {
-        fabControlEvents.notifyDeliveryRealtimeCreateOrDelete();
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: {
+        deliveries: fullReplacementData,
+        freshDeliveries: fullReplacementData,
+        immediate: true,
+        deliveryDate: selectedDate,
+        triggeredBy: hasCreateOrDelete ? 'realtimeBufferedFullRefresh' : 'realtimeBufferedFieldUpdate',
+        source: 'realtime_sync',
+        fromRealtime: true,
+        fullReplacement: hasCreateOrDelete,
+        skipMapPhaseOneRefresh: !hasCreateOrDelete
       }
+    }));
+
+    if (hasCreateOrDelete) {
+      fabControlEvents.notifyDeliveryRealtimeCreateOrDelete();
     }
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {
-    const shouldRunUiRefresh = !window.__lastAppUserUiRefreshAt || (Date.now() - window.__lastAppUserUiRefreshAt) >= 30000;
-    if (shouldRunUiRefresh) {
-      window.__lastAppUserUiRefreshAt = Date.now();
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: {
-          appUsers: fullReplacementData,
-          fromRealtime: true,
-          fullReplacement: true
-        }
-      }));
-    }
+    window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+      detail: {
+        appUsers: fullReplacementData,
+        fromRealtime: true,
+        fullReplacement: true
+      }
+    }));
   }
 
   if (typeof window !== 'undefined' && entityName === 'Patient' && Array.isArray(fullReplacementData)) {
@@ -293,9 +292,6 @@ const subscribeToEntity = (entityName) => {
 
           if (storeName) {
             await offlineDB.save(storeName, data);
-            if (entityName === 'AppUser') {
-              await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
-            }
             if (entityName === 'DriverRoutePolyline') {
               console.log(`💾 [RealtimeSync] Saved DriverRoutePolyline to offline DB: ${data.driver_id} segment ${data.segment_origin_lat},${data.segment_origin_lon} -> ${data.segment_dest_lat},${data.segment_dest_lon}`);
             } else {
@@ -519,25 +515,13 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     }));
 
     if (entity === 'Delivery') {
-      let fullReplacementDeliveries;
-      try {
-        const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
-        if (selectedDate) {
-          fullReplacementDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
-        }
-      } catch (error) {
-        console.warn('⚠️ [RealtimeSync] Failed to build full delivery replacement for broadcast:', error.message);
-      }
-
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveryId: id,
           deletedId: action === 'delete' ? id : undefined,
           deletedIds: action === 'batch_delete' ? ids : action === 'delete' ? [id] : undefined,
           deliveryDate: data?.delivery_date,
-          deliveries: fullReplacementDeliveries,
-          freshDeliveries: Array.isArray(fullReplacementDeliveries) ? fullReplacementDeliveries : data ? [data] : undefined,
-          fullReplacement: Array.isArray(fullReplacementDeliveries),
+          freshDeliveries: data ? [data] : undefined,
           triggeredBy: 'realtimeBroadcast',
           source: 'realtime_sync',
           fromRealtime: true

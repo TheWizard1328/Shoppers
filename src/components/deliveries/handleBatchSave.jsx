@@ -53,8 +53,7 @@ export async function handleBatchSave({
     setIsLoadingPredictions,
     handleClearForm,
     onCancel,
-    formData,
-    setBatchFormSaving
+    formData
   })) return;
 
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
@@ -264,10 +263,7 @@ export async function handleBatchSave({
       unblockPredictions,
       setIsLoadingPredictions
     });
-
-    setBatchFormSaving(false);
-    setIsSaving(false);
-    closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
+    await closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
 
     Promise.resolve().then(async () => {
       try {
@@ -299,5 +295,6 @@ export async function handleBatchSave({
     await restartBatchSmartRefresh(() => setBatchFormSaving(false));
   } finally {
     batchSaveLockRef.current = false;
+    setIsSaving(false);
   }
 }

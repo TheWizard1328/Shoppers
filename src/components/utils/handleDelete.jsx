@@ -17,10 +17,10 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
     const deliveryDate = targetDelivery.delivery_date;
     console.log(`📦 [DELETE Handler] Deleting: ${targetDelivery.patient_name || 'Pickup'}`);
 
-    console.log('🗑️ [DELETE Handler] Step 2: Deleting from offline DB first, then backend...');
+    console.log('🗑️ [DELETE Handler] Step 2: Deleting from offline DB and backend...');
     const { deleteDeliveryLocal } = await import('./offlineMutations');
     await deleteDeliveryLocal(deliveryId);
-    console.log('✅ [DELETE Handler] Deleted from offline DB first, then backend');
+    console.log('✅ [DELETE Handler] Deleted from offline DB and backend');
 
     console.log('🗑️ [DELETE Handler] Step 3: Updating UI state immediately...');
     if (updateDeliveriesLocally) {

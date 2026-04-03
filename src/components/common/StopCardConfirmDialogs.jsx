@@ -8,7 +8,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { getDriverDisplayName } from '../utils/driverUtils';
-import { updateDeliveryLocal, deleteDelivery, batchDeleteDeliveries } from '../utils/entityMutations';
+import { updateDeliveryLocal, batchDeleteDeliveriesLocal } from '../utils/entityMutations';
 
 export default function StopCardConfirmDialogs({
   // Delete dialog
@@ -139,28 +139,12 @@ export default function StopCardConfirmDialogs({
                     }
 
                     if (isPickup && pendingPickups && pendingPickups.length > 0 && (!selectedTransferPickupId || selectedTransferPickupId === 'delete_all')) {
-                      const deleteIds = [
+                      await batchDeleteDeliveriesLocal([
                         delivery.id,
                         ...pendingPickups.map((item) => item.id).filter(Boolean)
-                      ];
-                      const deleted = await batchDeleteDeliveries(deleteIds);
-                      if (!deleted) {
-                        throw new Error('Delete did not complete');
-                      }
-                      window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
-                        detail: { deletedIds: deleteIds }
-                      }));
+                      ]);
                     } else {
-                      const deleted = await deleteDelivery(delivery.id);
-                      if (!deleted) {
-                        throw new Error('Delete did not complete');
-                      }
-                      window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
-                        detail: { deletedIds: [delivery.id] }
-                      }));
-                      if (typeof onDeleteDelivery === 'function') {
-                        onDeleteDelivery(delivery.id).catch(() => {});
-                      }
+                      await onDeleteDelivery(delivery.id);
                     }
                     setShowDeleteConfirm(false);
                     setSelectedTransferPickupId('');

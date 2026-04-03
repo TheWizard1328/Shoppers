@@ -122,7 +122,59 @@ export default function ImmediateNextDeliveryController() {
       }
 
       if (action.type === 'complete') {
-        return;
+        const completionUpdate = {
+          status: 'completed',
+          isNextDelivery: false
+        };
+
+        const optimisticBase = currentDeliveries.map((item) => {
+          if (!item || item.driver_id !== delivery.driver_id || item.delivery_date !== delivery.delivery_date) {
+            return item;
+          }
+          if (item.id === delivery.id) {
+            return { ...item, ...completionUpdate };
+          }
+          return { ...item, isNextDelivery: false };
+        });
+
+        const nextStop = getNextActiveDelivery(
+          optimisticBase.filter((item) =>
+            item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date
+          ),
+          delivery.id
+        );
+
+        await Promise.all(
+          routeDeliveries.map((item) => {
+            if (item.id === delivery.id) {
+              return updateDeliveryLocal(item.id, completionUpdate, { skipSmartRefresh: true });
+            }
+            if (item.id === nextStop?.id) {
+              return updateDeliveryLocal(item.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+            }
+            if (item.isNextDelivery) {
+              return updateDeliveryLocal(item.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+            }
+            return Promise.resolve();
+          })
+        );
+
+        const optimistic = optimisticBase.map((item) => {
+          if (!item || item.driver_id !== delivery.driver_id || item.delivery_date !== delivery.delivery_date) {
+            return item;
+          }
+          return { ...item, isNextDelivery: item.id === nextStop?.id };
+        });
+
+        updateDeliveriesLocally?.(optimistic, true);
+        if (nextStop?.id) {
+          centerDeliveryCard(nextStop.id);
+        }
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { triggeredBy: 'nextDeliveryImmediate', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+        }));
+
+        etaRefreshRef.current.delete(routeKey);
       }
     };
 

@@ -37,28 +37,14 @@ export default function OptimizationSpinner() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 pointer-events-none"
-          style={{
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            left: 0,
-            right: 0,
-            background: 'color-mix(in srgb, var(--bg-slate-900) 45%, transparent)'
-          }}
+          style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', left: 0, right: 0 }}
         >
-          <div
-            className="backdrop-blur-sm rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-3 border"
-            style={{
-              background: 'color-mix(in srgb, var(--bg-white) 92%, transparent)',
-              borderColor: 'var(--border-slate-200)'
-            }}
-          >
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-3">
             <div className="relative">
-              <Loader2 className="w-12 h-12 animate-spin" style={{ color: 'var(--primary-color, #2563eb)' }} />
-              <Navigation className="w-6 h-6 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style={{ color: 'var(--primary-color, #2563eb)' }} />
+              <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+              <Navigation className="w-6 h-6 text-blue-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
             </div>
-            <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Optimizing route...</p>
+            <p className="text-sm font-medium text-slate-700">Optimizing route...</p>
           </div>
         </motion.div>
       )}

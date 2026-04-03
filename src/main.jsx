@@ -2,9 +2,6 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
-import { offlineDB } from '@/components/utils/offlineDatabase'
-
-offlineDB.deleteLegacyDatabases().catch(() => {});
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   // <React.StrictMode>
@@ -20,3 +17,6 @@ if (import.meta.hot) {
     window.parent?.postMessage({ type: 'sandbox:afterUpdate' }, '*');
   });
 }
+
+
+

@@ -792,7 +792,7 @@ export default function PayrollSummaryCard({
             <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
               You are confirming your payroll for <strong>{currentPeriod?.label}</strong>.
               <br /><br />
-              <strong>Total Gross Pay:</strong> {formatCurrency(payrollData.find((d) => d.driver.id === currentUser?.id)?.net_pay || 0)}
+              <strong>Total Gross Pay:</strong> {formatCurrency(payrollData.find((d) => d.driver.id === currentUser?.id)?.grossPay || 0)}
               <br /><br />
               Please review your deliveries and pay above before confirming. Once confirmed, you will not be able to edit any stops for this pay period.
             </DialogDescription>

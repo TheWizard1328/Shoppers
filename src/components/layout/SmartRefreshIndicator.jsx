@@ -6,7 +6,6 @@ import { isAppOwner } from '../utils/userRoles';
 import { useUser } from '../utils/UserContext';
 import { offlineManager } from '../utils/offlineManager';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
-import { base44 } from '@/api/base44Client';
 
 /**
  * Smart Refresh Indicator - Shows app owners when smart refresh is active
@@ -46,7 +45,6 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   const [currentDisplayIndex, setCurrentDisplayIndex] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [isRefreshStuck, setIsRefreshStuck] = useState(false);
-  const [pauseExpired, setPauseExpired] = useState(false);
   
   // Track which manager is active
   const [activeManager, setActiveManager] = useState(null); // 'smart', 'offline', 'polling'
@@ -200,19 +198,6 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     return () => clearTimeout(stuckTimer);
   }, [smartRefreshActivity?.active, isManualRefreshing, isSmartRefreshActive, isOfflineSyncActive]);
 
-  useEffect(() => {
-    if (!isEntityUpdating) {
-      setPauseExpired(false);
-      return;
-    }
-
-    const pauseTimer = setTimeout(() => {
-      setPauseExpired(true);
-    }, 8000);
-
-    return () => clearTimeout(pauseTimer);
-  }, [isEntityUpdating]);
-
   // Real-time sync broadcasts removed
 
   // Show for all users (removed app owner restriction)
@@ -222,7 +207,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
   const isPollingOnly = activeManager === 'polling' && !smartRefreshActivity?.active && !isManualRefreshing && !isOfflineSyncActive && !isSmartRefreshActive;
   const isActive = !isRefreshStuck && (smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive);
-  const isPaused = isEntityUpdating && !pauseExpired;
+  const isPaused = isEntityUpdating;
   const hasUpdates = recentUpdates.length > 0;
   
   // Determine spinner color based on active manager
@@ -249,29 +234,28 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     // Trigger pull-to-sync (silent mode - no overlay)
     window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-      detail: { silent: true, requestedAt: Date.now(), forcedByManualRefresh: true }
+      detail: { silent: true, requestedAt: Date.now() }
     }));
 
     // Also kick polyline repair directly to avoid waiting for pull handler wiring in some views
     try {
+      const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-      base44.functions.invoke('repairMissingPolylines', { date: today }).catch(() => null);
-    } catch (_) {}
+      repairMissingPolylines({ date: today }).catch(() => null);
+    } catch(_) {}
 
     // Listen for completion, with fallback timeout
     let completed = false;
-    let fallbackTimer = null;
-    const finishRefresh = () => {
+    const handleSyncComplete = () => {
       if (completed) return;
       completed = true;
       setIsManualRefreshing(false);
-      window.removeEventListener('pullToSyncComplete', finishRefresh);
-      if (fallbackTimer) clearTimeout(fallbackTimer);
+      window.removeEventListener('pullToSyncComplete', handleSyncComplete);
       window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
     };
 
-    window.addEventListener('pullToSyncComplete', finishRefresh);
-    fallbackTimer = setTimeout(finishRefresh, 10000);
+    window.addEventListener('pullToSyncComplete', handleSyncComplete);
+    setTimeout(handleSyncComplete, 10000);
   };
 
   // Entity labels
@@ -303,7 +287,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           disabled={isPaused}
           className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-lg' : ''}`}
           style={{ position: 'relative', zIndex: 10030 }}
-          title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : pauseExpired ? 'Refresh recovered' : 
+          title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 
                  activeManager === 'smart' ? 'Smart Refresh active' : 
                  activeManager === 'offline' ? 'Offline Sync active' : 
                  activeManager === 'polling' ? 'Background location polling' : 
@@ -357,7 +341,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         disabled={isPaused}
         className={`w-6 h-6 min-w-6 min-h-6 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-xl' : ''}`}
         style={{ position: 'relative', zIndex: 10030 }}
-        title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : pauseExpired ? 'Smart refresh recovered' : 
+        title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 
                activeManager === 'smart' ? 'Smart Refresh active' : 
                activeManager === 'offline' ? 'Offline Sync active' : 
                activeManager === 'polling' ? 'Background location polling' : 
