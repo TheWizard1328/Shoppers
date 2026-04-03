@@ -11,7 +11,6 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
-import { fabControlEvents } from './fabControlEvents';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 
 // Global listeners for real-time updates
@@ -123,14 +122,7 @@ async function flushBuffered(entityName) {
       }));
     }
 
-    if (hasCreateOrDelete) {
-      const relevantCreateOrDelete = relevantItems.find((item) => item.eventType === 'create' || item.eventType === 'delete');
-      fabControlEvents.notifyDeliveryRealtimeCreateOrDelete({
-        driverId: relevantCreateOrDelete?.data?.driver_id || scopedDriverId || null,
-        deliveryDate: relevantCreateOrDelete?.data?.delivery_date || selectedDate || null,
-        relevantToCurrentSelection: Boolean(relevantCreateOrDelete)
-      });
-    }
+
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {
@@ -153,10 +145,10 @@ async function flushBuffered(entityName) {
     }));
   }
 
-  // Center next delivery card if any REMOTE update warrants it
-  if (entityName === 'Delivery' && items.some(it => it.isRemoteUpdate && shouldCenterForDeliveryUpdate(it.data, it.changedFields))) {
+  // Center next delivery card when the next-stop flag becomes active on any relevant device
+  if (entityName === 'Delivery' && items.some(it => shouldCenterForDeliveryUpdate(it.data, it.changedFields))) {
     scheduleAfterUISettled(() => {
-      triggerCenterNextDeliveryCard({ source: 'realtimeSyncBuffered', remoteOnly: true });
+      triggerCenterNextDeliveryCard({ source: 'realtimeSyncBuffered' });
     });
   }
 }
