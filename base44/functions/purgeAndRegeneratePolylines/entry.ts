@@ -332,8 +332,15 @@ Deno.serve(async (req) => {
 
     const stopOrderRepairUpdates = buildStopOrderRepairUpdates(deliveries);
     if (stopOrderRepairUpdates.length > 0) {
+      console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] BEFORE stopOrderRepair bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0} | repairCount=${stopOrderRepairUpdates.length}`);
       const stopOrderUpdatesById = new Map(stopOrderRepairUpdates.map((update) => [update.id, { stop_order: update.stop_order }]));
       deliveries = await bulkUpdateDeliveries(base44, deliveries, stopOrderUpdatesById);
+      const afterStopOrderRepairDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      }, 'stop_order', 50000);
+      console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] AFTER stopOrderRepair bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${afterStopOrderRepairDeliveries?.length || 0} | repairCount=${stopOrderRepairUpdates.length}`);
+      deliveries = afterStopOrderRepairDeliveries;
     }
 
     const existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
@@ -383,6 +390,8 @@ Deno.serve(async (req) => {
     const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
     const storeMap = new Map((stores || []).map((store) => [store.id, store]));
     const driverAppUser = Array.isArray(appUsers) ? appUsers[0] : null;
+    const driverDisplayName = driverAppUser?.user_name || driverAppUser?.full_name || driverId;
+    console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0}`);
 
     const getLatLon = (delivery) => {
       if (!delivery) return null;
@@ -465,7 +474,14 @@ Deno.serve(async (req) => {
     const createdSegments = [];
 
     if (deliveryUpdatesById.size > 0) {
+      console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] BEFORE finishedLeg bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0} | updateCount=${deliveryUpdatesById.size}`);
       deliveries = await bulkUpdateDeliveries(base44, deliveries, deliveryUpdatesById);
+      const afterFinishedLegDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      }, 'stop_order', 50000);
+      console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] AFTER finishedLeg bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${afterFinishedLegDeliveries?.length || 0} | updateCount=${deliveryUpdatesById.size}`);
+      deliveries = afterFinishedLegDeliveries;
     }
 
     if (scope === 'all' || scope === 'active_only') {
@@ -540,17 +556,26 @@ Deno.serve(async (req) => {
 
         const rowsToDelete = (existingPolylines || []).filter((row) => !segmentsToKeep.has(row.id));
         if (rowsToDelete.length > 0) {
+          console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] BEFORE delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | rowsToDelete=${rowsToDelete.length} | totalStops=${deliveries?.length || 0}`);
           await processInChunks(rowsToDelete, 5, (row) =>
             base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
               if (isNotFoundError(error)) return null;
               throw error;
             })
           );
+          console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] AFTER delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | rowsToDelete=${rowsToDelete.length} | totalStops=${deliveries?.length || 0}`);
         }
         deletedPolylineCount = rowsToDelete.length;
 
         if (createdSegments.length > 0) {
+          console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] BEFORE DriverRoutePolyline.bulkCreate | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${deliveries?.length || 0}`);
           await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);
+          const afterPolylineCreateDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+            driver_id: driverId,
+            delivery_date: deliveryDate
+          }, 'stop_order', 50000);
+          console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] AFTER DriverRoutePolyline.bulkCreate | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${afterPolylineCreateDeliveries?.length || 0}`);
+          deliveries = afterPolylineCreateDeliveries;
         }
       } else {
         const rowsToDelete = (existingPolylines || []).filter((row) => row?.id !== preservedType1Row?.id);
@@ -566,7 +591,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] BEFORE markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0}`);
     await markDeliveriesPolylineUpdated(base44, deliveries, true);
+    const finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+      driver_id: driverId,
+      delivery_date: deliveryDate
+    }, 'stop_order', 50000);
+    console.log(`[# optimizeRouteRealTime] [purgeAndRegeneratePolylines] AFTER markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${finalDeliveries?.length || 0}`);
 
     return Response.json({
       success: true,
