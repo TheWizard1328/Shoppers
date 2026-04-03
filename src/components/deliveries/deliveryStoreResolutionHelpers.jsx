@@ -45,7 +45,7 @@ export const resolveDefaultDriverForNewDelivery = ({
           : 'weekday_am_driver_id';
 
       const driverId = dispatcherStore[driverIdField];
-      const driver = drivers.find((item) => item && item.id === driverId);
+      const driver = drivers.find((item) => item && (item.id === driverId || item.user_id === driverId));
 
       if (driver) {
         return {

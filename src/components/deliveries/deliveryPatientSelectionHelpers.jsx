@@ -28,7 +28,7 @@ export const resolvePatientDriverAssignment = ({
   const preferredField = deliveryAMPM === 'PM' ? fields.pm : fields.am;
   const fallbackField = deliveryAMPM === 'PM' ? fields.am : fields.pm;
   const driverId = patientStore[preferredField] || patientStore[fallbackField] || '';
-  const driver = driverId ? drivers.find((item) => item && item.id === driverId) : null;
+  const driver = driverId ? drivers.find((item) => item && (item.id === driverId || item.user_id === driverId)) : null;
 
   return {
     autoSelectedDriverId: driverId,
