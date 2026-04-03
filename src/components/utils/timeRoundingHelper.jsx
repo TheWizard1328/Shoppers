@@ -160,10 +160,8 @@ export const calculateRetroactiveStopTiming = async ({
     };
   }
 
-  const completionBuffer = Math.floor(Math.random() * 6);
-  const arrivalBuffer = Math.floor(Math.random() * 6);
-  const actualDeliveryTime = new Date(baseTime.getTime() + completionBuffer * 60000);
-  const arrivalTime = new Date(actualDeliveryTime.getTime() - arrivalBuffer * 60000);
+  const arrivalTime = new Date(baseTime.getTime());
+  const actualDeliveryTime = new Date(arrivalTime.getTime());
 
   return {
     actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
