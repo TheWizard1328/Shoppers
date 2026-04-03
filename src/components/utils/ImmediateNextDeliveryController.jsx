@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
+import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
 import { updateDeliveryLocal } from './offlineMutations';
 import { useAppData } from './AppDataContext';
 
@@ -197,14 +197,15 @@ export default function ImmediateNextDeliveryController() {
         let etaUpdates = [];
 
         try {
-          const etaRes = await calculateRealTimeETA({
+          const etaRes = await optimizeRouteRealTime({
             driverId,
             deliveryDate,
             currentLocalTime,
-            deviceTime: currentLocalTime
+            deviceTime: currentLocalTime,
+            generatePolyline: false
           });
           const etaData = etaRes?.data || etaRes;
-          etaUpdates = etaData?.durationUpdates || etaData?.etas || [];
+          etaUpdates = etaData?.optimizedRoute || etaData?.durationUpdates || etaData?.etas || [];
         } catch (error) {
           console.warn('[ImmediateNextDeliveryController] ETA refresh skipped:', error?.message || error);
         }
