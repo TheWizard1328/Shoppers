@@ -1,8 +1,17 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+
+const getSortedActiveDeliveries = (deliveries) =>
+  (deliveries || [])
+    .filter((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status))
+    .sort((a, b) => {
+      const stopOrderDiff = (a.stop_order || 0) - (b.stop_order || 0);
+      if (stopOrderDiff !== 0) return stopOrderDiff;
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
 
 Deno.serve(async (req) => {
   try {
@@ -24,22 +33,41 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     }, 'stop_order', 5000);
 
-    const activeDeliveries = (routeDeliveries || []).filter((delivery) =>
-      delivery && !FINISHED_STATUSES.includes(delivery.status)
-    );
+    const activeDeliveries = getSortedActiveDeliveries(routeDeliveries);
+    const currentNextDelivery = activeDeliveries.find((delivery) => delivery.isNextDelivery === true) || null;
 
-    const updates = activeDeliveries
-      .map((delivery) => {
-        const shouldBeNext = !!targetDeliveryId && delivery.id === targetDeliveryId;
-        if (delivery.isNextDelivery === shouldBeNext) return null;
-        return base44.asServiceRole.entities.Delivery.update(delivery.id, {
-          isNextDelivery: shouldBeNext
-        }).catch((error) => {
-          if (isNotFoundError(error)) return null;
-          throw error;
-        });
+    let nextDelivery = null;
+    if (targetDeliveryId) {
+      nextDelivery = activeDeliveries.find((delivery) => delivery.id === targetDeliveryId) || null;
+    }
+    if (!nextDelivery) {
+      nextDelivery = activeDeliveries[0] || null;
+    }
+
+    const deliveriesToUpdate = [];
+
+    if (currentNextDelivery && currentNextDelivery.id !== nextDelivery?.id) {
+      deliveriesToUpdate.push({
+        id: currentNextDelivery.id,
+        isNextDelivery: false
+      });
+    }
+
+    if (nextDelivery && nextDelivery.isNextDelivery !== true) {
+      deliveriesToUpdate.push({
+        id: nextDelivery.id,
+        isNextDelivery: true
+      });
+    }
+
+    const updates = deliveriesToUpdate.map((delivery) =>
+      base44.asServiceRole.entities.Delivery.update(delivery.id, {
+        isNextDelivery: delivery.isNextDelivery
+      }).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
       })
-      .filter(Boolean);
+    );
 
     if (updates.length > 0) {
       await Promise.all(updates);
@@ -50,6 +78,7 @@ Deno.serve(async (req) => {
       driverId,
       deliveryDate,
       targetDeliveryId: targetDeliveryId || null,
+      resolvedNextDeliveryId: nextDelivery?.id || null,
       updatedCount: updates.length
     });
   } catch (error) {
