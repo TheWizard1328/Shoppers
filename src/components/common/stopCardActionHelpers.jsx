@@ -16,13 +16,6 @@ export async function withPausedDriverLocationPoller(callback) {
   }
 }
 
-export async function verifyDeliveryStillExists(deliveryId) {
-  const deliveryExists = await base44.entities.Delivery.filter({ id: deliveryId });
-  if (!deliveryExists || deliveryExists.length === 0) {
-    throw new Error("This delivery has been deleted. Please refresh the page.");
-  }
-  return deliveryExists[0];
-}
 
 export function getStopCoordinates(delivery, patient, store) {
   if (!delivery) return null;
