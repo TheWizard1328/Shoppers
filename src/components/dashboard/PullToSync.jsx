@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
+import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
@@ -245,7 +246,7 @@ export default function PullToSync({
           }
 
           // ETA recalculation for incomplete stops
-          base44.functions.invoke('calculateRealTimeETA', {
+          calculateRealTimeETA({
             driverId: targetDriverId,
             deliveryDate: selectedDateStr,
             currentLocalTime,

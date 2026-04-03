@@ -240,8 +240,11 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     // Also kick polyline repair directly to avoid waiting for pull handler wiring in some views
     try {
       const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-      repairMissingPolylines({ date: today }).catch(() => null);
+      const selectedDate = window.__selectedDashboardDate || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+      const selectedDriverId = window.__selectedDashboardDriverId;
+      if (selectedDriverId && selectedDriverId !== 'all' && selectedDate) {
+        repairMissingPolylines({ driverId: selectedDriverId, deliveryDate: selectedDate }).catch(() => null);
+      }
     } catch(_) {}
 
     const requestedAt = Date.now();
