@@ -340,7 +340,7 @@ function Dashboard() {
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       window.removeEventListener('centerNextDeliveryCard', handleCenterNextDeliveryCard);
     };
-  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, appUsers, selectedDate, deliveriesWithStopOrder]);
+  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, appUsers, selectedDate]);
 
 
 
