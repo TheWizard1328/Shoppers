@@ -238,12 +238,9 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   });
 
   useEffect(() => {
-    const selectedDates = [...new Set((selectedDeliveries || []).map((delivery) => delivery?.delivery_date).filter(Boolean))];
-    const nextDate = selectedDates.length === 1 ? selectedDates[0] : (selectedDates[0] || "");
-
-    if (open) {
+    if (!open) {
       setValues({
-        delivery_date: nextDate,
+        delivery_date: "",
         driverChoice: "unchanged",
         delivery_time_start: "",
         delivery_time_end: "",
@@ -254,8 +251,11 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       return;
     }
 
+    const selectedDates = [...new Set((selectedDeliveries || []).map((delivery) => delivery?.delivery_date).filter(Boolean))];
+    const nextDate = selectedDates.length === 1 ? selectedDates[0] : (selectedDates[0] || "");
+
     setValues({
-      delivery_date: "",
+      delivery_date: nextDate,
       driverChoice: "unchanged",
       delivery_time_start: "",
       delivery_time_end: "",
@@ -263,7 +263,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       storeChoice: "unchanged",
       puid: "",
     });
-  }, [open, selectedDeliveries]);
+  }, [open]);
 
   const content = (
     <BulkEditStopsForm
