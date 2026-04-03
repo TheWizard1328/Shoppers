@@ -139,7 +139,7 @@ export const AppDataProvider = ({ children, value }) => {
     if (deliveryChanged) {
       const dedupedDeliveries = Array.from(new Map((nextDeliveries || []).filter(Boolean).map((item) => [item.id, item])).values());
       if (updateDeliveriesLocallyRef.current) {
-        updateDeliveriesLocallyRef.current(dedupedDeliveries, true);
+        updateDeliveriesLocallyRef.current(dedupedDeliveries, false);
       } else if (applyDeliveryChangesLocallyRef.current) {
         applyDeliveryChangesLocallyRef.current({ upserts: dedupedDeliveries, deleteIds: [] });
       }
@@ -160,7 +160,8 @@ export const AppDataProvider = ({ children, value }) => {
             triggeredBy: 'realtimeWebSocket',
             source: 'realtime_sync',
             fromRealtime: true,
-            fullReplacement: true
+            fullReplacement: false,
+            preserveLocalState: true
           }
         }));
 
@@ -173,7 +174,8 @@ export const AppDataProvider = ({ children, value }) => {
             type: deliveryDeletes.length > 0 && deliveryUpserts.length === 0 ? 'delete' : 'update',
             source: 'realtime_sync',
             fromRealtime: true,
-            fullReplacement: true
+            fullReplacement: false,
+            preserveLocalState: true
           }
         }));
       }
