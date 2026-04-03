@@ -1517,7 +1517,7 @@ function Dashboard() {
       const filters = { deliveryFilter: { delivery_date: format(selectedDate, 'yyyy-MM-dd') } };
       try {
         const updates = await smartRefreshManager.performSmartRefresh({ deliveries, patients, stores, cities, appUsers, drivers }, filters, false, showAllDriverMarkers, 'Dashboard', selectedDate);
-        if (updates?.deliveries && updateDeliveriesLocally) updateDeliveriesLocally(updates.deliveries, true);
+        if (Array.isArray(updates?.deliveries) && updates.deliveries.length > 0 && updateDeliveriesLocally) updateDeliveriesLocally(updates.deliveries, true);
         const appUsersToProcess = updates?.appUsers?.length ? updates.appUsers : appUsers;
         if (appUsersToProcess?.length) driverLocationPoller.processLocationData(currentUser, updates?.deliveries || deliveries, drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
       } catch (error) {

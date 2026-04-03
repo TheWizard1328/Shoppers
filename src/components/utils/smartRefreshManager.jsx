@@ -644,7 +644,7 @@ class LightweightRefreshManager {
           const reconcileResult = await quickReconcile(selectedDate);
           this._lastReconcileTime = Date.now();
 
-          if (reconcileResult.deliveriesUpdated && reconcileResult.freshDeliveries) {
+          if (reconcileResult.deliveriesUpdated && Array.isArray(reconcileResult.freshDeliveries) && reconcileResult.freshDeliveries.length > 0) {
             updates.deliveries = reconcileResult.freshDeliveries;
             updates.isFullReplacementDeliveries = true;
             console.log(`📦 [SmartRefresh] Reconcile updated deliveries: ${reconcileResult.freshDeliveries.length}`);

@@ -706,10 +706,10 @@ export default function Layout({ children, currentPageName }) {
 
     // Listen for delivery updates from DeliveryForm and trigger refresh
     const handleDeliveriesUpdated = async (event) => {
-      const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries } = event.detail || {};
-      // Skip full reload for events that already contain fresh data - prevents double-load on refresh
+      const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState } = event.detail || {};
+      // Skip full reload for events that already contain fresh data or explicitly preserve local state
       const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate'];
-      if (skipReloadTriggers.includes(triggeredBy)) {
+      if (preserveLocalState || skipReloadTriggers.includes(triggeredBy)) {
         if (freshDeliveries?.length > 0) {
           setDeliveries((prev) => { const map = new Map(prev.map((d) => [d?.id, d]).filter(([id]) => !!id)); freshDeliveries.forEach((d) => { if (d?.id) map.set(d.id, d); }); return Array.from(map.values()); });
         }
