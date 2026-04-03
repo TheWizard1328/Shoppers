@@ -119,10 +119,10 @@ export default function ETATracker({
 
         if (data?.success && data?.durationUpdates?.length > 0) {
           // CRITICAL: Backend now returns actual clock time ETAs - use them directly
-          // Filter out completed/failed/cancelled deliveries from updates
-          const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+          // Filter out finished AND pending deliveries from updates
+          const ETA_EXCLUDED_STATUSES = ['pending', 'completed', 'failed', 'cancelled', 'returned'];
           const activeUpdates = data.durationUpdates.filter(update => 
-            !FINISHED_STATUSES.includes(update.status)
+            !ETA_EXCLUDED_STATUSES.includes(update.status)
           );
           
           const etaUpdates = [];
@@ -145,7 +145,7 @@ export default function ETATracker({
             });
           }
 
-          console.log(`✅ [ETATracker] Updated ${etaUpdates.length} active ETAs (filtered ${data.durationUpdates.length - activeUpdates.length} finished)`);
+          console.log(`✅ [ETATracker] Updated ${etaUpdates.length} active ETAs (filtered ${data.durationUpdates.length - activeUpdates.length} non-active)`);
 
           const nextActiveUpdate = [...activeUpdates]
             .sort((a, b) => (a.stopOrder || Infinity) - (b.stopOrder || Infinity))[0];
