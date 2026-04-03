@@ -47,7 +47,25 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
       flashUpdate(event?.reason || 'generic');
     });
 
-    return unsubscribe;
+    const handleRouteReordered = (e) => {
+      if (e?.detail?.suppressFabIfPhase1 && currentPhase === 1) return;
+      flashUpdate('stop_order_change', e?.detail || {});
+    };
+
+    const handleDeliveriesUpdated = (e) => {
+      if (e?.detail?.triggeredBy !== 'etaUpdated') return;
+      if (e?.detail?.suppressFabIfPhase1 && currentPhase === 1) return;
+      flashUpdate('eta_update', e?.detail || {});
+    };
+
+    window.addEventListener('routeReordered', handleRouteReordered);
+    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('routeReordered', handleRouteReordered);
+      window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+    };
   }, [currentPhase, flashUpdate]);
 
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion

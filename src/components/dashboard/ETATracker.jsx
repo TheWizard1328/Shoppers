@@ -186,7 +186,8 @@ export default function ETATracker({
             detail: {
               triggeredBy: 'etaUpdated',
               driverId: selectedDriverId,
-              deliveryDate: selectedDate
+              deliveryDate: selectedDate,
+              suppressFabIfPhase1: true
             }
           }));
         }

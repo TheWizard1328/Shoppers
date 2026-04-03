@@ -105,7 +105,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     }
   }
 
-  try { window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate } })); } catch (_) {}
+  try { window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate, suppressFabIfPhase1: true } })); } catch (_) {}
   return sortedDeliveries;
 };
 
