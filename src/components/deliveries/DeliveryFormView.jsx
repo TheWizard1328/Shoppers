@@ -69,7 +69,7 @@ export default function DeliveryFormView({
   showMatchPopup, scanMatches, extractedData, handleSelectMatchedPatient,
   setShowMatchPopup, setScanMatches, setExtractedData,
   // Stores/drivers
-  availableStores, allDrivers, stores, patients, currentUser,
+  availableStores, allDrivers, stores, patients, currentUser, forceOpenDriverSelect, setForceOpenDriverSelect,
   allDeliveries, selectedPickupOption, setSelectedPickupOption,
   getDriverDisplayName, getDriverNameForStorage,
   editingStagedId, setStagedDeliveries, setHasChanges,
@@ -127,8 +127,6 @@ export default function DeliveryFormView({
   const hasSelectedLocationAndDriver = Boolean(
     formData?.delivery_date && formData?.driver_id && (formData?.store_id || selectedPatient?.store_id || selectedPickupOption)
   );
-
-  const [forceOpenDriverSelect, setForceOpenDriverSelect] = React.useState(false);
 
   // Helper: get default driver ID for a store based on date and time slot
   const getDefaultDriverForStoreSlot = (storeId, timeSlot, deliveryDate) => {

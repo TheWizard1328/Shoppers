@@ -226,7 +226,7 @@ export default function DeliveryForm({
   const canvasRef = useRef(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [showCameraOverlay, setShowCameraOverlay] = useState(false);
-
+  const [forceOpenDriverSelect, setForceOpenDriverSelect] = useState(false);
 
   // Responsive layout state
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -640,6 +640,7 @@ export default function DeliveryForm({
     });
 
     setFormData(updatedFormData);
+    setForceOpenDriverSelect(!autoSelectedDriverId);
     if (!autoAddToStaged) {
       if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.());
       setPatientSearch('');
@@ -1972,7 +1973,7 @@ export default function DeliveryForm({
       startCamera={startCamera} stopCamera={stopCamera} setShowCameraOverlay={setShowCameraOverlay} setIsScanning={setIsScanning}
       showMatchPopup={showMatchPopup} scanMatches={scanMatches} extractedData={extractedData} handleSelectMatchedPatient={handleSelectMatchedPatient}
       setShowMatchPopup={setShowMatchPopup} setScanMatches={setScanMatches} setExtractedData={setExtractedData}
-      availableStores={availableStores} allDrivers={allDrivers} stores={stores} patients={patients} currentUser={currentUser}
+      availableStores={availableStores} allDrivers={allDrivers} stores={stores} patients={patients} currentUser={currentUser} forceOpenDriverSelect={forceOpenDriverSelect} setForceOpenDriverSelect={setForceOpenDriverSelect}
       allDeliveries={allDeliveries} selectedPickupOption={selectedPickupOption} setSelectedPickupOption={setSelectedPickupOption}
       getDriverDisplayName={getDriverDisplayName} getDriverNameForStorage={getDriverNameForStorage}
       editingStagedId={editingStagedId} setStagedDeliveries={setStagedDeliveries} setHasChanges={setHasChanges}
