@@ -15,7 +15,7 @@ import { base44 } from "@/api/base44Client";
 import { useAppData } from '../utils/AppDataContext';
 import { globalFilters } from '../utils/globalFilters';
 import { getUserAgentInfo } from '../utils/deviceUtils';
-import { getCityDriversForDeliveryForm } from './deliveryDriverOptionsHelper';
+import { getCityDriversForDeliveryForm, resolvePatientDriverSelection } from './deliveryDriverOptionsHelper';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import {
   createPatient as createPatientLocal,
@@ -615,26 +615,25 @@ export default function DeliveryForm({
 
     setSelectedPatient(patient);
 
-    const patientStore = stores.find((s) => s && s.id === patient.store_id);
-    const { autoSelectedDriverId, autoSelectedDriverName, deliveryAMPM } = resolvePatientDriverAssignment({
-      patient,
+    const {
       patientStore,
-      deliveryDate: formData.delivery_date,
-      drivers,
-      allDeliveries,
-      getDriverNameForStorage
-    });
-
-    const updatedFormData = buildSelectedPatientFormData({
-      formData,
+      resolvedDriverId,
+      updatedFormData,
+      shouldForceDriverSelection
+    } = resolvePatientDriverSelection({
       patient,
-      deliveryAMPM,
-      autoSelectedDriverId,
-      autoSelectedDriverName
+      stores,
+      allDrivers,
+      deliveryDate: formData.delivery_date,
+      allDeliveries,
+      formData
     });
 
     setFormData(updatedFormData);
     if (!autoAddToStaged) {
+      if (shouldForceDriverSelection) {
+        window.dispatchEvent(new CustomEvent('deliveryFormForceDriverSelect'));
+      }
       if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.());
       setPatientSearch('');
       setHighlightedPatientIndex(-1);
@@ -642,7 +641,7 @@ export default function DeliveryForm({
       return;
     }
 
-    if (!patientStore || !autoSelectedDriverId) {
+    if (!patientStore || !resolvedDriverId) {
       driverLocationPoller.resume();
       return;
     }
@@ -657,13 +656,13 @@ export default function DeliveryForm({
       calculateDistance
     });
 
-    const timeSlot = getStoreAssignedTimeSlotForDriver(patientStore, formData.delivery_date, autoSelectedDriverId, allDeliveries);
+    const timeSlot = getStoreAssignedTimeSlotForDriver(patientStore, formData.delivery_date, resolvedDriverId, allDeliveries);
     const puid = await resolvePickupPuid({
       stagedDeliveries,
       allDeliveries,
       storeId: patientStore.id,
       deliveryDate: formData.delivery_date,
-      driverId: autoSelectedDriverId,
+      driverId: resolvedDriverId,
       timeSlot
     });
 

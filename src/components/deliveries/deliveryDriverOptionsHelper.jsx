@@ -1,4 +1,7 @@
 import { sortUsers } from "../utils/sorting";
+import { getDriverNameForStorage } from "../utils/driverUtils";
+import { resolvePatientDriverAssignment } from "./deliveryPatientSelectionHelpers";
+import { buildSelectedPatientFormData } from "./deliveryPatientSelectionHelpers";
 
 export const getCityDriversForDeliveryForm = ({ appUsers = [], selectedCityId }) => {
   const cityDrivers = (appUsers || []).filter((user) => {
@@ -8,9 +11,7 @@ export const getCityDriversForDeliveryForm = ({ appUsers = [], selectedCityId })
 
     const userCityIds = Array.isArray(user.city_ids) ? user.city_ids : [];
 
-    if (!selectedCityId || selectedCityId === 'all') {
-      return true;
-    }
+    if (!selectedCityId || selectedCityId === 'all') return true;
 
     return user.city_id === selectedCityId || userCityIds.includes(selectedCityId);
   });
@@ -36,4 +37,50 @@ export const getDefaultDriverForStoreDate = ({ stores = [], allDrivers = [], sto
   if (!defaultDriverId) return null;
 
   return (allDrivers || []).find((driver) => driver && driver.id === defaultDriverId) || null;
+};
+
+export const resolvePatientDriverSelection = ({
+  patient,
+  stores = [],
+  allDrivers = [],
+  deliveryDate,
+  allDeliveries = [],
+  formData
+}) => {
+  const patientStore = (stores || []).find((store) => store && store.id === patient?.store_id);
+  const defaultDriver = getDefaultDriverForStoreDate({
+    stores,
+    allDrivers,
+    storeId: patient?.store_id,
+    deliveryDate
+  });
+
+  const assignment = resolvePatientDriverAssignment({
+    patient,
+    patientStore,
+    deliveryDate,
+    drivers: allDrivers,
+    allDeliveries,
+    getDriverNameForStorage
+  });
+
+  const resolvedDriverId = defaultDriver?.id || assignment.autoSelectedDriverId || '';
+  const resolvedDriverName = defaultDriver
+    ? getDriverNameForStorage(defaultDriver)
+    : (assignment.autoSelectedDriverName || '');
+
+  return {
+    patientStore,
+    deliveryAMPM: assignment.deliveryAMPM,
+    resolvedDriverId,
+    resolvedDriverName,
+    shouldForceDriverSelection: !resolvedDriverId,
+    updatedFormData: buildSelectedPatientFormData({
+      formData,
+      patient,
+      deliveryAMPM: assignment.deliveryAMPM,
+      autoSelectedDriverId: resolvedDriverId,
+      autoSelectedDriverName: resolvedDriverName
+    })
+  };
 };
