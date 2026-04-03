@@ -11,6 +11,17 @@ export const ConflictResolution = {
   PROMPT_USER: 'prompt_user'
 };
 
+const OFFLINE_CACHE_DB_PREFIX = 'rxdeliver_persistent_cache';
+const getOfflineCacheDbName = () => {
+  if (typeof window === 'undefined') {
+    return `${OFFLINE_CACHE_DB_PREFIX}_default_v2`;
+  }
+
+  const hostname = window.location.hostname || 'unknown-host';
+  const safeHost = hostname.replace(/[^a-z0-9.-]/gi, '_').toLowerCase();
+  return `${OFFLINE_CACHE_DB_PREFIX}_${safeHost}_v2`;
+};
+
 class OfflineManager {
   constructor() {
     this.isOnline = navigator.onLine;
@@ -588,8 +599,8 @@ class OfflineManager {
   // Open IndexedDB with version upgrade for new stores
   openDB() {
     return new Promise((resolve, reject) => {
-      // CRITICAL: Use stable database name to prevent recreation
-      const request = indexedDB.open('rxdeliver_persistent_cache_v2', 2);
+      // CRITICAL: Scope V2 cache DB by hostname so sandbox and app-domain data never mix
+      const request = indexedDB.open(getOfflineCacheDbName(), 2);
       
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
