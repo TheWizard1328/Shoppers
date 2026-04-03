@@ -314,8 +314,13 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
   try {
     const { offlineDB } = await import('../utils/offlineDatabase');
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
+    await Promise.all(
+      updatedDeliveries.map((item) =>
+        base44.entities.Delivery.update(item.id, { isNextDelivery: item.isNextDelivery })
+      )
+    );
   } catch (error) {
-    console.warn('[stopCardActionHelpers] Failed to sync next-delivery flags to offline DB:', error?.message || error);
+    console.warn('[stopCardActionHelpers] Failed to sync next-delivery flags to offline/online DB:', error?.message || error);
   }
 
   if (updateDeliveriesLocally) {

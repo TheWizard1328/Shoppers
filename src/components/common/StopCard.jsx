@@ -427,7 +427,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         const clearedNextDeliveries = driverDeliveries.filter((item) => item?.id !== delivery.id && item?.isNextDelivery).map((item) => ({ ...item, isNextDelivery: false }));
         await Promise.all([
           updateDeliveryLocal(delivery.id, { status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null }, { skipSmartRefresh: true }),
-          ...clearedNextDeliveries.map((item) => offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [item]))
+          ...clearedNextDeliveries.map((item) => Promise.all([
+            offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [item]),
+            base44.entities.Delivery.update(item.id, { isNextDelivery: false })
+          ]))
         ]);
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, restartedRouteDeliveries.filter(Boolean));
         if (updateDeliveriesLocally) {
