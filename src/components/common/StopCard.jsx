@@ -144,8 +144,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const storeColor = useMemo(() => store ? getStoreColor(store) : "#71717A", [store]);
   const routeCompleted = React.useMemo(() => isRouteCompleted(delivery, allDeliveries, FINISHED_STATUSES, new Date(), "America/Edmonton"), [delivery, allDeliveries]);
   const routeCompletedForLayout = React.useMemo(() => {if (!delivery || !Array.isArray(allDeliveries)) return false;if (!FINISHED_STATUSES.includes(delivery.status)) return false;const driverDeliveriesForDate = allDeliveries.filter((d) => {if (!d) return false;return d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id;});if (driverDeliveriesForDate.length === 0) return false;return driverDeliveriesForDate.every((d) => FINISHED_STATUSES.includes(d.status));}, [delivery, allDeliveries]);
-  const edmontonTodayStr = React.useMemo(() => {const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());return `${parts.find((p) => p.type === 'year')?.value}-${parts.find((p) => p.type === 'month')?.value}-${parts.find((p) => p.type === 'day')?.value}`;}, []);
+  const edmontonNowParts = React.useMemo(() => {const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());return { date: `${parts.find((p) => p.type === 'year')?.value}-${parts.find((p) => p.type === 'month')?.value}-${parts.find((p) => p.type === 'day')?.value}`, time: `${parts.find((p) => p.type === 'hour')?.value}:${parts.find((p) => p.type === 'minute')?.value}` };}, []);
+  const edmontonTodayStr = edmontonNowParts.date;
   const isPastDeliveryDate = React.useMemo(() => !!delivery?.delivery_date && delivery.delivery_date < edmontonTodayStr, [delivery?.delivery_date, edmontonTodayStr]);
+  const shouldPreserveWindowTimesOnStart = React.useMemo(() => {if (!delivery?.delivery_date) return false;const [hours = 0, minutes = 0] = String(edmontonNowParts.time || '00:00').split(':').map(Number);const isLateToday = delivery.delivery_date === edmontonTodayStr && ((hours * 60) + minutes) >= (21 * 60);return isPastDeliveryDate || isLateToday;}, [delivery?.delivery_date, edmontonNowParts.time, edmontonTodayStr, isPastDeliveryDate]);
   const shouldCondenseCompletedRouteForDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && isFinishedDelivery && routeCompletedForLayout && !isExpanded;
   const showCompletedRouteCenteredCondensed = shouldCondenseCompletedRouteForDriver;const showIncompleteRouteSideCondensed = !routeCompletedForLayout && !isExpanded && !isRailCentered;const showCenteredIncompleteCollapsed = !routeCompletedForLayout && !isExpanded && isRailCentered;const isDispatcherCenteredCard = userHasRole(currentUser, 'dispatcher') && isRailCentered;const hideBodyForDispatcherCenteredCard = isDispatcherCenteredCard && !isStrippedForDispatcher && !isExpanded;const showMiddleSection = !isStrippedForDriver && !isStrippedForDispatcher && !showIncompleteRouteSideCondensed && (!isFinishedDelivery || isExpanded || isRailCentered) && !showCompletedRouteCenteredCondensed;const showBodySection = !showCompletedRouteCenteredCondensed && !showIncompleteRouteSideCondensed && !hideBodyForDispatcherCenteredCard;
   const isInterStore = useMemo(() => {if (!delivery) return false;const patientName = (patient?.full_name || '').toLowerCase();if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) return true;const patientNotes = (patient?.notes || '').toLowerCase();if (patientNotes.includes('interstore') || patientNotes.includes('inter-store') || patientNotes.includes('inter store')) return true;return false;}, [delivery, patient]);
@@ -230,7 +232,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         const isCurrent = d.id === delivery.id;
         return {
           ...d,
-          ...(isCurrent ? { status: isPickup ? 'en_route' : 'in_transit', delivery_time_start: currentLocalTime, delivery_time_eta: currentLocalTime, isNextDelivery: true } : { isNextDelivery: false })
+          ...(isCurrent ? {
+            status: isPickup ? 'en_route' : 'in_transit',
+            ...(shouldPreserveWindowTimesOnStart ? {} : { delivery_time_start: currentLocalTime, delivery_time_end: currentLocalTime }),
+            delivery_time_eta: currentLocalTime,
+            isNextDelivery: true
+          } : { isNextDelivery: false })
         };
       });
       const { offlineDB } = await import('../utils/offlineDatabase');
