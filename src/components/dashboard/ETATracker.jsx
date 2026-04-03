@@ -89,7 +89,7 @@ export default function ETATracker({
       return R * c; // Distance in km
     };
 
-    const updateETAs = async () => {
+    const updateETAs = async (maxStops = 5) => {
       const now = Date.now();
       if (inFlightRef.current || (now - lastInvokeRef.current) < COOLDOWN_MS) return;
       inFlightRef.current = true;
@@ -112,7 +112,8 @@ export default function ETATracker({
         const response = await calculateRealTimeETA({
           driverId: selectedDriverId,
           deliveryDate: selectedDate,
-          currentLocalTime: localTimeString // Send as HH:mm to avoid UTC conversion
+          currentLocalTime: localTimeString, // Send as HH:mm to avoid UTC conversion
+          maxStops
         });
 
         const data = response?.data || response;
@@ -206,13 +207,14 @@ export default function ETATracker({
     };
 
     // Listen for events that should trigger ETA updates
-    const handleETAUpdateEvent = () => {
+    const handleETAUpdateEvent = (event) => {
       const now = Date.now();
       if ((now - lastInvokeRef.current) < COOLDOWN_MS) {
         return; // debounce rapid successive events
       }
+      const requestedMaxStops = Number(event?.detail?.maxStops);
       console.log('🔔 [ETATracker] Event received - updating ETAs');
-      updateETAs();
+      updateETAs(Number.isFinite(requestedMaxStops) && requestedMaxStops > 0 ? requestedMaxStops : 5);
     };
 
     // CRITICAL: Listen for status changes, route optimization, and pending->in_transit transitions
