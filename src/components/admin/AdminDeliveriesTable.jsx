@@ -104,7 +104,7 @@ export default function AdminDeliveriesTable(props) {
         <CardTitle className="flex items-center justify-between">
           <span>Deliveries</span>
           <div className="flex gap-2">
-            {selectedDeliveries.size > 0 && <Button variant="destructive" size="sm" onClick={() => onDeleteSelected(displayDeliveries.filter((d) => selectedDeliveries.has(d.id)))}>Delete Selected ({selectedDeliveries.size})</Button>}
+            {selectedDeliveries.size > 0 && <Button variant="destructive" size="sm" onClick={() => { onDeleteSelected(displayDeliveries.filter((d) => selectedDeliveries.has(d.id))); setSelectedDeliveries(new Set()); }}>Delete Selected ({selectedDeliveries.size})</Button>}
             <Button variant="outline" size="sm" onClick={() => onFindDuplicates(displayDeliveries)} disabled={isLoadingData} className="text-orange-600 border-orange-300 hover:bg-orange-50">Find Duplicates</Button>
             {duplicateFilterMode && <Button variant="outline" size="sm" onClick={onClearDuplicateFilter} disabled={isLoadingData} className="bg-blue-50 border-blue-300">Clear Filter</Button>}
             {selectedDeliveries.size === 0 && <Button variant="destructive" size="sm" onClick={onDeleteAll} disabled={isLoadingData}>Delete All Filtered ({displayDeliveries.length})</Button>}

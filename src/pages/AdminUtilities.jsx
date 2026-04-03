@@ -3049,16 +3049,11 @@ export default function AdminUtilities() {
         try {
           const { offlineDB } = await import('../components/utils/offlineDatabase');
 
-          if (isOfflineMode) {
-            // OFFLINE MODE: Delete ONLY from offline DB
-            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);
-            setOfflineDeliveries((prev) => prev.filter((d) => d.id !== delivery.id));
-          } else {
-            // ONLINE MODE: Delete ONLY from backend
-            await Delivery.delete(delivery.id);try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);} catch (_) {}
-          }
-
-          successCount++;
+          let ok = true;
+          if (!isOfflineMode) try { await Delivery.delete(delivery.id); } catch (error) { if (!(error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found'))) { ok = false; console.error(`Failed to delete delivery ${delivery.id} from online DB:`, error); } }
+          try { await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (error) { if (!(String(error?.message || '').toLowerCase().includes('not found') || String(error?.message || '').toLowerCase().includes('no record'))) { ok = false; console.error(`Failed to delete delivery ${delivery.id} from offline DB:`, error); } }
+          if (isOfflineMode) setOfflineDeliveries((prev) => prev.filter((d) => d.id !== delivery.id));
+          if (ok) successCount++; else { failCount++; segmentFailures++; failedDeletions.push(delivery); await new Promise((resolve) => setTimeout(resolve, 1000)); }
         } catch (error) {
           // CRITICAL: Ignore 404 errors in online mode (already deleted)
           if (!isOfflineMode && (error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found'))) {
