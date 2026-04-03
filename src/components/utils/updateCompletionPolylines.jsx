@@ -8,6 +8,7 @@
  */
 
 import { base44 } from "@/api/base44Client";
+import { getFinishedLegEncodedPolyline } from '../common/stopCardActionHelpers';
 
 export async function updateCompletionPolylines({
   completedDelivery,
@@ -25,7 +26,6 @@ export async function updateCompletionPolylines({
     // 1. Generate and update finished leg polyline for completed delivery
     if (completedDelivery) {
       try {
-        const { getFinishedLegEncodedPolyline } = await import('../common/stopCardActionHelpers');
         const finishedPolyline = await getFinishedLegEncodedPolyline({
           delivery: completedDelivery,
           allDeliveries,
