@@ -102,6 +102,10 @@ export default function StatsPanel({
           statsCardRef={statsCardRef}
           onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
             const syncedDeliveries = Array.isArray(freshDeliveries) ? freshDeliveries.filter(Boolean) : [];
+            try {
+              window.__selectedDashboardDate = selectedDateStr;
+              window.__selectedDashboardDriverId = selectedDriverId;
+            } catch (e) {}
             if (updateDeliveriesLocally && syncedDeliveries.length > 0) {
               const otherDateDeliveries = deliveries.filter((d) => d?.delivery_date !== selectedDateStr);
               updateDeliveriesLocally([...otherDateDeliveries, ...syncedDeliveries], true);
