@@ -330,6 +330,10 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     }, 'stop_order', 50000);
 
+    const appUsersForDriverName = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-updated_date', 1);
+    const driverNameAppUser = Array.isArray(appUsersForDriverName) ? appUsersForDriverName[0] : null;
+    const driverDisplayName = driverNameAppUser?.user_name || driverNameAppUser?.full_name || driverId;
+
     const stopOrderRepairUpdates = buildStopOrderRepairUpdates(deliveries);
     if (stopOrderRepairUpdates.length > 0) {
       console.log(`# [purgeAndRegeneratePolylines] BEFORE stopOrderRepair bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0} | repairCount=${stopOrderRepairUpdates.length}`);
@@ -390,7 +394,6 @@ Deno.serve(async (req) => {
     const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
     const storeMap = new Map((stores || []).map((store) => [store.id, store]));
     const driverAppUser = Array.isArray(appUsers) ? appUsers[0] : null;
-    const driverDisplayName = driverAppUser?.user_name || driverAppUser?.full_name || driverId;
     console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0}`);
 
     const getLatLon = (delivery) => {
