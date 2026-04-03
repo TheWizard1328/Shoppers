@@ -138,10 +138,10 @@ export const AppDataProvider = ({ children, value }) => {
 
     if (deliveryChanged) {
       const dedupedDeliveries = Array.from(new Map((nextDeliveries || []).filter(Boolean).map((item) => [item.id, item])).values());
-      if (updateDeliveriesLocallyRef.current) {
+      if (applyDeliveryChangesLocallyRef.current) {
+        applyDeliveryChangesLocallyRef.current({ upserts: deliveryUpserts, deleteIds: deliveryDeletes });
+      } else if (updateDeliveriesLocallyRef.current) {
         updateDeliveriesLocallyRef.current(dedupedDeliveries, false);
-      } else if (applyDeliveryChangesLocallyRef.current) {
-        applyDeliveryChangesLocallyRef.current({ upserts: dedupedDeliveries, deleteIds: [] });
       }
 
       if (typeof window !== 'undefined') {
@@ -402,8 +402,7 @@ export const AppDataProvider = ({ children, value }) => {
         if (cancelled) return;
 
         if (Array.isArray(offlineDeliveries) && offlineDeliveries.length > 0 && value.updateDeliveriesLocally) {
-          const other = (value.deliveries || []).filter(d => d && d.delivery_date !== selectedDate);
-          value.updateDeliveriesLocally([...other, ...offlineDeliveries], true);
+          value.updateDeliveriesLocally(offlineDeliveries, false);
         }
 
         if (Array.isArray(offlineAppUsers) && offlineAppUsers.length > 0) {
@@ -428,8 +427,7 @@ export const AppDataProvider = ({ children, value }) => {
               syncType: 'startup_full'
             });
 
-            const other2 = (value.deliveries || []).filter(d => d && d.delivery_date !== selectedDate);
-            value.updateDeliveriesLocally([...other2, ...(onlineDeliveries || [])], true);
+            value.updateDeliveriesLocally(onlineDeliveries || [], false);
           }
 
           if (onlineAppUsers !== null) {
@@ -508,10 +506,12 @@ export const AppDataProvider = ({ children, value }) => {
       );
       const mergedDeliveries = [...otherDeliveries, ...freshDeliveriesForDriver].filter(Boolean);
       
-      if (value.updateDeliveriesLocally) {
-        // Full replacement to ensure deletions are reflected
-        value.updateDeliveriesLocally(mergedDeliveries, true);
-        console.log(`✅ [Force Refresh] Updated context with ${mergedDeliveries.length} total deliveries`);
+      if (value.applyDeliveryChangesLocally) {
+        value.applyDeliveryChangesLocally({ upserts: freshDeliveriesForDriver, deleteIds: [] });
+        console.log(`✅ [Force Refresh] Updated context with merge-safe deliveries for driver ${driverId}`);
+      } else if (value.updateDeliveriesLocally) {
+        value.updateDeliveriesLocally(freshDeliveriesForDriver, false);
+        console.log(`✅ [Force Refresh] Updated context with merge-safe deliveries for driver ${driverId}`);
       }
       
       return freshDeliveriesForDriver;

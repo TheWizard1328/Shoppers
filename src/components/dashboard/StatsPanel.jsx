@@ -102,8 +102,7 @@ export default function StatsPanel({
           statsCardRef={statsCardRef}
           onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
             if (updateDeliveriesLocally) {
-              const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
-              updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+              updateDeliveriesLocally(freshDeliveries, false);
             }
             const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
             if (appUsersToProcess && appUsersToProcess.length > 0) {

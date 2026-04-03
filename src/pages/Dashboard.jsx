@@ -2979,11 +2979,9 @@ function Dashboard() {
         }
       }
 
-      // STEP 3: Update UI immediately with priority data using flushSync for instant render
+      // STEP 3: Update UI immediately with merge-safe date data
       if (updateDeliveriesLocally) {
-        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
-        const mergedDeliveries = [...otherDateDeliveries, ...priorityDeliveries];
-        updateDeliveriesLocally(mergedDeliveries, true);
+        updateDeliveriesLocally(priorityDeliveries, false);
 
         // CRITICAL: Protect from smart refresh overwrite
         priorityDeliveries.forEach((d) => {
@@ -3137,7 +3135,7 @@ function Dashboard() {
         smartRefreshManager.clearPendingUpdates();
       }
 
-      if (updateDeliveriesLocally) {const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];updateDeliveriesLocally(mergedDeliveries, true);}
+      if (updateDeliveriesLocally) {updateDeliveriesLocally(freshDeliveries, false);}
 
       // CRITICAL: Wait for React to finish rendering BEFORE dispatching event or triggering map
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
