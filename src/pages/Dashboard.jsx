@@ -2727,12 +2727,8 @@ function Dashboard() {
   // CRITICAL: Listen for smartRefreshComplete and smartRefreshRestarted events to reactivate FAB
   useEffect(() => {
     const handleSmartRefreshCompleteEvent = (event) => {
-      const { updates } = event.detail || {};
-
-      // CRITICAL: Only reactivate if there were actual delivery or driver changes
-      if (!updates || !updates.deliveries && !updates.appUsers) {
-        return;
-      }
+      const { updates, preserveLocalState } = event.detail || {};
+      if (preserveLocalState || !updates || !updates.deliveries && !updates.appUsers) return;
 
       const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;if (targetDriverId && updates?.deliveries && !updates.deliveries.some((d) => d?.driver_id === targetDriverId)) return;
 

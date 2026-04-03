@@ -660,6 +660,12 @@ class LightweightRefreshManager {
         }
       }
       
+      // CRITICAL: Never let partial/empty delivery refreshes clear a populated dashboard
+      if (Array.isArray(updates.deliveries) && Array.isArray(currentData?.deliveries) && currentData.deliveries.length > 0 && updates.deliveries.length === 0) {
+        delete updates.deliveries;
+        delete updates.isFullReplacementDeliveries;
+      }
+
       // STEP 5: Notify subscribers if we have updates
       if (Object.keys(updates).length > 0) {
         this.notifySubscribers(updates);
@@ -673,7 +679,8 @@ class LightweightRefreshManager {
           window.dispatchEvent(new CustomEvent('smartRefreshComplete', {
             detail: { 
               updates,
-              isFullReplacementDeliveries: updates.isFullReplacementDeliveries || false
+              isFullReplacementDeliveries: updates.isFullReplacementDeliveries || false,
+              preserveLocalState: true
             }
           }));
 
