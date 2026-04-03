@@ -622,15 +622,32 @@ export const deleteDeliveryLocal = async (deliveryId) => {
 
     // Step 1: CRITICAL - Delete from BOTH offline DB AND backend simultaneously
     const offlineDeletePromise = (async () => {
-      const db = await offlineDB.openDatabase();
-      const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
-      const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);
-      
-      return new Promise((resolve, reject) => {
-        const request = store.delete(deliveryId);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
+      try {
+        const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId);
+        if (!existing) {
+          console.log('ℹ️ [OfflineMutations] Delivery not found in offline DB (already deleted):', deliveryId);
+          return { success: true, wasMissing: true };
+        }
+
+        const db = await offlineDB.openDatabase();
+        const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+        const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);
+
+        await new Promise((resolve, reject) => {
+          const request = store.delete(deliveryId);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+
+        return { success: true };
+      } catch (error) {
+        const isMissingOffline = String(error?.message || '').toLowerCase().includes('not found') || String(error?.message || '').toLowerCase().includes('no record');
+        if (isMissingOffline) {
+          console.log('ℹ️ [OfflineMutations] Delivery not found in offline DB (already deleted):', deliveryId);
+          return { success: true, wasMissing: true };
+        }
+        throw error;
+      }
     })();
 
     const backendDeletePromise = (async () => {
