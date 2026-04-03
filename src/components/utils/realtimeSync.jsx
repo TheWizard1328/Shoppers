@@ -92,29 +92,42 @@ async function flushBuffered(entityName) {
 
   if (typeof window !== 'undefined' && entityName === 'Delivery' && Array.isArray(fullReplacementData)) {
     const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
+    const selectedDriverId = (typeof window !== 'undefined' ? window.__appSelectedDriverId : null) || localStorage.getItem('global_selected_driver') || localStorage.getItem('app_selectedDriver');
     const hasCreateOrDelete = items.some((item) => item.eventType === 'create' || item.eventType === 'delete');
+    const relevantItems = items.filter((item) => item?.data && isDeliveryRelevantToCurrentSelection(item.data));
+    const scopedDriverId = selectedDriverId && selectedDriverId !== 'all'
+      ? selectedDriverId
+      : (relevantItems[0]?.data?.driver_id || null);
+    const scopedDeliveries = fullReplacementData.filter((delivery) => {
+      if (!delivery) return false;
+      if (selectedDate && delivery.delivery_date !== selectedDate) return false;
+      if (scopedDriverId && delivery.driver_id !== scopedDriverId) return false;
+      return true;
+    });
 
-    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-      detail: {
-        deliveries: fullReplacementData,
-        freshDeliveries: fullReplacementData,
-        immediate: true,
-        deliveryDate: selectedDate,
-        triggeredBy: hasCreateOrDelete ? 'realtimeBufferedFullRefresh' : 'realtimeBufferedFieldUpdate',
-        source: 'realtime_sync',
-        fromRealtime: true,
-        fullReplacement: hasCreateOrDelete,
-        skipMapPhaseOneRefresh: !hasCreateOrDelete
-      }
-    }));
+    if (relevantItems.length > 0 || scopedDriverId) {
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          deliveries: scopedDeliveries,
+          freshDeliveries: scopedDeliveries,
+          immediate: true,
+          deliveryDate: selectedDate,
+          driverId: scopedDriverId,
+          triggeredBy: hasCreateOrDelete ? 'realtimeBufferedFullRefresh' : 'realtimeBufferedFieldUpdate',
+          source: 'realtime_sync',
+          fromRealtime: true,
+          fullReplacement: hasCreateOrDelete,
+          skipMapPhaseOneRefresh: !hasCreateOrDelete,
+          preserveLocalState: true
+        }
+      }));
+    }
 
     if (hasCreateOrDelete) {
-      const relevantCreateOrDelete = items.find((item) =>
-        (item.eventType === 'create' || item.eventType === 'delete') && item?.data && isDeliveryRelevantToCurrentSelection(item.data)
-      );
+      const relevantCreateOrDelete = relevantItems.find((item) => item.eventType === 'create' || item.eventType === 'delete');
       fabControlEvents.notifyDeliveryRealtimeCreateOrDelete({
-        driverId: relevantCreateOrDelete?.data?.driver_id || null,
-        deliveryDate: relevantCreateOrDelete?.data?.delivery_date || null,
+        driverId: relevantCreateOrDelete?.data?.driver_id || scopedDriverId || null,
+        deliveryDate: relevantCreateOrDelete?.data?.delivery_date || selectedDate || null,
         relevantToCurrentSelection: Boolean(relevantCreateOrDelete)
       });
     }
@@ -528,10 +541,12 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           deletedId: action === 'delete' ? id : undefined,
           deletedIds: action === 'batch_delete' ? ids : action === 'delete' ? [id] : undefined,
           deliveryDate: data?.delivery_date,
+          driverId: data?.driver_id,
           freshDeliveries: data ? [data] : undefined,
           triggeredBy: 'realtimeBroadcast',
           source: 'realtime_sync',
-          fromRealtime: true
+          fromRealtime: true,
+          preserveLocalState: true
         }
       }));
     }
