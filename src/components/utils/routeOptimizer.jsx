@@ -676,8 +676,8 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
       continue;
     }
     
-    // Filter deliveries: only include non-pending ones in optimization
-    const activeDeliveries = deliveries.filter(d => d.status !== 'pending');
+    // Keep pending deliveries included for route efficiency planning
+    const activeDeliveries = deliveries;
     const pendingDeliveries = deliveries.filter(d => d.status === 'pending');
 
     if (pendingDeliveries.length > 0) {
@@ -709,7 +709,7 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
     if (pickup.status !== 'pending' || activeDeliveries.length > 0) {
       // Process this PUID group with active deliveries
       const currentStore = stores.find(storeItem => storeItem && storeItem.id === puidGroup.storeId);
-      console.log(`  🏪 Processing PUID ${puid}: ${currentStore?.name} (${activeDeliveries.length} active, ${pendingDeliveries.length} pending)`);
+      console.log(`  🏪 Processing PUID ${puid}: ${currentStore?.name} (${activeDeliveries.length} future, ${pendingDeliveries.length} pending)`);
       
       if (!pickup.extra_time && pickup.extra_time !== 0) {
         pickup.extra_time = 15;
@@ -719,7 +719,7 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
       const pickupTime = pickup.delivery_time_start || '10:00';
       
       if (useAdvancedOptimization) {
-        // Only optimize pickup + active deliveries
+        // Optimize pickup + all future deliveries, including pending stops
         const allStopsForPUID = [pickup, ...activeDeliveries];
         const storeLocation = {
           lat: currentStore?.latitude,
@@ -752,7 +752,7 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
         
         optimizedRoute.push(...optimizedStops);
       } else {
-        // Fallback: simple distance-based sorting (only active stops)
+        // Fallback: simple distance-based sorting for all future stops, including pending
         const allStopsForPUID = [pickup, ...activeDeliveries];
         const sortedStops = allStopsForPUID.sort((a, b) => {
           if (!a || !b) return 0;
