@@ -41,6 +41,36 @@ const STORES = {
 
 let dbInstance = null;
 let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
+let legacyCleanupPromise = null;
+
+const LEGACY_OFFLINE_DB_NAMES = [
+  'rxdeliver_persistent_offline_v1',
+  'rxdeliver_persistent_offline_v2'
+];
+
+const deleteIndexedDbIfExists = (dbName) => new Promise((resolve) => {
+  if (typeof indexedDB === 'undefined' || !dbName || dbName === DB_NAME) {
+    resolve(false);
+    return;
+  }
+
+  const request = indexedDB.deleteDatabase(dbName);
+  request.onsuccess = () => resolve(true);
+  request.onerror = () => resolve(false);
+  request.onblocked = () => resolve(false);
+});
+
+const cleanupLegacyOfflineDatabases = async () => {
+  if (legacyCleanupPromise) return legacyCleanupPromise;
+
+  legacyCleanupPromise = Promise.all(LEGACY_OFFLINE_DB_NAMES.map(deleteIndexedDbIfExists))
+    .catch(() => [])
+    .finally(() => {
+      legacyCleanupPromise = null;
+    });
+
+  return legacyCleanupPromise;
+};
 
 const buildMetadataKey = (entityName, scopeKey = DEFAULT_CACHE_SCOPE) => {
   if (!scopeKey || scopeKey === DEFAULT_CACHE_SCOPE) return entityName;
@@ -75,7 +105,9 @@ const buildDataVersion = (records = []) => {
  * Initialize and open the IndexedDB database
  * CRITICAL: Uses promise pooling to prevent race conditions
  */
-const openDatabase = () => {
+const openDatabase = async () => {
+  await cleanupLegacyOfflineDatabases();
+
   // If already open, return immediately
   if (dbInstance && !dbInstance.isClosing) {
     return Promise.resolve(dbInstance);

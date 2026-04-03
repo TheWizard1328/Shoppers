@@ -22,6 +22,35 @@ const getOfflineCacheDbName = () => {
   return `${OFFLINE_CACHE_DB_PREFIX}_${safeHost}_v2`;
 };
 
+let legacyCacheCleanupPromise = null;
+const LEGACY_CACHE_DB_NAMES = [
+  'rxdeliver_persistent_cache_v2'
+];
+
+const deleteLegacyCacheDbIfExists = (dbName) => new Promise((resolve) => {
+  if (typeof indexedDB === 'undefined' || !dbName || dbName === getOfflineCacheDbName()) {
+    resolve(false);
+    return;
+  }
+
+  const request = indexedDB.deleteDatabase(dbName);
+  request.onsuccess = () => resolve(true);
+  request.onerror = () => resolve(false);
+  request.onblocked = () => resolve(false);
+});
+
+const cleanupLegacyCacheDatabases = async () => {
+  if (legacyCacheCleanupPromise) return legacyCacheCleanupPromise;
+
+  legacyCacheCleanupPromise = Promise.all(LEGACY_CACHE_DB_NAMES.map(deleteLegacyCacheDbIfExists))
+    .catch(() => [])
+    .finally(() => {
+      legacyCacheCleanupPromise = null;
+    });
+
+  return legacyCacheCleanupPromise;
+};
+
 class OfflineManager {
   constructor() {
     this.isOnline = navigator.onLine;
@@ -597,7 +626,9 @@ class OfflineManager {
   }
 
   // Open IndexedDB with version upgrade for new stores
-  openDB() {
+  async openDB() {
+    await cleanupLegacyCacheDatabases();
+
     return new Promise((resolve, reject) => {
       // CRITICAL: Scope V2 cache DB by hostname so sandbox and app-domain data never mix
       const request = indexedDB.open(getOfflineCacheDbName(), 2);
