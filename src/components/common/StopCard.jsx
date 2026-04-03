@@ -423,12 +423,21 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null } : { ...item, isNextDelivery: false }),
           delivery.id
         );
-        await updateDeliveryLocal(delivery.id, { status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null }, { skipSmartRefresh: true });
         const { offlineDB } = await import('../utils/offlineDatabase');
+        const clearedNextDeliveries = driverDeliveries.filter((item) => item?.id !== delivery.id && item?.isNextDelivery).map((item) => ({ ...item, isNextDelivery: false }));
+        await Promise.all([
+          updateDeliveryLocal(delivery.id, { status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null }, { skipSmartRefresh: true }),
+          ...clearedNextDeliveries.map((item) => offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [item]))
+        ]);
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, restartedRouteDeliveries.filter(Boolean));
         if (updateDeliveriesLocally) {
           const restartedMap = new Map(restartedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
-          const updatedDeliveries = allDeliveries.map((d) => d && restartedMap.has(d.id) ? restartedMap.get(d.id) : d);
+          const updatedDeliveries = allDeliveries.map((d) => {
+            if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;
+            if (restartedMap.has(d.id)) return restartedMap.get(d.id);
+            if (d.id !== delivery.id && d.isNextDelivery) return { ...d, isNextDelivery: false };
+            return d;
+          });
           updateDeliveriesLocally(updatedDeliveries, true);
         }
         await collapseAndCenterNextDelivery({ driverDeliveries: restartedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
