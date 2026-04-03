@@ -3,9 +3,20 @@
  * Stores Patient and Delivery entities locally for offline access
  */
 
-// CRITICAL: Use stable database name and version to prevent recreation
-const DB_NAME = 'rxdeliver_persistent_offline_v1';
-const DB_VERSION = 9; // Incremented to add Company offline store
+// CRITICAL: Use an environment-scoped database name so sandbox and production/domain data never mix
+const DB_NAME_PREFIX = 'rxdeliver_persistent_offline';
+const getOfflineDbName = () => {
+  if (typeof window === 'undefined') {
+    return `${DB_NAME_PREFIX}_default_v2`;
+  }
+
+  const hostname = window.location.hostname || 'unknown-host';
+  const safeHost = hostname.replace(/[^a-z0-9.-]/gi, '_').toLowerCase();
+  return `${DB_NAME_PREFIX}_${safeHost}_v2`;
+};
+
+const DB_NAME = getOfflineDbName();
+const DB_VERSION = 10; // Incremented to isolate IndexedDB per hostname/environment
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 
@@ -89,7 +100,7 @@ const openDatabase = () => {
       
       // CRITICAL: Handle unexpected close events
       dbInstance.onclose = () => {
-        console.warn('⚠️ [OfflineDB] Database connection closed unexpectedly');
+        console.warn(`⚠️ [OfflineDB] Database connection closed unexpectedly: ${DB_NAME}`);
         dbInstance = null;
         dbOpenPromise = null;
       };
