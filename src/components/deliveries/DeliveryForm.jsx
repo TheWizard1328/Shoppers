@@ -94,17 +94,12 @@ export default function DeliveryForm({
   const freshStores = useFreshStores(stores);
 
   const driverSource = useMemo(() => {
-    return contextDrivers || drivers || [];
+    return contextDrivers?.length ? contextDrivers : (drivers || []);
   }, [contextDrivers, drivers]);
 
   const allDrivers = useMemo(() => {
     const sorted = sortUsers(driverSource);
-    return sorted.filter((driver) =>
-      driver &&
-      Array.isArray(driver.app_roles) &&
-      driver.app_roles.includes('driver') &&
-      (driver.user_name || driver.full_name || driver.email)
-    );
+    return sorted.filter((driver) => driver && (driver.user_name || driver.full_name || driver.email));
   }, [driverSource]);
 
   const [formData, setFormData] = useState(() => {
@@ -226,7 +221,7 @@ export default function DeliveryForm({
   const canvasRef = useRef(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [showCameraOverlay, setShowCameraOverlay] = useState(false);
-  const [forceOpenDriverSelect, setForceOpenDriverSelect] = useState(false);
+
 
   // Responsive layout state
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -640,7 +635,6 @@ export default function DeliveryForm({
     });
 
     setFormData(updatedFormData);
-    setForceOpenDriverSelect(!autoSelectedDriverId);
     if (!autoAddToStaged) {
       if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.());
       setPatientSearch('');
@@ -1973,7 +1967,7 @@ export default function DeliveryForm({
       startCamera={startCamera} stopCamera={stopCamera} setShowCameraOverlay={setShowCameraOverlay} setIsScanning={setIsScanning}
       showMatchPopup={showMatchPopup} scanMatches={scanMatches} extractedData={extractedData} handleSelectMatchedPatient={handleSelectMatchedPatient}
       setShowMatchPopup={setShowMatchPopup} setScanMatches={setScanMatches} setExtractedData={setExtractedData}
-      availableStores={availableStores} allDrivers={allDrivers} stores={stores} patients={patients} currentUser={currentUser} forceOpenDriverSelect={forceOpenDriverSelect} setForceOpenDriverSelect={setForceOpenDriverSelect}
+      availableStores={availableStores} allDrivers={allDrivers} stores={stores} patients={patients} currentUser={currentUser}
       allDeliveries={allDeliveries} selectedPickupOption={selectedPickupOption} setSelectedPickupOption={setSelectedPickupOption}
       getDriverDisplayName={getDriverDisplayName} getDriverNameForStorage={getDriverNameForStorage}
       editingStagedId={editingStagedId} setStagedDeliveries={setStagedDeliveries} setHasChanges={setHasChanges}

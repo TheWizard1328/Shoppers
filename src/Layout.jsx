@@ -1294,11 +1294,11 @@ export default function Layout({ children, currentPageName }) {
           const dedupedUsers = Array.from(new Map(mergedUsers.map((u) => [u.id, u])).values());
           setUsers(dedupedUsers);
 
-          let activeDrivers = allAppUsers.filter((appUser) => {
-            if (!appUser || !Array.isArray(appUser.app_roles)) return false;
-            if (!appUser.app_roles.includes('driver') && !appUser.app_roles.includes('admin')) return false;
-            if (!(appUser.user_name || appUser.full_name || appUser.email)) return false;
-            if (appUser.status && appUser.status !== 'active') return false;
+          let activeDrivers = dedupedUsers.filter((user) => {
+            if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
+            if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
+            if (!user.user_name) return false;
+            if (user.status !== 'active') return false;
             return true;
           });
           activeDrivers = sortUsers(activeDrivers);
@@ -1325,11 +1325,11 @@ export default function Layout({ children, currentPageName }) {
 
       const initialUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
 
-      let activeDrivers = allAppUsers.filter((appUser) => {
-        if (!appUser || !Array.isArray(appUser.app_roles)) return false;
-        if (!appUser.app_roles.includes('driver')) return false;
-        if (!(appUser.user_name || appUser.full_name || appUser.email)) return false;
-        if (appUser.status && appUser.status !== 'active') return false;
+      let activeDrivers = initialUsers.filter((user) => {
+        if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
+        if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
+        if (!user.user_name) return false;
+        if (user.status !== 'active') return false;
         return true;
       });
       activeDrivers = sortUsers(activeDrivers);
@@ -2466,7 +2466,7 @@ export default function Layout({ children, currentPageName }) {
 
       <UserProvider initialUser={currentUser}>
            <AppDataProvider value={{
-          deliveries: deliveries || [], patients: patients || [], stores: stores || [], drivers: (appUsers || []).filter((appUser) => appUser && Array.isArray(appUser.app_roles) && appUser.app_roles.includes('driver') && (appUser.user_name || appUser.full_name || appUser.email)), users: users || [], appUsers: appUsers || [], cities: cities || [], currentUser,
+          deliveries: deliveries || [], patients: patients || [], stores: stores || [], drivers: drivers || [], users: users || [], appUsers: appUsers || [], cities: cities || [], currentUser,
           isDataLoaded: dataLoaded, refreshData: triggerFullDataLoadRef.current, updateDeliveriesLocally, updateAppUsersLocally,
           applyDeliveryChangesLocally: ({ upserts = [], deleteIds = [] }) => setDeliveries((prev) => { const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id)); (deleteIds || []).forEach((id) => map.delete(id)); (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); }); return Array.from(map.values()); }),
           applyAppUserChangesLocally: ({ upserts = [], deleteIds = [] }) => setAppUsers((prev) => { const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id)); (deleteIds || []).forEach((id) => map.delete(id)); (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); }); return Array.from(map.values()); }),
