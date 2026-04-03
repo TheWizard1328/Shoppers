@@ -204,7 +204,7 @@ export default function PullToSync({
 
       // Mark UI sync complete + release overlay
       try { window.__dashboardSyncing = false; } catch (e) {}
-      window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { batchedUiUpdate: true, syncRunId, preserveLocalState: true } }));
+      window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { batchedUiUpdate: true, syncRunId, preserveLocalState: true, completedAt: Date.now() } }));
 
       if (!silent) {
         toast.success('Data synced', {
@@ -263,7 +263,10 @@ export default function PullToSync({
 
     } catch (error) {
       console.error('❌ [Pull to Sync] Sync failed:', error);
-      try { window.__dashboardSyncing = false; window.dispatchEvent(new CustomEvent('pullToSyncComplete')); } catch (e) {}
+      try {
+        window.__dashboardSyncing = false;
+        window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { syncRunId, failed: true, completedAt: Date.now() } }));
+      } catch (e) {}
       if (!silent) {
         toast.error('Sync failed', { description: error.message });
       }

@@ -244,18 +244,26 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       repairMissingPolylines({ date: today }).catch(() => null);
     } catch(_) {}
 
-    // Listen for completion, with fallback timeout
+    const requestedAt = Date.now();
+
+    // Listen for completion, with guarded fallback timeout
     let completed = false;
-    const handleSyncComplete = () => {
+    let fallbackTimer = null;
+    const handleSyncComplete = (event) => {
+      const syncStillRunning = window.__dashboardSyncing || window.__activePullToSyncRunId;
+      const completedAt = event?.detail?.completedAt || 0;
       if (completed) return;
+      if (completedAt && completedAt < requestedAt) return;
+      if (!event && syncStillRunning) return;
       completed = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
       setIsManualRefreshing(false);
       window.removeEventListener('pullToSyncComplete', handleSyncComplete);
       window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
     };
 
     window.addEventListener('pullToSyncComplete', handleSyncComplete);
-    setTimeout(handleSyncComplete, 10000);
+    fallbackTimer = setTimeout(() => handleSyncComplete(), 15000);
   };
 
   // Entity labels
