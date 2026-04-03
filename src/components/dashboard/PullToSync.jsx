@@ -191,8 +191,9 @@ export default function PullToSync({
           cities: freshCities,
           stores: freshStores,
           patients: freshPatients,
-          triggeredBy: 'pullToSync',
+          triggeredBy: 'pullToSyncDataReady',
           batchedUiUpdate: true,
+          preserveLocalState: true,
           syncRunId
         }
       }));
@@ -203,7 +204,7 @@ export default function PullToSync({
 
       // Mark UI sync complete + release overlay
       try { window.__dashboardSyncing = false; } catch (e) {}
-      window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { batchedUiUpdate: true, syncRunId } }));
+      window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { batchedUiUpdate: true, syncRunId, preserveLocalState: true } }));
 
       if (!silent) {
         toast.success('Data synced', {
