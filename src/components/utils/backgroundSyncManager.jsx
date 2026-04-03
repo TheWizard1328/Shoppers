@@ -20,6 +20,8 @@ import { format } from 'date-fns';
 class BackgroundSyncManager {
   constructor() {
     this.isRunning = false;
+    this.configLoadedAt = 0;
+    this.configLoadPromise = null;
     this.isPaused = false;
     this.currentSyncInterval = null;
     this.lastSyncTimes = {
@@ -402,20 +404,39 @@ class BackgroundSyncManager {
   /**
    * Load configuration from AppSettings
    */
-  async loadConfig() {
-    try {
-      const settings = await base44.entities.AppSettings.filter({
-        setting_key: 'background_sync_config'
-      });
-
-      if (settings && settings.length > 0) {
-        const savedConfig = settings[0].setting_value;
-        this.updateConfig(savedConfig);
-        console.log('⚙️ [BackgroundSync] Loaded config from AppSettings');
-      }
-    } catch (error) {
-      console.warn('⚠️ [BackgroundSync] Failed to load config:', error.message);
+  async loadConfig(force = false) {
+    const now = Date.now();
+    if (!force && this.configLoadedAt && now - this.configLoadedAt < 5 * 60 * 1000) {
+      return;
     }
+    if (this.configLoadPromise) {
+      return this.configLoadPromise;
+    }
+
+    this.configLoadPromise = (async () => {
+      try {
+        const settings = await base44.entities.AppSettings.filter({
+          setting_key: 'background_sync_config'
+        });
+
+        if (settings && settings.length > 0) {
+          const savedConfig = settings[0].setting_value;
+          this.updateConfig(savedConfig);
+          console.log('⚙️ [BackgroundSync] Loaded config from AppSettings');
+        }
+        this.configLoadedAt = Date.now();
+      } catch (error) {
+        if (error?.response?.status === 429 || error?.status === 429 || String(error?.message || '').includes('Rate limit exceeded')) {
+          console.warn('⚠️ [BackgroundSync] Rate limited while loading config - using cached defaults');
+          return;
+        }
+        console.warn('⚠️ [BackgroundSync] Failed to load config:', error.message);
+      } finally {
+        this.configLoadPromise = null;
+      }
+    })();
+
+    return this.configLoadPromise;
   }
 
   /**

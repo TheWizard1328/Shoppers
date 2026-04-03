@@ -342,72 +342,80 @@ export async function saveSetting(userId, key, value) {
   const deviceIdentifier = getDeviceIdentifier();
   const deviceType = getDeviceType();
   const isGlobal = isGlobalSetting(key);
-  
+
   console.log(`💾 [UserSettings] Saving ${isGlobal ? 'GLOBAL' : 'DEVICE'} setting: ${key}=${value}`);
-  
-  // Update cache
+
   if (cachedSettings) {
     cachedSettings[key] = value;
   } else {
     cachedSettings = { ...DEFAULT_SETTINGS, [key]: value };
   }
-  
+
   if (isGlobal) {
     cachedGlobalSettings = { ...cachedGlobalSettings, [key]: value };
   }
   currentUserId = userId;
-  
+
   await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
 
   if (!offlineManager.getOnlineStatus()) {
     console.log(`📴 [UserSettings] Offline - queuing setting ${key} for sync`);
-    // Don't queue UserSettings updates when offline - just update cache
-    // UserSettings should sync when online via background refresh
     return cachedSettings;
   }
 
-  try {
-    const userSettingsRecords = await UserSettings.filter({
-      user_id: userId
-    }, '-updated', 1);
-
-    if (userSettingsRecords && userSettingsRecords.length > 0) {
-      const userSettingsRecord = userSettingsRecords[0];
-      const now = new Date().toISOString();
-      
-      const updateData = {
-        updated: now
-      };
-
-      if (isGlobal) {
-        updateData.global_settings = {
-          ...(userSettingsRecord.global_settings || {}),
-          [key]: value
-        };
-      } else {
-        updateData.device_settings_profiles = {
-          ...(userSettingsRecord.device_settings_profiles || {}),
-          [deviceIdentifier]: {
-            ...(userSettingsRecord.device_settings_profiles?.[deviceIdentifier] || {}),
-            device_identifier: deviceIdentifier,
-            device_type: deviceType,
-            [key]: value,
-            last_active_at: now
-          }
-        };
-      }
-
-      await UserSettings.update(userSettingsRecord.id, updateData);
-      console.log(`✅ [UserSettings] Updated ${isGlobal ? 'global' : 'device'} setting`);
+  return await new Promise((resolve) => {
+    const timeoutKey = `${userId}:${deviceIdentifier}:${key}`;
+    if (userSettingsSaveTimeouts.has(timeoutKey)) {
+      clearTimeout(userSettingsSaveTimeouts.get(timeoutKey));
     }
 
-    return cachedSettings;
+    const timeoutId = setTimeout(async () => {
+      userSettingsSaveTimeouts.delete(timeoutKey);
+      try {
+        const userSettingsRecord = await getLatestUserSettingsRecord(userId);
 
-  } catch (error) {
-    console.error('❌ [UserSettings] Error saving setting:', error);
-    // On error, just return cached - will retry on background refresh
-    return cachedSettings || { ...DEFAULT_SETTINGS, [key]: value };
-  }
+        if (userSettingsRecord) {
+          const now = new Date().toISOString();
+          const updateData = {
+            updated: now
+          };
+
+          if (isGlobal) {
+            updateData.global_settings = {
+              ...(userSettingsRecord.global_settings || {}),
+              [key]: value
+            };
+          } else {
+            updateData.device_settings_profiles = {
+              ...(userSettingsRecord.device_settings_profiles || {}),
+              [deviceIdentifier]: {
+                ...(userSettingsRecord.device_settings_profiles?.[deviceIdentifier] || {}),
+                device_identifier: deviceIdentifier,
+                device_type: deviceType,
+                [key]: value,
+                last_active_at: now
+              }
+            };
+          }
+
+          await UserSettings.update(userSettingsRecord.id, updateData);
+          console.log(`✅ [UserSettings] Updated ${isGlobal ? 'global' : 'device'} setting`);
+        }
+
+        resolve(cachedSettings);
+      } catch (error) {
+        if (error?.response?.status === 429 || error?.status === 429 || String(error?.message || '').includes('Rate limit exceeded')) {
+          console.warn('⚠️ [UserSettings] Rate limited while saving setting - keeping local cache only');
+          resolve(cachedSettings || { ...DEFAULT_SETTINGS, [key]: value });
+          return;
+        }
+        console.error('❌ [UserSettings] Error saving setting:', error);
+        resolve(cachedSettings || { ...DEFAULT_SETTINGS, [key]: value });
+      }
+    }, 500);
+
+    userSettingsSaveTimeouts.set(timeoutKey, timeoutId);
+  });
 }
 
 /**
@@ -548,6 +556,22 @@ function applyAutoDarkMode() {
  * Listens for system dark mode changes and applies immediately
  */
 let darkModeMediaQuery = null;
+let userSettingsSaveTimeouts = new Map();
+let inFlightUserSettingsRecordPromise = null;
+
+async function getLatestUserSettingsRecord(userId) {
+  if (!userId) return null;
+  if (!inFlightUserSettingsRecordPromise) {
+    inFlightUserSettingsRecordPromise = UserSettings.filter({
+      user_id: userId
+    }, '-updated', 1)
+      .then((records) => records?.[0] || null)
+      .finally(() => {
+        inFlightUserSettingsRecordPromise = null;
+      });
+  }
+  return inFlightUserSettingsRecordPromise;
+}
 
 export function initializeAutoDarkMode() {
   // Clean up existing listener
