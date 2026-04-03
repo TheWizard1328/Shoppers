@@ -40,14 +40,23 @@ export default function FABControls({
   refreshData,
 }) {
   useEffect(() => {
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+
     const unsubscribe = fabControlEvents.subscribe((event) => {
-      if (event?.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE') {
-        window.__fabFlashUpdate?.();
-      }
+      if (event?.type !== 'DELIVERY_REALTIME_CREATE_DELETE_PULSE') return;
+      if (!event?.relevantToCurrentSelection) return;
+      if (selectedDriverId !== 'all' && event?.driverId && event.driverId !== selectedDriverId) return;
+      if (event?.deliveryDate && event.deliveryDate !== selectedDateStr) return;
+
+      window.__fabFlashUpdate?.('route_change', {
+        driverId: event?.driverId || selectedDriverId,
+        deliveryDate: event?.deliveryDate || selectedDateStr,
+        deliveryId: event?.deliveryId || null
+      });
     });
 
     return unsubscribe;
-  }, []);
+  }, [selectedDate, selectedDriverId]);
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   const activeStopCount = deliveriesWithStopOrder.filter((delivery) => delivery && !finishedStatuses.includes(delivery.status)).length;
   const isMapCycleEnabled = activeStopCount > 1;

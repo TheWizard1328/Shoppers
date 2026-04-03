@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
@@ -6,22 +6,38 @@ import { isMobileDevice } from '@/components/utils/deviceUtils';
 
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75 }) {
   const [isFlashing, setIsFlashing] = useState(false);
+  const flashTimeoutRef = useRef(null);
+  const lastFlashAtRef = useRef(0);
+  const lastFlashKeyRef = useRef('');
 
-  const flashUpdate = () => {
+  const flashUpdate = useCallback((reason = 'generic', details = {}) => {
     if (currentPhase !== 1) return;
+
+    const now = Date.now();
+    const throttleWindow = reason === 'route_change' || reason === 'completed_stop' ? 350 : 2500;
+    const flashKey = `${reason}:${details?.driverId || 'all'}:${details?.deliveryDate || 'all'}:${details?.deliveryId || 'all'}`;
+
+    if (lastFlashKeyRef.current === flashKey && now - lastFlashAtRef.current < throttleWindow) return;
+    if (now - lastFlashAtRef.current < throttleWindow) return;
+
+    lastFlashAtRef.current = now;
+    lastFlashKeyRef.current = flashKey;
     setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 500);
-  };
+
+    if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+    flashTimeoutRef.current = setTimeout(() => setIsFlashing(false), 500);
+  }, [currentPhase]);
 
   // Make flash method available globally
   useEffect(() => {
     window.__fabFlashUpdate = flashUpdate;
     window.__currentMapViewPhase = currentPhase;
     return () => {
+      if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
       delete window.__fabFlashUpdate;
       delete window.__currentMapViewPhase;
     };
-  }, [currentPhase]);
+  }, [currentPhase, flashUpdate]);
 
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
   const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 10;
