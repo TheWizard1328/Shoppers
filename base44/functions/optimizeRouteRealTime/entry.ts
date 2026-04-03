@@ -526,38 +526,14 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const beforeTrackingDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order');
-      console.log(`# [optimizeRouteRealTime] BEFORE recalculateTrackingNumbers | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${beforeTrackingDeliveries?.length || 0}`);
-
       await base44.functions.invoke('recalculateTrackingNumbers', { driverId, deliveryDate });
-
-      const afterTrackingDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order');
-      console.log(`# [optimizeRouteRealTime] AFTER recalculateTrackingNumbers | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${afterTrackingDeliveries?.length || 0}`);
       console.log('🔢 [optimizeRouteRealTime] Tracking numbers recalculated');
     } catch (trackingError) {
       console.warn('[optimizeRouteRealTime] recalculateTrackingNumbers failed (non-fatal):', trackingError?.message || trackingError);
     }
 
     try {
-      const beforePolylineDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order');
-      console.log(`# [optimizeRouteRealTime] BEFORE purgeAndRegeneratePolylines | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${beforePolylineDeliveries?.length || 0}`);
-
       await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate, scope: 'active_only' });
-
-      const afterPolylineDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order');
-      console.log(`# [optimizeRouteRealTime] AFTER purgeAndRegeneratePolylines | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${afterPolylineDeliveries?.length || 0}`);
       console.log('🧹 [optimizeRouteRealTime] Polylines purged and regenerated');
     } catch (polylineError) {
       console.warn('[optimizeRouteRealTime] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
