@@ -184,9 +184,9 @@ export default function ImmediateNextDeliveryController() {
 
   useEffect(() => {
     const handleDeliveriesUpdated = async (event) => {
-      const { triggeredBy, driverId, deliveryDate } = event.detail || {};
+      const { triggeredBy, driverId, deliveryDate, preserveLocalState } = event.detail || {};
       const shouldRefreshEta = ['complete', 'nextDeliveryImmediate', 'deliveryFormUpdate', 'completeEtaRefresh'].includes(triggeredBy);
-      if (!shouldRefreshEta || triggeredBy === 'completeEtaRefresh' || !driverId || !deliveryDate) return;
+      if (!shouldRefreshEta || triggeredBy === 'completeEtaRefresh' || preserveLocalState || !driverId || !deliveryDate) return;
 
       const routeKey = `${driverId}:${deliveryDate}`;
       if (etaRefreshRef.current.has(routeKey)) return;
@@ -235,7 +235,7 @@ export default function ImmediateNextDeliveryController() {
           centerDeliveryCard(nextStop.id);
         }
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { triggeredBy: 'completeEtaRefresh', driverId, deliveryDate }
+          detail: { triggeredBy: 'completeEtaRefresh', driverId, deliveryDate, preserveLocalState: true }
         }));
       } finally {
         etaRefreshRef.current.delete(routeKey);
