@@ -147,6 +147,12 @@ export default function DeliveryFormView({
     setForceOpenDriverSelect(requiresDriverSelection);
   }, [requiresDriverSelection]);
 
+  React.useEffect(() => {
+    const handleForceDriverSelect = () => setForceOpenDriverSelect(true);
+    window.addEventListener('deliveryFormForceDriverSelect', handleForceDriverSelect);
+    return () => window.removeEventListener('deliveryFormForceDriverSelect', handleForceDriverSelect);
+  }, []);
+
   // Helper: get default driver ID for a store based on date and time slot
   const getDefaultDriverForStoreSlot = (storeId, timeSlot, deliveryDate) => {
     const store = stores?.find((s) => s && s.id === storeId);

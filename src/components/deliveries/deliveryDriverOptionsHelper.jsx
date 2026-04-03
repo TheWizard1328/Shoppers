@@ -17,3 +17,23 @@ export const getCityDriversForDeliveryForm = ({ appUsers = [], selectedCityId })
 
   return sortUsers(cityDrivers);
 };
+
+export const getDefaultDriverForStoreDate = ({ stores = [], allDrivers = [], storeId, deliveryDate }) => {
+  if (!storeId || !deliveryDate) return null;
+
+  const store = (stores || []).find((item) => item && item.id === storeId);
+  if (!store) return null;
+
+  const selectedDate = new Date(deliveryDate + 'T00:00:00');
+  const dayOfWeek = selectedDate.getDay();
+  const driverIdField = dayOfWeek === 6
+    ? 'saturday_am_driver_id'
+    : dayOfWeek === 0
+      ? 'sunday_am_driver_id'
+      : 'weekday_am_driver_id';
+
+  const defaultDriverId = store[driverIdField];
+  if (!defaultDriverId) return null;
+
+  return (allDrivers || []).find((driver) => driver && driver.id === defaultDriverId) || null;
+};
