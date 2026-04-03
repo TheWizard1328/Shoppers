@@ -89,7 +89,7 @@ export default function DashboardView({
     if (hasDeliveriesForDate && hasPatients && hasStores && initialDataReadyRef.current !== dateStr) {
       initialDataReadyRef.current = dateStr;
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'initialDataReady', deliveryDate: dateStr, fullReplacement: true, freshDeliveries: deliveries.filter(d => d && d.delivery_date === dateStr) } }));
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'initialDataReady', deliveryDate: dateStr, fullReplacement: false, preserveLocalState: true, freshDeliveries: deliveries.filter(d => d && d.delivery_date === dateStr) } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
       }, 0);
