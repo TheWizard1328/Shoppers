@@ -663,15 +663,65 @@ export const AppDataProvider = ({ children, value }) => {
         ensurePatientsForSelectedDate();
       }
     };
+
+    const onPullToSyncDataReady = async (e) => {
+      const { deliveries = [], appUsers = [], patients = [], deliveryDate, preserveLocalState } = (e && e.detail) || {};
+      if (!preserveLocalState) return;
+
+      try {
+        if (Array.isArray(deliveries) && deliveries.length > 0) {
+          const currentDate = value.selectedDate || deliveryDate;
+          const existing = deliveriesRef.current || [];
+          const otherDates = currentDate ? existing.filter((item) => item?.delivery_date !== currentDate) : existing;
+          const merged = [...otherDates, ...deliveries.filter(Boolean)];
+          if (applyDeliveryChangesLocallyRef.current) {
+            applyDeliveryChangesLocallyRef.current({ upserts: deliveries, deleteIds: [] });
+          } else if (updateDeliveriesLocallyRef.current) {
+            updateDeliveriesLocallyRef.current(merged, true);
+          }
+        }
+
+        if (Array.isArray(appUsers) && appUsers.length > 0) {
+          await wrappedUpdateAppUsersLocally(appUsers, true);
+        }
+
+        if (Array.isArray(patients) && patients.length > 0) {
+          if (value.updatePatientsLocally) {
+            value.updatePatientsLocally({ upserts: patients, deleteIds: [] });
+          } else if (applyPatientChangesLocallyRef.current) {
+            applyPatientChangesLocallyRef.current({ upserts: patients, deleteIds: [] });
+          }
+        }
+
+        if (typeof window !== 'undefined') {
+          if (appUsers.length > 0) {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers, forceAll: true, fromPullToSync: true }
+            }));
+          }
+          if (patients.length > 0) {
+            window.dispatchEvent(new CustomEvent('patientsUpdated', {
+              detail: { patients, fromPullToSync: true, fullReplacement: false }
+            }));
+          }
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        }
+      } finally {
+        ensurePatientsForSelectedDate();
+      }
+    };
+
     const onPullToSyncComplete = () => ensurePatientsForSelectedDate();
 
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    window.addEventListener('pullToSyncDataReady', onPullToSyncDataReady);
     window.addEventListener('pullToSyncComplete', onPullToSyncComplete);
     return () => {
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+      window.removeEventListener('pullToSyncDataReady', onPullToSyncDataReady);
       window.removeEventListener('pullToSyncComplete', onPullToSyncComplete);
     };
-  }, [ensurePatientsForSelectedDate]);
+  }, [ensurePatientsForSelectedDate, value.selectedDate, value.updatePatientsLocally]);
 
   const wrappedValue = useMemo(() => ({
     ...value,
