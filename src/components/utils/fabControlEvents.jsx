@@ -64,11 +64,11 @@ export const fabControlEvents = {
    * Reactivate FAB and restore previous phase (after button action completes)
    * @param {boolean} skipCardScroll - If true, skip scrolling to next card (already handled)
    */
-  reactivateFAB: (skipCardScroll = false) => {
-    console.log('📢 [FAB Events] Broadcasting FAB reactivation, skipCardScroll:', skipCardScroll);
+  reactivateFAB: (skipCardScroll = false, options = {}) => {
+    console.log('📢 [FAB Events] Broadcasting FAB reactivation, skipCardScroll:', skipCardScroll, 'options:', options);
     fabControlListeners.forEach(callback => {
       try {
-        callback({ type: 'REACTIVATE_FAB', skipCardScroll });
+        callback({ type: 'REACTIVATE_FAB', skipCardScroll, ...options });
       } catch (error) {
         console.error('Error in FAB event listener:', error);
       }
