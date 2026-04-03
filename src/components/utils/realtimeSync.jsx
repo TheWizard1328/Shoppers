@@ -225,6 +225,9 @@ const triggerCenterNextDeliveryCard = (payload) => {
   // Debounce slightly to coalesce bursts of updates
   centerEventTimer = setTimeout(() => {
     if (typeof window !== 'undefined') {
+      if ((window._userMapControlUntil || 0) > Date.now()) {
+        return;
+      }
       window.dispatchEvent(new CustomEvent('centerNextDeliveryCard', { detail: payload }));
     }
   }, 50);

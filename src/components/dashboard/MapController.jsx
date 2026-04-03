@@ -1,4 +1,9 @@
 import React, { useRef } from 'react';
+
+const markUserMapControlActive = (durationMs = 4000) => {
+  if (typeof window === 'undefined') return;
+  window._userMapControlUntil = Date.now() + durationMs;
+};
 import { useMapEvents } from 'react-leaflet';
 import { base44 } from '@/api/base44Client';
 
@@ -29,6 +34,7 @@ export default function MapController({
       }
       
       console.log('🗺️ [MapController] ZOOM START - USER INTERACTION');
+      markUserMapControlActive();
       base44.analytics.track({
         eventName: 'map_zoom_started',
         properties: { zoom_level: mapInstance.getZoom() }
@@ -40,6 +46,7 @@ export default function MapController({
     dragstart: () => {
       isDraggingRef.current = true;
       hasMovedRef.current = false;
+      markUserMapControlActive();
     },
     drag: () => {
       hasMovedRef.current = true;
@@ -56,6 +63,7 @@ export default function MapController({
         
         if (!isProgrammaticDrag) {
           console.log('🗺️ [MapController] DRAG END - USER INTERACTION');
+          markUserMapControlActive();
           base44.analytics.track({
             eventName: 'map_panned',
             properties: { zoom_level: mapInstance.getZoom() }
@@ -81,6 +89,7 @@ export default function MapController({
         
         if (!isProgrammaticFromFlag && !isProgrammaticFromTimer) {
           console.log('🗺️ [MapController] ZOOM END - USER INTERACTION (showing overlay)');
+          markUserMapControlActive();
           if (zoomOverlayTimeoutRef.current) {
             clearTimeout(zoomOverlayTimeoutRef.current);
           }

@@ -26,6 +26,10 @@ export class MapPhaseLocationSync {
     if (!this.isActive || (this.currentPhase !== 2 && this.currentPhase !== 3)) {
       return;
     }
+
+    if (typeof window !== 'undefined' && (window._userMapControlUntil || 0) > Date.now()) {
+      return;
+    }
     
     console.log(`🗺️ [MapPhaseSync] Location updated - notifying ${this.listeners.length} listeners for Phase ${this.currentPhase}`);
     this.listeners.forEach(callback => callback());

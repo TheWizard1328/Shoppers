@@ -5,6 +5,8 @@
 
 const fabControlListeners = new Set();
 
+const isUserControllingMap = () => typeof window !== 'undefined' && (window._userMapControlUntil || 0) > Date.now();
+
 export const fabControlEvents = {
   /**
    * Subscribe to FAB control events
@@ -65,6 +67,10 @@ export const fabControlEvents = {
    * @param {boolean} skipCardScroll - If true, skip scrolling to next card (already handled)
    */
   reactivateFAB: (skipCardScroll = false, options = {}) => {
+    if (isUserControllingMap() && !options?.forceWhileUserInteracting) {
+      console.log('📢 [FAB Events] Skipping FAB reactivation during active user map control');
+      return;
+    }
     console.log('📢 [FAB Events] Broadcasting FAB reactivation, skipCardScroll:', skipCardScroll, 'options:', options);
     fabControlListeners.forEach(callback => {
       try {
