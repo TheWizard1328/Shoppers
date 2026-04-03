@@ -2,6 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const TIME_ZONE = 'America/Edmonton';
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const ACTIVE_ROUTE_STATUSES = ['in_transit', 'en_route'];
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
 const normalizeTimeString = (timeStr, fallback) => {
@@ -88,13 +89,6 @@ const buildAccessConstraint = (dateStr, startTime, endTime) => {
   return `acc:${weekday}${start}${offset}|${weekday}${end}${offset}`;
 };
 
-const parseHereTimeToHHMM = (value) => {
-  if (!value || typeof value !== 'string') return null;
-  const match = value.match(/T(\d{2}):(\d{2})/);
-  if (!match) return null;
-  return `${match[1]}:${match[2]}`;
-};
-
 const formatMinutesToHHMM = (minutes) => {
   const normalized = ((Math.round(minutes) % 1440) + 1440) % 1440;
   const hours = Math.floor(normalized / 60);
@@ -118,6 +112,7 @@ const estimateCrowFliesTravelMinutes = (fromLat, fromLng, toLat, toLng) => {
 };
 
 const isValidEntityId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ''));
+const isActiveRouteStatus = (status) => ACTIVE_ROUTE_STATUSES.includes(status);
 
 const getStopCoordinates = (delivery, patientMap, storeMap) => {
   if (delivery.patient_id) {
@@ -151,15 +146,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'HERE_API_KEY secret is not set' }, { status: 500 });
     }
 
-    console.log(`🔄 Optimizing route for driver ${driverId} on ${deliveryDate}`);
-
     const [driverAppUsers, callerAppUsers] = await Promise.all([
       base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }),
       base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1)
     ]);
     const driverAppUser = driverAppUsers?.[0];
     const callerAppUser = callerAppUsers?.[0];
-    const driverDisplayName = driverAppUser?.user_name || driverAppUser?.full_name || driverId;
 
     if (!driverAppUser) {
       return Response.json({ error: 'Driver not found' }, { status: 404 });
@@ -176,8 +168,6 @@ Deno.serve(async (req) => {
       locationSource = 'gps';
     }
 
-    // Fall back to last completed stop or home location below if live GPS is unavailable.
-
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate
@@ -188,21 +178,21 @@ Deno.serve(async (req) => {
     }
 
     const completedDeliveries = allDeliveries.filter((delivery) => FINISHED_STATUSES.includes(delivery.status));
-    const incompleteDeliveries = allDeliveries.filter((delivery) => !FINISHED_STATUSES.includes(delivery.status));
+    const activeDeliveries = allDeliveries.filter((delivery) => isActiveRouteStatus(delivery.status));
 
     completedDeliveries.sort((a, b) => {
       if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
       return new Date(a.actual_delivery_time).getTime() - new Date(b.actual_delivery_time).getTime();
     });
 
-    if (incompleteDeliveries.length === 0) {
-      return Response.json({ message: 'No incomplete deliveries to optimize', routeChanged: false });
+    if (activeDeliveries.length === 0) {
+      return Response.json({ message: 'No active deliveries to optimize', routeChanged: false, optimizedRoute: [], totalStops: 0, apiCallsMade: 0 });
     }
 
-    const patientIds = [...new Set(incompleteDeliveries
+    const patientIds = [...new Set(activeDeliveries
       .filter((delivery) => delivery.patient_id && isValidEntityId(delivery.patient_id))
       .map((delivery) => delivery.patient_id))];
-    const storeIds = [...new Set(incompleteDeliveries.map((delivery) => delivery.store_id).filter(Boolean))];
+    const storeIds = [...new Set(activeDeliveries.map((delivery) => delivery.store_id).filter(Boolean))];
 
     const [patients, stores] = await Promise.all([
       patientIds.length > 0 ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }) : [],
@@ -226,7 +216,7 @@ Deno.serve(async (req) => {
       locationSource = 'home';
     }
 
-    const stops = incompleteDeliveries
+    const stops = activeDeliveries
       .map((delivery, index) => {
         const { lat, lng, patient } = getStopCoordinates(delivery, patientMap, storeMap);
         const isPickup = !delivery.patient_id;
@@ -251,12 +241,8 @@ Deno.serve(async (req) => {
       .filter((stop) => stop.lat != null && stop.lng != null && !Number.isNaN(stop.lat) && !Number.isNaN(stop.lng));
 
     if (stops.length === 0) {
-      return Response.json({ error: 'No incomplete stops have valid coordinates', routeChanged: false }, { status: 400 });
+      return Response.json({ error: 'No active stops have valid coordinates', routeChanged: false }, { status: 400 });
     }
-
-    const pickupByStopId = new Map(
-      stops.filter((stop) => stop.isPickup && stop.delivery.stop_id).map((stop) => [stop.delivery.stop_id, stop])
-    );
 
     const nextDeliveryStop = stops.find((stop) => stop.delivery.isNextDelivery === true) || null;
     const lockedNextStop = nextDeliveryStop;
@@ -315,16 +301,13 @@ Deno.serve(async (req) => {
       }
 
       const hereUrl = `https://wps.hereapi.com/v8/findsequence2?${params.toString()}`;
-      console.log(`🌐 [optimizeRouteRealTime] Calling HERE Waypoints Sequence API for ${stopsToSequence.length} stops${includeTimeWindows ? ' with time windows' : ' without time windows'}`);
-      
-      // Retry with exponential backoff for rate limits
+
       let lastError = null;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const response = await fetch(hereUrl, { signal: AbortSignal.timeout(20000) });
           if (response.status === 429) {
             const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000);
-            console.warn(`⏳ [optimizeRouteRealTime] Rate limited, retrying in ${waitMs}ms (attempt ${attempt + 1}/3)`);
             await new Promise((resolve) => setTimeout(resolve, waitMs));
             continue;
           }
@@ -335,8 +318,7 @@ Deno.serve(async (req) => {
           if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw err;
         }
       }
-      
-      // All retries exhausted
+
       throw lastError || new Error('HERE API rate limit exceeded after retries');
     };
 
@@ -359,7 +341,6 @@ Deno.serve(async (req) => {
 
       const needsFallback = !hereResponse.ok || !result || waypoints.length === 0;
       if (needsFallback && usedTimeWindows) {
-        console.warn('[optimizeRouteRealTime] Retrying HERE without time windows due to failed constrained optimization');
         hereAttempt = await executeHereSequence(false);
         hereResponse = hereAttempt.response;
         hereData = hereAttempt.data;
@@ -370,7 +351,6 @@ Deno.serve(async (req) => {
       }
 
       if (!hereResponse.ok) {
-        console.error('[optimizeRouteRealTime] HERE HTTP error:', hereResponse.status, hereData);
         return Response.json({
           error: 'HERE Waypoints Sequence API request failed',
           details: hereData,
@@ -399,29 +379,16 @@ Deno.serve(async (req) => {
       })
       .filter(Boolean);
 
-    const unmatchedWaypointIds = stopWaypoints
-      .filter((waypoint) => !orderedStops.some((item) => item.waypoint.id === waypoint.id))
-      .map((waypoint) => waypoint.id);
-
     if (orderedStops.length !== stopsToSequence.length) {
       return Response.json({
         error: 'HERE response did not include all optimizable stops',
         details: {
           requestedStops: stopsToSequence.length,
           returnedStops: orderedStops.length,
-          unmatchedWaypointIds,
-          expectedWaypointIds: sequencedStops.map((stop) => ({ waypointId: stop.hereWaypointId, waypointLabel: stop.waypointLabel })),
-          response: hereData,
           usedTimeWindows
         }
       }, { status: 422 });
     }
-
-    const pickupItemByStopId = new Map(
-      orderedStops
-        .filter(({ stop }) => stop.isPickup && stop.delivery.stop_id)
-        .map((item) => [item.stop.delivery.stop_id, item])
-    );
 
     const arrangedStops = [];
     const arrangedIds = new Set();
@@ -436,15 +403,12 @@ Deno.serve(async (req) => {
     }
 
     for (const item of orderedStops) {
-      if (item.stop.delivery.puid) {
-        pushOrderedItem(pickupItemByStopId.get(item.stop.delivery.puid));
-      }
       pushOrderedItem(item);
     }
 
     const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
     const usedFinishedOrders = new Set(completedDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0));
-    const availableActiveOrders = incompleteDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0 && !usedFinishedOrders.has(order)).sort((a, b) => a - b);
+    const availableActiveOrders = activeDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0 && !usedFinishedOrders.has(order)).sort((a, b) => a - b);
     let nextGeneratedOrder = Math.max(0, ...allDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0)) + 1;
     let assignedNextDeliveryStopOrder = null;
     let rollingMinutes = parseTimeToMinutes(departureTime) ?? parseTimeToMinutes(getEdmontonCurrentTime()) ?? 0;
@@ -514,30 +478,21 @@ Deno.serve(async (req) => {
           stops_count: stops.length,
           location_source: locationSource,
           used_time_windows: usedTimeWindows,
-          used_service_times: true,
-          used_before_constraints: true,
+          active_statuses_only: true,
           locked_next_delivery: !!nextDeliveryStop,
           distance_meters: Number(result?.distance || 0),
           duration_seconds: Number(result?.time || 0)
         }
       });
-    } catch (logError) {
-      console.warn('[optimizeRouteRealTime] Non-fatal log error:', logError?.message || logError);
-    }
+    } catch (_logError) {}
 
     try {
       await base44.functions.invoke('recalculateTrackingNumbers', { driverId, deliveryDate });
-      console.log('🔢 [optimizeRouteRealTime] Tracking numbers recalculated');
-    } catch (trackingError) {
-      console.warn('[optimizeRouteRealTime] recalculateTrackingNumbers failed (non-fatal):', trackingError?.message || trackingError);
-    }
+    } catch (_trackingError) {}
 
     try {
       await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate, scope: 'active_only' });
-      console.log('🧹 [optimizeRouteRealTime] Polylines purged and regenerated');
-    } catch (polylineError) {
-      console.warn('[optimizeRouteRealTime] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
-    }
+    } catch (_polylineError) {}
 
     try {
       const allForDriverDate = await base44.asServiceRole.entities.Delivery.filter({
@@ -545,10 +500,10 @@ Deno.serve(async (req) => {
         delivery_date: deliveryDate
       }, 'stop_order');
 
-      const incompletes = (allForDriverDate || []).filter((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status) && delivery.status !== 'pending');
+      const activeStopsOnly = (allForDriverDate || []).filter((delivery) => delivery && isActiveRouteStatus(delivery.status));
 
-      if (incompletes.length > 0) {
-        const targetId = lockedNextStop?.delivery?.id || arrangedStops[0]?.stop?.delivery?.id || [...incompletes].sort((a, b) => {
+      if (activeStopsOnly.length > 0) {
+        const targetId = lockedNextStop?.delivery?.id || arrangedStops[0]?.stop?.delivery?.id || [...activeStopsOnly].sort((a, b) => {
           const stopOrderDiff = (a.stop_order || 999) - (b.stop_order || 999);
           if (stopOrderDiff !== 0) return stopOrderDiff;
           const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
@@ -557,7 +512,7 @@ Deno.serve(async (req) => {
         })[0]?.id;
 
         if (targetId) {
-          const nextUpdates = incompletes
+          const nextUpdates = activeStopsOnly
             .map((delivery) => {
               const shouldBeNext = delivery.id === targetId;
               if (delivery.isNextDelivery === shouldBeNext) return null;
@@ -575,9 +530,7 @@ Deno.serve(async (req) => {
           }
         }
       }
-    } catch (error) {
-      console.warn('[optimizeRouteRealTime] ensure isNextDelivery failed (non-fatal):', error?.message || error);
-    }
+    } catch (_error) {}
 
     const optimizedRoute = deliveryUpdates.map(({ stop, waypoint, leg, order, eta, locked }) => ({
       deliveryId: stop.delivery.id,
@@ -589,11 +542,6 @@ Deno.serve(async (req) => {
       travelMeters: Math.round(Number(leg?.distance || 0)),
       sequence: locked ? 0 : waypoint?.sequence
     }));
-
-    console.log(`✅ Route optimization complete - ${optimizedRoute.length} stops updated, ${stopsToSequence.length > 0 ? 1 : 0} HERE API call`);
-    if (assignedNextDeliveryStopOrder !== null) {
-      console.log(`🎯 [optimizeRouteRealTime] isNextDelivery assigned stop order ${assignedNextDeliveryStopOrder}`);
-    }
 
     return Response.json({
       success: true,
