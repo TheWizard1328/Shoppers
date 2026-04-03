@@ -460,7 +460,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 allDeliveries,
                 patients,
                 stores,
-                isAppOwner: isAppOwner(currentUser),
                 todayDateString: edmontonTodayStr
               }) : null;
               const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
@@ -523,7 +522,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           let pendingBreadcrumbsString = null;
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           if (isPickup && pendingPickups && pendingPickups.length > 0) {const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');if (hasPendingDeliveries) await handleAcceptAllStops();}
-                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const retroactiveTiming = isFirstRouteStop ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, isAppOwner: isAppOwner(currentUser), todayDateString: edmontonTodayStr }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
+                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const retroactiveTiming = isFirstRouteStop ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: edmontonTodayStr }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
                           const resolvedActualDeliveryTime = isPickup && isPastDeliveryDate ? retroactiveTiming?.actual_delivery_time : retroactiveTiming?.actual_delivery_time || localTimeString;
                           const shouldAutoSetArrivalTime = delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
                           const fallbackSignatureUrl = !delivery.signature_image_url && patient?.signature_image_url ? patient.signature_image_url : null;
