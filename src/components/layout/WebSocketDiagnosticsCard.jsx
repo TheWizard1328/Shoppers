@@ -30,9 +30,15 @@ export default function WebSocketDiagnosticsCard() {
     // Check if this is the primary device
     const checkPrimaryDevice = async () => {
       try {
-        const { isPrimaryTracker } = await import('@/components/utils/deviceManager');
-        const isTracking = await isPrimaryTracker();
-        setIsPrimaryDevice(isTracking);
+        const user = await base44.auth.me();
+        if (!user?.id) {
+          setIsPrimaryDevice(true);
+          return;
+        }
+        const { getCurrentDevice } = await import('@/components/utils/deviceManager');
+        const device = await getCurrentDevice(user.id);
+        const isPrimary = device === null || device?.status !== 'inactive' && device?.is_primary_tracker !== false;
+        setIsPrimaryDevice(isPrimary);
       } catch (error) {
         console.log('⚠️ [WebSocketDiagnosticsCard] Failed to check primary device status:', error.message);
         setIsPrimaryDevice(true);
