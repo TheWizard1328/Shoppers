@@ -46,7 +46,7 @@ import { updatePatientGPS } from "../utils/patientGPSUpdater";
 import { buildRetryDelivery, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, refreshDriverRoute, reorderActiveRouteLocally, setAndCenterNextDelivery, verifyDeliveryStillExists, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDriver, getPendingBreadcrumbsForDriver } from '../utils/pendingBreadcrumbsManager';
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
-import { updateCompletionPolylines } from '../utils/updateCompletionPolylines.jsx';
+import { updateCompletionPolylines } from '../utils/updateCompletionPolylines';
 const statusConfig = { 'pending': { label: 'Pending', color: 'bg-slate-100 text-slate-800' }, 'in_transit': { label: 'In Transit', color: 'bg-blue-100 text-blue-800' }, 'en_route': { label: 'En Route', color: 'bg-cyan-100 text-cyan-800' }, 'next': { label: 'Next', color: 'bg-lime-100 text-lime-800' }, 'completed': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' }, 'delivered': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' }, 'failed': { label: 'Failed', color: 'bg-red-100 text-red-800' }, 'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' }, 'returned': { label: 'Return', color: 'bg-orange-100 text-orange-800' } };
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 const formatTime12Hour = (timeString) => {
