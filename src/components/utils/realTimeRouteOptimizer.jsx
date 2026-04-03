@@ -15,6 +15,7 @@ import { isMobileDevice } from './deviceUtils';
 let optimizationTimeout = null;
 let lastOptimizationTime = 0;
 const OPTIMIZATION_COOLDOWN = 5000; // 5 seconds between optimizations
+const optimizationInFlight = new Map();
 
 /**
  * Trigger AI-powered route optimization
@@ -63,14 +64,22 @@ export const triggerRouteOptimization = async ({
   
   console.log(`🚀 [RouteOptimizer] Triggering optimization (${trigger}) from ${isMobileDevice() ? 'MOBILE' : 'DESKTOP (forced)'}`);
   
+  const requestKey = `${driverId}:${deliveryDate || format(new Date(), 'yyyy-MM-dd')}`;
+  if (optimizationInFlight.has(requestKey)) {
+    console.log('⏳ [RouteOptimizer] Reusing in-flight optimization request');
+    return optimizationInFlight.get(requestKey);
+  }
+  
   try {
     lastOptimizationTime = now;
     
-    const response = await base44.functions.invoke('fullRouteOptimizer', {
+    const requestPromise = base44.functions.invoke('fullRouteOptimizer', {
       driverId,
       deliveryDate: deliveryDate || format(new Date(), 'yyyy-MM-dd'),
       currentLocation
     });
+    optimizationInFlight.set(requestKey, requestPromise);
+    const response = await requestPromise;
     
     if (response?.success || response?.data?.success) {
       const data = response?.data || response;

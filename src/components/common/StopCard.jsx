@@ -1,4 +1,5 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';import { motion } from 'framer-motion';
+import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -550,7 +551,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const backgroundTasks = [];
                           if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
                           backgroundTasks.push(updateCompletionPolylines({ completedDelivery: delivery, nextDelivery: nextStop || null, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, allDeliveries, patients, stores, breadcrumbPayload: pendingBreadcrumbsString }));
-                          if (!nextStop && currentUser?.id) backgroundTasks.push((async () => {const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });if (appUsers && appUsers.length > 0) await base44.entities.AppUser.update(appUsers[0].id, { driver_status: 'off_duty', location_tracking_enabled: false });})());
+                          backgroundTasks.push(scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentUser?.appUserId || currentUser?.id }));
                           backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve());
                           await Promise.allSettled(backgroundTasks);
                         } catch (error) {console.error('❌ [COMPLETE] Error:', error);toast.error(`Failed to complete: ${error.message}`);throw error;} finally {
