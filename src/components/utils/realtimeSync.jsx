@@ -340,7 +340,6 @@ export const connect = () => {
     subscribeToEntity('Patient');
     subscribeToEntity('AppUser');
     subscribeToEntity('Message');
-    subscribeToEntity('DriverRoutePolyline');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
     window.addEventListener('realtimeUpdate_Patient', async (e) => {

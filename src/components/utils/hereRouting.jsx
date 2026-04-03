@@ -51,20 +51,15 @@ export async function syncDriverRoutePolylinesForDate(driverId, deliveryDate, fo
 
   const promise = (async () => {
     try {
-      const rows = await base44.entities.DriverRoutePolyline.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, '-updated_date', 5000);
-
-      if (Array.isArray(rows) && rows.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, rows);
+      const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
+      const filteredRows = (rows || []).filter((row) => row?.driver_id === driverId);
+      if (filteredRows.length > 0) {
         await offlineDB.deduplicateDriverRoutePolylines(deliveryDate);
       }
-
       polylineDateSyncCache.set(syncKey, Date.now());
-      return rows || [];
+      return filteredRows;
     } catch (error) {
-      console.warn('[HERE][client] DriverRoutePolyline date sync failed', { driverId, deliveryDate, error: error?.message || error });
+      console.warn('[HERE][client] DriverRoutePolyline offline sync failed', { driverId, deliveryDate, error: error?.message || error });
       return [];
     } finally {
       polylineDateSyncInflight.delete(syncKey);
@@ -296,7 +291,8 @@ export const ensurePolylineSubscription = () => {
     });
     // Optional: store unsubscribe somewhere if needed
   } catch (e) {
-    console.warn('[HERE][client] Failed to subscribe to DriverRoutePolyline realtime', e);
+    console.warn('[HERE][client] Failed to subscribe to DriverRoutePolyline realtime', e?.message || e);
+    polylineSubscribed = false;
   }
 };
 
