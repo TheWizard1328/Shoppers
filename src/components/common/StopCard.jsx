@@ -148,6 +148,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const shouldCondenseCompletedRouteForDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && isFinishedDelivery && routeCompletedForLayout && !isExpanded;
   const showCompletedRouteCenteredCondensed = shouldCondenseCompletedRouteForDriver;const showIncompleteRouteSideCondensed = !routeCompletedForLayout && !isExpanded && !isRailCentered;const showCenteredIncompleteCollapsed = !routeCompletedForLayout && !isExpanded && isRailCentered;const isDispatcherCenteredCard = userHasRole(currentUser, 'dispatcher') && isRailCentered;const hideBodyForDispatcherCenteredCard = isDispatcherCenteredCard && !isStrippedForDispatcher && !isExpanded;const showMiddleSection = !isStrippedForDriver && !isStrippedForDispatcher && !showIncompleteRouteSideCondensed && (!isFinishedDelivery || isExpanded || isRailCentered) && !showCompletedRouteCenteredCondensed;const showBodySection = !showCompletedRouteCenteredCondensed && !showIncompleteRouteSideCondensed && !hideBodyForDispatcherCenteredCard;
   const isInterStore = useMemo(() => {if (!delivery) return false;const patientName = (patient?.full_name || '').toLowerCase();if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) return true;const patientNotes = (patient?.notes || '').toLowerCase();if (patientNotes.includes('interstore') || patientNotes.includes('inter-store') || patientNotes.includes('inter store')) return true;return false;}, [delivery, patient]);
+  const isFirstRouteStop = useMemo(() => {
+    if (!delivery) return false;
+    const activeRouteStops = (allDeliveries || [])
+      .filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date)
+      .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+    return activeRouteStops[0]?.id === delivery.id;
+  }, [allDeliveries, delivery]);
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
   const { displayName, displayAddress, displayPhone, shouldRedact, finalDisplayName, finalDisplayAddress, finalDisplayPhone } = useDeliveryDisplayInfo({ delivery, patient, store, currentUser, isPickup, isInterStore, isInterStorePickup, isStrippedDelivery, isStrippedForDispatcher });
   const shouldDisableRetryReturn = useMemo(() => false, []);
@@ -448,14 +455,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
               const existingNotes = delivery.delivery_notes || '';const updatedNotes = existingNotes ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}` : `[${status.toUpperCase()}] ${reason}`;
               const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-              const retroactiveTiming = await calculateRetroactiveStopTiming({
+              const retroactiveTiming = isFirstRouteStop ? await calculateRetroactiveStopTiming({
                 delivery,
                 allDeliveries,
                 patients,
                 stores,
                 isAppOwner: isAppOwner(currentUser),
                 todayDateString: edmontonTodayStr
-              });
+              }) : null;
               const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
               const shouldAutoSetArrivalTime = delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
               const criticalUpdate = {
@@ -516,7 +523,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           let pendingBreadcrumbsString = null;
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           if (isPickup && pendingPickups && pendingPickups.length > 0) {const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');if (hasPendingDeliveries) await handleAcceptAllStops();}
-                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, isAppOwner: isAppOwner(currentUser), todayDateString: edmontonTodayStr });const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
+                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const retroactiveTiming = isFirstRouteStop ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, isAppOwner: isAppOwner(currentUser), todayDateString: edmontonTodayStr }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
                           const resolvedActualDeliveryTime = isPickup && isPastDeliveryDate ? retroactiveTiming?.actual_delivery_time : retroactiveTiming?.actual_delivery_time || localTimeString;
                           const shouldAutoSetArrivalTime = delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
                           const fallbackSignatureUrl = !delivery.signature_image_url && patient?.signature_image_url ? patient.signature_image_url : null;
