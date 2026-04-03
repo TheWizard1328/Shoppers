@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
 import { updateDeliveryLocal } from './offlineMutations';
 import { useAppData } from './AppDataContext';
+import { centerDeliveryCard } from './deliveryCardUtils';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
@@ -10,18 +11,6 @@ const getCurrentLocalTimeString = () => {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 };
 
-const centerDeliveryCard = (deliveryId) => {
-  if (!deliveryId || typeof window === 'undefined') return;
-  const scroll = () => {
-    const card = document.getElementById(`stop-card-${deliveryId}`);
-    if (card) {
-      card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }
-  };
-  scroll();
-  requestAnimationFrame(scroll);
-  setTimeout(scroll, 0);
-};
 
 const getRouteDeliveries = (deliveries, delivery) =>
   (deliveries || []).filter((item) =>

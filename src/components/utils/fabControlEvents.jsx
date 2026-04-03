@@ -116,11 +116,11 @@ export const fabControlEvents = {
     });
   },
 
-  notifyDeliveryRealtimeCreateOrDelete: () => {
+  notifyDeliveryRealtimeCreateOrDelete: (payload = {}) => {
     console.log('📢 [FAB Events] Broadcasting delivery realtime create/delete - pulse only');
     fabControlListeners.forEach(callback => {
       try {
-        callback({ type: 'DELIVERY_REALTIME_CREATE_DELETE_PULSE' });
+        callback({ type: 'DELIVERY_REALTIME_CREATE_DELETE_PULSE', ...payload });
       } catch (error) {
         console.error('Error in FAB event listener:', error);
       }

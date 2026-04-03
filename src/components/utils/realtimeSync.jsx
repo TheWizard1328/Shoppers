@@ -12,6 +12,7 @@
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { fabControlEvents } from './fabControlEvents';
+import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 
 // Global listeners for real-time updates
 const listeners = new Set();
@@ -108,7 +109,14 @@ async function flushBuffered(entityName) {
     }));
 
     if (hasCreateOrDelete) {
-      fabControlEvents.notifyDeliveryRealtimeCreateOrDelete();
+      const relevantCreateOrDelete = items.find((item) =>
+        (item.eventType === 'create' || item.eventType === 'delete') && item?.data && isDeliveryRelevantToCurrentSelection(item.data)
+      );
+      fabControlEvents.notifyDeliveryRealtimeCreateOrDelete({
+        driverId: relevantCreateOrDelete?.data?.driver_id || null,
+        deliveryDate: relevantCreateOrDelete?.data?.delivery_date || null,
+        relevantToCurrentSelection: Boolean(relevantCreateOrDelete)
+      });
     }
   }
 
@@ -190,12 +198,12 @@ const isDeliveryVisibleToUser = (delivery) => {
 const shouldCenterForDeliveryUpdate = (data, changedFields) => {
   if (!data) return false;
   if (!isDeliveryVisibleToUser(data)) return false;
+  if (!isDeliveryRelevantToCurrentSelection(data)) return false;
   const statusChanged = Array.isArray(changedFields) && changedFields.includes('status');
   const isNextChanged = Array.isArray(changedFields) && changedFields.includes('isNextDelivery');
   const status = data?.status;
 
   if ((statusChanged && (status === 'en_route' || status === 'completed')) || isNextChanged) {
-    // For isNextChanged, prefer when it becomes true
     if (isNextChanged) {
       return data?.isNextDelivery === true;
     }
