@@ -101,15 +101,17 @@ export default function StatsPanel({
           showAllDriverMarkers={showAllDriverMarkers}
           statsCardRef={statsCardRef}
           onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
-            if (updateDeliveriesLocally) {
-              updateDeliveriesLocally(freshDeliveries, false);
+            const syncedDeliveries = Array.isArray(freshDeliveries) ? freshDeliveries.filter(Boolean) : [];
+            if (updateDeliveriesLocally && syncedDeliveries.length > 0) {
+              const otherDateDeliveries = deliveries.filter((d) => d?.delivery_date !== selectedDateStr);
+              updateDeliveriesLocally([...otherDateDeliveries, ...syncedDeliveries], true);
             }
             const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
             if (appUsersToProcess && appUsersToProcess.length > 0) {
-              driverLocationPoller.processLocationData(currentUser, freshDeliveries, drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
+              driverLocationPoller.processLocationData(currentUser, syncedDeliveries, drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
             }
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: freshAppUsers, forceAll: true } }));
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'pullToSyncComplete', allDrivers: true } }));
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: appUsersToProcess, forceAll: true } }));
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'pullToSyncComplete', allDrivers: true, freshDeliveries: syncedDeliveries, preserveLocalState: true } }));
             if ((window.__currentMapViewPhase ?? 1) === 1) {
               setIsMapViewLocked(true);
               lastProgrammaticMapMoveRef.current = Date.now();
