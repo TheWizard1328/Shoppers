@@ -64,6 +64,46 @@ const getEdmontonCurrentTime = () => {
   return `${hour}:${minute}`;
 };
 
+const getEdmontonNowParts = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(new Date());
+
+  return {
+    date: `${parts.find((part) => part.type === 'year')?.value || '0000'}-${parts.find((part) => part.type === 'month')?.value || '00'}-${parts.find((part) => part.type === 'day')?.value || '00'}`,
+    time: `${parts.find((part) => part.type === 'hour')?.value || '00'}:${parts.find((part) => part.type === 'minute')?.value || '00'}`
+  };
+};
+
+const extractTimeFromDateTime = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const match = value.match(/T(\d{2}:\d{2})/);
+  return match ? match[1] : null;
+};
+
+const resolveEtaBaseTime = (deliveryDate, completedDeliveries, fallbackTime) => {
+  const now = getEdmontonNowParts();
+  const routeIsPastDate = deliveryDate < now.date;
+  const routeIsLateToday = deliveryDate === now.date && (parseTimeToMinutes(now.time) ?? 0) >= (21 * 60);
+  const shouldUseFinishedStopTime = routeIsPastDate || routeIsLateToday;
+
+  if (!shouldUseFinishedStopTime) {
+    return fallbackTime;
+  }
+
+  const latestFinished = [...completedDeliveries]
+    .filter((delivery) => delivery?.actual_delivery_time)
+    .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime())[0];
+
+  return extractTimeFromDateTime(latestFinished?.actual_delivery_time) || fallbackTime;
+};
+
 const resolveCurrentTime = ({ currentLocalTime, deviceTime }) => {
   if (typeof currentLocalTime === 'string' && currentLocalTime.includes(':')) {
     return currentLocalTime.slice(0, 5);
@@ -273,7 +313,8 @@ Deno.serve(async (req) => {
       hereWaypointId: `destination${index + 1}`
     }));
 
-    const departureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
+    const fallbackDepartureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
+    const departureTime = resolveEtaBaseTime(deliveryDate, completedDeliveries, fallbackDepartureTime);
     const departureIso = buildLocalIso(deliveryDate, departureTime);
     const endLocation = (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null)
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }

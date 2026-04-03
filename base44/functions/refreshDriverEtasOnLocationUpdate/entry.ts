@@ -22,6 +22,47 @@ function getEdmontonDate(value = new Date()) {
   }).format(value);
 }
 
+function getEdmontonNowParts() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(new Date());
+
+  return {
+    date: `${parts.find((part) => part.type === 'year')?.value || '0000'}-${parts.find((part) => part.type === 'month')?.value || '00'}-${parts.find((part) => part.type === 'day')?.value || '00'}`,
+    time: `${parts.find((part) => part.type === 'hour')?.value || '00'}:${parts.find((part) => part.type === 'minute')?.value || '00'}`
+  };
+}
+
+function extractTimeFromDateTime(value) {
+  const match = String(value || '').match(/T(\d{2}:\d{2})/);
+  return match ? match[1] : null;
+}
+
+function buildEtaBaseDate(deliveryDate, finishedDeliveries) {
+  const now = getEdmontonNowParts();
+  const routeIsPastDate = deliveryDate < now.date;
+  const routeIsLateToday = deliveryDate === now.date && (etaToMinutes(now.time) ?? 0) >= (21 * 60);
+  const shouldUseFinishedStopTime = routeIsPastDate || routeIsLateToday;
+
+  if (!shouldUseFinishedStopTime) {
+    return new Date();
+  }
+
+  const latestFinished = [...(finishedDeliveries || [])]
+    .filter((delivery) => delivery?.actual_delivery_time)
+    .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime())[0];
+
+  const baseTime = extractTimeFromDateTime(latestFinished?.actual_delivery_time) || '00:00';
+  const [hours, minutes] = baseTime.split(':').map(Number);
+  return new Date(`${deliveryDate}T${String(hours || 0).padStart(2, '0')}:${String(minutes || 0).padStart(2, '0')}:00-07:00`);
+}
+
 function formatEta(date) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: APP_TIMEZONE,
@@ -112,6 +153,9 @@ async function processDriver(base44, appUser, deliveryDate) {
     .filter((delivery) => !INACTIVE_STATUSES.includes(delivery.status))
     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
+  const finishedDeliveries = (allDeliveries || [])
+    .filter((delivery) => INACTIVE_STATUSES.includes(delivery.status));
+
   const hasLiveStop = activeDeliveries.some((delivery) => ['in_transit', 'en_route'].includes(delivery.status) || delivery.isNextDelivery === true);
   if (!activeDeliveries.length || !hasLiveStop) {
     return { skipped: true, reason: 'no_active_live_stops', driver_id: appUser.user_id };
@@ -155,7 +199,7 @@ async function processDriver(base44, appUser, deliveryDate) {
 
   const etaUpdates = [];
   let cumulativeSeconds = 0;
-  const baseNow = new Date();
+  const baseNow = buildEtaBaseDate(deliveryDate, finishedDeliveries);
 
   for (let i = 0; i < deliveriesToProject.length; i += 1) {
     const delivery = deliveriesToProject[i];
