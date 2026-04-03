@@ -216,26 +216,33 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       const now = new Date();const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const isValidObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);if (!isValidObjectId(delivery.id) || !isValidObjectId(delivery.driver_id)) throw new Error('This stop is still syncing. Please try again in a moment.');
       const routeDeliveries = getDriverRouteDeliveries(allDeliveries, delivery);
-      const optimisticRouteDeliveries = routeDeliveries.map((d) => {if (!d) return d;const isCurrent = d.id === delivery.id;return { ...d, ...(isCurrent ? { status: isPickup ? 'en_route' : 'in_transit', delivery_time_start: currentLocalTime, delivery_time_eta: currentLocalTime } : {}) };});
-      const reorderedRouteDeliveries = reorderActiveRouteLocally(optimisticRouteDeliveries, delivery.id);
+      const startedRouteDeliveries = routeDeliveries.map((d) => {
+        if (!d) return d;
+        const isCurrent = d.id === delivery.id;
+        return {
+          ...d,
+          ...(isCurrent ? { status: isPickup ? 'en_route' : 'in_transit', delivery_time_start: currentLocalTime, delivery_time_eta: currentLocalTime, isNextDelivery: true } : { isNextDelivery: false })
+        };
+      });
       const { offlineDB } = await import('../utils/offlineDatabase');
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, reorderedRouteDeliveries.filter(Boolean));
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, startedRouteDeliveries.filter(Boolean));
       if (updateDeliveriesLocally) {
-        const optimisticMap = new Map(reorderedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
+        const optimisticMap = new Map(startedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
         const updatedDeliveries = allDeliveries.map((d) => d && optimisticMap.has(d.id) ? optimisticMap.get(d.id) : d);
         updateDeliveriesLocally(updatedDeliveries, true);
       }
-      await collapseAndCenterNextDelivery({ driverDeliveries: reorderedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+      await collapseAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-          const [etaRes, optimizeRes] = await Promise.allSettled([base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: currentLocalTime }), base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, generatePolyline: false })]);
-          const etaData = etaRes.status === 'fulfilled' ? etaRes.value?.data || etaRes.value : null;const optimizeData = optimizeRes.status === 'fulfilled' ? optimizeRes.value?.data || optimizeRes.value : null;const etaUpdates = etaData?.durationUpdates || etaData?.etas || optimizeData?.optimizedRoute || [];
+          const optimizeRes = await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, generatePolyline: false });
+          const optimizeData = optimizeRes?.data || optimizeRes;
+          const etaUpdates = optimizeData?.optimizedRoute || [];
           if (Array.isArray(etaUpdates) && etaUpdates.length > 0) window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: etaUpdates.map((u) => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) } }));
-          invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);fabControlEvents.reactivatePhaseTwoIfAvailable();window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+          invalidate('Delivery');await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);fabControlEvents.reactivatePhaseTwoIfAvailable();window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
         } catch (optErr) {console.warn('⚠️ [Start] background optimization failed:', optErr?.message || optErr);} finally
         {window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));}
       });

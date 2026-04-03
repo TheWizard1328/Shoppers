@@ -79,7 +79,7 @@ export default function RouteActionButtons({
                 }
               });
               setOptimizationMessage(`Route optimized! ${(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)} stops updated.`);
-              window.dispatchEvent(new CustomEvent("deliveriesUpdated", { detail: { driverId: selectedDriverId, deliveryDate, triggeredBy: "reoptimizeRoute", alreadyOptimized: true } }));
+              window.dispatchEvent(new CustomEvent("deliveriesUpdated", { detail: { driverId: selectedDriverId, deliveryDate, triggeredBy: "reoptimizeRoute", alreadyOptimized: true, preserveLocalState: true } }));
               window.dispatchEvent(new CustomEvent("routeReordered", { detail: { driverId: selectedDriverId, deliveryDate, source: "reoptimizeRoute" } }));
               setIsMapViewLocked(true);
               setMapViewTrigger((prev) => prev + 1);
