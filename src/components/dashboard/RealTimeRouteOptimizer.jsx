@@ -4,6 +4,7 @@ import { isMobileDevice } from '../utils/deviceUtils';
 import { userHasRole } from '../utils/userRoles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Route, TrendingUp, CheckCircle } from 'lucide-react';
+import { smartRefreshManager } from '../utils/smartRefreshManager';
 
 const getGlobalOptimizationState = () => {
   if (typeof window === 'undefined') return null;
@@ -87,6 +88,7 @@ export default function RealTimeRouteOptimizer({
     if (globalOptimizationState) globalOptimizationState.activeKey = optimizationKey;
 
     console.log('🔄 [RealTimeRouteOptimizer] Triggering route optimization for driver:', selectedDriverId);
+    smartRefreshManager.pause();
     if (showUIRef.current) {
       window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
         detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer', showUI: true }
@@ -173,6 +175,7 @@ export default function RealTimeRouteOptimizer({
       const globalOptimizationState = getGlobalOptimizationState();
       if (globalOptimizationState?.activeKey === optimizationKey) globalOptimizationState.activeKey = null;
       activeOptimizationKeyRef.current = null;
+      smartRefreshManager.resume();
     }
   };
 
