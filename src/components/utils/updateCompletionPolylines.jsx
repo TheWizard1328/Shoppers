@@ -70,11 +70,13 @@ export async function updateCompletionPolylines({
                        patients?.find(p => p?.id === nextDelivery.patient_id)?.longitude :
                        stores?.find(s => s?.id === nextDelivery.store_id)?.longitude;
 
-        if (originLat && originLon && destLat && destLon) {
-          // Call HERE Directions API for just this segment
+        const hasValidOrigin = Number.isFinite(Number(originLat)) && Number.isFinite(Number(originLon));
+        const hasValidDest = Number.isFinite(Number(destLat)) && Number.isFinite(Number(destLon));
+
+        if (hasValidOrigin && hasValidDest) {
           const response = await base44.functions.invoke('getHereDirections', {
-            origin: { lat: originLat, lon: originLon },
-            destination: { lat: destLat, lon: destLon }
+            origin: { lat: Number(originLat), lon: Number(originLon) },
+            destination: { lat: Number(destLat), lon: Number(destLon) }
           });
 
           if (response?.data?.polyline) {

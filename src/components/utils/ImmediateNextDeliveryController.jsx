@@ -209,6 +209,10 @@ export default function ImmediateNextDeliveryController() {
           console.warn('[ImmediateNextDeliveryController] ETA refresh skipped:', error?.message || error);
         }
 
+        if (!Array.isArray(deliveriesRef.current) || deliveriesRef.current.length === 0) {
+          return;
+        }
+
         if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
           window.dispatchEvent(new CustomEvent('etaUpdated', {
             detail: {
