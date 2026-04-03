@@ -213,15 +213,14 @@ async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
   }
 
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
-  const deliveryMap = new Map(safeDeliveries.map((delivery) => [delivery.id, delivery]));
-  const payload = Array.from(updatesById.entries()).map(([id, update]) => {
-    const existing = deliveryMap.get(id);
-    if (!existing) return null;
-    return { ...existing, ...update };
-  }).filter(Boolean);
 
   try {
-    await base44.asServiceRole.entities.Delivery.bulkCreate(payload);
+    await processInChunks(Array.from(updatesById.entries()), 20, async ([id, update]) => {
+      return await base44.asServiceRole.entities.Delivery.update(id, update).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      });
+    });
     return mergeDeliveryUpdates(safeDeliveries, updatesById);
   } catch (error) {
     if (isRateLimitError(error)) {
