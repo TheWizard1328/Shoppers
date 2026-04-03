@@ -149,7 +149,14 @@ export default function PullToSync({
           batches.push(patientIds.slice(i, i + batchSize));
         }
         freshPatients = (await Promise.all(
-          batches.map(ids => base44.entities.Patient.filter({ id: { $in: ids } }))
+          batches.map(ids =>
+            base44.entities.Patient.filter({ id: { $in: ids } }).catch((error) => {
+              if (error?.response?.status === 404 || error?.status === 404 || String(error?.message || '').includes('404')) {
+                return [];
+              }
+              throw error;
+            })
+          )
         )).flat().filter(Boolean);
 
         if (freshPatients.length > 0) {
