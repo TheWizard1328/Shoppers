@@ -13,7 +13,9 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getStoreAssignedTimeSlotForDriver, getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { base44 } from "@/api/base44Client";
 import { useAppData } from '../utils/AppDataContext';
+import { globalFilters } from '../utils/globalFilters';
 import { getUserAgentInfo } from '../utils/deviceUtils';
+import { getCityDriversForDeliveryForm } from './deliveryDriverOptionsHelper';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import {
   createPatient as createPatientLocal,
@@ -90,17 +92,14 @@ export default function DeliveryForm({
   closeOnSave = false,
   onCreatePatient
 }) {
-  const { setIsFormOverlayOpen, drivers: contextDrivers = [] } = useAppData();
+  const { setIsFormOverlayOpen, appUsers = [] } = useAppData();
   const freshStores = useFreshStores(stores);
 
-  const driverSource = useMemo(() => {
-    return contextDrivers?.length ? contextDrivers : (drivers || []);
-  }, [contextDrivers, drivers]);
+  const selectedCityId = globalFilters.getSelectedCityId();
 
   const allDrivers = useMemo(() => {
-    const sorted = sortUsers(driverSource);
-    return sorted.filter((driver) => driver && (driver.user_name || driver.full_name || driver.email));
-  }, [driverSource]);
+    return getCityDriversForDeliveryForm({ appUsers, selectedCityId });
+  }, [appUsers, selectedCityId]);
 
   const [formData, setFormData] = useState(() => {
     const initialState = {
@@ -126,11 +125,11 @@ export default function DeliveryForm({
       recurring_monthly: false, recurring_bimonthly: false
     };
 
-    if (!delivery && currentUser && stores && driverSource.length) {
+    if (!delivery && currentUser && stores && allDrivers.length) {
       const { driverId, driverName } = resolveDefaultDriverForNewDelivery({
         currentUser,
         stores,
-        drivers: driverSource,
+        drivers: allDrivers,
         allDrivers,
         deliveryDate: initialState.delivery_date,
         initialDriverId,
@@ -256,12 +255,12 @@ export default function DeliveryForm({
   useEffect(() => {
     if (delivery || formData.driver_id) return; // Skip if editing or driver already set
 
-    if (!currentUser || !stores || !drivers || allDrivers.length === 0) return;
+    if (!currentUser || !stores || allDrivers.length === 0) return;
 
     const { driverId: driverIdToSet, driverName: driverNameToSet } = resolveDefaultDriverForNewDelivery({
       currentUser,
       stores,
-      drivers,
+      drivers: allDrivers,
       allDrivers,
       deliveryDate: formData.delivery_date,
       initialDriverId,
@@ -276,7 +275,7 @@ export default function DeliveryForm({
         driver_name: driverNameToSet || ''
       }));
     }
-  }, [delivery, currentUser, stores, driverSource, allDrivers, formData.delivery_date, formData.driver_id]);
+  }, [delivery, currentUser, stores, allDrivers, formData.delivery_date, formData.driver_id]);
 
   // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
   const isLoadingExistingDelivery = useRef(false);
