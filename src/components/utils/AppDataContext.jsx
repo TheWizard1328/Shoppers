@@ -629,7 +629,7 @@ export const AppDataProvider = ({ children, value }) => {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, fetched);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('patientsUpdated', {
-            detail: { count: fetched.length, selectedDate, selectedCityId }
+            detail: { count: fetched.length, selectedDate, selectedCityId, preserveLocalState: true }
           }));
         }
       }
