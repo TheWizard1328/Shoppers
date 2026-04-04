@@ -11,6 +11,11 @@ const getCurrentLocalTimeString = () => {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 };
 
+const getCurrentLocalDateTimeString = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+};
+
 
 const getRouteDeliveries = (deliveries, delivery) =>
   (deliveries || []).filter((item) =>
@@ -111,7 +116,7 @@ export default function ImmediateNextDeliveryController() {
       }
 
       if (action.type === 'complete') {
-        const completionTimestamp = new Date().toISOString().slice(0, 19);
+        const completionTimestamp = getCurrentLocalDateTimeString();
         const completionUpdate = {
           status: 'completed',
           actual_delivery_time: completionTimestamp,
