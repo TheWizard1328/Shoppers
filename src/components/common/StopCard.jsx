@@ -462,6 +462,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null } : { ...item, isNextDelivery: false }),
           delivery.id
         );
+        console.warn('[StopCard][restart] restarted target delivery', restartedRouteDeliveries.find((item) => item?.id === delivery.id));
         await Promise.all(
           restartedRouteDeliveries
             .filter((item) => item && (item.id === delivery.id || item.isNextDelivery === false))
@@ -477,6 +478,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               if ((existingRouteItem.finished_leg_encoded_polyline || null) !== (item.finished_leg_encoded_polyline || null)) updates.finished_leg_encoded_polyline = item.finished_leg_encoded_polyline || null;
 
               if (Object.keys(updates).length === 0) return Promise.resolve(null);
+              if (item.id === delivery.id) {
+                console.warn('[StopCard][restart] updateDeliveryLocal payload', { id: item.id, updates, existingRouteItem, item });
+              }
               return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true });
             })
         );
@@ -611,6 +615,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
                           const fallbackSignatureUrl = patientSavedSignatureUrl || null;
                           const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp, ...(hasPendingPickupTransitions ? {} : { isNextDelivery: false }), finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
+                          console.warn('[StopCard][complete] timing before save', {
+                            deliveryId: delivery.id,
+                            existingDelivery: delivery,
+                            completionUpdate,
+                            forcedCompletionTimestamp,
+                            forcedArrivalTimestamp,
+                            shouldOverwriteArrivalTime,
+                            retroactiveTiming
+                          });
                           const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
                           const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
                           const saveResults = await Promise.all([

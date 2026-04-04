@@ -480,6 +480,7 @@ export const createDeliveryLocal = async (deliveryData) => {
  */
 export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => {
   const { skipSmartRefresh = false, isBatchOperation = false } = options;
+  console.warn('[OfflineMutations][updateDeliveryLocal] incoming', { deliveryId, updates, options });
   
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
