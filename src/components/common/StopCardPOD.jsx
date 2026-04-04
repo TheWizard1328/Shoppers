@@ -29,7 +29,10 @@ export default function StopCardPOD({
   currentUser,
 }) {
   const patientHasSavedSignature = !!patient?.signature_image_url;
-  const showSavedSignatureHint = patientHasSavedSignature;
+  const isAssignedDriver = !!currentUser?.id && !!delivery?.driver_id && currentUser.id === delivery.driver_id;
+  const isAppOwnerUser = currentUser?.role === 'admin';
+  const canSeeSavedSignatureHighlight = isAssignedDriver || isAppOwnerUser;
+  const showSavedSignatureHint = patientHasSavedSignature && canSeeSavedSignatureHighlight;
 
   const handleSignatureSave = async (signatureBlob) => {
     setShowSignatureCapture(false);
