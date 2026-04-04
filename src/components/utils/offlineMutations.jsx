@@ -500,7 +500,8 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     console.log('📝 [OfflineMutations] Updating delivery:', deliveryId);
     
     // Get current delivery from IndexedDB
-    const existingDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId);
+    const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const existingDelivery = deliveries.find(d => d.id === deliveryId);
     
     // CRITICAL: If delivery not in IndexedDB, update backend FIRST, then add to IndexedDB
     if (!existingDelivery) {
