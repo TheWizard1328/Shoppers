@@ -32,13 +32,24 @@ export function isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES) {
 export const generateCompletionTimestamp = (delivery, allDeliveries, FINISHED_STATUSES) => {
   const currentTime = new Date();
   const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
-  let hours, minutes;
+  let hours;
+  let minutes;
 
   if (shouldRound) {
-    const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-    const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-    hours = String(Math.floor(roundedMinutes / 60)).padStart(2, '0');
-    minutes = String(roundedMinutes % 60).padStart(2, '0');
+    let roundedMinutes = Math.round(currentTime.getMinutes() / 5) * 5;
+    let roundedHours = currentTime.getHours();
+
+    if (roundedMinutes === 60) {
+      roundedMinutes = 0;
+      roundedHours += 1;
+    }
+
+    if (roundedHours === 24) {
+      roundedHours = 0;
+    }
+
+    hours = String(roundedHours).padStart(2, '0');
+    minutes = String(roundedMinutes).padStart(2, '0');
   } else {
     hours = String(currentTime.getHours()).padStart(2, '0');
     minutes = String(currentTime.getMinutes()).padStart(2, '0');
