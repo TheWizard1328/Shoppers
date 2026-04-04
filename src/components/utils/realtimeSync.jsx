@@ -361,7 +361,8 @@ const subscribeToEntity = (entityName) => {
             if (entityName === 'DriverRoutePolyline') {
               console.log(`💾 [RealtimeSync] Saved DriverRoutePolyline to offline DB: ${data.driver_id} segment ${data.segment_origin_lat},${data.segment_origin_lon} -> ${data.segment_dest_lat},${data.segment_dest_lon}`);
             } else {
-              console.log(`💾 [RealtimeSync] Saved ${entityName} to offline DB - changed: ${changedFields.join(', ')}`);
+              const savedLabel = entityName === 'Patient' ? (data?.full_name || data?.id || 'Patient') : entityName;
+              console.log(`💾 [RealtimeSync] Saved ${savedLabel} to offline DB - changed: ${changedFields.join(', ')}`);
             }
           }
         } else if (type === 'delete') {
@@ -373,7 +374,8 @@ const subscribeToEntity = (entityName) => {
 
           if (storeName) {
             await offlineDB.deleteRecord(storeName, id);
-            console.log(`💾 [RealtimeSync] Deleted ${entityName} from offline DB: ${id}`);
+            const deletedLabel = entityName === 'Patient' ? (data?.full_name || id) : id;
+            console.log(`💾 [RealtimeSync] Deleted ${entityName} from offline DB: ${deletedLabel}`);
           }
         }
       } catch (offlineError) {
@@ -552,10 +554,12 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     if (storeName) {
       if ((action === 'create' || action === 'update') && data) {
         await offlineDB.save(storeName, data);
-        console.log(`💾 [RealtimeSync] Broadcast saved ${entity} to offline DB: ${id}`);
+        const broadcastSavedLabel = entity === 'Patient' ? (data?.full_name || id) : id;
+        console.log(`💾 [RealtimeSync] Broadcast saved ${entity} to offline DB: ${broadcastSavedLabel}`);
       } else if (action === 'delete' && id) {
         await offlineDB.deleteRecord(storeName, id);
-        console.log(`💾 [RealtimeSync] Broadcast deleted ${entity} from offline DB: ${id}`);
+        const broadcastDeletedLabel = entity === 'Patient' ? (data?.full_name || id) : id;
+        console.log(`💾 [RealtimeSync] Broadcast deleted ${entity} from offline DB: ${broadcastDeletedLabel}`);
       }
     }
   } catch (error) {
