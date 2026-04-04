@@ -2908,7 +2908,7 @@ function Dashboard() {
       }
       mapLockExpiresAtRef.current = null;
 
-      // CRITICAL: Notify that date change data is ready only after markers had time to render
+      centerNextDeliveryCard(deliveriesWithStopOrder);
       fabControlEvents.notifyDataReady();
 
       // STEP 7: Resume UI after FAB/map trigger is scheduled from fresh data
@@ -2985,7 +2985,7 @@ function Dashboard() {
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger(nextTrigger);
-      fabControlEvents.notifyDataReady();
+      centerNextDeliveryCard(deliveriesWithStopOrder);
 
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
