@@ -319,12 +319,15 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
     ...item,
     isNextDelivery: !!nextDeliveryId && item.id === nextDeliveryId
   }));
+  const changedDeliveries = updatedDeliveries.filter((item, index) => item.isNextDelivery !== scopedDeliveries[index]?.isNextDelivery);
+
+  if (changedDeliveries.length === 0) return;
 
   try {
     const { offlineDB } = await import('../utils/offlineDatabase');
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
     await Promise.all(
-      updatedDeliveries.map((item) =>
+      changedDeliveries.map((item) =>
         base44.entities.Delivery.update(item.id, { isNextDelivery: item.isNextDelivery })
       )
     );
@@ -333,7 +336,7 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
   }
 
   if (updateDeliveriesLocally) {
-    updateDeliveriesLocally(updatedDeliveries, false);
+    updateDeliveriesLocally(changedDeliveries, false);
   }
 }
 

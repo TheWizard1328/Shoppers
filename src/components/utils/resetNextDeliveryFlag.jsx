@@ -32,14 +32,17 @@ export async function resetNextDeliveryFlag({ driverId, deliveryDate, allDeliver
       (d) => !finishedStatuses.includes(d.status) && d.status !== 'pending'
     );
 
-    // Clear all existing isNextDelivery flags and set the new one
+    // Only change records whose isNextDelivery value actually changes
     const updatedDeliveries = routeDeliveries.map((d) => ({
       ...d,
       isNextDelivery: nextDelivery && d.id === nextDelivery.id
     }));
+    const changedDeliveries = updatedDeliveries.filter((delivery, index) => delivery.isNextDelivery !== routeDeliveries[index]?.isNextDelivery);
 
     // Update offline DB immediately
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
+    if (changedDeliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
+    }
 
     // Sync to backend in background (don't block)
     Promise.resolve().then(async () => {

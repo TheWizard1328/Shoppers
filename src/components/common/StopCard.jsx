@@ -519,7 +519,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               // CRITICAL: Also clear isNextDelivery on all other route deliveries immediately in offline DB
               const { offlineDB: _failOfflineDB } = await import('../utils/offlineDatabase');
               const failRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-              const clearFailNextFlags = failRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery).map((d) => _failOfflineDB.bulkSave(_failOfflineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
+              const clearFailNextFlags = failRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _failOfflineDB.bulkSave(_failOfflineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
               try {
                 await Promise.allSettled([
                 updateDeliveryLocal(delivery.id, criticalUpdate, { skipSmartRefresh: true }),
@@ -569,7 +569,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const fallbackSignatureUrl = !delivery.signature_image_url && patient?.signature_image_url ? patient.signature_image_url : null;
                           const completionUpdate = { status: 'completed', actual_delivery_time: resolvedActualDeliveryTime, ...(hasPendingPickupTransitions ? {} : { isNextDelivery: false }), finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime ? { arrival_time: retroactiveTiming?.arrival_time || localTimeString } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
                           const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
-                          const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
+                          const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
                           const saveResults = await Promise.all([
                           updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true }),
                           ...clearNextFlags]
