@@ -255,7 +255,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         const updatedDeliveries = allDeliveries.map((d) => d && optimisticMap.has(d.id) ? optimisticMap.get(d.id) : d);
         updateDeliveriesLocally(updatedDeliveries, true);
       }
-      await collapseAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally });
+      await collapseAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       Promise.resolve().then(async () => {
