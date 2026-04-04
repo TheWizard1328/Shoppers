@@ -129,7 +129,7 @@ export const calculateRetroactiveStopTiming = async ({
   let baseTime = null;
   let travelDistanceKm = Number(delivery?.travel_dist);
 
-  console.log('[RetroTiming] start', {
+  console.warn('[RetroTiming] start', {
     deliveryId: delivery?.id,
     deliveryDate: delivery?.delivery_date,
     stopOrder: delivery?.stop_order,
@@ -145,7 +145,7 @@ export const calculateRetroactiveStopTiming = async ({
   if (isFirstStop) {
     const firstStopStartTime = getStoreFirstStopStartTime(delivery, stores);
     baseTime = parseDateTimeParts(delivery.delivery_date, firstStopStartTime);
-    console.log('[RetroTiming] first stop base time', {
+    console.warn('[RetroTiming] first stop base time', {
       deliveryId: delivery?.id,
       firstStopStartTime,
       parsedBaseTime: baseTime ? formatLocalTimestamp(baseTime) : null
@@ -159,7 +159,7 @@ export const calculateRetroactiveStopTiming = async ({
       || parsedArrivalTime
       || parsedDeliveryTimeStart;
 
-    console.log('[RetroTiming] previous stop time sources', {
+    console.warn('[RetroTiming] previous stop time sources', {
       deliveryId: delivery?.id,
       previousStopId: previousStop?.id,
       rawActualDeliveryTime: previousStop?.actual_delivery_time || null,
@@ -182,7 +182,7 @@ export const calculateRetroactiveStopTiming = async ({
       const data = res?.data || res || {};
       const travelMinutes = Number(data.estimated_duration_minutes) || 0;
       travelDistanceKm = Number(data.estimated_distance_km);
-      console.log('[RetroTiming] directions result', {
+      console.warn('[RetroTiming] directions result', {
         deliveryId: delivery?.id,
         previousStopId: previousStop?.id,
         origin,
@@ -192,12 +192,12 @@ export const calculateRetroactiveStopTiming = async ({
         baseTimeBeforeTravel: formatLocalTimestamp(baseTime)
       });
       baseTime = new Date(baseTime.getTime() + travelMinutes * 60000);
-      console.log('[RetroTiming] base time after travel', {
+      console.warn('[RetroTiming] base time after travel', {
         deliveryId: delivery?.id,
         computedBaseTime: formatLocalTimestamp(baseTime)
       });
     } else {
-      console.log('[RetroTiming] skipped directions', {
+      console.warn('[RetroTiming] skipped directions', {
         deliveryId: delivery?.id,
         hasBaseTime: !!baseTime,
         origin,
@@ -207,7 +207,7 @@ export const calculateRetroactiveStopTiming = async ({
   }
 
   if (!baseTime) {
-    console.log('[RetroTiming] no base time resolved', {
+    console.warn('[RetroTiming] no base time resolved', {
       deliveryId: delivery?.id,
       previousStopId: previousStop?.id || null
     });
