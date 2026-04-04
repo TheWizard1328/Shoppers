@@ -252,45 +252,32 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   }, []);
 
   React.useEffect(() => {
-    // Skip if no selection or container
     if (!selectedCardId || !containerRef.current) {
       prevSelectedCardIdRef.current = selectedCardId;
       return;
     }
 
-    // Clear any existing scroll timeout
+    const selectionChanged = prevSelectedCardIdRef.current !== selectedCardId;
+    prevSelectedCardIdRef.current = selectedCardId;
+    if (!selectionChanged) return;
+
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
 
-    // Capture the ID we intend to scroll to
     const targetCardId = selectedCardId;
 
-    console.log(`🎯 [HorizontalStopCards] selectedCardId changed to: ${targetCardId}`);
-
-    // Function to perform the scroll with a delay to let cards render/resize
-    // Use longer delay (350ms) to wait for card expand/collapse animations
     scrollTimeoutRef.current = setTimeout(() => {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           const container = containerRef.current;
           const element = document.getElementById(`stop-card-${targetCardId}`);
-
-          if (!container || !element) {
-            console.warn(`⚠️ [HorizontalStopCards] Cannot scroll - container: ${!!container}, element: ${!!element}`);
-            return;
-          }
-
-          // Use scrollToCenterCard for consistent centering
+          if (!container || !element) return;
           scrollToCenterCard(element);
         });
       });
-    }, 400); // Wait for card animations to complete
+    }, 400);
 
-    // Update ref for tracking
-    prevSelectedCardIdRef.current = selectedCardId;
-
-    // Cleanup timeout on unmount or dependency change
     return () => {
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
