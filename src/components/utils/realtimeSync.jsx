@@ -340,7 +340,8 @@ const subscribeToEntity = (entityName) => {
         entityDataCache.delete(id);
       }
       
-      console.log(`📡 [RealtimeSync] ${entityName} ${type}: ${id}`, changedFields.length > 0 ? `changed: ${changedFields.join(', ')}` : '');
+      const displayId = entityName === 'Patient' ? (data?.full_name || id) : id;
+      console.log(`📡 [RealtimeSync] ${entityName} ${type}: ${displayId}`, changedFields.length > 0 ? `changed: ${changedFields.join(', ')}` : '');
       
       // CRITICAL: Save to offline DB immediately on WebSocket update
       try {
