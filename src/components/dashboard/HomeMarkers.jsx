@@ -11,13 +11,14 @@ export default function HomeMarkers({ driverHomeMarkers, map, isMobile, onMarker
     const handleClick = (e) => {
       if (onMarkerClick) onMarkerClick(home, 'home');
       if (!map) return;
+      const paddingBuffer = 30;
       const targetZoom = isMobile ? 15 : 16;
       const statsCard = document.querySelector('[data-stats-card]');
       const statsCardHeight = statsCard ? statsCard.getBoundingClientRect().height : 0;
-      const dynamicTopPadding = statsCardHeight + 20;
+      const dynamicTopPadding = statsCardHeight + paddingBuffer;
       const stopCardsEl = document.querySelector('.horizontal-cards-container');
       const balloonH = 120;
-      let dynamicBottomPadding = balloonH + 20;
+      let dynamicBottomPadding = balloonH + paddingBuffer;
       if (stopCardsEl) dynamicBottomPadding = Math.max(stopCardsEl.getBoundingClientRect().height + balloonH + 20, balloonH + 20);
       const bounds = L.latLngBounds([[home.latitude, home.longitude], [home.latitude, home.longitude]]);
       try {
