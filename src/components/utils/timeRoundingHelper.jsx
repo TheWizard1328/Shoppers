@@ -110,10 +110,11 @@ export const calculateRetroactiveStopTiming = async ({
   allDeliveries = [],
   patients = [],
   stores = [],
-  todayDateString
+  todayDateString,
+  allowSameDay = false
 }) => {
   if (!delivery || !delivery.delivery_date || !todayDateString) return null;
-  if (delivery.delivery_date === todayDateString) return null;
+  if (!allowSameDay && delivery.delivery_date === todayDateString) return null;
   if (delivery.delivery_date > todayDateString) return null;
 
   const routeStops = allDeliveries

@@ -496,10 +496,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 allDeliveries,
                 patients,
                 stores,
-                todayDateString: edmontonTodayStr
+                todayDateString: edmontonTodayStr,
+                allowSameDay: true
               }) : null;
               const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
-              const shouldAutoSetArrivalTime = delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
+              const shouldAutoSetArrivalTime = shouldUseRetroactiveStopTiming || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
               const criticalUpdate = {
                 status: status,
                 delivery_notes: updatedNotes,
@@ -556,7 +557,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           let pendingBreadcrumbsString = null;
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');if (hasPendingPickupTransitions) await handleAcceptAllStops();
-                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const retroactiveTiming = shouldUseRetroactiveStopTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: edmontonTodayStr }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
+                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const retroactiveTiming = shouldUseRetroactiveStopTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: edmontonTodayStr, allowSameDay: true }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
                           const resolvedActualDeliveryTime = retroactiveTiming?.actual_delivery_time || localTimeString;
                           const shouldOverwriteArrivalTime = shouldUseRetroactiveStopTiming || delivery.delivery_date === edmontonTodayStr;
                           const fallbackSignatureUrl = !delivery.signature_image_url && patient?.signature_image_url ? patient.signature_image_url : null;
