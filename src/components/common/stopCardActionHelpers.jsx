@@ -250,6 +250,12 @@ export function collapseAllStopCards(detail = {}) {
   window.dispatchEvent(new CustomEvent('collapseAllStopCards', { detail }));
 }
 
+export async function collapseExpandedStopCardsForDriver(driverId) {
+  if (typeof window === 'undefined' || !driverId) return;
+  collapseAllStopCards({ driverId });
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
 export function centerDeliveryCard(deliveryId) {
   if (!deliveryId || typeof window === 'undefined') return;
 
@@ -277,7 +283,7 @@ export async function setAndCenterNextDelivery({
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
 
   if (collapseCards) {
-    collapseAllStopCards({ driverId });
+    await collapseExpandedStopCardsForDriver(driverId);
   }
 
   await syncNextDeliveryFlagsLocally({
