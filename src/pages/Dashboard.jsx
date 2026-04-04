@@ -2626,42 +2626,7 @@ function Dashboard() {
         }, 500);});});
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers, cardsReadyForFAB]);
 
-  // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
-  // This runs AFTER cards are rendered and handles ALL phases
-  // CHANGED: Only center (scroll), do NOT select the card
-  useEffect(() => {
-    // Skip if already scrolled or data not ready
-    if (hasScrolledToNextCardRef.current || !isDataLoaded || deliveriesWithStopOrder.length === 0) {
-      return;
-    }
 
-    const nextDelivery = getNextDeliveryCard(deliveriesWithStopOrder);
-
-    if (!nextDelivery) {
-      hasScrolledToNextCardRef.current = true;
-      return;
-    }
-
-    // Wait for cards to render, then scroll
-    const scrollTimer = setTimeout(() => {
-      const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-      if (cardElement) {
-        cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      } else {
-        console.warn(`⚠️ [Card Scroll Effect] Card not found: stop-card-${nextDelivery.id}`);
-        // Try again after more delay
-        setTimeout(() => {
-          const retryElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-          if (retryElement) {
-            retryElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          }
-        }, 500);
-      }
-      hasScrolledToNextCardRef.current = true;
-    }, 500); // 500ms delay to ensure cards are rendered
-
-    return () => clearTimeout(scrollTimer);
-  }, [isDataLoaded, deliveriesWithStopOrder]);
 
   // CRITICAL: Use a ref to track current lock state to avoid stale closure issues in GPS callback
   const isMapViewLockedRef = useRef(isMapViewLocked);
@@ -2698,9 +2663,7 @@ function Dashboard() {
     const handleSmartRefreshComplete = () => {
       // CRITICAL: For dispatchers, auto-center to next delivery card after smart refresh
       if (isDispatcher && !selectedCardId) {
-        setTimeout(() => {
-          centerNextDeliveryCard(deliveriesWithStopOrder);
-        }, 300);
+        handleMapViewCycle(true);
       }
     };
 
@@ -2719,13 +2682,7 @@ function Dashboard() {
 
       const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;if (targetDriverId && updates?.deliveries && !updates.deliveries.some((d) => d?.driver_id === targetDriverId)) return;
 
-      // Auto-center to next delivery card
-      setTimeout(() => {
-        centerNextDeliveryCard(deliveriesWithStopOrder);
-      }, 300);
-
-      // CRITICAL: Use unified FAB reactivation logic
-      // reactivateFAB('Smart Refresh Complete');
+      handleMapViewCycle(true);
     };
 
     const handleSmartRefreshRestartedEvent = () => {
@@ -2770,46 +2727,7 @@ function Dashboard() {
   // - Optimization during specific workflows (start delivery, status changes)
   // This 5-minute polling was redundant and causing rate limits
 
-  useEffect(() => {
-    if (initialMapViewApplied) return;
-    if (!isDataLoaded || deliveriesWithStopOrder.length === 0 || isLoadingUser) return;
 
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const nextDelivery =
-      deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true && !finishedStatuses.includes(d.status)) ||
-      deliveriesWithStopOrder
-        .filter((d) => d && !finishedStatuses.includes(d.status))
-        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-
-    if (!nextDelivery) return;
-
-    setTimeout(() => {
-      centerDeliveryCard(nextDelivery.id);
-    }, 300);
-
-    const padding = getMapPadding();
-    if (nextDelivery.patient_id) {
-      const patient = patients.find((p) => p && p.id === nextDelivery.patient_id);
-      if (patient?.latitude && patient?.longitude) {
-        setShouldFitBounds({
-          bounds: [[patient.latitude, patient.longitude]],
-          options: { ...padding, maxZoom: 17.5, animate: true }
-        });
-        setMapCenter(null);
-        setMapZoom(null);
-      }
-    } else if (nextDelivery.store_id) {
-      const store = stores.find((s) => s && s.id === nextDelivery.store_id);
-      if (store?.latitude && store?.longitude) {
-        setShouldFitBounds({
-          bounds: [[store.latitude, store.longitude]],
-          options: { ...padding, maxZoom: 17.5, animate: true }
-        });
-        setMapCenter(null);
-        setMapZoom(null);
-      }
-    }
-  }, [isDataLoaded, deliveriesWithStopOrder, isLoadingUser, patients, stores, initialMapViewApplied, getMapPadding]);
 
   // Unified initial driver selection per role rules
   useEffect(() => {
