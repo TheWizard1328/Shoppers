@@ -436,8 +436,6 @@ function Dashboard() {
     setMapViewTrigger((prev) => prev + 1);
   }, []);
 
-
-
   // Check if current device is primary tracker (state declared at line 379)
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -613,7 +611,6 @@ function Dashboard() {
       try {
         const settings = await loadUserSettings(currentUser.id);
 
-
         // CRITICAL: Load "Show All Markers" setting
         if (settings.show_all_driver_markers !== undefined) {
           setShowAllDriverMarkers(settings.show_all_driver_markers);
@@ -759,7 +756,6 @@ function Dashboard() {
         return 0;
       });
 
-
       // CRITICAL: Include ALL deliveries (including pending) in result
       let displayCounter = 1;
 
@@ -785,8 +781,6 @@ function Dashboard() {
 
     return result;
   }, [filteredDeliveries]);
-
-
 
   const stats = useMemo(() => {
     // DISPATCHER: Filter to only dispatcher's store deliveries
@@ -1217,8 +1211,6 @@ function Dashboard() {
     prevSelectedDateRef.current = currentDateStr;
   }, [selectedDriverId, selectedDate]);
 
-
-
   // CRITICAL: Track map view phase in ref for handleMapInteraction (avoid stale closure)
   const mapViewPhaseForInteractionRef = useRef(mapViewPhase);
   useEffect(() => {
@@ -1258,18 +1250,6 @@ function Dashboard() {
 
       if (newFilters.selectedDriverId !== undefined) {
 
-
-
-
-
-
-
-
-
-
-
-
-
         // This subscription handles changes from other components
       }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else if (event.type === 'ACCEPT_ALL_CLICKED') pulsePhaseOne(500);else if (event.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE' && mapViewPhaseRef.current === 1) { const eventMatchesDriver = !selectedDriverId || selectedDriverId === 'all' || event.driverId === selectedDriverId; const eventMatchesDate = !selectedDate || !event.deliveryDate || event.deliveryDate === format(selectedDate, 'yyyy-MM-dd'); if (event.relevantToCurrentSelection === true && eventMatchesDriver && eventMatchesDate) pulsePhaseOne(500); }else if ((event.type === 'DRIVER_LOCATION_CHANGE' || event.type === 'DATA_READY' || event.type === 'REACTIVATE_FAB') && mapViewPhase === 1) pulsePhaseOne(500);else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else
@@ -1292,8 +1272,6 @@ function Dashboard() {
       }
     };
   }, []);
-
-
 
   // REMOVED: Screen resize no longer triggers FAB phase activation
   // Phase 1 only activates on initial page load/refresh
@@ -1389,8 +1367,6 @@ function Dashboard() {
       window.removeEventListener('smartRefreshComplete', handleHeightRemeasure);
     };
   }, [selectedCardId, stopCardsBaseHeight]);
-
-
 
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({
     currentUser,
@@ -1571,18 +1547,6 @@ function Dashboard() {
     }
 
     driverLocationPoller.start(() => {
-
-
-
-
-
-
-
-
-
-
-
-
 
       // Callback provided for future use
     }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
@@ -1945,7 +1909,6 @@ function Dashboard() {
             hasDriverMarkers = true;
             addedCount++;
           });
-
         }
 
         // 3. HOME LOCATIONS: Re-check visibility rules before including homes in FAB bounds
@@ -2205,7 +2168,6 @@ function Dashboard() {
           [fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude],
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-
           const padding = getMapPadding();
 
           setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
@@ -2240,8 +2202,6 @@ function Dashboard() {
         const isShowAllOrAllDriversMode = showAllDriverMarkers || selectedDriverId === 'all';
 
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-
-
 
         if (isShowAllOrAllDriversMode) {
           // MODE 1: Show All / All Drivers - include ALL incomplete + pending stops from ALL drivers
@@ -2619,8 +2579,6 @@ function Dashboard() {
         }, 500);});});
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers, cardsReadyForFAB]);
 
-
-
   // CRITICAL: Use a ref to track current lock state to avoid stale closure issues in GPS callback
   const isMapViewLockedRef = useRef(isMapViewLocked);
   useEffect(() => {
@@ -2678,16 +2636,6 @@ function Dashboard() {
 
     const handleSmartRefreshRestartedEvent = () => {
 
-
-
-
-
-
-
-
-
-
-
       // No map repositioning on smart refresh restart - user controls map manually
     };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);return () => {window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);};}, [mapViewPhase, deliveriesWithStopOrder, selectedCardId]); // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
@@ -2717,8 +2665,6 @@ function Dashboard() {
   // - Manual reoptimize FAB button
   // - Optimization during specific workflows (start delivery, status changes)
   // This 5-minute polling was redundant and causing rate limits
-
-
 
   // Unified initial driver selection per role rules
   useEffect(() => {
@@ -2817,7 +2763,6 @@ function Dashboard() {
     setIsCalendarOpen(false);
 
     const dateStr = format(date, 'yyyy-MM-dd');
-
 
     try {
       // STEP 1: Clear pending updates for clean slate
@@ -3135,19 +3080,7 @@ function Dashboard() {
       if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
         const { handleBatchSaveDelivery } = await import('@/components/dashboard/handleBatchSaveDelivery');
         await handleBatchSaveDelivery({
-          deliveryData,
-          drivers,
-          deliveries,
-          patients,
-          stores,
-          currentUser,
-          selectedDate,
-          invalidate,
-          updateDeliveriesLocally,
-          refreshData,
-          setShowDeliveryForm,
-          setEditingDelivery,
-          hasAutoSelectedRef,
+          deliveryData, drivers, deliveries, patients, stores, currentUser, selectedDate, invalidate, updateDeliveriesLocally, refreshData, setShowDeliveryForm, setEditingDelivery, hasAutoSelectedRef, 
           invalidateDeliveriesForDate: () => {
             invalidate('Delivery');
           }
@@ -3242,7 +3175,6 @@ function Dashboard() {
             stop_order: startingStopOrder + i + 1
           });
         }
-
 
         // OPTIMIZED: Only invalidate cache for the specific date instead of all deliveries
         invalidate('Delivery');
@@ -5477,7 +5409,6 @@ function Dashboard() {
         </div>
       }
 
-
       <div className={statsCardPositioning} style={{ zIndex: 600 }}>
         <div className="flex flex-col items-center gap-0.5 min-w-[345px] max-w-[345px] relative"
 
@@ -5553,7 +5484,6 @@ function Dashboard() {
 
             }} />
 
-
           <motion.div
             ref={statsCardRef} data-spotlight-anchor
             initial={{ opacity: 0, y: -20 }}
@@ -5576,9 +5506,6 @@ function Dashboard() {
               touchAction: 'none',
               position: 'relative'
             }}>
-
-
-            
 
             <div className="mt-1 flex items-center justify-between">
               <div className="pr-1 flex items-center gap-2">
@@ -5699,7 +5626,6 @@ function Dashboard() {
                 liveTimeOnDuty={liveTimeOnDuty}
                 isLoadingPayrollStats={isLoadingPayrollStats} />
 
-
               <Button
                 variant="ghost"
                 size="sm"
@@ -5711,7 +5637,6 @@ function Dashboard() {
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
             </div>
-
 
             {isAppOwner(currentUser) && <DriverLocationBadge users={appUsers} />}
 
@@ -6331,7 +6256,6 @@ function Dashboard() {
         currentUser={currentUser}
         isDispatcher={isDispatcher} />
 
-
       {/* Quick Route Adjustments Dialog */}
       {isDriver &&
       <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
@@ -6353,7 +6277,6 @@ function Dashboard() {
             stores={stores}
             onReorder={handleQuickReorder}
             onAddDelay={handleAddDelay} />
-
           }
           </DialogContent>
         </Dialog>
@@ -6389,7 +6312,6 @@ function Dashboard() {
         </Dialog>
       }
     </div>);
-
 }
 
 async function geocodeAddress(address) {
