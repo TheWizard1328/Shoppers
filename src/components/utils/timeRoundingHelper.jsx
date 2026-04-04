@@ -129,12 +129,47 @@ export const calculateRetroactiveStopTiming = async ({
   let baseTime = null;
   let travelDistanceKm = Number(delivery?.travel_dist);
 
+  console.log('[RetroTiming] start', {
+    deliveryId: delivery?.id,
+    deliveryDate: delivery?.delivery_date,
+    stopOrder: delivery?.stop_order,
+    currentIndex,
+    isFirstStop,
+    previousStopId: previousStop?.id || null,
+    previousStopActualDeliveryTime: previousStop?.actual_delivery_time || null,
+    previousStopArrivalTime: previousStop?.arrival_time || null,
+    previousStopDeliveryTimeStart: previousStop?.delivery_time_start || null,
+    currentDeliveryTimeStart: delivery?.delivery_time_start || null
+  });
+
   if (isFirstStop) {
-    baseTime = parseDateTimeParts(delivery.delivery_date, getStoreFirstStopStartTime(delivery, stores));
+    const firstStopStartTime = getStoreFirstStopStartTime(delivery, stores);
+    baseTime = parseDateTimeParts(delivery.delivery_date, firstStopStartTime);
+    console.log('[RetroTiming] first stop base time', {
+      deliveryId: delivery?.id,
+      firstStopStartTime,
+      parsedBaseTime: baseTime ? formatLocalTimestamp(baseTime) : null
+    });
   } else {
-    baseTime = parseLocalTimestamp(previousStop.actual_delivery_time)
-      || parseLocalTimestamp(previousStop.arrival_time)
-      || parseDateTimeParts(previousStop.delivery_date, previousStop.delivery_time_start || '09:00');
+    const parsedActualDeliveryTime = parseLocalTimestamp(previousStop.actual_delivery_time);
+    const parsedArrivalTime = parseLocalTimestamp(previousStop.arrival_time);
+    const parsedDeliveryTimeStart = parseDateTimeParts(previousStop.delivery_date, previousStop.delivery_time_start || '09:00');
+
+    baseTime = parsedActualDeliveryTime
+      || parsedArrivalTime
+      || parsedDeliveryTimeStart;
+
+    console.log('[RetroTiming] previous stop time sources', {
+      deliveryId: delivery?.id,
+      previousStopId: previousStop?.id,
+      rawActualDeliveryTime: previousStop?.actual_delivery_time || null,
+      rawArrivalTime: previousStop?.arrival_time || null,
+      rawDeliveryTimeStart: previousStop?.delivery_time_start || null,
+      parsedActualDeliveryTime: parsedActualDeliveryTime ? formatLocalTimestamp(parsedActualDeliveryTime) : null,
+      parsedArrivalTime: parsedArrivalTime ? formatLocalTimestamp(parsedArrivalTime) : null,
+      parsedDeliveryTimeStart: parsedDeliveryTimeStart ? formatLocalTimestamp(parsedDeliveryTimeStart) : null,
+      selectedBaseTime: baseTime ? formatLocalTimestamp(baseTime) : null
+    });
 
     const origin = getStopCoordinates(previousStop, patients, stores);
     const destination = getStopCoordinates(delivery, patients, stores);
@@ -147,11 +182,37 @@ export const calculateRetroactiveStopTiming = async ({
       const data = res?.data || res || {};
       const travelMinutes = Number(data.estimated_duration_minutes) || 0;
       travelDistanceKm = Number(data.estimated_distance_km);
+      console.log('[RetroTiming] directions result', {
+        deliveryId: delivery?.id,
+        previousStopId: previousStop?.id,
+        origin,
+        destination,
+        travelMinutes,
+        travelDistanceKm,
+        baseTimeBeforeTravel: formatLocalTimestamp(baseTime)
+      });
       baseTime = new Date(baseTime.getTime() + travelMinutes * 60000);
+      console.log('[RetroTiming] base time after travel', {
+        deliveryId: delivery?.id,
+        computedBaseTime: formatLocalTimestamp(baseTime)
+      });
+    } else {
+      console.log('[RetroTiming] skipped directions', {
+        deliveryId: delivery?.id,
+        hasBaseTime: !!baseTime,
+        origin,
+        destination
+      });
     }
   }
 
-  if (!baseTime) return null;
+  if (!baseTime) {
+    console.log('[RetroTiming] no base time resolved', {
+      deliveryId: delivery?.id,
+      previousStopId: previousStop?.id || null
+    });
+    return null;
+  }
 
   if (isFirstStop) {
     return {
