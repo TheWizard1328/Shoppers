@@ -2794,68 +2794,46 @@ function Dashboard() {
   // This 5-minute polling was redundant and causing rate limits
 
   useEffect(() => {
-    // CRITICAL: Skip auto-center if initial FAB phase has been applied
-    if (initialMapViewApplied) {
-      return;
+    if (initialMapViewApplied) return;
+    if (hasAutoSelectedRef.current || !isDataLoaded || deliveriesWithStopOrder.length === 0 || isLoadingUser) return;
+
+    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const nextDelivery =
+      deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true && !finishedStatuses.includes(d.status)) ||
+      deliveriesWithStopOrder
+        .filter((d) => d && !finishedStatuses.includes(d.status))
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+
+    if (!nextDelivery) return;
+
+    setTimeout(() => {
+      centerDeliveryCard(nextDelivery.id);
+    }, 300);
+
+    const padding = getMapPadding();
+    if (nextDelivery.patient_id) {
+      const patient = patients.find((p) => p && p.id === nextDelivery.patient_id);
+      if (patient?.latitude && patient?.longitude) {
+        setShouldFitBounds({
+          bounds: [[patient.latitude, patient.longitude]],
+          options: { ...padding, maxZoom: 17.5, animate: true }
+        });
+        setMapCenter(null);
+        setMapZoom(null);
+      }
+    } else if (nextDelivery.store_id) {
+      const store = stores.find((s) => s && s.id === nextDelivery.store_id);
+      if (store?.latitude && store?.longitude) {
+        setShouldFitBounds({
+          bounds: [[store.latitude, store.longitude]],
+          options: { ...padding, maxZoom: 17.5, animate: true }
+        });
+        setMapCenter(null);
+        setMapZoom(null);
+      }
     }
 
-    // Auto-center on next stop when data is ready
-    // CHANGED: Only scroll to center card, do NOT select it
-    if (!hasAutoSelectedRef.current && isDataLoaded && deliveriesWithStopOrder.length > 0 && !isLoadingUser) {
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-
-      // Find first incomplete delivery
-      const incompleteDeliveries = deliveriesWithStopOrder.
-      filter((d) => d && !finishedStatuses.includes(d.status)).
-      sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-      if (incompleteDeliveries.length === 0) {
-        return;
-      }
-
-      const nextDelivery = incompleteDeliveries[0];
-      // CHANGED: Do NOT set selectedCardId - only scroll to center
-      // setSelectedCardId(nextDelivery.id); // REMOVED
-
-      // Scroll card into view after a longer delay to ensure cards are rendered
-      setTimeout(() => {
-        centerDeliveryCard(nextDelivery.id);
-      }, 300)
-
-      // Center map on this delivery using fitBounds for bottom padding
-      const padding = getMapPadding();
-      if (nextDelivery.patient_id) {
-        const patient = patients.find((p) => p && p.id === nextDelivery.patient_id);
-        if (patient?.latitude && patient?.longitude) {
-          setShouldFitBounds({
-            bounds: [[patient.latitude, patient.longitude]],
-            options: {
-              ...padding,
-              maxZoom: 17.5,
-              animate: true
-            }
-          });
-          setMapCenter(null);
-          setMapZoom(null);
-        }
-      } else if (nextDelivery.store_id) {
-        const store = stores.find((s) => s && s.id === nextDelivery.store_id);
-        if (store?.latitude && store?.longitude) {
-          setShouldFitBounds({
-            bounds: [[store.latitude, store.longitude]],
-            options: {
-              ...padding,
-              maxZoom: 17.5,
-              animate: true
-            }
-          });
-          setMapCenter(null);
-          setMapZoom(null);
-        }
-      }
-
-      hasAutoSelectedRef.current = true;
-    }
+    hasAutoSelectedRef.current = true;
   }, [isDataLoaded, deliveriesWithStopOrder, isLoadingUser, patients, stores, initialMapViewApplied, getMapPadding]);
 
   // Unified initial driver selection per role rules
