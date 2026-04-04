@@ -382,10 +382,7 @@ export default function Layout({ children, currentPageName }) {
         setSquareLocationConfigs(await odb.getAll(odb.STORES.SQUARE_LOCATION_CONFIGS)||[]);
         setCatalogItems(await odb.getAll(odb.STORES.SQUARE_CATALOG_ITEMS)||[]);
         setSquareTransactions(await odb.getAll(odb.STORES.SQUARE_TRANSACTIONS)||[]);
-        const today=new Date(),_tStr=format(today,'yyyy-MM-dd');
-        if(userHasRole(fetchedUser,'dispatcher')){globalFilters.setSelectedDate(today);}
-        else if(userHasRole(fetchedUser,'driver')&&today.getHours()>=7){const _k=`rxd_drst_${fetchedUser.id}`;if(localStorage.getItem(_k)!==_tStr){globalFilters.setSelectedDate(today);localStorage.setItem(_k,_tStr);}}
-        if(!globalFilters.getSelectedDate())globalFilters.setSelectedDate(today);
+        const today=new Date();if(!globalFilters.getSelectedDate())globalFilters.setSelectedDate(today);
         if(!globalFilters.getSelectedDriverId())globalFilters.setSelectedDriverId('all');
         try {
           const dd=await offlineDB.getByDate(offlineDB.STORES.DELIVERIES,todayStr).catch(()=>[]);

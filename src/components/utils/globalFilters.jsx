@@ -10,7 +10,8 @@ const STORAGE_KEYS = {
   selectedDriverId: 'app_selectedDriverId',
   selectedCityId: 'app_selectedCityId',
   selectedStoreId: 'app_selectedStoreId',
-  lastAutoSetDate: 'app_lastAutoSetDate' // Track when we last auto-set to today
+  lastAutoSetDate: 'app_lastAutoSetDate',
+  dashboardSessionInitializedAt: 'app_dashboardSessionInitializedAt'
 };
 
 // Global state object
@@ -26,56 +27,34 @@ let globalState = {
 // CRITICAL: These values are device-specific and stored only in localStorage
 const initializeGlobalFilters = () => {
   try {
-    // Always use today as the default for date
     const today = format(new Date(), 'yyyy-MM-dd');
-    
-    // Load saved date and last auto-set date
     const savedDate = localStorage.getItem(STORAGE_KEYS.selectedDate);
-    const lastAutoSetDate = localStorage.getItem(STORAGE_KEYS.lastAutoSetDate);
-    
-    // LOGIC: Auto-set to today only on the FIRST load of a NEW day
-    // - If lastAutoSetDate is NOT today, it's a new day -> auto-set to today
-    // - If lastAutoSetDate IS today, respect the savedDate (user may have changed it)
-    
-    if (lastAutoSetDate !== today) {
-      // NEW DAY - Auto-set to today and mark this as the auto-set for today
-      globalState.selectedDate = today;
-      localStorage.setItem(STORAGE_KEYS.selectedDate, today);
-      localStorage.setItem(STORAGE_KEYS.lastAutoSetDate, today);
-      console.log(`📅 [GlobalFilters] First load of the day - auto-setting to today: ${today}`);
-    } else {
-      // SAME DAY - Respect the saved date (could be today or a historical date)
-      if (savedDate) {
-        const savedDateObj = new Date(savedDate + 'T00:00:00');
-        const todayObj = new Date(today + 'T00:00:00');
-        const daysDiff = Math.floor((todayObj - savedDateObj) / (1000 * 60 * 60 * 24));
-        
-        // Use saved date if it's within the last 30 days, otherwise use today
-        if (daysDiff >= 0 && daysDiff <= 30) {
-          globalState.selectedDate = savedDate;
-          console.log(`📅 [GlobalFilters] Using saved date: ${savedDate}`);
-        } else {
-          globalState.selectedDate = today;
-          localStorage.setItem(STORAGE_KEYS.selectedDate, today);
-          console.log(`📅 [GlobalFilters] Saved date too old, using today: ${today}`);
-        }
+
+    if (savedDate) {
+      const savedDateObj = new Date(savedDate + 'T00:00:00');
+      const todayObj = new Date(today + 'T00:00:00');
+      const daysDiff = Math.floor((todayObj - savedDateObj) / (1000 * 60 * 60 * 24));
+
+      if (daysDiff >= 0 && daysDiff <= 30) {
+        globalState.selectedDate = savedDate;
+        console.log(`📅 [GlobalFilters] Using saved date: ${savedDate}`);
       } else {
-        // No saved date but we already auto-set today (edge case)
         globalState.selectedDate = today;
         localStorage.setItem(STORAGE_KEYS.selectedDate, today);
-        console.log(`📅 [GlobalFilters] No saved date, using today: ${today}`);
+        console.log(`📅 [GlobalFilters] Saved date too old, using today: ${today}`);
       }
+    } else {
+      globalState.selectedDate = today;
+      localStorage.setItem(STORAGE_KEYS.selectedDate, today);
+      console.log(`📅 [GlobalFilters] No saved date, using today: ${today}`);
     }
-    
-    // Load other filters with their defaults - from localStorage ONLY
+
     globalState.selectedDriverId = localStorage.getItem(STORAGE_KEYS.selectedDriverId) || 'all';
     globalState.selectedCityId = localStorage.getItem(STORAGE_KEYS.selectedCityId) || 'all';
     globalState.selectedStoreId = localStorage.getItem(STORAGE_KEYS.selectedStoreId) || 'all';
-    
+
     console.log(`👤 [GlobalFilters] Initialized driver: ${globalState.selectedDriverId}, city: ${globalState.selectedCityId}`);
-    
   } catch (error) {
-    // Set defaults if localStorage fails
     const today = format(new Date(), 'yyyy-MM-dd');
     globalState.selectedDate = today;
     globalState.selectedDriverId = 'all';
