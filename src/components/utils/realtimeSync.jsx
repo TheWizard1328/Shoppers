@@ -112,6 +112,20 @@ async function flushBuffered(entityName) {
         }
       }));
 
+      if (Array.isArray(item.changedFields) && item.changedFields.includes('status') && item.data?.status === 'in_transit') {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('deliveryBecameInTransit', {
+            detail: {
+              source: 'realtimeSyncStatusUpdate',
+              deliveryId: item.id,
+              driverId: item.data?.driver_id,
+              deliveryDate: item.data?.delivery_date,
+              durationMs: 500
+            }
+          }));
+        }
+      }
+
       if (Array.isArray(item.changedFields) && item.changedFields.includes('isNextDelivery') && item.data?.isNextDelivery) {
         scheduleAfterUISettled(() => {
           triggerCenterNextDeliveryCard({
