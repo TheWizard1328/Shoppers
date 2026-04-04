@@ -97,14 +97,15 @@ async function flushBuffered(entityName) {
     const scopedDriverId = selectedDriverId && selectedDriverId !== 'all'
       ? selectedDriverId
       : (relevantItems[0]?.data?.driver_id || null);
-    const scopedDeliveries = fullReplacementData.filter((delivery) => {
-      if (!delivery) return false;
-      if (selectedDate && delivery.delivery_date !== selectedDate) return false;
-      if (scopedDriverId && delivery.driver_id !== scopedDriverId) return false;
-      return true;
-    });
 
-    if (relevantItems.length > 0 || scopedDriverId) {
+    if (hasCreateOrDelete && (relevantItems.length > 0 || scopedDriverId)) {
+      const scopedDeliveries = fullReplacementData.filter((delivery) => {
+        if (!delivery) return false;
+        if (selectedDate && delivery.delivery_date !== selectedDate) return false;
+        if (scopedDriverId && delivery.driver_id !== scopedDriverId) return false;
+        return true;
+      });
+
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveries: scopedDeliveries,
@@ -112,17 +113,15 @@ async function flushBuffered(entityName) {
           immediate: true,
           deliveryDate: selectedDate,
           driverId: scopedDriverId,
-          triggeredBy: hasCreateOrDelete ? 'realtimeBufferedFullRefresh' : 'realtimeBufferedFieldUpdate',
+          triggeredBy: 'realtimeBufferedFullRefresh',
           source: 'realtime_sync',
           fromRealtime: true,
-          fullReplacement: hasCreateOrDelete,
-          skipMapPhaseOneRefresh: !hasCreateOrDelete,
+          fullReplacement: true,
+          skipMapPhaseOneRefresh: false,
           preserveLocalState: true
         }
       }));
     }
-
-
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {

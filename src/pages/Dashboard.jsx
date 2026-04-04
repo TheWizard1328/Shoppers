@@ -280,9 +280,8 @@ function Dashboard() {
 
       if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
         if (updateDeliveriesLocally) {
-          const otherDateDeliveries = deliveries.filter((d) => d?.delivery_date !== deliveryDate);
           const dedupedFresh = Array.from(new Map(freshDeliveries.filter(Boolean).map((d) => [d.id, d])).values());
-          updateDeliveriesLocally([...otherDateDeliveries, ...dedupedFresh], true);
+          updateDeliveriesLocally(dedupedFresh, false);
         }
 
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
