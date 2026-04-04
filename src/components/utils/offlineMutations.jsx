@@ -13,6 +13,24 @@ import { Company } from '@/entities/Company';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 import { sanitizeDeliveryPayload, sanitizeDeliveryPayloads } from './deliveryPayloadSanitizer';
 
+const normalizeComparableValue = (value) => {
+  if (Array.isArray(value)) return JSON.stringify(value);
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return value;
+};
+
+const getMeaningfulDeliveryUpdates = async (existingDelivery, updates = {}) => {
+  const sanitizedUpdates = await sanitizeDeliveryPayload(updates);
+  return Object.entries(sanitizedUpdates).reduce((acc, [key, value]) => {
+    const currentValue = existingDelivery?.[key];
+    const isBlankString = typeof value === 'string' && value.trim() === '' && (currentValue === undefined || currentValue === null || currentValue === '');
+    if (isBlankString) return acc;
+    if (normalizeComparableValue(currentValue) === normalizeComparableValue(value)) return acc;
+    acc[key] = value;
+    return acc;
+  }, {});
+};
+
 // Listeners for UI updates
 let mutationListeners = [];
 let mutationsPaused = false; // CRITICAL: Pause mutations during route optimization
@@ -487,9 +505,13 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       console.log('⚠️ [OfflineMutations] Delivery not in IndexedDB - syncing to backend first:', deliveryId);
 
       try {
+        const meaningfulUpdates = await sanitizeDeliveryPayload(updates);
+        if (Object.keys(meaningfulUpdates).length === 0) {
+          return null;
+        }
         // Update backend immediately
         const { base44 } = await import('@/api/base44Client');
-        const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
+        const backendDelivery = await base44.entities.Delivery.update(deliveryId, meaningfulUpdates);
         console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
         
         // Broadcast removed
@@ -537,10 +559,15 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       }
     }
 
+    const meaningfulUpdates = await getMeaningfulDeliveryUpdates(existingDelivery, updates);
+    if (Object.keys(meaningfulUpdates).length === 0) {
+      return existingDelivery;
+    }
+
     // Apply updates
     const updatedDelivery = {
       ...existingDelivery,
-      ...updates,
+      ...meaningfulUpdates,
       updated_date: new Date().toISOString()
     };
 
@@ -553,7 +580,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       type: 'update', 
       entity: 'Delivery', 
       id: deliveryId,
-      data: { ...updates, updated_date: updatedDelivery.updated_date }
+      data: { ...meaningfulUpdates, updated_date: updatedDelivery.updated_date }
     });
     console.log('🔔 [OfflineMutations] UI notified immediately after local save');
 
@@ -564,12 +591,12 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         operation: 'update',
         entity: 'Delivery',
         recordId: deliveryId,
-        payload: updates
+        payload: meaningfulUpdates
       });
     } else {
       try {
         const { base44 } = await import('@/api/base44Client');
-        await base44.entities.Delivery.update(deliveryId, updates);
+        await base44.entities.Delivery.update(deliveryId, meaningfulUpdates);
         console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
         
         // Broadcast removed
@@ -580,7 +607,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
           operation: 'update',
           entity: 'Delivery',
           recordId: deliveryId,
-          payload: updates
+          payload: meaningfulUpdates
         });
       }
     }
