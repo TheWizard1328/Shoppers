@@ -432,8 +432,13 @@ export const connect = () => {
 
         if (toUpdate.length === 0) return;
 
-        const nowIso = new Date().toISOString();
-        const patched = toUpdate.map(d => ({ ...d, ...patch, updated_date: nowIso }));
+        const patched = toUpdate
+          .map(d => ({ ...d, ...patch }))
+          .filter((delivery, index) => {
+            const original = toUpdate[index];
+            return JSON.stringify(original) !== JSON.stringify(delivery);
+          });
+        if (patched.length === 0) return;
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, patched);
 
         // Broadcast local Delivery updates so UI rerenders immediately

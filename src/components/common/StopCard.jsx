@@ -245,11 +245,17 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             ...(shouldPreserveWindowTimesOnStart ? {} : { delivery_time_start: currentLocalTime, delivery_time_end: currentLocalTime }),
             delivery_time_eta: currentLocalTime,
             isNextDelivery: true
-          } : { isNextDelivery: false })
+          } : {})
         };
       });
       const { offlineDB } = await import('../utils/offlineDatabase');
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, startedRouteDeliveries.filter(Boolean));
+      const startedChangedDeliveries = startedRouteDeliveries.filter((item) => {
+        const existing = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
+        return existing && JSON.stringify(existing) !== JSON.stringify(item);
+      });
+      if (startedChangedDeliveries.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, startedChangedDeliveries.filter(Boolean));
+      }
       if (updateDeliveriesLocally) {
         const optimisticMap = new Map(startedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
         const updatedDeliveries = allDeliveries.map((d) => d && optimisticMap.has(d.id) ? optimisticMap.get(d.id) : d);
@@ -543,7 +549,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 if (currentUser?.id) {const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });if (appUsers && appUsers.length > 0) {const appUser = appUsers[0];await base44.entities.AppUser.update(appUser.id, { driver_status: 'off_duty', location_tracking_enabled: false });locationTracker.stopTracking();if (onDriverStatusChange) onDriverStatusChange('off_duty');}}
               }
               window.dispatchEvent(new CustomEvent('deliveryStatusChanged', { detail: { triggeredBy: status, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, maxStops: 5 } }));
-              const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : { ...item, isNextDelivery: false });
+              const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : item);
               const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
               await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
               onClick?.(null);
@@ -582,7 +588,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           }
                           if (pendingBreadcrumbsString) {try {await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (_) {}}
                           runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: 'completed', overrides: completionUpdate });
-                          const optimisticDeliveries = allDeliveries.map((d) => {if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;if (d.id === delivery.id) return { ...d, ...completionUpdate, isNextDelivery: false };return { ...d, isNextDelivery: false };});
+                          const optimisticDeliveries = allDeliveries.map((d) => {if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;if (d.id === delivery.id) return { ...d, ...completionUpdate, isNextDelivery: false };return d;});
                           const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));const nextStop = incompleteDeliveries[0] || null;
                           await collapseAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
                           onClick?.(null);
