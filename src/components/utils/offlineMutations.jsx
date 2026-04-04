@@ -548,12 +548,12 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
     console.log('✅ [OfflineMutations] Delivery updated locally:', deliveryId);
 
-    // CRITICAL: Notify listeners IMMEDIATELY after local save for instant UI update
+    // CRITICAL: Notify listeners with only changed fields to avoid false downstream updates
     notifyMutation({ 
       type: 'update', 
       entity: 'Delivery', 
       id: deliveryId,
-      data: updatedDelivery 
+      data: { ...updates, updated_date: updatedDelivery.updated_date }
     });
     console.log('🔔 [OfflineMutations] UI notified immediately after local save');
 
