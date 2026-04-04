@@ -503,14 +503,15 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onClickCapture={(e) => {
-        const actionButton = e.target?.closest?.('[data-stopcard-action="start"], button');
+        const actionButton = e.target?.closest?.('[data-stopcard-action="start"], [data-stopcard-action="complete"], [data-stopcard-action="restart"], button');
         if (!actionButton) return;
 
         const buttonText = (actionButton.textContent || '').trim().toLowerCase();
         const isStartAction = actionButton.matches?.('[data-stopcard-action="start"]') || buttonText === 'start';
-        const isCompleteAction = buttonText === 'complete';
+        const isCompleteAction = actionButton.matches?.('[data-stopcard-action="complete"]') || buttonText === 'complete';
+        const isRestartAction = actionButton.matches?.('[data-stopcard-action="restart"]') || buttonText === 'restart';
 
-        if (!isStartAction && !isCompleteAction) return;
+        if (!isStartAction && !isCompleteAction && !isRestartAction) return;
 
         if (isDeliveryActionLocked()) {
           e.preventDefault();
@@ -519,7 +520,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
           return;
         }
 
-        const lock = acquireDeliveryActionLock(isStartAction ? 'start_delivery' : 'complete_delivery');
+        const lock = acquireDeliveryActionLock(isStartAction ? 'start_delivery' : isRestartAction ? 'restart_delivery' : 'complete_delivery');
         if (!lock) {
           e.preventDefault();
           e.stopPropagation();
