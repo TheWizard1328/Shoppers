@@ -2795,7 +2795,7 @@ function Dashboard() {
 
   useEffect(() => {
     if (initialMapViewApplied) return;
-    if (hasAutoSelectedRef.current || !isDataLoaded || deliveriesWithStopOrder.length === 0 || isLoadingUser) return;
+    if (!isDataLoaded || deliveriesWithStopOrder.length === 0 || isLoadingUser) return;
 
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
     const nextDelivery =
@@ -2832,8 +2832,6 @@ function Dashboard() {
         setMapZoom(null);
       }
     }
-
-    hasAutoSelectedRef.current = true;
   }, [isDataLoaded, deliveriesWithStopOrder, isLoadingUser, patients, stores, initialMapViewApplied, getMapPadding]);
 
   // Unified initial driver selection per role rules
