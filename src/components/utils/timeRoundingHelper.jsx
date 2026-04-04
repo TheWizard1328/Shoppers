@@ -75,7 +75,7 @@ const formatLocalTimestamp = (date) => {
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 };
 
-const parseLocalTimestamp = (value) => {
+export const parseLocalTimestamp = (value) => {
   if (!value || typeof value !== 'string') return null;
   const normalized = value.includes('T') ? value : `${value}T00:00:00`;
   const date = new Date(normalized);

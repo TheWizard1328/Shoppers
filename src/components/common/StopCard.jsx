@@ -36,7 +36,7 @@ import { queueDeliveryUpdate, flushQueuedDeliveryUpdates } from '../utils/update
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
-import { generateCompletionTimestamp, calculateRetroactiveStopTiming } from '../utils/timeRoundingHelper';
+import { generateCompletionTimestamp, calculateRetroactiveStopTiming, parseLocalTimestamp } from '../utils/timeRoundingHelper';
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import StopCardCODCollection from './StopCardCODCollection';
@@ -549,7 +549,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
               const forcedFailureTimestamp = retroactiveTiming?.actual_delivery_time || localTimeString;
               const forcedFailureArrivalTimestamp = retroactiveTiming?.arrival_time || forcedFailureTimestamp;
-              const shouldAutoSetArrivalTime = shouldUseRetroactiveStopTiming || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
+              const existingArrivalDate = parseLocalTimestamp(delivery.arrival_time);
+              const forcedFailureDate = parseLocalTimestamp(forcedFailureTimestamp);
+              const arrivalDiffMinutes = existingArrivalDate && forcedFailureDate ? Math.abs(forcedFailureDate.getTime() - existingArrivalDate.getTime()) / 60000 : 0;
+              const shouldAutoSetArrivalTime = shouldUseRetroactiveStopTiming && (!delivery.arrival_time || arrivalDiffMinutes > 5) || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
               const criticalUpdate = {
                 status: status,
                 delivery_notes: updatedNotes,
@@ -611,7 +614,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const forceRetroactivePickupTiming = isPickup && (isPastDeliveryDate || shouldUseRetroactiveStopTiming);console.warn('[StopCard] complete retro timing gate', { deliveryId: delivery?.id, forceRetroactivePickupTiming, shouldUseRetroactiveStopTiming, isPickup, isPastDeliveryDate, deliveryDate: delivery?.delivery_date, todayDateString: edmontonTodayStr, edmontonTime: edmontonNowParts.time });const retroactiveTiming = forceRetroactivePickupTiming || shouldUseRetroactiveStopTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: edmontonTodayStr, allowSameDay: true }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
                           const forcedCompletionTimestamp = retroactiveTiming?.actual_delivery_time || localTimeString;
                           const forcedArrivalTimestamp = retroactiveTiming?.arrival_time || forcedCompletionTimestamp;
-                          const shouldOverwriteArrivalTime = forceRetroactivePickupTiming || shouldUseRetroactiveStopTiming || delivery.delivery_date === edmontonTodayStr;
+                          const existingArrivalDate = parseLocalTimestamp(delivery.arrival_time);
+                          const forcedCompletionDate = parseLocalTimestamp(forcedCompletionTimestamp);
+                          const arrivalDiffMinutes = existingArrivalDate && forcedCompletionDate ? Math.abs(forcedCompletionDate.getTime() - existingArrivalDate.getTime()) / 60000 : 0;
+                          const shouldOverwriteArrivalTime = (forceRetroactivePickupTiming || shouldUseRetroactiveStopTiming) && (!delivery.arrival_time || arrivalDiffMinutes > 5) || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
                           const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
                           const fallbackSignatureUrl = patientSavedSignatureUrl || null;
                           const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp, ...(hasPendingPickupTransitions ? {} : { isNextDelivery: false }), finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
