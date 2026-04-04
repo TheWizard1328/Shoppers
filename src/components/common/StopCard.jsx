@@ -444,7 +444,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         const newStatus = isPickup ? 'en_route' : 'in_transit';
         const restartedRouteDeliveries = reorderActiveRouteLocally(
-          driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null } : { ...item, isNextDelivery: false }),
+          driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: '', delivery_notes: '', finished_leg_encoded_polyline: null } : { ...item, isNextDelivery: false }),
           delivery.id
         );
         await Promise.all(
