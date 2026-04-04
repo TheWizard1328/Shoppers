@@ -429,16 +429,24 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null } : { ...item, isNextDelivery: false }),
           delivery.id
         );
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        const clearedNextDeliveries = driverDeliveries.filter((item) => item?.id !== delivery.id && item?.isNextDelivery).map((item) => ({ ...item, isNextDelivery: false }));
-        await Promise.all([
-          updateDeliveryLocal(delivery.id, { status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null }, { skipSmartRefresh: true }),
-          ...clearedNextDeliveries.map((item) => Promise.all([
-            offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [item]),
-            base44.entities.Delivery.update(item.id, { isNextDelivery: false })
-          ]))
-        ]);
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, restartedRouteDeliveries.filter(Boolean));
+        await Promise.all(
+          restartedRouteDeliveries
+            .filter((item) => item && (item.id === delivery.id || item.isNextDelivery === false))
+            .map((item) => {
+              const existingRouteItem = driverDeliveries.find((routeItem) => routeItem?.id === item.id);
+              if (!existingRouteItem) return Promise.resolve(null);
+
+              const updates = {};
+              if (existingRouteItem.status !== item.status) updates.status = item.status;
+              if ((existingRouteItem.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
+              if ((existingRouteItem.actual_delivery_time || null) !== (item.actual_delivery_time || null)) updates.actual_delivery_time = item.actual_delivery_time || null;
+              if ((existingRouteItem.delivery_notes || '') !== (item.delivery_notes || '')) updates.delivery_notes = item.delivery_notes || '';
+              if ((existingRouteItem.finished_leg_encoded_polyline || null) !== (item.finished_leg_encoded_polyline || null)) updates.finished_leg_encoded_polyline = item.finished_leg_encoded_polyline || null;
+
+              if (Object.keys(updates).length === 0) return Promise.resolve(null);
+              return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true });
+            })
+        );
         if (updateDeliveriesLocally) {
           const restartedMap = new Map(restartedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
           const updatedDeliveries = allDeliveries.map((d) => {
