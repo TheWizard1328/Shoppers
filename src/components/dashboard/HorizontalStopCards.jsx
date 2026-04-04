@@ -648,7 +648,14 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               driver={driver}
               patients={patients || []}
               currentUser={currentUser}
-              onClick={() => onCardClick(card)}
+              onClick={(clickedCard) => {
+                if (!clickedCard) {
+                  if (onSelectionChange) onSelectionChange(null, false);
+                  else if (onCardClick) onCardClick(null);
+                  return;
+                }
+                onCardClick(clickedCard);
+              }}
               isSelected={isSelected}
               isProjected={isProjected}
               pendingPickups={projectedDeliveriesForCard}

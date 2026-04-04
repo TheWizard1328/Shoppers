@@ -423,7 +423,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     } finally {resetActionLocks(true);}
   };
   const restartCurrentDelivery = async (shouldOptimize = false) => {
-    onClick?.(null);
     const result = await runWithDeliveryActionLock('restart_delivery', async () => {
       fabControlEvents.deactivateFAB();setIsRestarting(true);setIsEntityUpdating(true);setIsProcessingBackground(true);
       try {
@@ -431,7 +430,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         await new Promise((resolve) => setTimeout(resolve, 100));
         const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-        onClick?.(null);
         const newStatus = isPickup ? 'en_route' : 'in_transit';
         const restartedRouteDeliveries = reorderActiveRouteLocally(
           driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null } : { ...item, isNextDelivery: false }),
