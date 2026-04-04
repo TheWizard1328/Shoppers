@@ -3,6 +3,7 @@ import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
 import { updateDeliveryLocal } from './offlineMutations';
 import { useAppData } from './AppDataContext';
 import { centerDeliveryCard } from './deliveryCardUtils';
+import { reorderActiveRouteLocally } from '../common/stopCardActionHelpers';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
@@ -89,29 +90,57 @@ export default function ImmediateNextDeliveryController() {
           isNextDelivery: true
         };
 
-        await Promise.all(
+        const locallyStartedRoute = reorderActiveRouteLocally(
           routeDeliveries.map((item) => {
-            const shouldBeNext = item.id === delivery.id;
-            const payload = shouldBeNext ? startUpdate : { isNextDelivery: false };
-            return updateDeliveryLocal(item.id, payload, { skipSmartRefresh: true });
-          })
+            if (!item) return item;
+            if (item.id === delivery.id) {
+              return { ...item, ...startUpdate };
+            }
+            return { ...item, isNextDelivery: false };
+          }),
+          delivery.id
         );
 
+        const startedRouteMap = new Map(locallyStartedRoute.filter(Boolean).map((item) => [item.id, item]));
         const optimistic = currentDeliveries.map((item) => {
           if (!item || item.driver_id !== delivery.driver_id || item.delivery_date !== delivery.delivery_date) {
             return item;
           }
-          if (item.id === delivery.id) {
-            return { ...item, ...startUpdate };
-          }
-          return { ...item, isNextDelivery: false };
+          return startedRouteMap.get(item.id) || item;
         });
 
         updateDeliveriesLocally?.(optimistic, true);
         centerDeliveryCard(delivery.id);
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { triggeredBy: 'nextDeliveryImmediate', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+          detail: {
+            triggeredBy: 'nextDeliveryImmediate',
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            preserveLocalState: true
+          }
         }));
+
+        Promise.resolve().then(async () => {
+          await Promise.all(
+            locallyStartedRoute.map((item) => {
+              const existingItem = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
+              if (!item || !existingItem) return Promise.resolve();
+
+              const updates = {};
+              if (existingItem.status !== item.status) updates.status = item.status;
+              if (existingItem.delivery_time_start !== item.delivery_time_start) updates.delivery_time_start = item.delivery_time_start;
+              if ((existingItem.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
+              if ((existingItem.stop_order || 0) !== (item.stop_order || 0)) updates.stop_order = item.stop_order;
+
+              if (Object.keys(updates).length === 0) return Promise.resolve();
+              return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true });
+            })
+          );
+
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { triggeredBy: 'nextDeliveryImmediate', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+          }));
+        });
         return;
       }
 
