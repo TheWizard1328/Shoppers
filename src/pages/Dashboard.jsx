@@ -2894,8 +2894,8 @@ function Dashboard() {
       // CRITICAL: Force stats refresh immediately after date change
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-      // STEP 6: Wait for priority load + UI render BEFORE triggering FAB/map
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      // STEP 6: Wait a bit longer so markers are actually rendered before FAB/map trigger
+      await new Promise((resolve) => setTimeout(resolve, 650));
 
       setIsMapViewLocked(mapViewPhase !== 1);
       lastProgrammaticMapMoveRef.current = Date.now();
@@ -2908,7 +2908,7 @@ function Dashboard() {
       }
       mapLockExpiresAtRef.current = null;
 
-      // CRITICAL: Notify that date change data is ready only after priority load/render is complete
+      // CRITICAL: Notify that date change data is ready only after markers had time to render
       fabControlEvents.notifyDataReady();
 
       // STEP 7: Resume UI after FAB/map trigger is scheduled from fresh data
@@ -2962,8 +2962,8 @@ function Dashboard() {
 
       if (updateDeliveriesLocally) {updateDeliveriesLocally(freshDeliveries, false);}
 
-      // CRITICAL: Wait for React to finish rendering BEFORE dispatching event or triggering map
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      // CRITICAL: Wait for markers to render BEFORE dispatching event or triggering map
+      await new Promise((resolve) => setTimeout(resolve, 650));
       if (driverChangeRequestIdRef.current !== reqId) return;
 
       // CRITICAL: NO route optimization on driver change - preserve imported stop order
