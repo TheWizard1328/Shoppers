@@ -543,14 +543,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 allowSameDay: true
               }) : null;
               const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
+              const forcedFailureTimestamp = retroactiveTiming?.actual_delivery_time || localTimeString;
+              const forcedFailureArrivalTimestamp = retroactiveTiming?.arrival_time || forcedFailureTimestamp;
               const shouldAutoSetArrivalTime = shouldUseRetroactiveStopTiming || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
               const criticalUpdate = {
                 status: status,
                 delivery_notes: updatedNotes,
-                actual_delivery_time: retroactiveTiming?.actual_delivery_time || localTimeString,
+                actual_delivery_time: forcedFailureTimestamp,
                 isNextDelivery: false,
                 ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
-                ...(shouldAutoSetArrivalTime ? { arrival_time: retroactiveTiming?.arrival_time || localTimeString } : {}),
+                ...(shouldAutoSetArrivalTime ? { arrival_time: forcedFailureArrivalTimestamp } : {}),
                 ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {})
               };
               // CRITICAL: Also clear isNextDelivery on all other route deliveries immediately in offline DB
@@ -603,11 +605,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
                           const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const forceRetroactivePickupTiming = isPickup && (isPastDeliveryDate || shouldUseRetroactiveStopTiming);console.warn('[StopCard] complete retro timing gate', { deliveryId: delivery?.id, forceRetroactivePickupTiming, shouldUseRetroactiveStopTiming, isPickup, isPastDeliveryDate, deliveryDate: delivery?.delivery_date, todayDateString: edmontonTodayStr, edmontonTime: edmontonNowParts.time });const retroactiveTiming = forceRetroactivePickupTiming || shouldUseRetroactiveStopTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: edmontonTodayStr, allowSameDay: true }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-                          const resolvedActualDeliveryTime = retroactiveTiming?.actual_delivery_time || localTimeString;
+                          const forcedCompletionTimestamp = retroactiveTiming?.actual_delivery_time || localTimeString;
+                          const forcedArrivalTimestamp = retroactiveTiming?.arrival_time || forcedCompletionTimestamp;
                           const shouldOverwriteArrivalTime = forceRetroactivePickupTiming || shouldUseRetroactiveStopTiming || delivery.delivery_date === edmontonTodayStr;
                           const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
                           const fallbackSignatureUrl = patientSavedSignatureUrl || null;
-                          const completionUpdate = { status: 'completed', actual_delivery_time: resolvedActualDeliveryTime, ...(hasPendingPickupTransitions ? {} : { isNextDelivery: false }), finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime ? { arrival_time: retroactiveTiming?.arrival_time || localTimeString } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
+                          const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp, ...(hasPendingPickupTransitions ? {} : { isNextDelivery: false }), finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
                           const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
                           const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
                           const saveResults = await Promise.all([
