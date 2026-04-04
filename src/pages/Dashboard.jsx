@@ -1990,7 +1990,7 @@ function Dashboard() {
           }
         } else {
           // Single driver mode - fallback to full deliveries if filtered view is temporarily empty (race condition)
-          deliveriesToMap = deliveriesWithStopOrder.length > 0 ? deliveriesWithStopOrder : deliveries.filter((d) => d && d.delivery_date === selectedDateStr && d.driver_id === selectedDriverId);
+          deliveriesToMap = deliveriesWithStopOrder.length > 0 ? deliveriesWithStopOrder : deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
         }
         let coordsAdded = 0;
 
@@ -2307,8 +2307,6 @@ function Dashboard() {
             if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
             if (finishedStatuses.includes(d.status)) return false;
             // INCLUDE pending deliveries
-            if (d.driver_id !== targetDriverId) return false;
-
             return true;
           });
 
@@ -2680,8 +2678,6 @@ function Dashboard() {
       const { updates, preserveLocalState } = event.detail || {};
       if (preserveLocalState || !updates || !updates.deliveries && !updates.appUsers) return;
 
-      const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;if (targetDriverId && updates?.deliveries && !updates.deliveries.some((d) => d?.driver_id === targetDriverId)) return;
-
       handleMapViewCycle(true);
     };
 
@@ -2832,9 +2828,8 @@ function Dashboard() {
       // STEP 1: Clear pending updates for clean slate
       smartRefreshManager.clearPendingUpdates();
 
-      // STEP 2: Single priority API fetch for selected driver + date, then sync offline DB
-      const effectiveDriverId = selectedDriverId || 'all';
-      const priorityDeliveries = await loadPriorityDeliveriesForSelection(dateStr, effectiveDriverId, true);
+      // STEP 2: Load ALL drivers for the selected date so dashboard state stays complete
+      const priorityDeliveries = await loadPriorityDeliveriesForSelection(dateStr, 'all', true);
 
       // STEP 3: Update UI immediately with merge-safe date data
       if (updateDeliveriesLocally) {
@@ -2950,8 +2945,8 @@ function Dashboard() {
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Single priority API fetch for selected driver + date, then sync offline DB
-      const freshDeliveries = await loadPriorityDeliveriesForSelection(dateStr, driverId, true);
+      // Load ALL drivers for the selected date so dashboard state stays complete
+      const freshDeliveries = await loadPriorityDeliveriesForSelection(dateStr, 'all', true);
 
       if (driverChangeRequestIdRef.current !== reqId) return;
       if (driverId && driverId !== 'all') {
