@@ -482,13 +482,19 @@ Deno.serve(async (req) => {
         display_stop_order: stopOrder,
         delivery_time_eta: eta
       };
+      const currentStopOrder = Number(stop.delivery.stop_order || 0);
+      const currentDisplayStopOrder = Number(stop.delivery.display_stop_order || 0);
+      const currentEta = String(stop.delivery.delivery_time_eta || '');
+      const stopNeedsUpdate = currentStopOrder !== stopOrder || currentDisplayStopOrder !== stopOrder || currentEta !== eta;
 
-      await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData).catch((error) => {
-        if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
-          return null;
-        }
-        throw error;
-      });
+      if (stopNeedsUpdate) {
+        await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData).catch((error) => {
+          if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+            return null;
+          }
+          throw error;
+        });
+      }
 
       deliveryUpdates.push({
         stop,
