@@ -4,6 +4,7 @@ import { updateDeliveryLocal } from './offlineMutations';
 import { useAppData } from './AppDataContext';
 import { centerDeliveryCard } from './deliveryCardUtils';
 import { reorderActiveRouteLocally } from '../common/stopCardActionHelpers';
+import { base44 } from '@/api/base44Client';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
@@ -55,6 +56,59 @@ const getActionFromTarget = (target) => {
   return null;
 };
 
+const parseTimestampToDate = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatEtaTime = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+};
+
+const getStopCoordsFromDeliveries = (stop, allStops) => {
+  if (!stop) return null;
+  const sourceLat = stop.patient_id ? stop.patient_latitude : stop.store_latitude;
+  const sourceLng = stop.patient_id ? stop.patient_longitude : stop.store_longitude;
+  if (Number.isFinite(Number(sourceLat)) && Number.isFinite(Number(sourceLng))) {
+    return { lat: Number(sourceLat), lng: Number(sourceLng) };
+  }
+
+  const matched = (allStops || []).find((item) => item?.id === stop.id);
+  const lat = matched?.patient_id ? matched?.patient_latitude : matched?.store_latitude;
+  const lng = matched?.patient_id ? matched?.patient_longitude : matched?.store_longitude;
+  if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+    return { lat: Number(lat), lng: Number(lng) };
+  }
+  return null;
+};
+
+const getLatestFinishedStop = (routeDeliveries, currentDeliveryId) =>
+  (routeDeliveries || [])
+    .filter((item) => item && item.id !== currentDeliveryId && FINISHED_STATUSES.includes(item.status) && item.actual_delivery_time)
+    .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime())[0] || null;
+
+const getStartedStopImmediateEta = async ({ routeDeliveries, startedDelivery }) => {
+  const previousFinishedStop = getLatestFinishedStop(routeDeliveries, startedDelivery?.id);
+  if (!previousFinishedStop?.actual_delivery_time) return '';
+
+  const origin = getStopCoordsFromDeliveries(previousFinishedStop, routeDeliveries);
+  const destination = getStopCoordsFromDeliveries(startedDelivery, routeDeliveries);
+  if (!origin || !destination) return '';
+
+  const previousFinishedTime = parseTimestampToDate(previousFinishedStop.actual_delivery_time);
+  if (!previousFinishedTime) return '';
+
+  const res = await base44.functions.invoke('getHereDirections', { origin, destination });
+  const data = res?.data || res || {};
+  const durationMinutes = Number(data.estimated_duration_minutes);
+  if (!Number.isFinite(durationMinutes)) return '';
+
+  const etaDate = new Date(previousFinishedTime.getTime() + durationMinutes * 60000);
+  return formatEtaTime(etaDate);
+};
+
 export default function ImmediateNextDeliveryController() {
   const { deliveries, updateDeliveriesLocally } = useAppData();
   const deliveriesRef = useRef(deliveries || []);
@@ -90,11 +144,20 @@ export default function ImmediateNextDeliveryController() {
           isNextDelivery: true
         };
 
+        const immediateStartedEta = await getStartedStopImmediateEta({
+          routeDeliveries,
+          startedDelivery: delivery
+        });
+
+        const startedUpdate = immediateStartedEta
+          ? { ...startUpdate, delivery_time_eta: immediateStartedEta }
+          : startUpdate;
+
         const locallyStartedRoute = reorderActiveRouteLocally(
           routeDeliveries.map((item) => {
             if (!item) return item;
             if (item.id === delivery.id) {
-              return { ...item, ...startUpdate };
+              return { ...item, ...startedUpdate };
             }
             return { ...item, isNextDelivery: false };
           }),
@@ -129,6 +192,7 @@ export default function ImmediateNextDeliveryController() {
               const updates = {};
               if (existingItem.status !== item.status) updates.status = item.status;
               if (existingItem.delivery_time_start !== item.delivery_time_start) updates.delivery_time_start = item.delivery_time_start;
+              if ((existingItem.delivery_time_eta || '') !== (item.delivery_time_eta || '')) updates.delivery_time_eta = item.delivery_time_eta || '';
               if ((existingItem.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
               if ((existingItem.stop_order || 0) !== (item.stop_order || 0)) updates.stop_order = item.stop_order;
 
