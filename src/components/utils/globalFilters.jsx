@@ -11,7 +11,8 @@ const STORAGE_KEYS = {
   selectedCityId: 'app_selectedCityId',
   selectedStoreId: 'app_selectedStoreId',
   lastAutoSetDate: 'app_lastAutoSetDate',
-  dashboardSessionInitializedAt: 'app_dashboardSessionInitializedAt'
+  dashboardSessionInitializedAt: 'app_dashboardSessionInitializedAt',
+  lastSeenAt: 'app_lastSeenAt'
 };
 
 // Global state object
@@ -29,20 +30,17 @@ const initializeGlobalFilters = () => {
   try {
     const today = format(new Date(), 'yyyy-MM-dd');
     const savedDate = localStorage.getItem(STORAGE_KEYS.selectedDate);
+    const lastSeenAt = Number(localStorage.getItem(STORAGE_KEYS.lastSeenAt) || 0);
+    const hasSessionStarted = sessionStorage.getItem(STORAGE_KEYS.dashboardSessionInitializedAt) === 'true';
+    const INACTIVITY_WINDOW_MS = 15 * 60 * 1000;
+    const shouldTreatAsFreshSession = !hasSessionStarted || !lastSeenAt || Date.now() - lastSeenAt > INACTIVITY_WINDOW_MS;
 
-    if (savedDate) {
-      const savedDateObj = new Date(savedDate + 'T00:00:00');
-      const todayObj = new Date(today + 'T00:00:00');
-      const daysDiff = Math.floor((todayObj - savedDateObj) / (1000 * 60 * 60 * 24));
-
-      if (daysDiff >= 0 && daysDiff <= 30) {
-        globalState.selectedDate = savedDate;
-        console.log(`📅 [GlobalFilters] Using saved date: ${savedDate}`);
-      } else {
-        globalState.selectedDate = today;
-        localStorage.setItem(STORAGE_KEYS.selectedDate, today);
-        console.log(`📅 [GlobalFilters] Saved date too old, using today: ${today}`);
-      }
+    if (savedDate && !shouldTreatAsFreshSession) {
+      globalState.selectedDate = savedDate;
+      console.log(`📅 [GlobalFilters] Using saved date from active session: ${savedDate}`);
+    } else if (savedDate) {
+      globalState.selectedDate = savedDate;
+      console.log(`📅 [GlobalFilters] Preserving saved date on init until dashboard decides otherwise: ${savedDate}`);
     } else {
       globalState.selectedDate = today;
       localStorage.setItem(STORAGE_KEYS.selectedDate, today);
@@ -95,12 +93,18 @@ const updateAndSave = (key, value) => {
   
   // GUARD: Don't update if value is the same
   if (currentValue === value) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.lastSeenAt, Date.now().toString());
+    } catch (error) {
+      console.warn('Failed to save last seen timestamp:', error);
+    }
     return false; // Indicate no change
   }
   
   globalState[key] = value;
   try {
     localStorage.setItem(STORAGE_KEYS[key], value);
+    localStorage.setItem(STORAGE_KEYS.lastSeenAt, Date.now().toString());
   } catch (error) {
     console.warn('Failed to save to localStorage:', error);
   }
