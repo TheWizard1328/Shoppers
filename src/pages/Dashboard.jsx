@@ -2891,50 +2891,34 @@ function Dashboard() {
         detail: { deliveryDate: dateStr, triggeredBy: 'dateChange' }
       }));
 
-      // STEP 6: Resume UI immediately (don't wait for background loads)
-      setIsEntityUpdating(false);
-
       // CRITICAL: Force stats refresh immediately after date change
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-      // STEP 5.5: Wait for UI to fully render before triggering map
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // STEP 6: Wait for priority load + UI render BEFORE triggering FAB/map
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-      // STEP 6: REMOVED - Keep selected driver when changing dates
-      // Users manually select their preferred driver view, don't auto-change it
+      setIsMapViewLocked(mapViewPhase !== 1);
+      lastProgrammaticMapMoveRef.current = Date.now();
+      window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger((prev) => prev + 1);
 
-      // STEP 7: Trigger map view (non-blocking, delayed for rendering)
-      setTimeout(() => {
-        setIsMapViewLocked(mapViewPhase !== 1);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
 
-        // CRITICAL: Auto-center to next delivery card after map triggers
-        setTimeout(() => {
-          const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-          if (nextCard) {
-            const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-            if (cardElement) {
-              cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            }
-          }
-        }, 300);
+      // CRITICAL: Notify that date change data is ready only after priority load/render is complete
+      fabControlEvents.notifyDataReady();
 
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-
-        // CRITICAL: Notify that date change data is ready
-        fabControlEvents.notifyDataReady();
-      }, 500); // Increased delay to ensure rendering is complete
+      // STEP 7: Resume UI after FAB/map trigger is scheduled from fresh data
+      setIsEntityUpdating(false);
 
       // STEP 8: No background loads needed - we already loaded all drivers' deliveries
 
     } catch (error) {
       console.error('❌ [Dashboard] Date change failed:', error);
+      setIsEntityUpdating(false);
     }
   };
 
@@ -2990,7 +2974,7 @@ function Dashboard() {
       // CRITICAL: Force stats refresh immediately after driver change
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-      // CRITICAL: Only trigger map ONCE after all state is updated
+      // CRITICAL: Trigger FAB/map only after priority load + render is complete
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
         mapLockTimeoutRef.current = null;
@@ -3001,11 +2985,7 @@ function Dashboard() {
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger(nextTrigger);
-
-      // CRITICAL: Auto-center to next delivery card after map triggers
-      setTimeout(() => {
-        centerNextDeliveryCard(deliveriesWithStopOrder);
-      }, 300);
+      fabControlEvents.notifyDataReady();
 
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
