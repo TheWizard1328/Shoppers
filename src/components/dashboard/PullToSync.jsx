@@ -96,6 +96,10 @@ export default function PullToSync({
     try {
       const selectedDateStr = globalFilters.getSelectedDate() || format(selectedDate, 'yyyy-MM-dd');
       const currentDriverId = globalFilters.getSelectedDriverId() || selectedDriverId;
+      try {
+        window.__selectedDashboardDate = selectedDateStr;
+        window.__selectedDashboardDriverId = currentDriverId;
+      } catch (e) {}
 
       await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
       const driverFilter = currentDriverId && currentDriverId !== 'all' 
