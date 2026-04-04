@@ -1314,17 +1314,12 @@ function Dashboard() {
     };
 
     const measureStatsCard = () => {
-      if (statsCardRef.current) {
-        const width = statsCardRef.current.offsetWidth;
-        const height = statsCardRef.current.offsetHeight;
-
-        if (width > 0 && width !== cardWidth) {
-          setCardWidth(width);
-        }
-        if (height > 0 && height !== statsCardBaseHeight) {
-          setstatsCardBaseHeight(height);
-        }
-      }
+      const el = statsCardRef.current?.parentElement || statsCardRef.current;
+      if (!el) return;
+      const width = el.offsetWidth;
+      const height = el.offsetHeight;
+      if (width > 0 && width !== cardWidth) setCardWidth(width);
+      if (height > 0 && height !== statsCardBaseHeight) setstatsCardBaseHeight(height);
     };
 
     const measureStopCards = () => {
