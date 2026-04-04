@@ -48,11 +48,6 @@ const getActionFromTarget = (target) => {
     return { type: 'start', deliveryId };
   }
 
-  const buttonText = button.textContent?.trim?.().toLowerCase?.() || '';
-  if (buttonText === 'complete') {
-    return { type: 'complete', deliveryId };
-  }
-
   return null;
 };
 
