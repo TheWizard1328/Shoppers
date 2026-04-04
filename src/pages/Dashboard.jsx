@@ -470,7 +470,7 @@ function Dashboard() {
   const getMapPadding = useCallback(() => {
     const paddingBuffer = 30;
     const statsCardCurrHeight = statsCardRef.current?.offsetHeight || statsCardBaseHeight || 75;
-    const baseHeight = stopCardsBaseHeight + paddingBuffer || 0;
+    const baseHeight = stopCardsBaseHeight || 0;
 
     const topPadding = isMobile ?
     statsCardCurrHeight + paddingBuffer :
