@@ -1292,7 +1292,7 @@ function Dashboard() {
     };
 
     const measureStatsCard = () => {
-      const el = statsCardRef.current;
+      const el = statsCardRef.current?.parentElement || statsCardRef.current;
       if (!el) return;
       const width = el.offsetWidth;
       const height = el.offsetHeight;
