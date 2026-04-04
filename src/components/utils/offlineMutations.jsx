@@ -19,13 +19,15 @@ const normalizeComparableValue = (value) => {
   return value;
 };
 
+const FORCE_DELIVERY_UPDATE_FIELDS = new Set(['arrival_time', 'actual_delivery_time']);
+
 const getMeaningfulDeliveryUpdates = async (existingDelivery, updates = {}) => {
   const sanitizedUpdates = await sanitizeDeliveryPayload(updates);
   return Object.entries(sanitizedUpdates).reduce((acc, [key, value]) => {
     const currentValue = existingDelivery?.[key];
     const isBlankString = typeof value === 'string' && value.trim() === '' && (currentValue === undefined || currentValue === null || currentValue === '');
     if (isBlankString) return acc;
-    if (normalizeComparableValue(currentValue) === normalizeComparableValue(value)) return acc;
+    if (!FORCE_DELIVERY_UPDATE_FIELDS.has(key) && normalizeComparableValue(currentValue) === normalizeComparableValue(value)) return acc;
     acc[key] = value;
     return acc;
   }, {});
