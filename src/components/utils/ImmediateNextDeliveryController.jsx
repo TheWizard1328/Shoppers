@@ -111,8 +111,11 @@ export default function ImmediateNextDeliveryController() {
       }
 
       if (action.type === 'complete') {
+        const completionTimestamp = new Date().toISOString().slice(0, 19);
         const completionUpdate = {
           status: 'completed',
+          actual_delivery_time: completionTimestamp,
+          arrival_time: delivery.arrival_time || completionTimestamp,
           isNextDelivery: false
         };
 
