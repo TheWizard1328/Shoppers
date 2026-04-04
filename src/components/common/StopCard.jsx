@@ -642,13 +642,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));const nextStop = incompleteDeliveries[0] || null;
                           await collapseAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
                           onClick?.(null);
+                          setIsCompleting(false);setIsProcessingBackground(false);
                           if (!nextStop) {fabControlEvents.notifyDoneButtonClicked();window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));try {locationTracker.stopTracking();} catch (trackingError) {console.warn('Could not stop location tracking:', trackingError.message);}if (onDriverStatusChange) onDriverStatusChange('off_duty');}
                           fabControlEvents.notifyPhaseTwoCompleteRecenter();fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
                           const backgroundTasks = [];
                           if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
                           backgroundTasks.push(scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentUser?.appUserId || currentUser?.id }));
                           backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve());
-                          await Promise.allSettled(backgroundTasks);
+                          Promise.allSettled(backgroundTasks);
                         } catch (error) {console.error('❌ [COMPLETE] Error:', error);toast.error(`Failed to complete: ${error.message}`);throw error;} finally {
                           driverLocationPoller?.resume?.();
                           smartRefreshManager.resume();
