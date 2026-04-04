@@ -93,28 +93,11 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     });
   }, []);
 
-  // CRITICAL: Listen for collapseAllStopCards event
+  // CRITICAL: Listen for collapse events without toggling collapsed cards open
   React.useEffect(() => {
     const handleCollapseAll = () => {
-      console.log('🗜️ [HorizontalStopCards] Collapsing all cards');
-      if (onSelectionChange) {
-        onSelectionChange(null, false);
-      } else if (onCardClick) {
-        onCardClick(null);
-      }
-    };
-
-    window.addEventListener('collapseAllStopCards', handleCollapseAll);
-
-    return () => {
-      window.removeEventListener('collapseAllStopCards', handleCollapseAll);
-    };
-  }, [onSelectionChange, onCardClick]);
-
-  // CRITICAL: Listen for collapseAllStopCards event and collapse all cards
-  React.useEffect(() => {
-    const handleCollapseAll = () => {
-      console.log('🗜️ [HorizontalStopCards] Collapsing all cards');
+      if (!selectedCardId) return;
+      console.log('🗜️ [HorizontalStopCards] Collapsing selected card');
       if (onSelectionChange) {
         onSelectionChange(null, false);
       } else if (onCardClick) {
@@ -123,6 +106,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
 
     const handleCollapseSelected = () => {
+      if (!selectedCardId) return;
       if (onSelectionChange) {
         onSelectionChange(null, false);
       } else if (onCardClick) {
@@ -168,7 +152,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       window.removeEventListener('centerStopCard', handleCenterStopCard);
       window.removeEventListener('centerNextDeliveryCard', handleCenterNextDeliveryCard);
     };
-  }, [onSelectionChange, onCardClick, validCards, isDesktopFanLayout, scrollToCenterCard]);
+  }, [onSelectionChange, onCardClick, selectedCardId, validCards, isDesktopFanLayout, scrollToCenterCard]);
 
   // CRITICAL: Check if next delivery card is already centered
   const isNextDeliveryCardCentered = React.useCallback(() => {
