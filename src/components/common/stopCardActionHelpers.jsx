@@ -245,9 +245,9 @@ export function reorderActiveRouteLocally(driverDeliveries = [], nextDeliveryId 
   }));
 }
 
-export function collapseAllStopCards() {
+export function collapseAllStopCards(detail = {}) {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
+  window.dispatchEvent(new CustomEvent('collapseAllStopCards', { detail }));
 }
 
 export function centerDeliveryCard(deliveryId) {
@@ -277,7 +277,7 @@ export async function setAndCenterNextDelivery({
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
 
   if (collapseCards) {
-    collapseAllStopCards();
+    collapseAllStopCards({ driverId });
   }
 
   await syncNextDeliveryFlagsLocally({

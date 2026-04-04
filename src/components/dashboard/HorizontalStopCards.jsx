@@ -95,7 +95,12 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   // CRITICAL: Listen for collapse events without toggling collapsed cards open
   React.useEffect(() => {
-    const handleCollapseAll = () => {
+    const handleCollapseAll = (event) => {
+      const targetDriverId = event?.detail?.driverId;
+      if (targetDriverId && selectedCardId) {
+        const selectedCard = validCards.find((card) => card?.id === selectedCardId);
+        if (selectedCard?.driver_id && selectedCard.driver_id !== targetDriverId) return;
+      }
       if (!selectedCardId) return;
       console.log('🗜️ [HorizontalStopCards] Collapsing selected card');
       if (onSelectionChange) {
