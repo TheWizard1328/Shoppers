@@ -236,11 +236,21 @@ const triggerCenterNextDeliveryCard = (payload) => {
 /**
  * Helper to detect changed fields between old and new data
  */
+const normalizeComparableValue = (value) => {
+  if (Array.isArray(value)) {
+    return JSON.stringify(value);
+  }
+  if (value && typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+  return value;
+};
+
 const getChangedFields = (oldData, newData) => {
   if (!oldData || !newData) return [];
   const changed = [];
   for (const key in newData) {
-    if (oldData[key] !== newData[key]) {
+    if (normalizeComparableValue(oldData[key]) !== normalizeComparableValue(newData[key])) {
       changed.push(key);
     }
   }
