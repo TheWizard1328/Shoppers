@@ -424,8 +424,8 @@ export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false
  * @param {function} onInitialLoadComplete - Callback for instant UI (selected date)
  * @param {function} onFullMonthLoadComplete - Callback for background data
  */
-export const loadPriorityDeliveriesForSelection = async (dateStr, selectedDriverId = 'all', forceRefresh = true) => {
-  const apiFilters = { delivery_date: dateStr };
+export const loadPriorityDeliveriesForSelection = async (dateStr, selectedDriverId = 'all', forceRefresh = true, extraFilters = {}) => {
+  const apiFilters = { delivery_date: dateStr, ...extraFilters };
   if (selectedDriverId && selectedDriverId !== 'all') {
     apiFilters.driver_id = selectedDriverId;
   }
