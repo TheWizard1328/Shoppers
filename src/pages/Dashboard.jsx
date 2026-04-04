@@ -97,7 +97,7 @@ import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerform
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";import { shouldRefreshUserFromAppUser } from "@/components/utils/appUserRefreshUtils";
 import { saveDriverChangedDelivery } from "@/components/utils/saveDriverChangedDelivery";
 import { getFabTargetDriverMapLocation, isDriverOffDuty, getSelfDriverLocationForBounds } from "@/components/dashboard/mapViewPhaseHelpers";
-import { centerDeliveryCard } from '@/components/utils/deliveryCardUtils';
+import { centerDeliveryCard, centerNextDeliveryCard, getNextDeliveryCard } from '@/components/utils/deliveryCardUtils';
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
@@ -325,10 +325,7 @@ function Dashboard() {
     };
 
     const handleCenterNextDeliveryCard = () => {
-      const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-      if (nextCard) {
-        centerDeliveryCard(nextCard.id);
-      }
+      centerNextDeliveryCard(deliveriesWithStopOrder);
     };
 
     window.addEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
@@ -1778,9 +1775,7 @@ function Dashboard() {
       setMapViewTrigger((prev) => prev + 1);
       if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', phase);
       setTimeout(() => {
-        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true) || deliveriesWithStopOrder.find((d) => d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status));
-        const cardElement = nextCard?.id ? document.getElementById(`stop-card-${nextCard.id}`) : null;
-        if (cardElement) cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        centerNextDeliveryCard(deliveriesWithStopOrder);
       }, 300);
       if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
       mapLockExpiresAtRef.current = null;
@@ -2626,14 +2621,7 @@ function Dashboard() {
 
           // Scroll to card with isNextDelivery=true for all phases (helps user orient)
           setTimeout(() => {
-            const nextDelivery = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-
-            if (nextDelivery) {
-              const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-              if (cardElement) {
-                cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              }
-            }
+            centerNextDeliveryCard(deliveriesWithStopOrder);
           }, 500);
         }, 500);});});
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers, cardsReadyForFAB]);
@@ -2647,17 +2635,12 @@ function Dashboard() {
       return;
     }
 
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const incompleteDeliveries = deliveriesWithStopOrder.
-    filter((d) => d && !finishedStatuses.includes(d.status)).
-    sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+    const nextDelivery = getNextDeliveryCard(deliveriesWithStopOrder);
 
-    if (incompleteDeliveries.length === 0) {
+    if (!nextDelivery) {
       hasScrolledToNextCardRef.current = true;
       return;
     }
-
-    const nextDelivery = incompleteDeliveries[0];
 
     // Wait for cards to render, then scroll
     const scrollTimer = setTimeout(() => {
@@ -2716,10 +2699,7 @@ function Dashboard() {
       // CRITICAL: For dispatchers, auto-center to next delivery card after smart refresh
       if (isDispatcher && !selectedCardId) {
         setTimeout(() => {
-          const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-          if (nextCard) {
-            centerDeliveryCard(nextCard.id);
-          }
+          centerNextDeliveryCard(deliveriesWithStopOrder);
         }, 300);
       }
     };
@@ -2741,10 +2721,7 @@ function Dashboard() {
 
       // Auto-center to next delivery card
       setTimeout(() => {
-        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-        if (nextCard) {
-          centerDeliveryCard(nextCard.id);
-        }
+        centerNextDeliveryCard(deliveriesWithStopOrder);
       }, 300);
 
       // CRITICAL: Use unified FAB reactivation logic
@@ -3140,10 +3117,7 @@ function Dashboard() {
 
       // CRITICAL: Auto-center to next delivery card after map triggers
       setTimeout(() => {
-        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-        if (nextCard) {
-          centerDeliveryCard(nextCard.id);
-        }
+        centerNextDeliveryCard(deliveriesWithStopOrder);
       }, 300);
 
       if (mapLockTimeoutRef.current) {

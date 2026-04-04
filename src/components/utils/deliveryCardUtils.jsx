@@ -1,14 +1,36 @@
 export const centerDeliveryCard = (deliveryId) => {
-  if (!deliveryId || typeof window === 'undefined') return;
+  if (!deliveryId || typeof window === 'undefined') return false;
   const scroll = () => {
     const card = document.getElementById(`stop-card-${deliveryId}`);
     if (card) {
       card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      return true;
     }
+    return false;
   };
-  scroll();
+  const foundNow = scroll();
   requestAnimationFrame(scroll);
   setTimeout(scroll, 0);
+  return foundNow;
+};
+
+export const getNextDeliveryCard = (deliveries = []) => {
+  if (!Array.isArray(deliveries) || deliveries.length === 0) return null;
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  return (
+    deliveries.find((d) => d && d.isNextDelivery === true && !finishedStatuses.includes(d.status)) ||
+    deliveries
+      .filter((d) => d && !finishedStatuses.includes(d.status) && d.status !== 'pending')
+      .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0] ||
+    null
+  );
+};
+
+export const centerNextDeliveryCard = (deliveries = []) => {
+  const nextDelivery = getNextDeliveryCard(deliveries);
+  if (!nextDelivery?.id) return null;
+  centerDeliveryCard(nextDelivery.id);
+  return nextDelivery;
 };
 
 export const getCurrentDashboardSelection = () => {
