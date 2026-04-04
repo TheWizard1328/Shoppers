@@ -456,7 +456,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         const newStatus = isPickup ? 'en_route' : 'in_transit';
         const restartedRouteDeliveries = reorderActiveRouteLocally(
-          driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: '', delivery_notes: '', finished_leg_encoded_polyline: null } : { ...item, isNextDelivery: false }),
+          driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null } : { ...item, isNextDelivery: false }),
           delivery.id
         );
         await Promise.all(
@@ -469,7 +469,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               const updates = {};
               if (existingRouteItem.status !== item.status) updates.status = item.status;
               if ((existingRouteItem.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
-              if ((existingRouteItem.actual_delivery_time || null) !== (item.actual_delivery_time || null)) updates.actual_delivery_time = item.actual_delivery_time || null;
+              if ((existingRouteItem.actual_delivery_time || null) !== (item.actual_delivery_time || null)) updates.actual_delivery_time = item.actual_delivery_time ?? null;
               if ((existingRouteItem.delivery_notes || '') !== (item.delivery_notes || '')) updates.delivery_notes = item.delivery_notes || '';
               if ((existingRouteItem.finished_leg_encoded_polyline || null) !== (item.finished_leg_encoded_polyline || null)) updates.finished_leg_encoded_polyline = item.finished_leg_encoded_polyline || null;
 
@@ -597,7 +597,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const resolvedActualDeliveryTime = retroactiveTiming?.actual_delivery_time || localTimeString;
                           const shouldOverwriteArrivalTime = forceRetroactivePickupTiming || shouldUseRetroactiveStopTiming || delivery.delivery_date === edmontonTodayStr;
                           const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
-                          const fallbackSignatureUrl = !delivery.signature_image_url && patientSavedSignatureUrl ? patientSavedSignatureUrl : null;
+                          const fallbackSignatureUrl = patientSavedSignatureUrl || null;
                           const completionUpdate = { status: 'completed', actual_delivery_time: resolvedActualDeliveryTime, ...(hasPendingPickupTransitions ? {} : { isNextDelivery: false }), finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime ? { arrival_time: retroactiveTiming?.arrival_time || localTimeString } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
                           const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
                           const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
