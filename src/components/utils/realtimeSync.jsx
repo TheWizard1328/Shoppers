@@ -111,6 +111,17 @@ async function flushBuffered(entityName) {
           preserveLocalState: true
         }
       }));
+
+      if (Array.isArray(item.changedFields) && item.changedFields.includes('isNextDelivery') && item.data?.isNextDelivery) {
+        scheduleAfterUISettled(() => {
+          triggerCenterNextDeliveryCard({
+            source: 'realtimeSyncIsNextDelivery',
+            deliveryId: item.id,
+            driverId: item.data?.driver_id,
+            deliveryDate: item.data?.delivery_date
+          });
+        });
+      }
     });
 
     if (hasCreateOrDelete && (relevantItems.length > 0 || scopedDriverId)) {
