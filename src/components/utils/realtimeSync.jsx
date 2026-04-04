@@ -98,6 +98,21 @@ async function flushBuffered(entityName) {
       ? selectedDriverId
       : (relevantItems[0]?.data?.driver_id || null);
 
+    relevantItems.forEach((item) => {
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          deliveryId: item.id,
+          deliveryDate: item.data?.delivery_date,
+          driverId: item.data?.driver_id,
+          freshDeliveries: item.data ? [item.data] : [],
+          triggeredBy: 'realtimeBufferedFieldUpdate',
+          source: 'realtime_sync',
+          fromRealtime: true,
+          preserveLocalState: true
+        }
+      }));
+    });
+
     if (hasCreateOrDelete && (relevantItems.length > 0 || scopedDriverId)) {
       const scopedDeliveries = fullReplacementData.filter((delivery) => {
         if (!delivery) return false;
