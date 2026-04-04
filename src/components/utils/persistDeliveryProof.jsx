@@ -14,10 +14,5 @@ export async function persistDeliveryProof(deliveryId, updates) {
 
   await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [mergedDelivery]);
 
-  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-    detail: { deliveryId, triggeredBy: 'proofOfDeliverySave' }
-  }));
-  window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
   return mergedDelivery;
 }

@@ -50,9 +50,6 @@ export default function StopCardPOD({
       toast.success('Signature saved!');
       invalidate('Delivery');
       invalidate('Patient');
-      Promise.resolve(forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date)).catch((refreshError) => {
-        console.warn('⚠️ [Signature] Background refresh failed:', refreshError?.message || refreshError);
-      });
     } catch (error) {
       base44.analytics.track({
         eventName: 'proof_of_delivery_upload_error',
@@ -98,7 +95,6 @@ export default function StopCardPOD({
           failureStage = 'persist_delivery_proof';
           await persistDeliveryProof(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
           invalidate('Delivery');
-          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
           toast.success(`${photoBlobs.length} photo(s) saved!`);
         } catch (error) {
           base44.analytics.track({
@@ -200,7 +196,6 @@ export default function StopCardPOD({
                     e.stopPropagation();
                     await persistDeliveryProof(delivery.id, { signature_image_url: null });
                     invalidate('Delivery');
-                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   }}
                   size="sm"
                   variant="outline"
@@ -240,7 +235,6 @@ export default function StopCardPOD({
                     e.stopPropagation();
                     await persistDeliveryProof(delivery.id, { proof_photo_urls: [] });
                     invalidate('Delivery');
-                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   }}
                   size="sm"
                   variant="outline"
