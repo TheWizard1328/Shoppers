@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar as CalendarIcon, Clock, Truck, CheckCircle, XCircle, Package, Plus, ChevronUp, ChevronDown, RotateCcw as RefreshIcon, Phone, MapPin, X, Settings, Bot, Sparkles, Navigation, Bell, BellOff, Mailbox, ArrowUp, ArrowDown, Binoculars, LocateFixed } from "lucide-react";
 import { format, startOfDay } from 'date-fns';
-import { getData, invalidate } from "@/components/utils/dataManager";
+import { getData, invalidate, loadPriorityDeliveriesForSelection } from "@/components/utils/dataManager";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { offlineFirstManager } from "@/components/utils/offlineFirstManager";
 import DeliveryMap from "@/components/dashboard/DeliveryMap";
@@ -2832,24 +2832,9 @@ function Dashboard() {
       // STEP 1: Clear pending updates for clean slate
       smartRefreshManager.clearPendingUpdates();
 
-      // STEP 2: Load based on data source preference
-      const shouldLoadAllDeliveries = showAllDriverMarkers || selectedDriverId === 'all';
-      let priorityDeliveries;
-
-      if (dataSource === 'online') {
-        // ONLINE MODE: Always fetch ALL deliveries for the selected date; UI filters by driver
-        priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        // Update offline DB in background (don't wait)
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
-      } else {
-        // OFFLINE MODE: Load ALL deliveries for the date from offline DB first; fallback to API
-        priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-
-        if (!priorityDeliveries || priorityDeliveries.length === 0) {
-          priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
-        }
-      }
+      // STEP 2: Single priority API fetch for selected driver + date, then sync offline DB
+      const effectiveDriverId = selectedDriverId || 'all';
+      const priorityDeliveries = await loadPriorityDeliveriesForSelection(dateStr, effectiveDriverId, true);
 
       // STEP 3: Update UI immediately with merge-safe date data
       if (updateDeliveriesLocally) {
@@ -2981,24 +2966,8 @@ function Dashboard() {
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Load based on data source preference
-      let freshDeliveries;
-      const shouldLoadAllDeliveries = showAllDriverMarkers || driverId === 'all';
-
-      if (dataSource === 'online') {
-        // ONLINE MODE: Always fetch ALL deliveries for the date; UI filters by driver
-        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        // Update offline DB in background
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
-      } else {
-        // OFFLINE MODE: Try offline DB first for ALL deliveries on date
-        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-
-        if (!freshDeliveries || freshDeliveries.length === 0) {
-          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        }
-      }
+      // Single priority API fetch for selected driver + date, then sync offline DB
+      const freshDeliveries = await loadPriorityDeliveriesForSelection(dateStr, driverId, true);
 
       if (driverChangeRequestIdRef.current !== reqId) return;
       if (driverId && driverId !== 'all') {

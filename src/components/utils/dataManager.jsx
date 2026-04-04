@@ -424,6 +424,21 @@ export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false
  * @param {function} onInitialLoadComplete - Callback for instant UI (selected date)
  * @param {function} onFullMonthLoadComplete - Callback for background data
  */
+export const loadPriorityDeliveriesForSelection = async (dateStr, selectedDriverId = 'all', forceRefresh = true) => {
+  const apiFilters = { delivery_date: dateStr };
+  if (selectedDriverId && selectedDriverId !== 'all') {
+    apiFilters.driver_id = selectedDriverId;
+  }
+
+  const deliveries = await loadDeliveriesForDate(dateStr, apiFilters, forceRefresh);
+  await offlineDB.updateCacheSnapshot('Delivery', deliveries || [], {
+    scopeKey: `selection:${dateStr}:${selectedDriverId || 'all'}`,
+    syncType: 'selection_priority'
+  });
+
+  return deliveries || [];
+};
+
 export const loadDeliveries = async (
   selectedDateStr,
   priorityFilters = {},
