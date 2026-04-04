@@ -149,21 +149,6 @@ export const AppDataProvider = ({ children, value }) => {
         const selectedDateDeliveries = realtimeDate
           ? nextDeliveries.filter((item) => item?.delivery_date === realtimeDate)
           : nextDeliveries;
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: {
-            deliveries: selectedDateDeliveries,
-            freshDeliveries: selectedDateDeliveries,
-            immediate: true,
-            deliveryDate: realtimeDate,
-            deletedIds: deliveryDeletes,
-            deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
-            triggeredBy: 'realtimeWebSocket',
-            source: 'realtime_sync',
-            fromRealtime: true,
-            fullReplacement: false,
-            preserveLocalState: true
-          }
-        }));
 
         window.dispatchEvent(new CustomEvent('deliveryUpdated', {
           detail: {
