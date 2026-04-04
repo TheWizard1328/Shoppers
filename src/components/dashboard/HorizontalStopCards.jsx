@@ -228,7 +228,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     const handleDeliveryActionSettled = (event) => {
       const triggeredBy = event?.detail?.triggeredBy;
       const source = event?.detail?.source;
-      if (!['start', 'complete', 'startOptimized', 'acceptAll', 'acceptAllOptimized'].includes(triggeredBy) && !['start', 'accept_all'].includes(source)) return;
+      if (!['start', 'complete', 'restart', 'startOptimized', 'acceptAll', 'acceptAllOptimized'].includes(triggeredBy) && !['start', 'accept_all'].includes(source)) return;
       if (deliveryActionReleaseTimerRef.current) {
         clearTimeout(deliveryActionReleaseTimerRef.current);
         deliveryActionReleaseTimerRef.current = null;
@@ -513,6 +513,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
         if (!isStartAction && !isCompleteAction && !isRestartAction) return;
 
+        if (isRestartAction) return;
+
         if (isDeliveryActionLocked()) {
           e.preventDefault();
           e.stopPropagation();
@@ -520,7 +522,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
           return;
         }
 
-        const lock = acquireDeliveryActionLock(isStartAction ? 'start_delivery' : isRestartAction ? 'restart_delivery' : 'complete_delivery');
+        const lock = acquireDeliveryActionLock(isStartAction ? 'start_delivery' : 'complete_delivery');
         if (!lock) {
           e.preventDefault();
           e.stopPropagation();
