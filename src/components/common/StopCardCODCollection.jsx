@@ -181,7 +181,6 @@ export default function StopCardCODCollection({
                   const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                   driverLocationPoller.pause();
 
-                  await onCODUpdate(delivery.id, codPayments, true);
                   setShowCODCollection(false);
 
                   const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
@@ -211,7 +210,6 @@ export default function StopCardCODCollection({
                   if (incompleteDeliveries.length > 0) {
                     await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
                     window._suppressAutoCenterUntil = Date.now() + 1500;
-                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                     setTimeout(() => {
                       const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
                       if (nextCardElement) nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
@@ -223,12 +221,6 @@ export default function StopCardCODCollection({
                     }));
                   }
 
-                  setTimeout(() => {
-                    if ((window._suppressAutoCenterUntil || 0) > Date.now()) return;
-                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                      detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                    }));
-                  }, 300);
 
                   if (onSelectionChange) {
                     onSelectionChange(delivery.id, false);
