@@ -224,13 +224,13 @@ export default function PullToSync({
         fabControlEvents.notifyDataReady();
       }
 
-      // ─── STEP 4 (background): Polylines + ETAs for incomplete stops ────────
+      // ─── STEP 4 (background): Polylines + ETAs for active stops only ────────
       // Runs entirely in background — does NOT block UI
       const targetDriverId = currentDriverId && currentDriverId !== 'all' ? currentDriverId : null;
       if (targetDriverId) {
         Promise.resolve().then(async () => {
           const incompleteDeliveries = (offlineDeliveries || []).filter(d => 
-            d && !['completed', 'failed', 'cancelled'].includes(d.status)
+            d && ['in_transit', 'en_route'].includes(d.status)
           );
 
           if (incompleteDeliveries.length === 0) return;
@@ -238,7 +238,7 @@ export default function PullToSync({
           const now = new Date();
           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-          // Polyline repair for incomplete stops
+          // Polyline repair for active stops only
           try {
             const repairModule = await import('@/functions/repairMissingPolylines');
             if (typeof repairModule?.repairMissingPolylines === 'function') {
@@ -249,7 +249,7 @@ export default function PullToSync({
             console.warn('⚠️ [Pull to Sync] repairMissingPolylines unavailable:', e?.message);
           }
 
-          // ETA recalculation for incomplete stops
+          // ETA recalculation for active stops only
           calculateRealTimeETA({
             driverId: targetDriverId,
             deliveryDate: selectedDateStr,
