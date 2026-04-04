@@ -38,11 +38,7 @@ export async function updateCompletionPolylines({
         });
 
         if (finishedPolyline) {
-          updates.push(
-            base44.entities.Delivery.update(completedDelivery.id, {
-              finished_leg_encoded_polyline: finishedPolyline
-            })
-          );
+          // Skip direct Delivery update here to avoid duplicate realtime updates for the same completed stop.
         }
       } catch (err) {
         console.warn('⚠️ [updateCompletionPolylines] Failed to generate finished leg polyline:', err.message);
