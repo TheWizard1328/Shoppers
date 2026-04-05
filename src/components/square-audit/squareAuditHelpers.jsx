@@ -165,6 +165,54 @@ export function attachDiscrepancies(rows, comparisons) {
   });
 }
 
+function normalizeMatchString(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+export function calculateDeliveryTransactionMatch(deliveryRow, transactionRow) {
+  const deliveryName = normalizeMatchString(deliveryRow?.itemName);
+  const transactionName = normalizeMatchString(transactionRow?.itemName);
+  const nameMatch = Boolean(deliveryName && transactionName && transactionName.includes(deliveryName));
+  const dateMatch = deliveryRow?.date === transactionRow?.date;
+  const amountMatch = Number(deliveryRow?.amountCents || 0) === Number(transactionRow?.amountCents || 0);
+  const storeMatch = Boolean(
+    deliveryRow?.storeId &&
+    transactionRow?.storeId &&
+    String(deliveryRow.storeId) === String(transactionRow.storeId)
+  );
+
+  const score =
+    (nameMatch ? 25 : 0) +
+    (dateMatch ? 25 : 0) +
+    (amountMatch ? 25 : 0) +
+    (storeMatch ? 25 : 0);
+
+  return {
+    score,
+    nameMatch,
+    dateMatch,
+    amountMatch,
+    storeMatch,
+  };
+}
+
+export function findBestTransactionMatchForDelivery(deliveryRow, transactionRows) {
+  const candidates = (transactionRows || []).map((transactionRow) => ({
+    row: transactionRow,
+    ...calculateDeliveryTransactionMatch(deliveryRow, transactionRow),
+  }));
+
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const aDate = String(a.row?.date || "");
+    const bDate = String(b.row?.date || "");
+    if (aDate !== bDate) return bDate.localeCompare(aDate);
+    return String(a.row?.itemName || "").localeCompare(String(b.row?.itemName || ""));
+  });
+
+  return candidates[0] || null;
+}
+
 function escapeCsvValue(value) {
   const stringValue = String(value ?? "");
   if (/[",\n]/.test(stringValue)) {

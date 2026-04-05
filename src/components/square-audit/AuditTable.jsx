@@ -139,22 +139,29 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                       </td>
                     ))}
                     <td className="px-3 py-3 align-top min-w-[220px]">
-                      {row.issues?.length ? (
-                        <div className="flex flex-wrap gap-1">
-                          {row.issues.map((issue) => (
-                            <Badge
-                              key={issue}
-                              variant="outline"
-                              className="border-amber-300 text-amber-800"
-                              style={{ background: "var(--bg-white)" }}
-                            >
-                              {issue}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Matched</Badge>
-                      )}
+                      <div className="flex flex-col gap-2">
+                        {row.issues?.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {row.issues.map((issue) => (
+                              <Badge
+                                key={issue}
+                                variant="outline"
+                                className="border-amber-300 text-amber-800"
+                                style={{ background: "var(--bg-white)" }}
+                              >
+                                {issue}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Matched</Badge>
+                        )}
+                        {row.bestTransactionMatch && (
+                          <div className="text-xs" style={{ color: "var(--text-slate-500)" }}>
+                            Tx match: {row.bestTransactionMatch.score}%
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

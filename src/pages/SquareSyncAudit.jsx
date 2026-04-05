@@ -13,6 +13,7 @@ import {
   attachDiscrepancies,
   buildStoreMaps,
   downloadAuditCsv,
+  findBestTransactionMatchForDelivery,
   formatCurrencyFromCents,
   getAuditRange,
   normalizeDate,
@@ -165,7 +166,14 @@ export default function SquareSyncAudit() {
       const deliveryRows = attachDiscrepancies(deliveryRowsBase, [
         { label: "Transactions", rows: transactionRowsBase },
         { label: "Catalog", rows: catalogRowsBase },
-      ]);
+      ]).map((row) => {
+        const bestTransactionMatch = findBestTransactionMatchForDelivery(row, transactionRowsBase);
+        return {
+          ...row,
+          bestTransactionMatch,
+          actionMatchPercentage: bestTransactionMatch?.score || 0,
+        };
+      });
 
       setTables({
         transactions: transactionRows,
@@ -359,6 +367,17 @@ export default function SquareSyncAudit() {
             { key: "deliveryId", label: "Delivery ID", headerClassName: "whitespace-nowrap" },
             { key: "status", label: "Status", headerClassName: "whitespace-nowrap" },
             { key: "itemName", label: "Reference", headerClassName: "whitespace-nowrap min-w-[320px]", cellClassName: "whitespace-nowrap" },
+            {
+              key: "actionMatchPercentage",
+              label: "Actions",
+              headerClassName: "whitespace-nowrap min-w-[220px]",
+              sortValue: (row) => row.actionMatchPercentage || 0,
+              render: (row) => {
+                const match = row.bestTransactionMatch;
+                if (!match) return "0% match";
+                return `${match.score}% match`;
+              },
+            },
           ]}
         />
           </div>
