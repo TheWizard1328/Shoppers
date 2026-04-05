@@ -12,6 +12,11 @@ const getCurrentLocalTimeString = () => {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 };
 
+const getCurrentLocalDateString = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
 
 const getRouteDeliveries = (deliveries, delivery) =>
   (deliveries || []).filter((item) =>
@@ -112,6 +117,16 @@ export default function ImmediateNextDeliveryController() {
       }
 
       if (action.type === 'complete') {
+        const isPastRouteDate = !!delivery?.delivery_date && delivery.delivery_date < getCurrentLocalDateString();
+        if (isPastRouteDate) {
+          console.warn('[ImmediateNextDeliveryController] skipping direct complete for retro route', {
+            deliveryId: delivery.id,
+            deliveryDate: delivery.delivery_date,
+            today: getCurrentLocalDateString()
+          });
+          return;
+        }
+
         const completionTimestamp = getLocalTimestamp();
         const completionUpdate = {
           status: 'completed',
