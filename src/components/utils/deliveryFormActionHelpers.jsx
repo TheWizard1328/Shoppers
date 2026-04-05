@@ -102,13 +102,37 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
           deviceTime: currentLocalTime
         });
       } else {
-        const { calculateRealTimeETA } = await import('@/functions/calculateRealTimeETA.jsx');
-        await calculateRealTimeETA({
-          driverId,
-          deliveryDate,
-          currentLocalTime,
-          deviceTime: currentLocalTime
-        });
+        const [{ calculateRealTimeETA }, { base44 }] = await Promise.all([
+          import('@/functions/calculateRealTimeETA.jsx'),
+          import('@/api/base44Client')
+        ]);
+
+        const [driverRecords, deliveryRecords] = await Promise.all([
+          base44.entities.AppUser.filter({ user_id: driverId }),
+          base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate })
+        ]);
+
+        const driverRecord = driverRecords?.[0];
+        const etaDeliveries = (deliveryRecords || [])
+          .filter((delivery) => delivery?.status !== 'completed' && delivery?.status !== 'failed' && delivery?.status !== 'cancelled')
+          .map((delivery) => ({
+            id: delivery.id,
+            delivery_id: delivery.delivery_id,
+            latitude: delivery.latitude,
+            longitude: delivery.longitude
+          }))
+          .filter((delivery) => Number.isFinite(Number(delivery.latitude)) && Number.isFinite(Number(delivery.longitude)));
+
+        if (driverRecord && etaDeliveries.length > 0) {
+          await calculateRealTimeETA({
+            driver: driverRecord,
+            currentLocation: {
+              lat: driverRecord.current_latitude,
+              lng: driverRecord.current_longitude
+            },
+            deliveries: etaDeliveries
+          });
+        }
       }
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
