@@ -627,7 +627,15 @@ export default function DeliveryForm({
 
     setFormData(updatedFormData);
     if (!autoAddToStaged) {
-      if (shouldAutoFocusFields && updatedFormData.driver_id) setTimeout(() => codAmountInputRef.current?.focus?.());
+      if (shouldAutoFocusFields) {
+        setTimeout(() => {
+          if (updatedFormData.driver_id) {
+            codAmountInputRef.current?.focus?.();
+            return;
+          }
+          window.dispatchEvent(new CustomEvent('forceOpenDeliveryDriverSelect'));
+        }, 0);
+      }
       setPatientSearch(openMode === 'add_to_route' ? '__locked__' : '');
       setHighlightedPatientIndex(-1);
       driverLocationPoller.resume();

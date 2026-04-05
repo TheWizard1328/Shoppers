@@ -2,7 +2,7 @@
  * DeliveryFormView - The pure render/JSX layer for DeliveryForm.
  * All logic remains in DeliveryForm.jsx; this file just renders it.
  */
-import React from "react";
+import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -144,6 +144,12 @@ export default function DeliveryFormView({
   React.useEffect(() => {
     setForceOpenDriverSelect(requiresDriverSelection);
   }, [requiresDriverSelection]);
+
+  React.useEffect(() => {
+    const handleForceOpenDriverSelect = () => setForceOpenDriverSelect(true);
+    window.addEventListener('forceOpenDeliveryDriverSelect', handleForceOpenDriverSelect);
+    return () => window.removeEventListener('forceOpenDeliveryDriverSelect', handleForceOpenDriverSelect);
+  }, []);
 
   // Helper: get default driver ID for a store based on date and time slot
   const getDefaultDriverForStoreSlot = (storeId, timeSlot, deliveryDate) => {
@@ -443,7 +449,7 @@ export default function DeliveryFormView({
                       }
                       setForceOpenDriverSelect(false);
                     }} disabled={isSaving}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                      <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
                       <SelectContent className="z-[999999]">
                         {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
                         {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
