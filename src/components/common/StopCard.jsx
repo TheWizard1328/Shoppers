@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox, Locate } from "lucide-react";
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { getStoreColor, hexToRgba, getContrastColor } from "../utils/colorGenerator";
-import { format, isBefore, startOfDay, addDays } from "date-fns";
+import { format } from "date-fns";
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
@@ -143,7 +143,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const shouldShowReturnStatus = useMemo(() => isReturnDelivery, [isReturnDelivery]);
   const isFirstDelivery = useMemo(() => {if (!delivery || isPickup) return false;if (patient && !patient.last_delivery_date) return true;if (delivery.delivery_notes?.toLowerCase().includes('first delivery')) return true;if (delivery.first_delivery === true) return true;return false;}, [delivery, patient, isPickup]);
   const storeColor = useMemo(() => store ? getStoreColor(store) : "#71717A", [store]);
-  const routeCompleted = React.useMemo(() => isRouteCompleted(delivery, allDeliveries, FINISHED_STATUSES, new Date(), "America/Edmonton"), [delivery, allDeliveries]);
+  const routeCompleted = React.useMemo(() => isRouteCompleted(delivery, allDeliveries), [delivery, allDeliveries]);
   const routeCompletedForLayout = React.useMemo(() => {if (!delivery || !Array.isArray(allDeliveries)) return false;if (!FINISHED_STATUSES.includes(delivery.status)) return false;const driverDeliveriesForDate = allDeliveries.filter((d) => {if (!d) return false;return d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id;});if (driverDeliveriesForDate.length === 0) return false;return driverDeliveriesForDate.every((d) => FINISHED_STATUSES.includes(d.status));}, [delivery, allDeliveries]);
   const localNowParts = React.useMemo(() => {
     const now = new Date();
@@ -184,15 +184,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const shouldDisableRetryReturn = useMemo(() => false, []);
   const { hasFutureRetry, hasFutureReturn, hasCompletedDelivery } = useMemo(() => {
     if (delivery.status !== 'failed' || isPickup || !patient) return { hasFutureRetry: false, hasFutureReturn: false, hasCompletedDelivery: false };
-    const failedDate = startOfDay(new Date(delivery.delivery_date));
-    const toDate = addDays(failedDate, 7);
+    const failedDate = String(delivery.delivery_date || '');
+    const failedDateValue = Number(failedDate.replace(/-/g, ''));
+    const toDateValue = failedDateValue + 7;
     let futureRetryExists = false;
     let completedDeliveryExists = false;
     for (const d of allDeliveries) {
-      if (!d || d.id === delivery.id) continue;
-      let dDate;
-      try {dDate = startOfDay(new Date(d.delivery_date));} catch (e) {continue;}
-      if (dDate >= failedDate && dDate < toDate) {
+      if (!d || d.id === delivery.id || !d.delivery_date) continue;
+      const dDateValue = Number(String(d.delivery_date).replace(/-/g, ''));
+      if (dDateValue >= failedDateValue && dDateValue < toDateValue) {
         if (d.patient_id === delivery.patient_id && d.stop_id === delivery.stop_id && d.status !== 'failed') futureRetryExists = true;
         if (d.delivery_date === delivery.delivery_date && d.patient_id === delivery.patient_id && d.status === 'completed') completedDeliveryExists = true;
       }

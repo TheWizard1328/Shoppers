@@ -1,6 +1,9 @@
-import { startOfDay } from 'date-fns';
-
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+
+const getLocalDateString = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
 
 export function isRouteCompleted(delivery, allDeliveries) {
   if (!delivery || !allDeliveries || !Array.isArray(allDeliveries)) return false;
@@ -16,16 +19,11 @@ export function isRouteCompleted(delivery, allDeliveries) {
   const allFinished = driverDeliveriesForDate.every((d) => FINISHED_STATUSES.includes(d.status));
   if (!allFinished) return false;
 
-  // Route is complete if all stops are finished AND:
-  // 1. Current local time is after 20:00, OR
-  // 2. The route date is in the past
   const now = new Date();
   const currentHour = now.getHours();
-  const routeDate = startOfDay(new Date(delivery.delivery_date + 'T00:00:00'));
-  const today = startOfDay(now);
-
+  const todayDateString = getLocalDateString();
   const isAfter8PM = currentHour >= 20;
-  const isRouteDateInPast = routeDate.getTime() < today.getTime();
+  const isRouteDateInPast = String(delivery.delivery_date || '') < todayDateString;
 
   return isAfter8PM || isRouteDateInPast;
 }
