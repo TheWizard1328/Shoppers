@@ -32,8 +32,6 @@ export function isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES) {
 export const generateCompletionTimestamp = (delivery, allDeliveries, FINISHED_STATUSES) => {
   const currentTime = new Date();
   const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
-  let hours;
-  let minutes;
 
   if (shouldRound) {
     let roundedMinutes = Math.round(currentTime.getMinutes() / 5) * 5;
@@ -44,23 +42,10 @@ export const generateCompletionTimestamp = (delivery, allDeliveries, FINISHED_ST
       roundedHours += 1;
     }
 
-    if (roundedHours === 24) {
-      roundedHours = 0;
-    }
-
-    hours = String(roundedHours).padStart(2, '0');
-    minutes = String(roundedMinutes).padStart(2, '0');
-  } else {
-    hours = String(currentTime.getHours()).padStart(2, '0');
-    minutes = String(currentTime.getMinutes()).padStart(2, '0');
+    currentTime.setHours(roundedHours, roundedMinutes, 0, 0);
   }
 
-  const year = currentTime.getFullYear();
-  const month = String(currentTime.getMonth() + 1).padStart(2, '0');
-  const day = String(currentTime.getDate()).padStart(2, '0');
-  const seconds = '00';
-
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  return formatLocalTimestamp(currentTime);
 };
 
 const pad = (value) => String(value).padStart(2, '0');
