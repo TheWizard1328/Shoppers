@@ -4,9 +4,10 @@ export const shouldUseImmediateAddToRouteStage = ({ openMode, delivery, stagedDe
 
 export const buildImmediateAddToRouteStage = ({ formData, selectedPatient, stores, allDeliveries }) => {
   const store = (stores || []).find((item) => item && item.id === formData.store_id);
+  const stagedStatus = formData?.status === 'in_transit' ? 'in_transit' : 'Staged';
   return {
     ...formData,
-    status: 'Staged',
+    status: stagedStatus,
     _tempId: `temp-${Date.now()}`,
     patient_name: formData.patient_name || selectedPatient?.full_name || '',
     patient_phone: formData.patient_phone || selectedPatient?.phone || '',
