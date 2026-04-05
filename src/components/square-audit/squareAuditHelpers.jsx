@@ -180,25 +180,24 @@ export function calculateDeliveryTransactionMatch(deliveryRow, transactionRow) {
     transactionName &&
     (transactionName.includes(deliveryName) || deliveryName.includes(transactionName))
   );
-  const dateMatch = deliveryRow?.date === transactionRow?.date;
   const amountMatch = Number(deliveryRow?.amountCents || 0) === Number(transactionRow?.amountCents || 0);
+  const dateMatch = deliveryRow?.date === transactionRow?.date;
   const storeMatch = Boolean(
     deliveryRow?.storeId &&
     transactionRow?.storeId &&
     String(deliveryRow.storeId) === String(transactionRow.storeId)
   );
 
-  const score =
-    (nameMatch ? 25 : 0) +
-    (dateMatch ? 25 : 0) +
-    (amountMatch ? 25 : 0) +
-    (storeMatch ? 25 : 0);
+  const primaryMatch = nameMatch && amountMatch;
+  const secondaryScore = (dateMatch ? 15 : 0) + (storeMatch ? 10 : 0);
+  const score = (primaryMatch ? 75 : 0) + secondaryScore;
 
   return {
     score,
+    primaryMatch,
     nameMatch,
-    dateMatch,
     amountMatch,
+    dateMatch,
     storeMatch,
   };
 }
