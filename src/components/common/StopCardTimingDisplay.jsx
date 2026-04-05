@@ -3,13 +3,6 @@ import { Clock } from 'lucide-react';
 const extractStoredTime = (value) => {
   if (!value) return null;
   const raw = String(value);
-  // Legacy UTC values (with Z or timezone offset) — convert to local time
-  if (/Z$|[+-]\d{2}:?\d{2}$/.test(raw)) {
-    const parsed = new Date(raw);
-    if (!Number.isNaN(parsed.getTime())) {
-      return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
-    }
-  }
   const isoMatch = raw.match(/T(\d{2}:\d{2})/);
   if (isoMatch) return isoMatch[1];
   const timeMatch = raw.match(/^(\d{2}:\d{2})/);
