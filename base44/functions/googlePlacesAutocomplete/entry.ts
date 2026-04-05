@@ -1,5 +1,5 @@
 // Redeployed on 2026-03-28
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 Deno.serve(async (req) => {
   let base44 = null;
