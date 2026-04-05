@@ -132,6 +132,7 @@ export default function ImmediateNextDeliveryController() {
             existingArrivalTime: delivery.arrival_time || null,
             parsedActualDeliveryTime: delivery.actual_delivery_time ? parseLocalTimestamp(delivery.actual_delivery_time)?.toString?.() || null : null
           });
+          recentActionRef.current = { key: '', ts: 0 };
           return;
         }
 
