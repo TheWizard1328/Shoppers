@@ -115,7 +115,6 @@ export default function ImmediateNextDeliveryController() {
         const completionUpdate = {
           status: 'completed',
           actual_delivery_time: completionTimestamp,
-          arrival_time: delivery.arrival_time || completionTimestamp,
           isNextDelivery: false
         };
 
