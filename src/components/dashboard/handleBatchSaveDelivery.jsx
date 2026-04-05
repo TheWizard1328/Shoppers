@@ -34,6 +34,20 @@ export const handleBatchSaveDelivery = async ({
 }) => {
   const stagedDeliveries = deliveryData._stagedDeliveries;
   const ensuredPickupRecords = Array.isArray(deliveryData._ensuredPickups) ? deliveryData._ensuredPickups.filter(Boolean) : [];
+  console.log('[AddToRoute] handleBatchSaveDelivery:start', {
+    stagedCount: stagedDeliveries?.length || 0,
+    ensuredPickupCount: ensuredPickupRecords.length,
+    stagedSnapshot: (stagedDeliveries || []).map((delivery) => ({
+      id: delivery?.id || null,
+      tempId: delivery?._tempId || null,
+      patient_id: delivery?.patient_id || null,
+      store_id: delivery?.store_id || null,
+      driver_id: delivery?.driver_id || null,
+      status: delivery?.status || null,
+      puid: delivery?.puid || null,
+      tracking_number: delivery?.tracking_number || null
+    }))
+  });
   const allCreatedDeliveries = [];
   const allUpdatedDeliveries = [];
   const createdPickupRecords = [];
@@ -442,7 +456,24 @@ export const handleBatchSaveDelivery = async ({
     });
 
     const combinedCreates = [...newEnsuredPickupsToCreate, ...deliveriesToCreateFiltered];
+    console.log('[AddToRoute] handleBatchSaveDelivery:combinedCreates', combinedCreates.map((delivery) => ({
+      patient_id: delivery?.patient_id || null,
+      store_id: delivery?.store_id || null,
+      driver_id: delivery?.driver_id || null,
+      status: delivery?.status || null,
+      puid: delivery?.puid || null,
+      tracking_number: delivery?.tracking_number || null
+    })));
     const createdDeliveries = combinedCreates.length > 0 ? await batchCreateDeliveriesLocal(combinedCreates) : [];
+    console.log('[AddToRoute] handleBatchSaveDelivery:createdDeliveries', createdDeliveries.map((delivery) => ({
+      id: delivery?.id || null,
+      patient_id: delivery?.patient_id || null,
+      store_id: delivery?.store_id || null,
+      driver_id: delivery?.driver_id || null,
+      status: delivery?.status || null,
+      puid: delivery?.puid || null,
+      tracking_number: delivery?.tracking_number || null
+    })));
 
     if (driverId !== 'unassigned' && deliveryDate) {
       await base44.functions.invoke('recalculateTrackingNumbers', {
@@ -488,6 +519,15 @@ export const handleBatchSaveDelivery = async ({
   });
 
   const allProcessedDeliveries = Array.from(new Map([...allCreatedDeliveries, ...createdPickupRecords, ...resolvedEnsuredPickups, ...allUpdatedDeliveries].filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
+  console.log('[AddToRoute] handleBatchSaveDelivery:allProcessedDeliveries', allProcessedDeliveries.map((delivery) => ({
+    id: delivery?.id || null,
+    patient_id: delivery?.patient_id || null,
+    store_id: delivery?.store_id || null,
+    driver_id: delivery?.driver_id || null,
+    status: delivery?.status || null,
+    puid: delivery?.puid || null,
+    tracking_number: delivery?.tracking_number || null
+  })));
   
   if (updateDeliveriesLocally && allProcessedDeliveries.length > 0) {
     updateDeliveriesLocally(allProcessedDeliveries, false); // Merge instead of replace

@@ -59,8 +59,32 @@ export async function handleBatchSave({
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
   const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
 
+  console.log('[AddToRoute] handleBatchSave:start', {
+    openMode: formData?.openMode,
+    routeDriverId,
+    routeDeliveryDate,
+    stagedCount: stagedDeliveries.length,
+    stagedSnapshot: stagedDeliveries.map((delivery) => ({
+      id: delivery?.id || null,
+      tempId: delivery?._tempId || null,
+      patient_id: delivery?.patient_id || null,
+      store_id: delivery?.store_id || null,
+      driver_id: delivery?.driver_id || null,
+      status: delivery?.status || null,
+      puid: delivery?.puid || null
+    }))
+  });
+
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
   const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
+
+  console.log('[AddToRoute] handleBatchSave:split', {
+    newCount: newDeliveries.length,
+    existingCount: existingDeliveries.length,
+    updateCount: deliveriesToUpdate.length,
+    newStatuses: newDeliveries.map((delivery) => delivery?.status || null),
+    existingStatuses: existingDeliveries.map((delivery) => delivery?.status || null)
+  });
 
   if (newDeliveries.length === 0 && deliveriesToUpdate.length === 0) {
     setStagedDeliveries([]);
@@ -105,6 +129,14 @@ export async function handleBatchSave({
     }
 
     const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
+    console.log('[AddToRoute] handleBatchSave:deliveriesReadyForDB', deliveriesReadyForDB.map((delivery) => ({
+      patient_id: delivery?.patient_id || null,
+      store_id: delivery?.store_id || null,
+      driver_id: delivery?.driver_id || null,
+      status: delivery?.status || null,
+      puid: delivery?.puid || null,
+      tracking_number: delivery?.tracking_number || null
+    })));
     if (deliveriesReadyForDB.length > 0) {
       const pickupRecordsFromStage = deliveriesReadyForDB
         .filter((delivery) => !delivery?.patient_id)
