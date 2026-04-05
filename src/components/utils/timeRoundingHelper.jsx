@@ -78,7 +78,11 @@ const formatLocalTimestamp = (date) => {
 export const parseLocalTimestamp = (value) => {
   if (!value || typeof value !== 'string') return null;
   const normalized = value.includes('T') ? value : `${value}T00:00:00`;
-  const date = new Date(normalized);
+  const [datePart, timePartRaw = '00:00:00'] = normalized.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const timePart = timePartRaw.replace(/(Z|[+-]\d{2}:?\d{2})$/, '');
+  const [hours = 0, minutes = 0, seconds = 0] = timePart.split(':').map(Number);
+  const date = new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, seconds || 0, 0);
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
@@ -229,6 +233,10 @@ export const calculateRetroactiveStopTiming = async ({
       deliveryId: delivery?.id,
       previousStopId: previousStop?.id || null
     });
+    baseTime = parseDateTimeParts(delivery.delivery_date, delivery.delivery_time_start || '09:00');
+  }
+
+  if (!baseTime) {
     return null;
   }
 
