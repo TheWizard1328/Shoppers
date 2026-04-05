@@ -153,7 +153,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     };
   }, []);
   const edmontonNowParts = localNowParts;
-  const edmontonTodayStr = localNowParts.date;
+  const selectedRouteDateStr = selectedDate ? format(new Date(selectedDate), 'yyyy-MM-dd') : localNowParts.date;
+  const edmontonTodayStr = selectedRouteDateStr;
   const isPastDeliveryDate = React.useMemo(() => !!delivery?.delivery_date && delivery.delivery_date < edmontonTodayStr, [delivery?.delivery_date, edmontonTodayStr]);
   const shouldUseRegularStopTiming = React.useMemo(() => {
     return shouldUseRegularTiming({
@@ -549,21 +550,22 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 todayDateString: edmontonTodayStr,
                 edmontonTime: edmontonNowParts.time
               });
-              const retroactiveTiming = shouldUseRetroactiveStopTiming ? await calculateRetroactiveStopTiming({
+              const useRetroactiveTiming = delivery?.delivery_date !== edmontonTodayStr;
+              const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({
                 delivery,
                 allDeliveries,
                 patients,
                 stores,
                 todayDateString: edmontonTodayStr,
-                allowSameDay: true
+                allowSameDay: false
               }) : null;
               const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
-              const forcedFailureTimestamp = retroactiveTiming?.actual_delivery_time || localTimeString;
-              const forcedFailureArrivalTimestamp = retroactiveTiming?.arrival_time || forcedFailureTimestamp;
+              const forcedFailureTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
+              const forcedFailureArrivalTimestamp = useRetroactiveTiming ? (retroactiveTiming?.arrival_time || forcedFailureTimestamp) : (delivery.arrival_time || localTimeString);
               const existingArrivalDate = parseLocalTimestamp(delivery.arrival_time);
               const retroactiveArrivalDate = parseLocalTimestamp(forcedFailureArrivalTimestamp);
               const arrivalVsRetroArrivalDiffMinutes = existingArrivalDate && retroactiveArrivalDate ? Math.abs(retroactiveArrivalDate.getTime() - existingArrivalDate.getTime()) / 60000 : 0;
-              const shouldAutoSetArrivalTime = (shouldUseRetroactiveStopTiming && !!retroactiveArrivalDate && (!existingArrivalDate || arrivalVsRetroArrivalDiffMinutes > 5)) || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
+              const shouldAutoSetArrivalTime = (useRetroactiveTiming && !!retroactiveArrivalDate && (!existingArrivalDate || arrivalVsRetroArrivalDiffMinutes > 5)) || (!useRetroactiveTiming && !delivery.arrival_time);
               const criticalUpdate = {
                 status: status,
                 delivery_notes: updatedNotes,
@@ -622,11 +624,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           let pendingBreadcrumbsString = null;
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
-                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const useRetroactiveTiming = shouldUseRetroactiveStopTiming;
+                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const useRetroactiveTiming = delivery?.delivery_date !== edmontonTodayStr;
                           console.warn('[StopCard] complete retro timing gate', { deliveryId: delivery?.id, useRetroactiveTiming, isPickup, isPastDeliveryDate, deliveryDate: delivery?.delivery_date, todayDateString: edmontonTodayStr, edmontonTime: edmontonNowParts.time });
-                          const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: edmontonTodayStr, allowSameDay: true }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-                          const forcedCompletionTimestamp = retroactiveTiming?.actual_delivery_time || localTimeString;
-                          const forcedArrivalTimestamp = retroactiveTiming?.arrival_time || delivery.arrival_time || localTimeString;
+                          const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: edmontonTodayStr, allowSameDay: false }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
+                          const forcedCompletionTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
+                          const forcedArrivalTimestamp = useRetroactiveTiming ? (retroactiveTiming?.arrival_time || delivery.arrival_time || localTimeString) : (delivery.arrival_time || localTimeString);
                           const existingArrivalDate = parseLocalTimestamp(delivery.arrival_time);
                           const retroactiveArrivalDate = parseLocalTimestamp(forcedArrivalTimestamp);
                           const arrivalVsRetroArrivalDiffMinutes = existingArrivalDate && retroactiveArrivalDate ? Math.abs(retroactiveArrivalDate.getTime() - existingArrivalDate.getTime()) / 60000 : 0;
