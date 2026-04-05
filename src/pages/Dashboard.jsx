@@ -6114,7 +6114,7 @@ function Dashboard() {
           suggestedDate={format(selectedDate, 'yyyy-MM-dd')}
           currentUser={currentUser}
           allDeliveries={deliveries}
-          initialDriverId={selectedDriverId} onCreatePatient={handleCreatePatientFromDelivery} />
+          initialDriverId={selectedDriverId} openMode={!editingDelivery?'add_to_route':null} onCreatePatient={handleCreatePatientFromDelivery} />
         }
       </AnimatePresence>
 
