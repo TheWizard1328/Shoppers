@@ -79,11 +79,18 @@ export const parseLocalTimestamp = (value) => {
   if (!value || typeof value !== 'string') return null;
   const normalized = value.includes('T') ? value : `${value}T00:00:00`;
   const cleaned = normalized.replace(/(Z|[+-]\d{2}:?\d{2})$/, '');
-  const [datePart, timePart = '00:00:00'] = cleaned.split('T');
-  const [year, month, day] = datePart.split('-').map(Number);
-  const [hours = 0, minutes = 0, seconds = 0] = timePart.split(':').map(Number);
-  if (![year, month, day].every(Number.isFinite)) return null;
-  const date = new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0, 0);
+  const match = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const [, yearStr, monthStr, dayStr, hourStr, minuteStr, secondStr = '00'] = match;
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  const hours = Number(hourStr);
+  const minutes = Number(minuteStr);
+  const seconds = Number(secondStr);
+  const date = new Date(0);
+  date.setFullYear(year, month - 1, day);
+  date.setHours(hours, minutes, seconds, 0);
   return Number.isNaN(date.getTime()) ? null : date;
 };
 

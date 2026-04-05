@@ -159,10 +159,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const shouldUseRegularStopTiming = React.useMemo(() => {
     return shouldUseRegularTiming({
       deliveryDate: delivery?.delivery_date,
-      todayDateString: edmontonTodayStr,
-      currentTimeString: edmontonNowParts.time
+      todayDateString: edmontonTodayStr
     });
-  }, [delivery?.delivery_date, edmontonTodayStr, edmontonNowParts.time]);
+  }, [delivery?.delivery_date, edmontonTodayStr]);
   const shouldPreserveWindowTimesOnStart = React.useMemo(() => {
     if (!delivery?.delivery_date) return false;
     return !shouldUseRegularStopTiming;
@@ -544,6 +543,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               console.warn('[StopCard] failure retro timing gate', {
                 deliveryId: delivery?.id,
                 status,
+                useRetroactiveTiming,
                 shouldUseRetroactiveStopTiming,
                 isPastDeliveryDate,
                 deliveryDate: delivery?.delivery_date,
