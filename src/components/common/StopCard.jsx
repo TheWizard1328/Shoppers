@@ -145,8 +145,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const storeColor = useMemo(() => store ? getStoreColor(store) : "#71717A", [store]);
   const routeCompleted = React.useMemo(() => isRouteCompleted(delivery, allDeliveries, FINISHED_STATUSES, new Date(), "America/Edmonton"), [delivery, allDeliveries]);
   const routeCompletedForLayout = React.useMemo(() => {if (!delivery || !Array.isArray(allDeliveries)) return false;if (!FINISHED_STATUSES.includes(delivery.status)) return false;const driverDeliveriesForDate = allDeliveries.filter((d) => {if (!d) return false;return d.delivery_date === delivery.delivery_date && d.driver_id === delivery.driver_id;});if (driverDeliveriesForDate.length === 0) return false;return driverDeliveriesForDate.every((d) => FINISHED_STATUSES.includes(d.status));}, [delivery, allDeliveries]);
-  const edmontonNowParts = React.useMemo(() => {const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());return { date: `${parts.find((p) => p.type === 'year')?.value}-${parts.find((p) => p.type === 'month')?.value}-${parts.find((p) => p.type === 'day')?.value}`, time: `${parts.find((p) => p.type === 'hour')?.value}:${parts.find((p) => p.type === 'minute')?.value}` };}, []);
-  const edmontonTodayStr = edmontonNowParts.date;
+  const localNowParts = React.useMemo(() => {
+    const now = new Date();
+    return {
+      date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+      time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    };
+  }, []);
+  const edmontonNowParts = localNowParts;
+  const edmontonTodayStr = localNowParts.date;
   const isPastDeliveryDate = React.useMemo(() => !!delivery?.delivery_date && delivery.delivery_date < edmontonTodayStr, [delivery?.delivery_date, edmontonTodayStr]);
   const shouldUseRegularStopTiming = React.useMemo(() => {
     return shouldUseRegularTiming({
