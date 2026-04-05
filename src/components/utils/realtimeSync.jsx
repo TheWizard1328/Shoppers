@@ -12,6 +12,7 @@
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
+import { getLocalTimestampFromDate } from './localTimeHelper';
 
 // Global listeners for real-time updates
 const listeners = new Set();
@@ -296,6 +297,25 @@ const getChangedFields = (oldData, newData) => {
   return changed;
 };
 
+const normalizeDeliveryRealtimeData = (data) => {
+  if (!data) return data;
+
+  const normalizeTimestampField = (value) => {
+    if (!value || typeof value !== 'string') return value;
+    if (!/Z$|[+-]\d{2}:?\d{2}$/.test(value)) return value;
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return getLocalTimestampFromDate(parsed);
+  };
+
+  return {
+    ...data,
+    actual_delivery_time: normalizeTimestampField(data.actual_delivery_time),
+    arrival_time: normalizeTimestampField(data.arrival_time)
+  };
+};
+
 /**
  * Subscribe to entity changes
  */
@@ -312,7 +332,8 @@ const subscribeToEntity = (entityName) => {
     const entityDataCache = new Map();
 
     const unsubscribe = base44.entities[entityName].subscribe(async (event) => {
-      const { type, id, data } = event;
+      const { type, id } = event;
+      const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
       
       // Get current user name for "updatedBy"
       let updatedBy = 'System';
