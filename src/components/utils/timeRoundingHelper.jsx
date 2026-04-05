@@ -78,11 +78,12 @@ const formatLocalTimestamp = (date) => {
 export const parseLocalTimestamp = (value) => {
   if (!value || typeof value !== 'string') return null;
   const normalized = value.includes('T') ? value : `${value}T00:00:00`;
-  const [datePart, timePartRaw = '00:00:00'] = normalized.split('T');
+  const cleaned = normalized.replace(/(Z|[+-]\d{2}:?\d{2})$/, '');
+  const [datePart, timePart = '00:00:00'] = cleaned.split('T');
   const [year, month, day] = datePart.split('-').map(Number);
-  const timePart = timePartRaw.replace(/(Z|[+-]\d{2}:?\d{2})$/, '');
   const [hours = 0, minutes = 0, seconds = 0] = timePart.split(':').map(Number);
-  const date = new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, seconds || 0, 0);
+  if (![year, month, day].every(Number.isFinite)) return null;
+  const date = new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0, 0);
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
