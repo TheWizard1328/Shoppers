@@ -12,6 +12,7 @@ import { Store } from '@/entities/Store';
 import { Company } from '@/entities/Company';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 import { sanitizeDeliveryPayload, sanitizeDeliveryPayloads } from './deliveryPayloadSanitizer';
+import { getLocalTimestamp } from './localTimeHelper';
 
 const normalizeComparableValue = (value) => {
   if (Array.isArray(value)) return JSON.stringify(value);
@@ -398,8 +399,8 @@ export const createDeliveryLocal = async (deliveryData) => {
     const localDelivery = {
       ...normalizedDeliveryData,
       id: tempId,
-      created_date: new Date().toISOString(),
-      updated_date: new Date().toISOString(),
+      created_date: getLocalTimestamp(),
+      updated_date: getLocalTimestamp(),
       _isLocal: true // Mark as locally created
     };
 
@@ -571,7 +572,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     const updatedDelivery = {
       ...existingDelivery,
       ...meaningfulUpdates,
-      updated_date: new Date().toISOString()
+      updated_date: getLocalTimestamp()
     };
 
     // Save to local IndexedDB FIRST

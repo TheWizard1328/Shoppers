@@ -559,7 +559,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 allDeliveries,
                 patients,
                 stores,
-                todayDateString: edmontonTodayStr,
+                todayDateString: localDeviceTodayStr,
                 allowSameDay: false
               }) : null;
               const pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
@@ -629,7 +629,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
                           const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const useRetroactiveTiming = comparisonRouteDateStr < localDeviceTodayStr;
                           console.warn('[StopCard] complete retro timing gate', { deliveryId: delivery?.id, useRetroactiveTiming, isPickup, isPastDeliveryDate, deliveryDate: delivery?.delivery_date, comparisonRouteDate: comparisonRouteDateStr, selectedRouteDate: selectedRouteDateStr, todayDateString: localDeviceTodayStr, edmontonTime: edmontonNowParts.time });
-                          const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: edmontonTodayStr, allowSameDay: false }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
+                          const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: false }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
                           const forcedCompletionTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
                           const forcedArrivalTimestamp = useRetroactiveTiming ? (retroactiveTiming?.arrival_time || delivery.arrival_time || localTimeString) : (delivery.arrival_time || localTimeString);
                           const existingArrivalDate = parseLocalTimestamp(delivery.arrival_time);
