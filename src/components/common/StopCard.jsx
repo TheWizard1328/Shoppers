@@ -148,10 +148,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const edmontonNowParts = React.useMemo(() => {const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());return { date: `${parts.find((p) => p.type === 'year')?.value}-${parts.find((p) => p.type === 'month')?.value}-${parts.find((p) => p.type === 'day')?.value}`, time: `${parts.find((p) => p.type === 'hour')?.value}:${parts.find((p) => p.type === 'minute')?.value}` };}, []);
   const edmontonTodayStr = edmontonNowParts.date;
   const isPastDeliveryDate = React.useMemo(() => !!delivery?.delivery_date && delivery.delivery_date < edmontonTodayStr, [delivery?.delivery_date, edmontonTodayStr]);
-  const shouldPreserveWindowTimesOnStart = React.useMemo(() => {
-    if (!delivery?.delivery_date) return false;
-    return !shouldUseRegularStopTiming;
-  }, [delivery?.delivery_date, shouldUseRegularStopTiming]);
   const shouldUseRegularStopTiming = React.useMemo(() => {
     return shouldUseRegularTiming({
       deliveryDate: delivery?.delivery_date,
@@ -159,6 +155,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       currentTimeString: edmontonNowParts.time
     });
   }, [delivery?.delivery_date, edmontonTodayStr, edmontonNowParts.time]);
+  const shouldPreserveWindowTimesOnStart = React.useMemo(() => {
+    if (!delivery?.delivery_date) return false;
+    return !shouldUseRegularStopTiming;
+  }, [delivery?.delivery_date, shouldUseRegularStopTiming]);
   const shouldUseRetroactiveStopTiming = React.useMemo(() => !shouldUseRegularStopTiming, [shouldUseRegularStopTiming]);
   const shouldCondenseCompletedRouteForDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && isFinishedDelivery && routeCompletedForLayout && !isExpanded;
   const showCompletedRouteCenteredCondensed = shouldCondenseCompletedRouteForDriver;const showIncompleteRouteSideCondensed = !routeCompletedForLayout && !isExpanded && !isRailCentered;const showCenteredIncompleteCollapsed = !routeCompletedForLayout && !isExpanded && isRailCentered;const isDispatcherCenteredCard = userHasRole(currentUser, 'dispatcher') && isRailCentered;const hideBodyForDispatcherCenteredCard = isDispatcherCenteredCard && !isStrippedForDispatcher && !isExpanded;const showMiddleSection = !isStrippedForDriver && !isStrippedForDispatcher && !showIncompleteRouteSideCondensed && (!isFinishedDelivery || isExpanded || isRailCentered) && !showCompletedRouteCenteredCondensed;const showBodySection = !showCompletedRouteCenteredCondensed && !showIncompleteRouteSideCondensed && !hideBodyForDispatcherCenteredCard;
