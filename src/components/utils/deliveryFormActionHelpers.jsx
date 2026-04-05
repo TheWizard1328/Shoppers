@@ -103,7 +103,7 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
         });
       } else {
         const [{ calculateRealTimeETA }, { base44 }] = await Promise.all([
-          import('@/functions/calculateRealTimeETA.jsx'),
+          import('@/functions/calculateRealTimeETA.js'),
           import('@/api/base44Client')
         ]);
 
