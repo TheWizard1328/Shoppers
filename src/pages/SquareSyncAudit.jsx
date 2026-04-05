@@ -372,11 +372,7 @@ export default function SquareSyncAudit() {
               label: "Actions",
               headerClassName: "whitespace-nowrap min-w-[220px]",
               sortValue: (row) => row.actionMatchPercentage || 0,
-              render: (row) => {
-                const match = row.bestTransactionMatch;
-                if (!match) return "0% match";
-                return `${match.score}% match`;
-              },
+              render: (row) => `${Number(row.actionMatchPercentage || 0)}% match`,
             },
           ]}
         />

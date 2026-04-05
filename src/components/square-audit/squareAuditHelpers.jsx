@@ -33,14 +33,12 @@ export function parseSquareItemName(itemName) {
   const value = String(itemName || "").trim();
   if (!value) return null;
 
-  const dateMatch = value.match(/^(\d{2})[\/-](\d{2})/);
-  const storeMatch = value.match(/\(([A-Za-z0-9]{2})\)/);
+  const dateMatch = value.match(/(\d{2})[\/-](\d{2})/);
+  const storeMatch = value.match(/\(([A-Za-z0-9]{2,})\)/);
   const patientMatch = value.match(/\)-(.+)$/);
 
-  if (!dateMatch) return null;
-
   const currentYear = new Date().getFullYear();
-  const deliveryDate = `${currentYear}-${dateMatch[1]}-${dateMatch[2]}`;
+  const deliveryDate = dateMatch ? `${currentYear}-${dateMatch[1]}-${dateMatch[2]}` : "";
 
   return {
     delivery_date: deliveryDate,
@@ -169,10 +167,19 @@ function normalizeMatchString(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function extractPatientPortion(value) {
+  const parsed = parseSquareItemName(value);
+  return normalizeMatchString(parsed?.patient_name || value);
+}
+
 export function calculateDeliveryTransactionMatch(deliveryRow, transactionRow) {
-  const deliveryName = normalizeMatchString(deliveryRow?.itemName);
-  const transactionName = normalizeMatchString(transactionRow?.itemName);
-  const nameMatch = Boolean(deliveryName && transactionName && transactionName.includes(deliveryName));
+  const deliveryName = extractPatientPortion(deliveryRow?.itemName);
+  const transactionName = extractPatientPortion(transactionRow?.itemName);
+  const nameMatch = Boolean(
+    deliveryName &&
+    transactionName &&
+    (transactionName.includes(deliveryName) || deliveryName.includes(transactionName))
+  );
   const dateMatch = deliveryRow?.date === transactionRow?.date;
   const amountMatch = Number(deliveryRow?.amountCents || 0) === Number(transactionRow?.amountCents || 0);
   const storeMatch = Boolean(
