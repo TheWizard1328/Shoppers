@@ -488,6 +488,22 @@ export const handleBatchSaveDelivery = async ({
   });
 
   const allProcessedDeliveries = Array.from(new Map([...allCreatedDeliveries, ...createdPickupRecords, ...resolvedEnsuredPickups, ...allUpdatedDeliveries].filter(Boolean).map((delivery) => [delivery.id, delivery])).values());
+
+  const stagedPatientDeliveries = allProcessedDeliveries.filter((delivery) => delivery?.patient_id && delivery?.status === 'Staged');
+  if (stagedPatientDeliveries.length > 0) {
+    const promotedDeliveries = (await Promise.all(
+      stagedPatientDeliveries.map((delivery) => updateDeliveryLocal(delivery.id, { status: 'pending' }))
+    )).filter(Boolean);
+
+    promotedDeliveries.forEach((delivery) => {
+      createdDeliveryMap.set(`patient__${delivery.patient_id}__${delivery.delivery_date}__${delivery.driver_id || ''}`, delivery);
+    });
+
+    const promotedIds = new Set(promotedDeliveries.map((delivery) => delivery.id));
+    const preservedDeliveries = allProcessedDeliveries.filter((delivery) => !promotedIds.has(delivery.id));
+    allProcessedDeliveries.length = 0;
+    allProcessedDeliveries.push(...preservedDeliveries, ...promotedDeliveries);
+  }
   
   if (updateDeliveriesLocally && allProcessedDeliveries.length > 0) {
     updateDeliveriesLocally(allProcessedDeliveries, false); // Merge instead of replace
