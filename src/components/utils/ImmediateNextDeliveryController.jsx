@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
 import { updateDeliveryLocal } from './offlineMutations';
+import { getLocalTimestamp } from './localTimeHelper';
 import { useAppData } from './AppDataContext';
 import { centerDeliveryCard } from './deliveryCardUtils';
 
@@ -111,7 +112,7 @@ export default function ImmediateNextDeliveryController() {
       }
 
       if (action.type === 'complete') {
-        const completionTimestamp = new Date().toISOString().slice(0, 19);
+        const completionTimestamp = getLocalTimestamp();
         const completionUpdate = {
           status: 'completed',
           actual_delivery_time: completionTimestamp,
