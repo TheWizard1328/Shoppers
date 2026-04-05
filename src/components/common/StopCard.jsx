@@ -155,7 +155,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const edmontonNowParts = localNowParts;
   const selectedRouteDateStr = selectedDate ? format(new Date(selectedDate), 'yyyy-MM-dd') : localNowParts.date;
   const localDeviceTodayStr = localNowParts.date;
-  const comparisonRouteDateStr = delivery?.delivery_date || selectedRouteDateStr;
+  const selectedDateSourceStr = selectedDate
+    ? (typeof selectedDate === 'string'
+      ? selectedDate.slice(0, 10)
+      : format(new Date(selectedDate), 'yyyy-MM-dd'))
+    : null;
+  const comparisonRouteDateStr = delivery?.delivery_date || selectedDateSourceStr || selectedRouteDateStr;
   const edmontonTodayStr = localDeviceTodayStr;
   const isPastDeliveryDate = React.useMemo(() => !!comparisonRouteDateStr && comparisonRouteDateStr < localDeviceTodayStr, [comparisonRouteDateStr, localDeviceTodayStr]);
   const shouldUseRegularStopTiming = React.useMemo(() => {
@@ -542,7 +547,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
               const existingNotes = delivery.delivery_notes || '';const updatedNotes = existingNotes ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}` : `[${status.toUpperCase()}] ${reason}`;
               const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-              const useRetroactiveTiming = comparisonRouteDateStr < localDeviceTodayStr;
+              const useRetroactiveTiming = isPastDeliveryDate;
               console.warn('[StopCard] failure retro timing gate', {
                 deliveryId: delivery?.id,
                 status,
@@ -550,7 +555,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 shouldUseRetroactiveStopTiming,
                 isPastDeliveryDate,
                 deliveryDate: delivery?.delivery_date,
+                comparisonRouteDate: comparisonRouteDateStr,
                 selectedRouteDate: selectedRouteDateStr,
+                selectedDateSource: selectedDateSourceStr,
                 todayDateString: edmontonTodayStr,
                 edmontonTime: edmontonNowParts.time
               });
@@ -635,8 +642,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           let pendingBreadcrumbsString = null;
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
-                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const useRetroactiveTiming = comparisonRouteDateStr < localDeviceTodayStr;
-                          console.warn('[StopCard] complete retro timing gate', { deliveryId: delivery?.id, useRetroactiveTiming, isPickup, isPastDeliveryDate, deliveryDate: delivery?.delivery_date, comparisonRouteDate: comparisonRouteDateStr, selectedRouteDate: selectedRouteDateStr, todayDateString: localDeviceTodayStr, edmontonTime: edmontonNowParts.time });
+                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const useRetroactiveTiming = isPastDeliveryDate;
+                          console.warn('[StopCard] complete retro timing gate', { deliveryId: delivery?.id, useRetroactiveTiming, isPickup, isPastDeliveryDate, deliveryDate: delivery?.delivery_date, comparisonRouteDate: comparisonRouteDateStr, selectedRouteDate: selectedRouteDateStr, selectedDateSource: selectedDateSourceStr, todayDateString: localDeviceTodayStr, edmontonTime: edmontonNowParts.time });
                           const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: false }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
                           const forcedCompletionTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
                           const forcedArrivalTimestamp = useRetroactiveTiming ? (retroactiveTiming?.arrival_time || delivery.arrival_time || localTimeString) : (delivery.arrival_time || localTimeString);
