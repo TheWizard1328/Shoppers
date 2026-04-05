@@ -111,6 +111,10 @@ export default function ImmediateNextDeliveryController() {
       }
 
       if (action.type === 'complete') {
+        return;
+      }
+
+      if (action.type === 'complete_legacy_disabled') {
         const completionTimestamp = new Date().toISOString().slice(0, 19);
         const completionUpdate = {
           status: 'completed',
