@@ -1,3 +1,5 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+
 // Redeployed on 2026-03-28
 const buildFallback = (origin, destination, extra = {}) => Response.json({
   coordinates: [
@@ -16,6 +18,13 @@ Deno.serve(async (req) => {
   let destination = null;
 
   try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await req.json().catch(() => ({}));
     origin = body?.origin || null;
     destination = body?.destination || null;
