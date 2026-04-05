@@ -59,7 +59,15 @@ export async function handleBatchSave({
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
   const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
 
-  const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
+  const normalizedStagedDeliveries = stagedDeliveries.map((delivery) => {
+    if (!delivery) return delivery;
+    return {
+      ...delivery,
+      status: delivery.status === 'Staged' ? 'pending' : delivery.status
+    };
+  });
+
+  const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(normalizedStagedDeliveries, allDeliveries));
   const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
 
   if (newDeliveries.length === 0 && deliveriesToUpdate.length === 0) {
