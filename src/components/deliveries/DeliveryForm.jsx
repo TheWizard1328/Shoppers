@@ -1233,32 +1233,50 @@ export default function DeliveryForm({
     });
   }, [stagedDeliveries, shouldAutoFocusFields]);
 
-  const handleBatchSave = useCallback(() => runHandleBatchSave({
-    batchSaveLockRef,
-    isSaving,
-    blockPredictions,
-    stagedDeliveries,
-    hasPendingDeletes,
-    setStagedDeliveries,
-    setProjectedDeliveries,
-    setHasPendingDeletes,
-    setHasChanges,
-    hasLoadedPending,
-    unblockPredictions,
-    setIsLoadingPredictions,
-    handleClearForm,
-    onCancel,
-    formData,
-    allDeliveries,
-    stores,
-    setIsSaving,
-    setError,
-    setBatchFormSaving,
-    updateDeliveryLocal,
-    updatePatientLocal,
-    onSave,
-    isNewRouteWithZeroStops
-  }), [
+  const handleBatchSave = useCallback(async () => {
+    if (openMode === 'add_to_route' && !delivery && stagedDeliveries.length === 0 && formData.patient_id && formData.store_id && formData.delivery_date) {
+      await handleAddToStaging();
+    }
+
+    return runHandleBatchSave({
+      batchSaveLockRef,
+      isSaving,
+      blockPredictions,
+      stagedDeliveries: openMode === 'add_to_route' && stagedDeliveries.length === 0 ? [{
+        ...formData,
+        _tempId: `temp-${Date.now()}`,
+        patient_name: formData.patient_name || selectedPatient?.full_name || '',
+        patient_phone: formData.patient_phone || selectedPatient?.phone || '',
+        delivery_address: selectedPatient?.address || '',
+        unit_number: formData.unit_number || selectedPatient?.unit_number || '',
+        store_name: stores.find((s) => s && s.id === formData.store_id)?.name || '',
+        store_abbreviation: stores.find((s) => s && s.id === formData.store_id)?.abbreviation || '',
+        cod_total_amount_required: formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0,
+        status: formData.status || 'pending',
+        first_delivery: !(allDeliveries || []).some((d) => d && d.patient_id === formData.patient_id && d.status === 'completed')
+      }] : stagedDeliveries,
+      hasPendingDeletes,
+      setStagedDeliveries,
+      setProjectedDeliveries,
+      setHasPendingDeletes,
+      setHasChanges,
+      hasLoadedPending,
+      unblockPredictions,
+      setIsLoadingPredictions,
+      handleClearForm,
+      onCancel,
+      formData,
+      allDeliveries,
+      stores,
+      setIsSaving,
+      setError,
+      setBatchFormSaving,
+      updateDeliveryLocal,
+      updatePatientLocal,
+      onSave,
+      isNewRouteWithZeroStops
+    });
+  }, [
     isSaving,
     stagedDeliveries,
     hasPendingDeletes,
@@ -1268,7 +1286,12 @@ export default function DeliveryForm({
     onCancel,
     onSave,
     isNewRouteWithZeroStops,
-    handleClearForm
+    handleClearForm,
+    openMode,
+    delivery,
+    formData,
+    selectedPatient,
+    handleAddToStaging
   ]);
 
   const handleSearchKeyDown = useCallback((e) => {
