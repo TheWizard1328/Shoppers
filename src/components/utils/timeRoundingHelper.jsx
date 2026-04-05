@@ -82,6 +82,13 @@ export const parseLocalTimestamp = (value) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+export const shouldUseRegularTiming = ({ deliveryDate, todayDateString, currentTimeString }) => {
+  if (!deliveryDate || !todayDateString || !currentTimeString) return false;
+  if (deliveryDate !== todayDateString) return false;
+  const [hours = 0] = String(currentTimeString).split(':').map(Number);
+  return hours < 21;
+};
+
 const parseDateTimeParts = (dateString, timeString = '09:00') => {
   const [year, month, day] = String(dateString || '').split('-').map(Number);
   const [hours, minutes] = String(timeString || '09:00').split(':').map(Number);
