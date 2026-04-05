@@ -6,6 +6,7 @@ export const buildImmediateAddToRouteStage = ({ formData, selectedPatient, store
   const store = (stores || []).find((item) => item && item.id === formData.store_id);
   return {
     ...formData,
+    status: 'Staged',
     _tempId: `temp-${Date.now()}`,
     patient_name: formData.patient_name || selectedPatient?.full_name || '',
     patient_phone: formData.patient_phone || selectedPatient?.phone || '',
@@ -14,7 +15,6 @@ export const buildImmediateAddToRouteStage = ({ formData, selectedPatient, store
     store_name: store?.name || '',
     store_abbreviation: store?.abbreviation || '',
     cod_total_amount_required: formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0,
-    status: 'Staged',
     first_delivery: !((allDeliveries || []).some((delivery) => delivery && delivery.patient_id === formData.patient_id && delivery.status === 'completed'))
   };
 };
