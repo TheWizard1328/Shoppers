@@ -41,7 +41,8 @@ export default function DeliveryPatientSearch({
   onNewAddressPatient,
   onCreatePatient,
   setIsPatientFormOpen,
-  handleSearchKeyDown
+  handleSearchKeyDown,
+  locked = false
 }) {
   const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -119,11 +120,11 @@ export default function DeliveryPatientSearch({
             autoFocus
             type="text"
             placeholder="Search by name, address, phone..."
-            value={patientSearch}
+            value={locked ? '' : patientSearch}
             onChange={(e) => {setPatientSearch(e.target.value);setHighlightedPatientIndex(-1);}}
             onKeyDown={handlePatientSearchKeyDown}
             className="pl-10 h-9"
-            disabled={isSaving} />
+            disabled={isSaving || locked} />
           
           {patientSearch &&
           <button type="button" onClick={() => {setPatientSearch('');setHighlightedPatientIndex(-1);}} className="absolute right-2 top-1/2 -translate-y-1/2 z-10">

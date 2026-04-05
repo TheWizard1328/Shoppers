@@ -88,7 +88,8 @@ export default function DeliveryForm({
   initialDriverId,
   defaultToPickupMode = false,
   closeOnSave = false,
-  onCreatePatient
+  onCreatePatient,
+  openMode = null
 }) {
   const { setIsFormOverlayOpen } = useAppData();
   const freshStores = useFreshStores(stores);
@@ -105,7 +106,7 @@ export default function DeliveryForm({
       patient_id: initialPatientId || "",
       delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
       delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
-      time_window_start: "", time_window_end: "", status: "Staged",
+      time_window_start: "", time_window_end: "", status: openMode === 'add_to_route' ? "pending" : "Staged",
       driver_name: "", driver_id: "", prescription_number: "",
       delivery_instructions: "", delivery_notes: "",
       cod_total_amount_required: 0, cod_payments: [],
@@ -145,7 +146,7 @@ export default function DeliveryForm({
     return initialState;
   });
 
-  const [patientSearch, setPatientSearch] = useState("");
+  const [patientSearch, setPatientSearch] = useState(openMode === 'add_to_route' ? '__locked__' : "");
   const [selectedPatient, setSelectedPatient] = useState(() => (initialPatientId && Array.isArray(patients) ? (patients.find((pt) => pt && pt.id === initialPatientId) || null) : null));
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
@@ -428,13 +429,14 @@ export default function DeliveryForm({
 
   // Footer button mode
   const buttonState = useMemo(() => {
+    if (openMode === 'add_to_route' && !delivery && !editingStagedId) return 'done';
     if (delivery) return 'update';
     if (editingStagedId) return 'updateStaged';
     if ((stagedDeliveries.length > 0 || hasPendingDeletes) && !hasFormData && !(isPickupMode && !delivery && (selectedPickupOption || formData.store_id || formData.delivery_notes || formData.after_hours_pickup))) return 'done';
     return 'add';
-  }, [delivery, editingStagedId, stagedDeliveries.length, hasFormData, hasPendingDeletes, isPickupMode, selectedPickupOption, formData.store_id, formData.delivery_notes, formData.after_hours_pickup]);
+  }, [openMode, delivery, editingStagedId, stagedDeliveries.length, hasFormData, hasPendingDeletes, isPickupMode, selectedPickupOption, formData.store_id, formData.delivery_notes, formData.after_hours_pickup]);
 
-  const cancelButtonState = useMemo(() => hasFormData ? 'clear' : 'cancel', [hasFormData]);
+  const cancelButtonState = useMemo(() => openMode === 'add_to_route' ? 'cancel' : (hasFormData ? 'clear' : 'cancel'), [openMode, hasFormData]);
 
   const isCompletionStatus = useMemo(() =>
   ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status),
@@ -455,7 +457,7 @@ export default function DeliveryForm({
     }
   }, [formData.status, delivery, isCompletionStatus]);
 
-  const isPatientSelectionRequired = !isPickupMode && !delivery;
+  const isPatientSelectionRequired = !isPickupMode && !delivery && openMode !== 'add_to_route';
   const isFormDisabled = isPatientSelectionRequired && !selectedPatient && !editingStagedId;
 
   const selectedDateObj = useMemo(() => {
@@ -625,8 +627,8 @@ export default function DeliveryForm({
 
     setFormData(updatedFormData);
     if (!autoAddToStaged) {
-      if (shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus?.());
-      setPatientSearch('');
+      if (shouldAutoFocusFields && updatedFormData.driver_id) setTimeout(() => codAmountInputRef.current?.focus?.());
+      setPatientSearch(openMode === 'add_to_route' ? '__locked__' : '');
       setHighlightedPatientIndex(-1);
       driverLocationPoller.resume();
       return;
@@ -1950,7 +1952,7 @@ export default function DeliveryForm({
       handleCancelClick={handleCancelClick} handleBatchSave={handleBatchSave} handleUpdateStaged={handleUpdateStaged} handleAddToStaging={handleAddToStaging}
       handleSubmit={handleSubmit} buttonState={buttonState} cancelButtonState={cancelButtonState}
       isFormValid={isFormValid} hasChanges={hasChanges} isPatientFormOpen={isPatientFormOpen}
-      closeOnSave={closeOnSave} onCancel={onCancel}
+      closeOnSave={closeOnSave} onCancel={onCancel} openMode={openMode}
     />
   );
 }

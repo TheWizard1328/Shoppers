@@ -1889,7 +1889,8 @@ export default function Patients() {
           onCreatePatient={(callback) => {
             setPatientFormCallback(() => callback);
             setShowPatientForm(true);
-          }} />
+          }}
+          openMode="add_to_route" />
 
         }
       </AnimatePresence>
