@@ -578,7 +578,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 ...(shouldAutoSetArrivalTime ? { arrival_time: forcedFailureArrivalTimestamp } : {}),
                 ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {})
               };
-              console.warn('[StopCard][failure] timing comparison', {
+              console.warn('[Retro][failure] timing comparison', {
                 deliveryId: delivery.id,
                 useRetroactiveTiming,
                 retroActual: retroactiveTiming?.actual_delivery_time || null,
@@ -656,7 +656,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                             shouldOverwriteArrivalTime,
                             retroactiveTiming
                           });
-                          console.warn('[StopCard][complete] timing comparison', {
+                          console.warn('[Retro][complete] timing comparison', {
                             deliveryId: delivery.id,
                             useRetroactiveTiming,
                             retroActual: retroactiveTiming?.actual_delivery_time || null,
