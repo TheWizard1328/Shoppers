@@ -248,7 +248,7 @@ export const calculateRetroactiveStopTiming = async ({
       arrival_time: formatLocalTimestamp(baseTime),
       ...(Number.isFinite(travelDistanceKm) ? { travel_dist: travelDistanceKm } : {})
     };
-    console.warn('[RetroTiming] result first stop', {
+    console.warn('[Retro] result first stop', {
       deliveryId: delivery?.id,
       result,
       baseTimeIso: baseTime instanceof Date ? baseTime.toISOString() : null
@@ -264,7 +264,7 @@ export const calculateRetroactiveStopTiming = async ({
     ...(Number.isFinite(travelDistanceKm) ? { travel_dist: travelDistanceKm } : {})
   };
 
-  console.warn('[RetroTiming] result final', {
+  console.warn('[Retro] result final', {
     deliveryId: delivery?.id,
     result,
     arrivalTimeIso: arrivalTime.toISOString(),
