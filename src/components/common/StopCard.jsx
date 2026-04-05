@@ -578,6 +578,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 ...(shouldAutoSetArrivalTime ? { arrival_time: forcedFailureArrivalTimestamp } : {}),
                 ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {})
               };
+              console.warn('[StopCard][failure] timing comparison', {
+                deliveryId: delivery.id,
+                useRetroactiveTiming,
+                retroActual: retroactiveTiming?.actual_delivery_time || null,
+                retroArrival: retroactiveTiming?.arrival_time || null,
+                finalActual: criticalUpdate?.actual_delivery_time || null,
+                finalArrival: criticalUpdate?.arrival_time || null
+              });
               // CRITICAL: Also clear isNextDelivery on all other route deliveries immediately in offline DB
               const { offlineDB: _failOfflineDB } = await import('../utils/offlineDatabase');
               const failRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
@@ -647,6 +655,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                             forcedArrivalTimestamp,
                             shouldOverwriteArrivalTime,
                             retroactiveTiming
+                          });
+                          console.warn('[StopCard][complete] timing comparison', {
+                            deliveryId: delivery.id,
+                            useRetroactiveTiming,
+                            retroActual: retroactiveTiming?.actual_delivery_time || null,
+                            retroArrival: retroactiveTiming?.arrival_time || null,
+                            finalActual: completionUpdate?.actual_delivery_time || null,
+                            finalArrival: completionUpdate?.arrival_time || null
                           });
                           const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
                           const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));

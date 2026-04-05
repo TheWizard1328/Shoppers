@@ -568,12 +568,33 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       return existingDelivery;
     }
 
+    if ('actual_delivery_time' in meaningfulUpdates || 'arrival_time' in meaningfulUpdates) {
+      console.warn('[OfflineMutations][delivery-timing] meaningful updates', {
+        deliveryId,
+        existing_actual_delivery_time: existingDelivery?.actual_delivery_time || null,
+        existing_arrival_time: existingDelivery?.arrival_time || null,
+        incoming_actual_delivery_time: updates?.actual_delivery_time || null,
+        incoming_arrival_time: updates?.arrival_time || null,
+        meaningful_actual_delivery_time: meaningfulUpdates?.actual_delivery_time || null,
+        meaningful_arrival_time: meaningfulUpdates?.arrival_time || null
+      });
+    }
+
     // Apply updates
     const updatedDelivery = {
       ...existingDelivery,
       ...meaningfulUpdates,
       updated_date: getLocalTimestamp()
     };
+
+    if ('actual_delivery_time' in updatedDelivery || 'arrival_time' in updatedDelivery) {
+      console.warn('[OfflineMutations][delivery-timing] saving locally', {
+        deliveryId,
+        saved_actual_delivery_time: updatedDelivery?.actual_delivery_time || null,
+        saved_arrival_time: updatedDelivery?.arrival_time || null,
+        updated_date: updatedDelivery?.updated_date || null
+      });
+    }
 
     // Save to local IndexedDB FIRST
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);

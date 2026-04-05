@@ -128,6 +128,8 @@ const getStoreFirstStopStartTime = (delivery, stores = []) => {
 };
 
 export const calculateRetroactiveStopTiming = async ({
+  // DEBUG: Retro timing trace is intentionally verbose to diagnose local-vs-UTC drift
+
   delivery,
   allDeliveries = [],
   patients = [],
@@ -241,19 +243,33 @@ export const calculateRetroactiveStopTiming = async ({
   }
 
   if (isFirstStop) {
-    return {
+    const result = {
       actual_delivery_time: formatLocalTimestamp(baseTime),
       arrival_time: formatLocalTimestamp(baseTime),
       ...(Number.isFinite(travelDistanceKm) ? { travel_dist: travelDistanceKm } : {})
     };
+    console.warn('[RetroTiming] result first stop', {
+      deliveryId: delivery?.id,
+      result,
+      baseTimeIso: baseTime instanceof Date ? baseTime.toISOString() : null
+    });
+    return result;
   }
 
   const arrivalTime = new Date(baseTime.getTime());
   const actualDeliveryTime = new Date(arrivalTime.getTime());
-
-  return {
+  const result = {
     actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
     arrival_time: formatLocalTimestamp(arrivalTime),
     ...(Number.isFinite(travelDistanceKm) ? { travel_dist: travelDistanceKm } : {})
   };
+
+  console.warn('[RetroTiming] result final', {
+    deliveryId: delivery?.id,
+    result,
+    arrivalTimeIso: arrivalTime.toISOString(),
+    actualDeliveryTimeIso: actualDeliveryTime.toISOString()
+  });
+
+  return result;
 };
