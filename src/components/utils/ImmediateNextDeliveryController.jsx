@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
 import { updateDeliveryLocal } from './offlineMutations';
 import { getLocalTimestamp } from './localTimeHelper';
+import { parseLocalTimestamp } from './timeRoundingHelper';
 import { useAppData } from './AppDataContext';
 import { centerDeliveryCard } from './deliveryCardUtils';
 
@@ -48,6 +49,16 @@ const getActionFromTarget = (target) => {
   }
 
   return null;
+};
+
+const getTodayDateString = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
+const isRetroRouteDelivery = (delivery) => {
+  if (!delivery?.delivery_date) return false;
+  return String(delivery.delivery_date) < getTodayDateString();
 };
 
 export default function ImmediateNextDeliveryController() {
@@ -112,6 +123,18 @@ export default function ImmediateNextDeliveryController() {
       }
 
       if (action.type === 'complete') {
+        if (isRetroRouteDelivery(delivery)) {
+          console.warn('[ImmediateNextDeliveryController] Skipping immediate complete for retro route', {
+            deliveryId: delivery.id,
+            deliveryDate: delivery.delivery_date,
+            todayDateString: getTodayDateString(),
+            existingActualDeliveryTime: delivery.actual_delivery_time || null,
+            existingArrivalTime: delivery.arrival_time || null,
+            parsedActualDeliveryTime: delivery.actual_delivery_time ? parseLocalTimestamp(delivery.actual_delivery_time)?.toString?.() || null : null
+          });
+          return;
+        }
+
         const completionTimestamp = getLocalTimestamp();
         const completionUpdate = {
           status: 'completed',
@@ -135,6 +158,13 @@ export default function ImmediateNextDeliveryController() {
           ),
           delivery.id
         );
+
+        console.warn('[ImmediateNextDeliveryController] Applying immediate complete', {
+          deliveryId: delivery.id,
+          deliveryDate: delivery.delivery_date,
+          completionTimestamp,
+          routeKey
+        });
 
         await Promise.all(
           routeDeliveries.map((item) => {
