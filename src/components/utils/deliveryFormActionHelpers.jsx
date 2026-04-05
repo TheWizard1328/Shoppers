@@ -94,7 +94,7 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
 
     try {
       if (hasTimeWindowChanges) {
-        const { optimizeRemainingStops } = await import('@/functions/optimizeRemainingStops.jsx');
+        const { optimizeRemainingStops } = await import('@/functions/optimizeRemainingStops');
         await optimizeRemainingStops({
           driverId,
           deliveryDate,
@@ -103,7 +103,7 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
         });
       } else {
         const [{ calculateRealTimeETA }, { base44 }] = await Promise.all([
-          import('@/functions/calculateRealTimeETA.js'),
+          import('@/functions/calculateRealTimeETA'),
           import('@/api/base44Client')
         ]);
 
