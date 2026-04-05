@@ -30,6 +30,7 @@ import {
 } from './offlineMutations';
 import { connectionMonitor } from './connectionMonitor';
 import { getOfflineStoreName, isOfflineManagedEntity } from './offlineEntityRegistry';
+import { getLocalDateString } from './localTimeHelper';
 
 const entities = {
   Patient,

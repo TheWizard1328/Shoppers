@@ -6,6 +6,7 @@ import { liveDistanceTracker } from './liveDistanceTracker';
 import { getCurrentDevice, updateDeviceLastActive } from './deviceManager';
 import { arrivalTimeDetector } from './arrivalTimeDetector';
 import { getLocationProvider } from './locationProviders';
+import { getLocalDateString, getLocalTimestamp } from './localTimeHelper';
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -278,7 +279,7 @@ class LocationTracker {
         return;
       }
 
-      const nowISO = new Date().toISOString();
+      const nowISO = getLocalTimestamp();
 
       const userName = this.currentUser?.user_name || this.currentUser?.full_name || 'Unknown';
       const userIdLast4 = this.currentUser?.id ? this.currentUser.id.slice(-4) : '????';
@@ -526,7 +527,7 @@ class LocationTracker {
         latitude,
         longitude,
         accuracy,
-        timestamp: new Date(timestamp).toISOString(),
+        timestamp: getLocalTimestamp(),
         source: this.locationProvider?.name || 'web'
       };
       window.dispatchEvent(new CustomEvent('driverPositionUpdated', { detail }));
@@ -910,7 +911,7 @@ class LocationTracker {
       const { offlineDB } = await import('./offlineDatabase');
       const { buildPendingBreadcrumbKey } = await import('./pendingBreadcrumbsManager');
 
-      const deliveryDate = this.currentDeliveryDate || format(new Date(), 'yyyy-MM-dd');
+      const deliveryDate = this.currentDeliveryDate || getLocalDateString();
       const deliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const driverDeliveries = (deliveries || []).filter((delivery) => delivery?.driver_id === this.currentUser.id);

@@ -26,6 +26,7 @@ import {
   invalidateEntityCache
 } from './dataSyncCoordinator';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
+import { getLocalDateString } from './localTimeHelper';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
@@ -74,6 +75,8 @@ const notifySyncStatus = (status) => {
  * CRITICAL: Skip API call if offline DB shows recent sync (within 30 minutes) to prevent rate limits
  * @returns {Promise<{needsSync: boolean, lastClientTimestamp: string|null}>}
  */
+const getSyncMetaTimestamp = () => new Date().toISOString();
+
 const checkIfEntityNeedsSync = async (entityName, Entity, initialCheckQuery = {}) => {
   try {
     const metadata = await offlineDB.getSyncMetadata(entityName);
@@ -126,7 +129,7 @@ const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter
     if (!checkResult.needsSync || checkResult.skipped) {
       // CRITICAL: Update sync time even when skipping to prevent repeated checks
       if (checkResult.skipped) {
-        await offlineDB.updateSyncMetadata(entityName, checkResult.lastClientTimestamp, new Date().toISOString());
+        await offlineDB.updateSyncMetadata(entityName, checkResult.lastClientTimestamp, getSyncMetaTimestamp());
       }
       return { skipped: true, reason: checkResult.skipped ? 'recently_synced' : 'no_updates' };
     }
@@ -192,7 +195,7 @@ const syncPatientsBatched = async (Entity, filter, latestServerTimestamp) => {
   }
   
   // Update metadata after all batches
-  await offlineDB.updateSyncMetadata('Patient', latestServerTimestamp, new Date().toISOString());
+  await offlineDB.updateSyncMetadata('Patient', latestServerTimestamp, getSyncMetaTimestamp());
 
   // Dispatch event for indicator
   if (typeof window !== 'undefined') {
@@ -1111,7 +1114,7 @@ export const forceSyncAll = async () => {
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   
   try {
-    const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
+    const selectedDateStr = getLocalDateString();
 
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 5 });
     const appUsersRaw = await AppUser.list();
@@ -1345,7 +1348,7 @@ export const restartDeliveryPatientSync = async () => {
   notifySyncStatus({ status: 'restart_syncing' });
   
   try {
-    const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
+    const selectedDateStr = getLocalDateString();
     
     // CRITICAL: Reset delivery sync cycle to restart from today
     console.log('🔄 [OfflineSync] Restarting delivery sync cycle from today...');
@@ -1590,7 +1593,7 @@ if (typeof window !== 'undefined' && !window.__rxdeliverReconnectSyncRegistered)
   window.addEventListener('online', () => {
     setTimeout(() => {
       processPendingMutations().catch(() => {});
-      performBackgroundSync(format(new Date(), 'yyyy-MM-dd')).catch(() => {});
+      performBackgroundSync(getLocalDateString()).catch(() => {});
     }, 1500);
   });
 }
