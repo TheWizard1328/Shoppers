@@ -95,7 +95,7 @@ export default function DeliveryFormView({
   handleCancelClick, handleBatchSave, handleUpdateStaged, handleAddToStaging,
   handleSubmit, handleClearForm: _handleClearForm,
   buttonState, cancelButtonState, isFormValid, hasChanges, isPatientFormOpen,
-  closeOnSave, onCancel, openMode
+  closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false
 }) {
   const stagedCount = {
     new: sortedStagedDeliveries.filter((s) => !s.id).length,
@@ -142,8 +142,8 @@ export default function DeliveryFormView({
   // Auto-open the driver dropdown when a driver must be selected
   const [forceOpenDriverSelect, setForceOpenDriverSelect] = React.useState(false);
   React.useEffect(() => {
-    setForceOpenDriverSelect(requiresDriverSelection);
-  }, [requiresDriverSelection]);
+    setForceOpenDriverSelect(requiresDriverSelection || forceOpenDriverOnLoad);
+  }, [requiresDriverSelection, forceOpenDriverOnLoad]);
 
   React.useEffect(() => {
     const handleForceOpenDriverSelect = () => setForceOpenDriverSelect(true);

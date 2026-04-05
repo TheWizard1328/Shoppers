@@ -996,7 +996,7 @@ export default function Patients() {
   const handleAddToRoute = useCallback((patient) => {
     const store = stores.find((s) => s.id === patient.store_id);
     if (!store) {
-      setPatientForNewDelivery(patient);
+      setPatientForNewDelivery({ ...patient, forceOpenDriverOnLoad: true });
       setShowDeliveryForm(true);
       return;
     }
@@ -1043,9 +1043,23 @@ export default function Patients() {
       }
     })();
 
+    const selectedDateObj = new Date(`${suggestedDate}T00:00:00`);
+    const dayOfWeek = selectedDateObj.getDay();
+    const amDriverId = dayOfWeek === 6
+      ? store.saturday_am_driver_id
+      : dayOfWeek === 0
+        ? store.sunday_am_driver_id
+        : store.weekday_am_driver_id;
+    const pmDriverId = dayOfWeek === 6
+      ? store.saturday_pm_driver_id
+      : dayOfWeek === 0
+        ? store.sunday_pm_driver_id
+        : store.weekday_pm_driver_id;
+
     setPatientForNewDelivery({
       ...patient,
-      suggestedDate: suggestedDate
+      suggestedDate: suggestedDate,
+      forceOpenDriverOnLoad: !amDriverId && !pmDriverId
     });
 
     setShowDeliveryForm(true);
@@ -1875,6 +1889,7 @@ export default function Patients() {
         <DeliveryForm
           initialPatientId={patientForNewDelivery?.id}
           suggestedDate={patientForNewDelivery?.suggestedDate}
+          forceOpenDriverOnLoad={patientForNewDelivery?.forceOpenDriverOnLoad === true}
           patients={allPatients}
           stores={stores}
           drivers={drivers}

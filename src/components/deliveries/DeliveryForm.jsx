@@ -89,7 +89,8 @@ export default function DeliveryForm({
   defaultToPickupMode = false,
   closeOnSave = false,
   onCreatePatient,
-  openMode = null
+  openMode = null,
+  forceOpenDriverOnLoad = false
 }) {
   const { setIsFormOverlayOpen } = useAppData();
   const freshStores = useFreshStores(stores);
@@ -210,6 +211,7 @@ export default function DeliveryForm({
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
   const [isNewRouteWithZeroStops, setIsNewRouteWithZeroStops] = useState(false);
+  const [forceOpenDriverSelectOnLoad, setForceOpenDriverSelectOnLoad] = useState(forceOpenDriverOnLoad);
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
   const originalPidRef = useRef('');
@@ -626,6 +628,9 @@ export default function DeliveryForm({
     });
 
     setFormData(updatedFormData);
+    if (!updatedFormData.driver_id) {
+      setForceOpenDriverSelectOnLoad(true);
+    }
     if (!autoAddToStaged) {
       if (shouldAutoFocusFields) {
         setTimeout(() => {
@@ -1984,6 +1989,7 @@ export default function DeliveryForm({
       handleSubmit={handleSubmit} buttonState={buttonState} cancelButtonState={cancelButtonState}
       isFormValid={isFormValid} hasChanges={hasChanges} isPatientFormOpen={isPatientFormOpen}
       closeOnSave={closeOnSave} onCancel={onCancel} openMode={openMode}
+      forceOpenDriverOnLoad={forceOpenDriverSelectOnLoad}
     />
   );
 }
