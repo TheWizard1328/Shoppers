@@ -36,6 +36,7 @@ import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } 
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
 import { closeDeliveryFormAfterSave } from '../utils/deliveryFormActionHelpers';
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
+import { shouldUseImmediateAddToRouteStage, buildImmediateAddToRouteStage } from './Add2RouteStatusHelper';
 import { createPatientFromDraft, resolvePickupPuid, resolvePickupTimeWindow } from './deliveryAddHelpers';
 import { useConfirmDelete } from './useConfirmDelete';
 import useFreshStores from './useFreshStores';
@@ -1247,29 +1248,27 @@ export default function DeliveryForm({
   }, [stagedDeliveries, shouldAutoFocusFields]);
 
   const handleBatchSave = useCallback(async () => {
-    const shouldCreateImmediateStagedDelivery = openMode === 'add_to_route' && !delivery && stagedDeliveries.length === 0 && formData.patient_id && formData.store_id && formData.delivery_date;
+    const shouldCreateImmediateStagedDelivery = shouldUseImmediateAddToRouteStage({
+      openMode,
+      delivery,
+      stagedDeliveries,
+      formData
+    });
+
+    const stagedDeliveriesForSave = shouldCreateImmediateStagedDelivery
+      ? [buildImmediateAddToRouteStage({ formData, selectedPatient, stores, allDeliveries })]
+      : stagedDeliveries;
 
     if (shouldCreateImmediateStagedDelivery) {
-      await handleAddToStaging();
+      setStagedDeliveries(stagedDeliveriesForSave);
+      setHasChanges(true);
     }
 
     return runHandleBatchSave({
       batchSaveLockRef,
       isSaving,
       blockPredictions,
-      stagedDeliveries: shouldCreateImmediateStagedDelivery ? [{
-        ...formData,
-        _tempId: `temp-${Date.now()}`,
-        patient_name: formData.patient_name || selectedPatient?.full_name || '',
-        patient_phone: formData.patient_phone || selectedPatient?.phone || '',
-        delivery_address: selectedPatient?.address || '',
-        unit_number: formData.unit_number || selectedPatient?.unit_number || '',
-        store_name: stores.find((s) => s && s.id === formData.store_id)?.name || '',
-        store_abbreviation: stores.find((s) => s && s.id === formData.store_id)?.abbreviation || '',
-        cod_total_amount_required: formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0,
-        status: formData.status || 'pending',
-        first_delivery: !(allDeliveries || []).some((d) => d && d.patient_id === formData.patient_id && d.status === 'completed')
-      }] : stagedDeliveries,
+      stagedDeliveries: stagedDeliveriesForSave,
       hasPendingDeletes,
       setStagedDeliveries,
       setProjectedDeliveries,
@@ -1306,6 +1305,8 @@ export default function DeliveryForm({
     delivery,
     formData,
     selectedPatient,
+    setStagedDeliveries,
+    setHasChanges,
     handleAddToStaging
   ]);
 

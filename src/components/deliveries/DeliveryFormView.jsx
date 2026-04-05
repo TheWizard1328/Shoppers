@@ -21,6 +21,7 @@ import SmartBarcodeScanner from './SmartBarcodeScanner';
 import PatientMatchPopup from './PatientMatchPopup';
 import DeliveryPatientSearch from './DeliveryPatientSearch';
 import DeliveryRecurringOptions from './DeliveryRecurringOptions';
+import { getAddButtonStatus } from './Add2RouteStatusHelper';
 import LargeBarcodePreview from './LargeBarcodePreview';
 import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
@@ -823,15 +824,6 @@ export default function DeliveryFormView({
                   </Button> :
                 buttonState === 'add' ?
                 <Button type="button" size="sm" onClick={() => {
-                  if (formData.status === 'in_transit') {
-                    runLockedAction('add_staged_delivery', async () => {
-                      await handleAddToStaging();
-                      if (userHasRole(currentUser, 'admin')) {
-                        setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
-                      }
-                    });
-                    return;
-                  }
                   runLockedAction('add_staged_delivery', async () => {
                     await handleAddToStaging();
                     if (userHasRole(currentUser, 'admin')) {
@@ -839,7 +831,7 @@ export default function DeliveryFormView({
                     }
                   });
                 }} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || requiresDriverSelection} title={!isFormValid ? 'Complete the required pickup fields before adding' : requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
-                    <Plus className="w-4 h-4" />Add
+                    <Plus className="w-4 h-4" />{getAddButtonStatus({ formData }) === 'in_transit' ? 'Add' : 'Add'}
                   </Button> :
 
                 <Button type="button" size="sm" onClick={async (e) => {
