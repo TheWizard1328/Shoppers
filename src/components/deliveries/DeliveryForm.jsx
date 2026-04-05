@@ -1247,7 +1247,9 @@ export default function DeliveryForm({
   }, [stagedDeliveries, shouldAutoFocusFields]);
 
   const handleBatchSave = useCallback(async () => {
-    if (openMode === 'add_to_route' && !delivery && stagedDeliveries.length === 0 && formData.patient_id && formData.store_id && formData.delivery_date) {
+    const shouldCreateImmediateStagedDelivery = openMode === 'add_to_route' && !delivery && stagedDeliveries.length === 0 && formData.patient_id && formData.store_id && formData.delivery_date;
+
+    if (shouldCreateImmediateStagedDelivery) {
       await handleAddToStaging();
     }
 
@@ -1255,7 +1257,7 @@ export default function DeliveryForm({
       batchSaveLockRef,
       isSaving,
       blockPredictions,
-      stagedDeliveries: openMode === 'add_to_route' && stagedDeliveries.length === 0 ? [{
+      stagedDeliveries: shouldCreateImmediateStagedDelivery ? [{
         ...formData,
         _tempId: `temp-${Date.now()}`,
         patient_name: formData.patient_name || selectedPatient?.full_name || '',
