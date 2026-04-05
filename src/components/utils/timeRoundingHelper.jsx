@@ -30,7 +30,16 @@ export function isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES) {
  * @returns {string} The formatted local ISO timestamp string.
  */
 export const generateCompletionTimestamp = (delivery, allDeliveries, FINISHED_STATUSES) => {
-  const currentTime = new Date();
+  const now = new Date();
+  const currentTime = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds(),
+    0
+  );
   const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
 
   if (shouldRound) {
