@@ -154,7 +154,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   }, []);
   const edmontonNowParts = localNowParts;
   const selectedRouteDateStr = selectedDate ? format(new Date(selectedDate), 'yyyy-MM-dd') : localNowParts.date;
-  const edmontonTodayStr = selectedRouteDateStr;
+  const edmontonTodayStr = localNowParts.date;
   const isPastDeliveryDate = React.useMemo(() => !!delivery?.delivery_date && delivery.delivery_date < edmontonTodayStr, [delivery?.delivery_date, edmontonTodayStr]);
   const shouldUseRegularStopTiming = React.useMemo(() => {
     return shouldUseRegularTiming({
@@ -540,6 +540,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
               const existingNotes = delivery.delivery_notes || '';const updatedNotes = existingNotes ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}` : `[${status.toUpperCase()}] ${reason}`;
               const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
+              const useRetroactiveTiming = delivery?.delivery_date !== edmontonTodayStr;
               console.warn('[StopCard] failure retro timing gate', {
                 deliveryId: delivery?.id,
                 status,
@@ -547,10 +548,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 shouldUseRetroactiveStopTiming,
                 isPastDeliveryDate,
                 deliveryDate: delivery?.delivery_date,
+                selectedRouteDate: selectedRouteDateStr,
                 todayDateString: edmontonTodayStr,
                 edmontonTime: edmontonNowParts.time
               });
-              const useRetroactiveTiming = delivery?.delivery_date !== edmontonTodayStr;
               const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({
                 delivery,
                 allDeliveries,
@@ -625,7 +626,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
                           const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const useRetroactiveTiming = delivery?.delivery_date !== edmontonTodayStr;
-                          console.warn('[StopCard] complete retro timing gate', { deliveryId: delivery?.id, useRetroactiveTiming, isPickup, isPastDeliveryDate, deliveryDate: delivery?.delivery_date, todayDateString: edmontonTodayStr, edmontonTime: edmontonNowParts.time });
+                          console.warn('[StopCard] complete retro timing gate', { deliveryId: delivery?.id, useRetroactiveTiming, isPickup, isPastDeliveryDate, deliveryDate: delivery?.delivery_date, selectedRouteDate: selectedRouteDateStr, todayDateString: edmontonTodayStr, edmontonTime: edmontonNowParts.time });
                           const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: edmontonTodayStr, allowSameDay: false }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
                           const forcedCompletionTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
                           const forcedArrivalTimestamp = useRetroactiveTiming ? (retroactiveTiming?.arrival_time || delivery.arrival_time || localTimeString) : (delivery.arrival_time || localTimeString);
