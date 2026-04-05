@@ -550,10 +550,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               const forcedFailureTimestamp = retroactiveTiming?.actual_delivery_time || localTimeString;
               const forcedFailureArrivalTimestamp = retroactiveTiming?.arrival_time || forcedFailureTimestamp;
               const existingArrivalDate = parseLocalTimestamp(delivery.arrival_time);
-              const forcedFailureDate = parseLocalTimestamp(forcedFailureTimestamp);
               const retroactiveArrivalDate = parseLocalTimestamp(forcedFailureArrivalTimestamp);
-              const actualVsArrivalDiffMinutes = existingArrivalDate && forcedFailureDate ? Math.abs(forcedFailureDate.getTime() - existingArrivalDate.getTime()) / 60000 : 0;
-              const shouldAutoSetArrivalTime = (shouldUseRetroactiveStopTiming && !!retroactiveArrivalDate && (!existingArrivalDate || actualVsArrivalDiffMinutes > 5)) || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
+              const arrivalVsRetroArrivalDiffMinutes = existingArrivalDate && retroactiveArrivalDate ? Math.abs(retroactiveArrivalDate.getTime() - existingArrivalDate.getTime()) / 60000 : 0;
+              const shouldAutoSetArrivalTime = (shouldUseRetroactiveStopTiming && !!retroactiveArrivalDate && (!existingArrivalDate || arrivalVsRetroArrivalDiffMinutes > 5)) || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
               const criticalUpdate = {
                 status: status,
                 delivery_notes: updatedNotes,
@@ -616,10 +615,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const forcedCompletionTimestamp = retroactiveTiming?.actual_delivery_time || localTimeString;
                           const forcedArrivalTimestamp = retroactiveTiming?.arrival_time || forcedCompletionTimestamp;
                           const existingArrivalDate = parseLocalTimestamp(delivery.arrival_time);
-                          const forcedCompletionDate = parseLocalTimestamp(forcedCompletionTimestamp);
                           const retroactiveArrivalDate = parseLocalTimestamp(forcedArrivalTimestamp);
-                          const actualVsArrivalDiffMinutes = existingArrivalDate && forcedCompletionDate ? Math.abs(forcedCompletionDate.getTime() - existingArrivalDate.getTime()) / 60000 : 0;
-                          const shouldOverwriteArrivalTime = ((forceRetroactivePickupTiming || shouldUseRetroactiveStopTiming) && !!retroactiveArrivalDate && (!existingArrivalDate || actualVsArrivalDiffMinutes > 5)) || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
+                          const arrivalVsRetroArrivalDiffMinutes = existingArrivalDate && retroactiveArrivalDate ? Math.abs(retroactiveArrivalDate.getTime() - existingArrivalDate.getTime()) / 60000 : 0;
+                          const shouldOverwriteArrivalTime = ((forceRetroactivePickupTiming || shouldUseRetroactiveStopTiming) && !!retroactiveArrivalDate && (!existingArrivalDate || arrivalVsRetroArrivalDiffMinutes > 5)) || delivery.delivery_date === edmontonTodayStr && !delivery.arrival_time;
                           const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
                           const fallbackSignatureUrl = patientSavedSignatureUrl || null;
                           const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp, ...(hasPendingPickupTransitions ? {} : { isNextDelivery: false }), finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
