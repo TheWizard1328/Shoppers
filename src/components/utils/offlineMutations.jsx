@@ -569,7 +569,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     }
 
     if ('actual_delivery_time' in meaningfulUpdates || 'arrival_time' in meaningfulUpdates) {
-      console.warn('[OfflineMutations][delivery-timing] meaningful updates', {
+      console.warn('[OfflineMutations][Retro] meaningful updates', {
         deliveryId,
         existing_actual_delivery_time: existingDelivery?.actual_delivery_time || null,
         existing_arrival_time: existingDelivery?.arrival_time || null,
@@ -588,7 +588,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     };
 
     if ('actual_delivery_time' in updatedDelivery || 'arrival_time' in updatedDelivery) {
-      console.warn('[OfflineMutations][delivery-timing] saving locally', {
+      console.warn('[OfflineMutations][Retro] saving locally', {
         deliveryId,
         saved_actual_delivery_time: updatedDelivery?.actual_delivery_time || null,
         saved_arrival_time: updatedDelivery?.arrival_time || null,
