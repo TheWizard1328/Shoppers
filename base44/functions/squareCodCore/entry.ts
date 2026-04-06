@@ -1355,19 +1355,25 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
     ...existingTransactions.map((record) => base44.asServiceRole.entities.SquareTransaction.delete(record.id).catch(() => null)),
   ]);
 
-  if (catalogRecords.length > 0) {
-    await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(catalogRecords);
+  const safeCatalogRecords = catalogRecords
+    .filter((record) => record && typeof record.delivery_id === 'string' && record.delivery_id.trim().length > 0);
+
+  const safeTransactionRecords = transactionRecords
+    .filter((record) => record && typeof record.delivery_id === 'string' && record.delivery_id.trim().length > 0);
+
+  if (safeCatalogRecords.length > 0) {
+    await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(safeCatalogRecords);
   }
 
-  if (transactionRecords.length > 0) {
-    await base44.asServiceRole.entities.SquareTransaction.bulkCreate(transactionRecords);
+  if (safeTransactionRecords.length > 0) {
+    await base44.asServiceRole.entities.SquareTransaction.bulkCreate(safeTransactionRecords);
   }
 
   return {
     success: true,
-    processed: catalogRecords.length + transactionRecords.length,
-    catalogCount: catalogRecords.length,
-    transactionCount: transactionRecords.length,
+    processed: safeCatalogRecords.length + safeTransactionRecords.length,
+    catalogCount: safeCatalogRecords.length,
+    transactionCount: safeTransactionRecords.length,
   };
 }
 
