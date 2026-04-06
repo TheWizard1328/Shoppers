@@ -773,27 +773,36 @@ async function handleFetchPayments(base44, payload) {
               const order = orderData.order;
               if (order?.line_items?.length) {
                 for (const lineItem of order.line_items) {
-                  const dedupeKey = [
-                    payment.id,
-                    payment.order_id,
-                    lineItem.uid || lineItem.catalog_object_id || lineItem.name,
-                    lineItem.base_price_money?.amount || 0,
-                  ].join('::');
-                  if (soldCatalogItemKeys.has(dedupeKey)) continue;
-                  soldCatalogItemKeys.add(dedupeKey);
+                  const quantityValue = Number(lineItem?.quantity || 1);
+                  const quantity = Number.isFinite(quantityValue) && quantityValue > 0 ? Math.round(quantityValue) : 1;
+                  const explicitUnitAmount = toAmountCents(lineItem?.base_price_money?.amount);
+                  const grossAmount = toAmountCents(lineItem?.gross_sales_money?.amount || lineItem?.total_money?.amount);
+                  const unitAmountCents = explicitUnitAmount || (quantity > 0 ? Math.round(grossAmount / quantity) : grossAmount);
 
-                  soldCatalogItems.push({
-                    catalog_object_id: lineItem.catalog_object_id || null,
-                    location_id: payment.location_id,
-                    payment_id: payment.id,
-                    square_transaction_id: payment.id,
-                    square_payment_id: payment.id,
-                    order_id: payment.order_id,
-                    item_name: lineItem.name,
-                    amount: lineItem.base_price_money?.amount ? lineItem.base_price_money.amount / 100 : 0,
-                    payment_date: payment.created_at,
-                    payment_method: payment.payment_source_type || 'UNKNOWN',
-                  });
+                  for (let index = 0; index < quantity; index += 1) {
+                    const dedupeKey = [
+                      payment.id,
+                      payment.order_id,
+                      lineItem.uid || lineItem.catalog_object_id || lineItem.name,
+                      unitAmountCents,
+                      index,
+                    ].join('::');
+                    if (soldCatalogItemKeys.has(dedupeKey)) continue;
+                    soldCatalogItemKeys.add(dedupeKey);
+
+                    soldCatalogItems.push({
+                      catalog_object_id: lineItem.catalog_object_id || null,
+                      location_id: payment.location_id,
+                      payment_id: payment.id,
+                      square_transaction_id: payment.id,
+                      square_payment_id: payment.id,
+                      order_id: payment.order_id,
+                      item_name: lineItem.name,
+                      amount: unitAmountCents / 100,
+                      payment_date: payment.created_at,
+                      payment_method: payment.payment_source_type || 'UNKNOWN',
+                    });
+                  }
                 }
               }
             }
