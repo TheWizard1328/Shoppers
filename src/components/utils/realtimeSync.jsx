@@ -172,7 +172,7 @@ async function flushBuffered(entityName) {
           source: 'realtime_sync',
           fromRealtime: true,
           fullReplacement: true,
-          skipMapPhaseOneRefresh: false,
+          skipMapPhaseOneRefresh: true,
           preserveLocalState: true
         }
       }));
@@ -638,11 +638,32 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
         window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
           detail: { deletedIds: [id] }
         }));
+        if (data?.status === 'in_transit' || data?.status === 'en_route') {
+          window.dispatchEvent(new CustomEvent('deliveryDeletedWhileActive', {
+            detail: {
+              source: 'realtimeBroadcast',
+              deliveryId: id,
+              driverId: data?.driver_id,
+              deliveryDate: data?.delivery_date
+            }
+          }));
+        }
       }
       if (action === 'batch_delete') {
         window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
           detail: { deletedIds: ids || [] }
         }));
+        const deletedDeliveries = Array.isArray(data) ? data : [];
+        if (deletedDeliveries.some((delivery) => delivery?.status === 'in_transit' || delivery?.status === 'en_route')) {
+          window.dispatchEvent(new CustomEvent('deliveryDeletedWhileActive', {
+            detail: {
+              source: 'realtimeBroadcastBatch',
+              deletedIds: ids || [],
+              driverId: deletedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id,
+              deliveryDate: deletedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date
+            }
+          }));
+        }
       }
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
