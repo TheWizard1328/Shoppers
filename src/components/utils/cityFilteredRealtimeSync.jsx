@@ -165,17 +165,9 @@ class CityFilteredRealtimeSync {
               await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
               console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
 
-              const reloadedSelectedDateDeliveries = selectedDate
-                ? await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate)
-                : await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-
-              if (selectedDate) {
-                await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDate, reloadedSelectedDateDeliveries || []);
-              }
-
               const allSelectedDateDeliveries = selectedDate
                 ? await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate)
-                : reloadedSelectedDateDeliveries;
+                : await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
 
              const scopedDeliveries = (allSelectedDateDeliveries || []).filter((delivery) => {
                if (!delivery) return false;
