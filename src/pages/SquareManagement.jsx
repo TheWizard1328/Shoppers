@@ -113,12 +113,12 @@ export default function SquareManagement() {
   const getSourceWindow = React.useCallback(() => {
     const today = new Date();
     const startDate = new Date(today);
-    startDate.setDate(today.getDate() - Number(selectedDaysRange || 60));
+    startDate.setDate(today.getDate() - 60);
     return {
       startDateStr: format(startDate, 'yyyy-MM-dd'),
       endDateStr: format(today, 'yyyy-MM-dd')
     };
-  }, [selectedDaysRange]);
+  }, []);
 
   const loadSyncStatus = React.useCallback(async () => {
     try {
@@ -428,7 +428,7 @@ export default function SquareManagement() {
   }, [selectedDaysRange]);
 
   useEffect(() => {
-    const loadKey = `square-cod-${selectedDaysRange}`;
+    const loadKey = 'square-cod-initial-load';
     if (initialLoadKeyRef.current === loadKey) return;
     initialLoadKeyRef.current = loadKey;
 
@@ -497,12 +497,12 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [selectedDaysRange, getSourceWindow, loadReconciliationFromOffline, loadSyncStatus, runFullOfflineSnapshotSync]);
+  }, [getSourceWindow, loadReconciliationFromOffline, loadSyncStatus, runFullOfflineSnapshotSync]);
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
     refreshUiFromOfflineOnly();
-  }, [activeView, selectedDriverFilter, selectedStoreFilter, selectedDaysRange, hasInitialLoadCompleted, refreshUiFromOfflineOnly]);
+  }, [activeView, selectedDriverFilter, selectedStoreFilter, hasInitialLoadCompleted, refreshUiFromOfflineOnly]);
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
@@ -550,7 +550,7 @@ export default function SquareManagement() {
       unsubscribeCatalogItems?.();
       unsubscribeTransactions?.();
     };
-  }, [hasInitialLoadCompleted, isSyncing, isUpdatingReconciliationCatalog, selectedDaysRange, runFullOfflineSnapshotSync]);
+  }, [hasInitialLoadCompleted, isSyncing, isUpdatingReconciliationCatalog, runFullOfflineSnapshotSync]);
 
 
 
