@@ -44,8 +44,19 @@ Deno.serve(async (req) => {
       lng: driver?.current_longitude,
     };
 
-    if (!Number.isFinite(Number(currentLocation?.lat)) || !Number.isFinite(Number(currentLocation?.lng))) {
-      return Response.json({ error: 'Driver location is required' }, { status: 400 });
+    const fallbackLocation = {
+      lat: driver?.home_latitude,
+      lng: driver?.home_longitude,
+    };
+
+    const resolvedLocation = Number.isFinite(Number(currentLocation?.lat)) && Number.isFinite(Number(currentLocation?.lng))
+      ? currentLocation
+      : Number.isFinite(Number(fallbackLocation?.lat)) && Number.isFinite(Number(fallbackLocation?.lng))
+        ? fallbackLocation
+        : null;
+
+    if (!resolvedLocation) {
+      return Response.json({ etaEstimates: [] });
     }
 
     const etaEstimates = deliveries
@@ -55,7 +66,7 @@ Deno.serve(async (req) => {
           lng: delivery?.longitude,
         };
 
-        const distance_km = calculateDistanceKm(currentLocation, destination);
+        const distance_km = calculateDistanceKm(resolvedLocation, destination);
         const estimated_duration_minutes = estimateDurationMinutes(distance_km);
 
         if (!Number.isFinite(distance_km) || !Number.isFinite(estimated_duration_minutes)) {
