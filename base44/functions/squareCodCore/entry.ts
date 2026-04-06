@@ -1502,7 +1502,7 @@ Deno.serve(async (req) => {
       return Response.json(await handleSyncOnlineSquareEntities(base44, payload));
     }
     if (action === 'syncSquareCods') {
-      await requireUser(base44);
+      await requireAdminIfAuthenticated(base44);
       return Response.json(await handleSyncSquareCods(base44, payload));
     }
 
