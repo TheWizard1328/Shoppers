@@ -987,6 +987,7 @@ export default function SquareManagement() {
   const filteredTransactionRows = React.useMemo(() => {
     const dedupedTransactions = [];
     const seenTransactionKeys = new Set();
+    const duplicateTransactionGroups = new Map();
 
     (allTransactions || [])
       .filter((transaction) => {
@@ -1005,10 +1006,30 @@ export default function SquareManagement() {
       })
       .forEach((transaction) => {
         const dedupeKey = transaction.square_transaction_id || transaction.square_payment_id || transaction.order_id || transaction.receipt_number;
-        if (dedupeKey && seenTransactionKeys.has(dedupeKey)) return;
-        if (dedupeKey) seenTransactionKeys.add(dedupeKey);
+        if (dedupeKey && seenTransactionKeys.has(dedupeKey)) {
+          const existing = duplicateTransactionGroups.get(dedupeKey) || [];
+          duplicateTransactionGroups.set(dedupeKey, [...existing, transaction]);
+          return;
+        }
+        if (dedupeKey) {
+          seenTransactionKeys.add(dedupeKey);
+          duplicateTransactionGroups.set(dedupeKey, [transaction]);
+        }
         dedupedTransactions.push(transaction);
       });
+
+    const duplicateSummaries = Array.from(duplicateTransactionGroups.entries())
+      .filter(([, records]) => records.length > 1)
+      .map(([key, records]) => ({
+        key,
+        count: records.length,
+        itemName: records[0]?.item_name,
+        amount: records[0]?.amount,
+      }));
+
+    if (duplicateSummaries.length > 0) {
+      console.log('[SquareManagement] Duplicate transaction groups detected', duplicateSummaries);
+    }
 
     return dedupedTransactions
       .map((transaction) => {
