@@ -1029,12 +1029,12 @@ export default function SquareManagement() {
         const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
         const store = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
         const parsedDeliveryDate = parseSquareItemName(transaction.item_name)?.deliveryDate;
-        const createdOrUpdatedDate = (() => {
-          const rawDate = transaction.created_date || transaction.updated_date || transaction.raw_square_data?.payment_date;
+        const collectionDate = (() => {
+          const rawDate = transaction.raw_square_data?.payment_date || transaction.created_date || transaction.updated_date;
           if (!rawDate) return null;
           return format(new Date(rawDate), 'yyyy-MM-dd');
         })();
-        const transactionDeliveryDate = createdOrUpdatedDate || parsedDeliveryDate;
+        const transactionDeliveryDate = collectionDate || parsedDeliveryDate;
         const matchedAmountCents = Math.round(Number(transaction.amount || 0) * 100);
         const matchedDelivery = (deliveries || []).find((delivery) => {
           if (!delivery || !store?.id) return false;
