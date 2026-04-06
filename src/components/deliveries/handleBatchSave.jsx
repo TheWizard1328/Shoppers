@@ -147,12 +147,14 @@ export async function handleBatchSave({
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
 
+      const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB.filter((delivery) => delivery?.status !== 'in_transit');
+
       const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
       const groupedEnsureKeys = new Map();
       const defaultPickupDriverDateKeys = new Set();
       const existingStopCountByDriverDate = new Map();
 
-      patientDeliveriesReadyForDB.forEach((delivery) => {
+      patientDeliveriesNeedingPickupEnsure.forEach((delivery) => {
         if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return;
 
         const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
@@ -241,7 +243,7 @@ export async function handleBatchSave({
         return [key, result];
       })));
 
-      const ensuredPickups = patientDeliveriesReadyForDB.map((delivery) => {
+      const ensuredPickups = patientDeliveriesNeedingPickupEnsure.map((delivery) => {
         if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return null;
         const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
         return ensureResultsByKey.get(key) || null;
@@ -263,12 +265,15 @@ export async function handleBatchSave({
           .map((pickup) => [`${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || 'AM'}`, pickup])
       );
 
-      stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB.map((delivery, index) => {
+      stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB.map((delivery) => {
+        if (delivery?.status === 'in_transit') {
+          return delivery;
+        }
         const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || 'AM'}`;
         const ensuredPickup = ensuredPickupByKey.get(key);
         return {
           ...delivery,
-          puid: ensuredPickup?.stop_id || ensuredPickups[index]?.data?.puid || delivery.puid || ''
+          puid: ensuredPickup?.stop_id || delivery.puid || ''
         };
       });
 
