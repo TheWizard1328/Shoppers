@@ -175,6 +175,20 @@ export default function SquareManagement() {
     return loadSquareViewFromOffline();
   }, [loadSquareViewFromOffline]);
 
+  const quickRefreshCatalogView = React.useCallback(async () => {
+    const catalogRecords = await base44.entities.SquareCatalogItems.list('-updated_date', 2000);
+    const transactionRecords = allTransactions || [];
+
+    await syncSquareCODSnapshotOffline({
+      catalogItems: catalogRecords || [],
+      transactions: transactionRecords,
+    });
+
+    const snapshot = await loadSquareViewFromOffline();
+    setCatalogItems(snapshot.items || []);
+    return snapshot;
+  }, [allTransactions, loadSquareViewFromOffline, syncSquareCODSnapshotOffline]);
+
   const mapCatalogRecordToUIItem = React.useCallback((record) => ({
     id: record.id,
     catalog_object_id: record.square_catalog_object_id || record.id,
@@ -359,7 +373,7 @@ export default function SquareManagement() {
         action: 'syncSquareCods',
         items,
       });
-      await syncFromSquare();
+      await quickRefreshCatalogView();
       setActiveView('catalog');
       toast.success(`Synced ${items.length} reconciliation items to Square catalog`);
     } finally {
