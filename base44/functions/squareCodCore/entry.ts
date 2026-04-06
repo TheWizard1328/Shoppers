@@ -959,24 +959,39 @@ async function handleFetchPayments(base44, payload) {
 }
 
 async function handleGetCodData(base44, payload = {}) {
+  const accessToken = ensureSquareToken();
   const requestedDaysBack = Number(payload?.daysBack || TRANSACTION_RETENTION_DAYS);
   const daysBack = Number.isFinite(requestedDaysBack) && requestedDaysBack > 0 ? requestedDaysBack : CATALOG_LOOKBACK_DAYS;
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
-  const [locationConfigs, stores, catalogRecords, transactionRecords] = await Promise.all([
+  const [locationConfigs, stores, transactionRecords] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
-    base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []),
     base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []),
   ]);
 
   const safeTransactionRecords = (Array.isArray(transactionRecords) ? transactionRecords : []).map(unwrapEntityRecord).filter(Boolean);
-  const safeCatalogRecords = (Array.isArray(catalogRecords) ? catalogRecords : []).map(unwrapEntityRecord).filter(Boolean);
-
   const recentTransactionRecords = safeTransactionRecords.filter((transaction) => {
     const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
     return Number.isFinite(transactionTime) && transactionTime >= transactionRetentionStartMs;
   });
+
+  const safeLocationConfigs = (Array.isArray(locationConfigs) ? locationConfigs : []).map(unwrapEntityRecord).filter(Boolean);
+  const safeStores = (Array.isArray(stores) ? stores : []).map(unwrapEntityRecord).filter(Boolean);
+  const activeConfigById = new Map(safeLocationConfigs.map((config) => [config.id, config]));
+  const storeByLocationId = new Map(
+    safeStores
+      .map((store) => {
+        const config = activeConfigById.get(store?.square_location_config_id);
+        return config?.square_location_id ? [config.square_location_id, store] : null;
+      })
+      .filter(Boolean)
+  );
+  const locationIds = Array.from(new Set(
+    safeStores
+      .map((store) => activeConfigById.get(store?.square_location_config_id)?.square_location_id)
+      .filter(Boolean)
+  ));
 
   const deliveryIds = Array.from(new Set(
     recentTransactionRecords
@@ -988,28 +1003,43 @@ async function handleGetCodData(base44, payload = {}) {
     ? await base44.asServiceRole.entities.Delivery.list('-updated_date', 2000).catch(() => [])
     : [];
   const safeDeliveries = (Array.isArray(deliveriesResult) ? deliveriesResult : []).map(unwrapEntityRecord).filter(Boolean);
-
   const codDeliveries = safeDeliveries.filter((delivery) => deliveryIds.includes(delivery?.id) && Number(delivery?.cod_total_amount_required || 0) > 0);
-  const recentCatalogRecords = safeCatalogRecords.filter((record) => {
-    if (!record) return false;
-    if (record?.delivery_id && deliveryIds.includes(record.delivery_id)) return true;
-    return isRecentDelivery(record?.delivery_date || record?.item_name);
+
+  const liveCatalogItems = await listActiveCatalogItems(accessToken).catch(() => []);
+  const catalogRecords = (liveCatalogItems || []).flatMap((item) => {
+    const amountCents = getCatalogItemAmountCents(item);
+    const locationIdsForItem = Array.from(new Set([
+      ...(item?.present_at_location_ids || []),
+      ...(item?.item_data?.variations || []).flatMap((variation) => variation?.present_at_location_ids || []),
+    ].filter(Boolean)));
+
+    if (locationIdsForItem.length === 0) return [];
+
+    return locationIdsForItem.map((locationId) => {
+      const store = storeByLocationId.get(locationId);
+      return {
+        square_catalog_object_id: item?.id,
+        square_catalog_version: item?.version || null,
+        item_name: item?.item_data?.name || '',
+        description: item?.item_data?.description || '',
+        amount: amountCents / 100,
+        amount_cents: amountCents,
+        delivery_id: null,
+        delivery_date: toIsoDate(item?.item_data?.name),
+        patient_id: null,
+        store_id: store?.id || null,
+        location_id: locationId,
+        status: 'active',
+        created_date: item?.created_at || null,
+        updated_date: item?.updated_at || null,
+      };
+    });
   });
-
-  const safeLocationConfigs = (Array.isArray(locationConfigs) ? locationConfigs : []).map(unwrapEntityRecord).filter(Boolean);
-  const safeStores = (Array.isArray(stores) ? stores : []).map(unwrapEntityRecord).filter(Boolean);
-
-  const activeConfigById = new Map(safeLocationConfigs.map((config) => [config.id, config]));
-  const locationIds = Array.from(new Set(
-    safeStores
-      .map((store) => activeConfigById.get(store?.square_location_config_id)?.square_location_id)
-      .filter(Boolean)
-  ));
 
   return {
     success: true,
     deliveries: codDeliveries,
-    catalogRecords: recentCatalogRecords,
+    catalogRecords,
     transactionRecords: recentTransactionRecords,
     locationConfigs: safeLocationConfigs,
     locationIds,

@@ -281,7 +281,7 @@ export default function SquareManagement() {
     const { startDateStr, endDateStr } = getSourceWindow();
     const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-    onStageChange?.({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
+    onStageChange?.({ stage: 'deliveries_sync', detail: 'Syncing deliveries…' });
 
     const snapshotResponse = await base44.functions.invoke('squareCodCore', { action: 'getCodData', daysBack: comparisonDaysBack });
     const snapshotData = snapshotResponse?.data || snapshotResponse || {};
@@ -314,20 +314,19 @@ export default function SquareManagement() {
       setLocationIds((snapshotData.locationIds || []).filter(Boolean));
     }
 
-    onStageChange?.({ stage: 'payments_sync', detail: 'Updating offline COD data…' });
+    onStageChange?.({ stage: 'payments_sync', detail: 'Syncing Square transactions…' });
+    await syncDeliveriesWindowOffline(offlineDB, startDateStr, endDateStr, deliveryRecords || []);
 
-    await Promise.all([
-      syncDeliveriesWindowOffline(offlineDB, startDateStr, endDateStr, deliveryRecords || []),
-      syncSquareCODSnapshotOffline({
-        catalogItems: catalogRecords || [],
-        transactions: transactions || [],
-      }),
-    ]);
+    onStageChange?.({ stage: 'catalog_sync', detail: 'Syncing Square catalog items…' });
+    await syncSquareCODSnapshotOffline({
+      catalogItems: catalogRecords || [],
+      transactions: transactions || [],
+    });
 
     setDeliveries(deliveryRecords || []);
     setAllTransactions(transactions || []);
 
-    onStageChange?.({ stage: 'saving_offline', detail: 'Reloading from offline cache…' });
+    onStageChange?.({ stage: 'saving_offline', detail: 'Refreshing reconciliation…' });
 
     await Promise.all([
       loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr),
