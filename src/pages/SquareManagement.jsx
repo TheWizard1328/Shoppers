@@ -502,7 +502,7 @@ export default function SquareManagement() {
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
     refreshUiFromOfflineOnly();
-  }, [activeView, selectedDriverFilter, selectedStoreFilter, hasInitialLoadCompleted, refreshUiFromOfflineOnly]);
+  }, [activeView, selectedDriverFilter, selectedStoreFilter, selectedDaysRange, hasInitialLoadCompleted, refreshUiFromOfflineOnly]);
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
