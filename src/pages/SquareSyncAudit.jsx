@@ -59,12 +59,20 @@ export default function SquareSyncAudit() {
         base44.entities.SquareCatalogItems.list("-updated_date", 2000),
       ]);
 
-      const deliveries = (deliveriesResponse || []).filter(
-        (delivery) =>
+      const activeLocationConfigIds = new Set(
+        (locationConfigs || [])
+          .map((config) => config?.id)
+          .filter(Boolean),
+      );
+      const deliveries = (deliveriesResponse || []).filter((delivery) => {
+        const store = (stores || []).find((item) => item?.id === delivery?.store_id);
+        return (
           Number(delivery?.cod_total_amount_required || 0) > 0 &&
           Boolean(delivery?.store_id) &&
-          locationConfigs.some((config) => config.id === stores.find((store) => store.id === delivery.store_id)?.square_location_config_id && config.status === "active" && config.square_location_id),
-      );
+          Boolean(store?.square_location_config_id) &&
+          activeLocationConfigIds.has(store.square_location_config_id)
+        );
+      });
       const squareTransactions = (squareTransactionsResponse || []).filter((transaction) => {
         const parsed = parseSquareItemName(transaction?.item_name);
         const transactionDate = normalizeDate(
@@ -86,8 +94,20 @@ export default function SquareSyncAudit() {
         transactions: squareTransactions,
       });
 
-      const { locationIdByStoreId, storeByLocationId, storeById, storeByAbbreviation } = buildStoreMaps(stores || [], locationConfigs || []);
-      const patientById = new Map((patients || []).map((patient) => [patient.id, patient]));
+      const normalizedStores = (stores || []).map((record) => ({
+        id: record?.id,
+        ...(record?.data || {}),
+      }));
+      const normalizedLocationConfigs = (locationConfigs || []).map((record) => ({
+        id: record?.id,
+        ...(record?.data || {}),
+      }));
+      const normalizedPatients = (patients || []).map((record) => ({
+        id: record?.id,
+        ...(record?.data || {}),
+      }));
+      const { locationIdByStoreId, storeByLocationId, storeById, storeByAbbreviation } = buildStoreMaps(normalizedStores, normalizedLocationConfigs);
+      const patientById = new Map(normalizedPatients.map((patient) => [patient.id, patient]));
       const deliveryById = new Map(deliveries.map((delivery) => [delivery.id, delivery]));
 
       const transactionRowsBase = squareTransactions
