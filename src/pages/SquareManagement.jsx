@@ -283,32 +283,41 @@ export default function SquareManagement() {
   const runFullOfflineSnapshotSync = React.useCallback(async ({ onStageChange, daysBack, refreshLocations = false } = {}) => {
     const rangeDays = Number(daysBack || 60);
     const comparisonDaysBack = rangeDays + 5;
-    const { startDateStr, endDateStr } = getSourceWindow();
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - rangeDays);
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const endDateStr = format(today, 'yyyy-MM-dd');
     const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-    onStageChange?.({ stage: 'deliveries_sync', detail: 'Syncing deliveries…' });
+    onStageChange?.({ stage: 'deliveries_sync', detail: 'Loading local deliveries…' });
+    const offlineDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+    setDeliveries(offlineDeliveries || []);
+
+    onStageChange?.({ stage: 'payments_sync', detail: 'Loading local Square transactions…' });
+    const offlineTransactions = await getPaymentTransactionsOffline();
+    setAllTransactions(offlineTransactions || []);
+    setSoldCatalogItems((offlineTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status)));
+
+    onStageChange?.({ stage: 'catalog_sync', detail: 'Loading local Square catalog…' });
+    const offlineCatalog = await getCatalogItemsOffline();
+    setCatalogItems(offlineCatalog || []);
+
+    onStageChange?.({ stage: 'saving_offline', detail: 'Refreshing Square data from API…' });
+    await offlineDB.clearStore(offlineDB.STORES.SQUARE_TRANSACTIONS);
+    await offlineDB.clearStore(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
 
     const snapshotResponse = await base44.functions.invoke('squareCodCore', { action: 'getCodData', daysBack: comparisonDaysBack });
     const snapshotData = snapshotResponse?.data || snapshotResponse || {};
     const catalogRecords = snapshotData.catalogRecords || [];
     const transactions = snapshotData.transactionRecords || [];
-    let deliveryRecords = snapshotData.deliveries || [];
-
-    if ((deliveryRecords || []).length > 0) {
-      const existingWindowDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
-      const mergedDeliveries = new Map((existingWindowDeliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
-      (deliveryRecords || []).filter(Boolean).forEach((delivery) => {
-        if (delivery?.id) mergedDeliveries.set(delivery.id, delivery);
-      });
-      deliveryRecords = Array.from(mergedDeliveries.values());
-    }
+    const deliveryRecords = (snapshotData.deliveries || []).length > 0 ? snapshotData.deliveries : (offlineDeliveries || []);
     const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigsRef.current || []);
 
-    if (deliveryRecords.length === 0 && catalogRecords.length > 0) {
-      const catalogDeliveryIds = Array.from(new Set(catalogRecords.map((record) => record?.delivery_id).filter(Boolean)));
-      const fallbackDeliveries = await base44.entities.Delivery.list('-updated_date', 2000);
-      deliveryRecords = (fallbackDeliveries || []).filter((delivery) => catalogDeliveryIds.includes(delivery?.id));
-    }
+    await syncSquareCODSnapshotOffline({
+      catalogItems: catalogRecords,
+      transactions,
+    });
 
     if (refreshLocations) {
       await offlineDB.clearStore(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
@@ -319,30 +328,27 @@ export default function SquareManagement() {
       setLocationIds((snapshotData.locationIds || []).filter(Boolean));
     }
 
-    onStageChange?.({ stage: 'payments_sync', detail: 'Syncing Square transactions…' });
-    await syncDeliveriesWindowOffline(offlineDB, startDateStr, endDateStr, deliveryRecords || []);
-
-    onStageChange?.({ stage: 'catalog_sync', detail: 'Syncing Square catalog items…' });
-    await syncSquareCODSnapshotOffline({
-      catalogItems: catalogRecords || [],
-      transactions: transactions || [],
+    onStageChange?.({ stage: 'saving_offline', detail: 'Syncing online Square entities…' });
+    await base44.functions.invoke('syncSquareCods', {
+      replaceFromSnapshot: true,
+      catalogRecords,
+      transactionRecords: transactions,
     });
 
+    const refreshedCatalog = await getCatalogItemsOffline();
+    const refreshedTransactions = await getPaymentTransactionsOffline();
     setDeliveries(deliveryRecords || []);
-    setAllTransactions(transactions || []);
+    setCatalogItems(refreshedCatalog || []);
+    setAllTransactions(refreshedTransactions || []);
+    setSoldCatalogItems((refreshedTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status)));
 
-    onStageChange?.({ stage: 'saving_offline', detail: 'Refreshing reconciliation…' });
-
-    await Promise.all([
-      loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr),
-      loadSyncStatus(),
-    ]);
+    await loadSyncStatus();
 
     return {
       deliveryCount: (deliveryRecords || []).length,
-      transactionCount: (transactions || []).length,
+      transactionCount: (refreshedTransactions || []).length,
     };
-  }, [getSourceWindow, syncDeliveriesWindowOffline, syncSquareCODSnapshotOffline, loadDeliveriesFromOffline, loadReconciliationFromOffline, loadSyncStatus]);
+  }, [loadDeliveriesFromOffline, loadSyncStatus, getCatalogItemsOffline, getPaymentTransactionsOffline, syncSquareCODSnapshotOffline]);
 
   const syncReconciliationToCatalog = async () => {
     setIsUpdatingReconciliationCatalog(true);
@@ -394,7 +400,7 @@ export default function SquareManagement() {
     try {
       const syncResult = await runFullOfflineSnapshotSync({
         onStageChange: setBgSyncProgress,
-        daysBack: 60,
+        daysBack: Number(selectedDaysRange || 60),
         refreshLocations: true,
       });
 
@@ -436,7 +442,7 @@ export default function SquareManagement() {
     const loadData = async () => {
       try {
         const authUser = await base44.auth.me();
-        const daysBack = 60;
+        const daysBack = Number(selectedDaysRange || 60);
         const { startDateStr, endDateStr } = getSourceWindow();
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
@@ -522,7 +528,7 @@ export default function SquareManagement() {
           setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
           const { transactionCount } = await runFullOfflineSnapshotSync({
             onStageChange: setBgSyncProgress,
-            daysBack: 60,
+            daysBack: Number(selectedDaysRange || 60),
             refreshLocations: false,
           });
           setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });

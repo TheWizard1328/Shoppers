@@ -1480,6 +1480,34 @@ async function handleSyncSquareCods(base44, payload) {
     }
   }
 
+  if (payload?.replaceFromSnapshot) {
+    const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords : [];
+    const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords : [];
+
+    const existingCatalogRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 5000).catch(() => []);
+    const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 5000).catch(() => []);
+
+    await Promise.all([
+      ...existingCatalogRecords.map((record) => base44.asServiceRole.entities.SquareCatalogItems.delete(record.id).catch(() => null)),
+      ...existingTransactions.map((record) => base44.asServiceRole.entities.SquareTransaction.delete(record.id).catch(() => null)),
+    ]);
+
+    if (catalogRecords.length > 0) {
+      await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(catalogRecords);
+    }
+
+    if (transactionRecords.length > 0) {
+      await base44.asServiceRole.entities.SquareTransaction.bulkCreate(transactionRecords);
+    }
+
+    return {
+      success: true,
+      processed: catalogRecords.length + transactionRecords.length,
+      catalogCount: catalogRecords.length,
+      transactionCount: transactionRecords.length,
+    };
+  }
+
   const items = Array.isArray(payload?.items) ? payload.items : [];
   const deletions = Array.isArray(payload?.deletions) ? payload.deletions : [];
   const purgeCatalogFirst = payload?.purgeCatalogFirst === true;
