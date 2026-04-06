@@ -504,6 +504,13 @@ export default function DeliveryMap({
 
   const driverHomeVisibilityById = useMemo(() => {
     const byDriver = new Map();
+
+    safeUsers.forEach((user) => {
+      if (user?.id && user.home_latitude && user.home_longitude && user.driver_status !== "off_duty") {
+        byDriver.set(user.id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
+      }
+    });
+
     [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
       if (!stop?.driver_id) return;
       if (!byDriver.has(stop.driver_id)) byDriver.set(stop.driver_id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
@@ -521,7 +528,7 @@ export default function DeliveryMap({
       });
     });
     return visibilityMap;
-  }, [deliveryMarkers, pickupMarkers]);
+  }, [deliveryMarkers, pickupMarkers, safeUsers]);
 
   const driverHomeMarkers = useMemo(() => {
     const isPureDriver = currentUser && userHasRole(currentUser, "driver") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "dispatcher");
