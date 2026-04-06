@@ -155,7 +155,7 @@ export default function SquareSyncAudit() {
             status: delivery.status || "pending",
           };
         })
-        .filter((row) => row.locationId);
+        .filter((row) => row.locationId && locationIdByStoreId.has(row.storeId));
 
       const transactionRows = attachDiscrepancies(transactionRowsBase, [
         { label: "Catalog", rows: catalogRowsBase },
