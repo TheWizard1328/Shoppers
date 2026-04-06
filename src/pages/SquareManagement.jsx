@@ -989,9 +989,6 @@ export default function SquareManagement() {
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
         if (transaction.type !== 'collection' || !['completed', 'refunded'].includes(transaction.status)) return false;
-        const rawTransactionDate = transaction.created_date || transaction.updated_date || transaction.raw_square_data?.payment_date || parseSquareItemName(transaction.item_name)?.deliveryDate;
-        const transactionDate = rawTransactionDate ? new Date(`${String(rawTransactionDate).slice(0, 10)}T00:00:00`) : null;
-        if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
         const storeMatch = transaction.store_id ? visibleStoreIds.has(transaction.store_id) : visibleLocationIds.has(transaction.location_id);
         if (!storeMatch) return false;
         if (selectedDriverFilter && selectedDriverFilter !== 'all') {
