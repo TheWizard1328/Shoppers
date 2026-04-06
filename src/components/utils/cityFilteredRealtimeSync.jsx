@@ -158,34 +158,58 @@ class CityFilteredRealtimeSync {
            } else if (event.type === 'delete') {
              console.log(`🗑️ [Realtime Delivery] PROCESSING delete for ${event.id}`);
 
+             const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
+             const selectedDriverId = (typeof window !== 'undefined' ? window.__appSelectedDriverId : null) || localStorage.getItem('global_selected_driver') || localStorage.getItem('app_selectedDriver');
+
              // Remove from offline DB
              await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
              console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
 
+             const allSelectedDateDeliveries = selectedDate
+               ? await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate)
+               : await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+
+             const scopedDeliveries = (allSelectedDateDeliveries || []).filter((delivery) => {
+               if (!delivery) return false;
+               if (selectedDate && delivery.delivery_date !== selectedDate) return false;
+               if (selectedDriverId && selectedDriverId !== 'all') return delivery.driver_id === selectedDriverId;
+               return true;
+             });
+
              // Notify subscribers with the raw id so delete batching stays consistent
              this.notifySubscribers('Delivery', event.type, event.id);
              this.lastDeliveryUpdate = Date.now();
-             
+
              // Dispatch delete events for Dashboard and overlays
              window.dispatchEvent(new CustomEvent('deliveryUpdated', {
                detail: { 
                  delivery: { id: event.id },
+                 deliveries: scopedDeliveries,
                  deletedId: event.id,
                  deletedIds: [event.id],
                  deletedName: event.data?.patient_name || event.data?.patient?.full_name || null,
                  type: 'delete',
                  source: 'realtime',
-                 fromRealtime: true
+                 fromRealtime: true,
+                 fullReplacement: true,
+                 preserveLocalState: true
                }
              }));
 
              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                detail: {
+                 deliveries: scopedDeliveries,
+                 freshDeliveries: scopedDeliveries,
                  deletedId: event.id,
                  deletedIds: [event.id],
+                 immediate: true,
+                 deliveryDate: selectedDate,
+                 driverId: selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null,
                  triggeredBy: 'realtimeWebSocket',
                  source: 'realtime_sync',
-                 fromRealtime: true
+                 fromRealtime: true,
+                 fullReplacement: true,
+                 preserveLocalState: true
                }
              }));
 
