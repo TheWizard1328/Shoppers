@@ -93,6 +93,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     } catch (error) {console.error('Failed to auto-toggle driver online:', error);}
   };
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);const isExpanded = isStrippedForDispatcher ? false : compact ? false : isSelected;
+  const shouldCollapseBeforeAction = isExpanded;
   useEffect(() => {setNotesInput(delivery?.delivery_notes || "No driver notes");}, [delivery?.delivery_notes]);
   useEffect(() => {if (!showCODCollection) setCodPayments(delivery?.cod_payments || []);}, [delivery?.cod_payments, showCODCollection]);
   useEffect(() => {
@@ -249,7 +250,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const handleSaveCODPayments = async () => {if (onCODUpdate) {try {await onCODUpdate(delivery.id, codPayments, true);setShowCODCollection(false);} catch (error) {console.error('❌ [COD Save] Failed:', error);alert(`Failed to save COD: ${error.message}`);}}};
   const collapseAndCenterNextDelivery = async (args) => await setAndCenterNextDelivery(args);
   const collapseDriverStopCards = async () => {
-    if (!isExpanded) return;
+    if (!shouldCollapseBeforeAction) return;
     await collapseExpandedStopCardsForDriver(delivery?.driver_id);
   };
   const handleStartAction = async (e) => {
