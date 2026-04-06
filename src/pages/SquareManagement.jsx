@@ -113,12 +113,12 @@ export default function SquareManagement() {
   const getSourceWindow = React.useCallback(() => {
     const today = new Date();
     const startDate = new Date(today);
-    startDate.setDate(today.getDate() - 60);
+    startDate.setDate(today.getDate() - Number(selectedDaysRange || 60));
     return {
       startDateStr: format(startDate, 'yyyy-MM-dd'),
       endDateStr: format(today, 'yyyy-MM-dd')
     };
-  }, []);
+  }, [selectedDaysRange]);
 
   const loadSyncStatus = React.useCallback(async () => {
     try {
@@ -993,8 +993,8 @@ export default function SquareManagement() {
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
         if (transaction.type !== 'collection' || !['completed', 'refunded'].includes(transaction.status)) return false;
-        const derivedTransactionDate = parseSquareItemName(transaction.item_name)?.deliveryDate || transaction.created_date || transaction.updated_date;
-        const transactionDate = derivedTransactionDate ? new Date(`${String(derivedTransactionDate).slice(0, 10)}T00:00:00`) : null;
+        const rawTransactionDate = transaction.created_date || transaction.updated_date || parseSquareItemName(transaction.item_name)?.deliveryDate;
+        const transactionDate = rawTransactionDate ? new Date(`${String(rawTransactionDate).slice(0, 10)}T00:00:00`) : null;
         if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
         const storeMatch = transaction.store_id ? visibleStoreIds.has(transaction.store_id) : visibleLocationIds.has(transaction.location_id);
         if (!storeMatch) return false;
@@ -1035,11 +1035,13 @@ export default function SquareManagement() {
       .map((transaction) => {
         const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
         const store = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
-        const transactionDeliveryDate = parseSquareItemName(transaction.item_name)?.deliveryDate || (() => {
+        const parsedDeliveryDate = parseSquareItemName(transaction.item_name)?.deliveryDate;
+        const createdOrUpdatedDate = (() => {
           const rawDate = transaction.created_date || transaction.updated_date;
           if (!rawDate) return null;
           return format(new Date(rawDate), 'yyyy-MM-dd');
         })();
+        const transactionDeliveryDate = createdOrUpdatedDate || parsedDeliveryDate;
         const matchedAmountCents = Math.round(Number(transaction.amount || 0) * 100);
         const matchedDelivery = (deliveries || []).find((delivery) => {
           if (!delivery || !store?.id) return false;
