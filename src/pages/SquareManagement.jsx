@@ -985,7 +985,10 @@ export default function SquareManagement() {
   }, [deliveries, visibleStoreIds, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
 
   const filteredTransactionRows = React.useMemo(() => {
-    return (allTransactions || [])
+    const dedupedTransactions = [];
+    const seenTransactionKeys = new Set();
+
+    (allTransactions || [])
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
         if (transaction.type !== 'collection' || !['completed', 'refunded'].includes(transaction.status)) return false;
@@ -1000,6 +1003,14 @@ export default function SquareManagement() {
         }
         return true;
       })
+      .forEach((transaction) => {
+        const dedupeKey = transaction.square_transaction_id || transaction.square_payment_id || transaction.order_id || transaction.receipt_number;
+        if (dedupeKey && seenTransactionKeys.has(dedupeKey)) return;
+        if (dedupeKey) seenTransactionKeys.add(dedupeKey);
+        dedupedTransactions.push(transaction);
+      });
+
+    return dedupedTransactions
       .map((transaction) => {
         const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
         const store = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
