@@ -355,27 +355,13 @@ export default function SquareManagement() {
         return;
       }
 
-      const keepDeliveryIds = new Set(items.map((item) => item.deliveryId));
-      const deletions = (catalogItems || [])
-        .filter((item) => !keepDeliveryIds.has(item.delivery_id))
-        .map((item) => ({
-          deliveryId: item.delivery_id,
-          catalogObjectId: item.catalog_object_id || item.id,
-          transactionId: item.transaction_id,
-          status: 'cancelled',
-          reason: 'replace_catalog_with_reconciliation_items',
-        }))
-        .filter((item) => item?.catalogObjectId);
-
       await base44.functions.invoke('squareCodCore', {
         action: 'syncSquareCods',
         items,
-        deletions,
       });
-      await refreshUiFromOfflineOnly();
       await syncFromSquare();
       setActiveView('catalog');
-      toast.success(`Square catalog replaced with ${items.length} reconciliation items and deleted ${deletions.length} others`);
+      toast.success(`Synced ${items.length} reconciliation items to Square catalog`);
     } finally {
       setIsUpdatingReconciliationCatalog(false);
     }
