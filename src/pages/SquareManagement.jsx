@@ -143,10 +143,11 @@ export default function SquareManagement() {
 
   const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
     const { onStageChange, paymentsResponse, daysBack } = options;
+    const comparisonDaysBack = Number(daysBack || 60) + 5;
 
     const [catalogRecords, fetchedPaymentsResponse] = await Promise.all([
       base44.entities.SquareCatalogItems.list('-updated_date', 2000),
-      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: Number(daysBack || 60) }),
+      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: comparisonDaysBack }),
     ]);
 
     const transactions = extractSquarePayments(fetchedPaymentsResponse);
@@ -266,12 +267,13 @@ export default function SquareManagement() {
 
   const runFullOfflineSnapshotSync = React.useCallback(async ({ onStageChange, daysBack, refreshLocations = false } = {}) => {
     const rangeDays = Number(daysBack || 60);
+    const comparisonDaysBack = rangeDays + 5;
     const { startDateStr, endDateStr } = getSourceWindow();
     const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
     onStageChange?.({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
 
-    const snapshotResponse = await base44.functions.invoke('squareCodCore', { action: 'getCodData', daysBack: Number(rangeDays || 30) });
+    const snapshotResponse = await base44.functions.invoke('squareCodCore', { action: 'getCodData', daysBack: comparisonDaysBack });
     const snapshotData = snapshotResponse?.data || snapshotResponse || {};
     const catalogRecords = snapshotData.catalogRecords || [];
     const transactions = snapshotData.transactionRecords || [];
