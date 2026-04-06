@@ -140,8 +140,10 @@ export default function SquareManagement() {
     try {
       const status = await getSquareCODSyncStatus();
       setSyncStatus(status);
+      return status;
     } catch (err) {
       console.error('Failed to load sync status:', err);
+      return null;
     }
   }, [getSquareCODSyncStatus]);
 
@@ -536,9 +538,18 @@ export default function SquareManagement() {
         } else {
           await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
         }
-        await loadSyncStatus();
+        const status = await loadSyncStatus();
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
+
+        const lastFullSync = status?.transactions?.lastSync || status?.catalog?.lastSync;
+        const lastFullSyncMs = lastFullSync ? new Date(lastFullSync).getTime() : 0;
+        const syncedRecently = lastFullSyncMs && Date.now() - lastFullSyncMs < 60 * 60 * 1000;
+
+        if (syncedRecently) {
+          setBgSyncProgress({ stage: 'idle' });
+          return;
+        }
 
         setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD views…' });
 
