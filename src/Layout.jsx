@@ -485,37 +485,36 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
 
-      // CRITICAL: Handle 'delete' mutations - remove from UI state AND offline DB immediately
+      // CRITICAL: Handle 'delete' mutations - update UI only after offline DB deletion completes
       if (mutation.type === 'delete') {
         if (mutation.entity === 'Patient') {
+          await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, mutation.id).catch(() => {});
           setPatients((prev) => prev.filter((p) => p?.id !== mutation.id));
-          offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, mutation.id).catch(() => {});
         } else if (mutation.entity === 'Delivery') {
+          await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, mutation.id).catch(() => {});
           setDeliveries((prev) => prev.filter((d) => d?.id !== mutation.id));
-          offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, mutation.id).catch(() => {});
         } else if (mutation.entity === 'Store') {
+          await offlineDB.deleteRecord(offlineDB.STORES.STORES, mutation.id).catch(() => {});
           setStores((prev) => prev.filter((s) => s?.id !== mutation.id));
-          offlineDB.deleteRecord(offlineDB.STORES.STORES, mutation.id).catch(() => {});
         } else if (mutation.entity === 'City') {
+          await offlineDB.deleteRecord(offlineDB.STORES.CITIES, mutation.id).catch(() => {});
           setCities((prev) => prev.filter((c) => c?.id !== mutation.id));
-          offlineDB.deleteRecord(offlineDB.STORES.CITIES, mutation.id).catch(() => {});
         } else if (mutation.entity === 'AppUser') {
+          await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, mutation.id).catch(() => {});
           setAppUsers((prev) => prev.filter((a) => a?.id !== mutation.id));
           setUsers((prev) => prev.filter((u) => u?.id !== mutation.id));
-          offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, mutation.id).catch(() => {});
         }
         return;
       }
 
-      // CRITICAL: Handle 'batch_delete' mutations - remove multiple items at once from UI AND offline DB
+      // CRITICAL: Handle 'batch_delete' mutations - update UI only after offline DB deletions complete
       if (mutation.type === 'batch_delete') {
         const idsToDelete = new Set(mutation.ids || []);
         if (mutation.entity === 'Delivery') {
+          await Promise.all((mutation.ids || []).map((id) =>
+            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {})
+          ));
           setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
-          // Remove all from offline DB
-          mutation.ids.forEach((id) => {
-            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
-          });
         }
         return;
       }
