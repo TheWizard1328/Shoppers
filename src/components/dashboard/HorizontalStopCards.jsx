@@ -510,6 +510,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       onClickCapture={(e) => {
         const actionButton = e.target?.closest?.('[data-stopcard-action="start"], [data-stopcard-action="complete"], [data-stopcard-action="restart"], button');
         if (!actionButton) return;
+        e.stopPropagation();
 
         const buttonText = (actionButton.textContent || '').trim().toLowerCase();
         const isStartAction = actionButton.matches?.('[data-stopcard-action="start"]') || buttonText === 'start';
