@@ -908,17 +908,10 @@ async function handleGetCodData(base44, payload = {}) {
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
   const refreshDeliveries = shouldRefreshDeliveries(payload?.lastDeliverySyncAt, payload?.forceDeliveryRefresh === true);
 
-  const [locationConfigs, stores, transactionRecords] = await Promise.all([
+  const [locationConfigs, stores] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
-    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []),
   ]);
-
-  const safeTransactionRecords = (Array.isArray(transactionRecords) ? transactionRecords : []).map(unwrapEntityRecord).filter(Boolean);
-  const recentTransactionRecords = safeTransactionRecords.filter((transaction) => {
-    const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
-    return Number.isFinite(transactionTime) && transactionTime >= transactionRetentionStartMs;
-  });
 
   const safeLocationConfigs = (Array.isArray(locationConfigs) ? locationConfigs : []).map(unwrapEntityRecord).filter(Boolean);
   const safeStores = (Array.isArray(stores) ? stores : []).map(unwrapEntityRecord).filter(Boolean);
@@ -950,6 +943,9 @@ async function handleGetCodData(base44, payload = {}) {
   }
 
   const liveCatalogItems = await listActiveCatalogItems(accessToken).catch(() => []);
+  const completedOrders = await listCompletedOrders(locationIds, new Date(transactionRetentionStartMs).toISOString(), accessToken).catch(() => []);
+  const paidOrderItems = flattenPaidOrderItems(completedOrders || []);
+
   const catalogRecords = (liveCatalogItems || []).flatMap((item) => {
     const amountCents = getCatalogItemAmountCents(item);
     const locationIdsForItem = Array.from(new Set([
@@ -978,6 +974,31 @@ async function handleGetCodData(base44, payload = {}) {
         updated_date: item?.updated_at || null,
       };
     });
+  });
+
+  const recentTransactionRecords = paidOrderItems.map((item, index) => {
+    const amountCents = toAmountCents(item?.amount_cents);
+    const store = storeByLocationId.get(item?.location_id);
+    return {
+      square_transaction_id: item?.order_id || `${item?.catalog_object_id || 'order'}-${index}`,
+      square_payment_id: item?.order_id || `${item?.catalog_object_id || 'payment'}-${index}`,
+      square_catalog_object_id: item?.catalog_object_id || null,
+      item_name: item?.item_name || '',
+      amount: amountCents / 100,
+      amount_cents: amountCents,
+      type: 'collection',
+      status: 'completed',
+      delivery_id: `${item?.location_id || 'square'}-${getMonthDayKey(item?.item_name || '')}-${amountCents}-${index}`,
+      patient_id: null,
+      store_id: store?.id || null,
+      location_id: item?.location_id || null,
+      driver_id: null,
+      dispatcher_id: null,
+      payment_method: 'card',
+      raw_square_data: item,
+      created_date: null,
+      updated_date: null,
+    };
   });
 
   return {
@@ -1359,7 +1380,7 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
     .filter((record) => record && typeof record.delivery_id === 'string' && record.delivery_id.trim().length > 0);
 
   const safeTransactionRecords = transactionRecords
-    .filter((record) => record && typeof record.delivery_id === 'string' && record.delivery_id.trim().length > 0);
+    .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0);
 
   if (safeCatalogRecords.length > 0) {
     await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(safeCatalogRecords);
