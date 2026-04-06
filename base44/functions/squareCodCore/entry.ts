@@ -7,6 +7,7 @@ const TRANSACTION_RETENTION_DAYS = 60;
 const MATCH_DATE_OFFSET_DAYS = 2;
 const SQUARE_API_MAX_RETRIES = 3;
 const SQUARE_RETRY_BASE_DELAY_MS = 400;
+const DELIVERY_BULK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -143,6 +144,13 @@ function formatLocalDate(date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function shouldRefreshDeliveries(lastRefreshedAt, forceRefresh = false) {
+  if (forceRefresh) return true;
+  const refreshedAtMs = new Date(lastRefreshedAt || 0).getTime();
+  if (!Number.isFinite(refreshedAtMs) || refreshedAtMs <= 0) return true;
+  return Date.now() - refreshedAtMs >= DELIVERY_BULK_REFRESH_INTERVAL_MS;
 }
 
 function hasCollectedCardPayment(delivery) {
@@ -974,6 +982,7 @@ async function handleGetCodData(base44, payload = {}) {
   const requestedDaysBack = Number(payload?.daysBack || TRANSACTION_RETENTION_DAYS);
   const daysBack = Number.isFinite(requestedDaysBack) && requestedDaysBack > 0 ? requestedDaysBack : CATALOG_LOOKBACK_DAYS;
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
+  const refreshDeliveries = shouldRefreshDeliveries(payload?.lastDeliverySyncAt, payload?.forceDeliveryRefresh === true);
 
   const [locationConfigs, stores, transactionRecords] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
@@ -1010,11 +1019,13 @@ async function handleGetCodData(base44, payload = {}) {
   const startDateStr = formatLocalDate(startDate);
   const endDateStr = formatLocalDate(endDate);
 
-  const deliveriesResult = await base44.asServiceRole.entities.Delivery.filter({
-    delivery_date: { $gte: startDateStr, $lte: endDateStr },
-  }, '-updated_date', 5000).catch(() => []);
-  const safeDeliveries = (Array.isArray(deliveriesResult) ? deliveriesResult : []).map(unwrapEntityRecord).filter(Boolean);
-  const codDeliveries = safeDeliveries.filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0);
+  let safeDeliveries = [];
+  if (refreshDeliveries) {
+    const deliveriesResult = await base44.asServiceRole.entities.Delivery.filter({
+      delivery_date: { $gte: startDateStr, $lte: endDateStr },
+    }, '-updated_date', 5000).catch(() => []);
+    safeDeliveries = (Array.isArray(deliveriesResult) ? deliveriesResult : []).map(unwrapEntityRecord).filter(Boolean);
+  }
 
   const liveCatalogItems = await listActiveCatalogItems(accessToken).catch(() => []);
   const catalogRecords = (liveCatalogItems || []).flatMap((item) => {
@@ -1049,7 +1060,13 @@ async function handleGetCodData(base44, payload = {}) {
 
   return {
     success: true,
-    deliveries: codDeliveries,
+    deliveries: safeDeliveries,
+    shouldRefreshDeliveries: refreshDeliveries,
+    deliverySyncWindow: {
+      startDate: startDateStr,
+      endDate: endDateStr,
+      refreshedAt: refreshDeliveries ? new Date().toISOString() : null,
+    },
     catalogRecords,
     transactionRecords: recentTransactionRecords,
     locationConfigs: safeLocationConfigs,
