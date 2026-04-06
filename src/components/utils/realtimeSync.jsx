@@ -95,9 +95,10 @@ async function flushBuffered(entityName) {
     const selectedDriverId = (typeof window !== 'undefined' ? window.__appSelectedDriverId : null) || localStorage.getItem('global_selected_driver') || localStorage.getItem('app_selectedDriver');
     const hasCreateOrDelete = items.some((item) => item.eventType === 'create' || item.eventType === 'delete');
     const relevantItems = items.filter((item) => item?.data && isDeliveryRelevantToCurrentSelection(item.data));
+    const deletedItems = items.filter((item) => item.eventType === 'delete');
     const scopedDriverId = selectedDriverId && selectedDriverId !== 'all'
       ? selectedDriverId
-      : (relevantItems[0]?.data?.driver_id || null);
+      : (relevantItems[0]?.data?.driver_id || deletedItems[0]?.data?.driver_id || null);
 
     relevantItems.forEach((item) => {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -139,7 +140,7 @@ async function flushBuffered(entityName) {
       }
     });
 
-    if (hasCreateOrDelete && (relevantItems.length > 0 || scopedDriverId)) {
+    if (hasCreateOrDelete && (relevantItems.length > 0 || deletedItems.length > 0 || scopedDriverId)) {
       const scopedDeliveries = fullReplacementData.filter((delivery) => {
         if (!delivery) return false;
         if (selectedDate && delivery.delivery_date !== selectedDate) return false;
@@ -151,6 +152,7 @@ async function flushBuffered(entityName) {
         detail: {
           deliveries: scopedDeliveries,
           freshDeliveries: scopedDeliveries,
+          deletedIds: deletedItems.map((item) => item.id).filter(Boolean),
           immediate: true,
           deliveryDate: selectedDate,
           driverId: scopedDriverId,
@@ -620,6 +622,16 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     }));
 
     if (entity === 'Delivery') {
+      if (action === 'delete') {
+        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
+          detail: { deletedIds: [id] }
+        }));
+      }
+      if (action === 'batch_delete') {
+        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
+          detail: { deletedIds: ids || [] }
+        }));
+      }
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveryId: id,
