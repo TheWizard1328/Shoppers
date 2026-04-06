@@ -239,13 +239,18 @@ export default function SquareManagement() {
       });
     }
 
-    const [updatedDeliveries] = await Promise.all([
+    const [windowDeliveries, allOfflineDeliveries] = await Promise.all([
       loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
+      offlineDB.getAll(offlineDB.STORES.DELIVERIES),
       loadSquareViewFromOffline(),
     ]);
 
-    setDeliveries(updatedDeliveries || []);
-    return updatedDeliveries || [];
+    const deliveriesToUse = (windowDeliveries || []).length > 0
+      ? (windowDeliveries || [])
+      : (allOfflineDeliveries || []);
+
+    setDeliveries(deliveriesToUse);
+    return deliveriesToUse;
   }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
 
   const refreshUiFromOfflineOnly = React.useCallback(async () => {
@@ -1546,7 +1551,7 @@ export default function SquareManagement() {
           rows={filteredDeliveryRows}
           isLoading={isLoading}
           emptyTitle="No COD deliveries found"
-          emptyDescription="COD deliveries for the active city will appear here."
+          emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared."
           showLocationColumn={currentUser && isAppOwner(currentUser)}
           navHeight={navHeight}
         />
