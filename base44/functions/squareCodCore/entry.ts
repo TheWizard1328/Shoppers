@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
 const CATALOG_LOOKBACK_DAYS = 30;
-const TRANSACTION_RETENTION_DAYS = 30;
+const TRANSACTION_RETENTION_DAYS = 60;
 const MATCH_DATE_OFFSET_DAYS = 2;
 const SQUARE_API_MAX_RETRIES = 3;
 const SQUARE_RETRY_BASE_DELAY_MS = 400;
@@ -744,7 +744,7 @@ async function handleDeleteCodItem(base44, payload) {
 
 async function handleFetchPayments(base44, payload) {
   const accessToken = ensureSquareToken();
-  const { locationIds: requestedLocationIds, daysBack = 30, maxPerLocation = null, throttleMs = 150 } = payload || {};
+  const { locationIds: requestedLocationIds, daysBack = 60, maxPerLocation = null, throttleMs = 150 } = payload || {};
 
   let locationIds = Array.isArray(requestedLocationIds) ? requestedLocationIds.filter(Boolean) : [];
   if (locationIds.length === 0) {
@@ -959,7 +959,7 @@ async function handleFetchPayments(base44, payload) {
 }
 
 async function handleGetCodData(base44, payload = {}) {
-  const requestedDaysBack = Number(payload?.daysBack || CATALOG_LOOKBACK_DAYS);
+  const requestedDaysBack = Number(payload?.daysBack || TRANSACTION_RETENTION_DAYS);
   const daysBack = Number.isFinite(requestedDaysBack) && requestedDaysBack > 0 ? requestedDaysBack : CATALOG_LOOKBACK_DAYS;
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
