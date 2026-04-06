@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
+import repairMissingPolylines from '@/functions/repairMissingPolylines';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
@@ -239,15 +240,8 @@ export default function PullToSync({
           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
           // Polyline repair for active stops only
-          try {
-            const repairModule = await import('@/functions/repairMissingPolylines');
-            if (typeof repairModule?.repairMissingPolylines === 'function') {
-              Promise.resolve(repairModule.repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr }))
-                .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message));
-            }
-          } catch (e) {
-            console.warn('⚠️ [Pull to Sync] repairMissingPolylines unavailable:', e?.message);
-          }
+          Promise.resolve(repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr }))
+            .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message));
 
           // ETA recalculation for active stops only
           calculateRealTimeETA({
