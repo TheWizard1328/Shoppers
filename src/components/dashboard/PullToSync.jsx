@@ -241,7 +241,7 @@ export default function PullToSync({
 
           // Polyline repair for active stops only
           Promise.resolve(repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr }))
-            .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message));
+            .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message || e));
 
           // ETA recalculation for active stops only
           calculateRealTimeETA({
