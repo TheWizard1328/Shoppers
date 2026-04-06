@@ -761,6 +761,7 @@ async function handleFetchPayments(base44, payload) {
 
   const allPayments = [];
   const soldCatalogItems = [];
+  const soldCatalogItemKeys = new Set();
 
   for (const locationId of locationIds) {
     let cursor = null;
@@ -815,6 +816,15 @@ async function handleFetchPayments(base44, payload) {
               const order = orderData.order;
               if (order?.line_items?.length) {
                 for (const lineItem of order.line_items) {
+                  const dedupeKey = [
+                    payment.id,
+                    payment.order_id,
+                    lineItem.uid || lineItem.catalog_object_id || lineItem.name,
+                    lineItem.base_price_money?.amount || 0,
+                  ].join('::');
+                  if (soldCatalogItemKeys.has(dedupeKey)) continue;
+                  soldCatalogItemKeys.add(dedupeKey);
+
                   soldCatalogItems.push({
                     catalog_object_id: lineItem.catalog_object_id || null,
                     location_id: payment.location_id,
