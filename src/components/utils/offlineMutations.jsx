@@ -743,6 +743,14 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       id: deliveryId,
       data: null 
     });
+    window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+      detail: {
+        deliveryId,
+        updates: null,
+        source: 'deleteDeliveryLocal',
+        deleted: true
+      }
+    }));
     console.log('🔔 [OfflineMutations] Listeners notified of deletion');
 
     // CRITICAL: Restart smart refresh after all operations complete

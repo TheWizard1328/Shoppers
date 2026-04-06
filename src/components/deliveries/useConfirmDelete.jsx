@@ -73,6 +73,35 @@ export function useConfirmDelete({
 
       await deleteDeliveryLocal(staged.id);
 
+      const nextStagedDeliveries = stagedDeliveries.filter(
+        (item) => item.id !== staged.id && item._tempId !== staged._tempId
+      );
+
+      setStagedDeliveries(nextStagedDeliveries);
+
+      const remainingStagedIds = new Set(
+        nextStagedDeliveries.map((d) => d.patient_id).filter(Boolean)
+      );
+      setProjectedDeliveries(
+        fullPredictionListRef.current.filter(
+          (pred) =>
+            !remainingStagedIds.has(pred.patient_id) &&
+            !(allDeliveries || []).some(
+              (d) => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id
+            )
+        )
+      );
+
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          deliveryId: staged.id,
+          driverId: staged.driver_id,
+          deliveryDate: staged.delivery_date,
+          triggeredBy: 'pendingDeliveryDelete',
+          preserveLocalState: true
+        }
+      }));
+
       // CRITICAL: Background only — never block UI waiting on stop-order or polyline calls
       if (staged.driver_id && staged.delivery_date) {
         Promise.resolve().then(async () => {
@@ -93,22 +122,6 @@ export function useConfirmDelete({
       const { invalidate } = await import('../utils/dataManager');
       invalidate('Delivery');
 
-      setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
-      const remainingStagedIds = new Set(
-        stagedDeliveries
-          .filter((item) => item.id !== staged.id && item._tempId !== staged._tempId)
-          .map((d) => d.patient_id)
-          .filter(Boolean)
-      );
-      setProjectedDeliveries(
-        fullPredictionListRef.current.filter(
-          (pred) =>
-            !remainingStagedIds.has(pred.patient_id) &&
-            !(allDeliveries || []).some(
-              (d) => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id
-            )
-        )
-      );
       setHasChanges(true);
       setHasPendingDeletes(true);
       if (editingStagedId === staged._tempId) {
