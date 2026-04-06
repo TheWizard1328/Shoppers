@@ -1122,42 +1122,48 @@ export default function SquareManagement() {
     };
 
     const buildAmountStoreKey = (row) => `${row.rawStoreId || row.locationId || row.storeName || 'Unknown'}::${Math.round(Number(row.amount || 0) * 100)}`;
+    const buildAmountStoreDateKey = (row) => `${buildAmountStoreKey(row)}::${normalizeDate(row.deliveryDate)}`;
     const reconciliationTransactions = filteredTransactionRows.filter((row) => !['cancelled', 'failed'].includes(row.rawStatus));
 
-    const transactionsByAmountStore = reconciliationTransactions.reduce((acc, row) => {
-      const key = buildAmountStoreKey(row);
-      if (!acc.has(key)) acc.set(key, []);
-      acc.get(key).push(row);
-      return acc;
-    }, new Map());
+    const transactionMatchKeys = new Set(
+      reconciliationTransactions.flatMap((row) => {
+        const baseKey = buildAmountStoreKey(row);
+        const dateKey = buildAmountStoreDateKey(row);
+        return [baseKey, dateKey];
+      })
+    );
 
-    const usedTransactionIds = new Set();
+    const catalogMatchKeys = new Set(
+      filteredCatalogRows.flatMap((row) => {
+        const baseKey = buildAmountStoreKey(row);
+        const dateKey = buildAmountStoreDateKey(row);
+        return [baseKey, dateKey];
+      })
+    );
+
     const missingDeliveryRows = [];
 
     filteredDeliveryRows.forEach((deliveryRow) => {
-      const key = buildAmountStoreKey(deliveryRow);
-      const candidates = (transactionsByAmountStore.get(key) || []).filter((transactionRow) => !usedTransactionIds.has(transactionRow.id));
-      const deliveryDate = normalizeDate(deliveryRow.deliveryDate);
-      const matchedTransaction = candidates.find((transactionRow) => normalizeDate(transactionRow.deliveryDate) === deliveryDate) || candidates[0];
+      const baseKey = buildAmountStoreKey(deliveryRow);
+      const dateKey = buildAmountStoreDateKey(deliveryRow);
+      const hasTransactionMatch = transactionMatchKeys.has(dateKey) || transactionMatchKeys.has(baseKey);
+      const hasCatalogMatch = catalogMatchKeys.has(dateKey) || catalogMatchKeys.has(baseKey);
 
-      if (matchedTransaction) {
-        usedTransactionIds.add(matchedTransaction.id);
-        return;
-      }
+      if (hasTransactionMatch || hasCatalogMatch) return;
 
       missingDeliveryRows.push({
         ...deliveryRow,
-        subtext: 'Delivery has no matching Square transaction',
+        subtext: 'Delivery has no matching Square transaction or catalog item',
         actions: (
           <Badge className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">
-            Missing Square Tx
+            Unmatched
           </Badge>
         )
       });
     });
 
     return missingDeliveryRows.sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
-  }, [filteredDeliveryRows, filteredTransactionRows]);
+  }, [filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows]);
 
   const applyCatalogRealtimeToUI = React.useCallback((event) => {
     if (!event) return;
