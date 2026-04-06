@@ -60,7 +60,10 @@ export default function SquareSyncAudit() {
       ]);
 
       const deliveries = (deliveriesResponse || []).filter(
-        (delivery) => Number(delivery?.cod_total_amount_required || 0) > 0,
+        (delivery) =>
+          Number(delivery?.cod_total_amount_required || 0) > 0 &&
+          Boolean(delivery?.store_id) &&
+          locationConfigs.some((config) => config.id === stores.find((store) => store.id === delivery.store_id)?.square_location_config_id && config.status === "active" && config.square_location_id),
       );
       const squareTransactions = (squareTransactionsResponse || []).filter((transaction) => {
         const parsed = parseSquareItemName(transaction?.item_name);
