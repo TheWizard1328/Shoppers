@@ -1,6 +1,7 @@
 export function buildReturnDeliveryData({ originalDelivery, returnPatient, store, routeDate, routeDateDeliveries, finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber }) {
   const puid = originalDelivery?.puid || originalDelivery?.stop_id || null;
-  const driverNotes = `From: ${originalDelivery?.delivery_date}\nFor: ${originalDelivery?.patient_name || 'Unknown'}\n(RTN)`;
+  const failedPatientName = originalDelivery?.patient_name || originalDelivery?.full_name || 'Unknown';
+  const driverNotes = `From: ${originalDelivery?.delivery_date}\nFor: ${failedPatientName}\n(RTN)`;
 
   return {
     delivery_id: `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
