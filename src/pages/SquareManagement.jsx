@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { useAppData } from "@/components/utils/AppDataContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,13 @@ import { format } from "date-fns";
 import * as squareCODOfflineManager from "@/components/utils/squareCODOfflineManager";
 
 export default function SquareManagement() {
+  const {
+    currentUser: appCurrentUser,
+    appUsers: appDataAppUsers,
+    stores: appDataStores,
+    patients: appDataPatients,
+    deliveries: appDataDeliveries,
+  } = useAppData();
   const {
     syncSquareCODSnapshotOffline,
     getCatalogItemsOffline,
@@ -465,26 +473,40 @@ export default function SquareManagement() {
 
     const loadData = async () => {
       try {
-        const authUser = await base44.auth.me();
+        const authUser = appCurrentUser;
         const { startDateStr, endDateStr } = getSourceWindow();
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-        let storesData = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
+        if (!authUser?.id) {
+          setIsLoading(false);
+          return;
+        }
+
+        let storesData = appDataStores || [];
         if (storesData.length === 0) {
-          storesData = await base44.entities.Store.list();
-          await offlineDB.bulkSave(offlineDB.STORES.STORES, storesData);
+          storesData = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
+          if (storesData.length === 0) {
+            storesData = await base44.entities.Store.list();
+            await offlineDB.bulkSave(offlineDB.STORES.STORES, storesData);
+          }
         }
 
-        let appUsersData = await offlineDB.getAll(offlineDB.STORES.APP_USERS) || [];
+        let appUsersData = appDataAppUsers || [];
         if (appUsersData.length === 0) {
-          appUsersData = await base44.entities.AppUser.list();
-          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsersData);
+          appUsersData = await offlineDB.getAll(offlineDB.STORES.APP_USERS) || [];
+          if (appUsersData.length === 0) {
+            appUsersData = await base44.entities.AppUser.list();
+            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsersData);
+          }
         }
 
-        let patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS) || [];
+        let patientsData = appDataPatients || [];
         if (patientsData.length === 0) {
-          patientsData = await base44.entities.Patient.list();
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsData);
+          patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS) || [];
+          if (patientsData.length === 0) {
+            patientsData = await base44.entities.Patient.list();
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsData);
+          }
         }
 
         const configs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS) || [];
@@ -500,7 +522,12 @@ export default function SquareManagement() {
         setDrivers(driversList || []);
         setLocationIds((configs || []).map((config) => config?.square_location_id).filter(Boolean));
 
-        await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+        if ((appDataDeliveries || []).length > 0) {
+          setDeliveries(appDataDeliveries.filter((delivery) => delivery && delivery.delivery_date >= startDateStr && delivery.delivery_date <= endDateStr));
+          await loadSquareViewFromOffline();
+        } else {
+          await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+        }
         await loadSyncStatus();
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
@@ -527,7 +554,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [getSourceWindow, loadReconciliationFromOffline, loadSyncStatus, runFullOfflineSnapshotSync]);
+  }, [appCurrentUser, appDataAppUsers, appDataStores, appDataPatients, appDataDeliveries, getSourceWindow, loadReconciliationFromOffline, loadSquareViewFromOffline, loadSyncStatus, runFullOfflineSnapshotSync]);
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
