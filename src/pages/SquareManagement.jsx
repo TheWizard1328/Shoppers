@@ -142,27 +142,23 @@ export default function SquareManagement() {
   }, []);
 
   const refreshSquareView = async (fallbackLocationIds = [], options = {}) => {
-    const { onStageChange, paymentsResponse, daysBack } = options;
+    const { onStageChange, daysBack } = options;
     const comparisonDaysBack = Number(daysBack || 60) + 5;
 
-    const [catalogRecords, fetchedPaymentsResponse] = await Promise.all([
-      base44.entities.SquareCatalogItems.list('-updated_date', 2000),
-      paymentsResponse ? Promise.resolve(paymentsResponse) : base44.functions.invoke('squareCodCore', { action: 'fetchPayments', daysBack: comparisonDaysBack }),
-    ]);
-
-    const transactions = extractSquarePayments(fetchedPaymentsResponse);
+    const snapshotResponse = await base44.functions.invoke('squareCodCore', { action: 'getCodData', daysBack: comparisonDaysBack });
+    const snapshotData = snapshotResponse?.data || snapshotResponse || {};
 
     onStageChange?.({ stage: 'saving_offline', detail: 'Updating local COD cache…' });
 
     await syncSquareCODSnapshotOffline({
-      catalogItems: catalogRecords || [],
-      transactions: transactions || [],
+      catalogItems: snapshotData.catalogRecords || [],
+      transactions: snapshotData.transactionRecords || [],
     });
 
     const snapshot = await loadSquareViewFromOffline();
-    setLocationIds(fallbackLocationIds);
+    setLocationIds((snapshotData.locationIds || fallbackLocationIds || []).filter(Boolean));
 
-    return { ...snapshot, data: { locationIds: fallbackLocationIds } };
+    return { ...snapshot, data: { locationIds: (snapshotData.locationIds || fallbackLocationIds || []).filter(Boolean) } };
   };
 
   const hydrateSquareViewFromEntities = React.useCallback(async () => {

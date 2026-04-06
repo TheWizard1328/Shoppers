@@ -16,7 +16,8 @@ const getLookbackStartMs = () => {
 };
 
 const isRecentSquareTransaction = (transaction) => {
-  const timestamp = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
+  const rawDate = transaction?.created_date || transaction?.updated_date || transaction?.raw_square_data?.payment_date || 0;
+  const timestamp = new Date(rawDate).getTime();
   return Number.isFinite(timestamp) && timestamp >= getLookbackStartMs();
 };
 
