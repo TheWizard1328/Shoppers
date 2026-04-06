@@ -1452,12 +1452,42 @@ async function handleSyncSquareCods(base44, payload) {
 
   const items = Array.isArray(payload?.items) ? payload.items : [];
   const deletions = Array.isArray(payload?.deletions) ? payload.deletions : [];
+  const purgeCatalogFirst = payload?.purgeCatalogFirst === true;
 
-  if (!items.length && !deletions.length) {
+  if (!items.length && !deletions.length && !purgeCatalogFirst) {
     return handleSyncCatalogItems(base44);
   }
 
   const results = [];
+
+  if (purgeCatalogFirst) {
+    const accessToken = ensureSquareToken();
+    const allCatalogItems = await listActiveCatalogItems(accessToken);
+    const allCatalogIds = Array.from(new Set((allCatalogItems || []).map((item) => item?.id).filter(Boolean)));
+    const purgeDeleteResult = allCatalogIds.length ? await deleteCatalogObjects(allCatalogIds, accessToken) : { deleted: [], failed: [] };
+
+    const existingCatalogRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
+    await Promise.all((existingCatalogRecords || []).map((record) => base44.asServiceRole.entities.SquareCatalogItems.delete(record.id).catch(() => null)));
+
+    const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []);
+    await Promise.all(
+      (existingTransactions || [])
+        .filter((transaction) => transaction?.status === 'pending')
+        .map((transaction) =>
+          base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
+            status: 'cancelled',
+            raw_square_data: {
+              ...(transaction.raw_square_data || {}),
+              deleted_at: new Date().toISOString(),
+              deleted_reason: 'purge_catalog_before_sync',
+            },
+          }).catch(() => null)
+        )
+    );
+
+    results.push({ action: 'purge', status: 'ok', result: { deletedCatalogItems: purgeDeleteResult.deleted.length } });
+  }
+
   for (const deletion of deletions) {
     try {
       const result = await handleDeleteCodItem(base44, {
