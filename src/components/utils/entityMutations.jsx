@@ -657,6 +657,11 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
 
     // STEP 5: Notify UI immediately on this device
     notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
+        detail: { deletedIds: [deliveryId] }
+      }));
+    }
 
     // STEP 6: Broadcast immediate delete so other devices update UI right away too
     await broadcastMutation('Delivery', 'delete', deliveryId, deletedDeliverySnapshot);
