@@ -330,8 +330,16 @@ export default function SquareManagement() {
       forceDeliveryRefresh,
     });
     const snapshotData = snapshotResponse?.data || snapshotResponse || {};
+
+    const paymentsResponse = await base44.functions.invoke('squareCodCore', {
+      action: 'fetchPayments',
+      daysBack: 60,
+      locationIds: (snapshotData.locationIds || []).filter(Boolean),
+    });
+    const paymentsData = paymentsResponse?.data || paymentsResponse || {};
+
     const catalogRecords = snapshotData.catalogRecords || [];
-    const transactions = snapshotData.transactionRecords || [];
+    const transactions = paymentsData.transactions || snapshotData.transactionRecords || [];
     const shouldRefreshDeliveries = snapshotData.shouldRefreshDeliveries === true;
     const deliveryRecords = shouldRefreshDeliveries ? (snapshotData.deliveries || []) : (offlineDeliveries || []);
     const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigsRef.current || []);
