@@ -62,17 +62,13 @@ export default function SquareSyncAudit() {
       const locationConfigs = (locationConfigsResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
       const stores = (storesResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
       const patients = (patientsResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
-      const activeLocationConfigIds = new Set(
-        locationConfigs
-          .filter((config) => config?.id && config?.square_location_id)
-          .map((config) => config.id)
-      );
+      const storesWithSquareLocationIds = stores.filter((store) => {
+        if (!store?.id || !store?.square_location_config_id) return false;
+        const config = locationConfigs.find((locationConfig) => locationConfig?.id === store.square_location_config_id);
+        return Boolean(config?.square_location_id);
+      });
 
-      const eligibleStoreIds = new Set(
-        stores
-          .filter((store) => store?.id && activeLocationConfigIds.has(store?.square_location_config_id))
-          .map((store) => store.id)
-      );
+      const eligibleStoreIds = new Set(storesWithSquareLocationIds.map((store) => store.id));
 
       const deliveries = (deliveriesResponse || [])
         .map((record) => ({ id: record?.id, ...(record?.data || {}) }))
