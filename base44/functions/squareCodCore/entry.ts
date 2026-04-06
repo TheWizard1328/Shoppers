@@ -23,7 +23,12 @@ function normalizeText(value) {
 function unwrapEntityRecord(record) {
   if (!record || typeof record !== 'object') return null;
   if (record.data && typeof record.data === 'object') {
-    return { ...record.data, id: record.data.id || record.id, created_date: record.data.created_date || record.created_date, updated_date: record.data.updated_date || record.updated_date };
+    return {
+      ...record.data,
+      id: record.data.id || record.id,
+      created_date: record.data.created_date || record.created_date,
+      updated_date: record.data.updated_date || record.updated_date,
+    };
   }
   return record;
 }
@@ -37,7 +42,7 @@ function toAmountCents(value) {
 }
 
 function formatItemName(deliveryDate, storeAbbreviation, patientName) {
-  const [_, month, day] = String(deliveryDate || '').split('-');
+  const [, month, day] = String(deliveryDate || '').split('-');
   const mm = month?.padStart(2, '0') || '00';
   const dd = day?.padStart(2, '0') || '00';
   return `${mm}/${dd}(${storeAbbreviation || 'NA'})-${patientName || 'Unknown Patient'}`;
@@ -74,12 +79,7 @@ function parseDateValue(value, referenceDate = new Date()) {
   if (!monthDayKey) return null;
 
   const [month, day] = monthDayKey.split('-').map(Number);
-  const referenceLocal = new Date(
-    referenceDate.getFullYear(),
-    referenceDate.getMonth(),
-    referenceDate.getDate(),
-  );
-
+  const referenceLocal = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
   const candidates = [referenceLocal.getFullYear() - 1, referenceLocal.getFullYear(), referenceLocal.getFullYear() + 1]
     .map((year) => new Date(year, month - 1, day));
 
@@ -170,7 +170,7 @@ function hasCollectedOfflinePayment(delivery) {
 }
 
 function buildPlaceholderItemNames(deliveryDate, storeAbbreviation) {
-  const [_, month, day] = String(deliveryDate || '').split('-');
+  const [, month, day] = String(deliveryDate || '').split('-');
   const mm = month?.padStart(2, '0') || '00';
   const dd = day?.padStart(2, '0') || '00';
   const abbr = storeAbbreviation || 'NA';
@@ -184,10 +184,6 @@ function buildPlaceholderItemNames(deliveryDate, storeAbbreviation) {
 
 function buildItemSignature(itemName, amountCents) {
   return `${normalizeText(itemName)}::${toAmountCents(amountCents)}`;
-}
-
-function buildLocationSignature(itemName, amountCents, locationId) {
-  return `${normalizeText(locationId)}::${buildItemSignature(itemName, amountCents)}`;
 }
 
 function normalizeMatchName(value) {
@@ -366,10 +362,7 @@ async function createCatalogItem({ itemName, amountCents, locationId, deliveryId
             item_variation_data: {
               name: 'Default',
               pricing_type: 'FIXED_PRICING',
-              price_money: {
-                amount: amountCents,
-                currency: 'CAD',
-              },
+              price_money: { amount: amountCents, currency: 'CAD' },
               sellable: true,
               stockable: true,
             },
@@ -477,9 +470,7 @@ async function resolveDeliveryPatient(base44, delivery, patientById, patientByPi
     }
   }
 
-  const patientMatches = await base44.asServiceRole.entities.Patient.filter({
-    patient_id: rawPatientRef,
-  }, '-updated_date', 1).catch(() => []);
+  const patientMatches = await base44.asServiceRole.entities.Patient.filter({ patient_id: rawPatientRef }, '-updated_date', 1).catch(() => []);
   const patientByPidValue = Array.isArray(patientMatches) ? patientMatches[0] : null;
   if (patientByPidValue) {
     patientById.set(patientByPidValue.id, patientByPidValue);
@@ -497,25 +488,15 @@ async function resolveDeliveryPatientName(base44, delivery, patientById, patient
 }
 
 async function getStoreSquareContext(base44, effectiveStoreId) {
-  if (!effectiveStoreId) {
-    throw new HttpError(400, 'Store ID is required for Square COD item creation');
-  }
+  if (!effectiveStoreId) throw new HttpError(400, 'Store ID is required for Square COD item creation');
 
   const store = await base44.asServiceRole.entities.Store.get(effectiveStoreId).catch(() => null);
-  if (!store) {
-    throw new HttpError(400, `Store not found with ID: ${effectiveStoreId}`);
-  }
-  if (!store.square_location_config_id) {
-    throw new HttpError(400, `Store "${store.name}" is not configured for Square COD payments.`);
-  }
+  if (!store) throw new HttpError(400, `Store not found with ID: ${effectiveStoreId}`);
+  if (!store.square_location_config_id) throw new HttpError(400, `Store "${store.name}" is not configured for Square COD payments.`);
 
   const config = await base44.asServiceRole.entities.SquareLocationConfig.get(store.square_location_config_id).catch(() => null);
-  if (!config) {
-    throw new HttpError(400, `Square location config not found for store "${store.name}"`);
-  }
-  if (config.status !== 'active') {
-    throw new HttpError(400, `Square location "${config.name}" is inactive for store "${store.name}"`);
-  }
+  if (!config) throw new HttpError(400, `Square location config not found for store "${store.name}"`);
+  if (config.status !== 'active') throw new HttpError(400, `Square location "${config.name}" is inactive for store "${store.name}"`);
 
   return { store, config, locationId: config.square_location_id };
 }
@@ -556,6 +537,12 @@ async function getActiveStoreSquareLocationIds(base44) {
   ));
 }
 
+function toIsoDate(value) {
+  const parsed = parseDateValue(value);
+  if (!parsed || Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 async function handleCreateCodItem(base44, payload) {
   const accessToken = ensureSquareToken();
   const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = payload || {};
@@ -571,9 +558,7 @@ async function handleCreateCodItem(base44, payload) {
   const { store, locationId } = await getStoreSquareContext(base44, effectiveStoreId);
 
   const resolvedDeliveryDate = deliveryDate || deliveryRecord?.delivery_date;
-  const lookedUpPatientName = deliveryRecord
-    ? await resolveDeliveryPatientName(base44, deliveryRecord, patientById, patientByPid)
-    : '';
+  const lookedUpPatientName = deliveryRecord ? await resolveDeliveryPatientName(base44, deliveryRecord, patientById, patientByPid) : '';
   const usableLookedUpPatientName = lookedUpPatientName === 'Unknown Patient' ? '' : lookedUpPatientName;
   const resolvedPatientName = normalizeText(usableLookedUpPatientName || patientName || deliveryRecord?.patient_name);
   if (!resolvedPatientName || resolvedPatientName === 'COD' || resolvedPatientName === 'Unknown Patient') {
@@ -585,10 +570,7 @@ async function handleCreateCodItem(base44, payload) {
   const amountCents = Math.round(Number(codAmount) * 100);
   const itemName = formatItemName(resolvedDeliveryDate, resolvedStoreAbbr, resolvedPatientName);
 
-  const existingPending = await base44.asServiceRole.entities.SquareTransaction.filter({
-    delivery_id: deliveryId,
-    status: 'pending',
-  }).catch(() => []);
+  const existingPending = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
 
   if (existingPending?.length && existingPending[0]?.square_catalog_object_id && existingPending[0]?.item_name === itemName && existingPending[0]?.amount_cents === amountCents) {
     const tx = existingPending[0];
@@ -604,31 +586,15 @@ async function handleCreateCodItem(base44, payload) {
 
   if (existingPending?.length && existingPending[0]?.square_catalog_object_id && (existingPending[0]?.item_name !== itemName || existingPending[0]?.amount_cents !== amountCents)) {
     const outdatedDeleteResult = await safeDeleteSquareCatalogObject(existingPending[0].square_catalog_object_id, accessToken);
-    if (!outdatedDeleteResult?.ok) {
-      throw new Error(`Failed to delete outdated Square catalog item for delivery ${deliveryId}`);
-    }
+    if (!outdatedDeleteResult?.ok) throw new Error(`Failed to delete outdated Square catalog item for delivery ${deliveryId}`);
   }
 
-  const catalogItem = await createCatalogItem({
-    itemName,
-    amountCents,
-    locationId,
-    deliveryId,
-    patientName: resolvedPatientName,
-    accessToken,
-  });
-
+  const catalogItem = await createCatalogItem({ itemName, amountCents, locationId, deliveryId, patientName: resolvedPatientName, accessToken });
   const catalogObjectId = catalogItem?.id || null;
   const catalogVersion = catalogItem?.version || null;
-  if (!catalogObjectId) {
-    throw new Error(`Square did not return a catalog item for delivery ${deliveryId}`);
-  }
+  if (!catalogObjectId) throw new Error(`Square did not return a catalog item for delivery ${deliveryId}`);
 
-  const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.filter({
-    delivery_id: deliveryId,
-    status: 'pending',
-  }).catch(() => []);
-
+  const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
   let transaction;
   const transactionPayload = {
     square_catalog_object_id: catalogObjectId,
@@ -644,12 +610,7 @@ async function handleCreateCodItem(base44, payload) {
   if (existingTransactions.length > 0) {
     transaction = await base44.asServiceRole.entities.SquareTransaction.update(existingTransactions[0].id, transactionPayload);
   } else {
-    transaction = await base44.asServiceRole.entities.SquareTransaction.create({
-      ...transactionPayload,
-      type: 'collection',
-      status: 'pending',
-      delivery_id: deliveryId,
-    });
+    transaction = await base44.asServiceRole.entities.SquareTransaction.create({ ...transactionPayload, type: 'collection', status: 'pending', delivery_id: deliveryId });
   }
 
   const existingCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: deliveryId }).catch(() => []);
@@ -674,13 +635,7 @@ async function handleCreateCodItem(base44, payload) {
     await base44.asServiceRole.entities.SquareCatalogItems.create(catalogPayload);
   }
 
-  return {
-    success: true,
-    catalogObjectId,
-    catalogVersion,
-    itemName,
-    transactionId: transaction?.id || existingTransactions[0]?.id,
-  };
+  return { success: true, catalogObjectId, catalogVersion, itemName, transactionId: transaction?.id || existingTransactions[0]?.id };
 }
 
 async function handleDeleteCodItem(base44, payload) {
@@ -705,20 +660,14 @@ async function handleDeleteCodItem(base44, payload) {
   if (deliveryId) {
     const deliveryTransactions = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId }, '-updated_date', 50).catch(() => []);
     for (const transaction of deliveryTransactions || []) {
-      if (!relatedTransactions.some((item) => item?.id === transaction?.id)) {
-        relatedTransactions.push(transaction);
-      }
+      if (!relatedTransactions.some((item) => item?.id === transaction?.id)) relatedTransactions.push(transaction);
     }
-    if (!primaryTransaction && relatedTransactions.length > 0) {
-      primaryTransaction = relatedTransactions[0];
-    }
+    if (!primaryTransaction && relatedTransactions.length > 0) primaryTransaction = relatedTransactions[0];
   }
 
   const catalogIdToDelete = catalogObjectId || primaryTransaction?.square_catalog_object_id || relatedTransactions[0]?.square_catalog_object_id || null;
   const squareDeleteResult = await safeDeleteSquareCatalogObject(catalogIdToDelete, accessToken);
-  if (catalogIdToDelete && !squareDeleteResult?.ok) {
-    throw new Error(`Failed to delete Square catalog item ${catalogIdToDelete}`);
-  }
+  if (catalogIdToDelete && !squareDeleteResult?.ok) throw new Error(`Failed to delete Square catalog item ${catalogIdToDelete}`);
 
   const newStatus = reason === 'failed' ? 'failed' : 'cancelled';
   await Promise.all(
@@ -745,11 +694,7 @@ async function handleDeleteCodItem(base44, payload) {
   }
 
   const uniqueCatalogMatches = Array.from(new Map(catalogMatches.filter(Boolean).map((item) => [item.id, item])).values());
-  await Promise.all(
-    uniqueCatalogMatches.map((item) =>
-      base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch(() => null)
-    )
-  );
+  await Promise.all(uniqueCatalogMatches.map((item) => base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch(() => null)));
 
   return {
     success: true,
@@ -766,13 +711,8 @@ async function handleFetchPayments(base44, payload) {
   const { locationIds: requestedLocationIds, daysBack = 60, maxPerLocation = null, throttleMs = 150 } = payload || {};
 
   let locationIds = Array.isArray(requestedLocationIds) ? requestedLocationIds.filter(Boolean) : [];
-  if (locationIds.length === 0) {
-    locationIds = await getActiveStoreSquareLocationIds(base44);
-  }
-
-  if (locationIds.length === 0) {
-    throw new HttpError(400, 'No Square locations configured');
-  }
+  if (locationIds.length === 0) locationIds = await getActiveStoreSquareLocationIds(base44);
+  if (locationIds.length === 0) throw new HttpError(400, 'No Square locations configured');
 
   const endDate = new Date();
   const startDate = new Date();
@@ -795,9 +735,7 @@ async function handleFetchPayments(base44, payload) {
         sort_order: 'DESC',
         limit: '100',
       });
-      if (cursor) {
-        queryParams.set('cursor', cursor);
-      }
+      if (cursor) queryParams.set('cursor', cursor);
 
       const paymentsResponse = await fetch(`${SQUARE_BASE_URL}/v2/payments?${queryParams.toString()}`, {
         method: 'GET',
@@ -819,7 +757,7 @@ async function handleFetchPayments(base44, payload) {
         allPayments.push(payment);
 
         if (payment.order_id) {
-          await new Promise((resolve) => setTimeout(resolve, throttleMs));
+          await sleep(throttleMs);
           try {
             const orderResponse = await fetch(`${SQUARE_BASE_URL}/v2/orders/${payment.order_id}`, {
               method: 'GET',
@@ -859,14 +797,11 @@ async function handleFetchPayments(base44, payload) {
                 }
               }
             }
-          } catch (_) {}
+          } catch {}
         }
       }
 
-      if (locationCap && processedForLocation >= locationCap) {
-        break;
-      }
-
+      if (locationCap && processedForLocation >= locationCap) break;
       cursor = paymentsData.cursor || null;
     } while (cursor);
   }
@@ -875,18 +810,13 @@ async function handleFetchPayments(base44, payload) {
   const existingTransactionBySignature = new Map(
     (existingTransactions || []).map((transaction) => {
       const amountCents = transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100);
-      return [
-        buildLocationDateAmountSignature(transaction?.location_id, transaction?.item_name, amountCents),
-        transaction,
-      ];
+      return [buildLocationDateAmountSignature(transaction?.location_id, transaction?.item_name, amountCents), transaction];
     })
   );
 
   const normalizedTransactions = soldCatalogItems.map((item, index) => {
     const amountCents = Math.round(Number(item?.amount || 0) * 100);
-    const matchedTransaction = existingTransactionBySignature.get(
-      buildLocationDateAmountSignature(item?.location_id, item?.item_name, amountCents)
-    );
+    const matchedTransaction = existingTransactionBySignature.get(buildLocationDateAmountSignature(item?.location_id, item?.item_name, amountCents));
 
     return {
       id: `${item?.square_payment_id || item?.payment_id || 'payment'}-${item?.catalog_object_id || index}`,
@@ -918,10 +848,7 @@ async function handleFetchPayments(base44, payload) {
     soldItemCounts.set(item.catalog_object_id, (soldItemCounts.get(item.catalog_object_id) || 0) + 1);
   });
 
-  const soldItems = Array.from(soldItemCounts.entries()).map(([catalogId, count]) => ({
-    catalog_object_id: catalogId,
-    times_sold: count,
-  }));
+  const soldItems = Array.from(soldItemCounts.entries()).map(([catalogId, count]) => ({ catalog_object_id: catalogId, times_sold: count }));
 
   let catalogItems = [];
   let catalogItemCount = 0;
@@ -960,7 +887,7 @@ async function handleFetchPayments(base44, payload) {
         }
       }
     }
-  } catch (_) {}
+  } catch {}
 
   return {
     success: true,
@@ -970,10 +897,7 @@ async function handleFetchPayments(base44, payload) {
     soldCatalogItems,
     catalogItems,
     catalogItemCount,
-    dateRange: {
-      start: startDate.toISOString(),
-      end: endDate.toISOString(),
-    },
+    dateRange: { start: startDate.toISOString(), end: endDate.toISOString() },
   };
 }
 
@@ -1021,9 +945,7 @@ async function handleGetCodData(base44, payload = {}) {
 
   let safeDeliveries = [];
   if (refreshDeliveries) {
-    const deliveriesResult = await base44.asServiceRole.entities.Delivery.filter({
-      delivery_date: { $gte: startDateStr, $lte: endDateStr },
-    }, '-updated_date', 5000).catch(() => []);
+    const deliveriesResult = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: startDateStr, $lte: endDateStr } }, '-updated_date', 5000).catch(() => []);
     safeDeliveries = (Array.isArray(deliveriesResult) ? deliveriesResult : []).map(unwrapEntityRecord).filter(Boolean);
   }
 
@@ -1076,19 +998,11 @@ async function handleGetCodData(base44, payload = {}) {
 
 async function handleRecordPayment(base44, payload) {
   const { deliveryId, paymentMethod, driverId, patientId, storeId } = payload || {};
-  if (!deliveryId || !paymentMethod) {
-    throw new HttpError(400, 'Missing required fields: deliveryId, paymentMethod');
-  }
+  if (!deliveryId || !paymentMethod) throw new HttpError(400, 'Missing required fields: deliveryId, paymentMethod');
 
   const user = await requireUser(base44);
-  const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({
-    delivery_id: deliveryId,
-    status: 'pending',
-  });
-
-  if (transactions.length === 0) {
-    throw new HttpError(404, 'No pending Square transaction found for this delivery');
-  }
+  const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' });
+  if (transactions.length === 0) throw new HttpError(404, 'No pending Square transaction found for this delivery');
 
   const transaction = transactions[0];
   await base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
@@ -1104,13 +1018,7 @@ async function handleRecordPayment(base44, payload) {
     },
   });
 
-  return {
-    success: true,
-    transactionId: transaction.id,
-    itemName: transaction.item_name,
-    amount: transaction.amount,
-    paymentMethod,
-  };
+  return { success: true, transactionId: transaction.id, itemName: transaction.item_name, amount: transaction.amount, paymentMethod };
 }
 
 async function handleSyncCatalogItems(base44) {
@@ -1123,22 +1031,15 @@ async function handleSyncCatalogItems(base44) {
   ]);
 
   const activeConfigById = new Map(
-    (squareConfigs || [])
-      .filter((config) => config?.status === 'active' && config?.square_location_id)
-      .map((config) => [config.id, config])
+    (squareConfigs || []).filter((config) => config?.status === 'active' && config?.square_location_id).map((config) => [config.id, config])
   );
   const storeById = new Map((stores || []).map((store) => [store.id, store]));
   const deliveryById = new Map((deliveries || []).map((delivery) => [delivery.id, delivery]));
   const allSquareLocationIds = Array.from(new Set(
-    (stores || [])
-      .map((store) => activeConfigById.get(store?.square_location_config_id)?.square_location_id)
-      .filter(Boolean)
+    (stores || []).map((store) => activeConfigById.get(store?.square_location_config_id)?.square_location_id).filter(Boolean)
   ));
   const transactionRetentionStartMs = getTransactionRetentionStartMs();
-  const recentCodDeliveries = (deliveries || []).filter((delivery) => {
-    return isRecentDelivery(delivery?.delivery_date)
-      && Number(delivery?.cod_total_amount_required || 0) > 0;
-  });
+  const recentCodDeliveries = (deliveries || []).filter((delivery) => isRecentDelivery(delivery?.delivery_date) && Number(delivery?.cod_total_amount_required || 0) > 0);
 
   const { patientById, patientByPid } = await buildPatientMaps(base44, recentCodDeliveries);
   const lookbackStartAt = getLookbackStartAt();
@@ -1165,12 +1066,6 @@ async function handleSyncCatalogItems(base44) {
     return getCatalogItemLocationIds(item).includes(locationId);
   };
 
-  const toIsoDate = (value) => {
-    const parsed = parseDateValue(value);
-    if (!parsed || Number.isNaN(parsed.getTime())) return null;
-    return parsed.toISOString().slice(0, 10);
-  };
-
   const catalogBySignature = new Map();
   const catalogByDateLocationAmount = new Map();
   for (const item of recentCatalogItems) {
@@ -1180,9 +1075,7 @@ async function handleSyncCatalogItems(base44) {
     catalogBySignature.set(buildItemSignature(itemName, amountCents), item);
     for (const locationId of getCatalogItemLocationIds(item)) {
       const signature = buildLocationDateAmountSignature(locationId, itemName, amountCents);
-      if (!catalogByDateLocationAmount.has(signature)) {
-        catalogByDateLocationAmount.set(signature, item);
-      }
+      if (!catalogByDateLocationAmount.has(signature)) catalogByDateLocationAmount.set(signature, item);
     }
   }
 
@@ -1194,9 +1087,7 @@ async function handleSyncCatalogItems(base44) {
     const signature = buildLocationDateAmountSignature(item.location_id, item.item_name, item.amount_cents);
     paidOrderItemSignatures.add(buildItemSignature(item.item_name, item.amount_cents));
     paidOrderComparableSignatures.add(buildComparableLocationSignature(item.item_name, item.amount_cents, item.location_id));
-    if (!paidOrderItemsByDateLocationAmountSignature.has(signature)) {
-      paidOrderItemsByDateLocationAmountSignature.set(signature, []);
-    }
+    if (!paidOrderItemsByDateLocationAmountSignature.has(signature)) paidOrderItemsByDateLocationAmountSignature.set(signature, []);
     paidOrderItemsByDateLocationAmountSignature.get(signature).push(item);
   }
 
@@ -1213,9 +1104,7 @@ async function handleSyncCatalogItems(base44) {
     }
 
     if (transaction?.status && transaction.status !== 'pending') {
-      if (transaction?.square_catalog_object_id) {
-        settledTransactionCatalogObjectIds.add(transaction.square_catalog_object_id);
-      }
+      if (transaction?.square_catalog_object_id) settledTransactionCatalogObjectIds.add(transaction.square_catalog_object_id);
       settledTransactionItemSignatures.add(buildItemSignature(transaction?.item_name, amountCents));
       settledTransactionComparableSignatures.add(buildComparableLocationSignature(transaction?.item_name, amountCents, transaction?.location_id));
       for (const signature of buildLocationDateAmountSignatureCandidates(transaction?.location_id, transaction?.item_name, amountCents)) {
@@ -1289,33 +1178,26 @@ async function handleSyncCatalogItems(base44) {
         const placeholderName = normalizeText(placeholderItem?.item_data?.name);
         if (!placeholderNames.has(placeholderName)) continue;
         if (getCatalogItemAmountCents(placeholderItem) !== amountCents) continue;
-        if (isCatalogItemAtLocation(placeholderItem, activeConfig.square_location_id)) {
-          itemsToDelete.push(placeholderItem.id);
-        }
+        if (isCatalogItemAtLocation(placeholderItem, activeConfig.square_location_id)) itemsToDelete.push(placeholderItem.id);
       }
     }
 
     const existingPending = existingTransactions.find((transaction) => transaction.status === 'pending');
     if (existingPending?.square_catalog_object_id && (existingPending.item_name !== itemName || toAmountCents(existingPending.amount_cents) !== amountCents)) {
       itemsToDelete.push(existingPending.square_catalog_object_id);
-      if (catalogItem?.id === existingPending.square_catalog_object_id) {
-        catalogItem = null;
-      }
+      if (catalogItem?.id === existingPending.square_catalog_object_id) catalogItem = null;
     }
 
     const hasCollectedCard = hasCollectedCardPayment(delivery);
     const hasCollectedOffline = hasCollectedOfflinePayment(delivery);
-    const hasAnyCollectedPayment = hasCollectedCard || hasCollectedOffline;
-    const itemComparableSignature = buildComparableLocationSignature(itemName, amountCents, activeConfig?.square_location_id);
-    const hasPaidOrderMatch = paidOrderItemSignatures.has(signature)
-      || paidOrderComparableSignatures.has(itemComparableSignature)
-      || deliveryDateSignatures.some((signatureKey) => paidOrderItemsByDateLocationAmountSignature.has(signatureKey));
-    const hasSettledTransactionMatch = settledTransactions.length > 0
+    const hasSquareConfirmedPayment = paidOrderItemSignatures.has(signature)
+      || paidOrderComparableSignatures.has(buildComparableLocationSignature(itemName, amountCents, activeConfig?.square_location_id))
+      || deliveryDateSignatures.some((signatureKey) => paidOrderItemsByDateLocationAmountSignature.has(signatureKey))
+      || settledTransactions.length > 0
       || settledTransactionItemSignatures.has(signature)
-      || settledTransactionComparableSignatures.has(itemComparableSignature)
+      || settledTransactionComparableSignatures.has(buildComparableLocationSignature(itemName, amountCents, activeConfig?.square_location_id))
       || deliveryDateSignatures.some((signatureKey) => settledTransactionDateLocationAmountSignatures.has(signatureKey));
     const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || ['pending', 'failed', 'cancelled'].includes(delivery?.status);
-    const hasSquareConfirmedPayment = hasPaidOrderMatch || hasSettledTransactionMatch;
     const shouldDeleteCatalogItem = shouldDeleteForInvalidState || hasSquareConfirmedPayment;
 
     if (catalogItem && !isCatalogItemAtLocation(catalogItem, activeConfig?.square_location_id)) {
@@ -1324,18 +1206,11 @@ async function handleSyncCatalogItems(base44) {
     }
 
     if (shouldDeleteCatalogItem) {
-      if (catalogItem?.id) {
-        itemsToDelete.push(catalogItem.id);
-      }
-
+      if (catalogItem?.id) itemsToDelete.push(catalogItem.id);
       for (const transaction of existingTransactions) {
         if (transaction.status !== 'pending') continue;
-
-        if (shouldDeleteForInvalidState) {
-          transactionsToCancel.push(transaction.id);
-        } else if (hasSquareConfirmedPayment) {
-          transactionsToComplete.push(transaction.id);
-        }
+        if (shouldDeleteForInvalidState) transactionsToCancel.push(transaction.id);
+        else if (hasSquareConfirmedPayment) transactionsToComplete.push(transaction.id);
       }
       continue;
     }
@@ -1352,9 +1227,7 @@ async function handleSyncCatalogItems(base44) {
   }
 
   const uniqueItemIdsToDelete = Array.from(new Set(itemsToDelete.filter(Boolean)));
-  const deleteResult = uniqueItemIdsToDelete.length
-    ? await deleteCatalogObjects(uniqueItemIdsToDelete, accessToken)
-    : { deleted: [], failed: [] };
+  const deleteResult = uniqueItemIdsToDelete.length ? await deleteCatalogObjects(uniqueItemIdsToDelete, accessToken) : { deleted: [], failed: [] };
 
   for (const transactionId of Array.from(new Set(transactionsToCancel.filter(Boolean)))) {
     await base44.asServiceRole.entities.SquareTransaction.update(transactionId, { status: 'cancelled' });
@@ -1372,17 +1245,8 @@ async function handleSyncCatalogItems(base44) {
     let catalogItem = existingCatalogItem || catalogBySignature.get(signature) || null;
 
     if (!catalogItem?.id) {
-      catalogItem = await createCatalogItem({
-        itemName,
-        amountCents,
-        locationId,
-        deliveryId: delivery.id,
-        patientName,
-        accessToken,
-      });
-      if (!catalogItem?.id) {
-        throw new Error(`Square did not return a catalog item for delivery ${delivery.id}`);
-      }
+      catalogItem = await createCatalogItem({ itemName, amountCents, locationId, deliveryId: delivery.id, patientName, accessToken });
+      if (!catalogItem?.id) throw new Error(`Square did not return a catalog item for delivery ${delivery.id}`);
       catalogBySignature.set(signature, catalogItem);
       catalogByDateLocationAmount.set(buildLocationDateAmountSignature(locationId, delivery.delivery_date, amountCents), catalogItem);
       createdCount += 1;
@@ -1419,9 +1283,7 @@ async function handleSyncCatalogItems(base44) {
     .filter((transaction) => transaction?.status && transaction.status !== 'pending');
   const extraCatalogIdsToDelete = Array.from(new Set(transactionsToRemoveFromCatalog.map((transaction) => transaction.square_catalog_object_id).filter(Boolean)))
     .filter((catalogId) => !deleteResult.deleted.includes(catalogId));
-  const extraDeleteResult = extraCatalogIdsToDelete.length
-    ? await deleteCatalogObjects(extraCatalogIdsToDelete, accessToken)
-    : { deleted: [], failed: [] };
+  const extraDeleteResult = extraCatalogIdsToDelete.length ? await deleteCatalogObjects(extraCatalogIdsToDelete, accessToken) : { deleted: [], failed: [] };
 
   const staleTransactions = (allTransactionsAfterSync || []).filter((transaction) => {
     const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
@@ -1481,6 +1343,34 @@ async function handleSyncCatalogItems(base44) {
   };
 }
 
+async function handleSyncOnlineSquareEntities(base44, payload) {
+  const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords : [];
+  const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords : [];
+
+  const existingCatalogRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 5000).catch(() => []);
+  const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 5000).catch(() => []);
+
+  await Promise.all([
+    ...existingCatalogRecords.map((record) => base44.asServiceRole.entities.SquareCatalogItems.delete(record.id).catch(() => null)),
+    ...existingTransactions.map((record) => base44.asServiceRole.entities.SquareTransaction.delete(record.id).catch(() => null)),
+  ]);
+
+  if (catalogRecords.length > 0) {
+    await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(catalogRecords);
+  }
+
+  if (transactionRecords.length > 0) {
+    await base44.asServiceRole.entities.SquareTransaction.bulkCreate(transactionRecords);
+  }
+
+  return {
+    success: true,
+    processed: catalogRecords.length + transactionRecords.length,
+    catalogCount: catalogRecords.length,
+    transactionCount: transactionRecords.length,
+  };
+}
+
 async function handleSyncSquareCods(base44, payload) {
   const event = payload?.event;
   if (event?.entity_name === 'Delivery') {
@@ -1508,40 +1398,12 @@ async function handleSyncSquareCods(base44, payload) {
     }
   }
 
-  if (payload?.replaceFromSnapshot || payload?.action === 'syncOnlineSquareEntities') {
-    const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords : [];
-    const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords : [];
-
-    const existingCatalogRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 5000).catch(() => []);
-    const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 5000).catch(() => []);
-
-    await Promise.all([
-      ...existingCatalogRecords.map((record) => base44.asServiceRole.entities.SquareCatalogItems.delete(record.id).catch(() => null)),
-      ...existingTransactions.map((record) => base44.asServiceRole.entities.SquareTransaction.delete(record.id).catch(() => null)),
-    ]);
-
-    if (catalogRecords.length > 0) {
-      await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(catalogRecords);
-    }
-
-    if (transactionRecords.length > 0) {
-      await base44.asServiceRole.entities.SquareTransaction.bulkCreate(transactionRecords);
-    }
-
-    return {
-      success: true,
-      processed: catalogRecords.length + transactionRecords.length,
-      catalogCount: catalogRecords.length,
-      transactionCount: transactionRecords.length,
-    };
-  }
-
   const items = Array.isArray(payload?.items) ? payload.items : [];
   const deletions = Array.isArray(payload?.deletions) ? payload.deletions : [];
   const purgeCatalogFirst = payload?.purgeCatalogFirst === true;
 
   if (!items.length && !deletions.length && !purgeCatalogFirst) {
-    return handleSyncCatalogItems(base44);
+    return await handleSyncCatalogItems(base44);
   }
 
   const results = [];
@@ -1637,7 +1499,7 @@ Deno.serve(async (req) => {
     }
     if (action === 'syncOnlineSquareEntities') {
       await requireAdminIfAuthenticated(base44);
-      return Response.json(await handleSyncSquareCods(base44, payload));
+      return Response.json(await handleSyncOnlineSquareEntities(base44, payload));
     }
     if (action === 'syncSquareCods') {
       await requireUser(base44);
