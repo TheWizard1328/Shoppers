@@ -62,17 +62,24 @@ export default function SquareSyncAudit() {
       const locationConfigs = (locationConfigsResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
       const stores = (storesResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
       const patients = (patientsResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
+      const activeLocationConfigIds = new Set(
+        locationConfigs
+          .filter((config) => config?.id && config?.square_location_id)
+          .map((config) => config.id)
+      );
+
+      const eligibleStoreIds = new Set(
+        stores
+          .filter((store) => store?.id && activeLocationConfigIds.has(store?.square_location_config_id))
+          .map((store) => store.id)
+      );
+
       const deliveries = (deliveriesResponse || [])
         .map((record) => ({ id: record?.id, ...(record?.data || {}) }))
-        .filter((delivery) => {
-          const store = stores.find((item) => item?.id === delivery?.store_id);
-          const config = locationConfigs.find((item) => item?.id === store?.square_location_config_id);
-          return (
-            Number(delivery?.cod_total_amount_required || 0) > 0 &&
-            Boolean(delivery?.store_id) &&
-            Boolean(config?.square_location_id)
-          );
-        });
+        .filter((delivery) => (
+          Number(delivery?.cod_total_amount_required || 0) > 0 &&
+          eligibleStoreIds.has(delivery?.store_id)
+        ));
       const squareTransactions = (squareTransactionsResponse || []).filter((transaction) => {
         const parsed = parseSquareItemName(transaction?.item_name);
         const transactionDate = normalizeDate(
