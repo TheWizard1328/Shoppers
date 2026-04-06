@@ -1054,6 +1054,7 @@ export default function SquareManagement() {
           locationId: transaction.location_id || '—',
           catalogId: transaction.square_catalog_object_id || '—',
           deliveryDate: transactionDeliveryDate || transaction.created_date,
+          collectionDate,
           subtext: collectedByName ? `Collected by ${collectedByName}` : (transaction.payment_method || transaction.status || null),
           notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
           actions: (

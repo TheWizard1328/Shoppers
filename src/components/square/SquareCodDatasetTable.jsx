@@ -51,7 +51,7 @@ export default function SquareCodDatasetTable({
                     <th className="p-3">Store</th>
                     {showLocationColumn && <th className="p-3">Square Location ID</th>}
                     <th className="p-3">Catalog ID</th>
-                    <th className="p-3">Delivery Date</th>
+                    <th className="p-3">Collection Date</th>
                     <th className="p-3">Actions</th>
                   </tr>
                 </thead>
@@ -75,7 +75,7 @@ export default function SquareCodDatasetTable({
                       <td className="p-3">
                         <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">{row.catalogId || '—'}</div>
                       </td>
-                      <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.deliveryDate)}</td>
+                      <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</td>
                       <td className="p-3">
                         <div className="space-y-1">
                           <div>{row.actions || <span className="text-slate-400">—</span>}</div>
@@ -110,7 +110,7 @@ export default function SquareCodDatasetTable({
 
                   <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400">
                     <div className="truncate"><span className="font-semibold text-slate-900 dark:text-slate-50">Store:</span> {row.storeName || 'Unknown'}</div>
-                    <div className="truncate text-right"><span className="font-semibold text-slate-900 dark:text-slate-50">Date:</span> {formatDate(row.deliveryDate)}</div>
+                    <div className="truncate text-right"><span className="font-semibold text-slate-900 dark:text-slate-50">Collection Date:</span> {formatDate(row.collectionDate || row.deliveryDate)}</div>
                     {showLocationColumn && <div className="truncate col-span-2"><span className="font-semibold text-slate-900 dark:text-slate-50">Square Location ID:</span> {row.locationId || '—'}</div>}
                     <div className="truncate col-span-2"><span className="font-semibold text-slate-900 dark:text-slate-50">Catalog ID:</span> {row.catalogId || '—'}</div>
                   </div>
