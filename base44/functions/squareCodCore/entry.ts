@@ -966,8 +966,8 @@ async function handleGetCodData(base44, payload = {}) {
   const [locationConfigs, stores, catalogRecords, transactionRecords] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
-    base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 500).catch(() => []),
-    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 500).catch(() => []),
+    base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []),
+    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []),
   ]);
 
   const safeTransactionRecords = (Array.isArray(transactionRecords) ? transactionRecords : []).map(unwrapEntityRecord).filter(Boolean);
