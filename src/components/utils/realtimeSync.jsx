@@ -93,12 +93,12 @@ async function flushBuffered(entityName) {
   if (typeof window !== 'undefined' && entityName === 'Delivery' && Array.isArray(fullReplacementData)) {
     const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
     const selectedDriverId = (typeof window !== 'undefined' ? window.__appSelectedDriverId : null) || localStorage.getItem('global_selected_driver') || localStorage.getItem('app_selectedDriver');
-    const hasCreateOrDelete = items.some((item) => item.eventType === 'create' || item.eventType === 'delete');
     const relevantItems = items.filter((item) => item?.data && isDeliveryRelevantToCurrentSelection(item.data));
     const deletedItems = items.filter((item) => item.eventType === 'delete');
-    const scopedDriverId = selectedDriverId && selectedDriverId !== 'all'
-      ? selectedDriverId
-      : (relevantItems[0]?.data?.driver_id || deletedItems[0]?.data?.driver_id || null);
+    const candidateDriverIds = Array.from(new Set([
+      ...(relevantItems.map((item) => item?.data?.driver_id).filter(Boolean)),
+      ...(deletedItems.map((item) => item?.data?.driver_id).filter(Boolean))
+    ]));
 
     relevantItems.forEach((item) => {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -140,14 +140,26 @@ async function flushBuffered(entityName) {
       }
     });
 
-    if (hasCreateOrDelete && (relevantItems.length > 0 || deletedItems.length > 0 || scopedDriverId)) {
-      const scopedDeliveries = fullReplacementData.filter((delivery) => {
-        if (!delivery) return false;
-        if (selectedDate && delivery.delivery_date !== selectedDate) return false;
-        if (scopedDriverId && delivery.driver_id !== scopedDriverId) return false;
-        return true;
-      });
+    const buildScopedDeliveries = (driverId = null) => fullReplacementData.filter((delivery) => {
+      if (!delivery) return false;
+      if (selectedDate && delivery.delivery_date !== selectedDate) return false;
+      if (selectedDriverId && selectedDriverId !== 'all') {
+        return delivery.driver_id === selectedDriverId;
+      }
+      if (driverId) {
+        return delivery.driver_id === driverId;
+      }
+      return true;
+    });
 
+    const driverIdsToRefresh = selectedDriverId && selectedDriverId !== 'all'
+      ? [selectedDriverId]
+      : candidateDriverIds.length > 0
+        ? candidateDriverIds
+        : [null];
+
+    driverIdsToRefresh.forEach((driverId) => {
+      const scopedDeliveries = buildScopedDeliveries(driverId);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveries: scopedDeliveries,
@@ -155,7 +167,7 @@ async function flushBuffered(entityName) {
           deletedIds: deletedItems.map((item) => item.id).filter(Boolean),
           immediate: true,
           deliveryDate: selectedDate,
-          driverId: scopedDriverId,
+          driverId,
           triggeredBy: 'realtimeBufferedFullRefresh',
           source: 'realtime_sync',
           fromRealtime: true,
@@ -164,7 +176,7 @@ async function flushBuffered(entityName) {
           preserveLocalState: true
         }
       }));
-    }
+    });
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {
