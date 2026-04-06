@@ -515,7 +515,10 @@ export default function DeliveryMap({
 
     const visibilityMap = new Map();
     byDriver.forEach((state, driverId) => {
-      visibilityMap.set(driverId, { ...state, shouldShowHomeMarker: state.completed === 0 || state.remainingPickups === 0 });
+      visibilityMap.set(driverId, {
+        ...state,
+        shouldShowHomeMarker: state.completed === 0 || (state.remainingPickups === 0 && state.remainingDeliveries === 0)
+      });
     });
     return visibilityMap;
   }, [deliveryMarkers, pickupMarkers]);

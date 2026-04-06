@@ -45,7 +45,7 @@ export default function HomeMarkers({ driverHomeMarkers, map, isMobile, onMarker
               <Home className="w-3.5 h-3.5 text-emerald-600" />
               <h3 className="font-semibold text-xs">{home.driverName}</h3>
             </div>
-            <p className="text-[11px] text-gray-600 mt-1">Final Destination (Home)</p>
+            <p className="text-[11px] text-gray-600 mt-1">Driver Home</p>
             {home.isRouteComplete && (
               <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${home.latitude},${home.longitude}`, '_blank')}
                 className="w-full mt-3 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded flex items-center justify-center gap-2 transition-colors">
