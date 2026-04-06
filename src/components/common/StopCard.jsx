@@ -249,6 +249,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const handleSaveCODPayments = async () => {if (onCODUpdate) {try {await onCODUpdate(delivery.id, codPayments, true);setShowCODCollection(false);} catch (error) {console.error('❌ [COD Save] Failed:', error);alert(`Failed to save COD: ${error.message}`);}}};
   const collapseAndCenterNextDelivery = async (args) => await setAndCenterNextDelivery(args);
   const collapseDriverStopCards = async () => {
+    if (!isExpanded) return;
     await collapseExpandedStopCardsForDriver(delivery?.driver_id);
   };
   const handleStartAction = async (e) => {
