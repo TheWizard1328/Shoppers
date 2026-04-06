@@ -93,7 +93,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     } catch (error) {console.error('Failed to auto-toggle driver online:', error);}
   };
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);const isExpanded = isStrippedForDispatcher ? false : compact ? false : isSelected;
-  const shouldCollapseBeforeAction = isExpanded;
+  const shouldCollapseBeforeAction = isExpanded; // only selected cards are eligible; height check happens at action time
   useEffect(() => {setNotesInput(delivery?.delivery_notes || "No driver notes");}, [delivery?.delivery_notes]);
   useEffect(() => {if (!showCODCollection) setCodPayments(delivery?.cod_payments || []);}, [delivery?.cod_payments, showCODCollection]);
   useEffect(() => {
@@ -227,6 +227,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     setIsEntityUpdating(false);
     fabControlEvents.reactivateFAB(skipCardScroll);
   }, [setIsEntityUpdating]);
+  const shouldCondenseCardOnAction = useCallback(() => {
+    if (!shouldCollapseBeforeAction) return false;
+    const cardElement = document.getElementById(`stop-card-${delivery?.id}`);
+    const cardSurface = cardElement?.querySelector('.rounded-xl');
+    if (!cardSurface) return false;
+    return cardSurface.offsetHeight > 72;
+  }, [delivery?.id, shouldCollapseBeforeAction]);
   if (!delivery) return null;
   const handleNotesBlur = () => {if (!notesInput.trim() || notesInput.trim() === 'No driver notes') {setNotesInput('No driver notes');if (delivery?.delivery_notes && delivery.delivery_notes.trim() && onNotesUpdate) onNotesUpdate(delivery.id, '');return;}if (notesInput !== delivery.delivery_notes && onNotesUpdate) onNotesUpdate(delivery.id, notesInput);};
   const handleNotesKeyDown = (e) => {if (e.key === 'Enter' && !e.shiftKey) {e.preventDefault();if (notesInput !== delivery.delivery_notes && onNotesUpdate) onNotesUpdate(delivery.id, notesInput);e.target.blur();}};
@@ -250,7 +257,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const handleSaveCODPayments = async () => {if (onCODUpdate) {try {await onCODUpdate(delivery.id, codPayments, true);setShowCODCollection(false);} catch (error) {console.error('❌ [COD Save] Failed:', error);alert(`Failed to save COD: ${error.message}`);}}};
   const collapseAndCenterNextDelivery = async (args) => await setAndCenterNextDelivery(args);
   const collapseDriverStopCards = async () => {
-    if (!shouldCollapseBeforeAction) return;
+    if (!shouldCondenseCardOnAction()) return;
     await collapseExpandedStopCardsForDriver(delivery?.driver_id);
   };
   const handleStartAction = async (e) => {
