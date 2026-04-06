@@ -1,6 +1,6 @@
 export function buildReturnDeliveryData({ originalDelivery, returnPatient, store, routeDate, routeDateDeliveries, finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber }) {
   const puid = originalDelivery?.puid || originalDelivery?.stop_id || null;
-  const failedPatientName = originalDelivery?.delivery_notes?.match(/For:\s*(.+?)(?:\n|$)/)?.[1]?.trim() || originalDelivery?.patient_name || originalDelivery?.full_name || 'Unknown';
+  const failedPatientName = originalDelivery?.patient_name || originalDelivery?.delivery_notes?.match(/For:\s*(.+?)(?:\n|$)/)?.[1]?.trim() || originalDelivery?.full_name || 'Unknown';
   const driverNotes = `From: ${originalDelivery?.delivery_date}\nFor: ${failedPatientName}\n(RTN)`;
 
   return {
