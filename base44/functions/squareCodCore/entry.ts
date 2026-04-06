@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
-const CATALOG_LOOKBACK_DAYS = 30;
+const CATALOG_LOOKBACK_DAYS = 60;
 const TRANSACTION_RETENTION_DAYS = 60;
 const MATCH_DATE_OFFSET_DAYS = 2;
 const SQUARE_API_MAX_RETRIES = 3;
@@ -66,30 +66,30 @@ function parseDateValue(value, referenceDate = new Date()) {
   const normalized = normalizeText(value);
   const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoMatch) {
-    return new Date(Date.UTC(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3])));
+    return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
   }
 
   const monthDayKey = extractCatalogMonthDay(normalized);
   if (!monthDayKey) return null;
 
   const [month, day] = monthDayKey.split('-').map(Number);
-  const referenceUtc = new Date(Date.UTC(
-    referenceDate.getUTCFullYear(),
-    referenceDate.getUTCMonth(),
-    referenceDate.getUTCDate(),
-  ));
+  const referenceLocal = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate(),
+  );
 
-  const candidates = [referenceUtc.getUTCFullYear() - 1, referenceUtc.getUTCFullYear(), referenceUtc.getUTCFullYear() + 1]
-    .map((year) => new Date(Date.UTC(year, month - 1, day)));
+  const candidates = [referenceLocal.getFullYear() - 1, referenceLocal.getFullYear(), referenceLocal.getFullYear() + 1]
+    .map((year) => new Date(year, month - 1, day));
 
-  return candidates.sort((a, b) => Math.abs(a.getTime() - referenceUtc.getTime()) - Math.abs(b.getTime() - referenceUtc.getTime()))[0] || null;
+  return candidates.sort((a, b) => Math.abs(a.getTime() - referenceLocal.getTime()) - Math.abs(b.getTime() - referenceLocal.getTime()))[0] || null;
 }
 
 function getMonthDayKey(value, referenceDate = new Date()) {
   const parsed = parseDateValue(value, referenceDate);
   if (!parsed || Number.isNaN(parsed.getTime())) return '';
-  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(parsed.getUTCDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
   return `${month}-${day}`;
 }
 
@@ -106,8 +106,8 @@ function buildLocationDateAmountSignatureCandidates(locationId, dateValue, amoun
   const signatures = [];
   for (let offset = -offsetDays; offset <= offsetDays; offset += 1) {
     const candidate = new Date(parsed.getTime() + offset * 24 * 60 * 60 * 1000);
-    const month = String(candidate.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(candidate.getUTCDate()).padStart(2, '0');
+    const month = String(candidate.getMonth() + 1).padStart(2, '0');
+    const day = String(candidate.getDate()).padStart(2, '0');
     signatures.push(`${normalizeText(locationId)}::${month}-${day}::${toAmountCents(amountCents)}`);
   }
 
@@ -131,7 +131,18 @@ function getLookbackStartAt() {
 }
 
 function getTransactionRetentionStartMs() {
-  return Date.now() - TRANSACTION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() - TRANSACTION_RETENTION_DAYS);
+  return cutoff.getTime();
+}
+
+function formatLocalDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function hasCollectedCardPayment(delivery) {
@@ -993,17 +1004,17 @@ async function handleGetCodData(base44, payload = {}) {
       .filter(Boolean)
   ));
 
-  const deliveryIds = Array.from(new Set(
-    recentTransactionRecords
-      .map((transaction) => transaction?.delivery_id)
-      .filter(Boolean)
-  ));
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - TRANSACTION_RETENTION_DAYS);
+  const startDateStr = formatLocalDate(startDate);
+  const endDateStr = formatLocalDate(endDate);
 
-  const deliveriesResult = deliveryIds.length
-    ? await base44.asServiceRole.entities.Delivery.list('-updated_date', 2000).catch(() => [])
-    : [];
+  const deliveriesResult = await base44.asServiceRole.entities.Delivery.filter({
+    delivery_date: { $gte: startDateStr, $lte: endDateStr },
+  }, '-updated_date', 5000).catch(() => []);
   const safeDeliveries = (Array.isArray(deliveriesResult) ? deliveriesResult : []).map(unwrapEntityRecord).filter(Boolean);
-  const codDeliveries = safeDeliveries.filter((delivery) => deliveryIds.includes(delivery?.id) && Number(delivery?.cod_total_amount_required || 0) > 0);
+  const codDeliveries = safeDeliveries.filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0);
 
   const liveCatalogItems = await listActiveCatalogItems(accessToken).catch(() => []);
   const catalogRecords = (liveCatalogItems || []).flatMap((item) => {
@@ -1480,7 +1491,7 @@ async function handleSyncSquareCods(base44, payload) {
     }
   }
 
-  if (payload?.replaceFromSnapshot) {
+  if (payload?.replaceFromSnapshot || payload?.action === 'syncOnlineSquareEntities') {
     const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords : [];
     const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords : [];
 
@@ -1606,6 +1617,10 @@ Deno.serve(async (req) => {
     if (action === 'syncCatalogItems') {
       await requireAdminIfAuthenticated(base44);
       return Response.json(await handleSyncCatalogItems(base44));
+    }
+    if (action === 'syncOnlineSquareEntities') {
+      await requireAdminIfAuthenticated(base44);
+      return Response.json(await handleSyncSquareCods(base44, payload));
     }
     if (action === 'syncSquareCods') {
       await requireUser(base44);

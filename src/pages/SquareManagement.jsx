@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -110,15 +110,23 @@ export default function SquareManagement() {
     ));
   }, []);
 
+  const getLocalDateString = React.useCallback((date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
   const getSourceWindow = React.useCallback(() => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const startDate = new Date(today);
     startDate.setDate(today.getDate() - 60);
     return {
-      startDateStr: format(startDate, 'yyyy-MM-dd'),
-      endDateStr: format(today, 'yyyy-MM-dd')
+      startDateStr: getLocalDateString(startDate),
+      endDateStr: getLocalDateString(today)
     };
-  }, []);
+  }, [getLocalDateString]);
 
   const loadSyncStatus = React.useCallback(async () => {
     try {
@@ -280,14 +288,13 @@ export default function SquareManagement() {
     locationConfigsRef.current = locationConfigs || [];
   }, [locationConfigs]);
 
-  const runFullOfflineSnapshotSync = React.useCallback(async ({ onStageChange, daysBack, refreshLocations = false } = {}) => {
-    const rangeDays = Number(daysBack || 60);
-    const comparisonDaysBack = rangeDays + 5;
+  const runFullOfflineSnapshotSync = React.useCallback(async ({ onStageChange, refreshLocations = false } = {}) => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const startDate = new Date(today);
-    startDate.setDate(today.getDate() - rangeDays);
-    const startDateStr = format(startDate, 'yyyy-MM-dd');
-    const endDateStr = format(today, 'yyyy-MM-dd');
+    startDate.setDate(today.getDate() - 60);
+    const startDateStr = getLocalDateString(startDate);
+    const endDateStr = getLocalDateString(today);
     const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
     onStageChange?.({ stage: 'deliveries_sync', detail: 'Loading local deliveries…' });
@@ -307,7 +314,7 @@ export default function SquareManagement() {
     await offlineDB.clearStore(offlineDB.STORES.SQUARE_TRANSACTIONS);
     await offlineDB.clearStore(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
 
-    const snapshotResponse = await base44.functions.invoke('squareCodCore', { action: 'getCodData', daysBack: comparisonDaysBack });
+    const snapshotResponse = await base44.functions.invoke('squareCodCore', { action: 'getCodData', daysBack: 60 });
     const snapshotData = snapshotResponse?.data || snapshotResponse || {};
     const catalogRecords = snapshotData.catalogRecords || [];
     const transactions = snapshotData.transactionRecords || [];
@@ -328,16 +335,19 @@ export default function SquareManagement() {
       setLocationIds((snapshotData.locationIds || []).filter(Boolean));
     }
 
+    await syncDeliveriesWindowOffline(offlineDB, startDateStr, endDateStr, deliveryRecords || []);
+
     onStageChange?.({ stage: 'saving_offline', detail: 'Syncing online Square entities…' });
-    await base44.functions.invoke('syncSquareCods', {
-      replaceFromSnapshot: true,
+    await base44.functions.invoke('squareCodCore', {
+      action: 'syncOnlineSquareEntities',
       catalogRecords,
       transactionRecords: transactions,
     });
 
     const refreshedCatalog = await getCatalogItemsOffline();
     const refreshedTransactions = await getPaymentTransactionsOffline();
-    setDeliveries(deliveryRecords || []);
+    const refreshedOfflineDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+    setDeliveries(refreshedOfflineDeliveries || []);
     setCatalogItems(refreshedCatalog || []);
     setAllTransactions(refreshedTransactions || []);
     setSoldCatalogItems((refreshedTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status)));
@@ -345,10 +355,10 @@ export default function SquareManagement() {
     await loadSyncStatus();
 
     return {
-      deliveryCount: (deliveryRecords || []).length,
+      deliveryCount: (refreshedOfflineDeliveries || []).length,
       transactionCount: (refreshedTransactions || []).length,
     };
-  }, [loadDeliveriesFromOffline, loadSyncStatus, getCatalogItemsOffline, getPaymentTransactionsOffline, syncSquareCODSnapshotOffline]);
+  }, [getLocalDateString, loadDeliveriesFromOffline, loadSyncStatus, getCatalogItemsOffline, getPaymentTransactionsOffline, syncDeliveriesWindowOffline, syncSquareCODSnapshotOffline]);
 
   const syncReconciliationToCatalog = async () => {
     setIsUpdatingReconciliationCatalog(true);
@@ -400,7 +410,6 @@ export default function SquareManagement() {
     try {
       const syncResult = await runFullOfflineSnapshotSync({
         onStageChange: setBgSyncProgress,
-        daysBack: Number(selectedDaysRange || 60),
         refreshLocations: true,
       });
 
@@ -442,7 +451,6 @@ export default function SquareManagement() {
     const loadData = async () => {
       try {
         const authUser = await base44.auth.me();
-        const daysBack = Number(selectedDaysRange || 60);
         const { startDateStr, endDateStr } = getSourceWindow();
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
@@ -487,7 +495,6 @@ export default function SquareManagement() {
         try {
           const { transactionCount } = await runFullOfflineSnapshotSync({
             onStageChange: setBgSyncProgress,
-            daysBack,
             refreshLocations: true,
           });
           setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
@@ -528,7 +535,6 @@ export default function SquareManagement() {
           setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
           const { transactionCount } = await runFullOfflineSnapshotSync({
             onStageChange: setBgSyncProgress,
-            daysBack: Number(selectedDaysRange || 60),
             refreshLocations: false,
           });
           setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
@@ -862,8 +868,8 @@ export default function SquareManagement() {
 
   const lookbackStart = React.useMemo(() => {
     const date = new Date();
-    date.setDate(date.getDate() - Number(selectedDaysRange || 60));
     date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - Number(selectedDaysRange || 60));
     return date;
   }, [selectedDaysRange]);
 
