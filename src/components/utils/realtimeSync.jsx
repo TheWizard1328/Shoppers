@@ -567,7 +567,12 @@ export const subscribeToRealtime = (callback) => {
  * Broadcast a local mutation
  */
 export const broadcastMutation = async (entity, action, id, data, ids = null) => {
-  const displayId = entity === 'Patient' ? (data?.full_name || id || (ids ? ids.length + ' ids' : '')) : (id || (ids ? ids.length + ' ids' : ''));
+  const deliveryLabel = data?.patient_name || data?.full_name || data?.patient_id || data?.delivery_id || data?.tracking_number;
+  const displayId = entity === 'Patient'
+    ? (data?.full_name || id || (ids ? ids.length + ' ids' : ''))
+    : entity === 'Delivery'
+      ? (deliveryLabel || id || (ids ? ids.length + ' ids' : ''))
+      : (id || (ids ? ids.length + ' ids' : ''));
   console.log(`📡 [RealtimeSync] Broadcasting ${entity} ${action}: ${displayId}`);
 
   try {
@@ -622,7 +627,8 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           deletedIds: action === 'batch_delete' ? ids : action === 'delete' ? [id] : undefined,
           deliveryDate: data?.delivery_date,
           driverId: data?.driver_id,
-          freshDeliveries: data ? [data] : undefined,
+          deletedDelivery: action === 'delete' ? data : undefined,
+          freshDeliveries: action === 'delete' ? undefined : data ? [data] : undefined,
           triggeredBy: 'realtimeBroadcast',
           source: 'realtime_sync',
           fromRealtime: true,

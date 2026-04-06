@@ -601,11 +601,13 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
   try {
     // STEP 1: Check if exists in IndexedDB and delete
     let existedOffline = false;
+    let deletedDeliverySnapshot = null;
     try {
       const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
       const exists = deliveries.find(d => d.id === deliveryId);
       
       if (exists) {
+        deletedDeliverySnapshot = exists;
         const db = await offlineDB.openDatabase();
         const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
         await new Promise((resolve, reject) => {
@@ -657,7 +659,7 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
     notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
 
     // STEP 6: Broadcast immediate delete so other devices update UI right away too
-    await broadcastMutation('Delivery', 'delete', deliveryId, null);
+    await broadcastMutation('Delivery', 'delete', deliveryId, deletedDeliverySnapshot);
 
     await restartSmartRefresh();
     return true;
