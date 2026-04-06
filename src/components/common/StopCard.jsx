@@ -50,6 +50,30 @@ import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffec
 import { getActiveDeliveryAction, runWithDeliveryActionLock, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 const statusConfig = { 'pending': { label: 'Pending', color: 'bg-slate-100 text-slate-800' }, 'in_transit': { label: 'In Transit', color: 'bg-blue-100 text-blue-800' }, 'en_route': { label: 'En Route', color: 'bg-cyan-100 text-cyan-800' }, 'next': { label: 'Next', color: 'bg-lime-100 text-lime-800' }, 'completed': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' }, 'delivered': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' }, 'failed': { label: 'Failed', color: 'bg-red-100 text-red-800' }, 'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' }, 'returned': { label: 'Return', color: 'bg-orange-100 text-orange-800' } };
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+const ETA_REFRESH_THRESHOLD_MINUTES = 5;
+
+const parseTimeToMinutes = (timeString) => {
+  if (!timeString || typeof timeString !== 'string') return null;
+  const [hours, minutes] = timeString.split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const shouldRefreshRemainingEtas = (etaString, actualTimestamp) => {
+  const etaMinutes = parseTimeToMinutes(etaString);
+  const actualDate = parseLocalTimestamp(actualTimestamp);
+  if (etaMinutes === null || !actualDate) return false;
+  const actualMinutes = actualDate.getHours() * 60 + actualDate.getMinutes();
+  return Math.abs(actualMinutes - etaMinutes) > ETA_REFRESH_THRESHOLD_MINUTES;
+};
+
+const hasDebitOrCreditCod = (deliveryRecord, paymentList = null) => {
+  const payments = Array.isArray(paymentList) ? paymentList : deliveryRecord?.cod_payments;
+  if (Array.isArray(payments) && payments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)) {
+    return true;
+  }
+  return ['Debit', 'Credit'].includes(deliveryRecord?.cod_payment_type);
+};
 const formatTime12Hour = (timeString) => {
   if (!timeString || timeString === '--:--' || timeString === 'null' || timeString === 'undefined' || timeString === 'NaN:NaN' || String(timeString).includes('NaN')) return '--:--';
   try {
@@ -594,6 +618,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 ...(shouldAutoSetArrivalTime ? { arrival_time: forcedFailureArrivalTimestamp } : {}),
                 ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {})
               };
+              const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
               console.warn('[Retro][failure] timing comparison', {
                 deliveryId: delivery.id,
                 useRetroactiveTiming,
@@ -602,6 +627,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 finalActual: criticalUpdate?.actual_delivery_time || null,
                 finalArrival: criticalUpdate?.arrival_time || null
               });
+              if (shouldDeleteSquareCodBeforeFailure) {
+                await deleteCODWithTimeout(delivery.id, `Deleted before marking as ${status}`);
+              }
               // CRITICAL: Also clear isNextDelivery on all other route deliveries immediately in offline DB
               const { offlineDB: _failOfflineDB } = await import('../utils/offlineDatabase');
               const failRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
@@ -624,6 +652,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               } catch (statusError) {console.error('❌ [FAILURE] Update failed:', statusError);toast.error(`Failed to update status: ${statusError.message}`);fabControlEvents.reactivateFAB(true);return;}
               const allDriverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
               const incompleteAfterThis = allDriverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending');
+              const shouldRecalculateFailureEtas = shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, criticalUpdate.actual_delivery_time);
               if (incompleteAfterThis.length === 0) {
                 fabControlEvents.notifyDoneButtonClicked();window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
                 if (currentUser?.id) {const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });if (appUsers && appUsers.length > 0) {const appUser = appUsers[0];await base44.entities.AppUser.update(appUser.id, { driver_status: 'off_duty', location_tracking_enabled: false });locationTracker.stopTracking();if (onDriverStatusChange) onDriverStatusChange('off_duty');}}
@@ -632,6 +661,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : item);
               const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
               await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
+              if (shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) {
+                Promise.resolve().then(() => base44.functions.invoke('optimizeRouteRealTime', {
+                  driverId: delivery.driver_id,
+                  deliveryDate: delivery.delivery_date,
+                  currentLocalTime: getCurrentLocalTimeString(),
+                  generatePolyline: false
+                }).catch((error) => console.warn('⚠️ [Failure] ETA refresh skipped:', error?.message || error)));
+              }
               onClick?.(null);
               fabControlEvents.notifyPhaseTwoCompleteRecenter();
               if (userHasRole(currentUser, 'driver')) await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });
@@ -663,6 +700,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
                           const fallbackSignatureUrl = patientSavedSignatureUrl || null;
                           const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp || localTimeString, ...(hasPendingPickupTransitions ? {} : { isNextDelivery: false }), finished_leg_encoded_polyline: null, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime && forcedArrivalTimestamp ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
+                          const shouldDeleteSquareCodBeforeComplete = Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
+                          const shouldRecalculateCompletionEtas = shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
                           console.warn('[StopCard][complete] timing before save', {
                             deliveryId: delivery.id,
                             existingDelivery: delivery,
@@ -680,6 +719,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                             finalActual: completionUpdate?.actual_delivery_time || null,
                             finalArrival: completionUpdate?.arrival_time || null
                           });
+                          if (shouldDeleteSquareCodBeforeComplete) {
+                            await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
+                          }
                           const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
                           const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
                           const saveResults = await Promise.all([
@@ -701,6 +743,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           fabControlEvents.notifyPhaseTwoCompleteRecenter();fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
                           const backgroundTasks = [];
                           if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
+                          if (shouldRecalculateCompletionEtas && nextStop) {
+                            backgroundTasks.push(
+                              base44.functions.invoke('optimizeRouteRealTime', {
+                                driverId: delivery.driver_id,
+                                deliveryDate: delivery.delivery_date,
+                                currentLocalTime: getCurrentLocalTimeString(),
+                                generatePolyline: false
+                              }).catch((error) => console.warn('⚠️ [Complete] ETA refresh skipped:', error?.message || error))
+                            );
+                          }
                           backgroundTasks.push(scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentUser?.appUserId || currentUser?.id }));
                           backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve());
                           await Promise.allSettled(backgroundTasks);
